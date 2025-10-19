@@ -1,0 +1,66 @@
+[package]
+name = "allsource-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["AllSource Team"]
+description = "High-performance event store core built in Rust"
+
+[lib]
+name = "allsource_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "allsource-core"
+path = "src/main.rs"
+
+[dependencies]
+# Arrow/Parquet for columnar storage
+arrow = { version = "50.0", features = ["ipc", "json"] }
+parquet = { version = "50.0", features = ["arrow", "async"] }
+arrow-flight = "50.0"
+datafusion = "35.0"
+
+# Async runtime
+tokio = { version = "1.36", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+
+# Web framework
+axum = { version = "0.7", features = ["json"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utilities
+uuid = { version = "1.7", features = ["v4", "serde"] }
+thiserror = "1.0"
+anyhow = "1.0"
+
+# High-performance data structures
+dashmap = "5.5"
+parking_lot = "0.12"
+
+# Compression
+lz4 = "1.24"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "event_ingestion"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

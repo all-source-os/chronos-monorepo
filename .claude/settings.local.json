@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(cat /Users/decebaldobrica/Projects/chronos/chronos-monorepo/package.json)",
+      "Bash(chmod +x /Users/decebaldobrica/Projects/chronos/chronos-monorepo/packages/mcp-server/demo-setup.sh)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

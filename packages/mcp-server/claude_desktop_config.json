@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "allsource": {
+      "command": "bun",
+      "args": [
+        "run",
+        "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/packages/mcp-server/src/index.ts"
+      ],
+      "env": {
+        "ALLSOURCE_CORE_URL": "http://localhost:8080",
+        "ALLSOURCE_CONTROL_URL": "http://localhost:8081"
+      }
+    }
+  }
+}
