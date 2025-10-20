@@ -3,7 +3,15 @@
     "allow": [
       "WebFetch(domain:github.com)",
       "Bash(cat /Users/decebaldobrica/Projects/chronos/chronos-monorepo/package.json)",
-      "Bash(chmod +x /Users/decebaldobrica/Projects/chronos/chronos-monorepo/packages/mcp-server/demo-setup.sh)"
+      "Bash(chmod +x /Users/decebaldobrica/Projects/chronos/chronos-monorepo/packages/mcp-server/demo-setup.sh)",
+      "Bash(cargo check --all-targets)",
+      "Bash(cargo build --release)",
+      "Bash(cargo test --test integration_tests)",
+      "Bash(cargo bench --bench performance_benchmarks)",
+      "Bash(cargo bench --bench performance_benchmarks --quiet)",
+      "Bash(cargo bench --bench performance_benchmarks -- ingestion_throughput)",
+      "Bash(cargo bench --bench performance_benchmarks -- state_reconstruction)",
+      "Bash(cargo bench --bench performance_benchmarks -- concurrent_writes)"
     ],
     "deny": [],
     "ask": []

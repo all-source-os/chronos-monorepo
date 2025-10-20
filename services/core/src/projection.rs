@@ -1,4 +1,4 @@
-use crate::error::{AllSourceError, Result};
+use crate::error::Result;
 use crate::event::Event;
 use dashmap::DashMap;
 use serde_json::Value;

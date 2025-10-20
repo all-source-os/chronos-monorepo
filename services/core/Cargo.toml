@@ -15,10 +15,10 @@ path = "src/main.rs"
 
 [dependencies]
 # Arrow/Parquet for columnar storage
-arrow = { version = "50.0", features = ["ipc", "json"] }
-parquet = { version = "50.0", features = ["arrow", "async"] }
-arrow-flight = "50.0"
-datafusion = "35.0"
+arrow = { version = "53.3", features = ["ipc", "json"] }
+parquet = { version = "53.3", features = ["arrow", "async"] }
+arrow-flight = "53.3"
+datafusion = "43.0"
 
 # Async runtime
 tokio = { version = "1.36", features = ["full"] }
@@ -26,9 +26,10 @@ tokio-stream = "0.1"
 futures = "0.3"
 
 # Web framework
-axum = { version = "0.7", features = ["json"] }
+axum = { version = "0.7", features = ["json", "ws"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -53,11 +54,15 @@ parking_lot = "0.12"
 # Compression
 lz4 = "1.24"
 
+# Checksums
+crc32fast = "1.4"
+
 [dev-dependencies]
 criterion = "0.5"
+tempfile = "3.10"
 
 [[bench]]
-name = "event_ingestion"
+name = "performance_benchmarks"
 harness = false
 
 [profile.release]

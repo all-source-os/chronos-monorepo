@@ -1,9 +1,15 @@
+mod analytics;
+mod compaction;
 mod error;
 mod event;
 mod store;
 mod api;
 mod index;
 mod projection;
+mod snapshot;
+mod storage;
+mod wal;
+mod websocket;
 
 use anyhow::Result;
 use std::sync::Arc;

@@ -1,4 +1,4 @@
-use crate::error::{AllSourceError, Result};
+use crate::error::Result;
 use dashmap::DashMap;
 use std::sync::Arc;
 use uuid::Uuid;

@@ -1,16 +1,22 @@
+use crate::compaction::{CompactionConfig, CompactionManager};
 use crate::error::{AllSourceError, Result};
 use crate::event::{Event, QueryEventsRequest};
 use crate::index::{EventIndex, IndexEntry};
 use crate::projection::{
-    EntitySnapshotProjection, EventCounterProjection, Projection, ProjectionManager,
+    EntitySnapshotProjection, EventCounterProjection, ProjectionManager,
 };
+use crate::snapshot::{SnapshotConfig, SnapshotManager, SnapshotType};
+use crate::storage::ParquetStorage;
+use crate::wal::{WALConfig, WriteAheadLog};
+use crate::websocket::WebSocketManager;
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// High-performance event store with columnar storage
 pub struct EventStore {
-    /// In-memory event storage (for demo - would be Arrow/Parquet in production)
+    /// In-memory event storage
     events: Arc<RwLock<Vec<Event>>>,
 
     /// High-performance concurrent index
@@ -19,30 +25,187 @@ pub struct EventStore {
     /// Projection manager for real-time aggregations
     projections: Arc<RwLock<ProjectionManager>>,
 
+    /// Optional persistent storage (v0.2 feature)
+    storage: Option<Arc<RwLock<ParquetStorage>>>,
+
+    /// WebSocket manager for real-time event streaming (v0.2 feature)
+    websocket_manager: Arc<WebSocketManager>,
+
+    /// Snapshot manager for fast state recovery (v0.2 feature)
+    snapshot_manager: Arc<SnapshotManager>,
+
+    /// Write-Ahead Log for durability (v0.2 feature)
+    wal: Option<Arc<WriteAheadLog>>,
+
+    /// Compaction manager for Parquet optimization (v0.2 feature)
+    compaction_manager: Option<Arc<CompactionManager>>,
+
     /// Total events ingested (for metrics)
     total_ingested: Arc<RwLock<u64>>,
 }
 
 impl EventStore {
+    /// Create a new in-memory event store
     pub fn new() -> Self {
+        Self::with_config(EventStoreConfig::default())
+    }
+
+    /// Create event store with custom configuration
+    pub fn with_config(config: EventStoreConfig) -> Self {
         let mut projections = ProjectionManager::new();
 
         // Register built-in projections
         projections.register(Arc::new(EntitySnapshotProjection::new("entity_snapshots")));
         projections.register(Arc::new(EventCounterProjection::new("event_counters")));
 
-        Self {
+        // Initialize persistent storage if configured
+        let storage = config.storage_dir.as_ref().and_then(|dir| {
+            match ParquetStorage::new(dir) {
+                Ok(storage) => {
+                    tracing::info!("✅ Parquet persistence enabled at: {}", dir.display());
+                    Some(Arc::new(RwLock::new(storage)))
+                }
+                Err(e) => {
+                    tracing::error!("❌ Failed to initialize Parquet storage: {}", e);
+                    None
+                }
+            }
+        });
+
+        // Initialize WAL if configured (v0.2 feature)
+        let wal = config.wal_dir.as_ref().and_then(|dir| {
+            match WriteAheadLog::new(dir, config.wal_config.clone()) {
+                Ok(wal) => {
+                    tracing::info!("✅ WAL enabled at: {}", dir.display());
+                    Some(Arc::new(wal))
+                }
+                Err(e) => {
+                    tracing::error!("❌ Failed to initialize WAL: {}", e);
+                    None
+                }
+            }
+        });
+
+        // Initialize compaction manager if Parquet storage is enabled (v0.2 feature)
+        let compaction_manager = config.storage_dir.as_ref().map(|dir| {
+            let manager = CompactionManager::new(dir, config.compaction_config.clone());
+            Arc::new(manager)
+        });
+
+        let store = Self {
             events: Arc::new(RwLock::new(Vec::new())),
             index: Arc::new(EventIndex::new()),
             projections: Arc::new(RwLock::new(projections)),
+            storage,
+            websocket_manager: Arc::new(WebSocketManager::new()),
+            snapshot_manager: Arc::new(SnapshotManager::new(config.snapshot_config)),
+            wal,
+            compaction_manager,
             total_ingested: Arc::new(RwLock::new(0)),
+        };
+
+        // Recover from WAL first (most recent data)
+        let mut wal_recovered = false;
+        if let Some(ref wal) = store.wal {
+            match wal.recover() {
+                Ok(recovered_events) if !recovered_events.is_empty() => {
+                    tracing::info!("🔄 Recovering {} events from WAL...", recovered_events.len());
+
+                    for event in recovered_events {
+                        // Re-index and process events from WAL
+                        let offset = store.events.read().len();
+                        if let Err(e) = store.index.index_event(
+                            event.id,
+                            &event.entity_id,
+                            &event.event_type,
+                            event.timestamp,
+                            offset,
+                        ) {
+                            tracing::error!("Failed to re-index WAL event {}: {}", event.id, e);
+                        }
+
+                        if let Err(e) = store.projections.read().process_event(&event) {
+                            tracing::error!("Failed to re-process WAL event {}: {}", event.id, e);
+                        }
+
+                        store.events.write().push(event);
+                    }
+
+                    let total = store.events.read().len();
+                    *store.total_ingested.write() = total as u64;
+                    tracing::info!("✅ Successfully recovered {} events from WAL", total);
+
+                    // After successful recovery, checkpoint to Parquet if enabled
+                    if store.storage.is_some() {
+                        tracing::info!("📸 Checkpointing WAL to Parquet storage...");
+                        if let Err(e) = store.flush_storage() {
+                            tracing::error!("Failed to checkpoint to Parquet: {}", e);
+                        } else if let Err(e) = wal.truncate() {
+                            tracing::error!("Failed to truncate WAL after checkpoint: {}", e);
+                        } else {
+                            tracing::info!("✅ WAL checkpointed and truncated");
+                        }
+                    }
+
+                    wal_recovered = true;
+                }
+                Ok(_) => {
+                    tracing::debug!("No events to recover from WAL");
+                }
+                Err(e) => {
+                    tracing::error!("❌ WAL recovery failed: {}", e);
+                }
+            }
         }
+
+        // Load persisted events from Parquet only if we didn't recover from WAL
+        // (to avoid loading the same events twice after WAL checkpoint)
+        if !wal_recovered {
+            if let Some(ref storage) = store.storage {
+                if let Ok(persisted_events) = storage.read().load_all_events() {
+                    tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
+
+                    for event in persisted_events {
+                        // Re-index loaded events
+                        let offset = store.events.read().len();
+                        if let Err(e) = store.index.index_event(
+                            event.id,
+                            &event.entity_id,
+                            &event.event_type,
+                            event.timestamp,
+                            offset,
+                        ) {
+                            tracing::error!("Failed to re-index event {}: {}", event.id, e);
+                        }
+
+                        // Re-process through projections
+                        if let Err(e) = store.projections.read().process_event(&event) {
+                            tracing::error!("Failed to re-process event {}: {}", event.id, e);
+                        }
+
+                        store.events.write().push(event);
+                    }
+
+                    let total = store.events.read().len();
+                    *store.total_ingested.write() = total as u64;
+                    tracing::info!("✅ Successfully loaded {} events from storage", total);
+                }
+            }
+        }
+
+        store
     }
 
     /// Ingest a new event into the store
     pub fn ingest(&self, event: Event) -> Result<()> {
         // Validate event
         self.validate_event(&event)?;
+
+        // Write to WAL FIRST for durability (v0.2 feature)
+        // This ensures event is persisted before processing
+        if let Some(ref wal) = self.wal {
+            wal.append(event.clone())?;
+        }
 
         let mut events = self.events.write();
         let offset = events.len();
@@ -60,9 +223,21 @@ impl EventStore {
         let projections = self.projections.read();
         projections.process_event(&event)?;
 
-        // Store the event
+        // Persist to Parquet storage if enabled (v0.2)
+        if let Some(ref storage) = self.storage {
+            let mut storage = storage.write();
+            storage.append_event(event.clone())?;
+        }
+
+        // Store the event in memory
         events.push(event.clone());
         drop(events); // Release lock early
+
+        // Broadcast to WebSocket clients (v0.2 feature)
+        self.websocket_manager.broadcast_event(Arc::new(event.clone()));
+
+        // Check if automatic snapshot should be created (v0.2 feature)
+        self.check_auto_snapshot(&event.entity_id, &event);
 
         // Update metrics
         let mut total = self.total_ingested.write();
@@ -75,6 +250,96 @@ impl EventStore {
         );
 
         Ok(())
+    }
+
+    /// Get the WebSocket manager for this store
+    pub fn websocket_manager(&self) -> Arc<WebSocketManager> {
+        Arc::clone(&self.websocket_manager)
+    }
+
+    /// Get the snapshot manager for this store
+    pub fn snapshot_manager(&self) -> Arc<SnapshotManager> {
+        Arc::clone(&self.snapshot_manager)
+    }
+
+    /// Get the compaction manager for this store
+    pub fn compaction_manager(&self) -> Option<Arc<CompactionManager>> {
+        self.compaction_manager.as_ref().map(Arc::clone)
+    }
+
+    /// Manually flush any pending events to persistent storage
+    pub fn flush_storage(&self) -> Result<()> {
+        if let Some(ref storage) = self.storage {
+            let mut storage = storage.write();
+            storage.flush()?;
+            tracing::info!("✅ Flushed events to persistent storage");
+        }
+        Ok(())
+    }
+
+    /// Manually create a snapshot for an entity
+    pub fn create_snapshot(&self, entity_id: &str) -> Result<()> {
+        // Get all events for this entity
+        let events = self.query(QueryEventsRequest {
+            entity_id: Some(entity_id.to_string()),
+            event_type: None,
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+        })?;
+
+        if events.is_empty() {
+            return Err(AllSourceError::EntityNotFound(entity_id.to_string()));
+        }
+
+        // Build current state
+        let mut state = serde_json::json!({});
+        for event in &events {
+            if let serde_json::Value::Object(ref mut state_map) = state {
+                if let serde_json::Value::Object(ref payload_map) = event.payload {
+                    for (key, value) in payload_map {
+                        state_map.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+
+        let last_event = events.last().unwrap();
+        self.snapshot_manager.create_snapshot(
+            entity_id.to_string(),
+            state,
+            last_event.timestamp,
+            events.len(),
+            SnapshotType::Manual,
+        )?;
+
+        Ok(())
+    }
+
+    /// Check and create automatic snapshots if needed
+    fn check_auto_snapshot(&self, entity_id: &str, event: &Event) {
+        // Count events for this entity
+        let entity_event_count = self
+            .index
+            .get_by_entity(entity_id)
+            .map(|entries| entries.len())
+            .unwrap_or(0);
+
+        if self.snapshot_manager.should_create_snapshot(
+            entity_id,
+            entity_event_count,
+            event.timestamp,
+        ) {
+            // Create snapshot in background (don't block ingestion)
+            if let Err(e) = self.create_snapshot(entity_id) {
+                tracing::warn!(
+                    "Failed to create automatic snapshot for {}: {}",
+                    entity_id,
+                    e
+                );
+            }
+        }
     }
 
     /// Validate an event before ingestion
@@ -176,28 +441,57 @@ impl EventStore {
     }
 
     /// Reconstruct entity state as of a specific timestamp
+    /// v0.2: Now uses snapshots for fast reconstruction
     pub fn reconstruct_state(
         &self,
         entity_id: &str,
         as_of: Option<DateTime<Utc>>,
     ) -> Result<serde_json::Value> {
+        // Try to find a snapshot to use as a base (v0.2 optimization)
+        let (merged_state, since_timestamp) = if let Some(as_of_time) = as_of {
+            // Get snapshot closest to requested time
+            if let Some(snapshot) = self.snapshot_manager.get_snapshot_as_of(entity_id, as_of_time) {
+                tracing::debug!(
+                    "Using snapshot from {} for entity {} (saved {} events)",
+                    snapshot.as_of,
+                    entity_id,
+                    snapshot.event_count
+                );
+                (snapshot.state.clone(), Some(snapshot.as_of))
+            } else {
+                (serde_json::json!({}), None)
+            }
+        } else {
+            // Get latest snapshot for current state
+            if let Some(snapshot) = self.snapshot_manager.get_latest_snapshot(entity_id) {
+                tracing::debug!(
+                    "Using latest snapshot from {} for entity {}",
+                    snapshot.as_of,
+                    entity_id
+                );
+                (snapshot.state.clone(), Some(snapshot.as_of))
+            } else {
+                (serde_json::json!({}), None)
+            }
+        };
+
+        // Query events after the snapshot (or all if no snapshot)
         let events = self.query(QueryEventsRequest {
             entity_id: Some(entity_id.to_string()),
             event_type: None,
             as_of,
-            since: None,
+            since: since_timestamp,
             until: None,
             limit: None,
         })?;
 
-        if events.is_empty() {
+        // If no events and no snapshot, entity not found
+        if events.is_empty() && since_timestamp.is_none() {
             return Err(AllSourceError::EntityNotFound(entity_id.to_string()));
         }
 
-        // Build comprehensive state from event stream
-        let mut merged_state = serde_json::json!({});
-
-        // Merge all event payloads in order
+        // Merge events on top of snapshot (or from scratch if no snapshot)
+        let mut merged_state = merged_state;
         for event in &events {
             if let serde_json::Value::Object(ref mut state_map) = merged_state {
                 if let serde_json::Value::Object(ref payload_map) = event.payload {
@@ -255,6 +549,100 @@ impl EventStore {
             total_entities: index_stats.total_entities,
             total_event_types: index_stats.total_event_types,
             total_ingested: *self.total_ingested.read(),
+        }
+    }
+}
+
+/// Configuration for EventStore
+#[derive(Debug, Clone)]
+pub struct EventStoreConfig {
+    /// Optional directory for persistent Parquet storage (v0.2 feature)
+    pub storage_dir: Option<PathBuf>,
+
+    /// Snapshot configuration (v0.2 feature)
+    pub snapshot_config: SnapshotConfig,
+
+    /// Optional directory for WAL (Write-Ahead Log) (v0.2 feature)
+    pub wal_dir: Option<PathBuf>,
+
+    /// WAL configuration (v0.2 feature)
+    pub wal_config: WALConfig,
+
+    /// Compaction configuration (v0.2 feature)
+    pub compaction_config: CompactionConfig,
+}
+
+impl Default for EventStoreConfig {
+    fn default() -> Self {
+        Self {
+            storage_dir: None,
+            snapshot_config: SnapshotConfig::default(),
+            wal_dir: None,
+            wal_config: WALConfig::default(),
+            compaction_config: CompactionConfig::default(),
+        }
+    }
+}
+
+impl EventStoreConfig {
+    /// Create config with persistent storage enabled
+    pub fn with_persistence(storage_dir: impl Into<PathBuf>) -> Self {
+        Self {
+            storage_dir: Some(storage_dir.into()),
+            snapshot_config: SnapshotConfig::default(),
+            wal_dir: None,
+            wal_config: WALConfig::default(),
+            compaction_config: CompactionConfig::default(),
+        }
+    }
+
+    /// Create config with custom snapshot settings
+    pub fn with_snapshots(snapshot_config: SnapshotConfig) -> Self {
+        Self {
+            storage_dir: None,
+            snapshot_config,
+            wal_dir: None,
+            wal_config: WALConfig::default(),
+            compaction_config: CompactionConfig::default(),
+        }
+    }
+
+    /// Create config with WAL enabled
+    pub fn with_wal(wal_dir: impl Into<PathBuf>, wal_config: WALConfig) -> Self {
+        Self {
+            storage_dir: None,
+            snapshot_config: SnapshotConfig::default(),
+            wal_dir: Some(wal_dir.into()),
+            wal_config,
+            compaction_config: CompactionConfig::default(),
+        }
+    }
+
+    /// Create config with both persistence and snapshots
+    pub fn with_all(storage_dir: impl Into<PathBuf>, snapshot_config: SnapshotConfig) -> Self {
+        Self {
+            storage_dir: Some(storage_dir.into()),
+            snapshot_config,
+            wal_dir: None,
+            wal_config: WALConfig::default(),
+            compaction_config: CompactionConfig::default(),
+        }
+    }
+
+    /// Create production config with all features enabled
+    pub fn production(
+        storage_dir: impl Into<PathBuf>,
+        wal_dir: impl Into<PathBuf>,
+        snapshot_config: SnapshotConfig,
+        wal_config: WALConfig,
+        compaction_config: CompactionConfig,
+    ) -> Self {
+        Self {
+            storage_dir: Some(storage_dir.into()),
+            snapshot_config,
+            wal_dir: Some(wal_dir.into()),
+            wal_config,
+            compaction_config,
         }
     }
 }
