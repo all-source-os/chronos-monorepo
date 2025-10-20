@@ -168,8 +168,16 @@ impl ProjectionManager {
     }
 
     /// Get a projection by name
-    pub fn get_projection(&self, name: &str) -> Option<&Arc<dyn Projection>> {
-        self.projections.iter().find(|p| p.name() == name)
+    pub fn get_projection(&self, name: &str) -> Option<Arc<dyn Projection>> {
+        self.projections.iter().find(|p| p.name() == name).cloned()
+    }
+
+    /// List all projections
+    pub fn list_projections(&self) -> Vec<(String, Arc<dyn Projection>)> {
+        self.projections
+            .iter()
+            .map(|p| (p.name().to_string(), Arc::clone(p)))
+            .collect()
     }
 
     /// Clear all projections

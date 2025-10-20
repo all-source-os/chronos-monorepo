@@ -5,6 +5,12 @@ use crate::analytics::{
 use crate::compaction::CompactionResult;
 use crate::error::Result;
 use crate::event::{Event, IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse};
+use crate::pipeline::{PipelineConfig, PipelineStats};
+use crate::replay::{ReplayProgress, StartReplayRequest, StartReplayResponse};
+use crate::schema::{
+    CompatibilityMode, RegisterSchemaRequest, RegisterSchemaResponse, ValidateEventRequest,
+    ValidateEventResponse,
+};
 use crate::snapshot::{
     CreateSnapshotRequest, CreateSnapshotResponse, ListSnapshotsRequest, ListSnapshotsResponse,
     SnapshotInfo,
@@ -13,7 +19,7 @@ use crate::store::EventStore;
 use axum::{
     extract::{Path, Query, State, WebSocketUpgrade},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::Deserialize;
@@ -43,6 +49,27 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         // v0.2: Compaction endpoints
         .route("/api/v1/compaction/trigger", post(trigger_compaction))
         .route("/api/v1/compaction/stats", get(compaction_stats))
+        // v0.5: Schema registry endpoints
+        .route("/api/v1/schemas", post(register_schema))
+        .route("/api/v1/schemas", get(list_subjects))
+        .route("/api/v1/schemas/:subject", get(get_schema))
+        .route("/api/v1/schemas/:subject/versions", get(list_schema_versions))
+        .route("/api/v1/schemas/validate", post(validate_event_schema))
+        .route("/api/v1/schemas/:subject/compatibility", put(set_compatibility_mode))
+        // v0.5: Replay and projection rebuild endpoints
+        .route("/api/v1/replay", post(start_replay))
+        .route("/api/v1/replay", get(list_replays))
+        .route("/api/v1/replay/:replay_id", get(get_replay_progress))
+        .route("/api/v1/replay/:replay_id/cancel", post(cancel_replay))
+        .route("/api/v1/replay/:replay_id", axum::routing::delete(delete_replay))
+        // v0.5: Stream processing pipeline endpoints
+        .route("/api/v1/pipelines", post(register_pipeline))
+        .route("/api/v1/pipelines", get(list_pipelines))
+        .route("/api/v1/pipelines/stats", get(all_pipeline_stats))
+        .route("/api/v1/pipelines/:pipeline_id", get(get_pipeline))
+        .route("/api/v1/pipelines/:pipeline_id", axum::routing::delete(remove_pipeline))
+        .route("/api/v1/pipelines/:pipeline_id/stats", get(get_pipeline_stats))
+        .route("/api/v1/pipelines/:pipeline_id/reset", put(reset_pipeline))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -310,5 +337,316 @@ async fn compaction_stats(State(store): State<SharedStore>) -> Result<Json<serde
             "auto_compact": config.auto_compact,
             "strategy": config.strategy
         }
+    })))
+}
+
+// v0.5: Register a new schema
+async fn register_schema(
+    State(store): State<SharedStore>,
+    Json(req): Json<RegisterSchemaRequest>,
+) -> Result<Json<RegisterSchemaResponse>> {
+    let schema_registry = store.schema_registry();
+
+    let response = schema_registry.register_schema(
+        req.subject,
+        req.schema,
+        req.description,
+        req.tags,
+    )?;
+
+    tracing::info!("📋 Schema registered: v{} for '{}'", response.version, response.subject);
+
+    Ok(Json(response))
+}
+
+// v0.5: Get a schema by subject and optional version
+#[derive(Deserialize)]
+struct GetSchemaParams {
+    version: Option<u32>,
+}
+
+async fn get_schema(
+    State(store): State<SharedStore>,
+    Path(subject): Path<String>,
+    Query(params): Query<GetSchemaParams>,
+) -> Result<Json<serde_json::Value>> {
+    let schema_registry = store.schema_registry();
+
+    let schema = schema_registry.get_schema(&subject, params.version)?;
+
+    tracing::debug!("Retrieved schema v{} for '{}'", schema.version, subject);
+
+    Ok(Json(serde_json::json!({
+        "id": schema.id,
+        "subject": schema.subject,
+        "version": schema.version,
+        "schema": schema.schema,
+        "created_at": schema.created_at,
+        "description": schema.description,
+        "tags": schema.tags
+    })))
+}
+
+// v0.5: List all versions of a schema subject
+async fn list_schema_versions(
+    State(store): State<SharedStore>,
+    Path(subject): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let schema_registry = store.schema_registry();
+
+    let versions = schema_registry.list_versions(&subject)?;
+
+    Ok(Json(serde_json::json!({
+        "subject": subject,
+        "versions": versions
+    })))
+}
+
+// v0.5: List all schema subjects
+async fn list_subjects(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+    let schema_registry = store.schema_registry();
+
+    let subjects = schema_registry.list_subjects();
+
+    Json(serde_json::json!({
+        "subjects": subjects,
+        "total": subjects.len()
+    }))
+}
+
+// v0.5: Validate an event against a schema
+async fn validate_event_schema(
+    State(store): State<SharedStore>,
+    Json(req): Json<ValidateEventRequest>,
+) -> Result<Json<ValidateEventResponse>> {
+    let schema_registry = store.schema_registry();
+
+    let response = schema_registry.validate(&req.subject, req.version, &req.payload)?;
+
+    if response.valid {
+        tracing::debug!("✅ Event validated against schema '{}' v{}", req.subject, response.schema_version);
+    } else {
+        tracing::warn!("❌ Event validation failed for '{}': {:?}", req.subject, response.errors);
+    }
+
+    Ok(Json(response))
+}
+
+// v0.5: Set compatibility mode for a subject
+#[derive(Deserialize)]
+struct SetCompatibilityRequest {
+    compatibility: CompatibilityMode,
+}
+
+async fn set_compatibility_mode(
+    State(store): State<SharedStore>,
+    Path(subject): Path<String>,
+    Json(req): Json<SetCompatibilityRequest>,
+) -> Json<serde_json::Value> {
+    let schema_registry = store.schema_registry();
+
+    schema_registry.set_compatibility_mode(subject.clone(), req.compatibility);
+
+    tracing::info!("🔧 Set compatibility mode for '{}' to {:?}", subject, req.compatibility);
+
+    Json(serde_json::json!({
+        "subject": subject,
+        "compatibility": req.compatibility
+    }))
+}
+
+// v0.5: Start a replay operation
+async fn start_replay(
+    State(store): State<SharedStore>,
+    Json(req): Json<StartReplayRequest>,
+) -> Result<Json<StartReplayResponse>> {
+    let replay_manager = store.replay_manager();
+
+    let response = replay_manager.start_replay(store, req)?;
+
+    tracing::info!("🔄 Started replay {} with {} events", response.replay_id, response.total_events);
+
+    Ok(Json(response))
+}
+
+// v0.5: Get replay progress
+async fn get_replay_progress(
+    State(store): State<SharedStore>,
+    Path(replay_id): Path<uuid::Uuid>,
+) -> Result<Json<ReplayProgress>> {
+    let replay_manager = store.replay_manager();
+
+    let progress = replay_manager.get_progress(replay_id)?;
+
+    Ok(Json(progress))
+}
+
+// v0.5: List all replay operations
+async fn list_replays(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+    let replay_manager = store.replay_manager();
+
+    let replays = replay_manager.list_replays();
+
+    Json(serde_json::json!({
+        "replays": replays,
+        "total": replays.len()
+    }))
+}
+
+// v0.5: Cancel a running replay
+async fn cancel_replay(
+    State(store): State<SharedStore>,
+    Path(replay_id): Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    let replay_manager = store.replay_manager();
+
+    replay_manager.cancel_replay(replay_id)?;
+
+    tracing::info!("🛑 Cancelled replay {}", replay_id);
+
+    Ok(Json(serde_json::json!({
+        "replay_id": replay_id,
+        "status": "cancelled"
+    })))
+}
+
+// v0.5: Delete a completed replay
+async fn delete_replay(
+    State(store): State<SharedStore>,
+    Path(replay_id): Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    let replay_manager = store.replay_manager();
+
+    let deleted = replay_manager.delete_replay(replay_id)?;
+
+    if deleted {
+        tracing::info!("🗑️  Deleted replay {}", replay_id);
+    }
+
+    Ok(Json(serde_json::json!({
+        "replay_id": replay_id,
+        "deleted": deleted
+    })))
+}
+
+// v0.5: Register a new pipeline
+async fn register_pipeline(
+    State(store): State<SharedStore>,
+    Json(config): Json<PipelineConfig>,
+) -> Result<Json<serde_json::Value>> {
+    let pipeline_manager = store.pipeline_manager();
+
+    let pipeline_id = pipeline_manager.register(config.clone());
+
+    tracing::info!(
+        "🔀 Pipeline registered: {} (name: {})",
+        pipeline_id,
+        config.name
+    );
+
+    Ok(Json(serde_json::json!({
+        "pipeline_id": pipeline_id,
+        "name": config.name,
+        "enabled": config.enabled
+    })))
+}
+
+// v0.5: List all pipelines
+async fn list_pipelines(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+    let pipeline_manager = store.pipeline_manager();
+
+    let pipelines = pipeline_manager.list();
+
+    tracing::debug!("Listed {} pipelines", pipelines.len());
+
+    Json(serde_json::json!({
+        "pipelines": pipelines,
+        "total": pipelines.len()
+    }))
+}
+
+// v0.5: Get a specific pipeline
+async fn get_pipeline(
+    State(store): State<SharedStore>,
+    Path(pipeline_id): Path<uuid::Uuid>,
+) -> Result<Json<PipelineConfig>> {
+    let pipeline_manager = store.pipeline_manager();
+
+    let pipeline = pipeline_manager
+        .get(pipeline_id)
+        .ok_or_else(|| crate::error::AllSourceError::ValidationError(
+            format!("Pipeline not found: {}", pipeline_id)
+        ))?;
+
+    Ok(Json(pipeline.config().clone()))
+}
+
+// v0.5: Remove a pipeline
+async fn remove_pipeline(
+    State(store): State<SharedStore>,
+    Path(pipeline_id): Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    let pipeline_manager = store.pipeline_manager();
+
+    let removed = pipeline_manager.remove(pipeline_id);
+
+    if removed {
+        tracing::info!("🗑️  Removed pipeline {}", pipeline_id);
+    }
+
+    Ok(Json(serde_json::json!({
+        "pipeline_id": pipeline_id,
+        "removed": removed
+    })))
+}
+
+// v0.5: Get statistics for all pipelines
+async fn all_pipeline_stats(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+    let pipeline_manager = store.pipeline_manager();
+
+    let stats = pipeline_manager.all_stats();
+
+    Json(serde_json::json!({
+        "stats": stats,
+        "total": stats.len()
+    }))
+}
+
+// v0.5: Get statistics for a specific pipeline
+async fn get_pipeline_stats(
+    State(store): State<SharedStore>,
+    Path(pipeline_id): Path<uuid::Uuid>,
+) -> Result<Json<PipelineStats>> {
+    let pipeline_manager = store.pipeline_manager();
+
+    let pipeline = pipeline_manager
+        .get(pipeline_id)
+        .ok_or_else(|| crate::error::AllSourceError::ValidationError(
+            format!("Pipeline not found: {}", pipeline_id)
+        ))?;
+
+    Ok(Json(pipeline.stats()))
+}
+
+// v0.5: Reset a pipeline's state
+async fn reset_pipeline(
+    State(store): State<SharedStore>,
+    Path(pipeline_id): Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    let pipeline_manager = store.pipeline_manager();
+
+    let pipeline = pipeline_manager
+        .get(pipeline_id)
+        .ok_or_else(|| crate::error::AllSourceError::ValidationError(
+            format!("Pipeline not found: {}", pipeline_id)
+        ))?;
+
+    pipeline.reset();
+
+    tracing::info!("🔄 Reset pipeline {}", pipeline_id);
+
+    Ok(Json(serde_json::json!({
+        "pipeline_id": pipeline_id,
+        "reset": true
     })))
 }

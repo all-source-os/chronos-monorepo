@@ -2,9 +2,12 @@ use crate::compaction::{CompactionConfig, CompactionManager};
 use crate::error::{AllSourceError, Result};
 use crate::event::{Event, QueryEventsRequest};
 use crate::index::{EventIndex, IndexEntry};
+use crate::pipeline::PipelineManager;
 use crate::projection::{
     EntitySnapshotProjection, EventCounterProjection, ProjectionManager,
 };
+use crate::replay::ReplayManager;
+use crate::schema::{SchemaRegistry, SchemaRegistryConfig};
 use crate::snapshot::{SnapshotConfig, SnapshotManager, SnapshotType};
 use crate::storage::ParquetStorage;
 use crate::wal::{WALConfig, WriteAheadLog};
@@ -23,7 +26,7 @@ pub struct EventStore {
     index: Arc<EventIndex>,
 
     /// Projection manager for real-time aggregations
-    projections: Arc<RwLock<ProjectionManager>>,
+    pub(crate) projections: Arc<RwLock<ProjectionManager>>,
 
     /// Optional persistent storage (v0.2 feature)
     storage: Option<Arc<RwLock<ParquetStorage>>>,
@@ -39,6 +42,15 @@ pub struct EventStore {
 
     /// Compaction manager for Parquet optimization (v0.2 feature)
     compaction_manager: Option<Arc<CompactionManager>>,
+
+    /// Schema registry for event validation (v0.5 feature)
+    schema_registry: Arc<SchemaRegistry>,
+
+    /// Replay manager for event replay and projection rebuilding (v0.5 feature)
+    replay_manager: Arc<ReplayManager>,
+
+    /// Pipeline manager for stream processing (v0.5 feature)
+    pipeline_manager: Arc<PipelineManager>,
 
     /// Total events ingested (for metrics)
     total_ingested: Arc<RwLock<u64>>,
@@ -92,6 +104,18 @@ impl EventStore {
             Arc::new(manager)
         });
 
+        // Initialize schema registry (v0.5 feature)
+        let schema_registry = Arc::new(SchemaRegistry::new(config.schema_registry_config.clone()));
+        tracing::info!("✅ Schema registry enabled");
+
+        // Initialize replay manager (v0.5 feature)
+        let replay_manager = Arc::new(ReplayManager::new());
+        tracing::info!("✅ Replay manager enabled");
+
+        // Initialize pipeline manager (v0.5 feature)
+        let pipeline_manager = Arc::new(PipelineManager::new());
+        tracing::info!("✅ Pipeline manager enabled");
+
         let store = Self {
             events: Arc::new(RwLock::new(Vec::new())),
             index: Arc::new(EventIndex::new()),
@@ -101,6 +125,9 @@ impl EventStore {
             snapshot_manager: Arc::new(SnapshotManager::new(config.snapshot_config)),
             wal,
             compaction_manager,
+            schema_registry,
+            replay_manager,
+            pipeline_manager,
             total_ingested: Arc::new(RwLock::new(0)),
         };
 
@@ -222,6 +249,23 @@ impl EventStore {
         // Process through projections
         let projections = self.projections.read();
         projections.process_event(&event)?;
+        drop(projections); // Release lock
+
+        // Process through pipelines (v0.5 feature)
+        // Pipelines can transform, filter, and aggregate events in real-time
+        let pipeline_results = self.pipeline_manager.process_event(&event);
+        if !pipeline_results.is_empty() {
+            tracing::debug!(
+                "Event {} processed by {} pipeline(s)",
+                event.id,
+                pipeline_results.len()
+            );
+            // Pipeline results could be stored, emitted, or forwarded elsewhere
+            // For now, we just log them for observability
+            for (pipeline_id, result) in pipeline_results {
+                tracing::trace!("Pipeline {} result: {:?}", pipeline_id, result);
+            }
+        }
 
         // Persist to Parquet storage if enabled (v0.2)
         if let Some(ref storage) = self.storage {
@@ -265,6 +309,21 @@ impl EventStore {
     /// Get the compaction manager for this store
     pub fn compaction_manager(&self) -> Option<Arc<CompactionManager>> {
         self.compaction_manager.as_ref().map(Arc::clone)
+    }
+
+    /// Get the schema registry for this store (v0.5 feature)
+    pub fn schema_registry(&self) -> Arc<SchemaRegistry> {
+        Arc::clone(&self.schema_registry)
+    }
+
+    /// Get the replay manager for this store (v0.5 feature)
+    pub fn replay_manager(&self) -> Arc<ReplayManager> {
+        Arc::clone(&self.replay_manager)
+    }
+
+    /// Get the pipeline manager for this store (v0.5 feature)
+    pub fn pipeline_manager(&self) -> Arc<PipelineManager> {
+        Arc::clone(&self.pipeline_manager)
     }
 
     /// Manually flush any pending events to persistent storage
@@ -570,6 +629,9 @@ pub struct EventStoreConfig {
 
     /// Compaction configuration (v0.2 feature)
     pub compaction_config: CompactionConfig,
+
+    /// Schema registry configuration (v0.5 feature)
+    pub schema_registry_config: SchemaRegistryConfig,
 }
 
 impl Default for EventStoreConfig {
@@ -580,6 +642,7 @@ impl Default for EventStoreConfig {
             wal_dir: None,
             wal_config: WALConfig::default(),
             compaction_config: CompactionConfig::default(),
+            schema_registry_config: SchemaRegistryConfig::default(),
         }
     }
 }
@@ -593,6 +656,7 @@ impl EventStoreConfig {
             wal_dir: None,
             wal_config: WALConfig::default(),
             compaction_config: CompactionConfig::default(),
+            schema_registry_config: SchemaRegistryConfig::default(),
         }
     }
 
@@ -604,6 +668,7 @@ impl EventStoreConfig {
             wal_dir: None,
             wal_config: WALConfig::default(),
             compaction_config: CompactionConfig::default(),
+            schema_registry_config: SchemaRegistryConfig::default(),
         }
     }
 
@@ -615,6 +680,7 @@ impl EventStoreConfig {
             wal_dir: Some(wal_dir.into()),
             wal_config,
             compaction_config: CompactionConfig::default(),
+            schema_registry_config: SchemaRegistryConfig::default(),
         }
     }
 
@@ -626,6 +692,7 @@ impl EventStoreConfig {
             wal_dir: None,
             wal_config: WALConfig::default(),
             compaction_config: CompactionConfig::default(),
+            schema_registry_config: SchemaRegistryConfig::default(),
         }
     }
 
@@ -643,6 +710,7 @@ impl EventStoreConfig {
             wal_dir: Some(wal_dir.into()),
             wal_config,
             compaction_config,
+            schema_registry_config: SchemaRegistryConfig::default(),
         }
     }
 }

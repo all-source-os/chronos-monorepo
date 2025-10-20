@@ -11,7 +11,8 @@
       "Bash(cargo bench --bench performance_benchmarks --quiet)",
       "Bash(cargo bench --bench performance_benchmarks -- ingestion_throughput)",
       "Bash(cargo bench --bench performance_benchmarks -- state_reconstruction)",
-      "Bash(cargo bench --bench performance_benchmarks -- concurrent_writes)"
+      "Bash(cargo bench --bench performance_benchmarks -- concurrent_writes)",
+      "Bash(cargo check)"
     ],
     "deny": [],
     "ask": []
