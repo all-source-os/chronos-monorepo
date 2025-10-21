@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(cargo build)",
-      "Bash(cargo test --lib)"
+      "Bash(cargo test --lib)",
+      "Bash(cargo clean)",
+      "Read(//private/tmp/**)",
+      "Bash(cargo test --lib -- --skip test_api_key)",
+      "Bash(tee /tmp/rust_test_final.txt)",
+      "Bash(for file in src/*.rs)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

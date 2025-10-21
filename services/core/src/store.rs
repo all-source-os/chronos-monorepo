@@ -791,3 +791,5 @@ impl Default for EventStore {
         Self::new()
     }
 }
+
+// Tests for store are covered in integration tests

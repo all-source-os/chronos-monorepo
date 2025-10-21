@@ -622,3 +622,273 @@ impl Clone for MetricsRegistry {
         Self::new().as_ref().clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_metrics_registry_creation() {
+        let metrics = MetricsRegistry::new();
+        assert_eq!(metrics.events_ingested_total.get(), 0);
+        assert_eq!(metrics.storage_events_total.get(), 0);
+    }
+
+    #[test]
+    fn test_event_ingestion_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Increment ingestion counter
+        metrics.events_ingested_total.inc();
+        assert_eq!(metrics.events_ingested_total.get(), 1);
+
+        // Increment by type
+        metrics.events_ingested_by_type
+            .with_label_values(&["user.created"])
+            .inc();
+        assert_eq!(
+            metrics.events_ingested_by_type
+                .with_label_values(&["user.created"])
+                .get(),
+            1
+        );
+
+        // Record duration
+        metrics.ingestion_duration_seconds.observe(0.1);
+    }
+
+    #[test]
+    fn test_query_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Increment query counter
+        metrics.queries_total
+            .with_label_values(&["entity_id"])
+            .inc();
+        assert_eq!(
+            metrics.queries_total
+                .with_label_values(&["entity_id"])
+                .get(),
+            1
+        );
+
+        // Record query duration
+        metrics.query_duration_seconds
+            .with_label_values(&["entity_id"])
+            .observe(0.05);
+
+        // Record query results
+        metrics.query_results_total
+            .with_label_values(&["entity_id"])
+            .inc_by(10);
+    }
+
+    #[test]
+    fn test_storage_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Set storage metrics
+        metrics.storage_events_total.set(1000);
+        assert_eq!(metrics.storage_events_total.get(), 1000);
+
+        metrics.storage_entities_total.set(50);
+        assert_eq!(metrics.storage_entities_total.get(), 50);
+
+        metrics.storage_size_bytes.set(1024 * 1024);
+        assert_eq!(metrics.storage_size_bytes.get(), 1024 * 1024);
+
+        metrics.parquet_files_total.set(5);
+        metrics.wal_segments_total.set(3);
+    }
+
+    #[test]
+    fn test_projection_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Set projections total
+        metrics.projections_total.set(3);
+        assert_eq!(metrics.projections_total.get(), 3);
+
+        // Process events in projection
+        metrics.projection_events_processed
+            .with_label_values(&["user_snapshot"])
+            .inc_by(100);
+
+        // Record processing duration
+        metrics.projection_processing_duration
+            .with_label_values(&["user_snapshot"])
+            .observe(0.2);
+
+        // Record errors
+        metrics.projection_errors_total
+            .with_label_values(&["user_snapshot"])
+            .inc();
+    }
+
+    #[test]
+    fn test_schema_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Register schema
+        metrics.schemas_registered_total.inc();
+        assert_eq!(metrics.schemas_registered_total.get(), 1);
+
+        // Validation success
+        metrics.schema_validations_total
+            .with_label_values(&["success"])
+            .inc();
+
+        // Validation failure
+        metrics.schema_validations_total
+            .with_label_values(&["failure"])
+            .inc();
+
+        // Record validation duration
+        metrics.schema_validation_duration.observe(0.01);
+    }
+
+    #[test]
+    fn test_replay_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Start replay
+        metrics.replays_started_total.inc();
+        assert_eq!(metrics.replays_started_total.get(), 1);
+
+        // Process events
+        metrics.replay_events_processed.inc_by(500);
+        assert_eq!(metrics.replay_events_processed.get(), 500);
+
+        // Complete replay
+        metrics.replays_completed_total.inc();
+        assert_eq!(metrics.replays_completed_total.get(), 1);
+
+        // Record duration
+        metrics.replay_duration_seconds.observe(5.5);
+    }
+
+    #[test]
+    fn test_pipeline_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Register pipeline
+        metrics.pipelines_registered_total.set(2);
+        assert_eq!(metrics.pipelines_registered_total.get(), 2);
+
+        // Process events
+        metrics.pipeline_events_processed
+            .with_label_values(&["filter_pipeline"])
+            .inc_by(250);
+
+        // Record errors
+        metrics.pipeline_errors_total
+            .with_label_values(&["filter_pipeline"])
+            .inc();
+
+        // Record duration
+        metrics.pipeline_processing_duration
+            .with_label_values(&["filter_pipeline"])
+            .observe(0.15);
+    }
+
+    #[test]
+    fn test_metrics_encode() {
+        let metrics = MetricsRegistry::new();
+
+        // Add some data
+        metrics.events_ingested_total.inc_by(100);
+        metrics.storage_events_total.set(1000);
+
+        // Encode to Prometheus format
+        let encoded = metrics.encode().unwrap();
+
+        // Verify output contains metrics
+        assert!(encoded.contains("events_ingested_total"));
+        assert!(encoded.contains("storage_events_total"));
+    }
+
+    #[test]
+    fn test_metrics_default() {
+        let metrics = MetricsRegistry::default();
+        assert_eq!(metrics.events_ingested_total.get(), 0);
+    }
+
+    #[test]
+    fn test_websocket_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Connect client
+        metrics.websocket_connections_active.inc();
+        assert_eq!(metrics.websocket_connections_active.get(), 1);
+
+        // Total connections
+        metrics.websocket_connections_total.inc();
+
+        // Broadcast message
+        metrics.websocket_messages_sent.inc_by(10);
+        assert_eq!(metrics.websocket_messages_sent.get(), 10);
+
+        // Disconnect client
+        metrics.websocket_connections_active.dec();
+        assert_eq!(metrics.websocket_connections_active.get(), 0);
+
+        // Record error
+        metrics.websocket_errors_total.inc();
+    }
+
+    #[test]
+    fn test_compaction_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Start compaction
+        metrics.compactions_total.inc();
+        assert_eq!(metrics.compactions_total.get(), 1);
+
+        // Record duration
+        metrics.compaction_duration_seconds.observe(5.2);
+
+        // Files merged
+        metrics.compaction_files_merged.inc_by(5);
+
+        // Bytes saved
+        metrics.compaction_bytes_saved.inc_by(1024 * 1024);
+    }
+
+    #[test]
+    fn test_snapshot_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Create snapshot
+        metrics.snapshots_created_total.inc();
+        assert_eq!(metrics.snapshots_created_total.get(), 1);
+
+        // Record duration
+        metrics.snapshot_creation_duration.observe(0.5);
+
+        // Total snapshots
+        metrics.snapshots_total.set(10);
+        assert_eq!(metrics.snapshots_total.get(), 10);
+    }
+
+    #[test]
+    fn test_http_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Record request
+        metrics.http_requests_total
+            .with_label_values(&["GET", "/api/events", "200"])
+            .inc();
+
+        // Record duration
+        metrics.http_request_duration_seconds
+            .with_label_values(&["GET", "/api/events"])
+            .observe(0.025);
+
+        // In-flight requests
+        metrics.http_requests_in_flight.inc();
+        assert_eq!(metrics.http_requests_in_flight.get(), 1);
+
+        metrics.http_requests_in_flight.dec();
+        assert_eq!(metrics.http_requests_in_flight.get(), 0);
+    }
+}
