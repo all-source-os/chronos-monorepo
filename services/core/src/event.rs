@@ -14,6 +14,10 @@ pub struct Event {
     /// Entity this event relates to (e.g., user_id, order_id)
     pub entity_id: String,
 
+    /// Tenant ID for multi-tenancy isolation (v1.0)
+    #[serde(default = "default_tenant_id")]
+    pub tenant_id: String,
+
     /// Event payload (arbitrary JSON)
     pub payload: serde_json::Value,
 
@@ -27,16 +31,30 @@ pub struct Event {
     pub version: i64,
 }
 
+fn default_tenant_id() -> String {
+    "default".to_string()
+}
+
 impl Event {
     pub fn new(
         event_type: String,
         entity_id: String,
         payload: serde_json::Value,
     ) -> Self {
+        Self::new_with_tenant(event_type, entity_id, payload, "default".to_string())
+    }
+
+    pub fn new_with_tenant(
+        event_type: String,
+        entity_id: String,
+        payload: serde_json::Value,
+        tenant_id: String,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             event_type,
             entity_id,
+            tenant_id,
             payload,
             timestamp: Utc::now(),
             metadata: None,

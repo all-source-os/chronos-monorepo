@@ -2,6 +2,7 @@ use crate::compaction::{CompactionConfig, CompactionManager};
 use crate::error::{AllSourceError, Result};
 use crate::event::{Event, QueryEventsRequest};
 use crate::index::{EventIndex, IndexEntry};
+use crate::metrics::MetricsRegistry;
 use crate::pipeline::PipelineManager;
 use crate::projection::{
     EntitySnapshotProjection, EventCounterProjection, ProjectionManager,
@@ -51,6 +52,9 @@ pub struct EventStore {
 
     /// Pipeline manager for stream processing (v0.5 feature)
     pipeline_manager: Arc<PipelineManager>,
+
+    /// Prometheus metrics registry (v0.6 feature)
+    metrics: Arc<MetricsRegistry>,
 
     /// Total events ingested (for metrics)
     total_ingested: Arc<RwLock<u64>>,
@@ -116,6 +120,10 @@ impl EventStore {
         let pipeline_manager = Arc::new(PipelineManager::new());
         tracing::info!("✅ Pipeline manager enabled");
 
+        // Initialize metrics registry (v0.6 feature)
+        let metrics = MetricsRegistry::new();
+        tracing::info!("✅ Prometheus metrics registry initialized");
+
         let store = Self {
             events: Arc::new(RwLock::new(Vec::new())),
             index: Arc::new(EventIndex::new()),
@@ -128,6 +136,7 @@ impl EventStore {
             schema_registry,
             replay_manager,
             pipeline_manager,
+            metrics,
             total_ingested: Arc::new(RwLock::new(0)),
         };
 
@@ -225,13 +234,26 @@ impl EventStore {
 
     /// Ingest a new event into the store
     pub fn ingest(&self, event: Event) -> Result<()> {
+        // Start metrics timer (v0.6 feature)
+        let timer = self.metrics.ingestion_duration_seconds.start_timer();
+
         // Validate event
-        self.validate_event(&event)?;
+        let validation_result = self.validate_event(&event);
+        if let Err(e) = validation_result {
+            // Record ingestion error
+            self.metrics.ingestion_errors_total.inc();
+            timer.observe_duration();
+            return Err(e);
+        }
 
         // Write to WAL FIRST for durability (v0.2 feature)
         // This ensures event is persisted before processing
         if let Some(ref wal) = self.wal {
-            wal.append(event.clone())?;
+            if let Err(e) = wal.append(event.clone()) {
+                self.metrics.ingestion_errors_total.inc();
+                timer.observe_duration();
+                return Err(e);
+            }
         }
 
         let mut events = self.events.write();
@@ -275,6 +297,7 @@ impl EventStore {
 
         // Store the event in memory
         events.push(event.clone());
+        let total_events = events.len();
         drop(events); // Release lock early
 
         // Broadcast to WebSocket clients (v0.2 feature)
@@ -283,9 +306,18 @@ impl EventStore {
         // Check if automatic snapshot should be created (v0.2 feature)
         self.check_auto_snapshot(&event.entity_id, &event);
 
-        // Update metrics
+        // Update metrics (v0.6 feature)
+        self.metrics.events_ingested_total.inc();
+        self.metrics.events_ingested_by_type
+            .with_label_values(&[&event.event_type])
+            .inc();
+        self.metrics.storage_events_total.set(total_events as i64);
+
+        // Update legacy total counter
         let mut total = self.total_ingested.write();
         *total += 1;
+
+        timer.observe_duration();
 
         tracing::debug!(
             "Event ingested: {} (offset: {})",
@@ -324,6 +356,11 @@ impl EventStore {
     /// Get the pipeline manager for this store (v0.5 feature)
     pub fn pipeline_manager(&self) -> Arc<PipelineManager> {
         Arc::clone(&self.pipeline_manager)
+    }
+
+    /// Get the metrics registry for this store (v0.6 feature)
+    pub fn metrics(&self) -> Arc<MetricsRegistry> {
+        Arc::clone(&self.metrics)
     }
 
     /// Manually flush any pending events to persistent storage
@@ -420,6 +457,25 @@ impl EventStore {
 
     /// Query events based on filters (optimized with indices)
     pub fn query(&self, request: QueryEventsRequest) -> Result<Vec<Event>> {
+        // Determine query type for metrics (v0.6 feature)
+        let query_type = if request.entity_id.is_some() {
+            "entity"
+        } else if request.event_type.is_some() {
+            "type"
+        } else {
+            "full_scan"
+        };
+
+        // Start metrics timer (v0.6 feature)
+        let timer = self.metrics.query_duration_seconds
+            .with_label_values(&[query_type])
+            .start_timer();
+
+        // Increment query counter (v0.6 feature)
+        self.metrics.queries_total
+            .with_label_values(&[query_type])
+            .inc();
+
         let events = self.events.read();
 
         // Use index for fast lookups
@@ -454,6 +510,13 @@ impl EventStore {
         if let Some(limit) = request.limit {
             results.truncate(limit);
         }
+
+        // Record query results count (v0.6 feature)
+        self.metrics.query_results_total
+            .with_label_values(&[query_type])
+            .inc_by(results.len() as u64);
+
+        timer.observe_duration();
 
         Ok(results)
     }

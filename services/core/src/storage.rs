@@ -270,6 +270,7 @@ impl ParquetStorage {
                 })?,
                 event_type: event_types.value(i).to_string(),
                 entity_id: entity_ids.value(i).to_string(),
+                tenant_id: "default".to_string(), // Default tenant for backward compatibility
                 payload: serde_json::from_str(payloads.value(i))?,
                 timestamp: chrono::DateTime::from_timestamp_micros(timestamps.value(i))
                     .ok_or_else(|| {
@@ -347,6 +348,7 @@ mod tests {
             id: uuid::Uuid::new_v4(),
             event_type: "test.event".to_string(),
             entity_id: entity_id.to_string(),
+            tenant_id: "default".to_string(),
             payload: json!({
                 "test": "data",
                 "value": 42

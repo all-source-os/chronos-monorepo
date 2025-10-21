@@ -168,6 +168,7 @@ mod tests {
             id: Uuid::new_v4(),
             event_type: "test.event".to_string(),
             entity_id: "test-entity".to_string(),
+            tenant_id: "default".to_string(),
             payload: json!({"test": "data"}),
             timestamp: chrono::Utc::now(),
             metadata: None,

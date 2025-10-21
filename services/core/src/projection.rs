@@ -1,5 +1,6 @@
 use crate::error::Result;
 use crate::event::Event;
+use crate::metrics::MetricsRegistry;
 use dashmap::DashMap;
 use serde_json::Value;
 use std::sync::Arc;
@@ -136,34 +137,58 @@ impl Projection for EventCounterProjection {
 /// Projection manager handles multiple projections
 pub struct ProjectionManager {
     projections: Vec<Arc<dyn Projection>>,
+    metrics: Arc<MetricsRegistry>,
 }
 
 impl ProjectionManager {
     pub fn new() -> Self {
+        Self::with_metrics(MetricsRegistry::new())
+    }
+
+    pub fn with_metrics(metrics: Arc<MetricsRegistry>) -> Self {
         Self {
             projections: Vec::new(),
+            metrics,
         }
     }
 
     /// Register a new projection
     pub fn register(&mut self, projection: Arc<dyn Projection>) {
-        tracing::info!("Registering projection: {}", projection.name());
+        let name = projection.name();
+        tracing::info!("Registering projection: {}", name);
         self.projections.push(projection);
+        self.metrics.projections_total.set(self.projections.len() as i64);
     }
 
     /// Process an event through all projections
     pub fn process_event(&self, event: &Event) -> Result<()> {
+        let timer = self.metrics.projection_duration_seconds.start_timer();
+
         for projection in &self.projections {
-            if let Err(e) = projection.process(event) {
-                tracing::error!(
-                    "Projection '{}' failed to process event {}: {}",
-                    projection.name(),
-                    event.id,
-                    e
-                );
-                // Continue processing other projections even if one fails
+            let name = projection.name();
+
+            match projection.process(event) {
+                Ok(_) => {
+                    self.metrics.projection_events_processed
+                        .with_label_values(&[name])
+                        .inc();
+                }
+                Err(e) => {
+                    self.metrics.projection_errors_total
+                        .with_label_values(&[name])
+                        .inc();
+                    tracing::error!(
+                        "Projection '{}' failed to process event {}: {}",
+                        name,
+                        event.id,
+                        e
+                    );
+                    // Continue processing other projections even if one fails
+                }
             }
         }
+
+        timer.observe_duration();
         Ok(())
     }
 
@@ -204,6 +229,7 @@ mod tests {
             id: Uuid::new_v4(),
             event_type: event_type.to_string(),
             entity_id: entity_id.to_string(),
+            tenant_id: "default".to_string(),
             payload: serde_json::json!({
                 "name": "Test User",
                 "email": "test@example.com"

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -20,8 +21,9 @@ const (
 )
 
 type ControlPlane struct {
-	client *resty.Client
-	router *gin.Engine
+	client  *resty.Client
+	router  *gin.Engine
+	metrics *ControlPlaneMetrics
 }
 
 func NewControlPlane() *ControlPlane {
@@ -30,6 +32,9 @@ func NewControlPlane() *ControlPlane {
 		SetBaseURL(CoreServiceURL)
 
 	router := gin.Default()
+
+	// Initialize metrics
+	metrics := NewMetrics()
 
 	// Enable CORS
 	router.Use(func(c *gin.Context) {
@@ -46,15 +51,22 @@ func NewControlPlane() *ControlPlane {
 	})
 
 	cp := &ControlPlane{
-		client: client,
-		router: router,
+		client:  client,
+		router:  router,
+		metrics: metrics,
 	}
+
+	// Add Prometheus middleware
+	router.Use(PrometheusMiddleware(metrics))
 
 	cp.setupRoutes()
 	return cp
 }
 
 func (cp *ControlPlane) setupRoutes() {
+	// Prometheus metrics endpoint
+	cp.router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
 	// Health endpoints
 	cp.router.GET("/health", cp.healthHandler)
 	cp.router.GET("/health/core", cp.coreHealthHandler)
@@ -63,7 +75,7 @@ func (cp *ControlPlane) setupRoutes() {
 	api := cp.router.Group("/api/v1")
 	{
 		api.GET("/cluster/status", cp.clusterStatusHandler)
-		api.GET("/metrics", cp.metricsHandler)
+		api.GET("/metrics/json", cp.metricsHandler)
 		api.POST("/operations/snapshot", cp.snapshotHandler)
 		api.POST("/operations/replay", cp.replayHandler)
 	}
@@ -79,9 +91,14 @@ func (cp *ControlPlane) healthHandler(c *gin.Context) {
 }
 
 func (cp *ControlPlane) coreHealthHandler(c *gin.Context) {
+	start := time.Now()
 	resp, err := cp.client.R().Get("/health")
+	duration := time.Since(start).Seconds()
+
+	cp.metrics.CoreHealthCheckDuration.Observe(duration)
 
 	if err != nil {
+		cp.metrics.CoreHealthCheckTotal.WithLabelValues("error").Inc()
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"status": "unhealthy",
 			"error":  err.Error(),
@@ -91,6 +108,7 @@ func (cp *ControlPlane) coreHealthHandler(c *gin.Context) {
 
 	var result map[string]interface{}
 	if err := resp.UnmarshalJson(&result); err != nil {
+		cp.metrics.CoreHealthCheckTotal.WithLabelValues("error").Inc()
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "error",
 			"error":  "failed to parse core response",
@@ -98,6 +116,7 @@ func (cp *ControlPlane) coreHealthHandler(c *gin.Context) {
 		return
 	}
 
+	cp.metrics.CoreHealthCheckTotal.WithLabelValues("success").Inc()
 	c.JSON(http.StatusOK, result)
 }
 
@@ -154,6 +173,9 @@ func (cp *ControlPlane) metricsHandler(c *gin.Context) {
 }
 
 func (cp *ControlPlane) snapshotHandler(c *gin.Context) {
+	// Track snapshot operation
+	cp.metrics.SnapshotOperationsTotal.Inc()
+
 	// Simulate snapshot creation
 	snapshotID := fmt.Sprintf("snapshot-%d", time.Now().Unix())
 
@@ -175,6 +197,9 @@ func (cp *ControlPlane) replayHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Track replay operation
+	cp.metrics.ReplayOperationsTotal.Inc()
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "replay_initiated",

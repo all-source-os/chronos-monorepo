@@ -519,6 +519,7 @@ mod tests {
             id: Uuid::new_v4(),
             event_type: "score.updated".to_string(),
             entity_id: "entity-1".to_string(),
+            tenant_id: "default".to_string(),
             payload: json!({"score": 20}),
             timestamp: Utc::now(),
             metadata: None,

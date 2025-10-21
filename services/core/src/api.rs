@@ -32,6 +32,7 @@ type SharedStore = Arc<EventStore>;
 pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(health))
+        .route("/metrics", get(prometheus_metrics))  // v0.6: Prometheus metrics endpoint
         .route("/api/v1/events", post(ingest_event))
         .route("/api/v1/events/query", get(query_events))
         .route("/api/v1/events/stream", get(events_websocket)) // v0.2: WebSocket streaming
@@ -85,7 +86,7 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn health() -> impl IntoResponse {
+pub async fn health() -> impl IntoResponse {
     Json(serde_json::json!({
         "status": "healthy",
         "service": "allsource-core",
@@ -93,7 +94,26 @@ async fn health() -> impl IntoResponse {
     }))
 }
 
-async fn ingest_event(
+// v0.6: Prometheus metrics endpoint
+pub async fn prometheus_metrics(State(store): State<SharedStore>) -> impl IntoResponse {
+    let metrics = store.metrics();
+
+    match metrics.encode() {
+        Ok(encoded) => Response::builder()
+            .status(200)
+            .header("Content-Type", "text/plain; version=0.0.4")
+            .body(encoded)
+            .unwrap()
+            .into_response(),
+        Err(e) => Response::builder()
+            .status(500)
+            .body(format!("Error encoding metrics: {}", e))
+            .unwrap()
+            .into_response(),
+    }
+}
+
+pub async fn ingest_event(
     State(store): State<SharedStore>,
     Json(req): Json<IngestEventRequest>,
 ) -> Result<Json<IngestEventResponse>> {
@@ -113,7 +133,7 @@ async fn ingest_event(
     }))
 }
 
-async fn query_events(
+pub async fn query_events(
     State(store): State<SharedStore>,
     Query(req): Query<QueryEventsRequest>,
 ) -> Result<Json<QueryEventsResponse>> {
@@ -126,11 +146,11 @@ async fn query_events(
 }
 
 #[derive(Deserialize)]
-struct EntityStateParams {
+pub struct EntityStateParams {
     as_of: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-async fn get_entity_state(
+pub async fn get_entity_state(
     State(store): State<SharedStore>,
     Path(entity_id): Path<String>,
     Query(params): Query<EntityStateParams>,
@@ -142,7 +162,7 @@ async fn get_entity_state(
     Ok(Json(state))
 }
 
-async fn get_entity_snapshot(
+pub async fn get_entity_snapshot(
     State(store): State<SharedStore>,
     Path(entity_id): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
@@ -153,13 +173,13 @@ async fn get_entity_snapshot(
     Ok(Json(snapshot))
 }
 
-async fn get_stats(State(store): State<SharedStore>) -> impl IntoResponse {
+pub async fn get_stats(State(store): State<SharedStore>) -> impl IntoResponse {
     let stats = store.stats();
     Json(stats)
 }
 
 // v0.2: WebSocket endpoint for real-time event streaming
-async fn events_websocket(
+pub async fn events_websocket(
     ws: WebSocketUpgrade,
     State(store): State<SharedStore>,
 ) -> Response {
@@ -171,7 +191,7 @@ async fn events_websocket(
 }
 
 // v0.2: Event frequency analytics endpoint
-async fn analytics_frequency(
+pub async fn analytics_frequency(
     State(store): State<SharedStore>,
     Query(req): Query<EventFrequencyRequest>,
 ) -> Result<Json<EventFrequencyResponse>> {
@@ -186,7 +206,7 @@ async fn analytics_frequency(
 }
 
 // v0.2: Statistical summary endpoint
-async fn analytics_summary(
+pub async fn analytics_summary(
     State(store): State<SharedStore>,
     Query(req): Query<StatsSummaryRequest>,
 ) -> Result<Json<StatsSummaryResponse>> {
@@ -202,7 +222,7 @@ async fn analytics_summary(
 }
 
 // v0.2: Event correlation analysis endpoint
-async fn analytics_correlation(
+pub async fn analytics_correlation(
     State(store): State<SharedStore>,
     Query(req): Query<CorrelationRequest>,
 ) -> Result<Json<CorrelationResponse>> {
@@ -219,7 +239,7 @@ async fn analytics_correlation(
 }
 
 // v0.2: Create a snapshot for an entity
-async fn create_snapshot(
+pub async fn create_snapshot(
     State(store): State<SharedStore>,
     Json(req): Json<CreateSnapshotRequest>,
 ) -> Result<Json<CreateSnapshotResponse>> {
@@ -242,7 +262,7 @@ async fn create_snapshot(
 }
 
 // v0.2: List snapshots
-async fn list_snapshots(
+pub async fn list_snapshots(
     State(store): State<SharedStore>,
     Query(req): Query<ListSnapshotsRequest>,
 ) -> Result<Json<ListSnapshotsResponse>> {
@@ -276,7 +296,7 @@ async fn list_snapshots(
 }
 
 // v0.2: Get latest snapshot for an entity
-async fn get_latest_snapshot(
+pub async fn get_latest_snapshot(
     State(store): State<SharedStore>,
     Path(entity_id): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
@@ -301,7 +321,7 @@ async fn get_latest_snapshot(
 }
 
 // v0.2: Trigger manual compaction
-async fn trigger_compaction(State(store): State<SharedStore>) -> Result<Json<CompactionResult>> {
+pub async fn trigger_compaction(State(store): State<SharedStore>) -> Result<Json<CompactionResult>> {
     let compaction_manager = store
         .compaction_manager()
         .ok_or_else(|| crate::error::AllSourceError::InternalError(
@@ -316,7 +336,7 @@ async fn trigger_compaction(State(store): State<SharedStore>) -> Result<Json<Com
 }
 
 // v0.2: Get compaction statistics
-async fn compaction_stats(State(store): State<SharedStore>) -> Result<Json<serde_json::Value>> {
+pub async fn compaction_stats(State(store): State<SharedStore>) -> Result<Json<serde_json::Value>> {
     let compaction_manager = store
         .compaction_manager()
         .ok_or_else(|| crate::error::AllSourceError::InternalError(
@@ -341,7 +361,7 @@ async fn compaction_stats(State(store): State<SharedStore>) -> Result<Json<serde
 }
 
 // v0.5: Register a new schema
-async fn register_schema(
+pub async fn register_schema(
     State(store): State<SharedStore>,
     Json(req): Json<RegisterSchemaRequest>,
 ) -> Result<Json<RegisterSchemaResponse>> {
@@ -361,11 +381,11 @@ async fn register_schema(
 
 // v0.5: Get a schema by subject and optional version
 #[derive(Deserialize)]
-struct GetSchemaParams {
+pub struct GetSchemaParams {
     version: Option<u32>,
 }
 
-async fn get_schema(
+pub async fn get_schema(
     State(store): State<SharedStore>,
     Path(subject): Path<String>,
     Query(params): Query<GetSchemaParams>,
@@ -388,7 +408,7 @@ async fn get_schema(
 }
 
 // v0.5: List all versions of a schema subject
-async fn list_schema_versions(
+pub async fn list_schema_versions(
     State(store): State<SharedStore>,
     Path(subject): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
@@ -403,7 +423,7 @@ async fn list_schema_versions(
 }
 
 // v0.5: List all schema subjects
-async fn list_subjects(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+pub async fn list_subjects(State(store): State<SharedStore>) -> Json<serde_json::Value> {
     let schema_registry = store.schema_registry();
 
     let subjects = schema_registry.list_subjects();
@@ -415,7 +435,7 @@ async fn list_subjects(State(store): State<SharedStore>) -> Json<serde_json::Val
 }
 
 // v0.5: Validate an event against a schema
-async fn validate_event_schema(
+pub async fn validate_event_schema(
     State(store): State<SharedStore>,
     Json(req): Json<ValidateEventRequest>,
 ) -> Result<Json<ValidateEventResponse>> {
@@ -434,11 +454,11 @@ async fn validate_event_schema(
 
 // v0.5: Set compatibility mode for a subject
 #[derive(Deserialize)]
-struct SetCompatibilityRequest {
+pub struct SetCompatibilityRequest {
     compatibility: CompatibilityMode,
 }
 
-async fn set_compatibility_mode(
+pub async fn set_compatibility_mode(
     State(store): State<SharedStore>,
     Path(subject): Path<String>,
     Json(req): Json<SetCompatibilityRequest>,
@@ -456,7 +476,7 @@ async fn set_compatibility_mode(
 }
 
 // v0.5: Start a replay operation
-async fn start_replay(
+pub async fn start_replay(
     State(store): State<SharedStore>,
     Json(req): Json<StartReplayRequest>,
 ) -> Result<Json<StartReplayResponse>> {
@@ -470,7 +490,7 @@ async fn start_replay(
 }
 
 // v0.5: Get replay progress
-async fn get_replay_progress(
+pub async fn get_replay_progress(
     State(store): State<SharedStore>,
     Path(replay_id): Path<uuid::Uuid>,
 ) -> Result<Json<ReplayProgress>> {
@@ -482,7 +502,7 @@ async fn get_replay_progress(
 }
 
 // v0.5: List all replay operations
-async fn list_replays(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+pub async fn list_replays(State(store): State<SharedStore>) -> Json<serde_json::Value> {
     let replay_manager = store.replay_manager();
 
     let replays = replay_manager.list_replays();
@@ -494,7 +514,7 @@ async fn list_replays(State(store): State<SharedStore>) -> Json<serde_json::Valu
 }
 
 // v0.5: Cancel a running replay
-async fn cancel_replay(
+pub async fn cancel_replay(
     State(store): State<SharedStore>,
     Path(replay_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>> {
@@ -511,7 +531,7 @@ async fn cancel_replay(
 }
 
 // v0.5: Delete a completed replay
-async fn delete_replay(
+pub async fn delete_replay(
     State(store): State<SharedStore>,
     Path(replay_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>> {
@@ -530,7 +550,7 @@ async fn delete_replay(
 }
 
 // v0.5: Register a new pipeline
-async fn register_pipeline(
+pub async fn register_pipeline(
     State(store): State<SharedStore>,
     Json(config): Json<PipelineConfig>,
 ) -> Result<Json<serde_json::Value>> {
@@ -552,7 +572,7 @@ async fn register_pipeline(
 }
 
 // v0.5: List all pipelines
-async fn list_pipelines(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+pub async fn list_pipelines(State(store): State<SharedStore>) -> Json<serde_json::Value> {
     let pipeline_manager = store.pipeline_manager();
 
     let pipelines = pipeline_manager.list();
@@ -566,7 +586,7 @@ async fn list_pipelines(State(store): State<SharedStore>) -> Json<serde_json::Va
 }
 
 // v0.5: Get a specific pipeline
-async fn get_pipeline(
+pub async fn get_pipeline(
     State(store): State<SharedStore>,
     Path(pipeline_id): Path<uuid::Uuid>,
 ) -> Result<Json<PipelineConfig>> {
@@ -582,7 +602,7 @@ async fn get_pipeline(
 }
 
 // v0.5: Remove a pipeline
-async fn remove_pipeline(
+pub async fn remove_pipeline(
     State(store): State<SharedStore>,
     Path(pipeline_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>> {
@@ -601,7 +621,7 @@ async fn remove_pipeline(
 }
 
 // v0.5: Get statistics for all pipelines
-async fn all_pipeline_stats(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+pub async fn all_pipeline_stats(State(store): State<SharedStore>) -> Json<serde_json::Value> {
     let pipeline_manager = store.pipeline_manager();
 
     let stats = pipeline_manager.all_stats();
@@ -613,7 +633,7 @@ async fn all_pipeline_stats(State(store): State<SharedStore>) -> Json<serde_json
 }
 
 // v0.5: Get statistics for a specific pipeline
-async fn get_pipeline_stats(
+pub async fn get_pipeline_stats(
     State(store): State<SharedStore>,
     Path(pipeline_id): Path<uuid::Uuid>,
 ) -> Result<Json<PipelineStats>> {
@@ -629,7 +649,7 @@ async fn get_pipeline_stats(
 }
 
 // v0.5: Reset a pipeline's state
-async fn reset_pipeline(
+pub async fn reset_pipeline(
     State(store): State<SharedStore>,
     Path(pipeline_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>> {

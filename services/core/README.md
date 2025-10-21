@@ -1,136 +1,377 @@
-# AllSource Core - Rust Event Store
+# AllSource Core - High-Performance Event Store
 
-> High-performance event store engine built in Rust with columnar storage architecture
+> AI-native event store built in Rust with columnar storage, schema validation, event replay, and stream processing
 
-## 🚀 Features
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+[![Tests](https://img.shields.io/badge/tests-48%20passing-brightgreen.svg)]()
+[![Performance](https://img.shields.io/badge/throughput-469K%20events%2Fsec-blue.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 
-### ⚡ High-Performance Architecture
+## 🎯 What is AllSource?
 
-- **Concurrent Indexing**: Lock-free indexing using `DashMap` for entity and event type lookups
-- **Zero-Copy Operations**: Leveraging Apache Arrow for efficient data manipulation
-- **SIMD-Ready**: Prepared for vectorized operations with Arrow/Parquet integration
-- **Optimistic Locking**: `parking_lot` RwLock for minimal contention
+AllSource is a high-performance event store designed for modern event-sourcing and CQRS architectures. Built with a **polyglot architecture**:
 
-### 📊 Event Sourcing Capabilities
+- **Rust Core** (this service): High-performance event store engine with columnar storage
+- **Go Control Plane** (`services/control-plane`): Orchestration, monitoring, and management layer
+
+The Rust core provides blazing-fast event ingestion (469K events/sec) and sub-microsecond queries, while the Go control plane handles cluster coordination and operational tasks.
+
+**Current Version**: v0.5.0 (Rust Core) | v0.1.0 (Go Control Plane)
+
+## ✨ Features
+
+### 🚀 Core Event Store (v0.1)
 
 - **Immutable Event Log**: Append-only storage with complete audit trail
 - **Time-Travel Queries**: Query entity state as of any timestamp
-- **Event Replay**: Reconstruct state by replaying events
-- **Projections**: Real-time aggregations and materialized views
+- **Concurrent Indexing**: Lock-free indexing using `DashMap` for O(1) lookups
+- **Real-time Projections**: Built-in materialized views with custom projection support
+- **High Performance**: 469K+ events/sec throughput, sub-millisecond queries
+- **Type-Safe API**: Strong typing with Rust's ownership system
 
-### 🔍 Indexing System
+### 💾 Persistence & Durability (v0.2)
 
-- **Entity Index**: O(1) lookup by entity_id
-- **Event Type Index**: O(1) lookup by event_type
-- **Event ID Index**: Direct event access by UUID
-- **Concurrent Updates**: Thread-safe index modifications
+- **Parquet Columnar Storage**: Apache Arrow-based storage for analytics
+- **Write-Ahead Log (WAL)**: Crash recovery with full durability guarantees
+- **Snapshot System**: Point-in-time snapshots with automatic optimization
+- **Automatic Compaction**: Background file merging for storage efficiency
+- **WebSocket Streaming**: Real-time event broadcasting to connected clients
+- **Advanced Analytics**: Event frequency, correlation analysis, statistical summaries
 
-### 📈 Projections
+### 📋 Schema Registry (v0.5)
 
-Built-in projections for real-time aggregations:
+- **JSON Schema Validation**: Enforce event contracts at ingestion time
+- **Schema Versioning**: Automatic version management with compatibility checking
+- **Compatibility Modes**: Backward, Forward, Full, or None
+- **Breaking Change Prevention**: Validate schema evolution before deployment
+- **Subject Organization**: Group schemas by domain or event type
 
-1. **Entity Snapshots**: Current state of each entity
-2. **Event Counters**: Event type statistics
+### 🔄 Event Replay & Projections (v0.5)
 
-Custom projections can be implemented using the `Projection` trait.
+- **Point-in-Time Replay**: Replay events from any timestamp
+- **Projection Rebuilding**: Reconstruct materialized views with progress tracking
+- **Batch Processing**: Configurable batch sizes for optimal performance
+- **Async Execution**: Non-blocking background replay operations
+- **Cancellable Operations**: Stop replays gracefully with proper cleanup
+- **Progress Metrics**: Real-time statistics (events/sec, percentage complete)
 
-### 🛡️ Error Handling
+### ⚡ Stream Processing (v0.5)
 
-Comprehensive error types with automatic HTTP status code mapping:
+- **6 Built-in Operators**:
+  - **Filter**: eq, ne, gt, lt, contains operations
+  - **Map**: Transform field values (uppercase, lowercase, trim, math)
+  - **Reduce**: Aggregations (count, sum, avg, min, max) with grouping
+  - **Window**: Time-based aggregations (tumbling, sliding, session)
+  - **Enrich**: External data lookup and enrichment
+  - **Branch**: Conditional event routing
+- **Stateful Processing**: Thread-safe state management for aggregations
+- **Window Buffers**: Automatic time-based event eviction
+- **Pipeline Statistics**: Track processing metrics per pipeline
+- **Integrated Processing**: Events flow through pipelines during ingestion
 
-- `EventNotFound` → 404
-- `EntityNotFound` → 404
-- `InvalidEvent` → 400
-- `ValidationError` → 400
-- `StorageError` → 500
-- `InternalError` → 500
+## 📊 Performance Benchmarks
 
-## 📁 Module Overview
+Measured on Apple Silicon M-series (release build):
 
-```
-src/
-├── main.rs         # Application entry point
-├── lib.rs          # Library exports for benchmarks
-├── error.rs        # Error types and Result
-├── event.rs        # Event data structures
-├── index.rs        # High-performance indexing
-├── projection.rs   # Real-time aggregations
-├── store.rs        # Core event store implementation
-└── api.rs          # REST API endpoints
-```
+| Operation | Throughput/Latency | Details |
+|-----------|-------------------|---------|
+| Event Ingestion | 442-469K events/sec | Single-threaded |
+| Entity Query | 11.9 μs | Indexed lookup |
+| Type Query | 2.4 ms | Cross-entity scan |
+| State Reconstruction | 3.5 μs | With snapshots |
+| State Reconstruction | 3.8 μs | Without snapshots |
+| Concurrent Writes (8 workers) | 8.0 ms/batch | 100 events/batch |
+| Parquet Batch Write | 3.5 ms | 1000 events |
+| Snapshot Creation | 130 μs | Per entity |
+| WAL Sync Writes | 413 ms | 100 syncs |
 
-## 🔧 API Endpoints
+**Test Coverage**: 48 tests (33 unit + 15 integration) - 100% passing
 
-### Health Check
-```
+## 🔧 API Endpoints (38 Total)
+
+### Core Event Store
+
+```bash
+# Health check
 GET /health
-```
 
-### Ingest Event
-```
+# Ingest event
 POST /api/v1/events
-Content-Type: application/json
 
-{
-  "event_type": "user.created",
-  "entity_id": "user-123",
-  "payload": {
-    "name": "Alice",
-    "email": "alice@example.com"
-  },
-  "metadata": {}
-}
-```
-
-### Query Events
-```
+# Query events
 GET /api/v1/events/query?entity_id=user-123
 GET /api/v1/events/query?event_type=user.created
-GET /api/v1/events/query?entity_id=user-123&as_of=2024-01-15T10:00:00Z
 GET /api/v1/events/query?since=2024-01-15T00:00:00Z&limit=100
-```
 
-### Reconstruct Entity State
-```
+# Entity state
 GET /api/v1/entities/:entity_id/state
 GET /api/v1/entities/:entity_id/state?as_of=2024-01-15T10:00:00Z
-```
-
-### Get Entity Snapshot (Fast)
-```
 GET /api/v1/entities/:entity_id/snapshot
-```
 
-### Statistics
-```
+# Statistics
 GET /api/v1/stats
 ```
 
-Returns:
-```json
-{
-  "total_events": 1234,
-  "total_entities": 456,
-  "total_event_types": 12,
-  "total_ingested": 1234
-}
+### WebSocket Streaming (v0.2)
+
+```bash
+# Real-time event stream
+WS /api/v1/events/stream
 ```
 
-## 🏃 Running
+### Analytics (v0.2)
 
-### Development
 ```bash
+# Event frequency analysis
+GET /api/v1/analytics/frequency?event_type=user.created&bucket_size=3600
+
+# Statistical summary
+GET /api/v1/analytics/summary?entity_id=user-123
+
+# Event correlation
+GET /api/v1/analytics/correlation?event_a=user.created&event_b=order.placed
+```
+
+### Snapshots (v0.2)
+
+```bash
+# Create snapshot
+POST /api/v1/snapshots
+
+# List snapshots
+GET /api/v1/snapshots
+GET /api/v1/snapshots?entity_id=user-123
+
+# Get latest snapshot
+GET /api/v1/snapshots/:entity_id/latest
+```
+
+### Compaction (v0.2)
+
+```bash
+# Trigger manual compaction
+POST /api/v1/compaction/trigger
+
+# Get compaction stats
+GET /api/v1/compaction/stats
+```
+
+### Schema Registry (v0.5)
+
+```bash
+# Register schema
+POST /api/v1/schemas
+
+# List subjects
+GET /api/v1/schemas
+
+# Get schema
+GET /api/v1/schemas/:subject
+GET /api/v1/schemas/:subject?version=2
+
+# List versions
+GET /api/v1/schemas/:subject/versions
+
+# Validate event
+POST /api/v1/schemas/validate
+
+# Set compatibility mode
+PUT /api/v1/schemas/:subject/compatibility
+```
+
+### Event Replay (v0.5)
+
+```bash
+# Start replay
+POST /api/v1/replay
+
+# List replays
+GET /api/v1/replay
+
+# Get progress
+GET /api/v1/replay/:replay_id
+
+# Cancel replay
+POST /api/v1/replay/:replay_id/cancel
+
+# Delete replay
+DELETE /api/v1/replay/:replay_id
+```
+
+### Stream Processing Pipelines (v0.5)
+
+```bash
+# Register pipeline
+POST /api/v1/pipelines
+
+# List pipelines
+GET /api/v1/pipelines
+
+# Get pipeline
+GET /api/v1/pipelines/:pipeline_id
+
+# Remove pipeline
+DELETE /api/v1/pipelines/:pipeline_id
+
+# Get all stats
+GET /api/v1/pipelines/stats
+
+# Get pipeline stats
+GET /api/v1/pipelines/:pipeline_id/stats
+
+# Reset pipeline state
+PUT /api/v1/pipelines/:pipeline_id/reset
+```
+
+## 📁 Project Structure
+
+```
+services/core/src/
+├── main.rs           # Application entry point
+├── lib.rs            # Library exports
+├── api.rs            # REST API endpoints (38 endpoints)
+├── error.rs          # Error types and Result
+├── event.rs          # Event data structures
+├── store.rs          # Core event store implementation
+├── index.rs          # High-performance indexing
+├── projection.rs     # Real-time projections
+├── storage.rs        # Parquet columnar storage
+├── wal.rs            # Write-ahead log
+├── snapshot.rs       # Snapshot management
+├── compaction.rs     # Storage compaction
+├── analytics.rs      # Analytics engine
+├── websocket.rs      # WebSocket streaming
+├── schema.rs         # Schema registry (v0.5)
+├── replay.rs         # Event replay engine (v0.5)
+└── pipeline.rs       # Stream processing (v0.5)
+
+tests/
+└── integration_tests.rs  # End-to-end tests
+
+benches/
+└── performance_benchmarks.rs  # Performance benchmarks
+```
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone <repo-url>
+cd chronos-monorepo/services/core
+
+# Build
+cargo build --release
+
+# Run tests
+cargo test
+
+# Run benchmarks
+cargo bench
+```
+
+### Running the Server
+
+```bash
+# Development mode
 cargo run
-```
 
-### Production (Release Build)
-```bash
+# Production mode (optimized)
 cargo run --release
+
+# With debug logging
+RUST_LOG=debug cargo run
+
+# Custom port (modify main.rs)
+# Default: 0.0.0.0:8080
 ```
 
-### With Custom Log Level
+### Example: Ingest Events
+
 ```bash
-RUST_LOG=debug cargo run
+curl -X POST http://localhost:8080/api/v1/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_type": "user.created",
+    "entity_id": "user-123",
+    "payload": {
+      "name": "Alice",
+      "email": "alice@example.com"
+    }
+  }'
+```
+
+### Example: Query Events
+
+```bash
+# Get all events for an entity
+curl "http://localhost:8080/api/v1/events/query?entity_id=user-123"
+
+# Time-travel query
+curl "http://localhost:8080/api/v1/events/query?entity_id=user-123&as_of=2024-01-15T10:00:00Z"
+
+# Query by type
+curl "http://localhost:8080/api/v1/events/query?event_type=user.created&limit=10"
+```
+
+### Example: Register Schema (v0.5)
+
+```bash
+curl -X POST http://localhost:8080/api/v1/schemas \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "user.created",
+    "schema": {
+      "type": "object",
+      "required": ["name", "email"],
+      "properties": {
+        "name": {"type": "string"},
+        "email": {"type": "string", "format": "email"}
+      }
+    }
+  }'
+```
+
+### Example: Start Replay (v0.5)
+
+```bash
+curl -X POST http://localhost:8080/api/v1/replay \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projection_name": "user_snapshot",
+    "from_timestamp": "2024-01-01T00:00:00Z",
+    "config": {
+      "batch_size": 1000,
+      "emit_progress": true
+    }
+  }'
+```
+
+### Example: Create Pipeline (v0.5)
+
+```bash
+curl -X POST http://localhost:8080/api/v1/pipelines \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "user_analytics",
+    "source_event_types": ["user.created", "user.updated"],
+    "operators": [
+      {
+        "type": "filter",
+        "field": "country",
+        "value": "US",
+        "op": "eq"
+      },
+      {
+        "type": "reduce",
+        "field": "id",
+        "function": "count",
+        "group_by": "country"
+      }
+    ],
+    "enabled": true
+  }'
 ```
 
 ## 🧪 Testing
@@ -139,11 +380,20 @@ RUST_LOG=debug cargo run
 # Run all tests
 cargo test
 
-# Run tests with output
-cargo test -- --nocapture
+# Run unit tests only
+cargo test --lib
+
+# Run integration tests
+cargo test --test integration_tests
 
 # Run specific test
-cargo test test_index_event
+cargo test test_replay_progress_tracking
+
+# Run with output
+cargo test -- --nocapture
+
+# Run with logging
+RUST_LOG=debug cargo test
 ```
 
 ## 📊 Benchmarking
@@ -152,116 +402,203 @@ cargo test test_index_event
 # Run all benchmarks
 cargo bench
 
-# Run specific benchmark
-cargo bench event_ingestion
+# Run specific benchmark suite
+cargo bench ingestion_throughput
+cargo bench query_performance
+cargo bench state_reconstruction
+cargo bench concurrent_writes
 
-# View benchmark results
+# View results
 open target/criterion/report/index.html
 ```
 
-### Benchmark Suites
+## 🏗️ Architecture
 
-1. **Single Event Ingestion**: Measures single-threaded write performance
-2. **Batch Ingestion**: Tests throughput for 100, 1K, and 10K events
-3. **Concurrent Ingestion**: Multi-threaded write performance (100 threads)
-4. **Query Performance**: Entity and type-based query benchmarks
-5. **State Reconstruction**: Event replay vs. snapshot retrieval
+### System Architecture
 
-## 🎯 Performance Targets
+AllSource uses a **polyglot architecture** with specialized services:
 
-| Operation | Target (v0.1) | Target (v1.0) |
-|-----------|---------------|---------------|
-| Event Ingestion | 100K/sec | 1M+/sec |
-| Entity Query (indexed) | <1ms | <100μs |
-| State Reconstruction | <10ms | <1ms |
-| Concurrent Writes | 50K/sec | 500K/sec |
+```
+┌─────────────────────────────────────────┐
+│   Go Control Plane (Port 8081)         │
+│   • Cluster Management                  │
+│   • Metrics Aggregation                 │
+│   • Operation Orchestration             │
+│   • Health Monitoring                   │
+└─────────────────────────────────────────┘
+              │ HTTP Client
+              ▼
+┌─────────────────────────────────────────┐
+│   Rust Event Store (Port 8080)         │
+│   • Event Ingestion (469K/sec)          │
+│   • Query Engine (<12μs)                │
+│   • Schema Registry                     │
+│   • Stream Processing                   │
+│   • Event Replay                        │
+└─────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────┐
+│   Storage Layer                         │
+│   • Parquet (Columnar)                  │
+│   • WAL (Durability)                    │
+│   • Snapshots (Point-in-time)           │
+│   • In-Memory Indexes                   │
+└─────────────────────────────────────────┘
+```
 
-## 🔬 Architecture Decisions
+### Event Flow
+
+When an event is ingested:
+
+1. **Validation** - Check event integrity
+2. **WAL Write** - Durable write-ahead log (v0.2)
+3. **Indexing** - Update entity/type indexes
+4. **Projections** - Update materialized views
+5. **Pipelines** - Real-time stream processing (v0.5)
+6. **Parquet Storage** - Columnar persistence (v0.2)
+7. **In-Memory Store** - Fast access layer
+8. **WebSocket Broadcast** - Real-time streaming (v0.2)
+9. **Auto-Snapshots** - Create snapshots if needed (v0.2)
+
+### Storage Architecture
+
+```
+Storage Layer:
+├── In-Memory Events (Vec<Event>)
+├── DashMap Indexes (entity_id, event_type)
+├── Parquet Files (columnar storage)
+├── WAL Segments (append-only logs)
+└── Snapshots (point-in-time state)
+```
+
+### Concurrency Model
+
+- **Lock-free Indexes**: DashMap for entity/type lookups
+- **RwLock**: parking_lot RwLock for event list
+- **Atomic Counters**: Lock-free statistics tracking
+- **Async Runtime**: Tokio for background tasks (replay, compaction)
+
+## 🎯 Roadmap
+
+### ✅ v0.1 - Core Event Store (COMPLETED)
+- [x] In-memory event storage
+- [x] DashMap-based indexing
+- [x] Entity state reconstruction
+- [x] Basic projections
+- [x] REST API
+- [x] Query by entity/type/time
+
+### ✅ v0.2 - Persistence & Durability (COMPLETED)
+- [x] Parquet columnar storage
+- [x] Write-ahead log (WAL)
+- [x] Snapshot system
+- [x] Automatic compaction
+- [x] WebSocket streaming
+- [x] Advanced analytics
+
+### ✅ v0.5 - Schema & Processing (COMPLETED)
+- [x] Schema registry with versioning
+- [x] Event replay engine
+- [x] Projection rebuilding
+- [x] Stream processing pipelines
+- [x] Stateful aggregations
+- [x] Window operations
+
+### 🚧 v0.6 - Performance & Optimization (IN PROGRESS)
+- [ ] Zero-copy deserialization optimization
+- [ ] SIMD-accelerated queries
+- [ ] Memory-mapped Parquet files
+- [ ] Adaptive indexing strategies
+- [ ] Query result caching
+- [ ] Compression tuning
+
+### 📋 v0.7 - Advanced Features (PLANNED)
+- [ ] Multi-tenancy support
+- [ ] Event encryption at rest
+- [ ] Audit logging
+- [ ] Retention policies
+- [ ] Data archival
+- [ ] Backup/restore
+
+### 🌐 v1.0 - Distributed & Cloud-Native (PLANNED)
+- [ ] Distributed replication
+- [ ] Multi-region support
+- [ ] Consensus protocol (Raft)
+- [ ] Arrow Flight RPC
+- [ ] Kubernetes operators
+- [ ] Cloud-native deployment
+- [ ] Horizontal scaling
+- [ ] Load balancing
+
+### 🔮 Future Enhancements (BACKLOG)
+- [ ] GraphQL API
+- [ ] WASM plugin system
+- [ ] Change Data Capture (CDC)
+- [ ] Time-series optimization
+- [ ] Machine learning integrations
+- [ ] Real-time anomaly detection
+- [ ] Event sourcing templates
+- [ ] Visual query builder
+
+## 🔬 Technical Decisions
+
+### Why Rust?
+
+- **Performance**: Zero-cost abstractions, no GC pauses
+- **Safety**: Ownership model prevents data races
+- **Concurrency**: Fearless concurrency with Send/Sync
+- **Ecosystem**: Excellent libraries (Tokio, Axum, Arrow)
 
 ### Why DashMap?
 
 - Lock-free concurrent HashMap
-- Better performance than `RwLock<HashMap>` for multi-threaded access
+- Better than `RwLock<HashMap>` for reads
 - Sharded internally for minimal contention
+- O(1) lookups with concurrent access
+
+### Why Apache Arrow/Parquet?
+
+- Industry-standard columnar format
+- Zero-copy data access
+- SIMD-accelerated operations
+- Excellent compression ratios
+- Interoperable with DataFusion, Polars, DuckDB
+
+### Why Tokio + Axum?
+
+- High-performance async runtime
+- Type-safe request handlers
+- Excellent ecosystem integration
+- Low overhead, fast routing
 
 ### Why parking_lot?
 
 - Smaller and faster than std::sync::RwLock
 - No poisoning - simpler error handling
 - Better performance under contention
+- Widely used in production Rust
 
-### Why Apache Arrow?
+## 📚 Usage Examples
 
-- Industry-standard columnar format
-- Zero-copy data access
-- SIMD-accelerated operations
-- Interoperability with DataFusion, Polars, etc.
-
-### Why Axum?
-
-- Built on Tokio - excellent async performance
-- Type-safe extractors
-- Composable middleware
-- Low overhead
-
-## 🚀 Next Steps (v0.2)
-
-- [ ] Persistent Parquet file storage
-- [ ] Write-ahead log (WAL) for durability
-- [ ] Snapshot creation and loading
-- [ ] Compaction strategy
-- [ ] Multi-version concurrency control (MVCC)
-- [ ] Distributed replication
-- [ ] Arrow Flight RPC integration
-
-## 📝 Code Examples
-
-### Custom Projection
+### Programmatic API
 
 ```rust
-use allsource_core::projection::Projection;
-use allsource_core::event::Event;
-
-struct MyCustomProjection {
-    // Your state here
-}
-
-impl Projection for MyCustomProjection {
-    fn name(&self) -> &str {
-        "my_projection"
-    }
-
-    fn process(&self, event: &Event) -> Result<()> {
-        // Process event and update state
-        Ok(())
-    }
-
-    fn get_state(&self, entity_id: &str) -> Option<Value> {
-        // Return current state for entity
-        None
-    }
-
-    fn clear(&self) {
-        // Clear projection state
-    }
-}
-```
-
-### Using the Event Store Programmatically
-
-```rust
-use allsource_core::{EventStore, Event};
+use allsource_core::{EventStore, Event, QueryEventsRequest};
 use serde_json::json;
 
+// Create store
 let store = EventStore::new();
 
-// Ingest an event
+// Ingest events
 let event = Event::new(
     "user.created".to_string(),
     "user-123".to_string(),
-    json!({ "name": "Alice" })
+    json!({
+        "name": "Alice",
+        "email": "alice@example.com"
+    })
 );
-
 store.ingest(event)?;
 
 // Query events
@@ -269,45 +606,136 @@ let request = QueryEventsRequest {
     entity_id: Some("user-123".to_string()),
     ..Default::default()
 };
-
 let events = store.query(request)?;
 
 // Reconstruct state
 let state = store.reconstruct_state("user-123", None)?;
+println!("Current state: {}", state);
+
+// Time-travel query
+let timestamp = chrono::Utc::now() - chrono::Duration::hours(1);
+let past_state = store.reconstruct_state("user-123", Some(timestamp))?;
+println!("State 1 hour ago: {}", past_state);
 ```
 
-## 🐛 Debugging
+### Custom Projection
 
-### Enable Detailed Logging
+```rust
+use allsource_core::projection::Projection;
+use allsource_core::event::Event;
+use serde_json::Value;
+use parking_lot::RwLock;
+use std::collections::HashMap;
+
+struct RevenueProjection {
+    totals: RwLock<HashMap<String, f64>>,
+}
+
+impl Projection for RevenueProjection {
+    fn name(&self) -> &str {
+        "revenue_by_customer"
+    }
+
+    fn process(&self, event: &Event) -> allsource_core::Result<()> {
+        if event.event_type == "order.completed" {
+            if let Some(amount) = event.payload["amount"].as_f64() {
+                let mut totals = self.totals.write();
+                *totals.entry(event.entity_id.clone()).or_insert(0.0) += amount;
+            }
+        }
+        Ok(())
+    }
+
+    fn get_state(&self, entity_id: &str) -> Option<Value> {
+        self.totals.read()
+            .get(entity_id)
+            .map(|total| json!({ "total_revenue": total }))
+    }
+
+    fn clear(&self) {
+        self.totals.write().clear();
+    }
+}
+```
+
+## 🐛 Troubleshooting
+
+### Port Already in Use
 
 ```bash
-RUST_LOG=allsource_core=trace cargo run
+# Find process using port 8080
+lsof -i :8080
+
+# Kill process
+kill -9 <PID>
 ```
 
-### Common Issues
+### Slow Performance
 
-**Issue**: Events not appearing in queries
-**Solution**: Check that entity_id and event_type match exactly (case-sensitive)
+```bash
+# Always use release mode for benchmarks
+cargo run --release
+cargo bench
 
-**Issue**: Slow performance
-**Solution**: Ensure you're running in release mode (`cargo run --release`)
+# Check system resources
+top -o cpu
+```
 
-**Issue**: Port 8080 already in use
-**Solution**: Kill the existing process or change the port in `main.rs`
+### Memory Issues
 
-## 📚 Learn More
+```bash
+# Monitor memory usage
+RUST_LOG=allsource_core=debug cargo run --release
+
+# Reduce batch sizes in config
+# Adjust snapshot_config.max_events_before_snapshot
+```
+
+### Test Failures
+
+```bash
+# Clean build
+cargo clean
+cargo test
+
+# Check for stale processes
+killall allsource-core
+
+# Verbose test output
+cargo test -- --nocapture --test-threads=1
+```
+
+## 📖 Resources
 
 - [Event Sourcing Pattern](https://martinfowler.com/eaaDev/EventSourcing.html)
-- [Apache Arrow Format](https://arrow.apache.org/)
-- [DashMap Documentation](https://docs.rs/dashmap)
+- [CQRS Pattern](https://martinfowler.com/bliki/CQRS.html)
+- [Apache Arrow](https://arrow.apache.org/)
+- [Parquet Format](https://parquet.apache.org/)
+- [Tokio Async Runtime](https://tokio.rs/)
 - [Axum Web Framework](https://docs.rs/axum)
+
+## 🤝 Contributing
+
+Contributions are welcome! Areas of interest:
+
+- Performance optimizations
+- Additional projection types
+- Query optimization
+- Documentation improvements
+- Bug fixes and tests
+
+## 📄 License
+
+MIT License - see LICENSE file for details
 
 ---
 
 <div align="center">
 
-**AllSource Core** - *Built for speed, designed for scale*
+**AllSource Core** - *Event sourcing, done right*
 
-Made with 🦀 Rust
+Built with 🦀 Rust | Made for Production
+
+Version 0.5.0 | 469K events/sec | 48 tests passing
 
 </div>

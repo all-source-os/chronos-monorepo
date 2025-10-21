@@ -1,5 +1,6 @@
 use crate::error::{AllSourceError, Result};
 use crate::event::Event;
+use crate::metrics::MetricsRegistry;
 use chrono::{DateTime, Duration, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -691,21 +692,32 @@ impl Pipeline {
 /// Manages multiple pipelines
 pub struct PipelineManager {
     pipelines: Arc<RwLock<HashMap<Uuid, Arc<Pipeline>>>>,
+    metrics: Arc<MetricsRegistry>,
 }
 
 impl PipelineManager {
     pub fn new() -> Self {
+        Self::with_metrics(MetricsRegistry::new())
+    }
+
+    pub fn with_metrics(metrics: Arc<MetricsRegistry>) -> Self {
         Self {
             pipelines: Arc::new(RwLock::new(HashMap::new())),
+            metrics,
         }
     }
 
     /// Register a new pipeline
     pub fn register(&self, config: PipelineConfig) -> Uuid {
         let id = config.id;
+        let name = config.name.clone();
         let pipeline = Arc::new(Pipeline::new(config));
         self.pipelines.write().insert(id, pipeline);
-        tracing::info!("📊 Registered pipeline: {}", id);
+
+        let count = self.pipelines.read().len();
+        self.metrics.pipelines_registered_total.set(count as i64);
+
+        tracing::info!("📊 Registered pipeline: {} ({})", name, id);
         id
     }
 
@@ -716,15 +728,40 @@ impl PipelineManager {
 
     /// Process event through all matching pipelines
     pub fn process_event(&self, event: &Event) -> Vec<(Uuid, JsonValue)> {
+        let timer = self.metrics.pipeline_duration_seconds.start_timer();
+
         let pipelines = self.pipelines.read();
         let mut results = Vec::new();
 
         for (id, pipeline) in pipelines.iter() {
-            if let Ok(Some(result)) = pipeline.process(event) {
-                results.push((*id, result));
+            let pipeline_name = &pipeline.config().name;
+            let pipeline_id = id.to_string();
+
+            match pipeline.process(event) {
+                Ok(Some(result)) => {
+                    self.metrics.pipeline_events_processed
+                        .with_label_values(&[&pipeline_id, pipeline_name])
+                        .inc();
+                    results.push((*id, result));
+                }
+                Ok(None) => {
+                    // Event filtered out or didn't match - not an error
+                }
+                Err(e) => {
+                    self.metrics.pipeline_errors_total
+                        .with_label_values(&[pipeline_name])
+                        .inc();
+                    tracing::error!(
+                        "Pipeline '{}' ({}) failed to process event: {}",
+                        pipeline_name,
+                        id,
+                        e
+                    );
+                }
             }
         }
 
+        timer.observe_duration();
         results
     }
 
@@ -739,7 +776,14 @@ impl PipelineManager {
 
     /// Remove a pipeline
     pub fn remove(&self, id: Uuid) -> bool {
-        self.pipelines.write().remove(&id).is_some()
+        let removed = self.pipelines.write().remove(&id).is_some();
+
+        if removed {
+            let count = self.pipelines.read().len();
+            self.metrics.pipelines_registered_total.set(count as i64);
+        }
+
+        removed
     }
 
     /// Get statistics for all pipelines
