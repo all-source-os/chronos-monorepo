@@ -28,6 +28,7 @@ datafusion = "43.0"
 tokio = { version = "1.36", features = ["full"] }
 tokio-stream = "0.1"
 futures = "0.3"
+async-trait = "0.1"
 
 # Web framework
 axum = { version = "0.7", features = ["json", "ws"] }

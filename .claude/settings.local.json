@@ -18,7 +18,11 @@
       "Bash(go test ./...)",
       "Bash(go test -v -run TestPolicyEngine_Evaluate)",
       "Bash(go test ./... -cover)",
-      "Bash(cargo test --lib -- --test-threads=1)"
+      "Bash(cargo test --lib -- --test-threads=1)",
+      "Bash(cargo test --lib --no-fail-fast)",
+      "Bash(tee /tmp/rust_tests.log)",
+      "Bash(cargo build --lib)",
+      "Bash(cargo test --lib --skip test_api_key)"
     ],
     "deny": [],
     "ask": []

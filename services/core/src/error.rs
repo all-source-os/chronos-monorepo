@@ -16,6 +16,9 @@ pub enum AllSourceError {
     #[error("Invalid query: {0}")]
     InvalidQuery(String),
 
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
     #[error("Storage error: {0}")]
     StorageError(String),
 
@@ -34,6 +37,9 @@ pub enum AllSourceError {
     #[error("Internal error: {0}")]
     InternalError(String),
 }
+
+// Alias for domain layer convenience
+pub use AllSourceError as Error;
 
 impl From<arrow::error::ArrowError> for AllSourceError {
     fn from(err: arrow::error::ArrowError) -> Self {
@@ -59,6 +65,7 @@ impl IntoResponse for AllSourceError {
             }
             AllSourceError::InvalidEvent(_)
             | AllSourceError::InvalidQuery(_)
+            | AllSourceError::InvalidInput(_)
             | AllSourceError::ValidationError(_) => {
                 (StatusCode::BAD_REQUEST, self.to_string())
             }

@@ -1,5 +1,11 @@
 // Library exports for benchmarks and tests
 
+// Clean Architecture Layers
+pub mod domain;           // Layer 1: Enterprise Business Rules
+pub mod application;      // Layer 2: Application Business Rules
+pub mod infrastructure;   // Layer 3: Interface Adapters
+
+// Legacy modules (to be refactored)
 pub mod analytics;
 pub mod auth;
 pub mod auth_api;
@@ -30,3 +36,7 @@ pub mod websocket;
 pub use error::{AllSourceError, Result};
 pub use event::{Event, IngestEventRequest, QueryEventsRequest};
 pub use store::EventStore;
+
+// Re-export domain types
+pub use domain::entities;
+pub use domain::repositories;
