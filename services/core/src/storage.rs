@@ -1,5 +1,5 @@
 use crate::error::{AllSourceError, Result};
-use crate::event::Event;
+use crate::domain::entities::Event;
 use arrow::array::{
     Array, ArrayRef, StringBuilder, TimestampMicrosecondArray, TimestampMicrosecondBuilder,
     UInt64Builder,

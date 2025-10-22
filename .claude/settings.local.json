@@ -22,7 +22,14 @@
       "Bash(cargo test --lib --no-fail-fast)",
       "Bash(tee /tmp/rust_tests.log)",
       "Bash(cargo build --lib)",
-      "Bash(cargo test --lib --skip test_api_key)"
+      "Bash(cargo test --lib --skip test_api_key)",
+      "Bash(go test -v ./internal/...)",
+      "Bash(go build ./internal/...)",
+      "Bash(go test -v .)",
+      "Bash(go build .)",
+      "Bash(go test ./services/control-plane/... -cover)",
+      "Bash(cargo check --lib)",
+      "Bash(cargo test --lib domain::entities)"
     ],
     "deny": [],
     "ask": []

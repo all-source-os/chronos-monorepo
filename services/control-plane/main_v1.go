@@ -11,6 +11,7 @@ import (
 	// "syscall"     // Unused - only needed in commented-out main()
 	"time"
 
+	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -130,9 +131,9 @@ func (cp *ControlPlaneV1) setupRoutes() {
 		// Operations (require specific permissions)
 		operations := api.Group("/operations")
 		{
-			operations.POST("/snapshot", RequirePermission(PermissionAdmin), cp.snapshotHandler)
-			operations.POST("/replay", RequirePermission(PermissionAdmin), cp.replayHandler)
-			operations.POST("/backup", RequirePermission(PermissionAdmin), cp.backupHandler)
+			operations.POST("/snapshot", RequirePermission(entities.PermissionAdmin), cp.snapshotHandler)
+			operations.POST("/replay", RequirePermission(entities.PermissionAdmin), cp.replayHandler)
+			operations.POST("/backup", RequirePermission(entities.PermissionAdmin), cp.backupHandler)
 		}
 
 		// Tenant management (admin only)

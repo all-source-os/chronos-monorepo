@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/allsource/control-plane/internal"
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,9 +23,10 @@ const (
 )
 
 type ControlPlane struct {
-	client  *resty.Client
-	router  *gin.Engine
-	metrics *ControlPlaneMetrics
+	client    *resty.Client
+	router    *gin.Engine
+	metrics   *ControlPlaneMetrics
+	container *internal.Container
 }
 
 func NewControlPlane() *ControlPlane {
@@ -51,10 +53,14 @@ func NewControlPlane() *ControlPlane {
 		c.Next()
 	})
 
+	// Initialize Clean Architecture container
+	container := internal.NewContainer()
+
 	cp := &ControlPlane{
-		client:  client,
-		router:  router,
-		metrics: metrics,
+		client:    client,
+		router:    router,
+		metrics:   metrics,
+		container: container,
 	}
 
 	// Add Prometheus middleware
@@ -79,6 +85,10 @@ func (cp *ControlPlane) setupRoutes() {
 		api.GET("/metrics/json", cp.metricsHandler)
 		api.POST("/operations/snapshot", cp.snapshotHandler)
 		api.POST("/operations/replay", cp.replayHandler)
+
+		// Clean Architecture endpoints
+		api.POST("/tenants", cp.container.TenantHandler.Create)
+		api.POST("/policies/evaluate", cp.container.PolicyHandler.Evaluate)
 	}
 }
 

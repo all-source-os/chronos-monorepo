@@ -1,4 +1,4 @@
-use crate::event::Event;
+use crate::domain::entities::Event;
 use axum::extract::ws::{Message, WebSocket};
 use futures::{sink::SinkExt, stream::StreamExt};
 use parking_lot::RwLock;

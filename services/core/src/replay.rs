@@ -1,5 +1,6 @@
+use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
-use crate::event::{Event, QueryEventsRequest};
+use crate::event::QueryEventsRequest;
 use crate::projection::Projection;
 use crate::store::EventStore;
 use chrono::{DateTime, Utc};
@@ -450,7 +451,7 @@ impl Default for ReplayManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::Event;
+    use crate::domain::entities::Event;
     use serde_json::json;
 
     #[tokio::test]

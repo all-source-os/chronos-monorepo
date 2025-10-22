@@ -1,5 +1,5 @@
 use crate::error::{AllSourceError, Result};
-use crate::event::Event;
+use crate::domain::entities::Event;
 use crate::storage::ParquetStorage;
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;

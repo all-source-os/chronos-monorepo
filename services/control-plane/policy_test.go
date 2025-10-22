@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
 func TestPolicyEngine_Evaluate(t *testing.T) {
@@ -20,7 +22,7 @@ func TestPolicyEngine_Evaluate(t *testing.T) {
 				Operation: "create",
 				UserID:    "admin-1",
 				TenantID:  "default",
-				Role:      RoleAdmin,
+				Role:      entities.RoleAdmin,
 			},
 			expected: true,
 			action:   ActionAllow,
@@ -32,7 +34,7 @@ func TestPolicyEngine_Evaluate(t *testing.T) {
 				Operation: "create",
 				UserID:    "dev-1",
 				TenantID:  "default",
-				Role:      RoleDeveloper,
+				Role:      entities.RoleDeveloper,
 			},
 			expected: false,
 			action:   ActionDeny,
@@ -44,7 +46,7 @@ func TestPolicyEngine_Evaluate(t *testing.T) {
 				Operation: "delete",
 				UserID:    "admin-1",
 				TenantID:  "default",
-				Role:      RoleAdmin,
+				Role:      entities.RoleAdmin,
 				Attributes: map[string]interface{}{
 					"tenant_id": "default",
 				},
@@ -59,7 +61,7 @@ func TestPolicyEngine_Evaluate(t *testing.T) {
 				Operation: "delete",
 				UserID:    "admin-1",
 				TenantID:  "default",
-				Role:      RoleAdmin,
+				Role:      entities.RoleAdmin,
 				Attributes: map[string]interface{}{
 					"tenant_id": "custom-tenant",
 				},
@@ -74,7 +76,7 @@ func TestPolicyEngine_Evaluate(t *testing.T) {
 				Operation: "delete",
 				UserID:    "user-123",
 				TenantID:  "default",
-				Role:      RoleAdmin,
+				Role:      entities.RoleAdmin,
 				Attributes: map[string]interface{}{
 					"target_user_id": "user-123",
 				},
@@ -89,7 +91,7 @@ func TestPolicyEngine_Evaluate(t *testing.T) {
 				Operation: "delete",
 				UserID:    "user-123",
 				TenantID:  "default",
-				Role:      RoleAdmin,
+				Role:      entities.RoleAdmin,
 				Attributes: map[string]interface{}{
 					"target_user_id": "user-456",
 				},
@@ -104,7 +106,7 @@ func TestPolicyEngine_Evaluate(t *testing.T) {
 				Operation: "bulk_delete",
 				UserID:    "admin-1",
 				TenantID:  "default",
-				Role:      RoleAdmin,
+				Role:      entities.RoleAdmin,
 				Attributes: map[string]interface{}{
 					"record_count": 15000,
 				},
@@ -228,7 +230,7 @@ func TestPolicyCondition_Evaluation(t *testing.T) {
 				Value:    "Admin",
 			},
 			ctx: PolicyContext{
-				Role: RoleDeveloper,
+				Role: entities.RoleDeveloper,
 			},
 			expected: true,
 		},

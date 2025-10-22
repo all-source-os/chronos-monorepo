@@ -1,9 +1,8 @@
-// Re-export domain Event as the main Event type
-pub use crate::domain::entities::Event;
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::domain::entities::Event;
 
 /// Request to ingest a new event
 #[derive(Debug, Deserialize)]

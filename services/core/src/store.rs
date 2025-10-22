@@ -1,6 +1,7 @@
 use crate::compaction::{CompactionConfig, CompactionManager};
+use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
-use crate::event::{Event, QueryEventsRequest};
+use crate::event::QueryEventsRequest;
 use crate::index::{EventIndex, IndexEntry};
 use crate::metrics::MetricsRegistry;
 use crate::pipeline::PipelineManager;

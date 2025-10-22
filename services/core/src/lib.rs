@@ -33,8 +33,9 @@ pub mod wal;
 pub mod websocket;
 
 // Re-export commonly used types
+pub use domain::entities::Event;
 pub use error::{AllSourceError, Result};
-pub use event::{Event, IngestEventRequest, QueryEventsRequest};
+pub use event::{IngestEventRequest, QueryEventsRequest};
 pub use store::EventStore;
 
 // Re-export domain types

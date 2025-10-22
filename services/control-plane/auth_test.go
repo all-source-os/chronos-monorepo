@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/dgrijalva/jwt-go"
 )
 
@@ -16,7 +17,7 @@ func TestAuthClient_ValidateToken(t *testing.T) {
 		UserID:   "user-123",
 		Username: "testuser",
 		TenantID: "default",
-		Role:     RoleDeveloper,
+		Role:     entities.RoleDeveloper,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(time.Hour).Unix(),
 			IssuedAt:  time.Now().Unix(),
@@ -52,7 +53,7 @@ func TestAuthClient_ValidateToken(t *testing.T) {
 			UserID:   "user-123",
 			Username: "testuser",
 			TenantID: "default",
-			Role:     RoleDeveloper,
+			Role:     entities.RoleDeveloper,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: time.Now().Add(-time.Hour).Unix(), // Already expired
 				IssuedAt:  time.Now().Unix(),
@@ -91,50 +92,50 @@ func TestAuthClient_ValidateToken(t *testing.T) {
 
 func TestRole_HasPermission(t *testing.T) {
 	tests := []struct {
-		role       Role
-		permission Permission
+		role       entities.Role
+		permission entities.Permission
 		expected   bool
 	}{
 		// Admin has all permissions
-		{RoleAdmin, PermissionRead, true},
-		{RoleAdmin, PermissionWrite, true},
-		{RoleAdmin, PermissionAdmin, true},
-		{RoleAdmin, PermissionMetrics, true},
-		{RoleAdmin, PermissionManageSchemas, true},
-		{RoleAdmin, PermissionManagePipelines, true},
-		{RoleAdmin, PermissionManageTenants, true},
+		{entities.RoleAdmin, entities.PermissionRead, true},
+		{entities.RoleAdmin, entities.PermissionWrite, true},
+		{entities.RoleAdmin, entities.PermissionAdmin, true},
+		{entities.RoleAdmin, entities.PermissionMetrics, true},
+		{entities.RoleAdmin, entities.PermissionManageSchemas, true},
+		{entities.RoleAdmin, entities.PermissionManagePipelines, true},
+		{entities.RoleAdmin, entities.PermissionManageTenants, true},
 
 		// Developer permissions
-		{RoleDeveloper, PermissionRead, true},
-		{RoleDeveloper, PermissionWrite, true},
-		{RoleDeveloper, PermissionAdmin, false},
-		{RoleDeveloper, PermissionMetrics, true},
-		{RoleDeveloper, PermissionManageSchemas, true},
-		{RoleDeveloper, PermissionManagePipelines, true},
-		{RoleDeveloper, PermissionManageTenants, false},
+		{entities.RoleDeveloper, entities.PermissionRead, true},
+		{entities.RoleDeveloper, entities.PermissionWrite, true},
+		{entities.RoleDeveloper, entities.PermissionAdmin, false},
+		{entities.RoleDeveloper, entities.PermissionMetrics, true},
+		{entities.RoleDeveloper, entities.PermissionManageSchemas, true},
+		{entities.RoleDeveloper, entities.PermissionManagePipelines, true},
+		{entities.RoleDeveloper, entities.PermissionManageTenants, false},
 
 		// ReadOnly permissions
-		{RoleReadOnly, PermissionRead, true},
-		{RoleReadOnly, PermissionWrite, false},
-		{RoleReadOnly, PermissionAdmin, false},
-		{RoleReadOnly, PermissionMetrics, true},
-		{RoleReadOnly, PermissionManageSchemas, false},
-		{RoleReadOnly, PermissionManagePipelines, false},
-		{RoleReadOnly, PermissionManageTenants, false},
+		{entities.RoleReadOnly, entities.PermissionRead, true},
+		{entities.RoleReadOnly, entities.PermissionWrite, false},
+		{entities.RoleReadOnly, entities.PermissionAdmin, false},
+		{entities.RoleReadOnly, entities.PermissionMetrics, true},
+		{entities.RoleReadOnly, entities.PermissionManageSchemas, false},
+		{entities.RoleReadOnly, entities.PermissionManagePipelines, false},
+		{entities.RoleReadOnly, entities.PermissionManageTenants, false},
 
 		// ServiceAccount permissions
-		{RoleServiceAccount, PermissionRead, true},
-		{RoleServiceAccount, PermissionWrite, true},
-		{RoleServiceAccount, PermissionAdmin, false},
-		{RoleServiceAccount, PermissionMetrics, false},
-		{RoleServiceAccount, PermissionManageSchemas, false},
-		{RoleServiceAccount, PermissionManagePipelines, false},
-		{RoleServiceAccount, PermissionManageTenants, false},
+		{entities.RoleServiceAccount, entities.PermissionRead, true},
+		{entities.RoleServiceAccount, entities.PermissionWrite, true},
+		{entities.RoleServiceAccount, entities.PermissionAdmin, false},
+		{entities.RoleServiceAccount, entities.PermissionMetrics, false},
+		{entities.RoleServiceAccount, entities.PermissionManageSchemas, false},
+		{entities.RoleServiceAccount, entities.PermissionManagePipelines, false},
+		{entities.RoleServiceAccount, entities.PermissionManageTenants, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(string(tt.role)+"_"+string(tt.permission), func(t *testing.T) {
-			result := tt.role.HasPermission(tt.permission)
+			result := RoleHasPermission(tt.role, tt.permission)
 			if result != tt.expected {
 				t.Errorf("Role %s permission %s: expected %v, got %v",
 					tt.role, tt.permission, tt.expected, result)

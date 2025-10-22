@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::event::Event;
+use crate::domain::entities::Event;
 use crate::metrics::MetricsRegistry;
 use dashmap::DashMap;
 use serde_json::Value;

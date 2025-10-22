@@ -7,40 +7,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 )
 
-// Role represents a user's role in the system
-type Role string
-
-const (
-	RoleAdmin          Role = "Admin"
-	RoleDeveloper      Role = "Developer"
-	RoleReadOnly       Role = "ReadOnly"
-	RoleServiceAccount Role = "ServiceAccount"
-)
-
-// Permission represents a specific permission
-type Permission string
-
-const (
-	PermissionRead            Permission = "Read"
-	PermissionWrite           Permission = "Write"
-	PermissionAdmin           Permission = "Admin"
-	PermissionMetrics         Permission = "Metrics"
-	PermissionManageSchemas   Permission = "ManageSchemas"
-	PermissionManagePipelines Permission = "ManagePipelines"
-	PermissionManageTenants   Permission = "ManageTenants"
-)
-
 // Claims represents JWT claims
 type Claims struct {
-	UserID    string `json:"sub"`
-	Username  string `json:"username"`
-	TenantID  string `json:"tenant_id"`
-	Role      Role   `json:"role"`
-	IsAPIKey  bool   `json:"is_api_key,omitempty"`
+	UserID    string        `json:"sub"`
+	Username  string        `json:"username"`
+	TenantID  string        `json:"tenant_id"`
+	Role      entities.Role `json:"role"`
+	IsAPIKey  bool          `json:"is_api_key,omitempty"`
 	jwt.StandardClaims
 }
 
@@ -49,7 +27,7 @@ type AuthContext struct {
 	UserID   string
 	Username string
 	TenantID string
-	Role     Role
+	Role     entities.Role
 	IsAPIKey bool
 }
 
@@ -100,9 +78,10 @@ func (a *AuthClient) ValidateToken(tokenString string) (*Claims, error) {
 func ExtractToken(c *gin.Context) (string, error) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		return "", errors.New("authorization header missing")
+		return "", errors.New("no authorization header")
 	}
 
+	// Expected format: "Bearer <token>"
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) != 2 || parts[0] != "Bearer" {
 		return "", errors.New("invalid authorization header format")
@@ -111,22 +90,13 @@ func ExtractToken(c *gin.Context) (string, error) {
 	return parts[1], nil
 }
 
-// HasPermission checks if a role has a specific permission
-func (r Role) HasPermission(perm Permission) bool {
-	switch r {
-	case RoleAdmin:
-		return true // Admin has all permissions
-	case RoleDeveloper:
-		switch perm {
-		case PermissionRead, PermissionWrite, PermissionMetrics, PermissionManageSchemas, PermissionManagePipelines:
-			return true
-		}
-	case RoleReadOnly:
-		return perm == PermissionRead || perm == PermissionMetrics
-	case RoleServiceAccount:
-		return perm == PermissionRead || perm == PermissionWrite
+// RoleHasPermission checks if a role has a specific permission
+func RoleHasPermission(role entities.Role, perm entities.Permission) bool {
+	user, err := entities.NewUser("temp", "temp", "temp", role)
+	if err != nil {
+		return false
 	}
-	return false
+	return user.HasPermission(perm)
 }
 
 // AuthMiddleware validates JWT tokens and adds auth context to requests
@@ -138,7 +108,6 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 			return
 		}
 
-		// Extract token
 		token, err := ExtractToken(c)
 		if err != nil {
 			c.JSON(401, gin.H{"error": "unauthorized", "message": err.Error()})
@@ -146,7 +115,6 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 			return
 		}
 
-		// Validate token
 		claims, err := authClient.ValidateToken(token)
 		if err != nil {
 			c.JSON(401, gin.H{"error": "unauthorized", "message": err.Error()})
@@ -170,7 +138,7 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 }
 
 // RequirePermission returns a middleware that checks for a specific permission
-func RequirePermission(perm Permission) gin.HandlerFunc {
+func RequirePermission(perm entities.Permission) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authCtx, exists := c.Get("auth")
 		if !exists {
@@ -180,7 +148,7 @@ func RequirePermission(perm Permission) gin.HandlerFunc {
 		}
 
 		auth := authCtx.(*AuthContext)
-		if !auth.Role.HasPermission(perm) {
+		if !RoleHasPermission(auth.Role, perm) {
 			c.JSON(403, gin.H{
 				"error":   "forbidden",
 				"message": fmt.Sprintf("permission denied: %s required", perm),
@@ -195,7 +163,7 @@ func RequirePermission(perm Permission) gin.HandlerFunc {
 
 // RequireAdmin returns a middleware that requires admin role
 func RequireAdmin() gin.HandlerFunc {
-	return RequirePermission(PermissionAdmin)
+	return RequirePermission(entities.PermissionAdmin)
 }
 
 // GetAuthContext retrieves the auth context from the gin context
@@ -207,7 +175,7 @@ func GetAuthContext(c *gin.Context) (*AuthContext, error) {
 
 	auth, ok := authCtx.(*AuthContext)
 	if !ok {
-		return nil, errors.New("invalid auth context")
+		return nil, errors.New("invalid auth context type")
 	}
 
 	return auth, nil
@@ -219,32 +187,16 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-// LoginResponse represents a login response
-type LoginResponse struct {
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expires_at"`
-	User      UserInfo  `json:"user"`
-}
-
-// UserInfo represents user information
-type UserInfo struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Role     Role   `json:"role"`
-	TenantID string `json:"tenant_id"`
-}
-
-// RegisterRequest represents a user registration request
+// RegisterRequest represents a registration request
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required"`
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	Role     Role   `json:"role"`
+	Username string        `json:"username" binding:"required"`
+	Password string        `json:"password" binding:"required"`
+	TenantID string        `json:"tenant_id"`
+	Role     entities.Role `json:"role"`
 }
 
-// LoginHandler handles user login by proxying to the core service
-func (cp *ControlPlane) loginHandler(c *gin.Context) {
+// LoginHandler handles user login
+func (cp *ControlPlane) LoginHandler(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": "invalid request", "message": err.Error()})
@@ -257,29 +209,22 @@ func (cp *ControlPlane) loginHandler(c *gin.Context) {
 		Post("/api/v1/auth/login")
 
 	if err != nil {
-		cp.metrics.CoreHealthCheckTotal.WithLabelValues("error").Inc()
-		c.JSON(500, gin.H{"error": "failed to authenticate with core service"})
+		c.JSON(500, gin.H{"error": "failed to authenticate", "message": err.Error()})
 		return
 	}
 
-	if resp.StatusCode() != 200 {
-		var errResp map[string]interface{}
-		json.Unmarshal(resp.Body(), &errResp)
-		c.JSON(resp.StatusCode(), errResp)
+	// Parse response
+	var result map[string]interface{}
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
+		c.JSON(500, gin.H{"error": "invalid response from core service"})
 		return
 	}
 
-	var loginResp LoginResponse
-	if err := json.Unmarshal(resp.Body(), &loginResp); err != nil {
-		c.JSON(500, gin.H{"error": "failed to parse response"})
-		return
-	}
-
-	c.JSON(200, loginResp)
+	c.JSON(resp.StatusCode(), result)
 }
 
-// RegisterHandler handles user registration by proxying to the core service
-func (cp *ControlPlane) registerHandler(c *gin.Context) {
+// RegisterHandler handles user registration
+func (cp *ControlPlane) RegisterHandler(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": "invalid request", "message": err.Error()})
@@ -288,7 +233,7 @@ func (cp *ControlPlane) registerHandler(c *gin.Context) {
 
 	// Default to Developer role if not specified
 	if req.Role == "" {
-		req.Role = RoleDeveloper
+		req.Role = entities.RoleDeveloper
 	}
 
 	// Proxy to core service
@@ -297,39 +242,16 @@ func (cp *ControlPlane) registerHandler(c *gin.Context) {
 		Post("/api/v1/auth/register")
 
 	if err != nil {
-		c.JSON(500, gin.H{"error": "failed to register with core service"})
+		c.JSON(500, gin.H{"error": "registration failed", "message": err.Error()})
 		return
 	}
 
-	if resp.StatusCode() != 201 {
-		var errResp map[string]interface{}
-		json.Unmarshal(resp.Body(), &errResp)
-		c.JSON(resp.StatusCode(), errResp)
+	// Parse response
+	var result map[string]interface{}
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
+		c.JSON(500, gin.H{"error": "invalid response from core service"})
 		return
 	}
 
-	var userResp UserInfo
-	if err := json.Unmarshal(resp.Body(), &userResp); err != nil {
-		c.JSON(500, gin.H{"error": "failed to parse response"})
-		return
-	}
-
-	c.JSON(201, userResp)
-}
-
-// MeHandler returns the current user information
-func (cp *ControlPlane) meHandler(c *gin.Context) {
-	auth, err := GetAuthContext(c)
-	if err != nil {
-		c.JSON(401, gin.H{"error": "unauthorized"})
-		return
-	}
-
-	c.JSON(200, gin.H{
-		"user_id":   auth.UserID,
-		"username":  auth.Username,
-		"tenant_id": auth.TenantID,
-		"role":      auth.Role,
-		"is_api_key": auth.IsAPIKey,
-	})
+	c.JSON(resp.StatusCode(), result)
 }

@@ -9,7 +9,7 @@
 /// - Support for filesystem and S3-compatible storage
 
 use crate::error::{AllSourceError, Result};
-use crate::event::Event;
+use crate::domain::entities::Event;
 use chrono::{DateTime, Utc};
 use flate2::{write::GzEncoder, read::GzDecoder, Compression};
 use serde::{Deserialize, Serialize};

@@ -3,8 +3,9 @@ use crate::analytics::{
     EventFrequencyResponse, StatsSummaryRequest, StatsSummaryResponse,
 };
 use crate::compaction::CompactionResult;
+use crate::domain::entities::Event;
 use crate::error::Result;
-use crate::event::{Event, IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse};
+use crate::event::{IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse};
 use crate::pipeline::{PipelineConfig, PipelineStats};
 use crate::replay::{ReplayProgress, StartReplayRequest, StartReplayResponse};
 use crate::schema::{

@@ -1,5 +1,5 @@
 use crate::error::{AllSourceError, Result};
-use crate::event::Event;
+use crate::domain::entities::Event;
 use crate::store::EventStore;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use serde::{Deserialize, Serialize};

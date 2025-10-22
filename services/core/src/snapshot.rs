@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::event::Event;
+use crate::domain::entities::Event;
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

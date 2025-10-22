@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/gin-gonic/gin"
 )
 
@@ -211,7 +212,7 @@ type PolicyContext struct {
 	Operation  string
 	UserID     string
 	TenantID   string
-	Role       Role
+	Role       entities.Role
 	Attributes map[string]interface{}
 }
 
