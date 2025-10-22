@@ -609,19 +609,9 @@ impl MetricsRegistry {
     }
 }
 
-impl Default for MetricsRegistry {
-    fn default() -> Self {
-        Self::new().as_ref().clone()
-    }
-}
-
-impl Clone for MetricsRegistry {
-    fn clone(&self) -> Self {
-        // Note: This creates a new metrics registry. In practice, you should
-        // use Arc<MetricsRegistry> to share the same registry across the application
-        Self::new().as_ref().clone()
-    }
-}
+// Note: Clone and Default are intentionally NOT implemented for MetricsRegistry.
+// Use Arc<MetricsRegistry> to share the same registry across the application.
+// Creating multiple registries would result in duplicate metrics which is incorrect.
 
 #[cfg(test)]
 mod tests {
@@ -733,14 +723,14 @@ mod tests {
         metrics.schemas_registered_total.inc();
         assert_eq!(metrics.schemas_registered_total.get(), 1);
 
-        // Validation success
+        // Validation success - requires both subject and result labels
         metrics.schema_validations_total
-            .with_label_values(&["success"])
+            .with_label_values(&["user.schema", "success"])
             .inc();
 
         // Validation failure
         metrics.schema_validations_total
-            .with_label_values(&["failure"])
+            .with_label_values(&["order.schema", "failure"])
             .inc();
 
         // Record validation duration
@@ -775,19 +765,19 @@ mod tests {
         metrics.pipelines_registered_total.set(2);
         assert_eq!(metrics.pipelines_registered_total.get(), 2);
 
-        // Process events
+        // Process events - requires both pipeline_id and pipeline_name labels
         metrics.pipeline_events_processed
-            .with_label_values(&["filter_pipeline"])
+            .with_label_values(&["pipeline-1", "filter_pipeline"])
             .inc_by(250);
 
-        // Record errors
+        // Record errors - only requires pipeline_name
         metrics.pipeline_errors_total
             .with_label_values(&["filter_pipeline"])
             .inc();
 
-        // Record duration
+        // Record duration - requires both pipeline_id and pipeline_name labels
         metrics.pipeline_processing_duration
-            .with_label_values(&["filter_pipeline"])
+            .with_label_values(&["pipeline-1", "filter_pipeline"])
             .observe(0.15);
     }
 
@@ -809,7 +799,7 @@ mod tests {
 
     #[test]
     fn test_metrics_default() {
-        let metrics = MetricsRegistry::default();
+        let metrics = MetricsRegistry::new();
         assert_eq!(metrics.events_ingested_total.get(), 0);
     }
 

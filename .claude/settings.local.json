@@ -9,7 +9,16 @@
       "Bash(tee /tmp/rust_test_final.txt)",
       "Bash(for file in src/*.rs)",
       "Bash(do echo \"=== $file ===\")",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(go version)",
+      "Bash(go test -v -cover ./...)",
+      "Bash(go get .)",
+      "Bash(go test -v ./...)",
+      "Bash(cargo test --lib --no-run)",
+      "Bash(go test ./...)",
+      "Bash(go test -v -run TestPolicyEngine_Evaluate)",
+      "Bash(go test ./... -cover)",
+      "Bash(cargo test --lib -- --test-threads=1)"
     ],
     "deny": [],
     "ask": []

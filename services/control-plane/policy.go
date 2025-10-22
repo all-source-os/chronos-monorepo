@@ -295,12 +295,13 @@ func (pe *PolicyEngine) evaluateCondition(condition PolicyCondition, ctx PolicyC
 		fieldValue = ctx.Operation
 	case "user_id":
 		fieldValue = ctx.UserID
-	case "tenant_id":
-		fieldValue = ctx.TenantID
 	case "role":
 		fieldValue = string(ctx.Role)
 	default:
 		// Check in attributes
+		// Note: "tenant_id" is checked in attributes to allow policies
+		// to reference the target tenant (e.g., which tenant is being deleted)
+		// rather than the user's current tenant (ctx.TenantID)
 		var ok bool
 		fieldValue, ok = ctx.Attributes[condition.Field]
 		if !ok {

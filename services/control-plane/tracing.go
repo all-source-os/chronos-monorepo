@@ -222,7 +222,7 @@ func getEnvVar(key, defaultValue string) string {
 }
 
 // TraceHTTPRequest wraps an HTTP request to core service with tracing
-func (cp *ControlPlaneV1) TraceHTTPRequest(c *gin.Context, method, path string) (*resty.Response, error) {
+func (cp *ControlPlaneV1) TraceHTTPRequest(c *gin.Context, method, path string) (interface{}, error) {
 	ctx, span := StartSpan(c, fmt.Sprintf("HTTP %s %s", method, path),
 		attribute.String("http.method", method),
 		attribute.String("http.url", CoreServiceURL+path),

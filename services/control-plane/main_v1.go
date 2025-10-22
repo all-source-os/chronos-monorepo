@@ -1,13 +1,14 @@
 package main
 
 import (
-	"context"
+	// "context"     // Unused - only needed in commented-out main()
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
+	// "os/signal"   // Unused - only needed in commented-out main()
+	// "syscall"     // Unused - only needed in commented-out main()
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,9 +17,7 @@ import (
 )
 
 const (
-	DefaultPort    = "8081"
-	CoreServiceURL = "http://localhost:8080"
-	Version        = "1.0.0"
+	Version = "1.0.0"
 )
 
 type ControlPlaneV1 struct {
@@ -115,7 +114,7 @@ func (cp *ControlPlaneV1) setupRoutes() {
 	{
 		auth.POST("/login", cp.loginHandler)
 		auth.POST("/register", cp.registerHandler)
-		auth.GET("/me", cp.meHandler) // Requires auth (handled by middleware)
+		// auth.GET("/me", cp.meHandler) // TODO: implement meHandler
 	}
 
 	// Protected API endpoints
@@ -198,7 +197,7 @@ func (cp *ControlPlaneV1) coreHealthHandler(c *gin.Context) {
 	}
 
 	var result map[string]interface{}
-	if err := resp.UnmarshalJson(&result); err != nil {
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
 		cp.metrics.CoreHealthCheckTotal.WithLabelValues("error").Inc()
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "error",
@@ -225,7 +224,7 @@ func (cp *ControlPlaneV1) clusterStatusHandler(c *gin.Context) {
 
 	var coreStats map[string]interface{}
 	if err == nil {
-		resp.UnmarshalJson(&coreStats)
+		json.Unmarshal(resp.Body(),&coreStats)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -267,7 +266,7 @@ func (cp *ControlPlaneV1) metricsHandler(c *gin.Context) {
 	}
 
 	var stats map[string]interface{}
-	resp.UnmarshalJson(&stats)
+	json.Unmarshal(resp.Body(),&stats)
 
 	c.JSON(http.StatusOK, gin.H{
 		"metrics": gin.H{
@@ -346,7 +345,7 @@ func (cp *ControlPlaneV1) backupHandler(c *gin.Context) {
 	cp.auditLogger.LogOperationEvent("backup_create", backupID, auth.UserID, "initiated")
 
 	var result map[string]interface{}
-	resp.UnmarshalJson(&result)
+	json.Unmarshal(resp.Body(),&result)
 	c.JSON(http.StatusOK, result)
 }
 
@@ -375,7 +374,7 @@ func (cp *ControlPlaneV1) createTenantHandler(c *gin.Context) {
 	}
 
 	var result map[string]interface{}
-	resp.UnmarshalJson(&result)
+	json.Unmarshal(resp.Body(),&result)
 	c.JSON(resp.StatusCode(), result)
 }
 
@@ -394,7 +393,7 @@ func (cp *ControlPlaneV1) updateTenantHandler(c *gin.Context) {
 	cp.auditLogger.LogTenantEvent("update", tenantID, auth.UserID, "tenant updated")
 
 	var result map[string]interface{}
-	resp.UnmarshalJson(&result)
+	json.Unmarshal(resp.Body(),&result)
 	c.JSON(resp.StatusCode(), result)
 }
 
@@ -452,7 +451,7 @@ func (cp *ControlPlaneV1) proxyToCoreAuth(c *gin.Context, method, path string) {
 	}
 
 	var result map[string]interface{}
-	resp.UnmarshalJson(&result)
+	json.Unmarshal(resp.Body(),&result)
 	c.JSON(resp.StatusCode(), result)
 }
 
@@ -486,10 +485,12 @@ func (cp *ControlPlaneV1) Shutdown() error {
 	return nil
 }
 
-var startTime time.Time
+// Uncomment to use V1 control plane as main entry point
+// var startTime time.Time
 
+/*
 func main() {
-	startTime = time.Now()
+	startTime := time.Now()
 
 	log.Println("🎯 AllSource Control Plane v1.0 starting...")
 
@@ -538,4 +539,14 @@ func main() {
 	}
 
 	log.Println("Control Plane v1.0 stopped")
+}
+*/
+
+// Login and Register handlers (stub implementations for now)
+func (cp *ControlPlaneV1) loginHandler(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Login endpoint not yet implemented in v1.0"})
+}
+
+func (cp *ControlPlaneV1) registerHandler(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Register endpoint not yet implemented in v1.0"})
 }

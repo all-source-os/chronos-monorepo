@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -107,7 +108,7 @@ func (cp *ControlPlane) coreHealthHandler(c *gin.Context) {
 	}
 
 	var result map[string]interface{}
-	if err := resp.UnmarshalJson(&result); err != nil {
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
 		cp.metrics.CoreHealthCheckTotal.WithLabelValues("error").Inc()
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "error",
@@ -126,7 +127,7 @@ func (cp *ControlPlane) clusterStatusHandler(c *gin.Context) {
 
 	var coreStats map[string]interface{}
 	if err == nil {
-		resp.UnmarshalJson(&coreStats)
+		json.Unmarshal(resp.Body(), &coreStats)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -158,7 +159,7 @@ func (cp *ControlPlane) metricsHandler(c *gin.Context) {
 	}
 
 	var stats map[string]interface{}
-	resp.UnmarshalJson(&stats)
+	json.Unmarshal(resp.Body(), &stats)
 
 	c.JSON(http.StatusOK, gin.H{
 		"metrics": gin.H{
