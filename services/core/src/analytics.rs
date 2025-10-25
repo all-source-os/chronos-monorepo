@@ -215,9 +215,10 @@ impl AnalyticsEngine {
         let until = request.until.unwrap_or_else(Utc::now);
 
         // Query events in the time range
-        let events = store.query(crate::event::QueryEventsRequest {
+        let events = store.query(crate::application::dto::QueryEventsRequest {
             entity_id: request.entity_id.clone(),
             event_type: request.event_type.clone(),
+            tenant_id: None,
             as_of: None,
             since: Some(request.since),
             until: Some(until),
@@ -242,7 +243,7 @@ impl AnalyticsEngine {
         for event in &events {
             let bucket_time = request.window.truncate(event.timestamp);
             let bucket = buckets_map.entry(bucket_time).or_insert_with(HashMap::new);
-            *bucket.entry(event.event_type.clone()).or_insert(0) += 1;
+            *bucket.entry(event.event_type_str().to_string()).or_insert(0) += 1;
         }
 
         // Convert to sorted vector
@@ -314,9 +315,10 @@ impl AnalyticsEngine {
         request: StatsSummaryRequest,
     ) -> Result<StatsSummaryResponse> {
         // Query events based on filters
-        let events = store.query(crate::event::QueryEventsRequest {
+        let events = store.query(crate::application::dto::QueryEventsRequest {
             entity_id: request.entity_id.clone(),
             event_type: request.event_type.clone(),
+            tenant_id: None,
             as_of: None,
             since: request.since,
             until: request.until,
@@ -337,8 +339,8 @@ impl AnalyticsEngine {
         let mut event_type_counts: HashMap<String, usize> = HashMap::new();
 
         for event in &events {
-            *entity_counts.entry(event.entity_id.clone()).or_insert(0) += 1;
-            *event_type_counts.entry(event.event_type.clone()).or_insert(0) += 1;
+            *entity_counts.entry(event.entity_id_str().to_string()).or_insert(0) += 1;
+            *event_type_counts.entry(event.event_type_str().to_string()).or_insert(0) += 1;
         }
 
         // Calculate events per day
@@ -398,18 +400,20 @@ impl AnalyticsEngine {
         request: CorrelationRequest,
     ) -> Result<CorrelationResponse> {
         // Query both event types
-        let events_a = store.query(crate::event::QueryEventsRequest {
+        let events_a = store.query(crate::application::dto::QueryEventsRequest {
             entity_id: None,
             event_type: Some(request.event_type_a.clone()),
+            tenant_id: None,
             as_of: None,
             since: request.since,
             until: request.until,
             limit: None,
         })?;
 
-        let events_b = store.query(crate::event::QueryEventsRequest {
+        let events_b = store.query(crate::application::dto::QueryEventsRequest {
             entity_id: None,
             event_type: Some(request.event_type_b.clone()),
+            tenant_id: None,
             as_of: None,
             since: request.since,
             until: request.until,
@@ -422,14 +426,14 @@ impl AnalyticsEngine {
 
         for event in &events_a {
             entity_events_a
-                .entry(event.entity_id.clone())
+                .entry(event.entity_id_str().to_string())
                 .or_insert_with(Vec::new)
                 .push(event);
         }
 
         for event in &events_b {
             entity_events_b
-                .entry(event.entity_id.clone())
+                .entry(event.entity_id_str().to_string())
                 .or_insert_with(Vec::new)
                 .push(event);
         }

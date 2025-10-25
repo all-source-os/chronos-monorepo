@@ -1,6 +1,6 @@
 use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
-use crate::event::QueryEventsRequest;
+use crate::application::dto::QueryEventsRequest;
 use crate::projection::Projection;
 use crate::store::EventStore;
 use chrono::{DateTime, Utc};
@@ -145,6 +145,7 @@ impl ReplayManager {
         let query = QueryEventsRequest {
             entity_id: request.entity_id.clone(),
             event_type: request.event_type.clone(),
+            tenant_id: None,
             as_of: request.to_timestamp,
             since: request.from_timestamp,
             until: request.to_timestamp,
@@ -468,11 +469,13 @@ mod tests {
 
         // Ingest some test events
         for i in 0..10 {
-            let event = Event::new(
+            let event = Event::from_strings(
                 "test.event".to_string(),
                 "test-entity".to_string(),
+                "default".to_string(),
                 json!({"value": i}),
-            );
+                None,
+            ).unwrap();
             store.ingest(event).unwrap();
         }
 

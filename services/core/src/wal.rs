@@ -430,16 +430,16 @@ mod tests {
     use uuid::Uuid;
 
     fn create_test_event() -> Event {
-        Event {
-            id: Uuid::new_v4(),
-            event_type: "test.event".to_string(),
-            entity_id: "test-entity".to_string(),
-            tenant_id: "default".to_string(),
-            payload: json!({"test": "data"}),
-            timestamp: Utc::now(),
-            metadata: None,
-            version: 1,
-        }
+        Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            "test.event".to_string(),
+            "test-entity".to_string(),
+            "default".to_string(),
+            json!({"test": "data"}),
+            Utc::now(),
+            None,
+            1,
+        )
     }
 
     #[test]

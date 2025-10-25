@@ -24,22 +24,16 @@ impl IngestEventUseCase {
     }
 
     pub async fn execute(&self, request: IngestEventRequest) -> Result<IngestEventResponse> {
-        // Create domain event (fast path, no validation for performance)
-        let mut event = Event::new(
+        // Create domain event using from_strings (validates and converts to value objects)
+        let tenant_id = request.tenant_id.unwrap_or_else(|| "default".to_string());
+
+        let event = Event::from_strings(
             request.event_type,
             request.entity_id,
+            tenant_id,
             request.payload,
-        );
-
-        // Override tenant if provided
-        if let Some(tenant_id) = request.tenant_id {
-            event.tenant_id = tenant_id;
-        }
-
-        // Add metadata if provided
-        if let Some(metadata) = request.metadata {
-            event.metadata = Some(metadata);
-        }
+            request.metadata,
+        )?;
 
         // Persist via repository
         self.repository.save(&event).await?;
@@ -65,26 +59,20 @@ impl IngestEventsBatchUseCase {
         &self,
         requests: Vec<IngestEventRequest>,
     ) -> Result<Vec<IngestEventResponse>> {
-        // Create all domain events (fast path)
+        // Create all domain events (validates and converts to value objects)
         let mut events = Vec::with_capacity(requests.len());
         let mut responses = Vec::with_capacity(requests.len());
 
         for request in requests {
-            let mut event = Event::new(
+            let tenant_id = request.tenant_id.unwrap_or_else(|| "default".to_string());
+
+            let event = Event::from_strings(
                 request.event_type,
                 request.entity_id,
+                tenant_id,
                 request.payload,
-            );
-
-            // Override tenant if provided
-            if let Some(tenant_id) = request.tenant_id {
-                event.tenant_id = tenant_id;
-            }
-
-            // Add metadata if provided
-            if let Some(metadata) = request.metadata {
-                event.metadata = Some(metadata);
-            }
+                request.metadata,
+            )?;
 
             responses.push(IngestEventResponse::from_event(&event));
             events.push(event);
@@ -122,11 +110,11 @@ mod tests {
     impl EventRepository for MockEventRepository {
         async fn save(&self, event: &Event) -> Result<()> {
             let mut events = self.events.lock().unwrap();
-            events.push(Event::reconstruct(
+            events.push(Event::reconstruct_from_strings(
                 event.id(),
-                event.event_type().to_string(),
-                event.entity_id().to_string(),
-                event.tenant_id().to_string(),
+                event.event_type_str().to_string(),
+                event.entity_id_str().to_string(),
+                event.tenant_id_str().to_string(),
                 event.payload().clone(),
                 event.timestamp(),
                 event.metadata().cloned(),
@@ -219,7 +207,7 @@ mod tests {
 
         let events = repo.events.lock().unwrap();
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].tenant_id(), "default");
+        assert_eq!(events[0].tenant_id_str(), "default");
     }
 
     #[tokio::test]

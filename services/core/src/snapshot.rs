@@ -515,16 +515,16 @@ mod tests {
             SnapshotType::Automatic,
         );
 
-        let event = Event {
-            id: Uuid::new_v4(),
-            event_type: "score.updated".to_string(),
-            entity_id: "entity-1".to_string(),
-            tenant_id: "default".to_string(),
-            payload: json!({"score": 20}),
-            timestamp: Utc::now(),
-            metadata: None,
-            version: 1,
-        };
+        let event = Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            "score.updated".to_string(),
+            "entity-1".to_string(),
+            "default".to_string(),
+            json!({"score": 20}),
+            Utc::now(),
+            None,
+            1,
+        );
 
         let merged = snapshot.merge_with_events(&[event]);
         assert_eq!(merged["name"], "Alice");

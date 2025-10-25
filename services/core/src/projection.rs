@@ -52,7 +52,7 @@ impl Projection for EntitySnapshotProjection {
     fn process(&self, event: &Event) -> Result<()> {
         // Simple merge strategy: update or insert
         self.states
-            .entry(event.entity_id.clone())
+            .entry(event.entity_id_str().to_string())
             .and_modify(|state| {
                 // Merge the event payload into existing state
                 if let Value::Object(ref mut map) = state {
@@ -116,7 +116,7 @@ impl Projection for EventCounterProjection {
 
     fn process(&self, event: &Event) -> Result<()> {
         self.counts
-            .entry(event.event_type.clone())
+            .entry(event.event_type_str().to_string())
             .and_modify(|count| *count += 1)
             .or_insert(1);
 
@@ -225,19 +225,19 @@ mod tests {
     use uuid::Uuid;
 
     fn create_test_event(entity_id: &str, event_type: &str) -> Event {
-        Event {
-            id: Uuid::new_v4(),
-            event_type: event_type.to_string(),
-            entity_id: entity_id.to_string(),
-            tenant_id: "default".to_string(),
-            payload: serde_json::json!({
+        Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            event_type.to_string(),
+            entity_id.to_string(),
+            "default".to_string(),
+            serde_json::json!({
                 "name": "Test User",
                 "email": "test@example.com"
             }),
-            timestamp: chrono::Utc::now(),
-            metadata: None,
-            version: 1,
-        }
+            chrono::Utc::now(),
+            None,
+            1,
+        )
     }
 
     #[test]

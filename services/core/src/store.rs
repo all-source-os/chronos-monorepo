@@ -1,7 +1,7 @@
 use crate::compaction::{CompactionConfig, CompactionManager};
 use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
-use crate::event::QueryEventsRequest;
+use crate::application::dto::QueryEventsRequest;
 use crate::index::{EventIndex, IndexEntry};
 use crate::metrics::MetricsRegistry;
 use crate::pipeline::PipelineManager;
@@ -153,8 +153,8 @@ impl EventStore {
                         let offset = store.events.read().len();
                         if let Err(e) = store.index.index_event(
                             event.id,
-                            &event.entity_id,
-                            &event.event_type,
+                            event.entity_id_str(),
+                            event.event_type_str(),
                             event.timestamp,
                             offset,
                         ) {
@@ -207,8 +207,8 @@ impl EventStore {
                         let offset = store.events.read().len();
                         if let Err(e) = store.index.index_event(
                             event.id,
-                            &event.entity_id,
-                            &event.event_type,
+                            event.entity_id_str(),
+                            event.event_type_str(),
                             event.timestamp,
                             offset,
                         ) {
@@ -263,8 +263,8 @@ impl EventStore {
         // Index the event
         self.index.index_event(
             event.id,
-            &event.entity_id,
-            &event.event_type,
+            event.entity_id_str(),
+            event.event_type_str(),
             event.timestamp,
             offset,
         )?;
@@ -305,12 +305,12 @@ impl EventStore {
         self.websocket_manager.broadcast_event(Arc::new(event.clone()));
 
         // Check if automatic snapshot should be created (v0.2 feature)
-        self.check_auto_snapshot(&event.entity_id, &event);
+        self.check_auto_snapshot(event.entity_id_str(), &event);
 
         // Update metrics (v0.6 feature)
         self.metrics.events_ingested_total.inc();
         self.metrics.events_ingested_by_type
-            .with_label_values(&[&event.event_type])
+            .with_label_values(&[event.event_type_str()])
             .inc();
         self.metrics.storage_events_total.set(total_events as i64);
 
@@ -380,6 +380,7 @@ impl EventStore {
         let events = self.query(QueryEventsRequest {
             entity_id: Some(entity_id.to_string()),
             event_type: None,
+            tenant_id: None,
             as_of: None,
             since: None,
             until: None,
@@ -441,13 +442,15 @@ impl EventStore {
 
     /// Validate an event before ingestion
     fn validate_event(&self, event: &Event) -> Result<()> {
-        if event.entity_id.is_empty() {
+        // EntityId and EventType value objects already validate non-empty in their constructors
+        // So these checks are now redundant, but we keep them for explicit validation
+        if event.entity_id_str().is_empty() {
             return Err(AllSourceError::ValidationError(
                 "entity_id cannot be empty".to_string(),
             ));
         }
 
-        if event.event_type.is_empty() {
+        if event.event_type_str().is_empty() {
             return Err(AllSourceError::ValidationError(
                 "event_type cannot be empty".to_string(),
             ));
@@ -554,7 +557,7 @@ impl EventStore {
         // Additional type filter if entity was primary
         if request.entity_id.is_some() {
             if let Some(ref event_type) = request.event_type {
-                if &event.event_type != event_type {
+                if event.event_type_str() != event_type {
                     return false;
                 }
             }
@@ -602,6 +605,7 @@ impl EventStore {
         let events = self.query(QueryEventsRequest {
             entity_id: Some(entity_id.to_string()),
             event_type: None,
+            tenant_id: None,
             as_of,
             since: since_timestamp,
             until: None,

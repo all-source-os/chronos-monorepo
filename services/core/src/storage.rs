@@ -128,8 +128,8 @@ impl ParquetStorage {
 
         for event in events {
             event_id_builder.append_value(event.id.to_string());
-            event_type_builder.append_value(&event.event_type);
-            entity_id_builder.append_value(&event.entity_id);
+            event_type_builder.append_value(event.event_type_str());
+            entity_id_builder.append_value(event.entity_id_str());
             payload_builder.append_value(serde_json::to_string(&event.payload)?);
 
             // Convert timestamp to microseconds
@@ -264,25 +264,31 @@ impl ParquetStorage {
         let mut events = Vec::new();
 
         for i in 0..batch.num_rows() {
-            let event = Event {
-                id: uuid::Uuid::parse_str(event_ids.value(i)).map_err(|e| {
-                    AllSourceError::StorageError(format!("Invalid UUID: {}", e))
-                })?,
-                event_type: event_types.value(i).to_string(),
-                entity_id: entity_ids.value(i).to_string(),
-                tenant_id: "default".to_string(), // Default tenant for backward compatibility
-                payload: serde_json::from_str(payloads.value(i))?,
-                timestamp: chrono::DateTime::from_timestamp_micros(timestamps.value(i))
-                    .ok_or_else(|| {
-                        AllSourceError::StorageError("Invalid timestamp".to_string())
-                    })?,
-                metadata: if metadatas.is_null(i) {
-                    None
-                } else {
-                    Some(serde_json::from_str(metadatas.value(i))?)
-                },
-                version: versions.value(i) as i64,
+            let id = uuid::Uuid::parse_str(event_ids.value(i)).map_err(|e| {
+                AllSourceError::StorageError(format!("Invalid UUID: {}", e))
+            })?;
+
+            let timestamp = chrono::DateTime::from_timestamp_micros(timestamps.value(i))
+                .ok_or_else(|| {
+                    AllSourceError::StorageError("Invalid timestamp".to_string())
+                })?;
+
+            let metadata = if metadatas.is_null(i) {
+                None
+            } else {
+                Some(serde_json::from_str(metadatas.value(i))?)
             };
+
+            let event = Event::reconstruct_from_strings(
+                id,
+                event_types.value(i).to_string(),
+                entity_ids.value(i).to_string(),
+                "default".to_string(), // Default tenant for backward compatibility
+                serde_json::from_str(payloads.value(i))?,
+                timestamp,
+                metadata,
+                versions.value(i) as i64,
+            );
 
             events.push(event);
         }
@@ -344,19 +350,19 @@ mod tests {
     use tempfile::TempDir;
 
     fn create_test_event(entity_id: &str) -> Event {
-        Event {
-            id: uuid::Uuid::new_v4(),
-            event_type: "test.event".to_string(),
-            entity_id: entity_id.to_string(),
-            tenant_id: "default".to_string(),
-            payload: json!({
+        Event::reconstruct_from_strings(
+            uuid::Uuid::new_v4(),
+            "test.event".to_string(),
+            entity_id.to_string(),
+            "default".to_string(),
+            json!({
                 "test": "data",
                 "value": 42
             }),
-            timestamp: chrono::Utc::now(),
-            metadata: None,
-            version: 1,
-        }
+            chrono::Utc::now(),
+            None,
+            1,
+        )
     }
 
     #[test]

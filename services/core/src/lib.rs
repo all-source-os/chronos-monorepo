@@ -15,7 +15,6 @@ pub mod backup;
 pub mod compaction;
 pub mod config;
 pub mod error;
-pub mod event;
 pub mod index;
 pub mod metrics;
 pub mod middleware;
@@ -35,7 +34,7 @@ pub mod websocket;
 // Re-export commonly used types
 pub use domain::entities::Event;
 pub use error::{AllSourceError, Result};
-pub use event::{IngestEventRequest, QueryEventsRequest};
+pub use application::dto::{IngestEventRequest, QueryEventsRequest};
 pub use store::EventStore;
 
 // Re-export domain types

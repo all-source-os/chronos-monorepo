@@ -222,7 +222,7 @@ impl Pipeline {
     pub fn process(&self, event: &Event) -> Result<Option<JsonValue>> {
         // Check if event type matches source filter
         if !self.config.source_event_types.is_empty()
-            && !self.config.source_event_types.contains(&event.event_type)
+            && !self.config.source_event_types.iter().any(|t| t == event.event_type_str())
         {
             return Ok(None);
         }
@@ -824,11 +824,13 @@ mod tests {
         };
 
         let pipeline = Pipeline::new(config);
-        let event = Event::new(
+        let event = Event::from_strings(
             "test".to_string(),
             "entity1".to_string(),
+            "default".to_string(),
             json!({"status": "active"}),
-        );
+            None,
+        ).unwrap();
 
         let result = pipeline.process(&event).unwrap();
         assert!(result.is_some());
@@ -850,11 +852,13 @@ mod tests {
         };
 
         let pipeline = Pipeline::new(config);
-        let event = Event::new(
+        let event = Event::from_strings(
             "test".to_string(),
             "entity1".to_string(),
+            "default".to_string(),
             json!({"name": "hello"}),
-        );
+            None,
+        ).unwrap();
 
         let result = pipeline.process(&event).unwrap().unwrap();
         assert_eq!(result["name"], "HELLO");
@@ -879,19 +883,23 @@ mod tests {
         let pipeline = Pipeline::new(config);
 
         for i in 0..5 {
-            let event = Event::new(
+            let event = Event::from_strings(
                 "test".to_string(),
                 "entity1".to_string(),
+                "default".to_string(),
                 json!({"value": i}),
-            );
+                None,
+            ).unwrap();
             pipeline.process(&event).unwrap();
         }
 
-        let result = pipeline.process(&Event::new(
+        let result = pipeline.process(&Event::from_strings(
             "test".to_string(),
             "entity1".to_string(),
+            "default".to_string(),
             json!({"value": 5}),
-        )).unwrap().unwrap();
+            None,
+        ).unwrap()).unwrap().unwrap();
 
         assert_eq!(result["value"], 6);
     }

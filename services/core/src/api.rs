@@ -5,7 +5,7 @@ use crate::analytics::{
 use crate::compaction::CompactionResult;
 use crate::domain::entities::Event;
 use crate::error::Result;
-use crate::event::{IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse};
+use crate::application::dto::{IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse, EventDto};
 use crate::pipeline::{PipelineConfig, PipelineStats};
 use crate::replay::{ReplayProgress, StartReplayRequest, StartReplayResponse};
 use crate::schema::{
@@ -118,8 +118,14 @@ pub async fn ingest_event(
     State(store): State<SharedStore>,
     Json(req): Json<IngestEventRequest>,
 ) -> Result<Json<IngestEventResponse>> {
-    let mut event = Event::new(req.event_type, req.entity_id, req.payload);
-    event.metadata = req.metadata;
+    // Create event using from_strings with default tenant
+    let event = Event::from_strings(
+        req.event_type,
+        req.entity_id,
+        "default".to_string(),
+        req.payload,
+        req.metadata,
+    )?;
 
     let event_id = event.id;
     let timestamp = event.timestamp;
@@ -138,7 +144,8 @@ pub async fn query_events(
     State(store): State<SharedStore>,
     Query(req): Query<QueryEventsRequest>,
 ) -> Result<Json<QueryEventsResponse>> {
-    let events = store.query(req)?;
+    let domain_events = store.query(req)?;
+    let events: Vec<EventDto> = domain_events.iter().map(EventDto::from).collect();
     let count = events.len();
 
     tracing::debug!("Query returned {} events", count);

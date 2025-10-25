@@ -35,7 +35,10 @@
       "Bash(cargo test --lib domain::value_objects::entity_id)",
       "Bash(cargo test --lib domain::entities::tenant)",
       "Bash(cargo test --lib domain)",
-      "Bash(cargo test --lib domain::entities::schema)"
+      "Bash(cargo test --lib domain::entities::schema)",
+      "Bash(cargo test --lib domain::entities::projection)",
+      "Bash(cargo test --lib domain::entities::event)",
+      "Bash(cargo test --lib application)"
     ],
     "deny": [],
     "ask": []

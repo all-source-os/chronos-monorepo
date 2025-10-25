@@ -116,7 +116,7 @@ mod tests {
             Ok(self
                 .events
                 .iter()
-                .filter(|e| e.entity_id() == entity_id && e.tenant_id() == tenant_id)
+                .filter(|e| e.entity_id_str() == entity_id && e.tenant_id_str() == tenant_id)
                 .cloned()
                 .collect())
         }
@@ -125,7 +125,7 @@ mod tests {
             Ok(self
                 .events
                 .iter()
-                .filter(|e| e.event_type() == event_type && e.tenant_id() == tenant_id)
+                .filter(|e| e.event_type_str() == event_type && e.tenant_id_str() == tenant_id)
                 .cloned()
                 .collect())
         }
@@ -140,7 +140,7 @@ mod tests {
                 .events
                 .iter()
                 .filter(|e| {
-                    e.tenant_id() == tenant_id && e.occurred_between(start, end)
+                    e.tenant_id_str() == tenant_id && e.occurred_between(start, end)
                 })
                 .cloned()
                 .collect())
@@ -156,8 +156,8 @@ mod tests {
                 .events
                 .iter()
                 .filter(|e| {
-                    e.entity_id() == entity_id
-                        && e.tenant_id() == tenant_id
+                    e.entity_id_str() == entity_id
+                        && e.tenant_id_str() == tenant_id
                         && e.occurred_before(as_of)
                 })
                 .cloned()
@@ -168,7 +168,7 @@ mod tests {
             Ok(self
                 .events
                 .iter()
-                .filter(|e| e.tenant_id() == tenant_id)
+                .filter(|e| e.tenant_id_str() == tenant_id)
                 .count())
         }
 
@@ -179,24 +179,27 @@ mod tests {
 
     fn create_test_events() -> Vec<Event> {
         vec![
-            Event::new_with_tenant(
+            Event::from_strings(
                 "user.created".to_string(),
                 "user-1".to_string(),
-                json!({"name": "Alice"}),
                 "tenant-1".to_string(),
-            ),
-            Event::new_with_tenant(
+                json!({"name": "Alice"}),
+                None,
+            ).unwrap(),
+            Event::from_strings(
                 "user.created".to_string(),
                 "user-2".to_string(),
-                json!({"name": "Bob"}),
                 "tenant-1".to_string(),
-            ),
-            Event::new_with_tenant(
+                json!({"name": "Bob"}),
+                None,
+            ).unwrap(),
+            Event::from_strings(
                 "order.placed".to_string(),
                 "order-1".to_string(),
-                json!({"amount": 100}),
                 "tenant-1".to_string(),
-            ),
+                json!({"amount": 100}),
+                None,
+            ).unwrap(),
         ]
     }
 

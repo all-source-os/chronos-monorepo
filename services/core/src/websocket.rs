@@ -79,13 +79,13 @@ impl WebSocketManager {
 
                 // Apply filters
                 if let Some(ref entity_id) = filters.entity_id {
-                    if &event.entity_id != entity_id {
+                    if event.entity_id_str() != entity_id {
                         continue;
                     }
                 }
 
                 if let Some(ref event_type) = filters.event_type {
-                    if &event.event_type != event_type {
+                    if event.event_type_str() != event_type {
                         continue;
                     }
                 }
@@ -164,16 +164,16 @@ mod tests {
     use serde_json::json;
 
     fn create_test_event() -> Event {
-        Event {
-            id: Uuid::new_v4(),
-            event_type: "test.event".to_string(),
-            entity_id: "test-entity".to_string(),
-            tenant_id: "default".to_string(),
-            payload: json!({"test": "data"}),
-            timestamp: chrono::Utc::now(),
-            metadata: None,
-            version: 1,
-        }
+        Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            "test.event".to_string(),
+            "test-entity".to_string(),
+            "default".to_string(),
+            json!({"test": "data"}),
+            chrono::Utc::now(),
+            None,
+            1,
+        )
     }
 
     #[test]
