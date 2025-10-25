@@ -29,7 +29,13 @@
       "Bash(go build .)",
       "Bash(go test ./services/control-plane/... -cover)",
       "Bash(cargo check --lib)",
-      "Bash(cargo test --lib domain::entities)"
+      "Bash(cargo test --lib domain::entities)",
+      "Bash(tree src -d -L 3)",
+      "Bash(cargo test --lib domain::value_objects::tenant_id)",
+      "Bash(cargo test --lib domain::value_objects::entity_id)",
+      "Bash(cargo test --lib domain::entities::tenant)",
+      "Bash(cargo test --lib domain)",
+      "Bash(cargo test --lib domain::entities::schema)"
     ],
     "deny": [],
     "ask": []
