@@ -3,9 +3,9 @@
 > AI-native event store built in Rust with columnar storage, schema validation, event replay, and stream processing
 
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/tests-242%20passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-250%20passing-brightgreen.svg)]()
 [![Performance](https://img.shields.io/badge/throughput-469K%20events%2Fsec-blue.svg)]()
-[![Architecture](https://img.shields.io/badge/clean%20architecture-Phase%203%20Started-success.svg)]()
+[![Architecture](https://img.shields.io/badge/clean%20architecture-Phase%203%20Infrastructure-success.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 
 ## 🎯 What is AllSource?
@@ -95,6 +95,20 @@ Based on battle-tested patterns from [SierraDB](https://github.com/cablehead/xs)
 - ✅ Optimistic locking enforcement at repository level
 - ✅ 8 comprehensive tests covering all operations
 
+**StorageIntegrity** - Corruption Prevention
+- ✅ SHA-256 checksums for data integrity
+- ✅ WAL segment verification
+- ✅ Parquet file integrity checking
+- ✅ Batch verification with progress reporting
+- ✅ 8 tests covering checksums and file verification
+
+**7-Day Stress Tests** - Production Hardening
+- ✅ Continuous ingestion tests (7 days, 1 hour, 5 minutes configs)
+- ✅ Memory leak detection
+- ✅ Corruption detection over time
+- ✅ Partition balance monitoring
+- ✅ 4 tests + configurable long-running tests
+
 **Why These Patterns?**
 | Pattern | SierraDB's Lesson | Our Benefit |
 |---------|-------------------|-------------|
@@ -102,10 +116,14 @@ Based on battle-tested patterns from [SierraDB](https://github.com/cablehead/xs)
 | Gapless Versions | Watermark prevents data gaps | Consistent event sourcing guarantees |
 | Optimistic Locking | Detect concurrent modifications | Safe concurrent access without heavy locks |
 
+**Implemented**:
+- ✅ Storage integrity checksums (prevent silent corruption)
+- ✅ 7-day continuous stress tests (production confidence)
+
 **Coming Next**:
-- 📦 Storage integrity checksums (prevent silent corruption)
-- 🧪 7-day continuous stress tests (production confidence)
 - ⚡ Zero-copy deserialization (performance optimization)
+- 🔄 Batch processing optimizations
+- 🔒 Lock-free data structures
 
 ## 📊 Performance Benchmarks
 
@@ -123,13 +141,15 @@ Measured on Apple Silicon M-series (release build):
 | Snapshot Creation | 130 μs | Per entity |
 | WAL Sync Writes | 413 ms | 100 syncs |
 
-**Test Coverage**: 242 tests - 100% passing
+**Test Coverage**: 250 tests - 100% passing
 - Domain Layer: 177 tests (Value Objects, Entities, Business Rules, **SierraDB Patterns**)
   - **PartitionKey**: 6 tests (consistent hashing, distribution, node assignment)
   - **EventStream**: 9 tests (gapless versioning, optimistic locking, watermarks)
 - Application Layer: 20 tests (Use Cases, DTOs)
-- Infrastructure Layer: 45 tests (API, Storage, Services, **Repository Implementations**)
+- Infrastructure Layer: 53 tests (API, Storage, Services, **Repository Implementations**)
   - **InMemoryEventStreamRepository**: 8 tests (SierraDB pattern implementation)
+  - **StorageIntegrity**: 8 tests (checksum verification, WAL/Parquet integrity)
+  - **7-Day Stress Tests**: 4 tests (long-running corruption detection)
 
 ## 🔧 API Endpoints (38 Total)
 
@@ -306,6 +326,8 @@ services/core/src/
 └── infrastructure/            # 🔧 INFRASTRUCTURE LAYER (Technical)
     ├── repositories/         # 🆕 Repository implementations (SierraDB)
     │   └── in_memory_event_stream_repository.rs  # Thread-safe, partitioned (8 tests)
+    ├── persistence/          # 🆕 Storage integrity (SierraDB)
+    │   └── storage_integrity.rs  # Checksum verification (8 tests)
     ├── api.rs                # REST API endpoints (38 endpoints)
     ├── store.rs              # Event store implementation
     ├── storage.rs            # Parquet columnar storage
@@ -330,7 +352,9 @@ services/core/src/
     └── auth_api.rs           # Auth API handlers
 
 tests/
-└── integration_tests.rs      # End-to-end tests
+├── integration_tests.rs      # End-to-end tests
+└── stress_tests/             # 🆕 Long-running stress tests (SierraDB)
+    └── seven_day_stress.rs   # 7-day corruption detection (4 tests)
 
 benches/
 └── performance_benchmarks.rs # Performance benchmarks

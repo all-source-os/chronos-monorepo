@@ -80,10 +80,16 @@ base64 = "0.21"
 [dev-dependencies]
 criterion = "0.5"
 tempfile = "3.10"
+ctrlc = "3.4"
 
 [[bench]]
 name = "performance_benchmarks"
 harness = false
+
+[[test]]
+name = "seven_day_stress"
+path = "tests/stress_tests/seven_day_stress.rs"
+harness = true
 
 [profile.release]
 opt-level = 3
