@@ -53,7 +53,12 @@
       "Bash(cargo test --lib storage_integrity -- --test-threads=1 --nocapture)",
       "Bash(cargo test --test seven_day_stress)",
       "Bash(cargo test --lib performance -- --test-threads=1 --nocapture)",
-      "Bash(cargo test --lib performance)"
+      "Bash(cargo test --lib performance)",
+      "Bash(cargo test --lib lock_free -- --nocapture)",
+      "Bash(cargo test --lib lock_free)",
+      "Bash(tee /tmp/lock_free_test.txt)",
+      "Bash(cargo test --lib domain::entities::event_stream -- --nocapture)",
+      "Bash(cargo test --lib -- --nocapture)"
     ],
     "deny": [],
     "ask": []

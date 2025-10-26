@@ -64,6 +64,57 @@ impl EventStream {
         }
     }
 
+    /// Reconstruct an EventStream from persistent storage
+    ///
+    /// Used by repository implementations to restore streams from database.
+    /// Bypasses validation since data is already validated at creation time.
+    ///
+    /// # Arguments
+    /// - `stream_id`: Entity ID of the stream
+    /// - `partition_key`: Pre-computed partition assignment
+    /// - `current_version`: Latest version number
+    /// - `watermark`: Highest continuously confirmed version
+    /// - `events`: All events in the stream
+    /// - `expected_version`: Optional optimistic lock version
+    /// - `created_at`: Stream creation timestamp
+    /// - `updated_at`: Last modification timestamp
+    pub fn reconstruct(
+        stream_id: EntityId,
+        partition_key: PartitionKey,
+        current_version: u64,
+        watermark: u64,
+        events: Vec<Event>,
+        expected_version: Option<u64>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self> {
+        // Basic validation
+        if watermark > current_version {
+            return Err(AllSourceError::InvalidInput(format!(
+                "Watermark ({}) cannot exceed current version ({})",
+                watermark, current_version
+            )));
+        }
+
+        if events.len() as u64 != current_version {
+            return Err(AllSourceError::InvalidInput(format!(
+                "Event count ({}) must match current version ({})",
+                events.len(), current_version
+            )));
+        }
+
+        Ok(Self {
+            stream_id,
+            partition_key,
+            current_version,
+            watermark,
+            events,
+            expected_version,
+            created_at,
+            updated_at,
+        })
+    }
+
     /// Append an event with optimistic locking
     ///
     /// # SierraDB Pattern

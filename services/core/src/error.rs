@@ -37,6 +37,9 @@ pub enum AllSourceError {
     #[error("Concurrency error: {0}")]
     ConcurrencyError(String),
 
+    #[error("Queue full: {0}")]
+    QueueFull(String),
+
     #[error("Internal error: {0}")]
     InternalError(String),
 }
@@ -74,6 +77,9 @@ impl IntoResponse for AllSourceError {
             }
             AllSourceError::ConcurrencyError(_) => {
                 (StatusCode::CONFLICT, self.to_string())
+            }
+            AllSourceError::QueueFull(_) => {
+                (StatusCode::SERVICE_UNAVAILABLE, self.to_string())
             }
             AllSourceError::StorageError(_)
             | AllSourceError::ArrowError(_)
