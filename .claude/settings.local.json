@@ -51,7 +51,9 @@
       "Bash(cargo test --lib -- --list)",
       "Bash(cargo test --lib in_memory_event_stream_repository -- --test-threads=1 --nocapture)",
       "Bash(cargo test --lib storage_integrity -- --test-threads=1 --nocapture)",
-      "Bash(cargo test --test seven_day_stress)"
+      "Bash(cargo test --test seven_day_stress)",
+      "Bash(cargo test --lib performance -- --test-threads=1 --nocapture)",
+      "Bash(cargo test --lib performance)"
     ],
     "deny": [],
     "ask": []
