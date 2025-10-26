@@ -34,6 +34,9 @@ pub enum AllSourceError {
     #[error("Validation error: {0}")]
     ValidationError(String),
 
+    #[error("Concurrency error: {0}")]
+    ConcurrencyError(String),
+
     #[error("Internal error: {0}")]
     InternalError(String),
 }
@@ -68,6 +71,9 @@ impl IntoResponse for AllSourceError {
             | AllSourceError::InvalidInput(_)
             | AllSourceError::ValidationError(_) => {
                 (StatusCode::BAD_REQUEST, self.to_string())
+            }
+            AllSourceError::ConcurrencyError(_) => {
+                (StatusCode::CONFLICT, self.to_string())
             }
             AllSourceError::StorageError(_)
             | AllSourceError::ArrowError(_)

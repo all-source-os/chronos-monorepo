@@ -38,7 +38,18 @@
       "Bash(cargo test --lib domain::entities::schema)",
       "Bash(cargo test --lib domain::entities::projection)",
       "Bash(cargo test --lib domain::entities::event)",
-      "Bash(cargo test --lib application)"
+      "Bash(cargo test --lib application)",
+      "Bash(cargo test --lib application::use_cases::manage_tenant)",
+      "Bash(tree -L 3 internal/)",
+      "Bash(go test -coverprofile=coverage.out ./...)",
+      "WebFetch(domain:tqwewe.com)",
+      "Bash(cargo test --lib domain::value_objects::partition_key domain::entities::event_stream)",
+      "Bash(cargo test --lib partition_key event_stream)",
+      "Bash(cargo test --lib --test-threads=1 partition_key event_stream)",
+      "Bash(cargo test --lib partition_key -- --test-threads=1 --nocapture)",
+      "Bash(cargo test --lib event_stream -- --test-threads=1 --nocapture)",
+      "Bash(cargo test --lib -- --list)",
+      "Bash(cargo test --lib in_memory_event_stream_repository -- --test-threads=1 --nocapture)"
     ],
     "deny": [],
     "ask": []

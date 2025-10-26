@@ -1,8 +1,9 @@
 # AllSource Event Store - Comprehensive Roadmap
 
-**Last Updated**: 2025-10-21
+**Last Updated**: 2025-10-26
 **Version**: 1.0 → 2.0
 **Vision**: A high-performance, clean-architecture event store combining Rust, Go, and Clojure
+**Influenced By**: SierraDB architecture patterns for production readiness
 
 ---
 
@@ -14,6 +15,87 @@ Build a production-grade event store that combines:
 - **Clojure** for expressive data processing and interactive development
 - **Clean Architecture** principles across all codebases
 - **SOLID principles** for maintainability and extensibility
+- **🆕 SierraDB-inspired patterns** for production readiness and simplified scaling
+
+---
+
+## 🎓 Key Learnings from SierraDB (Integrated into Roadmap)
+
+**SierraDB** is a production-grade event store that learned valuable lessons the hard way. We've integrated their insights to shortcut our path to production:
+
+### 1. ✅ Partition-Based Architecture (Added to v1.1)
+**Their lesson**: Fixed partitions (32 single-node, 1024+ cluster) enable sequential writes, gapless sequences, and horizontal scaling without complex coordination.
+
+**Our integration**:
+- Add `PartitionKey` value object in domain layer
+- Partition-aware indexing in infrastructure
+- Foundation for v1.8 clustering (saves rework later)
+
+### 2. ✅ Gapless Version Guarantees (Added to v1.1)
+**Their lesson**: Event sourcing demands gapless stream versions. Solved with watermark system tracking "highest continuously confirmed sequence."
+
+**Our integration**:
+- `EventStream` aggregate with optimistic locking
+- Watermark tracking for consistent reads
+- Prevents data inconsistencies in production
+
+### 3. ✅ Long-Running Stress Tests (Added to v1.1)
+**Their lesson**: "SierraDB runs stably under long-running stress tests, with major corruption issues ironed out" - they found corruption through 7-day stress tests.
+
+**Our integration**:
+- 7-day continuous ingestion tests
+- Storage integrity verification
+- Corruption detection on startup
+- Partition load balancing tests
+
+### 4. ✅ Redis Protocol Compatibility (Optional in v1.2)
+**Their lesson**: "Every language with a Redis client works immediately" - RESP3 protocol adoption eliminated driver development.
+
+**Our integration**:
+- Optional RESP3 server (2-3 weeks)
+- Instant multi-language support
+- Debug with redis-cli
+- HTTP API remains primary
+
+### 5. ✅ Simplified Consensus (v1.8 redesign)
+**Their lesson**: "Term-based consensus inspired by Raft with deterministic leader selection" - avoided full Raft complexity.
+
+**Our integration**:
+- Term-based consensus (not full Raft)
+- Deterministic leader selection (no elections)
+- Manual failover in v1.8, automatic in v1.9
+- **Saves 3-5 weeks** vs full Raft implementation
+
+### 6. ✅ Production Readiness Priorities
+**Their lesson**: Documentation and test coverage were deprioritized, causing pain later.
+
+**Our advantage**: We already have:
+- 219 tests (98.9% pass rate) ✅
+- Comprehensive documentation ✅
+- Clean architecture progress ✅
+
+**Our additions** (from their lessons):
+- Storage checksums (prevent silent corruption)
+- WAL integrity verification
+- Partition monitoring
+- Automated stress testing in CI
+
+---
+
+## 📊 SierraDB Comparison
+
+| Feature | SierraDB | AllSource (Current) | AllSource (Post-v1.1) |
+|---------|----------|---------------------|----------------------|
+| **Partitions** | ✅ 32 (fixed) | ❌ Not yet | ✅ 32 (fixed) |
+| **Gapless Versions** | ✅ Watermarks | 🟡 Ordering only | ✅ Watermarks |
+| **Protocol** | ✅ RESP3 | ❌ HTTP only | 🟡 HTTP + RESP3 (opt) |
+| **Consensus** | ✅ Term-based | ❌ Single-node | ✅ Term-based (v1.8) |
+| **Stress Tests** | ✅ 7-day | ❌ Short benchmarks | ✅ 7-day (v1.1) |
+| **Test Coverage** | 🟡 Weak | ✅ 219 tests (99%) | ✅ Maintained |
+| **Documentation** | 🟡 Incomplete | ✅ Comprehensive | ✅ Enhanced |
+| **Clean Arch** | ❌ Not mentioned | 🟡 67% (Rust pending) | ✅ 100% (v1.1) |
+
+**Our Advantage**: Strong testing + documentation foundation, now adding SierraDB's production-hardened patterns.
 
 ---
 
@@ -94,42 +176,86 @@ Build a production-grade event store that combines:
 
 ## 🔄 Phase 1.5: Architectural Refactoring (v1.1-1.2) - **HIGH PRIORITY**
 
-### Timeline: Q1 2026 (Parallel with feature development)
+### Timeline: Q1 2026 (10-12 weeks total, includes production-readiness enhancements)
 
-### 🏗️ v1.1: Clean Architecture Foundation
+### 🏗️ v1.1: Production-Ready Foundation (6-7 weeks)
 
-**Goal**: Refactor existing codebases to follow Clean Architecture & SOLID principles
+**Goal**: Refactor to Clean Architecture + Add critical production-readiness features inspired by SierraDB
+
+**Inspiration**: SierraDB's hard-learned lessons about partition architecture, version guarantees, and stress testing
 
 #### Rust Core Refactoring (4-6 weeks)
-**Priority**: HIGH
+**Priority**: CRITICAL
 **Dependencies**: None
 
 **Current Issues**:
 - Some modules mix business logic with infrastructure
 - Tight coupling between storage and domain logic
 - Direct dependencies on concrete implementations
+- ⚠️ **No partition-based architecture** (needed for scaling)
+- ⚠️ **No gapless version guarantees** (SierraDB's "version guarantee problem")
+- ⚠️ **No long-running stress tests** (SierraDB found corruption via this)
 
 **Refactoring Tasks**:
 
 1. **Domain Layer (Innermost)**
+
+   **🆕 SierraDB-Inspired Additions**:
+   - Partition-based architecture for scaling
+   - Gapless version guarantees (watermark system)
+   - Event stream aggregates with optimistic locking
+
    ```rust
    // src/domain/
    ├── entities/
    │   ├── event.rs          // Core Event entity (no external deps)
    │   ├── tenant.rs         // Tenant entity
    │   ├── user.rs           // User entity
-   │   └── snapshot.rs       // Snapshot entity
+   │   ├── snapshot.rs       // Snapshot entity
+   │   └── event_stream.rs   // 🆕 Event stream aggregate (SierraDB pattern)
    ├── value_objects/
    │   ├── event_id.rs       // Strongly-typed IDs
    │   ├── timestamp.rs      // Time value objects
-   │   └── tenant_id.rs      // Tenant identifier
+   │   ├── tenant_id.rs      // Tenant identifier
+   │   ├── partition_key.rs  // 🆕 Partition key (32 partitions initially)
+   │   └── stream_version.rs // 🆕 Gapless version tracking
    ├── aggregates/
-   │   ├── event_stream.rs   // Event stream aggregate
+   │   ├── event_stream.rs   // Event stream aggregate with watermarks
    │   └── tenant_config.rs  // Tenant configuration
    └── repositories/         // Repository traits (abstractions)
        ├── event_repository.rs
        ├── tenant_repository.rs
        └── snapshot_repository.rs
+   ```
+
+   **New Event Stream Aggregate** (SierraDB watermark pattern):
+   ```rust
+   // src/domain/aggregates/event_stream.rs
+   pub struct EventStream {
+       entity_id: EntityId,
+       partition: PartitionKey,
+       current_version: u64,
+       watermark: u64,  // Highest continuously confirmed sequence
+   }
+
+   impl EventStream {
+       /// Append event with optimistic locking
+       /// Ensures gapless version numbers (SierraDB pattern)
+       pub fn append_event(&mut self, expected_version: u64) -> Result<u64> {
+           if expected_version != self.current_version + 1 {
+               return Err(OptimisticLockError);
+           }
+           self.current_version += 1;
+           Ok(self.current_version)
+       }
+
+       /// Update watermark (highest continuous sequence)
+       pub fn update_watermark(&mut self, confirmed_version: u64) {
+           if confirmed_version == self.watermark + 1 {
+               self.watermark = confirmed_version;
+           }
+       }
+   }
    ```
 
 2. **Application Layer (Use Cases)**
@@ -193,8 +319,113 @@ Build a production-grade event store that combines:
 - ✅ Swap implementations easily (e.g., Parquet → S3)
 - ✅ Business logic independent of frameworks
 - ✅ Clear dependency direction (inward)
+- 🆕 Partition-based scaling ready (SierraDB pattern)
+- 🆕 Gapless version guarantees (prevents inconsistencies)
+- 🆕 Foundation for simplified clustering (no complex coordination)
 
 **Performance Impact**: Negligible (<1% overhead from trait dispatch)
+
+---
+
+#### 🆕 Production Readiness Enhancements (2-3 weeks)
+**Priority**: CRITICAL
+**Dependencies**: None (can run in parallel with refactoring)
+**Inspiration**: SierraDB's lessons from production corruption and stress testing
+
+**1. Long-Running Stress Tests** (1 week)
+```rust
+// benches/stress_tests.rs
+#[bench]
+fn stress_test_7_day_continuous_ingestion() {
+    // Target: 7 days continuous at 469K events/sec
+    // = ~285 billion events
+    // Detect: memory leaks, corruption, performance degradation
+}
+
+#[bench]
+fn stress_test_partition_load_balancing() {
+    // Ensure 32 partitions distribute evenly
+    // Detect: hot partitions, skewed distribution
+}
+
+#[bench]
+fn stress_test_concurrent_tenants() {
+    // 1000 tenants, mixed workload
+    // Detect: tenant isolation issues, cascading failures
+}
+```
+
+**2. Storage Integrity Checks** (1 week)
+```rust
+// src/infrastructure/storage.rs
+impl ParquetStorage {
+    /// Add checksums to Parquet files (SierraDB learned this the hard way)
+    pub fn write_with_checksum(&self, events: &[Event]) -> Result<()> {
+        let data = serialize_events(events)?;
+        let checksum = crc32::hash(&data);
+
+        // Write data + checksum
+        self.write_parquet(&data)?;
+        self.write_checksum_file(checksum)?;
+        Ok(())
+    }
+
+    /// Verify integrity on startup (catch corruption early)
+    pub fn verify_integrity_on_startup(&self) -> Result<Vec<CorruptionReport>> {
+        let mut corrupted_files = Vec::new();
+
+        for file in self.list_parquet_files()? {
+            if !self.verify_checksum(&file)? {
+                corrupted_files.push(CorruptionReport {
+                    file: file.clone(),
+                    error: "Checksum mismatch".into(),
+                });
+            }
+        }
+
+        Ok(corrupted_files)
+    }
+}
+
+// src/infrastructure/wal.rs
+impl WriteAheadLog {
+    /// WAL integrity verification
+    pub fn verify_wal_integrity(&self) -> Result<()> {
+        // Check for:
+        // - Missing segments
+        // - Corrupted entries
+        // - Incomplete writes
+    }
+}
+```
+
+**3. Partition Monitoring** (1 week)
+```rust
+// src/infrastructure/metrics.rs
+pub struct PartitionMetrics {
+    /// Track per-partition health (SierraDB pattern)
+    partition_event_counts: HashMap<PartitionKey, AtomicU64>,
+    partition_write_latencies: HashMap<PartitionKey, Histogram>,
+    partition_error_rates: HashMap<PartitionKey, AtomicU64>,
+}
+
+impl PartitionMetrics {
+    /// Detect hot partitions or skew
+    pub fn detect_partition_imbalance(&self) -> Vec<PartitionAlert> {
+        // Alert if any partition has >2x average load
+    }
+}
+```
+
+**Deliverables**:
+- [ ] 7-day stress test suite (500 LOC)
+- [ ] Storage checksum system (300 LOC)
+- [ ] WAL integrity verification (200 LOC)
+- [ ] Partition monitoring (400 LOC)
+- [ ] Corruption detection on startup (200 LOC)
+- [ ] Automated stress test CI job
+
+**Time Saved Later**: Prevents production corruption issues (SierraDB's painful lesson)
 
 ---
 
@@ -365,9 +596,80 @@ Build a production-grade event store that combines:
 
 ---
 
-### 🎯 v1.2: Performance Optimization & SOLID Refinement
+### 🎯 v1.2: Performance Optimization & Protocol Expansion
 
-**Goal**: Optimize critical paths while maintaining clean architecture
+**Goal**: Optimize critical paths + Add Redis protocol compatibility (SierraDB lesson)
+
+#### 🆕 Redis Protocol Compatibility (OPTIONAL, 2-3 weeks)
+**Priority**: MEDIUM
+**Inspiration**: SierraDB's RESP3 adoption for instant multi-language support
+**Dependencies**: None (can run in parallel with performance work)
+
+**Rationale** (from SierraDB):
+> "Rather than building custom drivers, we adopted Redis' RESP3 protocol because every language with a Redis client works immediately. This enables ecosystem compatibility and allows debugging via redis-cli."
+
+**Implementation**:
+```rust
+// src/infrastructure/redis_api.rs
+use redis_protocol::resp3;
+
+pub struct RespServer {
+    tcp_listener: TcpListener,
+    event_service: Arc<EventService>,
+}
+
+impl RespServer {
+    /// Handle RESP3 commands
+    async fn handle_command(&self, cmd: RespCommand) -> RespResponse {
+        match cmd {
+            // Event ingestion: XADD stream-name * field value...
+            RespCommand::XAdd { stream, fields } => {
+                let event = Event::from_redis_fields(fields)?;
+                self.event_service.ingest(event).await?;
+                RespResponse::BulkString(event_id)
+            }
+
+            // Event query: XRANGE stream-name start end
+            RespCommand::XRange { stream, start, end } => {
+                let events = self.event_service
+                    .query_range(stream, start, end).await?;
+                RespResponse::Array(events.into_resp3())
+            }
+
+            // Subscribe to stream: SUBSCRIBE stream-name
+            RespCommand::Subscribe { channels } => {
+                // Real-time event streaming
+                self.event_service.subscribe(channels).await?;
+                RespResponse::Subscribe(channels)
+            }
+
+            _ => RespResponse::Error("Unknown command".into())
+        }
+    }
+}
+```
+
+**Benefits**:
+- ✅ **Instant multi-language support** (every Redis client works)
+- ✅ **Zero driver development** (piggyback on Redis ecosystem)
+- ✅ **Debug with redis-cli** (operational simplicity)
+- ✅ **Familiar API** (developers already know Redis commands)
+- ✅ **Performance** (RESP3 is binary and fast)
+
+**Trade-offs**:
+- Additional protocol to maintain (but redis-protocol crate handles parsing)
+- Some event store features may not map perfectly to Redis commands
+- Optional feature (HTTP API remains primary)
+
+**Deliverables**:
+- [ ] RESP3 server implementation (400 LOC)
+- [ ] Redis command mapping (300 LOC)
+- [ ] Integration tests with redis-cli (200 LOC)
+- [ ] Documentation for Redis clients (20 pages)
+
+**Recommendation**: Implement as **optional feature** after core refactoring
+
+---
 
 #### Rust Performance Optimizations (4-5 weeks)
 **Priority**: HIGH
@@ -1339,56 +1641,145 @@ allsource export --query "event-type = order.placed" --output orders.csv
 
 ### 🔷 v1.8: Multi-Node & Distributed Coordination (Q1 2027)
 
+**🆕 SIMPLIFIED APPROACH** (Inspired by SierraDB's term-based consensus)
+
+**Timeline**: 5 weeks (vs 8-10 weeks for full Raft)
+**Time Saved**: 3-5 weeks by avoiding full Raft complexity
+
+**SierraDB Lesson**:
+> "Rather than full Raft elections, we implemented term-based consensus inspired by Raft with deterministic leader selection based on cluster topology, reducing coordination overhead."
+
 **Features**:
-- Multi-node clustering (Raft consensus)
-- Leader election and failover
-- Distributed state synchronization
+- Multi-node clustering (term-based consensus)
+- **Deterministic leader selection** (no election overhead)
+- Partition replication
 - Cluster membership management
-- Automatic rebalancing
+- **Manual failover** (v1.8, automatic in v1.9)
 - Split-brain prevention
 
-**Architecture** (Rust):
+**Architecture** (Rust + SierraDB patterns):
+
+**1. Term-Based Consensus** (Simpler than Raft):
 ```rust
 // Domain: Cluster entity
 pub struct ClusterNode {
     id: NodeId,
     address: SocketAddr,
     role: NodeRole,
+    term: u64,           // Term number (monotonically increasing)
     health: NodeHealth,
 }
 
 pub enum NodeRole {
     Leader,
     Follower,
-    Candidate,
 }
 
-// Application: Cluster management
+pub struct ClusterTerm {
+    term_number: u64,
+    leader_id: NodeId,
+    followers: Vec<NodeId>,
+}
+
+// Application: Simplified cluster management
 pub trait ClusterManager {
     async fn join_cluster(&self, node: ClusterNode) -> Result<()>;
     async fn leave_cluster(&self, node_id: NodeId) -> Result<()>;
-    async fn elect_leader(&self) -> Result<NodeId>;
-}
 
-// Infrastructure: Raft implementation
-pub struct RaftClusterManager {
-    raft: Raft<EventStoreStateMachine>,
-    peers: HashMap<NodeId, RaftClient>,
+    /// Deterministic leader selection (no voting)
+    /// Leader = node with lowest ID in healthy set
+    fn select_leader(&self, healthy_nodes: &[NodeId]) -> NodeId {
+        healthy_nodes.iter().min().copied().expect("No healthy nodes")
+    }
+
+    /// Increment term on topology change
+    async fn new_term(&self, leader_id: NodeId) -> Result<ClusterTerm>;
 }
 ```
 
+**2. Partition Replication** (Built on partition architecture from v1.1):
+```rust
+// Infrastructure: Replication using existing partitions
+pub struct PartitionReplicator {
+    partition_assignments: HashMap<PartitionKey, Vec<NodeId>>,
+    replication_factor: usize,  // Default: 3
+}
+
+impl PartitionReplicator {
+    /// Write to partition leader + replicas
+    async fn replicate_write(&self, partition: PartitionKey, event: Event) -> Result<()> {
+        let nodes = self.partition_assignments.get(&partition)?;
+        let leader = nodes.first()?;
+
+        // Write to leader
+        self.write_to_node(leader, event.clone()).await?;
+
+        // Async replication to followers
+        for follower in &nodes[1..] {
+            tokio::spawn(async move {
+                self.write_to_node(follower, event.clone()).await
+            });
+        }
+
+        Ok(())
+    }
+}
+```
+
+**3. Simplified Failover** (Manual in v1.8, automatic in v1.9):
+```rust
+// src/application/use_cases/manual_failover.rs
+pub struct ManualFailoverUseCase {
+    cluster_manager: Arc<dyn ClusterManager>,
+}
+
+impl ManualFailoverUseCase {
+    /// Operator triggers failover (via CLI/API)
+    pub async fn execute(&self, new_leader_id: NodeId) -> Result<()> {
+        // 1. Verify new leader is healthy
+        self.verify_node_health(new_leader_id).await?;
+
+        // 2. Increment term
+        let new_term = self.cluster_manager.new_term(new_leader_id).await?;
+
+        // 3. Broadcast new topology
+        self.broadcast_term_update(new_term).await?;
+
+        Ok(())
+    }
+}
+```
+
+**Benefits of Simplified Approach**:
+- ✅ **5 weeks vs 8-10 weeks** (3-5 weeks saved)
+- ✅ **No election storms** (deterministic selection)
+- ✅ **Simpler debugging** (fewer distributed edge cases)
+- ✅ **Partition-based from v1.1** (foundation already exists)
+- ✅ **Good enough for v1.8** (automatic failover in v1.9)
+
+**Trade-offs**:
+- ⚠️ Manual failover (vs automatic with Raft)
+- ⚠️ Leader selection is deterministic (not load-aware)
+- ✅ Acceptable for initial multi-node deployment
+
 **Technical Requirements**:
-- Raft consensus protocol (tikv/raft-rs)
 - gRPC for inter-node communication
-- Membership discovery (Consul, etcd, or built-in)
-- Network partition tolerance
+- Health check heartbeats (every 5s)
+- Membership discovery (etcd or built-in)
+- Partition assignment algorithm
 
 **Deliverables**:
-- [ ] Raft integration (2,000 LOC)
-- [ ] Cluster coordination (1,500 LOC)
-- [ ] Automatic failover (800 LOC)
-- [ ] Rebalancing logic (600 LOC)
-- [ ] 30+ integration tests
+- [ ] Term-based consensus (800 LOC vs 2,000 for Raft)
+- [ ] Deterministic leader selection (200 LOC)
+- [ ] Partition replication (1,200 LOC)
+- [ ] Manual failover API (400 LOC)
+- [ ] Cluster membership (800 LOC)
+- [ ] 25+ integration tests
+
+**Future Enhancement** (v1.9):
+- Automatic failover (add health-based triggering)
+- Load-aware leader selection
+- Automatic partition rebalancing
 
 ---
 
@@ -1549,16 +1940,35 @@ query {
 
 ## 📅 Development Roadmap Timeline
 
+**🆕 UPDATED** (with SierraDB-inspired shortcuts)
+
 ```
-2025 Q4: v1.0 Complete ✅
-2026 Q1: v1.1-v1.2 (Clean Architecture + Performance)
-2026 Q2: v1.3-v1.4 (Query DSL + Projections)
-2026 Q3: v1.5-v1.6 (Pipelines + Analytics)
-2026 Q4: v1.7 (Integration Tools)
-2027 Q1: v1.8 (Multi-Node)
-2027 Q2: v1.9 (Geo-Replication)
+2025 Q4: v1.0 Complete ✅ (DONE)
+2025 Q4: v1.3-v1.7 Complete ✅ (DONE - AHEAD OF SCHEDULE!)
+2026 Q1-Q2: v1.1-v1.2 (Clean Architecture + Production Readiness + Performance)
+            - Rust Core refactoring (4-6 weeks)
+            - 🆕 Partition architecture (included in refactoring)
+            - 🆕 Gapless version guarantees (included in refactoring)
+            - 🆕 Production stress tests (2-3 weeks)
+            - Performance optimizations (4-5 weeks)
+            - 🆕 OPTIONAL: Redis protocol (2-3 weeks)
+            Total: 10-14 weeks (vs original 8-10 weeks, but includes critical features)
+
+2026 Q2-Q4: MCP Server + Documentation + Polish
+2027 Q1: v1.8 (Multi-Node - SIMPLIFIED)
+        - 🆕 5 weeks (vs 8-10 weeks) - SAVED 3-5 WEEKS
+        - Term-based consensus (not full Raft)
+        - Deterministic leader selection
+        - Manual failover (automatic in v1.9)
+
+2027 Q2: v1.9 (Geo-Replication + Automatic Failover)
 2027 Q3-Q4: v2.0 (Advanced Features)
 ```
+
+**Time Savings Summary**:
+- v1.1: +3 weeks (but adds critical production features)
+- v1.8: -3 to -5 weeks (simplified consensus vs Raft)
+- **Net: Breaks even or saves 0-2 weeks, but with MUCH better production readiness**
 
 ---
 

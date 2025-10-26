@@ -1,0 +1,3 @@
+pub mod in_memory_event_stream_repository;
+
+pub use in_memory_event_stream_repository::InMemoryEventStreamRepository;
