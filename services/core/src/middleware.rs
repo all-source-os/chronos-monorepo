@@ -403,6 +403,287 @@ impl IntoResponse for TenantError {
     }
 }
 
+// ============================================================================
+// Request ID Middleware (Phase 5C)
+// ============================================================================
+
+use uuid::Uuid;
+
+/// Request context with unique ID for tracing
+#[derive(Debug, Clone)]
+pub struct RequestId(pub String);
+
+impl RequestId {
+    /// Generate a new request ID
+    pub fn new() -> Self {
+        Self(Uuid::new_v4().to_string())
+    }
+
+    /// Get the request ID as a string
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Request ID middleware
+///
+/// Generates a unique request ID for each request and injects it into:
+/// - Request extensions (for use in handlers/logging)
+/// - Response headers (X-Request-ID)
+///
+/// If the request already has an X-Request-ID header, it will be used instead.
+///
+/// # Phase 5C: Request Tracing
+/// This middleware enables distributed tracing by:
+/// 1. Generating unique IDs for each request
+/// 2. Propagating IDs through the request lifecycle
+/// 3. Returning IDs in response headers
+/// 4. Supporting client-provided request IDs
+pub async fn request_id_middleware(
+    mut request: Request,
+    next: Next,
+) -> Response {
+    // Check if request already has a request ID
+    let request_id = request
+        .headers()
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| RequestId(s.to_string()))
+        .unwrap_or_else(RequestId::new);
+
+    // Store request ID in extensions
+    request.extensions_mut().insert(request_id.clone());
+
+    // Process request
+    let mut response = next.run(request).await;
+
+    // Add request ID to response headers
+    response.headers_mut().insert(
+        "x-request-id",
+        request_id.0.parse().unwrap(),
+    );
+
+    response
+}
+
+// ============================================================================
+// Security Headers Middleware (Phase 5C)
+// ============================================================================
+
+/// Security headers configuration
+#[derive(Debug, Clone)]
+pub struct SecurityConfig {
+    /// Enable HSTS (HTTP Strict Transport Security)
+    pub enable_hsts: bool,
+    /// HSTS max age in seconds
+    pub hsts_max_age: u32,
+    /// Enable X-Frame-Options
+    pub enable_frame_options: bool,
+    /// X-Frame-Options value
+    pub frame_options: FrameOptions,
+    /// Enable X-Content-Type-Options
+    pub enable_content_type_options: bool,
+    /// Enable X-XSS-Protection
+    pub enable_xss_protection: bool,
+    /// Content Security Policy
+    pub csp: Option<String>,
+    /// CORS allowed origins
+    pub cors_origins: Vec<String>,
+    /// CORS allowed methods
+    pub cors_methods: Vec<String>,
+    /// CORS allowed headers
+    pub cors_headers: Vec<String>,
+    /// CORS max age
+    pub cors_max_age: u32,
+}
+
+#[derive(Debug, Clone)]
+pub enum FrameOptions {
+    Deny,
+    SameOrigin,
+    AllowFrom(String),
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            enable_hsts: true,
+            hsts_max_age: 31536000, // 1 year
+            enable_frame_options: true,
+            frame_options: FrameOptions::Deny,
+            enable_content_type_options: true,
+            enable_xss_protection: true,
+            csp: Some("default-src 'self'".to_string()),
+            cors_origins: vec!["*".to_string()],
+            cors_methods: vec!["GET".to_string(), "POST".to_string(), "PUT".to_string(), "DELETE".to_string()],
+            cors_headers: vec!["Content-Type".to_string(), "Authorization".to_string()],
+            cors_max_age: 3600,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct SecurityState {
+    pub config: SecurityConfig,
+}
+
+/// Security headers middleware
+///
+/// Adds security-related HTTP headers to all responses:
+/// - HSTS (Strict-Transport-Security)
+/// - X-Frame-Options
+/// - X-Content-Type-Options
+/// - X-XSS-Protection
+/// - Content-Security-Policy
+/// - CORS headers
+///
+/// # Phase 5C: Security Hardening
+/// This middleware provides defense-in-depth by:
+/// 1. Preventing clickjacking (X-Frame-Options)
+/// 2. Preventing MIME sniffing (X-Content-Type-Options)
+/// 3. Enforcing HTTPS (HSTS)
+/// 4. Preventing XSS (CSP, X-XSS-Protection)
+/// 5. Enabling CORS for controlled access
+pub async fn security_headers_middleware(
+    State(security_state): State<SecurityState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    let config = &security_state.config;
+
+    // HSTS
+    if config.enable_hsts {
+        headers.insert(
+            "strict-transport-security",
+            format!("max-age={}", config.hsts_max_age).parse().unwrap(),
+        );
+    }
+
+    // X-Frame-Options
+    if config.enable_frame_options {
+        let value = match &config.frame_options {
+            FrameOptions::Deny => "DENY",
+            FrameOptions::SameOrigin => "SAMEORIGIN",
+            FrameOptions::AllowFrom(origin) => origin,
+        };
+        headers.insert("x-frame-options", value.parse().unwrap());
+    }
+
+    // X-Content-Type-Options
+    if config.enable_content_type_options {
+        headers.insert("x-content-type-options", "nosniff".parse().unwrap());
+    }
+
+    // X-XSS-Protection
+    if config.enable_xss_protection {
+        headers.insert("x-xss-protection", "1; mode=block".parse().unwrap());
+    }
+
+    // Content-Security-Policy
+    if let Some(csp) = &config.csp {
+        headers.insert("content-security-policy", csp.parse().unwrap());
+    }
+
+    // CORS headers
+    headers.insert(
+        "access-control-allow-origin",
+        config.cors_origins.join(", ").parse().unwrap(),
+    );
+    headers.insert(
+        "access-control-allow-methods",
+        config.cors_methods.join(", ").parse().unwrap(),
+    );
+    headers.insert(
+        "access-control-allow-headers",
+        config.cors_headers.join(", ").parse().unwrap(),
+    );
+    headers.insert(
+        "access-control-max-age",
+        config.cors_max_age.to_string().parse().unwrap(),
+    );
+
+    response
+}
+
+// ============================================================================
+// IP Filtering Middleware (Phase 5C)
+// ============================================================================
+
+use crate::infrastructure::security::IpFilter;
+use std::net::SocketAddr;
+
+#[derive(Clone)]
+pub struct IpFilterState {
+    pub ip_filter: Arc<IpFilter>,
+}
+
+/// IP filtering middleware
+///
+/// Blocks or allows requests based on IP address rules.
+/// Supports both global and per-tenant IP filtering.
+///
+/// # Phase 5C: Access Control
+/// This middleware provides IP-based access control by:
+/// 1. Extracting client IP from request
+/// 2. Checking against global and tenant-specific rules
+/// 3. Blocking requests from unauthorized IPs
+/// 4. Supporting both allowlists and blocklists
+pub async fn ip_filter_middleware(
+    State(ip_filter_state): State<IpFilterState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, IpFilterError> {
+    // Extract client IP address
+    let client_ip = request
+        .extensions()
+        .get::<axum::extract::ConnectInfo<SocketAddr>>()
+        .map(|connect_info| connect_info.0.ip())
+        .ok_or(IpFilterError::NoIpAddress)?;
+
+    // Check if this is a tenant-scoped request
+    let result = if let Some(tenant_ctx) = request.extensions().get::<TenantContext>() {
+        // Tenant-specific filtering
+        ip_filter_state
+            .ip_filter
+            .is_allowed_for_tenant(tenant_ctx.tenant_id(), &client_ip)
+    } else {
+        // Global filtering only
+        ip_filter_state.ip_filter.is_allowed(&client_ip)
+    };
+
+    // Block if not allowed
+    if !result.allowed {
+        return Err(IpFilterError::Blocked { reason: result.reason });
+    }
+
+    // Allow request to proceed
+    Ok(next.run(request).await)
+}
+
+/// Error type for IP filtering failures
+#[derive(Debug)]
+pub enum IpFilterError {
+    NoIpAddress,
+    Blocked { reason: String },
+}
+
+impl IntoResponse for IpFilterError {
+    fn into_response(self) -> Response {
+        match self {
+            IpFilterError::NoIpAddress => (
+                StatusCode::BAD_REQUEST,
+                "Unable to determine client IP address",
+            ).into_response(),
+            IpFilterError::Blocked { reason } => (
+                StatusCode::FORBIDDEN,
+                format!("Access denied: {}", reason),
+            ).into_response(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

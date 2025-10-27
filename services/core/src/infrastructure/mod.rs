@@ -9,3 +9,4 @@
 pub mod persistence;
 pub mod repositories;
 pub mod cluster;
+pub mod security;
