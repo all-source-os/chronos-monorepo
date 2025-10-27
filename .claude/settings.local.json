@@ -58,7 +58,12 @@
       "Bash(cargo test --lib lock_free)",
       "Bash(tee /tmp/lock_free_test.txt)",
       "Bash(cargo test --lib domain::entities::event_stream -- --nocapture)",
-      "Bash(cargo test --lib -- --nocapture)"
+      "Bash(cargo test --lib -- --nocapture)",
+      "Bash(cargo test --lib domain::entities::audit_event -- --nocapture)",
+      "Bash(cargo test --lib domain::repositories::audit_event_repository -- --nocapture)",
+      "Bash(cargo test --lib infrastructure::repositories::in_memory_audit_repository -- --nocapture)",
+      "Bash(cargo test --lib -- audit --nocapture)",
+      "Bash(cargo test --lib application::services::audit_logger -- --nocapture)"
     ],
     "deny": [],
     "ask": []
