@@ -96,6 +96,22 @@ pub trait EventStreamRepository: Send + Sync {
     /// Returns (partition_id, stream_count) for each partition.
     /// Used for monitoring partition distribution.
     async fn partition_stats(&self) -> Result<Vec<(u32, usize)>>;
+
+    /// Get all streams for a specific tenant
+    ///
+    /// Returns all event streams that contain events belonging to the specified tenant.
+    /// Used for tenant-scoped queries and operations.
+    ///
+    /// # Tenant Isolation
+    /// This method is critical for multi-tenancy support. It ensures that
+    /// operations can be scoped to a single tenant for security and compliance.
+    async fn get_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<Vec<EventStream>>;
+
+    /// Count streams for a specific tenant
+    ///
+    /// Returns the total number of streams belonging to the specified tenant.
+    /// Used for quota enforcement and tenant monitoring.
+    async fn count_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<usize>;
 }
 
 /// Read-only stream repository (query optimization)
@@ -107,6 +123,8 @@ pub trait EventStreamReader: Send + Sync {
     async fn get_watermark(&self, stream_id: &EntityId) -> Result<u64>;
     async fn get_streams_by_partition(&self, partition_key: &PartitionKey) -> Result<Vec<EventStream>>;
     async fn verify_gapless(&self, stream_id: &EntityId) -> Result<bool>;
+    async fn get_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<Vec<EventStream>>;
+    async fn count_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<usize>;
 }
 
 /// Write-only stream repository (ingestion optimization)

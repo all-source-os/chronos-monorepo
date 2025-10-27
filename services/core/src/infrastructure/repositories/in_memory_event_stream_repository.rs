@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::domain::entities::{Event, EventStream};
 use crate::domain::repositories::{EventStreamRepository, EventStreamReader, EventStreamWriter};
-use crate::domain::value_objects::{EntityId, PartitionKey};
+use crate::domain::value_objects::{EntityId, PartitionKey, TenantId};
 use crate::error::{AllSourceError, Result};
 
 /// In-memory implementation of EventStreamRepository
@@ -155,6 +155,34 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
 
         Ok(result)
     }
+
+    async fn get_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<Vec<EventStream>> {
+        let streams = self.streams.read();
+
+        let mut result = Vec::new();
+        for stream in streams.values() {
+            // Check if stream belongs to this tenant
+            if let Some(stream_tenant) = stream.tenant_id() {
+                if stream_tenant == tenant_id {
+                    result.push(stream.clone());
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    async fn count_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<usize> {
+        let streams = self.streams.read();
+
+        let count = streams.values()
+            .filter(|stream| {
+                stream.tenant_id().map(|t| t == tenant_id).unwrap_or(false)
+            })
+            .count();
+
+        Ok(count)
+    }
 }
 
 #[async_trait]
@@ -173,6 +201,14 @@ impl EventStreamReader for InMemoryEventStreamRepository {
 
     async fn verify_gapless(&self, stream_id: &EntityId) -> Result<bool> {
         EventStreamRepository::verify_gapless(self, stream_id).await
+    }
+
+    async fn get_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<Vec<EventStream>> {
+        EventStreamRepository::get_streams_by_tenant(self, tenant_id).await
+    }
+
+    async fn count_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<usize> {
+        EventStreamRepository::count_streams_by_tenant(self, tenant_id).await
     }
 }
 

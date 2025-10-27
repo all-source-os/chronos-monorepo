@@ -63,7 +63,12 @@
       "Bash(cargo test --lib domain::repositories::audit_event_repository -- --nocapture)",
       "Bash(cargo test --lib infrastructure::repositories::in_memory_audit_repository -- --nocapture)",
       "Bash(cargo test --lib -- audit --nocapture)",
-      "Bash(cargo test --lib application::services::audit_logger -- --nocapture)"
+      "Bash(cargo test --lib application::services::audit_logger -- --nocapture)",
+      "Bash(cargo test --lib -- tenant --nocapture)",
+      "Bash(cargo test --lib domain::entities::tenant domain::value_objects::tenant_id domain::repositories::tenant_repository infrastructure::repositories::in_memory_tenant_repository)",
+      "Bash(cargo test --lib -- tenant)",
+      "Bash(cargo test --lib domain::entities::event_stream)",
+      "Bash(cargo test --lib -- --test-threads=1 tenant)"
     ],
     "deny": [],
     "ask": []

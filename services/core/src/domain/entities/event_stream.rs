@@ -212,6 +212,60 @@ impl EventStream {
     pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
+
+    // Tenant isolation methods
+
+    /// Get the tenant ID for this stream
+    ///
+    /// Returns the tenant_id from the first event, or None if the stream is empty.
+    /// All events in a stream should belong to the same tenant.
+    pub fn tenant_id(&self) -> Option<&crate::domain::value_objects::TenantId> {
+        self.events.first().map(|e| e.tenant_id())
+    }
+
+    /// Validate that all events in the stream belong to the same tenant
+    ///
+    /// Returns true if the stream is empty or all events have the same tenant_id.
+    /// This is a safety check to detect tenant isolation violations.
+    pub fn has_consistent_tenant(&self) -> bool {
+        if self.events.is_empty() {
+            return true;
+        }
+
+        let first_tenant = self.events[0].tenant_id();
+        self.events.iter().all(|e| e.tenant_id() == first_tenant)
+    }
+
+    /// Validate that an event belongs to this stream's tenant
+    ///
+    /// Returns an error if:
+    /// - The stream has events and the new event's tenant doesn't match
+    ///
+    /// This ensures tenant isolation at the stream level.
+    pub fn validate_event_tenant(&self, event: &Event) -> Result<()> {
+        if let Some(stream_tenant) = self.tenant_id() {
+            if event.tenant_id() != stream_tenant {
+                return Err(AllSourceError::ValidationError(format!(
+                    "Tenant mismatch: stream belongs to '{}', but event belongs to '{}'",
+                    stream_tenant.as_str(),
+                    event.tenant_id().as_str()
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Append an event with tenant validation
+    ///
+    /// Like `append_event`, but also validates tenant consistency.
+    /// Prevents cross-tenant event appends for security.
+    pub fn append_event_with_tenant_check(&mut self, event: Event) -> Result<u64> {
+        // Validate tenant consistency
+        self.validate_event_tenant(&event)?;
+
+        // Proceed with normal append
+        self.append_event(event)
+    }
 }
 
 #[cfg(test)]

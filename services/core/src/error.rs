@@ -10,6 +10,12 @@ pub enum AllSourceError {
     #[error("Entity not found: {0}")]
     EntityNotFound(String),
 
+    #[error("Tenant already exists: {0}")]
+    TenantAlreadyExists(String),
+
+    #[error("Tenant not found: {0}")]
+    TenantNotFound(String),
+
     #[error("Invalid event: {0}")]
     InvalidEvent(String),
 
@@ -66,7 +72,9 @@ pub type Result<T> = std::result::Result<T, AllSourceError>;
 impl IntoResponse for AllSourceError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
-            AllSourceError::EventNotFound(_) | AllSourceError::EntityNotFound(_) => {
+            AllSourceError::EventNotFound(_)
+            | AllSourceError::EntityNotFound(_)
+            | AllSourceError::TenantNotFound(_) => {
                 (StatusCode::NOT_FOUND, self.to_string())
             }
             AllSourceError::InvalidEvent(_)
@@ -75,7 +83,8 @@ impl IntoResponse for AllSourceError {
             | AllSourceError::ValidationError(_) => {
                 (StatusCode::BAD_REQUEST, self.to_string())
             }
-            AllSourceError::ConcurrencyError(_) => {
+            AllSourceError::TenantAlreadyExists(_)
+            | AllSourceError::ConcurrencyError(_) => {
                 (StatusCode::CONFLICT, self.to_string())
             }
             AllSourceError::QueueFull(_) => {
