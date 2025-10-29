@@ -1,21 +1,24 @@
 # AllSource Event Store - Comprehensive Roadmap
 
-**Last Updated**: 2025-10-26
+**Last Updated**: 2025-10-29
 **Version**: 1.0 → 2.0
-**Vision**: A high-performance, clean-architecture event store combining Rust, Go, and Clojure
-**Influenced By**: SierraDB architecture patterns for production readiness
+**Vision**: A high-performance, AI-native event store combining Rust, Go, and Clojure
+**Influenced By**:
+- SierraDB architecture patterns for production readiness
+- Agentic Postgres principles for AI-first design
 
 ---
 
 ## 🎯 Mission Statement
 
-Build a production-grade event store that combines:
+Build a production-grade, **AI-native** event store that combines:
 - **Rust** for ultra-high-performance core operations (469K+ events/sec)
 - **Go** for robust control plane and operational tooling
 - **Clojure** for expressive data processing and interactive development
 - **Clean Architecture** principles across all codebases
 - **SOLID principles** for maintainability and extensibility
 - **🆕 SierraDB-inspired patterns** for production readiness and simplified scaling
+- **🤖 Agentic Postgres principles** for AI-first, agent-friendly design
 
 ---
 
@@ -99,6 +102,93 @@ Build a production-grade event store that combines:
 
 ---
 
+## 🤖 Key Learnings from Agentic Postgres (Integrated into Roadmap)
+
+**Agentic Postgres** pioneered the concept of databases built specifically for AI agents, not humans. We're integrating their agent-first principles into AllSource.
+
+### Core Philosophy: "Agents Don't Behave Like Humans"
+
+**Their insight**: AI agents require fundamentally different interfaces - they need **embedded expertise**, **instant experimentation**, and **machine-speed operations** without human friction.
+
+### 1. ✅ Model Context Protocol with Embedded Expertise (Added to Phase 1.5)
+**Their lesson**: "The MCP server embeds 10+ years of Postgres expertise through built-in prompts, enabling agents to handle schema design, query optimization, and migrations autonomously."
+
+**Our integration**:
+- Enhance MCP server with embedded event sourcing expertise
+- Add agent guidance prompts to each tool (best practices, common patterns, performance tips)
+- Create `get_query_advice` tool for use-case-specific recommendations
+- Multi-turn conversational context for iterative agent exploration
+- Self-documenting, composable operations
+
+### 2. ✅ Instant Experimentation via Copy-on-Write Forks (Added to v1.1)
+**Their lesson**: "A copy-on-write storage layer enables agents to spin up isolated production-data environments in seconds without data duplication costs."
+
+**Our integration**:
+- Copy-on-write event store forks for sandboxed testing
+- Agents can test queries, projections, and migrations without affecting production
+- Time-to-live (TTL) for automatic cleanup
+- `create_sandbox_fork` and `run_experiment` MCP tools
+- Perfect for agent learning and iterative refinement
+
+### 3. ✅ Native Search Capabilities (Added to v1.2)
+**Their lesson**: "pgvectorscale + pg_textsearch provide vector and keyword search, eliminating external dependencies."
+
+**Our integration**:
+- Vector search for semantic event queries (find similar events by meaning)
+- BM25-based keyword search for full-text payload search
+- Hybrid search combining semantic + keyword + metadata filters
+- `semantic_search_events` MCP tool for natural language queries
+- All search integrated natively in Rust core (no external services)
+
+### 4. ✅ Function Over Interface (Design Principle)
+**Their lesson**: "Prioritize function over interface, autonomy over guidance, experimentation over caution."
+
+**Our integration**:
+- MCP-first design (programmatic before visual)
+- Agent-optimized query language (declarative, composable)
+- Autonomous operations (auto-scaling, self-tuning, auto-schema-evolution)
+- Quick-stats and sampling tools for rapid exploration
+- Streaming results for real-time agent processing
+
+### 5. ✅ Agent-Optimized Pricing Model (Design Consideration)
+**Their lesson**: "Pay-per-use suits agent experimentation, where rapid iteration and teardown are expected behaviors."
+
+**Our consideration**:
+- Design for ephemeral workloads (agents spinning up/down forks)
+- Resource quotas per agent/tenant
+- Efficient cleanup of abandoned experiments
+- Cost tracking for agent operations
+
+### 6. ✅ Fluid Storage Infrastructure (v1.1+)
+**Their lesson**: "Distributed block store delivering high IOPS, appearing as local disk while scaling like cloud storage."
+
+**Our integration**:
+- Parquet + WAL already provide efficient storage
+- Partition-based architecture (from SierraDB) enables fluid distribution
+- Copy-on-write forks minimize storage duplication
+- Future: S3-compatible storage tier for archival
+
+---
+
+## 🆚 Agentic Postgres Comparison
+
+| Feature | Agentic Postgres | AllSource (Current) | AllSource (Post-v1.2) |
+|---------|------------------|---------------------|----------------------|
+| **MCP Integration** | ✅ Core feature | ✅ Basic MCP server | ✅ Enhanced w/ expertise |
+| **Embedded Prompts** | ✅ 10+ years expertise | ❌ Basic descriptions | ✅ Agent guidance (v1.5) |
+| **Vector Search** | ✅ pgvectorscale | ❌ Not yet | ✅ Native (v1.2) |
+| **Keyword Search** | ✅ BM25 | ❌ Not yet | ✅ Native (v1.2) |
+| **Instant Forks** | ✅ Copy-on-write | ❌ Not yet | ✅ Copy-on-write (v1.1) |
+| **Agent Autonomy** | ✅ Full autonomy | 🟡 Manual operations | ✅ Auto-ops (v1.8+) |
+| **Multi-Turn Context** | 🟡 Limited | ❌ Stateless | ✅ Conversational (v1.5) |
+| **Event Sourcing** | ❌ Traditional DB | ✅ Native | ✅ Enhanced |
+| **Temporal Queries** | 🟡 Limited | ✅ Time-travel | ✅ Advanced (v1.3+) |
+| **Clean Architecture** | ❌ Not mentioned | 🟡 In progress | ✅ 100% (v1.1) |
+
+**Our Advantage**: Purpose-built for event sourcing + temporal queries, now adding Agentic Postgres's AI-native interface design.
+
+---
+
 ## 📐 Architectural Philosophy
 
 ### Clean Architecture Principles
@@ -178,6 +268,136 @@ Build a production-grade event store that combines:
 
 ### Timeline: Q1 2026 (10-12 weeks total, includes production-readiness enhancements)
 
+---
+
+### 🤖 IMMEDIATE: MCP Server AI-Native Enhancements (2-3 weeks)
+**Priority**: CRITICAL (Can run in parallel with Rust refactoring)
+**Inspiration**: Agentic Postgres's embedded expertise approach
+**Dependencies**: None
+
+**Goal**: Transform MCP server from basic tool provider to AI-native interface with embedded event sourcing expertise
+
+#### Tasks:
+
+**1. Embedded Expertise in Tool Descriptions (1 week)**
+```typescript
+// packages/mcp-server/src/tools/enhanced-tools.ts
+
+// Enhance each tool with:
+// - Agent guidance (best practices, common patterns)
+// - Performance tips (when to use limit, indexing hints)
+// - Use case examples (audit, analytics, debugging)
+// - Decision trees (which tool for which scenario)
+
+const enhancedTools: Tool[] = [
+  {
+    name: 'query_events',
+    description: `Query events with flexible filters.
+
+    💡 AGENT GUIDANCE:
+    - entity_id: Track specific user/order/resource lifecycle
+    - event_type: Analyze behavior patterns (e.g., "user.created")
+    - Temporal analysis: Combine 'since' with pattern detection
+    - Time-travel: Use 'as_of' for historical state reconstruction
+
+    🎯 COMMON PATTERNS:
+    - User journey: entity_id + time range → lifecycle analysis
+    - System health: event_type + frequency → detect anomalies
+    - Compliance: 'as_of' + entity_id → point-in-time audit
+
+    ⚠️ PERFORMANCE:
+    - Add 'limit' for exploration (avoids full scans)
+    - Use 'until' to bound queries (faster execution)
+    - event_type filters use indexes (prefer over payload filters)`,
+    // ... schema
+  }
+];
+```
+
+**2. Agent Advisory Tool (1 week)**
+```typescript
+// New tool: get_query_advice
+{
+  name: 'get_query_advice',
+  description: 'Get expert advice on event sourcing queries. Embeds 10+ years of expertise.',
+  inputSchema: {
+    use_case: {
+      enum: [
+        'audit_trail',        // Compliance/governance queries
+        'user_analytics',     // Behavioral analysis
+        'debugging',          // Root cause analysis
+        'compliance',         // Regulatory reporting
+        'performance_analysis' // System health monitoring
+      ]
+    },
+    context: { type: 'string' }  // Additional context
+  }
+}
+
+// Implementation provides:
+// - Recommended tool combinations
+// - Query patterns for use case
+// - Performance optimization tips
+// - Common pitfalls to avoid
+```
+
+**3. Multi-Turn Conversational Context (1 week)**
+```typescript
+// packages/mcp-server/src/context/conversation-context.ts
+
+class ConversationContext {
+  private sessions: Map<string, QuerySession>;
+
+  // Enable iterative refinement:
+  // Agent: "Show users created yesterday"
+  // Agent: "Filter to premium tier"     // Understands context
+  // Agent: "Compare with last month"    // Builds on previous
+
+  buildQuery(input: string, sessionId: string): EnhancedQuery {
+    const session = this.sessions.get(sessionId);
+    // Merge with previous query context
+    // Intelligent query composition
+  }
+}
+```
+
+**4. Quick Exploration Tools (1 week)**
+```typescript
+// Fast sampling for agent exploration
+{
+  name: 'sample_events',
+  description: 'Get representative sample (not exhaustive). Fast exploration of unknown data.',
+  inputSchema: {
+    sample_size: { type: 'number', default: 1000 },
+    stratified_by: { enum: ['event_type', 'entity_id', 'time'] }
+  }
+},
+
+{
+  name: 'quick_stats',
+  description: 'Fast approximate statistics. Trades precision for speed.',
+  inputSchema: {
+    metric: { enum: ['event_count', 'unique_entities', 'event_types', 'time_range'] }
+  }
+}
+```
+
+**Deliverables**:
+- [ ] Enhanced tool descriptions with embedded guidance (200 LOC)
+- [ ] `get_query_advice` tool implementation (300 LOC)
+- [ ] Conversational context manager (400 LOC)
+- [ ] Quick exploration tools (300 LOC)
+- [ ] Updated documentation with agent usage patterns (20 pages)
+
+**Benefits**:
+- ✅ Agents can query autonomously without human guidance
+- ✅ Embedded expertise reduces trial-and-error
+- ✅ Multi-turn conversations enable iterative refinement
+- ✅ Fast sampling enables rapid exploration
+- ✅ Zero breaking changes to existing MCP tools
+
+---
+
 ### 🏗️ v1.1: Production-Ready Foundation (6-7 weeks)
 
 **Goal**: Refactor to Clean Architecture + Add critical production-readiness features inspired by SierraDB
@@ -205,6 +425,11 @@ Build a production-grade event store that combines:
    - Gapless version guarantees (watermark system)
    - Event stream aggregates with optimistic locking
 
+   **🤖 Agentic Postgres-Inspired Additions**:
+   - Copy-on-write event store forks for agent experimentation
+   - Fork lifecycle management (TTL, cleanup)
+   - Isolation guarantees for sandboxed queries
+
    ```rust
    // src/domain/
    ├── entities/
@@ -212,20 +437,23 @@ Build a production-grade event store that combines:
    │   ├── tenant.rs         // Tenant entity
    │   ├── user.rs           // User entity
    │   ├── snapshot.rs       // Snapshot entity
-   │   └── event_stream.rs   // 🆕 Event stream aggregate (SierraDB pattern)
+   │   ├── event_stream.rs   // 🆕 Event stream aggregate (SierraDB pattern)
+   │   └── event_store_fork.rs // 🤖 Fork entity (Agentic Postgres pattern)
    ├── value_objects/
    │   ├── event_id.rs       // Strongly-typed IDs
    │   ├── timestamp.rs      // Time value objects
    │   ├── tenant_id.rs      // Tenant identifier
    │   ├── partition_key.rs  // 🆕 Partition key (32 partitions initially)
-   │   └── stream_version.rs // 🆕 Gapless version tracking
+   │   ├── stream_version.rs // 🆕 Gapless version tracking
+   │   └── fork_id.rs        // 🤖 Fork identifier
    ├── aggregates/
    │   ├── event_stream.rs   // Event stream aggregate with watermarks
    │   └── tenant_config.rs  // Tenant configuration
    └── repositories/         // Repository traits (abstractions)
        ├── event_repository.rs
        ├── tenant_repository.rs
-       └── snapshot_repository.rs
+       ├── snapshot_repository.rs
+       └── fork_repository.rs // 🤖 Fork management
    ```
 
    **New Event Stream Aggregate** (SierraDB watermark pattern):
@@ -258,6 +486,50 @@ Build a production-grade event store that combines:
    }
    ```
 
+   **🤖 New Event Store Fork Entity** (Agentic Postgres copy-on-write pattern):
+   ```rust
+   // src/domain/entities/event_store_fork.rs
+   pub struct EventStoreFork {
+       fork_id: ForkId,
+       parent_store_id: StoreId,
+       created_at: Timestamp,
+       expires_at: Timestamp,  // TTL for auto-cleanup
+       isolation_level: IsolationLevel,
+       metadata: ForkMetadata,  // Purpose, created_by (agent), etc.
+   }
+
+   impl EventStoreFork {
+       /// Create instant fork using copy-on-write
+       /// Agents can test queries/projections without affecting production
+       pub fn create_from_parent(
+           parent: &EventStore,
+           ttl_seconds: u64,
+           metadata: ForkMetadata
+       ) -> Result<EventStoreFork> {
+           Ok(EventStoreFork {
+               fork_id: ForkId::new(),
+               parent_store_id: parent.id.clone(),
+               created_at: Timestamp::now(),
+               expires_at: Timestamp::now().add_seconds(ttl_seconds),
+               isolation_level: IsolationLevel::Snapshot,
+               metadata,
+           })
+       }
+
+       /// Check if fork has expired (for auto-cleanup)
+       pub fn is_expired(&self) -> bool {
+           Timestamp::now() > self.expires_at
+       }
+
+       /// Cleanup expired forks (background task)
+       pub async fn cleanup_expired_forks(
+           fork_repo: &dyn ForkRepository
+       ) -> Result<Vec<ForkId>> {
+           fork_repo.delete_expired_forks().await
+       }
+   }
+   ```
+
 2. **Application Layer (Use Cases)**
    ```rust
    // src/application/
@@ -266,14 +538,19 @@ Build a production-grade event store that combines:
    │   ├── query_events.rs
    │   ├── create_snapshot.rs
    │   ├── replay_events.rs
-   │   └── manage_tenant.rs
+   │   ├── manage_tenant.rs
+   │   ├── create_fork.rs         // 🤖 Create event store fork
+   │   ├── query_fork.rs          // 🤖 Query within fork context
+   │   └── cleanup_forks.rs       // 🤖 TTL-based fork cleanup
    ├── services/
    │   ├── event_service.rs       // Application service
    │   ├── projection_service.rs
-   │   └── analytics_service.rs
+   │   ├── analytics_service.rs
+   │   └── fork_service.rs        // 🤖 Fork lifecycle management
    └── dto/                       // Data Transfer Objects
        ├── event_dto.rs
-       └── query_dto.rs
+       ├── query_dto.rs
+       └── fork_dto.rs            // 🤖 Fork metadata
    ```
 
 3. **Infrastructure Layer (Outermost)**
@@ -596,9 +873,210 @@ impl PartitionMetrics {
 
 ---
 
-### 🎯 v1.2: Performance Optimization & Protocol Expansion
+### 🎯 v1.2: Performance Optimization, Search & Protocol Expansion
 
-**Goal**: Optimize critical paths + Add Redis protocol compatibility (SierraDB lesson)
+**Goal**: Optimize critical paths + Add native search capabilities (Agentic Postgres) + Add Redis protocol compatibility (SierraDB lesson)
+
+---
+
+#### 🤖 Native Search Capabilities (3-4 weeks)
+**Priority**: HIGH
+**Inspiration**: Agentic Postgres's integrated vector + keyword search
+**Dependencies**: Rust Core v1.1 (Clean Architecture)
+
+**Rationale** (from Agentic Postgres):
+> "pgvectorscale + pg_textsearch provide vector and keyword search, eliminating external dependencies. Every language with a Redis client works immediately."
+
+**Our Implementation**: Native Rust search eliminating need for Elasticsearch/external services
+
+**1. Vector Search for Semantic Queries (2 weeks)**
+```rust
+// src/infrastructure/search/vector_search.rs
+use fastembed::{EmbeddingModel, InitOptions};
+
+pub struct VectorSearchEngine {
+    model: EmbeddingModel,
+    index: HnswIndex,  // Hierarchical Navigable Small World graph
+}
+
+impl VectorSearchEngine {
+    /// Generate embedding for event payload
+    pub fn embed_event(&self, event: &Event) -> Result<Vec<f32>> {
+        let text = self.serialize_for_embedding(event);
+        self.model.embed(vec![text], None)
+            .map(|embeddings| embeddings[0].clone())
+    }
+
+    /// Semantic search: find events by meaning
+    pub async fn search_similar(
+        &self,
+        query: &str,
+        limit: usize,
+        threshold: f32
+    ) -> Result<Vec<(EventId, f32)>> {
+        let query_embedding = self.model.embed(vec![query.to_string()], None)?;
+        self.index.search(&query_embedding[0], limit, threshold)
+    }
+
+    /// Serialize event for embedding
+    fn serialize_for_embedding(&self, event: &Event) -> String {
+        format!(
+            "{} {} {}",
+            event.event_type,
+            serde_json::to_string(&event.payload).unwrap_or_default(),
+            event.metadata.description.unwrap_or_default()
+        )
+    }
+}
+```
+
+**2. BM25 Keyword Search (1 week)**
+```rust
+// src/infrastructure/search/keyword_search.rs
+use tantivy::{Index, IndexWriter, Document};
+
+pub struct KeywordSearchEngine {
+    index: Index,
+    writer: IndexWriter,
+}
+
+impl KeywordSearchEngine {
+    /// Index event payload for full-text search
+    pub async fn index_event(&mut self, event: &Event) -> Result<()> {
+        let mut doc = Document::new();
+        doc.add_text(self.event_type_field, &event.event_type);
+        doc.add_text(self.payload_field, &serde_json::to_string(&event.payload)?);
+        doc.add_text(self.entity_id_field, &event.entity_id.to_string());
+
+        self.writer.add_document(doc)?;
+        Ok(())
+    }
+
+    /// BM25 keyword search
+    pub async fn search_keywords(
+        &self,
+        query: &str,
+        limit: usize
+    ) -> Result<Vec<EventId>> {
+        let searcher = self.index.reader()?.searcher();
+        let query_parser = QueryParser::for_index(&self.index, vec![
+            self.event_type_field,
+            self.payload_field,
+        ]);
+
+        let query = query_parser.parse_query(query)?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit))?;
+
+        Ok(top_docs.into_iter()
+            .map(|(_, doc_address)| self.extract_event_id(doc_address))
+            .collect())
+    }
+}
+```
+
+**3. Hybrid Search (Semantic + Keyword + Metadata) (1 week)**
+```rust
+// src/infrastructure/search/hybrid_search.rs
+
+pub struct HybridSearchEngine {
+    vector_search: VectorSearchEngine,
+    keyword_search: KeywordSearchEngine,
+}
+
+impl HybridSearchEngine {
+    /// Combine semantic, keyword, and metadata filtering
+    pub async fn search(
+        &self,
+        query: SearchQuery
+    ) -> Result<Vec<ScoredEvent>> {
+        let mut results = Vec::new();
+
+        // 1. Semantic search (if natural language query)
+        if let Some(semantic_query) = query.semantic {
+            let semantic_results = self.vector_search
+                .search_similar(&semantic_query, query.limit * 2, 0.7).await?;
+            results.extend(semantic_results);
+        }
+
+        // 2. Keyword search (if keyword query)
+        if let Some(keyword_query) = query.keywords {
+            let keyword_results = self.keyword_search
+                .search_keywords(&keyword_query, query.limit * 2).await?;
+            results.extend(keyword_results);
+        }
+
+        // 3. Combine and re-rank
+        let combined = self.combine_scores(results);
+
+        // 4. Apply metadata filters (event_type, entity_id, time range)
+        let filtered = self.apply_filters(combined, query.filters);
+
+        // 5. Return top-k
+        Ok(filtered.into_iter().take(query.limit).collect())
+    }
+}
+```
+
+**4. MCP Integration**
+```typescript
+// packages/mcp-server/src/tools/search-tools.ts
+
+{
+  name: 'semantic_search_events',
+  description: `Search events by meaning, not exact matches. Uses vector embeddings.
+
+  💡 AGENT GUIDANCE:
+  - Use for: "Find events related to user complaints"
+  - Use for: "What events are similar to order cancellations"
+  - Faster than scanning all events manually
+
+  🎯 BEST FOR:
+  - Exploratory analysis of unfamiliar data
+  - Finding conceptually similar events
+  - Cross-event-type pattern detection`,
+
+  inputSchema: {
+    query: { type: 'string', description: 'Natural language query' },
+    limit: { type: 'number', default: 100 },
+    threshold: { type: 'number', default: 0.7, description: 'Similarity threshold (0-1)' }
+  }
+},
+
+{
+  name: 'hybrid_search',
+  description: 'Combine semantic + keyword + metadata filters for precise results.',
+  inputSchema: {
+    semantic_query: { type: 'string' },
+    keywords: { type: 'string' },
+    filters: { type: 'object' }  // event_type, entity_id, time_range
+  }
+}
+```
+
+**Technical Requirements**:
+- `fastembed` or `candle` for embeddings (pure Rust, no Python)
+- `tantivy` for BM25 full-text search (Rust Lucene alternative)
+- `usearch` or custom HNSW for vector index
+- Background indexing (async, non-blocking)
+- Incremental index updates
+
+**Deliverables**:
+- [ ] Vector search engine (600 LOC)
+- [ ] BM25 keyword search (400 LOC)
+- [ ] Hybrid search orchestrator (300 LOC)
+- [ ] Background indexing service (400 LOC)
+- [ ] MCP search tools (200 LOC)
+- [ ] Search benchmarks (100K+ events)
+- [ ] 30+ tests (search accuracy, performance)
+
+**Benefits**:
+- ✅ **No external dependencies** (Elasticsearch, Algolia, etc.)
+- ✅ **Agent-friendly**: natural language queries
+- ✅ **Unified stack**: all in Rust
+- ✅ **Fast**: in-memory index, native performance
+- ✅ **Semantic understanding**: find events by meaning
+
+---
 
 #### 🆕 Redis Protocol Compatibility (OPTIONAL, 2-3 weeks)
 **Priority**: MEDIUM
@@ -1929,46 +2407,96 @@ query {
 | **Control Plane** | Go | Auth, ops, management | Domain → Use Cases → HTTP |
 | **Processing** | Clojure | Queries, projections, analytics | Protocols → Services → Adapters |
 | **Storage** | Parquet + WAL | Event persistence | Repository pattern |
-| **Caching** | Redis | Projection state, hot queries | Cache adapter |
-| **Database** | PostgreSQL | Metadata, projections | Repository interface |
+| **🤖 AI Interface** | MCP Server (TypeScript) | Agent-native event store interface | MCP Protocol |
+| **🤖 Vector Search** | Rust (fastembed + HNSW) | Semantic event search | Search adapter |
+| **🤖 Keyword Search** | Rust (tantivy) | BM25 full-text search | Search adapter |
+| **Caching** | Redis (optional) | Projection state, hot queries | Cache adapter |
+| **Database** | PostgreSQL (optional) | Metadata, projections | Repository interface |
 | **Metrics** | Prometheus | System monitoring | Metrics port |
 | **Tracing** | Jaeger | Distributed tracing | Tracing middleware |
-| **Messaging** | Kafka | External integrations | Message adapter |
-| **Search** | Elasticsearch | Full-text search | Search port |
+| **Messaging** | Kafka (future) | External integrations | Message adapter |
+
+**Key Changes (Agentic Postgres inspiration)**:
+- ✅ **Native search** (no Elasticsearch dependency)
+- ✅ **MCP-first design** (AI agents are first-class citizens)
+- ✅ **Unified Rust stack** (core + search integrated)
 
 ---
 
 ## 📅 Development Roadmap Timeline
 
-**🆕 UPDATED** (with SierraDB-inspired shortcuts)
+**🆕 UPDATED** (with SierraDB + Agentic Postgres lessons integrated)
 
 ```
 2025 Q4: v1.0 Complete ✅ (DONE)
 2025 Q4: v1.3-v1.7 Complete ✅ (DONE - AHEAD OF SCHEDULE!)
-2026 Q1-Q2: v1.1-v1.2 (Clean Architecture + Production Readiness + Performance)
-            - Rust Core refactoring (4-6 weeks)
-            - 🆕 Partition architecture (included in refactoring)
-            - 🆕 Gapless version guarantees (included in refactoring)
-            - 🆕 Production stress tests (2-3 weeks)
-            - Performance optimizations (4-5 weeks)
-            - 🆕 OPTIONAL: Redis protocol (2-3 weeks)
-            Total: 10-14 weeks (vs original 8-10 weeks, but includes critical features)
 
-2026 Q2-Q4: MCP Server + Documentation + Polish
-2027 Q1: v1.8 (Multi-Node - SIMPLIFIED)
+2026 Q1-Q2: Phase 1.5 - AI-Native Foundation + Production Readiness (12-15 weeks)
+
+            IMMEDIATE (Can run in parallel):
+            - 🤖 MCP Server AI-Native Enhancements (2-3 weeks)
+              • Embedded expertise in tool descriptions
+              • Agent advisory tool (get_query_advice)
+              • Multi-turn conversational context
+              • Quick exploration tools (sampling, fast stats)
+
+            v1.1 - Production-Ready Foundation (6-7 weeks):
+            - Rust Core refactoring (4-6 weeks)
+            - 🆕 Partition architecture (SierraDB - included in refactoring)
+            - 🆕 Gapless version guarantees (SierraDB - included in refactoring)
+            - 🤖 Copy-on-write event store forks (Agentic Postgres - included)
+            - 🆕 Production stress tests (2-3 weeks)
+            - Go Control Plane refactoring (3-4 weeks, parallel)
+
+            v1.2 - Performance + Search + Protocol (7-9 weeks):
+            - 🤖 Native search capabilities (Agentic Postgres - 3-4 weeks)
+              • Vector search (semantic queries)
+              • BM25 keyword search
+              • Hybrid search orchestrator
+            - Performance optimizations (4-5 weeks)
+            - 🆕 OPTIONAL: Redis protocol (SierraDB - 2-3 weeks)
+
+            Total: 12-15 weeks (includes AI-native + production features)
+
+2026 Q2-Q4: Clojure Services + Documentation + Polish
+            - Query DSL with agent-optimized syntax
+            - Projection management with hot-reload
+            - Event processing pipelines
+            - Analytics engine
+
+2027 Q1: v1.8 (Multi-Node - SIMPLIFIED with SierraDB patterns)
         - 🆕 5 weeks (vs 8-10 weeks) - SAVED 3-5 WEEKS
         - Term-based consensus (not full Raft)
         - Deterministic leader selection
         - Manual failover (automatic in v1.9)
+        - Partition replication (leverages v1.1 partitions)
 
-2027 Q2: v1.9 (Geo-Replication + Automatic Failover)
+2027 Q2: v1.9 (Geo-Replication + Autonomous Operations)
+        - Cross-region replication
+        - Automatic failover (evolution from v1.8)
+        - 🤖 Self-tuning queries (Agentic Postgres principles)
+        - 🤖 Auto-scaling partitions
+
 2027 Q3-Q4: v2.0 (Advanced Features)
+        - EventQL (SQL-like query language)
+        - GraphQL API
+        - 🤖 Autonomous schema evolution
+        - Advanced stream processing
 ```
 
-**Time Savings Summary**:
-- v1.1: +3 weeks (but adds critical production features)
-- v1.8: -3 to -5 weeks (simplified consensus vs Raft)
-- **Net: Breaks even or saves 0-2 weeks, but with MUCH better production readiness**
+**Time & Value Summary**:
+- **Immediate MCP Enhancements**: +2-3 weeks → HIGH VALUE (agents autonomous)
+- **v1.1 Fork Support**: +0 weeks (included in refactoring) → HIGH VALUE (agent experimentation)
+- **v1.2 Native Search**: +3-4 weeks → HIGH VALUE (eliminates external dependencies)
+- **v1.8 Simplified Consensus**: -3 to -5 weeks (vs full Raft) → TIME SAVED
+- **Net: +2-5 weeks total, but with AI-native interface + production readiness**
+
+**Key Advantages from Agentic Postgres Integration**:
+✅ Agents can operate autonomously (embedded expertise)
+✅ Instant experimentation (copy-on-write forks)
+✅ Natural language search (vector + keyword)
+✅ No external dependencies (unified Rust stack)
+✅ Machine-speed operations (optimized for agent workflows)
 
 ---
 

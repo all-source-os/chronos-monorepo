@@ -40,3 +40,10 @@ pub use store::EventStore;
 // Re-export domain types
 pub use domain::entities;
 pub use domain::repositories;
+
+// Security integration tests (Phase 5D)
+#[cfg(test)]
+mod security_integration_tests;
+
+// Advanced security module
+pub mod security;
