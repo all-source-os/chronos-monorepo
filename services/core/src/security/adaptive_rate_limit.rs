@@ -7,8 +7,8 @@
 /// - Tenant behavior
 /// - Attack detection
 
-use crate::error::{AllSourceError, Result};
-use crate::rate_limit::{RateLimitConfig, RateLimitResult};
+use crate::error::Result;
+use crate::rate_limit::RateLimitResult;
 use chrono::{DateTime, Duration, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

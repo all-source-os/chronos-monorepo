@@ -3,24 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "description": "AllSource - AI-native event store for temporal data intelligence",
-  "workspaces": [
-    "apps/*",
-    "packages/*",
-    "services/*"
-  ],
+  "workspaces": ["apps/*", "packages/*", "services/*", "tooling/*"],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
     "clean": "turbo run clean && rm -rf node_modules",
-    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "test": "turbo run test",
+    "test:e2e": "bun --cwd tooling/e2e test",
+    "test:e2e:headed": "bun --cwd tooling/e2e test:headed",
+    "test:e2e:ui": "bun --cwd tooling/e2e test:ui",
+    "test:e2e:debug": "bun --cwd tooling/e2e test:debug",
+    "test:e2e:demo": "bun --cwd tooling/e2e test:demo",
+    "test:e2e:ui-components": "bun --cwd tooling/e2e test:ui-components",
     "demo": "turbo run demo --parallel"
   },
   "devDependencies": {
-    "prettier": "^3.2.5",
+    "@biomejs/biome": "^1.9.4",
     "turbo": "^2.6.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.8.3"
   },
   "packageManager": "bun@1.1.29"
 }

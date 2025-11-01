@@ -1,12 +1,11 @@
 use crate::middleware::{Admin, Authenticated};
-use crate::tenant::{Tenant, TenantManager, TenantQuotas};
+use crate::tenant::{Tenant, TenantQuotas};
 use axum::{
     extract::State,
     http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 // AppState is defined in api_v1.rs
 use crate::api_v1::AppState;

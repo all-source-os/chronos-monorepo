@@ -1,9 +1,6 @@
 package main
 
 import (
-	"time"
-
-	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -16,6 +13,7 @@ type ControlPlaneMetrics struct {
 	ReplayOperationsTotal   prometheus.Counter
 	HTTPRequestsTotal       *prometheus.CounterVec
 	HTTPRequestDuration     *prometheus.HistogramVec
+	HTTPRequestsInFlight    prometheus.Gauge
 }
 
 // NewMetrics creates and registers all Prometheus metrics
@@ -47,33 +45,9 @@ func NewMetrics() *ControlPlaneMetrics {
 			Help:    "Duration of HTTP requests",
 			Buckets: prometheus.DefBuckets,
 		}, []string{"method", "path"}),
-	}
-}
-
-// PrometheusMiddleware creates a Gin middleware for recording HTTP metrics
-func PrometheusMiddleware(metrics *ControlPlaneMetrics) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
-
-		// Process request
-		c.Next()
-
-		// Record metrics
-		duration := time.Since(start).Seconds()
-		path := c.FullPath()
-		if path == "" {
-			path = c.Request.URL.Path
-		}
-
-		metrics.HTTPRequestDuration.WithLabelValues(
-			c.Request.Method,
-			path,
-		).Observe(duration)
-
-		metrics.HTTPRequestsTotal.WithLabelValues(
-			c.Request.Method,
-			path,
-			string(rune(c.Writer.Status())),
-		).Inc()
+		HTTPRequestsInFlight: promauto.NewGauge(prometheus.GaugeOpts{
+			Name: "control_plane_http_requests_in_flight",
+			Help: "Current number of HTTP requests in flight",
+		}),
 	}
 }

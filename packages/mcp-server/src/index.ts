@@ -8,18 +8,18 @@
  * to historical data with time-travel capabilities.
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   Tool,
-} from '@modelcontextprotocol/sdk/types.js';
-import axios from 'axios';
-import { z } from 'zod';
+} from "@modelcontextprotocol/sdk/types.js";
+import axios from "axios";
+import { z } from "zod";
 
-const CORE_API_URL = process.env.ALLSOURCE_CORE_URL || 'http://localhost:3900';
-const CONTROL_PLANE_URL = process.env.ALLSOURCE_CONTROL_URL || 'http://localhost:3901';
+const CORE_API_URL = process.env.ALLSOURCE_CORE_URL || "http://localhost:3900";
+const CONTROL_PLANE_URL = process.env.ALLSOURCE_CONTROL_URL || "http://localhost:3901";
 
 // Zod schemas for validation
 const QueryEventsSchema = z.object({
@@ -53,7 +53,7 @@ const FindPatternsSchema = z.object({
   entity_id: z.string().optional(),
   event_type: z.string().optional(),
   since: z.string().optional(),
-  pattern_type: z.enum(['frequency', 'sequence', 'anomaly']).optional(),
+  pattern_type: z.enum(["frequency", "sequence", "anomaly"]).optional(),
 });
 
 const CompareEntitiesSchema = z.object({
@@ -70,140 +70,158 @@ const EventTimelineSchema = z.object({
 // Define MCP tools with enhanced capabilities
 const tools: Tool[] = [
   {
-    name: 'query_events',
-    description: 'Query events with flexible filters. Use natural language timeframes like "since yesterday" and the LLM will convert them to ISO timestamps.',
+    name: "query_events",
+    description:
+      'Query events with flexible filters. Use natural language timeframes like "since yesterday" and the LLM will convert them to ISO timestamps.',
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        entity_id: { type: 'string', description: 'Filter by entity ID (e.g., "user-123")' },
-        event_type: { type: 'string', description: 'Filter by event type (e.g., "user.created")' },
-        as_of: { type: 'string', description: 'Time-travel: get events as of this ISO timestamp' },
-        since: { type: 'string', description: 'Get events since this ISO timestamp' },
-        until: { type: 'string', description: 'Get events until this ISO timestamp' },
-        limit: { type: 'number', description: 'Limit number of results (default: all)' },
+        entity_id: { type: "string", description: 'Filter by entity ID (e.g., "user-123")' },
+        event_type: { type: "string", description: 'Filter by event type (e.g., "user.created")' },
+        as_of: { type: "string", description: "Time-travel: get events as of this ISO timestamp" },
+        since: { type: "string", description: "Get events since this ISO timestamp" },
+        until: { type: "string", description: "Get events until this ISO timestamp" },
+        limit: { type: "number", description: "Limit number of results (default: all)" },
       },
     },
   },
   {
-    name: 'reconstruct_state',
-    description: 'Reconstruct the complete state of an entity at any point in time by replaying its event stream. Perfect for answering "What did this entity look like on date X?"',
+    name: "reconstruct_state",
+    description:
+      'Reconstruct the complete state of an entity at any point in time by replaying its event stream. Perfect for answering "What did this entity look like on date X?"',
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        entity_id: { type: 'string', description: 'The entity ID to reconstruct state for' },
-        as_of: { type: 'string', description: 'Reconstruct state as of this ISO timestamp (optional, defaults to current)' },
+        entity_id: { type: "string", description: "The entity ID to reconstruct state for" },
+        as_of: {
+          type: "string",
+          description: "Reconstruct state as of this ISO timestamp (optional, defaults to current)",
+        },
       },
-      required: ['entity_id'],
+      required: ["entity_id"],
     },
   },
   {
-    name: 'get_snapshot',
-    description: 'Get the current snapshot of an entity (much faster than reconstruction). Use this when you need the latest state without time-travel.',
+    name: "get_snapshot",
+    description:
+      "Get the current snapshot of an entity (much faster than reconstruction). Use this when you need the latest state without time-travel.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        entity_id: { type: 'string', description: 'The entity ID to get snapshot for' },
+        entity_id: { type: "string", description: "The entity ID to get snapshot for" },
       },
-      required: ['entity_id'],
+      required: ["entity_id"],
     },
   },
   {
-    name: 'analyze_changes',
-    description: 'Analyze what changed for an entity between two points in time. Returns a detailed diff showing added, modified, and removed fields.',
+    name: "analyze_changes",
+    description:
+      "Analyze what changed for an entity between two points in time. Returns a detailed diff showing added, modified, and removed fields.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        entity_id: { type: 'string', description: 'The entity to analyze' },
-        from_time: { type: 'string', description: 'Start timestamp (ISO format)' },
-        to_time: { type: 'string', description: 'End timestamp (ISO format, defaults to now)' },
+        entity_id: { type: "string", description: "The entity to analyze" },
+        from_time: { type: "string", description: "Start timestamp (ISO format)" },
+        to_time: { type: "string", description: "End timestamp (ISO format, defaults to now)" },
       },
-      required: ['entity_id', 'from_time'],
+      required: ["entity_id", "from_time"],
     },
   },
   {
-    name: 'find_patterns',
-    description: 'Detect patterns in event streams: frequency analysis, event sequences, or anomalies. Perfect for answering "What unusual patterns exist?"',
+    name: "find_patterns",
+    description:
+      'Detect patterns in event streams: frequency analysis, event sequences, or anomalies. Perfect for answering "What unusual patterns exist?"',
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        entity_id: { type: 'string', description: 'Analyze patterns for specific entity (optional)' },
-        event_type: { type: 'string', description: 'Analyze patterns for specific event type (optional)' },
-        since: { type: 'string', description: 'Analyze patterns since this timestamp (optional)' },
+        entity_id: {
+          type: "string",
+          description: "Analyze patterns for specific entity (optional)",
+        },
+        event_type: {
+          type: "string",
+          description: "Analyze patterns for specific event type (optional)",
+        },
+        since: { type: "string", description: "Analyze patterns since this timestamp (optional)" },
         pattern_type: {
-          type: 'string',
-          enum: ['frequency', 'sequence', 'anomaly'],
-          description: 'Type of pattern to detect (frequency=event counts, sequence=event order, anomaly=unusual events)'
+          type: "string",
+          enum: ["frequency", "sequence", "anomaly"],
+          description:
+            "Type of pattern to detect (frequency=event counts, sequence=event order, anomaly=unusual events)",
         },
       },
     },
   },
   {
-    name: 'compare_entities',
-    description: 'Compare multiple entities to find similarities and differences in their event histories.',
+    name: "compare_entities",
+    description:
+      "Compare multiple entities to find similarities and differences in their event histories.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
         entity_ids: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Array of entity IDs to compare'
+          type: "array",
+          items: { type: "string" },
+          description: "Array of entity IDs to compare",
         },
-        timeframe: { type: 'string', description: 'Compare within this timeframe (ISO timestamp)' },
+        timeframe: { type: "string", description: "Compare within this timeframe (ISO timestamp)" },
       },
-      required: ['entity_ids'],
+      required: ["entity_ids"],
     },
   },
   {
-    name: 'event_timeline',
-    description: 'Get a chronological timeline of all events for an entity, formatted for easy reading and understanding.',
+    name: "event_timeline",
+    description:
+      "Get a chronological timeline of all events for an entity, formatted for easy reading and understanding.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        entity_id: { type: 'string', description: 'Entity to get timeline for' },
-        since: { type: 'string', description: 'Timeline start time (optional)' },
-        until: { type: 'string', description: 'Timeline end time (optional)' },
+        entity_id: { type: "string", description: "Entity to get timeline for" },
+        since: { type: "string", description: "Timeline start time (optional)" },
+        until: { type: "string", description: "Timeline end time (optional)" },
       },
-      required: ['entity_id'],
+      required: ["entity_id"],
     },
   },
   {
-    name: 'explain_entity',
-    description: 'Get a comprehensive explanation of an entity: current state, event history, key changes, and timeline summary.',
+    name: "explain_entity",
+    description:
+      "Get a comprehensive explanation of an entity: current state, event history, key changes, and timeline summary.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        entity_id: { type: 'string', description: 'Entity ID to explain' },
+        entity_id: { type: "string", description: "Entity ID to explain" },
       },
-      required: ['entity_id'],
+      required: ["entity_id"],
     },
   },
   {
-    name: 'ingest_event',
-    description: 'Ingest a new event into the AllSource event store.',
+    name: "ingest_event",
+    description: "Ingest a new event into the AllSource event store.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        event_type: { type: 'string', description: 'Type of event (e.g., "user.created")' },
-        entity_id: { type: 'string', description: 'ID of the entity this event relates to' },
-        payload: { type: 'object', description: 'Event payload as JSON object' },
-        metadata: { type: 'object', description: 'Optional metadata' },
+        event_type: { type: "string", description: 'Type of event (e.g., "user.created")' },
+        entity_id: { type: "string", description: "ID of the entity this event relates to" },
+        payload: { type: "object", description: "Event payload as JSON object" },
+        metadata: { type: "object", description: "Optional metadata" },
       },
-      required: ['event_type', 'entity_id', 'payload'],
+      required: ["event_type", "entity_id", "payload"],
     },
   },
   {
-    name: 'get_stats',
-    description: 'Get comprehensive statistics about the AllSource event store.',
+    name: "get_stats",
+    description: "Get comprehensive statistics about the AllSource event store.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {},
     },
   },
   {
-    name: 'get_cluster_status',
-    description: 'Get current cluster health and status information.',
+    name: "get_cluster_status",
+    description: "Get current cluster health and status information.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {},
     },
   },
@@ -215,8 +233,8 @@ class AllSourceMCPServer {
   constructor() {
     this.server = new Server(
       {
-        name: 'allsource-mcp',
-        version: '0.1.0',
+        name: "allsource-mcp",
+        version: "0.1.0",
       },
       {
         capabilities: {
@@ -238,37 +256,37 @@ class AllSourceMCPServer {
 
       try {
         switch (name) {
-          case 'query_events':
+          case "query_events":
             return await this.queryEvents(args);
-          case 'reconstruct_state':
+          case "reconstruct_state":
             return await this.reconstructState(args);
-          case 'get_snapshot':
+          case "get_snapshot":
             return await this.getSnapshot(args);
-          case 'analyze_changes':
+          case "analyze_changes":
             return await this.analyzeChanges(args);
-          case 'find_patterns':
+          case "find_patterns":
             return await this.findPatterns(args);
-          case 'compare_entities':
+          case "compare_entities":
             return await this.compareEntities(args);
-          case 'event_timeline':
+          case "event_timeline":
             return await this.eventTimeline(args);
-          case 'explain_entity':
+          case "explain_entity":
             return await this.explainEntity(args);
-          case 'ingest_event':
+          case "ingest_event":
             return await this.ingestEvent(args);
-          case 'get_stats':
+          case "get_stats":
             return await this.getStats();
-          case 'get_cluster_status':
+          case "get_cluster_status":
             return await this.getClusterStatus();
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
         return {
           content: [
             {
-              type: 'text',
+              type: "text",
               text: `❌ Error: ${errorMessage}`,
             },
           ],
@@ -287,7 +305,7 @@ class AllSourceMCPServer {
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(data, null, 2),
         },
       ],
@@ -302,15 +320,16 @@ class AllSourceMCPServer {
     const response = await axios.get(url, { params });
 
     const state = response.data;
-    const summary = `🔄 Reconstructed state for "${entity_id}"\n` +
-      `📅 As of: ${state.as_of || 'current'}\n` +
+    const summary =
+      `🔄 Reconstructed state for "${entity_id}"\n` +
+      `📅 As of: ${state.as_of || "current"}\n` +
       `📊 Events processed: ${state.event_count}\n` +
       `⏰ Last updated: ${state.last_updated}\n\n`;
 
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(state, null, 2),
         },
       ],
@@ -326,7 +345,7 @@ class AllSourceMCPServer {
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(response.data, null, 2),
         },
       ],
@@ -337,17 +356,15 @@ class AllSourceMCPServer {
     const { entity_id, from_time, to_time } = AnalyzeChangesSchema.parse(args);
 
     // Get state at from_time
-    const beforeResponse = await axios.get(
-      `${CORE_API_URL}/api/v1/entities/${entity_id}/state`,
-      { params: { as_of: from_time } }
-    );
+    const beforeResponse = await axios.get(`${CORE_API_URL}/api/v1/entities/${entity_id}/state`, {
+      params: { as_of: from_time },
+    });
 
     // Get state at to_time (or current)
     const afterParams = to_time ? { as_of: to_time } : {};
-    const afterResponse = await axios.get(
-      `${CORE_API_URL}/api/v1/entities/${entity_id}/state`,
-      { params: afterParams }
-    );
+    const afterResponse = await axios.get(`${CORE_API_URL}/api/v1/entities/${entity_id}/state`, {
+      params: afterParams,
+    });
 
     const before = beforeResponse.data.current_state || {};
     const after = afterResponse.data.current_state || {};
@@ -355,9 +372,10 @@ class AllSourceMCPServer {
     // Calculate diff
     const changes = this.calculateDiff(before, after);
 
-    const summary = `🔍 Change Analysis for "${entity_id}"\n` +
+    const summary =
+      `🔍 Change Analysis for "${entity_id}"\n` +
       `📅 From: ${from_time}\n` +
-      `📅 To: ${to_time || 'now'}\n` +
+      `📅 To: ${to_time || "now"}\n` +
       `➕ Added fields: ${changes.added.length}\n` +
       `✏️  Modified fields: ${changes.modified.length}\n` +
       `➖ Removed fields: ${changes.removed.length}\n\n`;
@@ -365,7 +383,7 @@ class AllSourceMCPServer {
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(changes, null, 2),
         },
       ],
@@ -412,7 +430,7 @@ class AllSourceMCPServer {
 
     let analysis: any = {};
 
-    if (params.pattern_type === 'frequency' || !params.pattern_type) {
+    if (params.pattern_type === "frequency" || !params.pattern_type) {
       // Frequency analysis
       const frequencyMap: Record<string, number> = {};
       events.forEach((event: any) => {
@@ -424,7 +442,7 @@ class AllSourceMCPServer {
         .sort((a, b) => b.count - a.count);
     }
 
-    if (params.pattern_type === 'sequence' || !params.pattern_type) {
+    if (params.pattern_type === "sequence" || !params.pattern_type) {
       // Sequence analysis
       const sequences: string[] = [];
       for (let i = 0; i < Math.min(events.length - 1, 10); i++) {
@@ -433,14 +451,15 @@ class AllSourceMCPServer {
       analysis.common_sequences = sequences;
     }
 
-    const summary = `🔎 Pattern Analysis\n` +
+    const summary =
+      `🔎 Pattern Analysis\n` +
       `📊 Events analyzed: ${events.length}\n` +
-      `🎯 Pattern type: ${params.pattern_type || 'all'}\n\n`;
+      `🎯 Pattern type: ${params.pattern_type || "all"}\n\n`;
 
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(analysis, null, 2),
         },
       ],
@@ -465,14 +484,15 @@ class AllSourceMCPServer {
       })
     );
 
-    const summary = `🔬 Entity Comparison\n` +
+    const summary =
+      `🔬 Entity Comparison\n` +
       `📊 Entities compared: ${entity_ids.length}\n` +
-      `⏰ Timeframe: ${timeframe || 'all time'}\n\n`;
+      `⏰ Timeframe: ${timeframe || "all time"}\n\n`;
 
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(comparisons, null, 2),
         },
       ],
@@ -495,14 +515,15 @@ class AllSourceMCPServer {
       summary: `${event.event_type} - ${JSON.stringify(event.payload).slice(0, 100)}...`,
     }));
 
-    const summary = `📅 Timeline for "${entity_id}"\n` +
+    const summary =
+      `📅 Timeline for "${entity_id}"\n` +
       `📊 Events: ${events.length}\n` +
-      `⏰ Period: ${since || 'start'} to ${until || 'now'}\n\n`;
+      `⏰ Period: ${since || "start"} to ${until || "now"}\n\n`;
 
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(timeline, null, 2),
         },
       ],
@@ -513,9 +534,7 @@ class AllSourceMCPServer {
     const { entity_id } = z.object({ entity_id: z.string() }).parse(args);
 
     // Get current state
-    const stateResponse = await axios.get(
-      `${CORE_API_URL}/api/v1/entities/${entity_id}/state`
-    );
+    const stateResponse = await axios.get(`${CORE_API_URL}/api/v1/entities/${entity_id}/state`);
 
     // Get all events
     const eventsResponse = await axios.get(`${CORE_API_URL}/api/v1/events/query`, {
@@ -540,16 +559,17 @@ class AllSourceMCPServer {
       })),
     };
 
-    const summary = `📋 Entity Explanation: "${entity_id}"\n\n` +
+    const summary =
+      `📋 Entity Explanation: "${entity_id}"\n\n` +
       `🔹 Total Events: ${events.length}\n` +
       `🔹 Event Types: ${eventTypes.length}\n` +
-      `🔹 Created: ${events[0]?.timestamp || 'unknown'}\n` +
+      `🔹 Created: ${events[0]?.timestamp || "unknown"}\n` +
       `🔹 Last Updated: ${state.last_updated}\n\n`;
 
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(explanation, null, 2),
         },
       ],
@@ -560,14 +580,15 @@ class AllSourceMCPServer {
     const eventData = IngestEventSchema.parse(args);
     const response = await axios.post(`${CORE_API_URL}/api/v1/events`, eventData);
 
-    const summary = `✅ Event ingested successfully\n` +
+    const summary =
+      `✅ Event ingested successfully\n` +
       `🆔 Event ID: ${response.data.event_id}\n` +
       `⏰ Timestamp: ${response.data.timestamp}\n\n`;
 
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(response.data, null, 2),
         },
       ],
@@ -582,7 +603,7 @@ class AllSourceMCPServer {
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(response.data, null, 2),
         },
       ],
@@ -597,7 +618,7 @@ class AllSourceMCPServer {
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: summary + JSON.stringify(response.data, null, 2),
         },
       ],
@@ -607,8 +628,8 @@ class AllSourceMCPServer {
   async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('🌟 AllSource MCP Server running on stdio');
-    console.error('🤖 AI-native temporal event store interface active');
+    console.error("🌟 AllSource MCP Server running on stdio");
+    console.error("🤖 AI-native temporal event store interface active");
     console.error(`📡 Core API: ${CORE_API_URL}`);
     console.error(`🎛️  Control Plane: ${CONTROL_PLANE_URL}`);
   }

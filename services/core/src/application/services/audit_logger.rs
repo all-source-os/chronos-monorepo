@@ -201,7 +201,7 @@ impl<R: AuditEventRepository> AuditLogger<R> {
         tenant_id: TenantId,
         action: AuditAction,
         actor: Actor,
-    ) -> AuditLogEntry<R> {
+    ) -> AuditLogEntry<'_, R> {
         AuditLogEntry {
             logger: self,
             builder: AuditLogBuilder::new(tenant_id, action, actor),

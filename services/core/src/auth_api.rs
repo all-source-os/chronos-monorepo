@@ -1,4 +1,4 @@
-use crate::auth::{AuthManager, Permission, Role, User};
+use crate::auth::{Permission, Role, User};
 use crate::middleware::{Admin, Authenticated};
 use axum::{
     extract::State,
@@ -6,7 +6,6 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use uuid::Uuid;
 
 // AppState is defined in api_v1.rs and re-exported

@@ -1,5 +1,11 @@
 // Library exports for benchmarks and tests
 
+// Suppress warnings for development
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(deprecated)]
+#![allow(unused_must_use)]
+
 // Clean Architecture Layers
 pub mod domain;           // Layer 1: Enterprise Business Rules
 pub mod application;      // Layer 2: Application Business Rules

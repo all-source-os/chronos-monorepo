@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "demo": "go run main.go metrics.go",
-    "dev": "go run main.go metrics.go",
+    "demo": "go run .",
+    "dev": "go run .",
     "build": "go build -o bin/control-plane .",
     "clean": "rm -rf bin",
     "lint": "go vet ./..."

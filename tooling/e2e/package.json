@@ -1,0 +1,21 @@
+{
+  "name": "@allsource/e2e",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report",
+    "test:demo": "playwright test tests/demo",
+    "test:ui-components": "playwright test tests/ui-components",
+    "test:api": "playwright test tests/api",
+    "codegen": "playwright codegen"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.2",
+    "playwright": "^1.48.2"
+  }
+}

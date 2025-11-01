@@ -9,7 +9,6 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::domain::value_objects::TenantId;
-use crate::error::{AllSourceError, Result};
 
 /// IP filter configuration
 #[derive(Debug, Clone)]

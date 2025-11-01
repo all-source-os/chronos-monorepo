@@ -9,8 +9,7 @@
 /// - **Security**: Sensitive data (passwords, tokens) never logged
 /// - **Compliance**: Meets SOC 2, GDPR, HIPAA audit requirements
 
-use crate::domain::value_objects::{EntityId, TenantId};
-use crate::error::{AllSourceError, Result};
+use crate::domain::value_objects::TenantId;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;

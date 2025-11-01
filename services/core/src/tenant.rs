@@ -3,7 +3,6 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use uuid::Uuid;
 
 /// Tenant quotas and limits
 #[derive(Debug, Clone, Serialize, Deserialize)]

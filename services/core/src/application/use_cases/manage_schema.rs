@@ -1,6 +1,6 @@
 use crate::application::dto::{
     RegisterSchemaRequest, RegisterSchemaResponse, UpdateSchemaRequest, ListSchemasResponse,
-    SchemaDto, CompatibilityModeDto,
+    SchemaDto,
 };
 use crate::domain::entities::{Schema, CompatibilityMode};
 use crate::error::Result;

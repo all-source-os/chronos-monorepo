@@ -7,7 +7,7 @@
 /// - License compliance
 /// - Security policy enforcement
 
-use crate::error::{AllSourceError, Result};
+use crate::error::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -366,7 +366,7 @@ impl SecurityScanner {
 
     /// Check dependency licenses
     fn check_licenses(&self) -> Result<Vec<SecurityFinding>> {
-        let mut findings = Vec::new();
+        let findings = Vec::new();
 
         // Restricted licenses (example list)
         let restricted_licenses = vec!["GPL-3.0", "AGPL-3.0", "SSPL"];

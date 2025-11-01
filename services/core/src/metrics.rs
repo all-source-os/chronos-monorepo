@@ -1,6 +1,6 @@
 use prometheus::{
-    Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramOpts, HistogramVec, IntCounter,
-    IntCounterVec, IntGauge, IntGaugeVec, Opts, Registry,
+    Histogram, HistogramOpts, HistogramVec, IntCounter,
+    IntCounterVec, IntGauge, Opts, Registry,
 };
 use std::sync::Arc;
 

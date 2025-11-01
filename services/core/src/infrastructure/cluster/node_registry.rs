@@ -34,7 +34,6 @@
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::error::Result;
 
 /// Node in the cluster
 #[derive(Debug, Clone)]

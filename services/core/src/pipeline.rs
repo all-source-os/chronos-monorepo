@@ -534,7 +534,7 @@ impl Pipeline {
         self.state.set_state(state_key.clone(), new_value.clone());
 
         // Return aggregated result
-        let mut result = serde_json::json!({
+        let result = serde_json::json!({
             "group": group_key,
             "function": function,
             "value": new_value
