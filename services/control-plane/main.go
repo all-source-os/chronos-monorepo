@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	DefaultPort     = "8081"
-	CoreServiceURL  = "http://localhost:8080"
+	DefaultPort     = "3901"
+	CoreServiceURL  = "http://localhost:3900"
 )
 
 type ControlPlane struct {

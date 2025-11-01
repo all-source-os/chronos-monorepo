@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { format } from "date-fns";
 
-const CORE_API = "http://localhost:8080";
-const CONTROL_API = "http://localhost:8081";
+const CORE_API = "http://localhost:3900";
+const CONTROL_API = "http://localhost:3901";
 
 interface Event {
   id: string;
@@ -31,9 +31,11 @@ export default function Home() {
   const [eventType, setEventType] = useState("");
 
   // Demo data generation
-  const [demoEntityId] = useState(`user-${Math.floor(Math.random() * 1000)}`);
+  const [demoEntityId, setDemoEntityId] = useState("");
 
   useEffect(() => {
+    // Generate entity ID on client side only to avoid hydration mismatch
+    setDemoEntityId(`user-${Math.floor(Math.random() * 1000)}`);
     fetchStats();
     fetchEvents();
   }, []);
@@ -145,7 +147,7 @@ export default function Home() {
               onClick={ingestDemoEvent}
               className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-all"
             >
-              Ingest Demo Event for {demoEntityId}
+              Ingest Demo Event{demoEntityId ? ` for ${demoEntityId}` : ""}
             </button>
             <button
               onClick={fetchEvents}

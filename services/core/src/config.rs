@@ -54,7 +54,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             host: "0.0.0.0".to_string(),
-            port: 8080,
+            port: 3900,
             workers: None, // Use number of CPUs
             max_connections: 10_000,
             request_timeout_secs: 30,

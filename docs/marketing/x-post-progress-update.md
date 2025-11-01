@@ -276,21 +276,19 @@ Now:  ██████████████░░░░░░  70% clean
 ## Hashtag Strategy (Progress Update)
 
 **Primary:**
-- #BuildInPublic (emphasize the journey)
+- #BuildInPublic
 - #EventSourcing
 - #RustLang
 - #AI
 
 **Secondary:**
-- #100DaysOfCode (if applicable)
 - #IndieDev
 - #OpenSource
 - #CleanArchitecture
 - #Progress
 
 **Community Tags:**
-- @rustlang (when relevant)
-- @buildspace (if in a cohort)
+- @rustlang
 - Tag anyone who gave feedback
 
 ---

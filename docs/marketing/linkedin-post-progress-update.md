@@ -215,7 +215,7 @@ Let me know in the comments!
 ## Alternative: "Lessons Learned" Focus
 
 ```markdown
-🎓 What I Learned Building AllSource Chronos v0.5 → v1.0 (A 3-Month Journey)
+🎓 What I Learned Building AllSource Chronos v0.5 → v1.0
 
 Three months ago, I announced AllSource Chronos v0.5. Today: v1.0 shipped, 86 tests passing, 469K events/sec baseline.
 

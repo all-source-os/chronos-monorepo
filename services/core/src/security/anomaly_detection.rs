@@ -497,7 +497,7 @@ impl AnomalyDetector {
         Ok(None)
     }
 
-    fn add_recent_event(&self, event: AuditEvent) {
+    pub fn add_recent_event(&self, event: AuditEvent) {
         let mut events = self.recent_events.write();
         events.push(event);
 

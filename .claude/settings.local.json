@@ -80,7 +80,8 @@
       "Bash(cargo test --lib security_integration_tests::)",
       "Bash(cargo test --lib security_integration_tests:: -- --list)",
       "Bash(timeout 60 cargo test --lib test_jwt_authentication_flow test_api_key_authentication test_rbac_admin_permissions test_tenant_isolation_repository_level test_rate_limiting_per_tenant test_audit_logging_records_events test_ip_filtering_global_allowlist test_request_id_generation test_security_config_defaults)",
-      "Bash(cargo test --lib security::)"
+      "Bash(cargo test --lib security::)",
+      "Bash(cargo build --example advanced_security_demo)"
     ],
     "deny": [],
     "ask": []

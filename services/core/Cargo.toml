@@ -103,6 +103,10 @@ name = "seven_day_stress"
 path = "tests/stress_tests/seven_day_stress.rs"
 harness = true
 
+[[example]]
+name = "advanced_security_demo"
+path = "examples/advanced_security_demo.rs"
+
 [profile.release]
 opt-level = 3
 lto = true

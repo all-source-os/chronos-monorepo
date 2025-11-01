@@ -18,8 +18,8 @@ import {
 import axios from 'axios';
 import { z } from 'zod';
 
-const CORE_API_URL = process.env.ALLSOURCE_CORE_URL || 'http://localhost:8080';
-const CONTROL_PLANE_URL = process.env.ALLSOURCE_CONTROL_URL || 'http://localhost:8081';
+const CORE_API_URL = process.env.ALLSOURCE_CORE_URL || 'http://localhost:3900';
+const CONTROL_PLANE_URL = process.env.ALLSOURCE_CONTROL_URL || 'http://localhost:3901';
 
 // Zod schemas for validation
 const QueryEventsSchema = z.object({

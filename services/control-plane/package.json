@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "go run main.go",
-    "build": "go build -o bin/control-plane main.go",
+    "demo": "go run main.go metrics.go",
+    "dev": "go run main.go metrics.go",
+    "build": "go build -o bin/control-plane .",
     "clean": "rm -rf bin",
     "lint": "go vet ./..."
   }

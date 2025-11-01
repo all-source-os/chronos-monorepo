@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "cargo run",
+    "demo": "cargo run --release --bin allsource-core",
+    "dev": "cargo run --bin allsource-core",
     "build": "cargo build --release",
     "clean": "cargo clean",
     "test": "cargo test",
