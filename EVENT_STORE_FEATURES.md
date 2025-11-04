@@ -756,6 +756,7 @@ EventStoreConfig {
 
 - **Core Service**: Port 3900 (Rust Axum server)
 - **Control Plane**: Port 3901 (Go Gin server)
+- **Query Service**: Port 3902 (Elixir Phoenix server) ✨ NEW
 - Configurable via environment variables
 
 ---

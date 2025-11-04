@@ -45,7 +45,25 @@ High-performance event sourcing platform with Clean Architecture implementation.
 
 ## Architecture
 
-### Rust Core (`services/core`)
+### Monorepo Structure
+
+```
+apps/
+├── core/               # Rust event store (port 3900)
+├── control-plane/      # Go control plane (port 3901)
+├── query-service/      # Elixir query service (port 3902)
+├── mcp-server/         # MCP server (Node.js)
+└── web/                # Next.js web app (port 3000)
+
+packages/
+└── ui/                 # Shared UI components
+
+tooling/
+├── biome/             # Linting config
+└── e2e/               # E2E tests
+```
+
+### Rust Core (`apps/core`)
 
 ```
 src/
@@ -61,13 +79,22 @@ src/
 ```
 
 **Status**: Clean Architecture implementation with TDD approach
-**Documentation**: [Rust Core Docs](services/core/docs/README.md)
+**Documentation**: [Rust Core Docs](apps/core/docs/README.md)
 
-### Go Control Plane (`services/control-plane`)
+### Go Control Plane (`apps/control-plane`)
 
 **Current**: Traditional structure
 **Planned**: Clean Architecture migration in Phase 1.5 (weeks 6-8)
-**Documentation**: [Control Plane Docs](services/control-plane/docs/README.md)
+**Documentation**: [Control Plane Docs](apps/control-plane/docs/README.md)
+
+### Elixir Query Service (`apps/query-service`) ✨ NEW
+
+**Status**: Production-ready with OTP supervision
+**Port**: 3902
+**Features**: Query DSL, Projections, Event Pipelines, Phoenix HTTP API
+**Tests**: 281 passing (7 doctests + 274 tests)
+**Phase 2**: Optimized (3-4 weeks, zero external databases)
+**Documentation**: [Query Service Docs](apps/query-service/README.md) · [Roadmap](apps/query-service/ROADMAP.md)
 
 ---
 
@@ -98,6 +125,7 @@ src/
 ### Prerequisites
 - **Rust**: 1.75+
 - **Go**: 1.21+
+- **Elixir**: 1.19+ (with Erlang/OTP 27+)
 - **Node.js**: 18+ (for MCP server)
 
 ### Quick Start
@@ -108,12 +136,16 @@ git clone https://github.com/allsource/chronos-monorepo.git
 cd chronos-monorepo
 
 # Run Rust tests
-cd services/core
+cd apps/core
 cargo test --lib
 
 # Run Go tests
 cd ../control-plane
 go test ./...
+
+# Run Elixir tests
+cd ../query-service
+mix test
 
 # Run benchmarks
 cd ../core
@@ -128,7 +160,7 @@ cargo bench --bench performance_benchmarks
 
 ### Rust Core
 ```bash
-cd services/core
+cd apps/core
 
 # All tests
 cargo test --lib
@@ -145,7 +177,7 @@ cargo tarpaulin --lib --out Html
 
 ### Go Control Plane
 ```bash
-cd services/control-plane
+cd apps/control-plane
 
 # All tests
 go test ./...
@@ -158,6 +190,22 @@ go test -v ./...
 ```
 
 **Status**: ✅ All tests passing, 23.2% coverage
+
+### Elixir Query Service
+```bash
+cd apps/query-service
+
+# All tests
+mix test
+
+# Watch mode
+mix test.watch
+
+# With coverage
+mix test --cover
+```
+
+**Status**: ✅ 281/281 tests passing (100%)
 
 ---
 
@@ -207,30 +255,39 @@ docs/
 
 ## Services
 
-### Core Event Store (Rust)
+### Core Event Store (Rust) - Port 3900
 High-performance event sourcing engine with Parquet storage.
 
 - **Language**: Rust
 - **Storage**: Apache Parquet
 - **Performance**: 469K events/sec baseline
 - **Tests**: 86/86 passing
-- **Documentation**: [Core Docs](services/core/docs/README.md)
+- **Documentation**: [Core Docs](apps/core/docs/README.md)
 
-### Control Plane (Go)
+### Control Plane (Go) - Port 3901
 Multi-tenant control plane with RBAC and policy engine.
 
 - **Language**: Go
 - **Features**: Tenancy, RBAC, Policies, Audit logs
 - **Tests**: 23.2% coverage
 - **Recent Fix**: Policy engine tenant evaluation (2025-10-22)
-- **Documentation**: [Control Plane Docs](services/control-plane/docs/README.md)
+- **Documentation**: [Control Plane Docs](apps/control-plane/docs/README.md)
+
+### Query Service (Elixir) - Port 3902
+Real-time event processing with projections and pipelines.
+
+- **Language**: Elixir/OTP
+- **Features**: Query DSL, Projections, Pipelines, Phoenix API
+- **Tests**: 281/281 passing
+- **Status**: Production-ready
+- **Documentation**: [Query Service Docs](apps/query-service/README.md) · [Roadmap](apps/query-service/ROADMAP.md)
 
 ### MCP Server (Node.js)
 Model Context Protocol server for AI integration.
 
 - **Language**: TypeScript/Node.js
 - **Status**: In development
-- **Documentation**: [MCP Docs](packages/mcp-server/)
+- **Documentation**: [MCP Docs](apps/mcp-server/)
 
 ---
 
@@ -260,11 +317,12 @@ We follow a TDD approach for all refactoring:
 - Domain-driven design
 - Go Control Plane migration
 
-### Phase 2.0 (📋 Planned)
+### Phase 2.0 (📋 Planned - Query Service Optimized)
 - Distributed event processing
 - Real-time streaming
 - Advanced analytics
-- Clojure query service
+- ✅ **Query service Phase 1** (Completed - 281 tests passing)
+- 📋 **Query service Phase 2** (Optimized - 3-4 weeks, zero databases)
 
 **Full roadmap**: [Comprehensive Roadmap](docs/roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md)
 

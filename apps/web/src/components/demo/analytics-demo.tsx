@@ -79,9 +79,9 @@ export function AnalyticsDemo() {
       console.error("Analytics failed:", error);
       setAnalyticsResults([
         {
-          metric: "Status",
-          value: "Demo mode - Backend not available",
-          unit: "",
+          metric: "Error",
+          value: error instanceof Error ? error.message : "Failed to run analytics",
+          unit: "Please ensure backend services are running",
         },
       ]);
     } finally {
@@ -134,9 +134,9 @@ export function AnalyticsDemo() {
       console.error("Funnel analytics failed:", error);
       setAnalyticsResults([
         {
-          metric: "Status",
-          value: "Demo mode - Backend not available",
-          unit: "",
+          metric: "Error",
+          value: error instanceof Error ? error.message : "Failed to run funnel analytics",
+          unit: "Please ensure backend services are running",
         },
       ]);
     } finally {
@@ -191,9 +191,9 @@ export function AnalyticsDemo() {
       console.error("Cohort analytics failed:", error);
       setAnalyticsResults([
         {
-          metric: "Status",
-          value: "Demo mode - Backend not available",
-          unit: "",
+          metric: "Error",
+          value: error instanceof Error ? error.message : "Failed to run cohort analytics",
+          unit: "Please ensure backend services are running",
         },
       ]);
     } finally {
@@ -247,9 +247,9 @@ export function AnalyticsDemo() {
       console.error("Aggregation analytics failed:", error);
       setAnalyticsResults([
         {
-          metric: "Status",
-          value: "Demo mode - Backend not available",
-          unit: "",
+          metric: "Error",
+          value: error instanceof Error ? error.message : "Failed to run aggregation analytics",
+          unit: "Please ensure backend services are running",
         },
       ]);
     } finally {

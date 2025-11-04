@@ -1,0 +1,73 @@
+defmodule QueryServiceEx.MixProject do
+  use Mix.Project
+
+  def project do
+    [
+      app: :query_service_ex,
+      version: "0.1.0",
+      elixir: "~> 1.19",
+      elixirc_paths: elixirc_paths(Mix.env()),
+      start_permanent: Mix.env() == :prod,
+      deps: deps(),
+      releases: releases()
+    ]
+  end
+
+  # Specifies which paths to compile per environment
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
+  # Run "mix help compile.app" to learn about applications.
+  def application do
+    [
+      extra_applications: [:logger],
+      mod: {QueryServiceEx.Application, []}
+    ]
+  end
+
+  # Run "mix help deps" to learn about dependencies.
+  defp deps do
+    [
+      # HTTP Client for Rust Core
+      {:tesla, "~> 1.11"},
+      {:hackney, "~> 1.20"},
+      {:jason, "~> 1.4"},
+
+      # Database & State Management
+      {:ecto_sql, "~> 3.11"},
+      {:postgrex, "~> 0.18"},
+
+      # Redis for caching
+      {:redix, "~> 1.5"},
+
+      # Event Processing Pipelines
+      {:broadway, "~> 1.1"},
+      {:gen_stage, "~> 1.2"},
+
+      # Phoenix for API endpoints
+      {:phoenix, "~> 1.7"},
+      {:bandit, "~> 1.0"},
+      {:cors_plug, "~> 3.0"},
+
+      # Telemetry & Observability
+      {:telemetry, "~> 1.2"},
+      {:telemetry_metrics, "~> 1.0"},
+      {:telemetry_poller, "~> 1.1"},
+
+      # Development & Testing
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+    ]
+  end
+
+  defp releases do
+    [
+      query_service_ex: [
+        include_executables_for: [:unix],
+        applications: [runtime_tools: :permanent],
+        steps: [:assemble, :tar]
+      ]
+    ]
+  end
+end
