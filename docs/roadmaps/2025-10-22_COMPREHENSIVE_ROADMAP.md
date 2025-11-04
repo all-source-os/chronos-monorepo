@@ -2594,6 +2594,90 @@ We welcome contributions! Areas organized by skill level:
 
 ---
 
+## 🔮 Future Research Areas (Phase 2.0+)
+
+The following areas represent strategic research and exploration for potential future development beyond the current roadmap. **These are NOT current priorities** and should only be considered after Phase 1.5 completion and validation of customer demand.
+
+### AI-Native Vector Embeddings & Semantic Search
+
+**Status**: Research phase complete, documented for future reference
+**Timeline**: 12-24+ months out (Phase 2.0+)
+**Decision Gate**: Only proceed if >5 enterprise customers request semantic search
+
+**Research Documents**:
+- **[Vector Embedding Design](./FUTURE_VECTOR_EMBEDDING_DESIGN.md)** (100+ pages)
+  - Complete technical design for adding vector embeddings to events
+  - LanceDB technical deep dive & production gotchas
+  - Storage strategy analysis (Parquet vs Lance format)
+  - Build vs. Integrate decision framework
+
+- **[LanceDB Analysis Summary](./LANCEDB_ANALYSIS_SUMMARY.md)** (Executive summary)
+  - Key learnings from 700M vector production deployment
+  - Critical gotchas (memory management, fragment explosion, etc.)
+  - Operational best practices
+  - Strategic recommendations
+
+- **[Chronos vs LanceDB Comparison](./CHRONOS_VS_LANCEDB_COMPARISON.md)** (Quick reference)
+  - Feature matrix & architecture comparison
+  - Use case analysis
+  - Integration scenarios
+  - Partnership opportunities
+
+**Key Findings**:
+- ✅ **Recommendation**: Integrate with LanceDB (if needed), don't build custom
+- ✅ **Rationale**: Complementary strengths, proven at scale, fast integration (weeks vs months)
+- ✅ **Unique Position**: Only platform combining event sourcing + time-travel + semantic search
+- ⚠️ **Risk**: Lance format immaturity vs Parquet's proven track record
+- 📊 **Decision**: Continue with Parquet for events; explore LanceDB integration if demand exists
+
+**Strategic Options**:
+1. **Option A (Build Custom)**: 6-12 months, full control, high risk
+2. **Option B (Integrate LanceDB)**: 1-2 months, proven scale, recommended ⭐
+3. **Option C (Managed Service)**: 2-4 weeks, vendor lock-in, expensive at scale
+
+**Prerequisites for Implementation**:
+- [ ] Phase 1.5 (Clean Architecture) complete
+- [ ] v1.2 performance targets achieved (1M+ events/sec)
+- [ ] Customer demand validated (>5 enterprise customers)
+- [ ] Team capacity available (not from core roadmap)
+- [ ] Build vs. Integrate decision finalized
+
+**Potential Use Cases** (if implemented):
+```sql
+-- Example: Hybrid temporal + semantic query
+SELECT * FROM events
+WHERE semantic_similarity(payload, 'fraud pattern') > 0.8
+  AND timestamp > NOW() - INTERVAL '30 days'
+  AND entity_type = 'transaction'
+ORDER BY timestamp DESC
+```
+
+**Partnership Opportunity**: Consider approaching LanceDB for strategic collaboration on "Temporal AI Infrastructure" positioning.
+
+### Other Future Research Areas
+
+**Blockchain Integration** (v2.0+):
+- Notarization for verifiable data integrity
+- Immutable audit trail proofs
+- Cross-organizational event verification
+
+**WASM Plugins** (v2.0+):
+- User-defined event processors
+- Custom projection logic
+- Sandboxed computation
+
+**Advanced Analytics** (v2.0+):
+- Machine learning on event streams
+- Predictive analytics
+- Anomaly detection (beyond embeddings)
+
+**Edge Deployment** (v2.0+):
+- Embedded event store for IoT
+- Offline-first synchronization
+- Edge computing integration
+
+---
+
 ## 📚 Resources
 
 ### Documentation

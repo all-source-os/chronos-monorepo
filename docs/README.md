@@ -1,6 +1,6 @@
 # AllSource Documentation Index
 
-**Last Updated**: 2025-10-22
+**Last Updated**: 2025-11-04
 **Repository**: chronos-monorepo
 
 ---
@@ -23,20 +23,26 @@ docs/
 ├── current/          # Active, current documentation
 ├── archive/          # Historical/deprecated docs (timestamped)
 ├── guides/           # How-to guides and tutorials
+│   └── mcp-server/  # MCP server specific guides
 ├── architecture/     # Architecture Decision Records (ADRs)
 ├── operations/       # Operational guides (deployment, monitoring)
-└── roadmaps/         # Product roadmaps and planning
+├── roadmaps/         # Product roadmaps and planning
+└── testing/          # Test plans and coverage reports
 ```
 
-### Service Documentation
-Each service has its own `/docs` directory:
+### App-Specific Documentation (Minimal)
+Each app maintains minimal docs in its root:
 ```
-services/[service]/docs/
-├── architecture/     # Service-specific architecture
-├── guides/          # Service-specific guides
-├── api/             # API documentation
-└── changelog/       # Service changelog
+apps/[app]/
+├── README.md         # App overview and quick start (REQUIRED)
+└── docs/            # Optional: app-specific detailed docs
+    ├── CHANGELOG.md  # Version history
+    ├── FEATURES.md   # Feature showcase
+    ├── SECURITY.md   # Security documentation
+    └── api/         # API documentation
 ```
+
+**Rule**: Keep app-level docs minimal. Most documentation belongs in central `docs/`.
 
 ---
 
@@ -46,29 +52,51 @@ services/[service]/docs/
 - [Clean Architecture Guide](./current/CLEAN_ARCHITECTURE.md) - ⏰ 2025-10-22
 - [SOLID Principles Guide](./current/SOLID_PRINCIPLES.md) - ⏰ 2025-10-22
 - [Performance Optimization Guide](./current/PERFORMANCE.md) - ⏰ 2025-10-22
+- [Architecture Optimization](./current/ARCHITECTURE_OPTIMIZATION.md) - ⏰ 2025-11-04
+- [Event Store Features](./current/EVENT_STORE_FEATURES.md) - ⏰ 2025-11-04
 
 ### Roadmaps & Planning
 - [Comprehensive Roadmap](./roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md) - v1.0 → v2.0
+- [Query Service Roadmap](./roadmaps/query-service-roadmap.md) - ⏰ 2025-11-04
+- [MCP v2 Enhancements](./roadmaps/mcp-v2-enhancements.md) - ⏰ 2025-10-24
 - [Phase 1.5 Progress](./roadmaps/2025-10-22_PHASE_1.5_PROGRESS.md) - Clean Architecture refactoring
 - [Phase 1.5 TDD Results](./roadmaps/2025-10-22_PHASE_1.5_TDD_RESULTS.md) - Implementation results
 
-### Operational Guides
-- [README](../README.md) - Project overview
-- [Getting Started](./guides/GETTING_STARTED.md) - Quick start guide
+### Guides
+- [Quick Start](./guides/QUICK_START.md) - Quick start guide
+- [Demo](./guides/DEMO.md) - Demo walkthrough
+- [MCP Server Setup](./guides/mcp-server/CLAUDE_DESKTOP_SETUP.md) - Claude Desktop integration
+- [MCP Demo Script](./guides/mcp-server/DEMO_SCRIPT.md) - MCP demo walkthrough
+- [MCP Quick Reference](./guides/mcp-server/QUICK_REFERENCE.md) - MCP tool reference
+
+### Testing
+- [Control Plane Coverage Plan](./testing/control-plane-coverage-plan.md) - ⏰ 2025-11-04
 
 ---
 
-## 📦 Service-Specific Documentation
+## 📦 App-Specific Documentation
 
-### Rust Core (`services/core`)
-- [Architecture Overview](../services/core/docs/architecture/README.md)
-- [API Reference](../services/core/docs/api/README.md)
-- [Development Guide](../services/core/docs/guides/DEVELOPMENT.md)
+### Rust Core (`apps/core`)
+- [README](../apps/core/README.md) - Core overview and quick start
+- [Changelog](../apps/core/docs/CHANGELOG.md) - Version history
+- [Features](../apps/core/docs/FEATURES.md) - Comprehensive feature showcase
+- [Security](../apps/core/docs/SECURITY.md) - Security documentation
 
-### Go Control Plane (`services/control-plane`)
-- [Architecture Overview](../services/control-plane/docs/architecture/README.md)
-- [API Reference](../services/control-plane/docs/api/README.md)
-- [Development Guide](../services/control-plane/docs/guides/DEVELOPMENT.md)
+### Go Control Plane (`apps/control-plane`)
+- [README](../apps/control-plane/README.md) - Control plane overview
+
+### Elixir Query Service (`apps/query-service`)
+- [README](../apps/query-service/README.md) - Query service overview
+- [Roadmap](./roadmaps/query-service-roadmap.md) - Development roadmap (centralized)
+
+### MCP Server (`apps/mcp-server`)
+- [README](../apps/mcp-server/README.md) - MCP server overview
+- [Setup Guide](./guides/mcp-server/CLAUDE_DESKTOP_SETUP.md) - Integration guide
+- [Demo Script](./guides/mcp-server/DEMO_SCRIPT.md) - Demo walkthrough
+- [Quick Reference](./guides/mcp-server/QUICK_REFERENCE.md) - Tool reference
+
+### Web App (`apps/web`)
+- [README](../apps/web/README.md) - Web app overview
 
 ---
 

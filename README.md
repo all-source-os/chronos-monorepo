@@ -12,10 +12,11 @@ High-performance event sourcing platform with Clean Architecture implementation.
 
 | Category | Links |
 |----------|-------|
-| **Documentation** | [Index](docs/INDEX.md) · [Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [SOLID Principles](docs/current/SOLID_PRINCIPLES.md) · [Performance](docs/current/PERFORMANCE.md) |
+| **Documentation** | [📋 Docs Hub](docs/README.md) · [Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [SOLID Principles](docs/current/SOLID_PRINCIPLES.md) · [Performance](docs/current/PERFORMANCE.md) |
+| **Query Service** | [Roadmap](docs/roadmaps/query-service-roadmap.md) · [Implementation Guide](docs/current/QUERY_SERVICE_IMPLEMENTATION_GUIDE.md) · [Architecture Optimization](docs/current/ARCHITECTURE_OPTIMIZATION.md) |
 | **Roadmaps** | [Comprehensive Roadmap](docs/roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md) · [Phase 1.5 Progress](docs/roadmaps/2025-10-22_PHASE_1.5_PROGRESS.md) · [TDD Results](docs/roadmaps/2025-10-22_PHASE_1.5_TDD_RESULTS.md) |
 | **Guides** | [Quick Start](docs/guides/QUICK_START.md) · [Demo](docs/guides/DEMO.md) |
-| **Services** | [Rust Core](services/core/docs/README.md) · [Go Control Plane](services/control-plane/docs/README.md) |
+| **Services** | [Rust Core](apps/core/README.md) · [Go Control Plane](apps/control-plane/README.md) · [Query Service](apps/query-service/README.md) · [MCP Server](apps/mcp-server/README.md) · [Web](apps/web/README.md) |
 
 ---
 
