@@ -17,7 +17,7 @@ High-performance event sourcing platform with distributed architecture and AI-na
 | **Query Service** | [Roadmap](docs/roadmaps/query-service-roadmap.md) · [Implementation Guide](docs/current/QUERY_SERVICE_IMPLEMENTATION_GUIDE.md) · [Architecture Optimization](docs/current/ARCHITECTURE_OPTIMIZATION.md) |
 | **Roadmaps** | [Comprehensive Roadmap](docs/roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md) · [Phase 1.5 Progress](docs/roadmaps/2025-10-22_PHASE_1.5_PROGRESS.md) · [TDD Results](docs/roadmaps/2025-10-22_PHASE_1.5_TDD_RESULTS.md) |
 | **Guides** | [Quick Start](docs/guides/QUICK_START.md) · [Demo](docs/guides/DEMO.md) |
-| **Services** | [Rust Core](apps/core/README.md) · [Go Control Plane](apps/control-plane/README.md) · [Query Service](apps/query-service/README.md) · [MCP Server](apps/mcp-server/README.md) · [Web](apps/web/README.md) |
+| **Services** | [Rust Core](apps/core/README.md) · [Go Control Plane](apps/control-plane/README.md) · [Query Service](apps/query-service/README.md) · [MCP Server (Elixir)](apps/mcp-server-elixir/README.md) · [Web](apps/web/README.md) |
 
 ---
 
@@ -50,10 +50,13 @@ High-performance event sourcing platform with distributed architecture and AI-na
 - Tesla client with Core integration
 - **Phase 2**: 3-4 weeks (WebSocket integration, Broadway refinement)
 
-**MCP Server**
+**MCP Server (Elixir)**
 - AI-native interface to event store via Claude Desktop
 - 11 core tools for event operations
+- **TOON format** by default (~50% fewer tokens than JSON)
 - Real-time streaming and projections
+- OTP supervision for fault tolerance
+- Migrated from TypeScript to Elixir for better stack alignment
 - v2.0 planned: 55+ tools
 
 **Web Demo**
@@ -71,7 +74,7 @@ apps/
 ├── core/               # Rust event store (port 3900)
 ├── control-plane/      # Go control plane (port 3901)
 ├── query-service/      # Elixir query service (port 3902)
-├── mcp-server/         # MCP server (Node.js)
+├── mcp-server-elixir/ # MCP server (Elixir)
 └── web/                # Next.js web app (port 3000)
 
 packages/
@@ -88,7 +91,7 @@ tooling/
 - **Rust Core** (port 3900): High-performance event storage and processing
 - **Go Control Plane** (port 3901): Enterprise orchestration and management
 - **Elixir Query Service** (port 3902): Fault-tolerant query processing with OTP
-- **MCP Server**: AI-native interface for Claude Desktop
+- **MCP Server (Elixir)**: AI-native interface for Claude Desktop
 - **Web Demo** (port 3000): Interactive Next.js showcase
 
 **Key Principle: Zero External Databases**
@@ -117,11 +120,11 @@ tooling/
 **Tests**: 242 passing (7 doctests + 235 tests)
 **Documentation**: [Query Service README](apps/query-service/README.md) · [Roadmap](docs/roadmaps/query-service-roadmap.md)
 
-### MCP Server (`apps/mcp-server`)
+### MCP Server (`apps/mcp-server-elixir`)
 
-**Status**: Active, v2.0 planned
-**Features**: 11 core tools, AI-native interface via Claude Desktop
-**Documentation**: [MCP README](apps/mcp-server/README.md) · [Setup Guide](docs/guides/mcp-server/CLAUDE_DESKTOP_SETUP.md)
+**Status**: Active, migrated from TypeScript to Elixir
+**Features**: 11 core tools, AI-native interface via Claude Desktop, OTP supervision, **TOON format** for ~50% token reduction
+**Documentation**: [MCP README](apps/mcp-server-elixir/README.md) · [Setup Guide](docs/guides/mcp-server/CLAUDE_DESKTOP_SETUP.md)
 
 ### Web Demo (`apps/web`)
 

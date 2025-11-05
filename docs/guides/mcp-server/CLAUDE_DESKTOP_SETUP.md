@@ -1,4 +1,6 @@
-# Claude Desktop Integration - AllSource MCP Server
+# Claude Desktop Integration - AllSource MCP Server (Elixir)
+
+> **TOON Format**: This MCP server uses TOON format by default for responses, which uses ~50% fewer tokens than JSON. This reduces LLM API costs significantly.
 
 ## 🎯 Quick Setup
 
@@ -24,14 +26,28 @@ Open the config file and add the AllSource server:
 {
   "mcpServers": {
     "allsource": {
-      "command": "bun",
-      "args": [
-        "run",
-        "/Users/YOUR_USERNAME/Projects/chronos/chronos-monorepo/packages/mcp-server/src/index.ts"
-      ],
+      "command": "mix",
+      "args": ["run", "--no-halt"],
+      "cwd": "/Users/YOUR_USERNAME/Projects/chronos/chronos-monorepo/apps/mcp-server-elixir",
       "env": {
-        "ALLSOURCE_CORE_URL": "http://localhost:8080",
-        "ALLSOURCE_CONTROL_URL": "http://localhost:8081"
+        "ALLSOURCE_CORE_URL": "http://localhost:3900",
+        "ALLSOURCE_CONTROL_URL": "http://localhost:3901"
+      }
+    }
+  }
+}
+```
+
+**Alternative (using compiled release):**
+```json
+{
+  "mcpServers": {
+    "allsource": {
+      "command": "/Users/YOUR_USERNAME/Projects/chronos/chronos-monorepo/apps/mcp-server-elixir/_build/dev/rel/mcp_server_elixir/bin/mcp_server_elixir",
+      "args": ["start"],
+      "env": {
+        "ALLSOURCE_CORE_URL": "http://localhost:3900",
+        "ALLSOURCE_CONTROL_URL": "http://localhost:3901"
       }
     }
   }
@@ -46,11 +62,11 @@ Before using Claude Desktop, make sure AllSource is running:
 
 ```bash
 # Terminal 1 - Rust Core
-cd services/core
+cd apps/core
 cargo run --release
 
 # Terminal 2 - Go Control Plane
-cd services/control-plane
+cd apps/control-plane
 go run main.go
 ```
 
@@ -274,20 +290,21 @@ Claude: [Instant answer with full context]
 ### MCP Server Not Showing
 
 1. Check path in config is correct (absolute path!)
-2. Ensure Bun is installed: `bun --version`
-3. Restart Claude Desktop completely
-4. Check logs: `~/Library/Logs/Claude/mcp*.log` (macOS)
+2. Ensure Elixir is installed: `elixir --version`
+3. Install dependencies: `cd apps/mcp-server-elixir && mix deps.get`
+4. Restart Claude Desktop completely
+5. Check logs: `~/Library/Logs/Claude/mcp*.log` (macOS)
 
 ### Connection Errors
 
 1. Make sure AllSource services are running:
-   - Core on http://localhost:8080
-   - Control Plane on http://localhost:8081
+   - Core on http://localhost:3900
+   - Control Plane on http://localhost:3901
 
 2. Test manually:
    ```bash
-   curl http://localhost:8080/health
-   curl http://localhost:8081/health
+   curl http://localhost:3900/health
+   curl http://localhost:3901/health
    ```
 
 ### "Tool Failed" Errors
