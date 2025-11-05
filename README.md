@@ -1,10 +1,11 @@
 # AllSource Event Store - Chronos Monorepo
 
-[![Rust v1.0](https://img.shields.io/badge/Rust%20Core-v1.0-green.svg)](services/core/)
-[![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-active-blue.svg)](services/control-plane/)
-[![Phase 1.5](https://img.shields.io/badge/Phase%201.5-70%25-orange.svg)](docs/roadmaps/2025-10-22_PHASE_1.5_PROGRESS.md)
+[![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.1.0-green.svg)](apps/core/)
+[![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v1.0-blue.svg)](apps/control-plane/)
+[![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-Phase%201%20Complete-purple.svg)](apps/query-service/)
+[![MCP Server](https://img.shields.io/badge/MCP%20Server-Active-orange.svg)](apps/mcp-server/)
 
-High-performance event sourcing platform with Clean Architecture implementation.
+High-performance event sourcing platform with distributed architecture and AI-native tooling.
 
 ---
 
@@ -22,25 +23,42 @@ High-performance event sourcing platform with Clean Architecture implementation.
 
 ## Project Status
 
-### v1.0 (Completed)
-- ✅ **86/86 tests passing** (100% pass rate)
-- ✅ **Baseline performance**: 469K events/sec, 11.9μs query latency
-- ✅ **Multi-tenancy support** with RBAC and policies
-- ✅ **Parquet storage** with efficient columnar format
-- ✅ **Full audit logging** and compliance features
+### ✅ Current State (November 2025)
 
-### Phase 1.5 (In Progress - 70% Complete)
-- ✅ **Domain layer** with pure entities and validation
-- ✅ **Application layer** with use cases and DTOs
-- ✅ **Repository abstractions** (EventRepository, EventReader, EventWriter)
-- ⏳ **Infrastructure layer** (30% - structure created)
-- ⏳ **Performance optimization** (simd-json, async batching pending)
-- ⏳ **Go Control Plane refactoring** (planned for weeks 6-8)
+**Rust Core (v0.1.0)**
+- Event store with 469K events/sec throughput
+- Schema registry with JSON Schema validation
+- Event replay engine for point-in-time rebuilds
+- Stream processing pipelines (Filter, Map, Reduce, Window, Branch, Enrich)
+- Multi-tenancy, RBAC, audit logging
+- Parquet storage + WAL for durability
+- **Zero external database dependencies** (DashMap in-memory + Parquet)
 
-### v1.2 Targets
-- 🎯 **1M+ events/sec** (+113% from baseline)
-- 🎯 **<5μs query latency** (-58% from baseline)
-- 🎯 **<4ms concurrent writes** (-50% from baseline)
+**Go Control Plane (v1.0)**
+- JWT authentication & RBAC (4 roles, 7 permissions)
+- Policy enforcement engine (5 default policies)
+- OpenTelemetry distributed tracing
+- Complete audit logging
+- Authenticated proxying to Core
+
+**Elixir Query Service (Phase 1 Complete)**
+- 242 tests passing (7 doctests + 235 tests)
+- Query DSL with fluent Elixir pipes
+- GenServer-based projections with OTP supervision
+- Event pipelines (Filter, Transform, Enrich, Validate, Route, Aggregate)
+- Phoenix HTTP API (11 endpoints)
+- Tesla client with Core integration
+- **Phase 2**: 3-4 weeks (WebSocket integration, Broadway refinement)
+
+**MCP Server**
+- AI-native interface to event store via Claude Desktop
+- 11 core tools for event operations
+- Real-time streaming and projections
+- v2.0 planned: 55+ tools
+
+**Web Demo**
+- Interactive Next.js showcase
+- Real-time event visualization
 
 ---
 
@@ -64,38 +82,53 @@ tooling/
 └── e2e/               # E2E tests
 ```
 
+### Service Architecture
+
+**Distributed Services:**
+- **Rust Core** (port 3900): High-performance event storage and processing
+- **Go Control Plane** (port 3901): Enterprise orchestration and management
+- **Elixir Query Service** (port 3902): Fault-tolerant query processing with OTP
+- **MCP Server**: AI-native interface for Claude Desktop
+- **Web Demo** (port 3000): Interactive Next.js showcase
+
+**Key Principle: Zero External Databases**
+- Core uses DashMap (in-memory) + Parquet files + WAL
+- 11.9 μs query latency
+- No PostgreSQL, no Redis, no external dependencies
+
 ### Rust Core (`apps/core`)
 
-```
-src/
-├── domain/              ✅ Layer 1: Business entities
-│   ├── entities/       - Pure domain logic
-│   └── repositories/   - Repository trait abstractions
-├── application/         ✅ Layer 2: Use cases
-│   ├── dto/           - Data Transfer Objects
-│   └── use_cases/     - Business logic orchestration
-├── infrastructure/      ⏳ Layer 3: Adapters (30%)
-│   └── [to be organized]
-└── [legacy modules]     ⏳ Being refactored
-```
-
-**Status**: Clean Architecture implementation with TDD approach
-**Documentation**: [Rust Core Docs](apps/core/docs/README.md)
+**Version**: v0.1.0
+**Features**: Schema registry, event replay, stream processing pipelines (6 operators)
+**Storage**: DashMap + Parquet + WAL (zero external databases)
+**Documentation**: [Core README](apps/core/README.md) · [Changelog](apps/core/docs/CHANGELOG.md) · [Features](apps/core/docs/FEATURES.md) · [Security](apps/core/docs/SECURITY.md)
 
 ### Go Control Plane (`apps/control-plane`)
 
-**Current**: Traditional structure
-**Planned**: Clean Architecture migration in Phase 1.5 (weeks 6-8)
-**Documentation**: [Control Plane Docs](apps/control-plane/docs/README.md)
+**Version**: v1.0
+**Features**: JWT auth, RBAC (4 roles, 7 permissions), policy enforcement, audit logging, OpenTelemetry tracing
+**Documentation**: [Control Plane README](apps/control-plane/README.md)
 
-### Elixir Query Service (`apps/query-service`) ✨ NEW
+### Elixir Query Service (`apps/query-service`)
 
-**Status**: Production-ready with OTP supervision
+**Status**: Phase 1 Complete, Phase 2 in planning (3-4 weeks)
 **Port**: 3902
-**Features**: Query DSL, Projections, Event Pipelines, Phoenix HTTP API
-**Tests**: 281 passing (7 doctests + 274 tests)
-**Phase 2**: Optimized (3-4 weeks, zero external databases)
-**Documentation**: [Query Service Docs](apps/query-service/README.md) · [Roadmap](apps/query-service/ROADMAP.md)
+**Features**: Query DSL, GenServer projections, event pipelines, Phoenix HTTP API
+**Tests**: 242 passing (7 doctests + 235 tests)
+**Documentation**: [Query Service README](apps/query-service/README.md) · [Roadmap](docs/roadmaps/query-service-roadmap.md)
+
+### MCP Server (`apps/mcp-server`)
+
+**Status**: Active, v2.0 planned
+**Features**: 11 core tools, AI-native interface via Claude Desktop
+**Documentation**: [MCP README](apps/mcp-server/README.md) · [Setup Guide](docs/guides/mcp-server/CLAUDE_DESKTOP_SETUP.md)
+
+### Web Demo (`apps/web`)
+
+**Status**: Interactive showcase
+**Port**: 3000
+**Features**: Real-time event visualization
+**Documentation**: [Web README](apps/web/README.md)
 
 ---
 
@@ -112,12 +145,7 @@ src/
 - ✅ No validation in hot path
 - ✅ Batch processing support
 
-### Pending Optimizations
-- ⏳ simd-json integration (+40%)
-- ⏳ Async I/O batching (+700%)
-- ⏳ Batch processing optimization (+1300%)
-
-**Full details**: [Performance Guide](docs/current/PERFORMANCE.md)
+**Full details**: [Performance Guide](docs/current/PERFORMANCE.md) · [Architecture Optimization](docs/current/ARCHITECTURE_OPTIMIZATION.md)
 
 ---
 
@@ -254,41 +282,20 @@ docs/
 
 ---
 
-## Services
+## Additional Resources
 
-### Core Event Store (Rust) - Port 3900
-High-performance event sourcing engine with Parquet storage.
+**Documentation**:
+- [Documentation Hub](docs/README.md) - Central documentation index
+- [Architecture Guides](docs/current/) - Current architecture and design patterns
+- [Roadmaps](docs/roadmaps/) - All roadmaps centralized
+- [How-To Guides](docs/guides/) - Step-by-step guides
 
-- **Language**: Rust
-- **Storage**: Apache Parquet
-- **Performance**: 469K events/sec baseline
-- **Tests**: 86/86 passing
-- **Documentation**: [Core Docs](apps/core/docs/README.md)
-
-### Control Plane (Go) - Port 3901
-Multi-tenant control plane with RBAC and policy engine.
-
-- **Language**: Go
-- **Features**: Tenancy, RBAC, Policies, Audit logs
-- **Tests**: 23.2% coverage
-- **Recent Fix**: Policy engine tenant evaluation (2025-10-22)
-- **Documentation**: [Control Plane Docs](apps/control-plane/docs/README.md)
-
-### Query Service (Elixir) - Port 3902
-Real-time event processing with projections and pipelines.
-
-- **Language**: Elixir/OTP
-- **Features**: Query DSL, Projections, Pipelines, Phoenix API
-- **Tests**: 281/281 passing
-- **Status**: Production-ready
-- **Documentation**: [Query Service Docs](apps/query-service/README.md) · [Roadmap](apps/query-service/ROADMAP.md)
-
-### MCP Server (Node.js)
-Model Context Protocol server for AI integration.
-
-- **Language**: TypeScript/Node.js
-- **Status**: In development
-- **Documentation**: [MCP Docs](apps/mcp-server/)
+**Service-Specific**:
+- [Rust Core](apps/core/README.md) · [Changelog](apps/core/docs/CHANGELOG.md) · [Features](apps/core/docs/FEATURES.md)
+- [Go Control Plane](apps/control-plane/README.md)
+- [Elixir Query Service](apps/query-service/README.md) · [Roadmap](docs/roadmaps/query-service-roadmap.md)
+- [MCP Server](apps/mcp-server/README.md) · [Setup Guide](docs/guides/mcp-server/CLAUDE_DESKTOP_SETUP.md)
+- [Web Demo](apps/web/README.md)
 
 ---
 
@@ -306,26 +313,17 @@ We follow a TDD approach for all refactoring:
 
 ## Roadmap
 
-### Phase 1.0 (✅ Complete)
-- Basic event storage and retrieval
-- Multi-tenancy with RBAC
-- Parquet storage backend
-- 92% test coverage
+**Current Focus (November 2025):**
+- ✅ Rust Core v0.1.0 with schema registry, replay engine, stream processing
+- ✅ Go Control Plane v1.0 with enterprise features
+- ✅ Elixir Query Service Phase 1 complete (242 tests passing)
+- 📋 Query Service Phase 2 (3-4 weeks): WebSocket integration, Broadway refinement
+- 📋 MCP Server v2.0: Expanding from 11 to 55+ tools
 
-### Phase 1.5 (⏳ 70% Complete - Current)
-- Clean Architecture refactoring
-- Performance optimization
-- Domain-driven design
-- Go Control Plane migration
-
-### Phase 2.0 (📋 Planned - Query Service Optimized)
-- Distributed event processing
-- Real-time streaming
-- Advanced analytics
-- ✅ **Query service Phase 1** (Completed - 281 tests passing)
-- 📋 **Query service Phase 2** (Optimized - 3-4 weeks, zero databases)
-
-**Full roadmap**: [Comprehensive Roadmap](docs/roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md)
+**Detailed Roadmaps:**
+- [Query Service Roadmap](docs/roadmaps/query-service-roadmap.md) - Phase 2 planning (zero databases)
+- [MCP v2 Enhancements](docs/roadmaps/mcp-v2-enhancements.md) - AI-native tooling expansion
+- [Comprehensive Roadmap](docs/roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md) - Overall vision
 
 ---
 
@@ -338,10 +336,10 @@ We follow a TDD approach for all refactoring:
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/allsource/chronos-monorepo/issues)
-- **Documentation**: [docs/INDEX.md](docs/INDEX.md)
+- **Documentation**: [Documentation Hub](docs/README.md)
 - **Maintainers**: @allsource-team
 
 ---
 
-**Last Updated**: 2025-10-22
-**Version**: v1.0 (Rust), v1.5-dev (Phase 1.5 in progress)
+**Last Updated**: November 4, 2025
+**Versions**: Rust Core v0.1.0 · Go Control Plane v1.0 · Elixir Query Service Phase 1 Complete
