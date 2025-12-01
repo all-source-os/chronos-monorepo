@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::domain::entities::{Event, EventStream};
 use crate::domain::repositories::{EventStreamRepository, EventStreamReader, EventStreamWriter};
 use crate::domain::value_objects::{EntityId, PartitionKey, TenantId};
-use crate::error::Result;
+use crate::error::{Result, AllSourceError};
 
 /// In-memory implementation of EventStreamRepository
 ///

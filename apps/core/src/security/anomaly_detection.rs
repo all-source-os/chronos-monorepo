@@ -9,6 +9,7 @@
 /// - Account compromise indicators
 
 use crate::domain::entities::{AuditEvent, AuditAction, AuditOutcome};
+use crate::domain::value_objects::TenantId;
 use crate::error::Result;
 use chrono::{DateTime, Duration, Timelike, Utc};
 use serde::{Deserialize, Serialize};

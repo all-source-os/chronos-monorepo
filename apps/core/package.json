@@ -8,6 +8,9 @@
     "build": "cargo build --release",
     "clean": "cargo clean",
     "test": "cargo test",
-    "lint": "cargo clippy"
+    "lint": "cargo fmt --check && cargo clippy -- -D warnings",
+    "lint:sort": "cargo sort --check",
+    "format": "cargo fmt",
+    "format:sort": "cargo sort -w"
   }
 }

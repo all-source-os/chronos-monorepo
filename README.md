@@ -14,6 +14,8 @@ High-performance event sourcing platform with distributed architecture and AI-na
 | Category | Links |
 |----------|-------|
 | **Documentation** | [📋 Docs Hub](docs/README.md) · [Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [SOLID Principles](docs/current/SOLID_PRINCIPLES.md) · [Performance](docs/current/PERFORMANCE.md) |
+| **Bug Fixes** | [✅ Critical Bugs Fixed](docs/current/CRITICAL_BUGS_FIXED.md) · AllFrame Integration Unblocked (Nov 30, 2025) |
+| **Quality** | [✅ Quality Gates](docs/current/QUALITY_GATES.md) · [Setup Guide](docs/guides/QUALITY_GATES_SETUP.md) · `make check` before commit |
 | **Query Service** | [Roadmap](docs/roadmaps/query-service-roadmap.md) · [Implementation Guide](docs/current/QUERY_SERVICE_IMPLEMENTATION_GUIDE.md) · [Architecture Optimization](docs/current/ARCHITECTURE_OPTIMIZATION.md) |
 | **Roadmaps** | [Comprehensive Roadmap](docs/roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md) · [Phase 1.5 Progress](docs/roadmaps/2025-10-22_PHASE_1.5_PROGRESS.md) · [TDD Results](docs/roadmaps/2025-10-22_PHASE_1.5_TDD_RESULTS.md) |
 | **Guides** | [Quick Start](docs/guides/QUICK_START.md) · [Demo](docs/guides/DEMO.md) |

@@ -439,6 +439,38 @@ impl EventStreamRepository for PostgresEventStreamRepository {
 
         Ok(rows.into_iter().map(|(p, c)| (p as u32, c as usize)).collect())
     }
+
+    async fn get_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<Vec<EventStream>> {
+        // Query to find all stream_ids that have events belonging to the tenant
+        let stream_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT DISTINCT stream_id FROM events WHERE tenant_id = $1 ORDER BY stream_id"
+        )
+        .bind(tenant_id.as_str())
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Load each stream
+        let mut streams = Vec::new();
+        for stream_id_str in stream_ids {
+            let stream_id = EntityId::new(stream_id_str)?;
+            if let Some(stream) = self.load_stream(&stream_id).await? {
+                streams.push(stream);
+            }
+        }
+
+        Ok(streams)
+    }
+
+    async fn count_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<usize> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT stream_id) FROM events WHERE tenant_id = $1"
+        )
+        .bind(tenant_id.as_str())
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count as usize)
+    }
 }
 
 #[cfg(all(test, feature = "postgres"))]

@@ -213,6 +213,10 @@ impl EventStream {
         self.updated_at
     }
 
+    pub fn expected_version(&self) -> Option<u64> {
+        self.expected_version
+    }
+
     // Tenant isolation methods
 
     /// Get the tenant ID for this stream

@@ -401,6 +401,64 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
         stats.sort_by_key(|(partition_id, _)| *partition_id);
         Ok(stats)
     }
+
+    async fn get_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<Vec<EventStream>> {
+        use std::collections::HashSet;
+
+        let cf_streams = self.db.cf_handle(CF_STREAMS)
+            .ok_or_else(|| AllSourceError::StorageError("Streams CF not found".to_string()))?;
+        let cf_events = self.db.cf_handle(CF_EVENTS)
+            .ok_or_else(|| AllSourceError::StorageError("Events CF not found".to_string()))?;
+
+        // Find all stream_ids that have events belonging to this tenant
+        let mut stream_ids = HashSet::new();
+        let iter = self.db.iterator_cf(cf_events, IteratorMode::Start);
+
+        for item in iter {
+            let (_, value) = item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {}", e)))?;
+
+            if let Ok(event) = Self::deserialize_event(&value) {
+                if event.tenant_id().as_str() == tenant_id.as_str() {
+                    stream_ids.insert(event.entity_id().as_str().to_string());
+                }
+            }
+        }
+
+        // Load each stream
+        let mut streams = Vec::new();
+        for stream_id_str in stream_ids {
+            let entity_id = EntityId::new(stream_id_str)?;
+            if let Some(stream) = self.load_stream(&entity_id).await? {
+                streams.push(stream);
+            }
+        }
+
+        streams.sort_by(|a, b| a.stream_id().as_str().cmp(b.stream_id().as_str()));
+        Ok(streams)
+    }
+
+    async fn count_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<usize> {
+        use std::collections::HashSet;
+
+        let cf_events = self.db.cf_handle(CF_EVENTS)
+            .ok_or_else(|| AllSourceError::StorageError("Events CF not found".to_string()))?;
+
+        // Find distinct stream_ids that have events belonging to this tenant
+        let mut stream_ids = HashSet::new();
+        let iter = self.db.iterator_cf(cf_events, IteratorMode::Start);
+
+        for item in iter {
+            let (_, value) = item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {}", e)))?;
+
+            if let Ok(event) = Self::deserialize_event(&value) {
+                if event.tenant_id().as_str() == tenant_id.as_str() {
+                    stream_ids.insert(event.entity_id().as_str().to_string());
+                }
+            }
+        }
+
+        Ok(stream_ids.len())
+    }
 }
 
 #[cfg(all(test, feature = "rocksdb-storage"))]

@@ -1,0 +1,6 @@
+# Shared cargo-sort configuration for all Rust projects
+# Projects can symlink to this file or override locally
+
+sort = true
+expand = true
+group_imports = true

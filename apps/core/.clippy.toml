@@ -1,0 +1,7 @@
+# Shared clippy configuration for all Rust projects
+# Projects can symlink to this file or override locally
+
+msrv = "1.70.0"
+
+# Enforce warnings on all wildcard imports
+warn-on-all-wildcard-imports = true

@@ -1,0 +1,86 @@
+name: Rust Quality Gates
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/core/**'
+      - '.github/workflows/rust-quality.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/core/**'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  quality-gates:
+    name: Quality Gates (Format, Lint, Sort, Test)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Install cargo-sort
+      run: cargo install cargo-sort
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/registry
+        key: cargo-registry-v1
+
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: cargo-index-v1
+
+    - name: Cache target directory
+      uses: actions/cache@v4
+      with:
+        path: apps/core/target
+        key: cargo-target-v1
+
+    - name: Check code formatting (rustfmt)
+      working-directory: apps/core
+      run: cargo fmt --check
+
+    - name: Check Cargo.toml sorting
+      working-directory: apps/core
+      run: cargo sort --check
+
+    - name: Run clippy (all warnings as errors)
+      working-directory: apps/core
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Run tests
+      working-directory: apps/core
+      run: cargo test --lib
+
+    - name: Build project
+      working-directory: apps/core
+      run: cargo build --lib --release
+
+  msrv-check:
+    name: MSRV Check (1.70.0)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust MSRV (1.70.0)
+      uses: dtolnay/rust-toolchain@1.70.0
+
+    - name: Check compilation with MSRV
+      working-directory: apps/core
+      run: cargo check --lib

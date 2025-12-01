@@ -503,6 +503,50 @@ curl -X POST http://localhost:8080/api/v1/pipelines \
   }'
 ```
 
+## ✅ Quality Gates
+
+AllSource Core enforces strict quality gates to maintain code quality, consistency, and reliability.
+
+**See**: [QUALITY_GATES.md](../../docs/current/QUALITY_GATES.md) for complete documentation.
+
+### Quick Start
+
+```bash
+# Run all quality gates (recommended before commit)
+make check
+
+# Auto-fix formatting and sorting
+make format
+make format-sort
+
+# Full CI pipeline locally
+make ci
+```
+
+### Quality Checks Enforced
+
+- ✅ **Code Formatting** (rustfmt) - Consistent style across codebase
+- ✅ **Code Quality** (clippy) - Zero warnings, catch anti-patterns
+- ✅ **Dependency Sorting** (cargo-sort) - Alphabetically sorted Cargo.toml
+- ✅ **Test Coverage** - All tests must pass
+- ✅ **Build Verification** - Release build must succeed
+
+### CI/CD Integration
+
+Quality gates run automatically on:
+- Every push to `main` or `develop`
+- Every pull request
+- Enforced before merge
+
+**Workflow**: `.github/workflows/rust-quality.yml`
+
+### Configuration Files
+
+- `.clippy.toml` - Clippy linter configuration (MSRV: 1.70.0)
+- `rustfmt.toml` - Code formatting rules (max width: 100)
+- `cargo-sort.toml` - Dependency sorting configuration
+- `Makefile` - Quality gate commands
+
 ## 🧪 Testing
 
 ```bash

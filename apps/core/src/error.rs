@@ -65,6 +65,13 @@ impl From<parquet::errors::ParquetError> for AllSourceError {
     }
 }
 
+#[cfg(feature = "postgres")]
+impl From<sqlx::Error> for AllSourceError {
+    fn from(err: sqlx::Error) -> Self {
+        AllSourceError::StorageError(format!("Database error: {}", err))
+    }
+}
+
 /// Custom Result type for AllSource operations
 pub type Result<T> = std::result::Result<T, AllSourceError>;
 
