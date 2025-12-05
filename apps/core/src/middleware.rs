@@ -152,7 +152,6 @@ impl IntoResponse for AuthError {
 /// Axum extractor for authenticated requests
 pub struct Authenticated(pub AuthContext);
 
-#[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for Authenticated
 where
     S: Send + Sync,
@@ -172,10 +171,27 @@ where
     }
 }
 
+/// Axum extractor for optional authentication (never rejects, returns Option)
+/// Use this for routes that work with or without authentication
+pub struct OptionalAuth(pub Option<AuthContext>);
+
+impl<S> axum::extract::FromRequestParts<S> for OptionalAuth
+where
+    S: Send + Sync,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(OptionalAuth(parts.extensions.get::<AuthContext>().cloned()))
+    }
+}
+
 /// Axum extractor for admin-only requests
 pub struct Admin(pub AuthContext);
 
-#[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for Admin
 where
     S: Send + Sync,

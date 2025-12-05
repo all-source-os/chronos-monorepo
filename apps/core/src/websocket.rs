@@ -93,7 +93,7 @@ impl WebSocketManager {
                 // Serialize event to JSON
                 match serde_json::to_string(&*event) {
                     Ok(json) => {
-                        if sender.send(Message::Text(json)).await.is_err() {
+                        if sender.send(Message::Text(json.into())).await.is_err() {
                             tracing::warn!("Failed to send event to client {}", client_id);
                             break;
                         }
@@ -110,8 +110,8 @@ impl WebSocketManager {
         let recv_task = tokio::spawn(async move {
             while let Some(Ok(msg)) = receiver.next().await {
                 if let Message::Text(text) = msg {
-                    // Parse filter commands
-                    if let Ok(filters) = serde_json::from_str::<EventFilters>(&text) {
+                    // Parse filter commands (text is Utf8Bytes in axum 0.8+)
+                    if let Ok(filters) = serde_json::from_str::<EventFilters>(text.as_str()) {
                         tracing::info!("Setting filters for client {}: {:?}", client_id, filters);
                         if let Some(client) = clients.write().get_mut(&client_id) {
                             client.filters = filters;

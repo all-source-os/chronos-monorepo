@@ -2,6 +2,7 @@
 name = "allsource-core"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 authors = ["AllSource Team"]
 description = "High-performance event store core built in Rust"
 license = "MIT"
@@ -25,71 +26,105 @@ name = "allsource-admin"
 path = "src/bin/allsource-admin.rs"
 
 [dependencies]
-# Arrow/Parquet for columnar storage
-arrow = { version = "53.3", features = ["ipc", "json"] }
-parquet = { version = "53.3", features = ["arrow", "async"] }
-arrow-flight = "53.3"
-datafusion = "43.0"
+# =============================================================================
+# Arrow/Parquet - Columnar storage (Updated: 2025-12-05)
+# Pin to minor version for stability, major updates quarterly
+# =============================================================================
+arrow = { version = "57.1", features = ["ipc", "json"] }
+arrow-flight = "57.1"
+datafusion = "51.0"
+parquet = { version = "57.1", features = ["arrow", "async"] }
 
-# Async runtime
-tokio = { version = "1.36", features = ["full"] }
-tokio-stream = "0.1"
-futures = "0.3"
-async-trait = "0.1"
+# =============================================================================
+# Async runtime (Updated: 2025-12-05)
+# Tokio 1.48 is current stable, 1.47.x is LTS until Sept 2026
+# =============================================================================
+async-trait = "0.1"  # Stable API, minimal changes
+futures = "0.3"      # Stable API
+tokio = { version = "1.48", features = ["full"] }
+tokio-stream = "0.1" # Follows tokio versioning
 
-# Web framework
-axum = { version = "0.7", features = ["json", "ws"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
-axum-extra = { version = "0.9", features = ["typed-header"] }
+# =============================================================================
+# Web framework (Updated: 2025-12-05)
+# Axum 0.8.x is stable, 0.9 in development
+# =============================================================================
+axum = { version = "0.8", features = ["json", "ws"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 
-# Serialization
+# =============================================================================
+# Serialization (Updated: 2025-12-05)
+# Stable APIs with long-term compatibility
+# =============================================================================
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
 
-# Time handling
+# =============================================================================
+# Time handling (Updated: 2025-12-05)
+# =============================================================================
 chrono = { version = "0.4", features = ["serde"] }
 
-# Logging
+# =============================================================================
+# Logging & Tracing (Updated: 2025-12-05)
+# =============================================================================
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Utilities
-uuid = { version = "1.7", features = ["v4", "serde"] }
-thiserror = "1.0"
-anyhow = "1.0"
+# =============================================================================
+# Utilities (Updated: 2025-12-05)
+# =============================================================================
+anyhow = "1.0"       # Stable error handling
+thiserror = "2.0"    # Updated: v2.0 released 2024, stable API
+uuid = { version = "1.19", features = ["v4", "serde"] }
 
-# High-performance data structures
-dashmap = "5.5"
-parking_lot = "0.12"
+# =============================================================================
+# High-performance data structures (Updated: 2025-12-05)
+# DashMap 6.x is stable, 7.0 is RC - stay on stable
+# =============================================================================
 crossbeam = "0.8"
 crossbeam-queue = "0.3"
+dashmap = "6.1"
+parking_lot = "0.12"
 
-# Compression
-lz4 = "1.24"
+# =============================================================================
+# Compression (Updated: 2025-12-05)
+# =============================================================================
 flate2 = "1.0"
+lz4 = "1.28"
 
-# Checksums
+# =============================================================================
+# Checksums & Cryptography (Updated: 2025-12-05)
+# =============================================================================
 crc32fast = "1.4"
 sha2 = "0.10"
 
-# Metrics
+# =============================================================================
+# Metrics (Updated: 2025-12-05)
+# =============================================================================
 prometheus = "0.13"
 
-# Schema validation
-jsonschema = "0.18"
+# =============================================================================
+# Schema validation (Updated: 2025-12-05)
+# =============================================================================
+jsonschema = "0.26"
 
-# Authentication & Security (v1.0)
-jsonwebtoken = "9.2"
-argon2 = "0.5"
-rand = "0.8"
-base64 = "0.21"
+# =============================================================================
+# Authentication & Security (Updated: 2025-12-05)
+# jsonwebtoken 10.0 requires explicit crypto backend
+# =============================================================================
 aes-gcm = "0.10"
+argon2 = "0.5"
+base64 = "0.22"
+jsonwebtoken = "9.3"  # Stay on 9.x for now, 10.x has breaking changes
+rand = "0.8"
 
-# Database (Phase 4B-C)
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "json", "chrono", "uuid"], optional = true }
+# =============================================================================
+# Database - Optional features (Updated: 2025-12-05)
+# =============================================================================
 rocksdb = { version = "0.22", optional = true }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json", "chrono", "uuid"], optional = true }
 
 [features]
 default = []
@@ -98,8 +133,8 @@ rocksdb-storage = ["rocksdb"]
 
 [dev-dependencies]
 criterion = "0.5"
-tempfile = "3.10"
 ctrlc = "3.4"
+tempfile = "3.23"
 
 [[bench]]
 name = "performance_benchmarks"
@@ -115,6 +150,6 @@ name = "advanced_security_demo"
 path = "examples/advanced_security_demo.rs"
 
 [profile.release]
-opt-level = 3
-lto = true
 codegen-units = 1
+lto = true
+opt-level = 3

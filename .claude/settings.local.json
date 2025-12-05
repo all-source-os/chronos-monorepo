@@ -100,7 +100,8 @@
       "Bash(bun run dev:*)",
       "Bash(mkdir:*)",
       "Bash(bun pm:*)",
-      "Bash(cargo fmt:*)"
+      "Bash(cargo fmt:*)",
+      "Bash(cargo search:*)"
     ],
     "deny": [],
     "ask": []

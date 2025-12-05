@@ -1,5 +1,5 @@
 use crate::auth::{Permission, Role, User};
-use crate::middleware::{Admin, Authenticated};
+use crate::middleware::{Admin, Authenticated, OptionalAuth};
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -97,13 +97,12 @@ pub struct ApiKeyInfo {
 /// POST /api/v1/auth/register
 pub async fn register_handler(
     State(state): State<AppState>,
-    auth: Option<Authenticated>,
+    OptionalAuth(auth): OptionalAuth,
     Json(req): Json<RegisterRequest>,
 ) -> Result<(StatusCode, Json<RegisterResponse>), (StatusCode, String)> {
     // Only admins can register other users (or allow self-registration in dev mode)
     if let Some(auth_ctx) = auth {
         auth_ctx
-            .0
             .require_permission(Permission::Admin)
             .map_err(|_| {
                 (
