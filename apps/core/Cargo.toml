@@ -4,6 +4,13 @@ version = "0.1.0"
 edition = "2021"
 authors = ["AllSource Team"]
 description = "High-performance event store core built in Rust"
+license = "MIT"
+repository = "https://github.com/all-source-os/chronos-monorepo"
+homepage = "https://github.com/all-source-os/chronos-monorepo"
+documentation = "https://docs.rs/allsource-core"
+keywords = ["event-sourcing", "event-store", "cqrs", "arrow", "parquet"]
+categories = ["database", "data-structures", "asynchronous"]
+readme = "README.md"
 
 [lib]
 name = "allsource_core"
