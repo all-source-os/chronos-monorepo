@@ -1,6 +1,29 @@
 # AllSource - Quick Start Guide
 
-## ⚡ 60-Second Setup
+## ⚡ Using as a Library
+
+The fastest way to get started is adding `allsource-core` to your Rust project:
+
+```bash
+cargo add allsource-core@0.1
+```
+
+Or add to your `Cargo.toml` (pin to minor version for stability):
+
+```toml
+[dependencies]
+# allsource-core: High-performance event store
+# Pin to minor version - allows patch updates only
+allsource-core = "0.1"
+```
+
+> **Version Pinning**: We recommend pinning to `"0.1"` (minor version) rather than `"0.1.0"` (exact) or `"0"` (major only). This allows automatic patch updates for bug fixes while avoiding breaking changes. See our [Dependency Management Guide](https://github.com/all-source-os/all-frame/blob/main/docs/DEPENDENCY_MANAGEMENT.md) for best practices.
+
+**Links**: [crates.io](https://crates.io/crates/allsource-core) · [docs.rs](https://docs.rs/allsource-core) · [GitHub](https://github.com/all-source-os/chronos-monorepo)
+
+---
+
+## 🏃 Running the Full Stack
 
 ### Step 1: Install Dependencies (One-Time Setup)
 
@@ -12,23 +35,23 @@ curl -fsSL https://bun.sh/install | bash
 bun install
 
 # Install Go dependencies
-cd services/control-plane && go mod download && cd ../..
+cd apps/control-plane && go mod download && cd ../..
 ```
 
 ### Step 2: Start Services (3 Terminals)
 
 **Terminal 1 - Event Store Core:**
 ```bash
-cd services/core
+cd apps/core
 cargo run --release
-# Wait for: "🚀 AllSource Core listening on 0.0.0.0:8080"
+# Wait for: "🚀 AllSource Core listening on 0.0.0.0:3900"
 ```
 
 **Terminal 2 - Control Plane:**
 ```bash
-cd services/control-plane
+cd apps/control-plane
 go run main.go
-# Wait for: "🚀 Control Plane listening on port 8081"
+# Wait for: "🚀 Control Plane listening on port 3901"
 ```
 
 **Terminal 3 - Web UI:**
@@ -58,7 +81,7 @@ Click **"Ingest Demo Event"** button → Watch stats update in real-time
 ### 3. API Test
 ```bash
 # Ingest via API
-curl -X POST http://localhost:8080/api/v1/events \
+curl -X POST http://localhost:3900/api/v1/events \
   -H "Content-Type: application/json" \
   -d '{
     "event_type": "test.event",
@@ -67,7 +90,7 @@ curl -X POST http://localhost:8080/api/v1/events \
   }'
 
 # Query the event
-curl "http://localhost:8080/api/v1/events/query?entity_id=demo-123" | jq
+curl "http://localhost:3900/api/v1/events/query?entity_id=demo-123" | jq
 ```
 
 ---
@@ -77,8 +100,8 @@ curl "http://localhost:8080/api/v1/events/query?entity_id=demo-123" | jq
 ### "Port already in use"
 ```bash
 # Check what's using the ports
-lsof -i :8080  # Core
-lsof -i :8081  # Control Plane
+lsof -i :3900  # Core
+lsof -i :3901  # Control Plane
 lsof -i :3000  # Web UI
 
 # Kill if needed
@@ -93,8 +116,8 @@ kill -9 <PID>
 ### "Service won't start"
 ```bash
 # Check logs for errors
-cd services/core && cargo run  # See Rust errors
-cd services/control-plane && go run main.go  # See Go errors
+cd apps/core && cargo run  # See Rust errors
+cd apps/control-plane && go run main.go  # See Go errors
 cd apps/web && bun dev  # See Next.js errors
 ```
 
@@ -132,8 +155,9 @@ bun format
 | Service | URL | Purpose |
 |---------|-----|---------|
 | Web UI | http://localhost:3000 | Visual dashboard |
-| Event Store API | http://localhost:8080 | Core event operations |
-| Control Plane | http://localhost:8081 | Cluster management |
+| Event Store API | http://localhost:3900 | Core event operations |
+| Control Plane | http://localhost:3901 | Cluster management |
+| Query Service | http://localhost:3902 | Elixir query processing |
 
 ---
 

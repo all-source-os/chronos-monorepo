@@ -1,9 +1,11 @@
 # AllSource Event Store - Chronos Monorepo
 
+[![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core)
+[![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
 [![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.1.0-green.svg)](apps/core/)
 [![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v1.0-blue.svg)](apps/control-plane/)
 [![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-Phase%201%20Complete-purple.svg)](apps/query-service/)
-[![MCP Server](https://img.shields.io/badge/MCP%20Server-Active-orange.svg)](apps/mcp-server/)
+[![MCP Server](https://img.shields.io/badge/MCP%20Server-Active-orange.svg)](apps/mcp-server-elixir/)
 
 High-performance event sourcing platform with distributed architecture and AI-native tooling.
 
@@ -103,10 +105,21 @@ tooling/
 
 ### Rust Core (`apps/core`)
 
-**Version**: v0.1.0
+**Version**: v0.1.0 · [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core) · [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
+
+```bash
+# Add to your Cargo.toml (pin to minor version)
+cargo add allsource-core@0.1
+```
+
+```toml
+[dependencies]
+allsource-core = "0.1"  # Pin to minor version for stability
+```
+
 **Features**: Schema registry, event replay, stream processing pipelines (6 operators)
 **Storage**: DashMap + Parquet + WAL (zero external databases)
-**Documentation**: [Core README](apps/core/README.md) · [Changelog](apps/core/docs/CHANGELOG.md) · [Features](apps/core/docs/FEATURES.md) · [Security](apps/core/docs/SECURITY.md)
+**Documentation**: [Core README](apps/core/README.md) · [Changelog](apps/core/docs/CHANGELOG.md) · [Features](apps/core/docs/FEATURES.md) · [Security](apps/core/docs/SECURITY.md) · [docs.rs](https://docs.rs/allsource-core)
 
 ### Go Control Plane (`apps/control-plane`)
 

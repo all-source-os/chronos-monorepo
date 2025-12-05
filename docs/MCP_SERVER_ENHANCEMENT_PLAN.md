@@ -203,7 +203,7 @@ class EnhancedAllSourceMCPServer {
 ```typescript
 // Environment variables
 const CLOJURE_QUERY_URL = process.env.ALLSOURCE_CLOJURE_URL || 'http://localhost:7888';
-const RUST_CORE_URL = process.env.ALLSOURCE_CORE_URL || 'http://localhost:8080';
+const RUST_CORE_URL = process.env.ALLSOURCE_CORE_URL || 'http://localhost:3900';
 const GO_CONTROL_URL = process.env.ALLSOURCE_CONTROL_URL || 'http://localhost:8081';
 ```
 

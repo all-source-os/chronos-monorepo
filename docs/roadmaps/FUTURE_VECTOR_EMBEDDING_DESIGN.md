@@ -1245,7 +1245,7 @@ Authorization: Bearer <jwt>
       "model": "embed-multilingual-v3.0"
     },
     "local": {
-      "endpoint": "http://localhost:8080/embed",
+      "endpoint": "http://localhost:3900/embed",
       "model": "all-MiniLM-L6-v2"
     }
   },
@@ -2515,7 +2515,7 @@ CHRONOS_EMBEDDING_DEFAULT_PROVIDER=openai
 CHRONOS_EMBEDDING_DEFAULT_MODEL=text-embedding-3-large
 CHRONOS_OPENAI_API_KEY=sk-...
 CHRONOS_COHERE_API_KEY=co-...
-CHRONOS_LOCAL_ENDPOINT=http://localhost:8080
+CHRONOS_LOCAL_ENDPOINT=http://localhost:3900
 
 # Vector Index
 CHRONOS_INDEX_M=16

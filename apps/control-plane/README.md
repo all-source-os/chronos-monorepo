@@ -39,7 +39,7 @@ The AllSource Control Plane has been upgraded from **v0.1.0** to **v1.0** with e
                          │ HTTPS
                          ▼
 ┌─────────────────────────────────────────────────────┐
-│       Go Control Plane v1.0 (Port 8081)             │
+│       Go Control Plane v1.0 (Port 3901)             │
 │  ┌───────────────────────────────────────────────┐  │
 │  │  🔐 JWT Authentication Middleware             │  │
 │  │  🛡️  RBAC & Permission Enforcement            │  │
@@ -165,7 +165,7 @@ DELETE /api/v1/users/:id       Delete user
 
 ### Prerequisites
 - Go 1.22 or higher
-- AllSource Rust Core v1.0 running on `localhost:8080`
+- AllSource Rust Core v1.0 running on `localhost:3900`
 - (Optional) Jaeger for distributed tracing
 
 ### Installation
@@ -288,7 +288,7 @@ The control-plane ships with 5 default security policies:
 
 ```bash
 # Register a new admin user
-curl -X POST http://localhost:8081/api/v1/auth/register \
+curl -X POST http://localhost:3901/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "admin",
@@ -298,7 +298,7 @@ curl -X POST http://localhost:8081/api/v1/auth/register \
   }'
 
 # Login to get JWT token
-TOKEN=$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:3901/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "admin",
@@ -312,11 +312,11 @@ echo "Token: $TOKEN"
 
 ```bash
 # Get current user info
-curl -X GET http://localhost:8081/api/v1/auth/me \
+curl -X GET http://localhost:3901/api/v1/auth/me \
   -H "Authorization: Bearer $TOKEN"
 
 # Get cluster status
-curl -X GET http://localhost:8081/api/v1/cluster/status \
+curl -X GET http://localhost:3901/api/v1/cluster/status \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -324,7 +324,7 @@ curl -X GET http://localhost:8081/api/v1/cluster/status \
 
 ```bash
 # Create a new tenant
-curl -X POST http://localhost:8081/api/v1/tenants \
+curl -X POST http://localhost:3901/api/v1/tenants \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -334,11 +334,11 @@ curl -X POST http://localhost:8081/api/v1/tenants \
   }'
 
 # List all tenants
-curl -X GET http://localhost:8081/api/v1/tenants \
+curl -X GET http://localhost:3901/api/v1/tenants \
   -H "Authorization: Bearer $TOKEN"
 
 # Get tenant details
-curl -X GET http://localhost:8081/api/v1/tenants/acme \
+curl -X GET http://localhost:3901/api/v1/tenants/acme \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -346,13 +346,13 @@ curl -X GET http://localhost:8081/api/v1/tenants/acme \
 
 ```bash
 # Create snapshot
-curl -X POST http://localhost:8081/api/v1/operations/snapshot \
+curl -X POST http://localhost:3901/api/v1/operations/snapshot \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}'
 
 # Trigger event replay
-curl -X POST http://localhost:8081/api/v1/operations/replay \
+curl -X POST http://localhost:3901/api/v1/operations/replay \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

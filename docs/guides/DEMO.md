@@ -65,7 +65,7 @@
 2. Run the prepared curl command:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/events \
+curl -X POST http://localhost:3900/api/v1/events \
   -H "Content-Type: application/json" \
   -d '{
     "event_type": "payment.processed",
@@ -78,7 +78,7 @@ curl -X POST http://localhost:8080/api/v1/events \
 4. Run the query:
 
 ```bash
-curl "http://localhost:8080/api/v1/entities/order-999/state" | jq '.'
+curl "http://localhost:3900/api/v1/entities/order-999/state" | jq '.'
 ```
 
 5. **Say:** "And here's the reconstructed state. The API instantly replayed all events for order-999 to build this view."

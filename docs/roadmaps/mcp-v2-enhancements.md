@@ -484,7 +484,7 @@ npm install
 ### 2. Configure Environment
 ```bash
 # .env
-ALLSOURCE_CORE_URL=http://localhost:8080
+ALLSOURCE_CORE_URL=http://localhost:3900
 ALLSOURCE_CONTROL_URL=http://localhost:8081
 ALLSOURCE_CLOJURE_URL=http://localhost:7888
 
@@ -511,7 +511,7 @@ npm run start:enhanced
       "command": "node",
       "args": ["/path/to/packages/mcp-server/dist/enhanced-index.js"],
       "env": {
-        "ALLSOURCE_CORE_URL": "http://localhost:8080",
+        "ALLSOURCE_CORE_URL": "http://localhost:3900",
         "ALLSOURCE_CLOJURE_URL": "http://localhost:7888",
         "ALLSOURCE_CONTROL_URL": "http://localhost:8081"
       }

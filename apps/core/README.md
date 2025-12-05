@@ -2,11 +2,13 @@
 
 > AI-native event store built in Rust with columnar storage, schema validation, event replay, and stream processing
 
+[![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core)
+[![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
 [![Tests](https://img.shields.io/badge/tests-250%20passing-brightgreen.svg)]()
 [![Performance](https://img.shields.io/badge/throughput-469K%20events%2Fsec-blue.svg)]()
 [![Architecture](https://img.shields.io/badge/clean%20architecture-Phase%203%20Infrastructure-success.svg)]()
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## 🎯 What is AllSource?
 
@@ -17,7 +19,34 @@ AllSource is a high-performance event store designed for modern event-sourcing a
 
 The Rust core provides blazing-fast event ingestion (469K events/sec) and sub-microsecond queries, while the Go control plane handles cluster coordination and operational tasks.
 
-**Current Version**: v0.6.0 (Rust Core - Clean Architecture Phase 2) | v0.1.0 (Go Control Plane)
+**Current Version**: v0.1.0 · [crates.io](https://crates.io/crates/allsource-core) · [docs.rs](https://docs.rs/allsource-core)
+
+## Installation
+
+`allsource-core` is distributed as a **library crate** via [crates.io](https://crates.io/crates/allsource-core).
+
+### Add to Your Project
+
+```bash
+cargo add allsource-core@0.1
+```
+
+Or add to your `Cargo.toml` (pin to minor version for stability):
+
+```toml
+[dependencies]
+# allsource-core: High-performance event store
+# Pin to minor version - allows patch updates only
+allsource-core = "0.1"
+```
+
+> **Version Pinning Best Practice**: We recommend `"0.1"` (minor version) rather than `"0.1.0"` (exact) or `"0"` (major only). This allows automatic patch updates while avoiding breaking changes.
+
+### Usage Patterns
+
+1. **Embedded Library** - Import directly into your Rust application
+2. **Standalone Server** - Build your own binary using the library
+3. **Serverless** - Deploy in AWS Lambda or similar environments
 
 ## ✨ Features
 
@@ -383,12 +412,27 @@ benches/
 
 ## 🚀 Quick Start
 
-### Installation
+### Option 1: Use as a Library (Recommended)
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+allsource-core = "0.1"  # Pin to minor version
+```
+
+Or:
+
+```bash
+cargo add allsource-core@0.1
+```
+
+### Option 2: Build from Source
 
 ```bash
 # Clone the repository
-git clone <repo-url>
-cd chronos-monorepo/services/core
+git clone https://github.com/all-source-os/chronos-monorepo.git
+cd chronos-monorepo/apps/core
 
 # Build
 cargo build --release
@@ -419,7 +463,7 @@ RUST_LOG=debug cargo run
 ### Example: Ingest Events
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/events \
+curl -X POST http://localhost:3900/api/v1/events \
   -H "Content-Type: application/json" \
   -d '{
     "event_type": "user.created",
@@ -435,19 +479,19 @@ curl -X POST http://localhost:8080/api/v1/events \
 
 ```bash
 # Get all events for an entity
-curl "http://localhost:8080/api/v1/events/query?entity_id=user-123"
+curl "http://localhost:3900/api/v1/events/query?entity_id=user-123"
 
 # Time-travel query
-curl "http://localhost:8080/api/v1/events/query?entity_id=user-123&as_of=2024-01-15T10:00:00Z"
+curl "http://localhost:3900/api/v1/events/query?entity_id=user-123&as_of=2024-01-15T10:00:00Z"
 
 # Query by type
-curl "http://localhost:8080/api/v1/events/query?event_type=user.created&limit=10"
+curl "http://localhost:3900/api/v1/events/query?event_type=user.created&limit=10"
 ```
 
 ### Example: Register Schema (v0.5)
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/schemas \
+curl -X POST http://localhost:3900/api/v1/schemas \
   -H "Content-Type: application/json" \
   -d '{
     "subject": "user.created",
@@ -465,7 +509,7 @@ curl -X POST http://localhost:8080/api/v1/schemas \
 ### Example: Start Replay (v0.5)
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/replay \
+curl -X POST http://localhost:3900/api/v1/replay \
   -H "Content-Type: application/json" \
   -d '{
     "projection_name": "user_snapshot",
@@ -480,7 +524,7 @@ curl -X POST http://localhost:8080/api/v1/replay \
 ### Example: Create Pipeline (v0.5)
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/pipelines \
+curl -X POST http://localhost:3900/api/v1/pipelines \
   -H "Content-Type: application/json" \
   -d '{
     "name": "user_analytics",
