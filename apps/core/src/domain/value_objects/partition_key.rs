@@ -76,7 +76,11 @@ impl PartitionKey {
 
 impl fmt::Display for PartitionKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "partition-{}/{}", self.partition_id, self.partition_count)
+        write!(
+            f,
+            "partition-{}/{}",
+            self.partition_id, self.partition_count
+        )
     }
 }
 

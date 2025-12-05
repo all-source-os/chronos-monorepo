@@ -1,5 +1,5 @@
-use crate::error::{AllSourceError, Result};
 use crate::domain::entities::Event;
+use crate::error::{AllSourceError, Result};
 use crate::metrics::MetricsRegistry;
 use chrono::{DateTime, Duration, Utc};
 use parking_lot::RwLock;
@@ -222,7 +222,11 @@ impl Pipeline {
     pub fn process(&self, event: &Event) -> Result<Option<JsonValue>> {
         // Check if event type matches source filter
         if !self.config.source_event_types.is_empty()
-            && !self.config.source_event_types.iter().any(|t| t == event.event_type_str())
+            && !self
+                .config
+                .source_event_types
+                .iter()
+                .any(|t| t == event.event_type_str())
         {
             return Ok(None);
         }
@@ -248,11 +252,7 @@ impl Pipeline {
                 }
                 Err(e) => {
                     self.stats.write().events_failed += 1;
-                    tracing::error!(
-                        "Pipeline {} operator failed: {}",
-                        self.config.name,
-                        e
-                    );
+                    tracing::error!("Pipeline {} operator failed: {}", self.config.name, e);
                     return Err(e);
                 }
             }
@@ -278,25 +278,26 @@ impl Pipeline {
         event: &Event,
     ) -> Result<Option<JsonValue>> {
         match operator {
-            PipelineOperator::Filter { field, value: expected, op } => {
-                self.apply_filter(field, expected, op, value)
-            }
+            PipelineOperator::Filter {
+                field,
+                value: expected,
+                op,
+            } => self.apply_filter(field, expected, op, value),
 
-            PipelineOperator::Map { field, transform } => {
-                self.apply_map(field, transform, value)
-            }
+            PipelineOperator::Map { field, transform } => self.apply_map(field, transform, value),
 
-            PipelineOperator::Reduce { field, function, group_by } => {
-                self.apply_reduce(field, function, group_by.as_deref(), value, event)
-            }
+            PipelineOperator::Reduce {
+                field,
+                function,
+                group_by,
+            } => self.apply_reduce(field, function, group_by.as_deref(), value, event),
 
-            PipelineOperator::Window { config, aggregation } => {
-                self.apply_window(config, aggregation, event)
-            }
+            PipelineOperator::Window {
+                config,
+                aggregation,
+            } => self.apply_window(config, aggregation, event),
 
-            PipelineOperator::Enrich { source, fields } => {
-                self.apply_enrich(source, fields, value)
-            }
+            PipelineOperator::Enrich { source, fields } => self.apply_enrich(source, fields, value),
 
             PipelineOperator::Branch { field, branches } => {
                 self.apply_branch(field, branches, value)
@@ -318,21 +319,27 @@ impl Pipeline {
             "eq" => field_value == Some(expected),
             "ne" => field_value != Some(expected),
             "gt" => {
-                if let (Some(JsonValue::Number(a)), JsonValue::Number(b)) = (field_value.as_ref(), expected) {
+                if let (Some(JsonValue::Number(a)), JsonValue::Number(b)) =
+                    (field_value.as_ref(), expected)
+                {
                     a.as_f64().unwrap_or(0.0) > b.as_f64().unwrap_or(0.0)
                 } else {
                     false
                 }
             }
             "lt" => {
-                if let (Some(JsonValue::Number(a)), JsonValue::Number(b)) = (field_value.as_ref(), expected) {
+                if let (Some(JsonValue::Number(a)), JsonValue::Number(b)) =
+                    (field_value.as_ref(), expected)
+                {
                     a.as_f64().unwrap_or(0.0) < b.as_f64().unwrap_or(0.0)
                 } else {
                     false
                 }
             }
             "contains" => {
-                if let (Some(JsonValue::String(a)), JsonValue::String(b)) = (field_value.as_ref(), expected) {
+                if let (Some(JsonValue::String(a)), JsonValue::String(b)) =
+                    (field_value.as_ref(), expected)
+                {
                     a.contains(b)
                 } else {
                     false
@@ -366,40 +373,30 @@ impl Pipeline {
         let field_value = self.get_field(value, field);
 
         let transformed = match transform {
-            "uppercase" => {
-                field_value
-                    .and_then(|v| v.as_str())
-                    .map(|s| JsonValue::String(s.to_uppercase()))
-            }
-            "lowercase" => {
-                field_value
-                    .and_then(|v| v.as_str())
-                    .map(|s| JsonValue::String(s.to_lowercase()))
-            }
-            "trim" => {
-                field_value
-                    .and_then(|v| v.as_str())
-                    .map(|s| JsonValue::String(s.trim().to_string()))
-            }
+            "uppercase" => field_value
+                .and_then(|v| v.as_str())
+                .map(|s| JsonValue::String(s.to_uppercase())),
+            "lowercase" => field_value
+                .and_then(|v| v.as_str())
+                .map(|s| JsonValue::String(s.to_lowercase())),
+            "trim" => field_value
+                .and_then(|v| v.as_str())
+                .map(|s| JsonValue::String(s.trim().to_string())),
             _ => {
                 // Try to parse as number operation
                 if let Some(stripped) = transform.strip_prefix("multiply:") {
                     if let Ok(multiplier) = stripped.parse::<f64>() {
-                        field_value
-                            .and_then(|v| v.as_f64())
-                            .map(|n| JsonValue::Number(
-                                serde_json::Number::from_f64(n * multiplier).unwrap()
-                            ))
+                        field_value.and_then(|v| v.as_f64()).map(|n| {
+                            JsonValue::Number(serde_json::Number::from_f64(n * multiplier).unwrap())
+                        })
                     } else {
                         None
                     }
                 } else if let Some(stripped) = transform.strip_prefix("add:") {
                     if let Ok(addend) = stripped.parse::<f64>() {
-                        field_value
-                            .and_then(|v| v.as_f64())
-                            .map(|n| JsonValue::Number(
-                                serde_json::Number::from_f64(n + addend).unwrap()
-                            ))
+                        field_value.and_then(|v| v.as_f64()).map(|n| {
+                            JsonValue::Number(serde_json::Number::from_f64(n + addend).unwrap())
+                        })
                     } else {
                         None
                     }
@@ -445,45 +442,41 @@ impl Pipeline {
 
         let new_value = match function {
             "count" => {
-                let count = current
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) + 1;
+                let count = current.and_then(|v| v.as_u64()).unwrap_or(0) + 1;
                 JsonValue::Number(count.into())
             }
             "sum" => {
-                let current_sum = current
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                let value_to_add = field_value
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                JsonValue::Number(
-                    serde_json::Number::from_f64(current_sum + value_to_add).unwrap()
-                )
+                let current_sum = current.and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let value_to_add = field_value.and_then(|v| v.as_f64()).unwrap_or(0.0);
+                JsonValue::Number(serde_json::Number::from_f64(current_sum + value_to_add).unwrap())
             }
             "avg" => {
                 // Store sum and count separately
                 let sum_key = format!("{}_sum", state_key);
                 let count_key = format!("{}_count", state_key);
 
-                let current_sum = self.state.get_state(&sum_key)
+                let current_sum = self
+                    .state
+                    .get_state(&sum_key)
                     .and_then(|v| v.as_f64())
                     .unwrap_or(0.0);
-                let current_count = self.state.get_state(&count_key)
+                let current_count = self
+                    .state
+                    .get_state(&count_key)
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
 
-                let value_to_add = field_value
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
+                let value_to_add = field_value.and_then(|v| v.as_f64()).unwrap_or(0.0);
 
                 let new_sum = current_sum + value_to_add;
                 let new_count = current_count + 1;
 
-                self.state.set_state(sum_key, JsonValue::Number(
-                    serde_json::Number::from_f64(new_sum).unwrap()
-                ));
-                self.state.set_state(count_key, JsonValue::Number(new_count.into()));
+                self.state.set_state(
+                    sum_key,
+                    JsonValue::Number(serde_json::Number::from_f64(new_sum).unwrap()),
+                );
+                self.state
+                    .set_state(count_key, JsonValue::Number(new_count.into()));
 
                 let avg = new_sum / new_count as f64;
                 JsonValue::Number(serde_json::Number::from_f64(avg).unwrap())
@@ -493,15 +486,15 @@ impl Pipeline {
                 let new_val = field_value.and_then(|v| v.as_f64());
 
                 match (current_min, new_val) {
-                    (Some(curr), Some(new)) => JsonValue::Number(
-                        serde_json::Number::from_f64(curr.min(new)).unwrap()
-                    ),
-                    (None, Some(new)) => JsonValue::Number(
-                        serde_json::Number::from_f64(new).unwrap()
-                    ),
-                    (Some(curr), None) => JsonValue::Number(
-                        serde_json::Number::from_f64(curr).unwrap()
-                    ),
+                    (Some(curr), Some(new)) => {
+                        JsonValue::Number(serde_json::Number::from_f64(curr.min(new)).unwrap())
+                    }
+                    (None, Some(new)) => {
+                        JsonValue::Number(serde_json::Number::from_f64(new).unwrap())
+                    }
+                    (Some(curr), None) => {
+                        JsonValue::Number(serde_json::Number::from_f64(curr).unwrap())
+                    }
                     (None, None) => JsonValue::Null,
                 }
             }
@@ -510,15 +503,15 @@ impl Pipeline {
                 let new_val = field_value.and_then(|v| v.as_f64());
 
                 match (current_max, new_val) {
-                    (Some(curr), Some(new)) => JsonValue::Number(
-                        serde_json::Number::from_f64(curr.max(new)).unwrap()
-                    ),
-                    (None, Some(new)) => JsonValue::Number(
-                        serde_json::Number::from_f64(new).unwrap()
-                    ),
-                    (Some(curr), None) => JsonValue::Number(
-                        serde_json::Number::from_f64(curr).unwrap()
-                    ),
+                    (Some(curr), Some(new)) => {
+                        JsonValue::Number(serde_json::Number::from_f64(curr.max(new)).unwrap())
+                    }
+                    (None, Some(new)) => {
+                        JsonValue::Number(serde_json::Number::from_f64(new).unwrap())
+                    }
+                    (Some(curr), None) => {
+                        JsonValue::Number(serde_json::Number::from_f64(curr).unwrap())
+                    }
                     (None, None) => JsonValue::Null,
                 }
             }
@@ -554,7 +547,8 @@ impl Pipeline {
         let now = Utc::now();
 
         // Add event to window
-        self.state.add_to_window(&window_key, event.clone(), event.timestamp);
+        self.state
+            .add_to_window(&window_key, event.clone(), event.timestamp);
 
         // Evict expired events based on window type
         let cutoff = match config.window_type {
@@ -577,7 +571,9 @@ impl Pipeline {
         // Apply aggregation to window
         let mut aggregate_value = JsonValue::Null;
         for window_event in &window_events {
-            if let Ok(Some(result)) = self.apply_operator(aggregation, &window_event.payload, window_event) {
+            if let Ok(Some(result)) =
+                self.apply_operator(aggregation, &window_event.payload, window_event)
+            {
                 aggregate_value = result;
             }
         }
@@ -658,7 +654,9 @@ impl Pipeline {
         let mut current = value;
         for part in &parts[..parts.len() - 1] {
             if let JsonValue::Object(ref mut obj) = current {
-                current = obj.entry(part.to_string()).or_insert(JsonValue::Object(Default::default()));
+                current = obj
+                    .entry(part.to_string())
+                    .or_insert(JsonValue::Object(Default::default()));
             }
         }
 
@@ -739,7 +737,8 @@ impl PipelineManager {
 
             match pipeline.process(event) {
                 Ok(Some(result)) => {
-                    self.metrics.pipeline_events_processed
+                    self.metrics
+                        .pipeline_events_processed
                         .with_label_values(&[&pipeline_id, pipeline_name])
                         .inc();
                     results.push((*id, result));
@@ -748,7 +747,8 @@ impl PipelineManager {
                     // Event filtered out or didn't match - not an error
                 }
                 Err(e) => {
-                    self.metrics.pipeline_errors_total
+                    self.metrics
+                        .pipeline_errors_total
                         .with_label_values(&[pipeline_name])
                         .inc();
                     tracing::error!(
@@ -788,11 +788,7 @@ impl PipelineManager {
 
     /// Get statistics for all pipelines
     pub fn all_stats(&self) -> Vec<PipelineStats> {
-        self.pipelines
-            .read()
-            .values()
-            .map(|p| p.stats())
-            .collect()
+        self.pipelines.read().values().map(|p| p.stats()).collect()
     }
 }
 
@@ -830,7 +826,8 @@ mod tests {
             "default".to_string(),
             json!({"status": "active"}),
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let result = pipeline.process(&event).unwrap();
         assert!(result.is_some());
@@ -858,7 +855,8 @@ mod tests {
             "default".to_string(),
             json!({"name": "hello"}),
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let result = pipeline.process(&event).unwrap().unwrap();
         assert_eq!(result["name"], "HELLO");
@@ -889,17 +887,24 @@ mod tests {
                 "default".to_string(),
                 json!({"value": i}),
                 None,
-            ).unwrap();
+            )
+            .unwrap();
             pipeline.process(&event).unwrap();
         }
 
-        let result = pipeline.process(&Event::from_strings(
-            "test".to_string(),
-            "entity1".to_string(),
-            "default".to_string(),
-            json!({"value": 5}),
-            None,
-        ).unwrap()).unwrap().unwrap();
+        let result = pipeline
+            .process(
+                &Event::from_strings(
+                    "test".to_string(),
+                    "entity1".to_string(),
+                    "default".to_string(),
+                    json!({"value": 5}),
+                    None,
+                )
+                .unwrap(),
+            )
+            .unwrap()
+            .unwrap();
 
         assert_eq!(result["value"], 6);
     }

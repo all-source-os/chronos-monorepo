@@ -6,18 +6,18 @@
 #[cfg(feature = "postgres")]
 use async_trait::async_trait;
 #[cfg(feature = "postgres")]
-use sqlx::{PgPool, Row};
-#[cfg(feature = "postgres")]
 use chrono::{DateTime, Utc};
 #[cfg(feature = "postgres")]
 use serde_json::Value as JsonValue;
+#[cfg(feature = "postgres")]
+use sqlx::{PgPool, Row};
 
 #[cfg(feature = "postgres")]
 use crate::domain::entities::{
-    AuditEvent, AuditEventId, AuditAction, AuditCategory, AuditOutcome, Actor,
+    Actor, AuditAction, AuditCategory, AuditEvent, AuditEventId, AuditOutcome,
 };
 #[cfg(feature = "postgres")]
-use crate::domain::repositories::{AuditEventRepository, AuditEventQuery};
+use crate::domain::repositories::{AuditEventQuery, AuditEventRepository};
 #[cfg(feature = "postgres")]
 use crate::domain::value_objects::TenantId;
 #[cfg(feature = "postgres")]
@@ -48,21 +48,15 @@ impl PostgresAuditRepository {
     /// Helper: Convert Actor to database format
     fn serialize_actor(actor: &Actor) -> (String, String, String) {
         match actor {
-            Actor::User { user_id, username } => (
-                "user".to_string(),
-                user_id.clone(),
-                username.clone(),
-            ),
-            Actor::ApiKey { key_id, key_name } => (
-                "api_key".to_string(),
-                key_id.clone(),
-                key_name.clone(),
-            ),
-            Actor::System { component } => (
-                "system".to_string(),
-                component.clone(),
-                component.clone(),
-            ),
+            Actor::User { user_id, username } => {
+                ("user".to_string(), user_id.clone(), username.clone())
+            }
+            Actor::ApiKey { key_id, key_name } => {
+                ("api_key".to_string(), key_id.clone(), key_name.clone())
+            }
+            Actor::System { component } => {
+                ("system".to_string(), component.clone(), component.clone())
+            }
         }
     }
 
@@ -125,35 +119,44 @@ impl PostgresAuditRepository {
 
     /// Helper: Reconstruct AuditEvent from database row
     fn row_to_audit_event(row: &sqlx::postgres::PgRow) -> Result<AuditEvent> {
-        let id: uuid::Uuid = row.try_get("id")
+        let id: uuid::Uuid = row
+            .try_get("id")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get id: {}", e)))?;
 
-        let tenant_id_str: String = row.try_get("tenant_id")
+        let tenant_id_str: String = row
+            .try_get("tenant_id")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get tenant_id: {}", e)))?;
         let tenant_id = TenantId::new(tenant_id_str)?;
 
-        let timestamp: DateTime<Utc> = row.try_get("timestamp")
+        let timestamp: DateTime<Utc> = row
+            .try_get("timestamp")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get timestamp: {}", e)))?;
 
-        let action_str: String = row.try_get("action")
+        let action_str: String = row
+            .try_get("action")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get action: {}", e)))?;
         let action = Self::string_to_action(&action_str)?;
 
-        let actor_type: String = row.try_get("actor_type")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get actor_type: {}", e)))?;
-        let actor_id: String = row.try_get("actor_id")
+        let actor_type: String = row.try_get("actor_type").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get actor_type: {}", e))
+        })?;
+        let actor_id: String = row
+            .try_get("actor_id")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get actor_id: {}", e)))?;
-        let actor_name: String = row.try_get("actor_name")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get actor_name: {}", e)))?;
+        let actor_name: String = row.try_get("actor_name").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get actor_name: {}", e))
+        })?;
         let actor = Self::deserialize_actor(&actor_type, actor_id, actor_name)?;
 
-        let outcome_str: String = row.try_get("outcome")
+        let outcome_str: String = row
+            .try_get("outcome")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get outcome: {}", e)))?;
         let outcome = Self::string_to_outcome(&outcome_str)?;
 
         let resource_type: Option<String> = row.try_get("resource_type").ok();
         let resource_id: Option<String> = row.try_get("resource_id").ok();
-        let ip_address: Option<String> = row.try_get::<Option<std::net::IpAddr>, _>("ip_address")
+        let ip_address: Option<String> = row
+            .try_get::<Option<std::net::IpAddr>, _>("ip_address")
             .ok()
             .flatten()
             .map(|ip| ip.to_string());
@@ -202,8 +205,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         let category_str = format!("{:?}", event.category()).to_lowercase();
         let outcome_str = Self::outcome_to_string(event.outcome());
 
-        let ip_addr: Option<std::net::IpAddr> = event.ip_address()
-            .and_then(|s| s.parse().ok());
+        let ip_addr: Option<std::net::IpAddr> = event.ip_address().and_then(|s| s.parse().ok());
 
         sqlx::query(
             r#"
@@ -234,22 +236,24 @@ impl AuditEventRepository for PostgresAuditRepository {
         .bind(event.metadata())
         .execute(&self.pool)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to append audit event: {}", e)))?;
+        .map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to append audit event: {}", e))
+        })?;
 
         Ok(())
     }
 
     async fn append_batch(&self, events: Vec<AuditEvent>) -> Result<()> {
-        let mut tx = self.pool.begin().await
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to begin transaction: {}", e)))?;
+        let mut tx = self.pool.begin().await.map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to begin transaction: {}", e))
+        })?;
 
         for event in events {
             let (actor_type, actor_id, actor_name) = Self::serialize_actor(event.actor());
             let action_str = Self::action_to_string(event.action());
             let category_str = format!("{:?}", event.category()).to_lowercase();
             let outcome_str = Self::outcome_to_string(event.outcome());
-            let ip_addr: Option<std::net::IpAddr> = event.ip_address()
-                .and_then(|s| s.parse().ok());
+            let ip_addr: Option<std::net::IpAddr> = event.ip_address().and_then(|s| s.parse().ok());
 
             sqlx::query(
                 r#"
@@ -280,11 +284,14 @@ impl AuditEventRepository for PostgresAuditRepository {
             .bind(event.metadata())
             .execute(&mut *tx)
             .await
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to append audit event: {}", e)))?;
+            .map_err(|e| {
+                AllSourceError::StorageError(format!("Failed to append audit event: {}", e))
+            })?;
         }
 
-        tx.commit().await
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to commit transaction: {}", e)))?;
+        tx.commit().await.map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to commit transaction: {}", e))
+        })?;
 
         Ok(())
     }
@@ -307,9 +314,7 @@ impl AuditEventRepository for PostgresAuditRepository {
     }
 
     async fn query(&self, query: AuditEventQuery) -> Result<Vec<AuditEvent>> {
-        let mut sql = String::from(
-            "SELECT * FROM audit_events WHERE tenant_id = $1"
-        );
+        let mut sql = String::from("SELECT * FROM audit_events WHERE tenant_id = $1");
         let mut param_count = 1;
 
         // Build dynamic query
@@ -357,8 +362,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         }
 
         // Build query with parameters
-        let mut db_query = sqlx::query(&sql)
-            .bind(query.tenant_id.as_str());
+        let mut db_query = sqlx::query(&sql).bind(query.tenant_id.as_str());
 
         if let Some(start) = query.start_time {
             db_query = db_query.bind(start);
@@ -390,10 +394,9 @@ impl AuditEventRepository for PostgresAuditRepository {
             db_query = db_query.bind(offset as i64);
         }
 
-        let rows = db_query
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to query audit events: {}", e)))?;
+        let rows = db_query.fetch_all(&self.pool).await.map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to query audit events: {}", e))
+        })?;
 
         let mut events = Vec::new();
         for row in rows {
@@ -404,9 +407,7 @@ impl AuditEventRepository for PostgresAuditRepository {
     }
 
     async fn count(&self, query: AuditEventQuery) -> Result<usize> {
-        let mut sql = String::from(
-            "SELECT COUNT(*) FROM audit_events WHERE tenant_id = $1"
-        );
+        let mut sql = String::from("SELECT COUNT(*) FROM audit_events WHERE tenant_id = $1");
         let mut param_count = 1;
 
         // Build dynamic query (same logic as query())
@@ -430,8 +431,7 @@ impl AuditEventRepository for PostgresAuditRepository {
             sql.push_str(" AND action IN ('login_failed', 'permission_denied', 'rate_limit_exceeded', 'ip_blocked', 'suspicious_activity')");
         }
 
-        let mut db_query = sqlx::query(&sql)
-            .bind(query.tenant_id.as_str());
+        let mut db_query = sqlx::query(&sql).bind(query.tenant_id.as_str());
 
         if let Some(start) = query.start_time {
             db_query = db_query.bind(start);
@@ -446,12 +446,12 @@ impl AuditEventRepository for PostgresAuditRepository {
             db_query = db_query.bind(format!("{:?}", category).to_lowercase());
         }
 
-        let row = db_query
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to count audit events: {}", e)))?;
+        let row = db_query.fetch_one(&self.pool).await.map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to count audit events: {}", e))
+        })?;
 
-        let count: i64 = row.try_get(0)
+        let count: i64 = row
+            .try_get(0)
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get count: {}", e)))?;
 
         Ok(count as usize)
@@ -463,8 +463,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         limit: usize,
         offset: usize,
     ) -> Result<Vec<AuditEvent>> {
-        let query = AuditEventQuery::new(tenant_id.clone())
-            .with_pagination(limit, offset);
+        let query = AuditEventQuery::new(tenant_id.clone()).with_pagination(limit, offset);
         self.query(query).await
     }
 
@@ -506,7 +505,9 @@ impl AuditEventRepository for PostgresAuditRepository {
         .bind(older_than)
         .execute(&self.pool)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to purge audit events: {}", e)))?;
+        .map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to purge audit events: {}", e))
+        })?;
 
         Ok(result.rows_affected() as usize)
     }

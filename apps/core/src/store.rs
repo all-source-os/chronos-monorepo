@@ -1,13 +1,11 @@
+use crate::application::dto::QueryEventsRequest;
 use crate::compaction::{CompactionConfig, CompactionManager};
 use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
-use crate::application::dto::QueryEventsRequest;
 use crate::index::{EventIndex, IndexEntry};
 use crate::metrics::MetricsRegistry;
 use crate::pipeline::PipelineManager;
-use crate::projection::{
-    EntitySnapshotProjection, EventCounterProjection, ProjectionManager,
-};
+use crate::projection::{EntitySnapshotProjection, EventCounterProjection, ProjectionManager};
 use crate::replay::ReplayManager;
 use crate::schema::{SchemaRegistry, SchemaRegistryConfig};
 use crate::snapshot::{SnapshotConfig, SnapshotManager, SnapshotType};
@@ -76,8 +74,10 @@ impl EventStore {
         projections.register(Arc::new(EventCounterProjection::new("event_counters")));
 
         // Initialize persistent storage if configured
-        let storage = config.storage_dir.as_ref().and_then(|dir| {
-            match ParquetStorage::new(dir) {
+        let storage = config
+            .storage_dir
+            .as_ref()
+            .and_then(|dir| match ParquetStorage::new(dir) {
                 Ok(storage) => {
                     tracing::info!("✅ Parquet persistence enabled at: {}", dir.display());
                     Some(Arc::new(RwLock::new(storage)))
@@ -86,8 +86,7 @@ impl EventStore {
                     tracing::error!("❌ Failed to initialize Parquet storage: {}", e);
                     None
                 }
-            }
-        });
+            });
 
         // Initialize WAL if configured (v0.2 feature)
         let wal = config.wal_dir.as_ref().and_then(|dir| {
@@ -146,7 +145,10 @@ impl EventStore {
         if let Some(ref wal) = store.wal {
             match wal.recover() {
                 Ok(recovered_events) if !recovered_events.is_empty() => {
-                    tracing::info!("🔄 Recovering {} events from WAL...", recovered_events.len());
+                    tracing::info!(
+                        "🔄 Recovering {} events from WAL...",
+                        recovered_events.len()
+                    );
 
                     for event in recovered_events {
                         // Re-index and process events from WAL
@@ -302,14 +304,16 @@ impl EventStore {
         drop(events); // Release lock early
 
         // Broadcast to WebSocket clients (v0.2 feature)
-        self.websocket_manager.broadcast_event(Arc::new(event.clone()));
+        self.websocket_manager
+            .broadcast_event(Arc::new(event.clone()));
 
         // Check if automatic snapshot should be created (v0.2 feature)
         self.check_auto_snapshot(event.entity_id_str(), &event);
 
         // Update metrics (v0.6 feature)
         self.metrics.events_ingested_total.inc();
-        self.metrics.events_ingested_by_type
+        self.metrics
+            .events_ingested_by_type
             .with_label_values(&[event.event_type_str()])
             .inc();
         self.metrics.storage_events_total.set(total_events as i64);
@@ -320,11 +324,7 @@ impl EventStore {
 
         timer.observe_duration();
 
-        tracing::debug!(
-            "Event ingested: {} (offset: {})",
-            event.id,
-            offset
-        );
+        tracing::debug!("Event ingested: {} (offset: {})", event.id, offset);
 
         Ok(())
     }
@@ -471,12 +471,15 @@ impl EventStore {
         };
 
         // Start metrics timer (v0.6 feature)
-        let timer = self.metrics.query_duration_seconds
+        let timer = self
+            .metrics
+            .query_duration_seconds
             .with_label_values(&[query_type])
             .start_timer();
 
         // Increment query counter (v0.6 feature)
-        self.metrics.queries_total
+        self.metrics
+            .queries_total
             .with_label_values(&[query_type])
             .inc();
 
@@ -516,7 +519,8 @@ impl EventStore {
         }
 
         // Record query results count (v0.6 feature)
-        self.metrics.query_results_total
+        self.metrics
+            .query_results_total
             .with_label_values(&[query_type])
             .inc_by(results.len() as u64);
 
@@ -576,7 +580,10 @@ impl EventStore {
         // Try to find a snapshot to use as a base (v0.2 optimization)
         let (merged_state, since_timestamp) = if let Some(as_of_time) = as_of {
             // Get snapshot closest to requested time
-            if let Some(snapshot) = self.snapshot_manager.get_snapshot_as_of(entity_id, as_of_time) {
+            if let Some(snapshot) = self
+                .snapshot_manager
+                .get_snapshot_as_of(entity_id, as_of_time)
+            {
                 tracing::debug!(
                     "Using snapshot from {} for entity {} (saved {} events)",
                     snapshot.as_of,

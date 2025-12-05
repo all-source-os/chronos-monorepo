@@ -1,3 +1,4 @@
+pub mod adaptive_rate_limit;
 /// Advanced Security Module
 ///
 /// Comprehensive security features including:
@@ -6,37 +7,33 @@
 /// - HSM/KMS integration
 /// - Adaptive rate limiting
 /// - Security automation and CI/CD scanning
-
 pub mod anomaly_detection;
+pub mod automation;
 pub mod encryption;
 pub mod kms;
-pub mod adaptive_rate_limit;
-pub mod automation;
 
 // Re-export main types
 pub use anomaly_detection::{
-    AnomalyDetector, AnomalyDetectionConfig, AnomalyResult, AnomalyType,
-    RecommendedAction, DetectionStats,
+    AnomalyDetectionConfig, AnomalyDetector, AnomalyResult, AnomalyType, DetectionStats,
+    RecommendedAction,
 };
 
 pub use encryption::{
-    FieldEncryption, EncryptionConfig, EncryptedData, EncryptionAlgorithm,
-    Encryptable, encrypt_json_value, decrypt_json_value, EncryptionStats,
+    decrypt_json_value, encrypt_json_value, Encryptable, EncryptedData, EncryptionAlgorithm,
+    EncryptionConfig, EncryptionStats, FieldEncryption,
 };
 
 pub use kms::{
-    KmsManager, KmsConfig, KmsProvider, KmsClient, LocalKms,
-    KeyMetadata, KeyPurpose, KeyAlgorithm, KeyStatus,
-    EnvelopeEncryptedData,
+    EnvelopeEncryptedData, KeyAlgorithm, KeyMetadata, KeyPurpose, KeyStatus, KmsClient, KmsConfig,
+    KmsManager, KmsProvider, LocalKms,
 };
 
 pub use adaptive_rate_limit::{
-    AdaptiveRateLimiter, AdaptiveRateLimitConfig, SystemLoad,
-    AdaptiveLimitStats, AdaptiveRateLimiterStats,
+    AdaptiveLimitStats, AdaptiveRateLimitConfig, AdaptiveRateLimiter, AdaptiveRateLimiterStats,
+    SystemLoad,
 };
 
 pub use automation::{
-    SecurityScanner, SecurityScanConfig, SecurityScanResult,
-    ScanStatus, SecurityFinding, Severity, FindingCategory,
-    ScanSummary, CiCdIntegration,
+    CiCdIntegration, FindingCategory, ScanStatus, ScanSummary, SecurityFinding, SecurityScanConfig,
+    SecurityScanResult, SecurityScanner, Severity,
 };

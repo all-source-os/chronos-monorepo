@@ -453,26 +453,22 @@ impl Tenant {
         if !self.quotas.is_unlimited(QuotaResource::EventsPerDay)
             && self.usage.events_today() >= self.quotas.max_events_per_day()
         {
-            return Err(crate::error::AllSourceError::ValidationError(
-                format!(
-                    "Daily event quota exceeded: {}/{}",
-                    self.usage.events_today(),
-                    self.quotas.max_events_per_day()
-                ),
-            ));
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "Daily event quota exceeded: {}/{}",
+                self.usage.events_today(),
+                self.quotas.max_events_per_day()
+            )));
         }
 
         // Check storage quota
         if !self.quotas.is_unlimited(QuotaResource::StorageBytes)
             && self.usage.storage_bytes() >= self.quotas.max_storage_bytes()
         {
-            return Err(crate::error::AllSourceError::ValidationError(
-                format!(
-                    "Storage quota exceeded: {}/{}",
-                    self.usage.storage_bytes(),
-                    self.quotas.max_storage_bytes()
-                ),
-            ));
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "Storage quota exceeded: {}/{}",
+                self.usage.storage_bytes(),
+                self.quotas.max_storage_bytes()
+            )));
         }
 
         Ok(())
@@ -492,13 +488,11 @@ impl Tenant {
         if !self.quotas.is_unlimited(QuotaResource::QueriesPerHour)
             && self.usage.queries_this_hour() >= self.quotas.max_queries_per_hour()
         {
-            return Err(crate::error::AllSourceError::ValidationError(
-                format!(
-                    "Hourly query quota exceeded: {}/{}",
-                    self.usage.queries_this_hour(),
-                    self.quotas.max_queries_per_hour()
-                ),
-            ));
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "Hourly query quota exceeded: {}/{}",
+                self.usage.queries_this_hour(),
+                self.quotas.max_queries_per_hour()
+            )));
         }
 
         Ok(())
@@ -515,13 +509,11 @@ impl Tenant {
         if !self.quotas.is_unlimited(QuotaResource::ApiKeys)
             && self.usage.active_api_keys() >= self.quotas.max_api_keys()
         {
-            return Err(crate::error::AllSourceError::ValidationError(
-                format!(
-                    "API key quota exceeded: {}/{}",
-                    self.usage.active_api_keys(),
-                    self.quotas.max_api_keys()
-                ),
-            ));
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "API key quota exceeded: {}/{}",
+                self.usage.active_api_keys(),
+                self.quotas.max_api_keys()
+            )));
         }
 
         Ok(())
@@ -538,13 +530,11 @@ impl Tenant {
         if !self.quotas.is_unlimited(QuotaResource::Projections)
             && self.usage.active_projections() >= self.quotas.max_projections()
         {
-            return Err(crate::error::AllSourceError::ValidationError(
-                format!(
-                    "Projection quota exceeded: {}/{}",
-                    self.usage.active_projections(),
-                    self.quotas.max_projections()
-                ),
-            ));
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "Projection quota exceeded: {}/{}",
+                self.usage.active_projections(),
+                self.quotas.max_projections()
+            )));
         }
 
         Ok(())
@@ -561,13 +551,11 @@ impl Tenant {
         if !self.quotas.is_unlimited(QuotaResource::Pipelines)
             && self.usage.active_pipelines() >= self.quotas.max_pipelines()
         {
-            return Err(crate::error::AllSourceError::ValidationError(
-                format!(
-                    "Pipeline quota exceeded: {}/{}",
-                    self.usage.active_pipelines(),
-                    self.quotas.max_pipelines()
-                ),
-            ));
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "Pipeline quota exceeded: {}/{}",
+                self.usage.active_pipelines(),
+                self.quotas.max_pipelines()
+            )));
         }
 
         Ok(())
@@ -589,9 +577,10 @@ impl Tenant {
         }
 
         if name.len() > 100 {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Tenant name cannot exceed 100 characters, got {}", name.len()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Tenant name cannot exceed 100 characters, got {}",
+                name.len()
+            )));
         }
 
         Ok(())
@@ -623,11 +612,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_name() {
-        let result = Tenant::new(
-            test_tenant_id(),
-            "".to_string(),
-            TenantQuotas::standard(),
-        );
+        let result = Tenant::new(test_tenant_id(), "".to_string(), TenantQuotas::standard());
 
         assert!(result.is_err());
     }
@@ -635,11 +620,7 @@ mod tests {
     #[test]
     fn test_reject_too_long_name() {
         let long_name = "a".repeat(101);
-        let result = Tenant::new(
-            test_tenant_id(),
-            long_name,
-            TenantQuotas::standard(),
-        );
+        let result = Tenant::new(test_tenant_id(), long_name, TenantQuotas::standard());
 
         assert!(result.is_err());
     }

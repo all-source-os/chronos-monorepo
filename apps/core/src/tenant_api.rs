@@ -1,10 +1,6 @@
 use crate::middleware::{Admin, Authenticated};
 use crate::tenant::{Tenant, TenantQuotas};
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 
 // AppState is defined in api_v1.rs
@@ -101,7 +97,12 @@ pub async fn get_tenant_handler(
     if tenant_id != auth_ctx.tenant_id() {
         auth_ctx
             .require_permission(crate::auth::Permission::Admin)
-            .map_err(|_| (StatusCode::FORBIDDEN, "Can only view own tenant".to_string()))?;
+            .map_err(|_| {
+                (
+                    StatusCode::FORBIDDEN,
+                    "Can only view own tenant".to_string(),
+                )
+            })?;
     }
 
     let tenant = state
@@ -133,7 +134,12 @@ pub async fn get_tenant_stats_handler(
     if tenant_id != auth_ctx.tenant_id() {
         auth_ctx
             .require_permission(crate::auth::Permission::Admin)
-            .map_err(|_| (StatusCode::FORBIDDEN, "Can only view own tenant stats".to_string()))?;
+            .map_err(|_| {
+                (
+                    StatusCode::FORBIDDEN,
+                    "Can only view own tenant stats".to_string(),
+                )
+            })?;
     }
 
     let stats = state

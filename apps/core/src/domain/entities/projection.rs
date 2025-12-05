@@ -1,4 +1,4 @@
-use crate::domain::value_objects::{TenantId, EventType};
+use crate::domain::value_objects::{EventType, TenantId};
 use crate::error::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -346,9 +346,10 @@ impl Projection {
     /// Start the projection
     pub fn start(&mut self) -> Result<()> {
         if !self.status.can_start() {
-            return Err(crate::error::AllSourceError::ValidationError(
-                format!("Cannot start projection in status {:?}", self.status),
-            ));
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "Cannot start projection in status {:?}",
+                self.status
+            )));
         }
 
         self.status = ProjectionStatus::Running;
@@ -360,9 +361,10 @@ impl Projection {
     /// Pause the projection
     pub fn pause(&mut self) -> Result<()> {
         if !self.status.can_pause() {
-            return Err(crate::error::AllSourceError::ValidationError(
-                format!("Cannot pause projection in status {:?}", self.status),
-            ));
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "Cannot pause projection in status {:?}",
+                self.status
+            )));
         }
 
         self.status = ProjectionStatus::Paused;
@@ -373,9 +375,10 @@ impl Projection {
     /// Stop the projection
     pub fn stop(&mut self) -> Result<()> {
         if !self.status.can_stop() {
-            return Err(crate::error::AllSourceError::ValidationError(
-                format!("Cannot stop projection in status {:?}", self.status),
-            ));
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "Cannot stop projection in status {:?}",
+                self.status
+            )));
         }
 
         self.status = ProjectionStatus::Stopped;
@@ -415,9 +418,10 @@ impl Projection {
     /// Add event type filter
     pub fn add_event_type(&mut self, event_type: EventType) -> Result<()> {
         if self.event_types.contains(&event_type) {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Event type '{}' already in filter", event_type.as_str()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Event type '{}' already in filter",
+                event_type.as_str()
+            )));
         }
 
         self.event_types.push(event_type);
@@ -431,9 +435,10 @@ impl Projection {
         self.event_types.retain(|et| et != event_type);
 
         if self.event_types.len() == initial_len {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Event type '{}' not in filter", event_type.as_str()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Event type '{}' not in filter",
+                event_type.as_str()
+            )));
         }
 
         self.updated_at = Utc::now();
@@ -488,16 +493,21 @@ impl Projection {
         }
 
         if name.len() > 100 {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Projection name cannot exceed 100 characters, got {}", name.len()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Projection name cannot exceed 100 characters, got {}",
+                name.len()
+            )));
         }
 
         // Name should be alphanumeric with underscores/hyphens
-        if !name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Projection name '{}' must be alphanumeric with underscores or hyphens", name),
-            ));
+        if !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Projection name '{}' must be alphanumeric with underscores or hyphens",
+                name
+            )));
         }
 
         Ok(())
@@ -514,9 +524,10 @@ impl Projection {
 
     fn validate_description(description: &str) -> Result<()> {
         if description.len() > 1000 {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Projection description cannot exceed 1000 characters, got {}", description.len()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Projection description cannot exceed 1000 characters, got {}",
+                description.len()
+            )));
         }
         Ok(())
     }
@@ -567,12 +578,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_name() {
-        let result = Projection::new(
-            test_tenant_id(),
-            "".to_string(),
-            1,
-            ProjectionType::Custom,
-        );
+        let result = Projection::new(test_tenant_id(), "".to_string(), 1, ProjectionType::Custom);
 
         assert!(result.is_err());
     }
@@ -580,12 +586,7 @@ mod tests {
     #[test]
     fn test_reject_too_long_name() {
         let long_name = "a".repeat(101);
-        let result = Projection::new(
-            test_tenant_id(),
-            long_name,
-            1,
-            ProjectionType::Custom,
-        );
+        let result = Projection::new(test_tenant_id(), long_name, 1, ProjectionType::Custom);
 
         assert!(result.is_err());
     }
@@ -631,11 +632,9 @@ mod tests {
 
     #[test]
     fn test_start_projection() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         assert_eq!(projection.status(), ProjectionStatus::Created);
         assert!(projection.started_at.is_none());
@@ -648,11 +647,9 @@ mod tests {
 
     #[test]
     fn test_cannot_start_running_projection() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         projection.start().unwrap();
         let result = projection.start();
@@ -661,11 +658,9 @@ mod tests {
 
     #[test]
     fn test_pause_projection() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         projection.start().unwrap();
         let result = projection.pause();
@@ -675,11 +670,9 @@ mod tests {
 
     #[test]
     fn test_cannot_pause_non_running_projection() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         let result = projection.pause();
         assert!(result.is_err());
@@ -687,11 +680,9 @@ mod tests {
 
     #[test]
     fn test_stop_projection() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         projection.start().unwrap();
         let result = projection.stop();
@@ -702,11 +693,9 @@ mod tests {
 
     #[test]
     fn test_mark_failed() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         projection.start().unwrap();
         projection.mark_failed();
@@ -716,11 +705,9 @@ mod tests {
 
     #[test]
     fn test_start_rebuild() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         // Process some events first
         projection.stats_mut().record_event_processed(10);
@@ -734,11 +721,9 @@ mod tests {
 
     #[test]
     fn test_set_description() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         let result = projection.set_description("Test projection".to_string());
         assert!(result.is_ok());
@@ -747,11 +732,9 @@ mod tests {
 
     #[test]
     fn test_reject_too_long_description() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         let long_desc = "a".repeat(1001);
         let result = projection.set_description(long_desc);
@@ -760,11 +743,9 @@ mod tests {
 
     #[test]
     fn test_add_event_type() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         let event_type = test_event_type();
         let result = projection.add_event_type(event_type.clone());
@@ -775,11 +756,9 @@ mod tests {
 
     #[test]
     fn test_reject_duplicate_event_type() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         let event_type = test_event_type();
         projection.add_event_type(event_type.clone()).unwrap();
@@ -789,11 +768,9 @@ mod tests {
 
     #[test]
     fn test_remove_event_type() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         let event_type = test_event_type();
         projection.add_event_type(event_type.clone()).unwrap();
@@ -805,11 +782,9 @@ mod tests {
 
     #[test]
     fn test_processes_all_events_when_no_filter() {
-        let projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         let event_type = test_event_type();
         assert!(projection.processes_event_type(&event_type));
@@ -817,11 +792,9 @@ mod tests {
 
     #[test]
     fn test_projection_stats() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         // Record some events
         projection.stats_mut().record_event_processed(10);
@@ -835,11 +808,9 @@ mod tests {
 
     #[test]
     fn test_stats_record_error() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         projection.stats_mut().record_error();
         projection.stats_mut().record_error();
@@ -852,11 +823,9 @@ mod tests {
         let tenant1 = TenantId::new("tenant1".to_string()).unwrap();
         let tenant2 = TenantId::new("tenant2".to_string()).unwrap();
 
-        let projection = Projection::new_v1(
-            tenant1.clone(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let projection =
+            Projection::new_v1(tenant1.clone(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         assert!(projection.belongs_to_tenant(&tenant1));
         assert!(!projection.belongs_to_tenant(&tenant2));
@@ -868,7 +837,8 @@ mod tests {
             test_tenant_id(),
             "test_projection".to_string(),
             ProjectionType::Custom,
-        ).unwrap();
+        )
+        .unwrap();
 
         let projection_v2 = projection_v1.create_next_version();
         assert!(projection_v2.is_ok());
@@ -902,11 +872,9 @@ mod tests {
 
     #[test]
     fn test_update_config() {
-        let mut projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let mut projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         let mut config = ProjectionConfig::default();
         config.batch_size = 500;
@@ -919,11 +887,9 @@ mod tests {
 
     #[test]
     fn test_serde_serialization() {
-        let projection = Projection::new_v1(
-            test_tenant_id(),
-            "test".to_string(),
-            ProjectionType::Custom,
-        ).unwrap();
+        let projection =
+            Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
+                .unwrap();
 
         // Should be able to serialize
         let json = serde_json::to_string(&projection);

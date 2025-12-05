@@ -1,9 +1,9 @@
 use crate::application::dto::{
-    CreateProjectionRequest, CreateProjectionResponse, UpdateProjectionRequest,
-    ListProjectionsResponse, ProjectionDto, ProjectionTypeDto, ProjectionConfigDto,
+    CreateProjectionRequest, CreateProjectionResponse, ListProjectionsResponse,
+    ProjectionConfigDto, ProjectionDto, ProjectionTypeDto, UpdateProjectionRequest,
 };
-use crate::domain::entities::{Projection, ProjectionType, ProjectionConfig};
-use crate::domain::value_objects::{TenantId, EventType};
+use crate::domain::entities::{Projection, ProjectionConfig, ProjectionType};
+use crate::domain::value_objects::{EventType, TenantId};
 use crate::error::Result;
 
 /// Use Case: Create Projection
@@ -20,11 +20,7 @@ impl CreateProjectionUseCase {
         let projection_type = ProjectionType::from(request.projection_type);
 
         // Create projection
-        let mut projection = Projection::new_v1(
-            tenant_id,
-            request.name,
-            projection_type,
-        )?;
+        let mut projection = Projection::new_v1(tenant_id, request.name, projection_type)?;
 
         // Set config if provided
         if let Some(config_dto) = request.config {
@@ -55,7 +51,10 @@ impl CreateProjectionUseCase {
 pub struct UpdateProjectionUseCase;
 
 impl UpdateProjectionUseCase {
-    pub fn execute(mut projection: Projection, request: UpdateProjectionRequest) -> Result<ProjectionDto> {
+    pub fn execute(
+        mut projection: Projection,
+        request: UpdateProjectionRequest,
+    ) -> Result<ProjectionDto> {
         // Update description if provided
         if let Some(description) = request.description {
             projection.set_description(description)?;
@@ -138,7 +137,8 @@ pub struct ListProjectionsUseCase;
 
 impl ListProjectionsUseCase {
     pub fn execute(projections: Vec<Projection>) -> ListProjectionsResponse {
-        let projection_dtos: Vec<ProjectionDto> = projections.iter().map(ProjectionDto::from).collect();
+        let projection_dtos: Vec<ProjectionDto> =
+            projections.iter().map(ProjectionDto::from).collect();
         let count = projection_dtos.len();
 
         ListProjectionsResponse {
@@ -184,23 +184,36 @@ mod tests {
         )
         .unwrap();
 
-        projection.add_event_type(crate::domain::value_objects::EventType::new("test.event".to_string()).unwrap()).unwrap();
+        projection
+            .add_event_type(
+                crate::domain::value_objects::EventType::new("test.event".to_string()).unwrap(),
+            )
+            .unwrap();
 
         // Start
         let result = StartProjectionUseCase::execute(projection.clone());
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().status, crate::application::dto::ProjectionStatusDto::Running);
+        assert_eq!(
+            result.unwrap().status,
+            crate::application::dto::ProjectionStatusDto::Running
+        );
 
         // Pause
         projection.start().unwrap();
         let result = PauseProjectionUseCase::execute(projection.clone());
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().status, crate::application::dto::ProjectionStatusDto::Paused);
+        assert_eq!(
+            result.unwrap().status,
+            crate::application::dto::ProjectionStatusDto::Paused
+        );
 
         // Rebuild
         let result = RebuildProjectionUseCase::execute(projection.clone());
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().status, crate::application::dto::ProjectionStatusDto::Rebuilding);
+        assert_eq!(
+            result.unwrap().status,
+            crate::application::dto::ProjectionStatusDto::Rebuilding
+        );
     }
 
     #[test]
@@ -213,7 +226,11 @@ mod tests {
         )
         .unwrap();
 
-        projection.add_event_type(crate::domain::value_objects::EventType::new("old.event".to_string()).unwrap()).unwrap();
+        projection
+            .add_event_type(
+                crate::domain::value_objects::EventType::new("old.event".to_string()).unwrap(),
+            )
+            .unwrap();
 
         let request = UpdateProjectionRequest {
             description: Some("Updated description".to_string()),

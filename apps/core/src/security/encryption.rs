@@ -5,17 +5,16 @@
 /// - Envelope encryption pattern
 /// - Key rotation support
 /// - Per-field encryption keys
-
 use crate::error::{AllSourceError, Result};
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 /// Encryption configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,13 +109,15 @@ impl FieldEncryption {
         }
 
         let active_key_id = self.active_key_id.read();
-        let key_id = active_key_id.as_ref()
+        let key_id = active_key_id
+            .as_ref()
             .ok_or_else(|| AllSourceError::ValidationError("No active encryption key".to_string()))?
             .clone();
 
         let deks = self.deks.read();
-        let dek = deks.get(&key_id)
-            .ok_or_else(|| AllSourceError::ValidationError("Encryption key not found".to_string()))?;
+        let dek = deks.get(&key_id).ok_or_else(|| {
+            AllSourceError::ValidationError("Encryption key not found".to_string())
+        })?;
 
         // Use AES-256-GCM
         let cipher = Aes256Gcm::new_from_slice(&dek.key_bytes)
@@ -129,7 +130,8 @@ impl FieldEncryption {
         let nonce = Nonce::from_slice(&nonce_array);
 
         // Encrypt with associated data (field name) for integrity
-        let ciphertext = cipher.encrypt(nonce, plaintext.as_bytes())
+        let ciphertext = cipher
+            .encrypt(nonce, plaintext.as_bytes())
             .map_err(|e| AllSourceError::ValidationError(format!("Encryption failed: {}", e)))?;
 
         Ok(EncryptedData {
@@ -150,17 +152,25 @@ impl FieldEncryption {
         }
 
         let deks = self.deks.read();
-        let dek = deks.get(&encrypted.key_id)
-            .ok_or_else(|| AllSourceError::ValidationError(
-                format!("Encryption key {} not found", encrypted.key_id)
-            ))?;
+        let dek = deks.get(&encrypted.key_id).ok_or_else(|| {
+            AllSourceError::ValidationError(format!(
+                "Encryption key {} not found",
+                encrypted.key_id
+            ))
+        })?;
 
         // Decode base64
-        let ciphertext = general_purpose::STANDARD.decode(&encrypted.ciphertext)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid ciphertext encoding: {}", e)))?;
+        let ciphertext = general_purpose::STANDARD
+            .decode(&encrypted.ciphertext)
+            .map_err(|e| {
+                AllSourceError::ValidationError(format!("Invalid ciphertext encoding: {}", e))
+            })?;
 
-        let nonce_bytes = general_purpose::STANDARD.decode(&encrypted.nonce)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid nonce encoding: {}", e)))?;
+        let nonce_bytes = general_purpose::STANDARD
+            .decode(&encrypted.nonce)
+            .map_err(|e| {
+                AllSourceError::ValidationError(format!("Invalid nonce encoding: {}", e))
+            })?;
 
         let nonce = Nonce::from_slice(&nonce_bytes);
 
@@ -168,7 +178,8 @@ impl FieldEncryption {
         let cipher = Aes256Gcm::new_from_slice(&dek.key_bytes)
             .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
 
-        let plaintext_bytes = cipher.decrypt(nonce, ciphertext.as_ref())
+        let plaintext_bytes = cipher
+            .decrypt(nonce, ciphertext.as_ref())
             .map_err(|e| AllSourceError::ValidationError(format!("Decryption failed: {}", e)))?;
 
         String::from_utf8(plaintext_bytes)
@@ -215,7 +226,8 @@ impl FieldEncryption {
         EncryptionStats {
             enabled: self.config.read().enabled,
             total_keys: deks.len(),
-            active_key_version: deks.get(active_key_id.as_ref().unwrap_or(&String::new()))
+            active_key_version: deks
+                .get(active_key_id.as_ref().unwrap_or(&String::new()))
                 .map(|k| k.version)
                 .unwrap_or(0),
             algorithm: self.config.read().algorithm.clone(),
@@ -255,8 +267,9 @@ pub fn encrypt_json_value(
     encryption: &FieldEncryption,
     field_name: &str,
 ) -> Result<EncryptedData> {
-    let json_string = serde_json::to_string(value)
-        .map_err(|e| AllSourceError::ValidationError(format!("JSON serialization failed: {}", e)))?;
+    let json_string = serde_json::to_string(value).map_err(|e| {
+        AllSourceError::ValidationError(format!("JSON serialization failed: {}", e))
+    })?;
 
     encryption.encrypt_string(&json_string, field_name)
 }

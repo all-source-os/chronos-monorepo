@@ -19,7 +19,7 @@ jobs:
   quality-gates:
     name: Quality Gates (Format, Lint, Sort, Test)
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -27,6 +27,7 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
+        toolchain: "1.82"
         components: rustfmt, clippy
 
     - name: Install cargo-sort
@@ -36,19 +37,25 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cargo/registry
-        key: cargo-registry-v1
+        key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          cargo-registry-
 
     - name: Cache cargo index
       uses: actions/cache@v4
       with:
         path: ~/.cargo/git
-        key: cargo-index-v1
+        key: cargo-index-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          cargo-index-
 
     - name: Cache target directory
       uses: actions/cache@v4
       with:
         path: apps/core/target
-        key: cargo-target-v1
+        key: cargo-target-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          cargo-target-${{ runner.os }}-
 
     - name: Check code formatting (rustfmt)
       working-directory: apps/core
@@ -71,15 +78,15 @@ jobs:
       run: cargo build --lib --release
 
   msrv-check:
-    name: MSRV Check (1.70.0)
+    name: MSRV Check (1.75.0)
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Rust MSRV (1.70.0)
-      uses: dtolnay/rust-toolchain@1.70.0
+    - name: Install Rust MSRV (1.75.0)
+      uses: dtolnay/rust-toolchain@1.75.0
 
     - name: Check compilation with MSRV
       working-directory: apps/core

@@ -6,25 +6,38 @@
 /// 3. HSM/KMS Integration
 /// 4. Adaptive Rate Limiting
 /// 5. Security Automation & CI/CD Scanning
-
 use allsource_core::{
-    domain::entities::{AuditEvent, AuditAction, AuditOutcome, Actor},
+    domain::entities::{Actor, AuditAction, AuditEvent, AuditOutcome},
     domain::value_objects::TenantId,
     security::{
-        // Anomaly Detection
-        AnomalyDetector, AnomalyDetectionConfig, AnomalyType, RecommendedAction,
-
-        // Encryption
-        FieldEncryption, EncryptionConfig, EncryptionAlgorithm,
-
-        // KMS
-        KmsManager, KmsConfig, KmsProvider, KeyPurpose, KeyAlgorithm,
-
+        AdaptiveRateLimitConfig,
         // Adaptive Rate Limiting
-        AdaptiveRateLimiter, AdaptiveRateLimitConfig, SystemLoad,
+        AdaptiveRateLimiter,
+        AnomalyDetectionConfig,
+        // Anomaly Detection
+        AnomalyDetector,
+        AnomalyType,
+        CiCdIntegration,
+        EncryptionAlgorithm,
 
+        EncryptionConfig,
+        // Encryption
+        FieldEncryption,
+        KeyAlgorithm,
+
+        KeyPurpose,
+        KmsConfig,
+        // KMS
+        KmsManager,
+        KmsProvider,
+        RecommendedAction,
+
+        ScanStatus,
+        SecurityScanConfig,
         // Security Automation
-        SecurityScanner, SecurityScanConfig, ScanStatus, Severity, CiCdIntegration,
+        SecurityScanner,
+        Severity,
+        SystemLoad,
     },
 };
 
@@ -122,9 +135,13 @@ fn demo_anomaly_detection() {
                         println!("   └─ Recommended Action: {:?}", result.recommended_action);
 
                         match result.recommended_action {
-                            RecommendedAction::RevokeAccess => println!("   🚫 Action: IMMEDIATELY BLOCKING USER"),
+                            RecommendedAction::RevokeAccess => {
+                                println!("   🚫 Action: IMMEDIATELY BLOCKING USER")
+                            }
                             RecommendedAction::Block => println!("   🛑 Action: BLOCKING USER"),
-                            RecommendedAction::RequireMFA => println!("   🔐 Action: REQUIRING MFA"),
+                            RecommendedAction::RequireMFA => {
+                                println!("   🔐 Action: REQUIRING MFA")
+                            }
                             RecommendedAction::Alert => println!("   📢 Action: SENDING ALERT"),
                             RecommendedAction::Monitor => println!("   👁️  Action: MONITORING"),
                         }
@@ -180,7 +197,10 @@ fn demo_anomaly_detection() {
     let stats = detector.get_stats();
     println!("\n📈 Anomaly Detection Statistics:");
     println!("   ├─ User Profiles Tracked: {}", stats.user_profiles_count);
-    println!("   ├─ Recent Events Analyzed: {}", stats.recent_events_count);
+    println!(
+        "   ├─ Recent Events Analyzed: {}",
+        stats.recent_events_count
+    );
     println!("   └─ Detection Types: Brute Force, Access Patterns, Privilege Escalation, Data Exfiltration, Velocity");
 
     pause("\n✓ Anomaly detection demo complete. Press Enter to continue...");
@@ -221,7 +241,10 @@ fn demo_field_encryption() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n🔄 Demonstrating key rotation...");
-    println!("   ├─ Current key version: {}", encryption.get_stats().active_key_version);
+    println!(
+        "   ├─ Current key version: {}",
+        encryption.get_stats().active_key_version
+    );
 
     let encrypted_before = encryption.encrypt_string("test data", "test")?;
     let version_before = encrypted_before.version;
@@ -233,12 +256,17 @@ fn demo_field_encryption() -> Result<(), Box<dyn std::error::Error>> {
     let version_after = encrypted_after.version;
 
     println!("   ├─ New key version: {}", version_after);
-    println!("   └─ Old data still decryptable: {}",
-        encryption.decrypt_string(&encrypted_before).is_ok());
+    println!(
+        "   └─ Old data still decryptable: {}",
+        encryption.decrypt_string(&encrypted_before).is_ok()
+    );
 
     println!("\n🔓 Decrypting data encrypted with old key:");
     let decrypted = encryption.decrypt_string(&encrypted_before)?;
-    println!("   └─ ✓ Successfully decrypted: {} (version {})", decrypted, version_before);
+    println!(
+        "   └─ ✓ Successfully decrypted: {} (version {})",
+        decrypted, version_before
+    );
 
     let stats = encryption.get_stats();
     println!("\n📈 Encryption Statistics:");
@@ -277,11 +305,14 @@ async fn demo_kms_integration() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create master key
     println!("🔐 Creating master encryption key...");
-    let master_key = kms.client().create_key(
-        "demo-master-key".to_string(),
-        KeyPurpose::DataEncryption,
-        KeyAlgorithm::Aes256Gcm,
-    ).await?;
+    let master_key = kms
+        .client()
+        .create_key(
+            "demo-master-key".to_string(),
+            KeyPurpose::DataEncryption,
+            KeyAlgorithm::Aes256Gcm,
+        )
+        .await?;
 
     println!("   ├─ Key ID: {}", &master_key.key_id[..16]);
     println!("   ├─ Purpose: {:?}", master_key.purpose);
@@ -295,11 +326,15 @@ async fn demo_kms_integration() -> Result<(), Box<dyn std::error::Error>> {
     let sensitive_data = b"This is highly sensitive financial data that needs strong protection";
     println!("\n   ├─ Original data size: {} bytes", sensitive_data.len());
 
-    let encrypted = kms.envelope_encrypt(&master_key.key_id, sensitive_data).await?;
+    let encrypted = kms
+        .envelope_encrypt(&master_key.key_id, sensitive_data)
+        .await?;
     println!("   ├─ ✓ Data encrypted with DEK");
     println!("   ├─ ✓ DEK encrypted with Master Key");
-    println!("   └─ Encrypted package size: {} bytes",
-        encrypted.ciphertext.len() + encrypted.encrypted_dek.len());
+    println!(
+        "   └─ Encrypted package size: {} bytes",
+        encrypted.ciphertext.len() + encrypted.encrypted_dek.len()
+    );
 
     println!("\n   Decrypting with envelope decryption...");
     let decrypted = kms.envelope_decrypt(&encrypted).await?;
@@ -401,11 +436,38 @@ fn demo_adaptive_rate_limiting() -> Result<(), Box<dyn std::error::Error>> {
 
     let overall_stats = limiter.get_stats();
     println!("\n📈 Overall System Statistics:");
-    println!("   ├─ Total Tenants Tracked: {}", overall_stats.total_tenants);
-    println!("   ├─ Learning Window: {} hours", overall_stats.config.learning_window_hours);
-    println!("   ├─ Anomaly Throttling: {}", if overall_stats.config.enable_anomaly_throttling { "✓ Enabled" } else { "Disabled" });
-    println!("   ├─ Load-Based Adjustment: {}", if overall_stats.config.enable_load_based_adjustment { "✓ Enabled" } else { "Disabled" });
-    println!("   └─ Pattern Prediction: {}", if overall_stats.config.enable_pattern_prediction { "✓ Enabled" } else { "Disabled" });
+    println!(
+        "   ├─ Total Tenants Tracked: {}",
+        overall_stats.total_tenants
+    );
+    println!(
+        "   ├─ Learning Window: {} hours",
+        overall_stats.config.learning_window_hours
+    );
+    println!(
+        "   ├─ Anomaly Throttling: {}",
+        if overall_stats.config.enable_anomaly_throttling {
+            "✓ Enabled"
+        } else {
+            "Disabled"
+        }
+    );
+    println!(
+        "   ├─ Load-Based Adjustment: {}",
+        if overall_stats.config.enable_load_based_adjustment {
+            "✓ Enabled"
+        } else {
+            "Disabled"
+        }
+    );
+    println!(
+        "   └─ Pattern Prediction: {}",
+        if overall_stats.config.enable_pattern_prediction {
+            "✓ Enabled"
+        } else {
+            "Disabled"
+        }
+    );
 
     pause("\n✓ Adaptive rate limiting demo complete. Press Enter to continue...");
     Ok(())
@@ -459,7 +521,10 @@ fn demo_security_automation() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n📊 Scan Results:");
     println!("   ├─ Status: {:?}", result.status);
-    println!("   ├─ Timestamp: {}", result.timestamp.format("%Y-%m-%d %H:%M:%S"));
+    println!(
+        "   ├─ Timestamp: {}",
+        result.timestamp.format("%Y-%m-%d %H:%M:%S")
+    );
     println!("   └─ Summary:");
     println!("      ├─ Total Findings: {}", result.summary.total_findings);
     println!("      ├─ Critical: {}", result.summary.critical);
@@ -492,12 +557,18 @@ fn demo_security_automation() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Generating GitHub Actions workflow...");
 
     let workflow = CiCdIntegration::generate_github_actions_workflow();
-    println!("   ✓ GitHub Actions workflow generated ({} lines)", workflow.lines().count());
+    println!(
+        "   ✓ GitHub Actions workflow generated ({} lines)",
+        workflow.lines().count()
+    );
     println!("   └─ Save to: .github/workflows/security.yml");
 
     println!("\n   Generating GitLab CI config...");
     let gitlab_config = CiCdIntegration::generate_gitlab_ci_config();
-    println!("   ✓ GitLab CI config generated ({} lines)", gitlab_config.lines().count());
+    println!(
+        "   ✓ GitLab CI config generated ({} lines)",
+        gitlab_config.lines().count()
+    );
     println!("   └─ Save to: .gitlab-ci.yml");
 
     println!("\n📈 Automation Statistics:");

@@ -1,3 +1,4 @@
+pub mod metrics;
 /// Lock-free data structures for high-performance concurrent operations
 ///
 /// # Overview
@@ -66,9 +67,7 @@
 ///     metrics.record_query(latency);
 /// }
 /// ```
-
 pub mod queue;
-pub mod metrics;
 
-pub use queue::LockFreeEventQueue;
 pub use metrics::{LockFreeMetrics, MetricsSnapshot};
+pub use queue::LockFreeEventQueue;

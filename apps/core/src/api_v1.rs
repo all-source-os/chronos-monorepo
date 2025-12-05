@@ -48,9 +48,7 @@ pub async fn serve_v1(
         auth_manager: auth_manager.clone(),
     };
 
-    let rate_limit_state = RateLimitState {
-        rate_limiter,
-    };
+    let rate_limit_state = RateLimitState { rate_limiter };
 
     let app = Router::new()
         // Public routes (no auth)
@@ -71,51 +69,117 @@ pub async fn serve_v1(
         .route("/api/v1/tenants/:id", get(get_tenant_handler))
         .route("/api/v1/tenants/:id/stats", get(get_tenant_stats_handler))
         .route("/api/v1/tenants/:id/quotas", put(update_quotas_handler))
-        .route("/api/v1/tenants/:id/deactivate", post(deactivate_tenant_handler))
-        .route("/api/v1/tenants/:id/activate", post(activate_tenant_handler))
+        .route(
+            "/api/v1/tenants/:id/deactivate",
+            post(deactivate_tenant_handler),
+        )
+        .route(
+            "/api/v1/tenants/:id/activate",
+            post(activate_tenant_handler),
+        )
         .route("/api/v1/tenants/:id", delete(delete_tenant_handler))
         // Event and data routes (protected by auth)
         .route("/api/v1/events", post(crate::api::ingest_event))
         .route("/api/v1/events/query", get(crate::api::query_events))
         .route("/api/v1/events/stream", get(crate::api::events_websocket))
-        .route("/api/v1/entities/:entity_id/state", get(crate::api::get_entity_state))
-        .route("/api/v1/entities/:entity_id/snapshot", get(crate::api::get_entity_snapshot))
+        .route(
+            "/api/v1/entities/:entity_id/state",
+            get(crate::api::get_entity_state),
+        )
+        .route(
+            "/api/v1/entities/:entity_id/snapshot",
+            get(crate::api::get_entity_snapshot),
+        )
         .route("/api/v1/stats", get(crate::api::get_stats))
         // Analytics
-        .route("/api/v1/analytics/frequency", get(crate::api::analytics_frequency))
-        .route("/api/v1/analytics/summary", get(crate::api::analytics_summary))
-        .route("/api/v1/analytics/correlation", get(crate::api::analytics_correlation))
+        .route(
+            "/api/v1/analytics/frequency",
+            get(crate::api::analytics_frequency),
+        )
+        .route(
+            "/api/v1/analytics/summary",
+            get(crate::api::analytics_summary),
+        )
+        .route(
+            "/api/v1/analytics/correlation",
+            get(crate::api::analytics_correlation),
+        )
         // Snapshots
         .route("/api/v1/snapshots", post(crate::api::create_snapshot))
         .route("/api/v1/snapshots", get(crate::api::list_snapshots))
-        .route("/api/v1/snapshots/:entity_id/latest", get(crate::api::get_latest_snapshot))
+        .route(
+            "/api/v1/snapshots/:entity_id/latest",
+            get(crate::api::get_latest_snapshot),
+        )
         // Compaction
-        .route("/api/v1/compaction/trigger", post(crate::api::trigger_compaction))
-        .route("/api/v1/compaction/stats", get(crate::api::compaction_stats))
+        .route(
+            "/api/v1/compaction/trigger",
+            post(crate::api::trigger_compaction),
+        )
+        .route(
+            "/api/v1/compaction/stats",
+            get(crate::api::compaction_stats),
+        )
         // Schemas
         .route("/api/v1/schemas", post(crate::api::register_schema))
         .route("/api/v1/schemas", get(crate::api::list_subjects))
         .route("/api/v1/schemas/:subject", get(crate::api::get_schema))
-        .route("/api/v1/schemas/:subject/versions", get(crate::api::list_schema_versions))
-        .route("/api/v1/schemas/validate", post(crate::api::validate_event_schema))
-        .route("/api/v1/schemas/:subject/compatibility", put(crate::api::set_compatibility_mode))
+        .route(
+            "/api/v1/schemas/:subject/versions",
+            get(crate::api::list_schema_versions),
+        )
+        .route(
+            "/api/v1/schemas/validate",
+            post(crate::api::validate_event_schema),
+        )
+        .route(
+            "/api/v1/schemas/:subject/compatibility",
+            put(crate::api::set_compatibility_mode),
+        )
         // Replay
         .route("/api/v1/replay", post(crate::api::start_replay))
         .route("/api/v1/replay", get(crate::api::list_replays))
-        .route("/api/v1/replay/:replay_id", get(crate::api::get_replay_progress))
-        .route("/api/v1/replay/:replay_id/cancel", post(crate::api::cancel_replay))
-        .route("/api/v1/replay/:replay_id", delete(crate::api::delete_replay))
+        .route(
+            "/api/v1/replay/:replay_id",
+            get(crate::api::get_replay_progress),
+        )
+        .route(
+            "/api/v1/replay/:replay_id/cancel",
+            post(crate::api::cancel_replay),
+        )
+        .route(
+            "/api/v1/replay/:replay_id",
+            delete(crate::api::delete_replay),
+        )
         // Pipelines
         .route("/api/v1/pipelines", post(crate::api::register_pipeline))
         .route("/api/v1/pipelines", get(crate::api::list_pipelines))
-        .route("/api/v1/pipelines/stats", get(crate::api::all_pipeline_stats))
-        .route("/api/v1/pipelines/:pipeline_id", get(crate::api::get_pipeline))
-        .route("/api/v1/pipelines/:pipeline_id", delete(crate::api::remove_pipeline))
-        .route("/api/v1/pipelines/:pipeline_id/stats", get(crate::api::get_pipeline_stats))
-        .route("/api/v1/pipelines/:pipeline_id/reset", put(crate::api::reset_pipeline))
+        .route(
+            "/api/v1/pipelines/stats",
+            get(crate::api::all_pipeline_stats),
+        )
+        .route(
+            "/api/v1/pipelines/:pipeline_id",
+            get(crate::api::get_pipeline),
+        )
+        .route(
+            "/api/v1/pipelines/:pipeline_id",
+            delete(crate::api::remove_pipeline),
+        )
+        .route(
+            "/api/v1/pipelines/:pipeline_id/stats",
+            get(crate::api::get_pipeline_stats),
+        )
+        .route(
+            "/api/v1/pipelines/:pipeline_id/reset",
+            put(crate::api::reset_pipeline),
+        )
         .with_state(app_state)
         .layer(middleware::from_fn_with_state(auth_state, auth_middleware))
-        .layer(middleware::from_fn_with_state(rate_limit_state, rate_limit_middleware))
+        .layer(middleware::from_fn_with_state(
+            rate_limit_state,
+            rate_limit_middleware,
+        ))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)

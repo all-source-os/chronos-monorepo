@@ -1,5 +1,5 @@
-use crate::error::{AllSourceError, Result};
 use crate::domain::entities::Event;
+use crate::error::{AllSourceError, Result};
 use crate::store::EventStore;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use serde::{Deserialize, Serialize};
@@ -243,7 +243,9 @@ impl AnalyticsEngine {
         for event in &events {
             let bucket_time = request.window.truncate(event.timestamp);
             let bucket = buckets_map.entry(bucket_time).or_insert_with(HashMap::new);
-            *bucket.entry(event.event_type_str().to_string()).or_insert(0) += 1;
+            *bucket
+                .entry(event.event_type_str().to_string())
+                .or_insert(0) += 1;
         }
 
         // Convert to sorted vector
@@ -339,8 +341,12 @@ impl AnalyticsEngine {
         let mut event_type_counts: HashMap<String, usize> = HashMap::new();
 
         for event in &events {
-            *entity_counts.entry(event.entity_id_str().to_string()).or_insert(0) += 1;
-            *event_type_counts.entry(event.event_type_str().to_string()).or_insert(0) += 1;
+            *entity_counts
+                .entry(event.entity_id_str().to_string())
+                .or_insert(0) += 1;
+            *event_type_counts
+                .entry(event.event_type_str().to_string())
+                .or_insert(0) += 1;
         }
 
         // Calculate events per day

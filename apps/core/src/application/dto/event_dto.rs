@@ -1,7 +1,7 @@
+use crate::domain::entities::Event;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::domain::entities::Event;
 
 /// DTO for ingesting a new event
 #[derive(Debug, Deserialize)]

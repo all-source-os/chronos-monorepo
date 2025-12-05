@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::domain::entities::{Event, EventStream};
-use crate::domain::repositories::{EventStreamRepository, EventStreamReader, EventStreamWriter};
+use crate::domain::repositories::{EventStreamReader, EventStreamRepository, EventStreamWriter};
 use crate::domain::value_objects::{EntityId, PartitionKey, TenantId};
-use crate::error::{Result, AllSourceError};
+use crate::error::{AllSourceError, Result};
 
 /// In-memory implementation of EventStreamRepository
 ///
@@ -105,7 +105,10 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
         Ok(streams.get(&key).cloned())
     }
 
-    async fn get_streams_by_partition(&self, partition_key: &PartitionKey) -> Result<Vec<EventStream>> {
+    async fn get_streams_by_partition(
+        &self,
+        partition_key: &PartitionKey,
+    ) -> Result<Vec<EventStream>> {
         let streams = self.streams.read();
         let target_partition = partition_key.partition_id();
 
@@ -175,10 +178,9 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
     async fn count_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<usize> {
         let streams = self.streams.read();
 
-        let count = streams.values()
-            .filter(|stream| {
-                stream.tenant_id().map(|t| t == tenant_id).unwrap_or(false)
-            })
+        let count = streams
+            .values()
+            .filter(|stream| stream.tenant_id().map(|t| t == tenant_id).unwrap_or(false))
             .count();
 
         Ok(count)
@@ -195,7 +197,10 @@ impl EventStreamReader for InMemoryEventStreamRepository {
         EventStreamRepository::get_watermark(self, stream_id).await
     }
 
-    async fn get_streams_by_partition(&self, partition_key: &PartitionKey) -> Result<Vec<EventStream>> {
+    async fn get_streams_by_partition(
+        &self,
+        partition_key: &PartitionKey,
+    ) -> Result<Vec<EventStream>> {
         EventStreamRepository::get_streams_by_partition(self, partition_key).await
     }
 
@@ -248,12 +253,16 @@ mod tests {
         let repo = InMemoryEventStreamRepository::new();
         let entity_id = EntityId::new("entity-1".to_string()).unwrap();
 
-        let stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id).await.unwrap();
+        let stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id)
+            .await
+            .unwrap();
         assert_eq!(stream.current_version(), 0);
         assert_eq!(stream.watermark(), 0);
 
         // Get same stream again
-        let stream2 = EventStreamRepository::get_or_create_stream(&repo, &entity_id).await.unwrap();
+        let stream2 = EventStreamRepository::get_or_create_stream(&repo, &entity_id)
+            .await
+            .unwrap();
         assert_eq!(stream2.stream_id(), stream.stream_id());
     }
 
@@ -262,10 +271,14 @@ mod tests {
         let repo = InMemoryEventStreamRepository::new();
         let entity_id = EntityId::new("entity-1".to_string()).unwrap();
 
-        let mut stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id).await.unwrap();
+        let mut stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id)
+            .await
+            .unwrap();
         let event = create_test_event("entity-1");
 
-        let version = EventStreamRepository::append_to_stream(&repo, &mut stream, event).await.unwrap();
+        let version = EventStreamRepository::append_to_stream(&repo, &mut stream, event)
+            .await
+            .unwrap();
         assert_eq!(version, 1);
         assert_eq!(stream.current_version(), 1);
         assert_eq!(stream.watermark(), 1);
@@ -276,11 +289,15 @@ mod tests {
         let repo = InMemoryEventStreamRepository::new();
         let entity_id = EntityId::new("entity-1".to_string()).unwrap();
 
-        let mut stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id).await.unwrap();
+        let mut stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id)
+            .await
+            .unwrap();
 
         // Append first event
         let event1 = create_test_event("entity-1");
-        EventStreamRepository::append_to_stream(&repo, &mut stream, event1).await.unwrap();
+        EventStreamRepository::append_to_stream(&repo, &mut stream, event1)
+            .await
+            .unwrap();
 
         // Set wrong expected version
         stream.expect_version(0);
@@ -298,12 +315,16 @@ mod tests {
         // Create multiple streams
         for i in 0..10 {
             let entity_id = EntityId::new(format!("entity-{}", i)).unwrap();
-            EventStreamRepository::get_or_create_stream(&repo, &entity_id).await.unwrap();
+            EventStreamRepository::get_or_create_stream(&repo, &entity_id)
+                .await
+                .unwrap();
         }
 
         // Get streams for partition 0
         let partition_key = PartitionKey::from_partition_id(0, 32).unwrap();
-        let streams = EventStreamRepository::get_streams_by_partition(&repo, &partition_key).await.unwrap();
+        let streams = EventStreamRepository::get_streams_by_partition(&repo, &partition_key)
+            .await
+            .unwrap();
 
         // All returned streams should be in partition 0
         for stream in &streams {
@@ -316,15 +337,21 @@ mod tests {
         let repo = InMemoryEventStreamRepository::new();
         let entity_id = EntityId::new("entity-1".to_string()).unwrap();
 
-        let mut stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id).await.unwrap();
+        let mut stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id)
+            .await
+            .unwrap();
 
         // Append 3 events
         for _ in 0..3 {
             let event = create_test_event("entity-1");
-            EventStreamRepository::append_to_stream(&repo, &mut stream, event).await.unwrap();
+            EventStreamRepository::append_to_stream(&repo, &mut stream, event)
+                .await
+                .unwrap();
         }
 
-        let watermark = EventStreamRepository::get_watermark(&repo, &entity_id).await.unwrap();
+        let watermark = EventStreamRepository::get_watermark(&repo, &entity_id)
+            .await
+            .unwrap();
         assert_eq!(watermark, 3);
     }
 
@@ -334,18 +361,26 @@ mod tests {
         let entity_id = EntityId::new("entity-1".to_string()).unwrap();
 
         // Empty stream is gapless
-        assert!(EventStreamRepository::verify_gapless(&repo, &entity_id).await.unwrap());
+        assert!(EventStreamRepository::verify_gapless(&repo, &entity_id)
+            .await
+            .unwrap());
 
-        let mut stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id).await.unwrap();
+        let mut stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id)
+            .await
+            .unwrap();
 
         // Append events
         for _ in 0..5 {
             let event = create_test_event("entity-1");
-            EventStreamRepository::append_to_stream(&repo, &mut stream, event).await.unwrap();
+            EventStreamRepository::append_to_stream(&repo, &mut stream, event)
+                .await
+                .unwrap();
         }
 
         // Should still be gapless
-        assert!(EventStreamRepository::verify_gapless(&repo, &entity_id).await.unwrap());
+        assert!(EventStreamRepository::verify_gapless(&repo, &entity_id)
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
@@ -355,7 +390,9 @@ mod tests {
         // Create 100 streams
         for i in 0..100 {
             let entity_id = EntityId::new(format!("entity-{}", i)).unwrap();
-            EventStreamRepository::get_or_create_stream(&repo, &entity_id).await.unwrap();
+            EventStreamRepository::get_or_create_stream(&repo, &entity_id)
+                .await
+                .unwrap();
         }
 
         let stats = EventStreamRepository::partition_stats(&repo).await.unwrap();
@@ -371,13 +408,21 @@ mod tests {
     #[tokio::test]
     async fn test_count_streams() {
         let repo = InMemoryEventStreamRepository::new();
-        assert_eq!(EventStreamRepository::count_streams(&repo).await.unwrap(), 0);
+        assert_eq!(
+            EventStreamRepository::count_streams(&repo).await.unwrap(),
+            0
+        );
 
         for i in 0..10 {
             let entity_id = EntityId::new(format!("entity-{}", i)).unwrap();
-            EventStreamRepository::get_or_create_stream(&repo, &entity_id).await.unwrap();
+            EventStreamRepository::get_or_create_stream(&repo, &entity_id)
+                .await
+                .unwrap();
         }
 
-        assert_eq!(EventStreamRepository::count_streams(&repo).await.unwrap(), 10);
+        assert_eq!(
+            EventStreamRepository::count_streams(&repo).await.unwrap(),
+            10
+        );
     }
 }

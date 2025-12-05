@@ -1,6 +1,6 @@
 use crate::application::dto::{
-    CreateTenantRequest, CreateTenantResponse, UpdateTenantRequest, UpdateTenantResponse,
-    ListTenantsResponse, TenantDto,
+    CreateTenantRequest, CreateTenantResponse, ListTenantsResponse, TenantDto, UpdateTenantRequest,
+    UpdateTenantResponse,
 };
 use crate::domain::entities::Tenant;
 use crate::domain::value_objects::TenantId;
@@ -21,7 +21,11 @@ impl CreateTenantUseCase {
             Tenant::new(tenant_id, request.name, quotas_dto.into())?
         } else {
             // Use free tier by default
-            Tenant::new(tenant_id, request.name, crate::domain::entities::TenantQuotas::free_tier())?
+            Tenant::new(
+                tenant_id,
+                request.name,
+                crate::domain::entities::TenantQuotas::free_tier(),
+            )?
         };
 
         Ok(CreateTenantResponse {
@@ -36,7 +40,10 @@ impl CreateTenantUseCase {
 pub struct UpdateTenantUseCase;
 
 impl UpdateTenantUseCase {
-    pub fn execute(mut tenant: Tenant, request: UpdateTenantRequest) -> Result<UpdateTenantResponse> {
+    pub fn execute(
+        mut tenant: Tenant,
+        request: UpdateTenantRequest,
+    ) -> Result<UpdateTenantResponse> {
         // Update name if provided
         if let Some(name) = request.name {
             tenant.update_name(name)?;

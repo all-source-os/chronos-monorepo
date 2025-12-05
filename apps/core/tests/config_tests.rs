@@ -1,9 +1,8 @@
 /// Additional configuration tests for comprehensive coverage
-
-use allsource_core::config::{Config, ServerConfig, StorageConfig, AuthConfig};
+use allsource_core::config::{AuthConfig, Config, ServerConfig, StorageConfig};
 use std::env;
-use tempfile::NamedTempFile;
 use std::io::Write;
+use tempfile::NamedTempFile;
 
 #[test]
 fn test_config_from_toml() {

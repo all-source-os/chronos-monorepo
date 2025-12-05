@@ -1,5 +1,5 @@
-use crate::error::Result;
 use crate::domain::entities::Event;
+use crate::error::Result;
 use crate::metrics::MetricsRegistry;
 use dashmap::DashMap;
 use serde_json::Value;
@@ -94,10 +94,7 @@ impl EventCounterProjection {
 
     /// Get count for a specific event type
     pub fn get_count(&self, event_type: &str) -> u64 {
-        self.counts
-            .get(event_type)
-            .map(|v| *v)
-            .unwrap_or(0)
+        self.counts.get(event_type).map(|v| *v).unwrap_or(0)
     }
 
     /// Get all event type counts
@@ -157,7 +154,9 @@ impl ProjectionManager {
         let name = projection.name();
         tracing::info!("Registering projection: {}", name);
         self.projections.push(projection);
-        self.metrics.projections_total.set(self.projections.len() as i64);
+        self.metrics
+            .projections_total
+            .set(self.projections.len() as i64);
     }
 
     /// Process an event through all projections
@@ -169,12 +168,14 @@ impl ProjectionManager {
 
             match projection.process(event) {
                 Ok(_) => {
-                    self.metrics.projection_events_processed
+                    self.metrics
+                        .projection_events_processed
                         .with_label_values(&[name])
                         .inc();
                 }
                 Err(e) => {
-                    self.metrics.projection_errors_total
+                    self.metrics
+                        .projection_errors_total
                         .with_label_values(&[name])
                         .inc();
                     tracing::error!(

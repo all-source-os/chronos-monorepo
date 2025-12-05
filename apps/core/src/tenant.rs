@@ -24,7 +24,7 @@ pub struct TenantQuotas {
 impl Default for TenantQuotas {
     fn default() -> Self {
         Self {
-            max_events_per_day: 1_000_000,    // 1M events/day
+            max_events_per_day: 1_000_000,     // 1M events/day
             max_storage_bytes: 10_737_418_240, // 10 GB
             max_queries_per_hour: 100_000,     // 100K queries/hour
             max_api_keys: 10,
@@ -295,18 +295,15 @@ impl TenantManager {
             "Default Tenant".to_string(),
             TenantQuotas::unlimited(),
         );
-        manager.tenants.insert("default".to_string(), default_tenant);
+        manager
+            .tenants
+            .insert("default".to_string(), default_tenant);
 
         manager
     }
 
     /// Create tenant
-    pub fn create_tenant(
-        &self,
-        id: String,
-        name: String,
-        quotas: TenantQuotas,
-    ) -> Result<Tenant> {
+    pub fn create_tenant(&self, id: String, name: String, quotas: TenantQuotas) -> Result<Tenant> {
         if self.tenants.contains_key(&id) {
             return Err(AllSourceError::ValidationError(
                 "Tenant ID already exists".to_string(),
@@ -389,7 +386,10 @@ impl TenantManager {
 
     /// List all tenants
     pub fn list_tenants(&self) -> Vec<Tenant> {
-        self.tenants.iter().map(|entry| entry.value().clone()).collect()
+        self.tenants
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 
     /// Check if tenant can ingest event

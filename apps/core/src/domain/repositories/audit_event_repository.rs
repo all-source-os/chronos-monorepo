@@ -1,12 +1,11 @@
+use crate::domain::entities::{AuditAction, AuditCategory, AuditEvent, AuditEventId};
+use crate::domain::value_objects::TenantId;
+use crate::error::Result;
 /// Audit Event Repository Trait
 ///
 /// Defines the contract for persisting and querying audit events.
 /// Implementations must provide both write (append-only) and query capabilities.
-
 use async_trait::async_trait;
-use crate::domain::entities::{AuditEvent, AuditEventId, AuditAction, AuditCategory};
-use crate::domain::value_objects::TenantId;
-use crate::error::Result;
 use chrono::{DateTime, Utc};
 
 /// Query parameters for filtering audit events
@@ -247,8 +246,7 @@ mod tests {
         let start = Utc::now();
         let end = Utc::now();
 
-        let query = AuditEventQuery::new(tenant_id)
-            .with_time_range(start, end);
+        let query = AuditEventQuery::new(tenant_id).with_time_range(start, end);
 
         assert_eq!(query.start_time, Some(start));
         assert_eq!(query.end_time, Some(end));
@@ -269,8 +267,7 @@ mod tests {
     fn test_audit_event_query_with_actor() {
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
 
-        let query = AuditEventQuery::new(tenant_id)
-            .with_actor("user:john.doe".to_string());
+        let query = AuditEventQuery::new(tenant_id).with_actor("user:john.doe".to_string());
 
         assert_eq!(query.actor_identifier, Some("user:john.doe".to_string()));
     }

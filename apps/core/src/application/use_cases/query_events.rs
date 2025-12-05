@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use crate::application::dto::{EventDto, QueryEventsRequest, QueryEventsResponse};
 use crate::domain::repositories::EventRepository;
-use crate::application::dto::{QueryEventsRequest, QueryEventsResponse, EventDto};
 use crate::error::Result;
+use std::sync::Arc;
 
 /// Use Case: Query Events
 ///
@@ -35,11 +35,15 @@ impl QueryEventsUseCase {
                     .find_by_entity_as_of(&entity_id, &tenant_id, as_of)
                     .await?
             } else {
-                self.repository.find_by_entity(&entity_id, &tenant_id).await?
+                self.repository
+                    .find_by_entity(&entity_id, &tenant_id)
+                    .await?
             }
         } else if let Some(event_type) = request.event_type {
             // Query by type
-            self.repository.find_by_type(&event_type, &tenant_id).await?
+            self.repository
+                .find_by_type(&event_type, &tenant_id)
+                .await?
         } else if let (Some(since), Some(until)) = (request.since, request.until) {
             // Query by time range
             self.repository
@@ -81,10 +85,10 @@ impl QueryEventsUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
     use crate::domain::entities::Event;
+    use async_trait::async_trait;
+    use chrono::{Duration, Utc};
     use serde_json::json;
-    use chrono::{Utc, Duration};
     use uuid::Uuid;
 
     // Mock repository for testing
@@ -139,9 +143,7 @@ mod tests {
             Ok(self
                 .events
                 .iter()
-                .filter(|e| {
-                    e.tenant_id_str() == tenant_id && e.occurred_between(start, end)
-                })
+                .filter(|e| e.tenant_id_str() == tenant_id && e.occurred_between(start, end))
                 .cloned()
                 .collect())
         }
@@ -185,21 +187,24 @@ mod tests {
                 "tenant-1".to_string(),
                 json!({"name": "Alice"}),
                 None,
-            ).unwrap(),
+            )
+            .unwrap(),
             Event::from_strings(
                 "user.created".to_string(),
                 "user-2".to_string(),
                 "tenant-1".to_string(),
                 json!({"name": "Bob"}),
                 None,
-            ).unwrap(),
+            )
+            .unwrap(),
             Event::from_strings(
                 "order.placed".to_string(),
                 "order-1".to_string(),
                 "tenant-1".to_string(),
                 json!({"amount": 100}),
                 None,
-            ).unwrap(),
+            )
+            .unwrap(),
         ]
     }
 

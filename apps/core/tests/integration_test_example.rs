@@ -5,11 +5,10 @@
 /// - Multi-tenant operations
 /// - Rate limiting
 /// - Event ingestion with auth
-
 use allsource_core::{
     auth::{AuthManager, Role},
     event::Event,
-    rate_limit::{RateLimiter, RateLimitConfig},
+    rate_limit::{RateLimitConfig, RateLimiter},
     store::EventStore,
     tenant::{TenantManager, TenantQuotas},
 };
@@ -99,11 +98,19 @@ fn test_multi_tenant_isolation() {
     assert_eq!(tenant2.quotas.max_events_per_day, 10_000); // Free
 
     // 3. Track usage separately
-    tenant_manager.track_event(&tenant1.id).expect("Failed to track");
-    tenant_manager.track_event(&tenant2.id).expect("Failed to track");
+    tenant_manager
+        .track_event(&tenant1.id)
+        .expect("Failed to track");
+    tenant_manager
+        .track_event(&tenant2.id)
+        .expect("Failed to track");
 
-    let stats1 = tenant_manager.get_stats(&tenant1.id).expect("Failed to get stats");
-    let stats2 = tenant_manager.get_stats(&tenant2.id).expect("Failed to get stats");
+    let stats1 = tenant_manager
+        .get_stats(&tenant1.id)
+        .expect("Failed to get stats");
+    let stats2 = tenant_manager
+        .get_stats(&tenant2.id)
+        .expect("Failed to get stats");
 
     assert_eq!(stats1["usage"]["events_today"], 1);
     assert_eq!(stats2["usage"]["events_today"], 1);
@@ -152,8 +159,12 @@ fn test_event_store_with_tenants() {
     );
 
     // Ingest events
-    store.ingest(event1.clone()).expect("Failed to ingest event1");
-    store.ingest(event2.clone()).expect("Failed to ingest event2");
+    store
+        .ingest(event1.clone())
+        .expect("Failed to ingest event1");
+    store
+        .ingest(event2.clone())
+        .expect("Failed to ingest event2");
 
     // Query by entity (should work)
     let entity_events = store
@@ -202,19 +213,37 @@ fn test_permission_based_access() {
         .expect("Failed to create readonly user");
 
     // Admin can do everything
-    assert!(admin.role.has_permission(allsource_core::auth::Permission::Admin));
-    assert!(admin.role.has_permission(allsource_core::auth::Permission::Write));
-    assert!(admin.role.has_permission(allsource_core::auth::Permission::Read));
+    assert!(admin
+        .role
+        .has_permission(allsource_core::auth::Permission::Admin));
+    assert!(admin
+        .role
+        .has_permission(allsource_core::auth::Permission::Write));
+    assert!(admin
+        .role
+        .has_permission(allsource_core::auth::Permission::Read));
 
     // Developer can read and write
-    assert!(!developer.role.has_permission(allsource_core::auth::Permission::Admin));
-    assert!(developer.role.has_permission(allsource_core::auth::Permission::Write));
-    assert!(developer.role.has_permission(allsource_core::auth::Permission::Read));
+    assert!(!developer
+        .role
+        .has_permission(allsource_core::auth::Permission::Admin));
+    assert!(developer
+        .role
+        .has_permission(allsource_core::auth::Permission::Write));
+    assert!(developer
+        .role
+        .has_permission(allsource_core::auth::Permission::Read));
 
     // ReadOnly can only read
-    assert!(!readonly.role.has_permission(allsource_core::auth::Permission::Admin));
-    assert!(!readonly.role.has_permission(allsource_core::auth::Permission::Write));
-    assert!(readonly.role.has_permission(allsource_core::auth::Permission::Read));
+    assert!(!readonly
+        .role
+        .has_permission(allsource_core::auth::Permission::Admin));
+    assert!(!readonly
+        .role
+        .has_permission(allsource_core::auth::Permission::Write));
+    assert!(readonly
+        .role
+        .has_permission(allsource_core::auth::Permission::Read));
 
     println!("✅ Permission-based access test passed!");
 }
@@ -228,14 +257,20 @@ fn test_quota_enforcement() {
     quotas.max_events_per_day = 1;
 
     let tenant = tenant_manager
-        .create_tenant("low_quota".to_string(), "Low Quota Tenant".to_string(), quotas)
+        .create_tenant(
+            "low_quota".to_string(),
+            "Low Quota Tenant".to_string(),
+            quotas,
+        )
         .expect("Failed to create tenant");
 
     // First event should succeed
     let result1 = tenant_manager.check_quota(&tenant.id, 1);
     assert!(result1.is_ok(), "First event should be allowed");
 
-    tenant_manager.track_event(&tenant.id).expect("Failed to track event");
+    tenant_manager
+        .track_event(&tenant.id)
+        .expect("Failed to track event");
 
     // Second event should fail (quota exceeded)
     let result2 = tenant_manager.check_quota(&tenant.id, 1);

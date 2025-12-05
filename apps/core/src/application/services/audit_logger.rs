@@ -1,9 +1,9 @@
-use crate::domain::entities::{AuditEvent, AuditAction, AuditOutcome, Actor};
-use crate::domain::value_objects::TenantId;
+use crate::domain::entities::{Actor, AuditAction, AuditEvent, AuditOutcome};
 use crate::domain::repositories::AuditEventRepository;
+use crate::domain::value_objects::TenantId;
 use crate::error::AllSourceError;
-use std::sync::Arc;
 use serde_json::Value as JsonValue;
+use std::sync::Arc;
 use tracing::error;
 
 /// Request context extracted from HTTP requests
@@ -122,12 +122,7 @@ impl AuditLogBuilder {
     }
 
     fn build(self) -> AuditEvent {
-        let mut event = AuditEvent::new(
-            self.tenant_id,
-            self.action,
-            self.actor,
-            self.outcome,
-        );
+        let mut event = AuditEvent::new(self.tenant_id, self.action, self.actor, self.outcome);
 
         if let (Some(resource_type), Some(resource_id)) = (self.resource_type, self.resource_id) {
             event = event.with_resource(resource_type, resource_id);
@@ -331,8 +326,8 @@ impl<'a, R: AuditEventRepository> AuditLogEntry<'a, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::repositories::InMemoryAuditRepository;
     use crate::domain::entities::AuditAction;
+    use crate::infrastructure::repositories::InMemoryAuditRepository;
 
     fn setup_logger() -> AuditLogger<InMemoryAuditRepository> {
         let repo = Arc::new(InMemoryAuditRepository::new());
@@ -357,11 +352,9 @@ mod tests {
     #[tokio::test]
     async fn test_log_success() {
         let logger = setup_logger();
-        let result = logger.log_success(
-            test_tenant_id(),
-            AuditAction::Login,
-            test_actor(),
-        ).await;
+        let result = logger
+            .log_success(test_tenant_id(), AuditAction::Login, test_actor())
+            .await;
 
         assert!(result.is_ok());
     }
@@ -369,12 +362,14 @@ mod tests {
     #[tokio::test]
     async fn test_log_failure() {
         let logger = setup_logger();
-        let result = logger.log_failure(
-            test_tenant_id(),
-            AuditAction::LoginFailed,
-            test_actor(),
-            "Invalid credentials".to_string(),
-        ).await;
+        let result = logger
+            .log_failure(
+                test_tenant_id(),
+                AuditAction::LoginFailed,
+                test_actor(),
+                "Invalid credentials".to_string(),
+            )
+            .await;
 
         assert!(result.is_ok());
     }
@@ -382,14 +377,16 @@ mod tests {
     #[tokio::test]
     async fn test_log_with_resource() {
         let logger = setup_logger();
-        let result = logger.log_resource_action(
-            test_tenant_id(),
-            AuditAction::EventIngested,
-            Actor::api_key("key-123".to_string(), "prod-api-key".to_string()),
-            "event_stream".to_string(),
-            "stream-456".to_string(),
-            AuditOutcome::Success,
-        ).await;
+        let result = logger
+            .log_resource_action(
+                test_tenant_id(),
+                AuditAction::EventIngested,
+                Actor::api_key("key-123".to_string(), "prod-api-key".to_string()),
+                "event_stream".to_string(),
+                "stream-456".to_string(),
+                AuditOutcome::Success,
+            )
+            .await;
 
         assert!(result.is_ok());
     }
@@ -398,16 +395,17 @@ mod tests {
     async fn test_builder_api() {
         let logger = setup_logger();
 
-        let result = logger.log(
-            test_tenant_id(),
-            AuditAction::EventIngested,
-            Actor::api_key("key-123".to_string(), "prod-api-key".to_string()),
-        )
-        .with_resource("event_stream".to_string(), "stream-456".to_string())
-        .with_ip_address("192.168.1.1".to_string())
-        .with_request_id("req-789".to_string())
-        .record()
-        .await;
+        let result = logger
+            .log(
+                test_tenant_id(),
+                AuditAction::EventIngested,
+                Actor::api_key("key-123".to_string(), "prod-api-key".to_string()),
+            )
+            .with_resource("event_stream".to_string(), "stream-456".to_string())
+            .with_ip_address("192.168.1.1".to_string())
+            .with_request_id("req-789".to_string())
+            .record()
+            .await;
 
         assert!(result.is_ok());
     }
@@ -421,14 +419,11 @@ mod tests {
             .with_user_agent("Mozilla/5.0".to_string())
             .with_request_id("req-abc".to_string());
 
-        let result = logger.log(
-            test_tenant_id(),
-            AuditAction::Login,
-            test_actor(),
-        )
-        .with_context(context)
-        .record()
-        .await;
+        let result = logger
+            .log(test_tenant_id(), AuditAction::Login, test_actor())
+            .with_context(context)
+            .record()
+            .await;
 
         assert!(result.is_ok());
     }
@@ -437,14 +432,15 @@ mod tests {
     async fn test_builder_with_error() {
         let logger = setup_logger();
 
-        let result = logger.log(
-            test_tenant_id(),
-            AuditAction::PermissionDenied,
-            test_actor(),
-        )
-        .with_error("Insufficient permissions".to_string())
-        .record()
-        .await;
+        let result = logger
+            .log(
+                test_tenant_id(),
+                AuditAction::PermissionDenied,
+                test_actor(),
+            )
+            .with_error("Insufficient permissions".to_string())
+            .record()
+            .await;
 
         assert!(result.is_ok());
     }
@@ -459,14 +455,15 @@ mod tests {
             "current": 150
         });
 
-        let result = logger.log(
-            test_tenant_id(),
-            AuditAction::RateLimitExceeded,
-            test_actor(),
-        )
-        .with_metadata(metadata)
-        .record()
-        .await;
+        let result = logger
+            .log(
+                test_tenant_id(),
+                AuditAction::RateLimitExceeded,
+                test_actor(),
+            )
+            .with_metadata(metadata)
+            .record()
+            .await;
 
         assert!(result.is_ok());
     }
@@ -513,14 +510,12 @@ mod tests {
     async fn test_batch_logging_silently() {
         let logger = setup_logger();
 
-        let events = vec![
-            AuditEvent::new(
-                test_tenant_id(),
-                AuditAction::Login,
-                test_actor(),
-                AuditOutcome::Success,
-            ),
-        ];
+        let events = vec![AuditEvent::new(
+            test_tenant_id(),
+            AuditAction::Login,
+            test_actor(),
+            AuditOutcome::Success,
+        )];
 
         // This should never panic
         logger.log_batch_silently(events).await;

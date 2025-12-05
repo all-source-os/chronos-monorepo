@@ -1,10 +1,6 @@
 use crate::auth::{Permission, Role, User};
 use crate::middleware::{Admin, Authenticated};
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -109,7 +105,12 @@ pub async fn register_handler(
         auth_ctx
             .0
             .require_permission(Permission::Admin)
-            .map_err(|_| (StatusCode::FORBIDDEN, "Admin permission required".to_string()))?;
+            .map_err(|_| {
+                (
+                    StatusCode::FORBIDDEN,
+                    "Admin permission required".to_string(),
+                )
+            })?;
     }
 
     let role = req.role.unwrap_or(Role::Developer);
@@ -117,7 +118,13 @@ pub async fn register_handler(
 
     let user = state
         .auth_manager
-        .register_user(req.username, req.email, &req.password, role.clone(), tenant_id.clone())
+        .register_user(
+            req.username,
+            req.email,
+            &req.password,
+            role.clone(),
+            tenant_id.clone(),
+        )
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     Ok((
@@ -150,7 +157,12 @@ pub async fn login_handler(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .sub
         .parse::<Uuid>()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Invalid user ID".to_string()))?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Invalid user ID".to_string(),
+            )
+        })?;
 
     let user = state
         .auth_manager
@@ -169,10 +181,12 @@ pub async fn me_handler(
     State(state): State<AppState>,
     Authenticated(auth_ctx): Authenticated,
 ) -> Result<Json<UserInfo>, (StatusCode, String)> {
-    let user_id = auth_ctx
-        .user_id()
-        .parse::<Uuid>()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Invalid user ID".to_string()))?;
+    let user_id = auth_ctx.user_id().parse::<Uuid>().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Invalid user ID".to_string(),
+        )
+    })?;
 
     let user = state
         .auth_manager
@@ -195,15 +209,23 @@ pub async fn create_api_key_handler(
 
     auth_ctx
         .require_permission(Permission::Write)
-        .map_err(|_| (StatusCode::FORBIDDEN, "Write permission required".to_string()))?;
+        .map_err(|_| {
+            (
+                StatusCode::FORBIDDEN,
+                "Write permission required".to_string(),
+            )
+        })?;
 
-    let expires_at = req.expires_in_days.map(|days| {
-        chrono::Utc::now() + chrono::Duration::days(days)
-    });
+    let expires_at = req
+        .expires_in_days
+        .map(|days| chrono::Utc::now() + chrono::Duration::days(days));
 
-    let (api_key, key) = state
-        .auth_manager
-        .create_api_key(req.name.clone(), auth_ctx.tenant_id().to_string(), role, expires_at);
+    let (api_key, key) = state.auth_manager.create_api_key(
+        req.name.clone(),
+        auth_ctx.tenant_id().to_string(),
+        role,
+        expires_at,
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -250,7 +272,12 @@ pub async fn revoke_api_key_handler(
 ) -> Result<StatusCode, (StatusCode, String)> {
     auth_ctx
         .require_permission(Permission::Write)
-        .map_err(|_| (StatusCode::FORBIDDEN, "Write permission required".to_string()))?;
+        .map_err(|_| {
+            (
+                StatusCode::FORBIDDEN,
+                "Write permission required".to_string(),
+            )
+        })?;
 
     state
         .auth_manager

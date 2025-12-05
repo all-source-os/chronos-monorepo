@@ -50,7 +50,8 @@ impl InMemoryTenantRepository {
     pub fn with_tenants(tenants: Vec<Tenant>) -> Self {
         let repo = Self::new();
         for tenant in tenants {
-            repo.tenants.insert(tenant.id().as_str().to_string(), tenant);
+            repo.tenants
+                .insert(tenant.id().as_str().to_string(), tenant);
         }
         repo
     }
@@ -467,7 +468,10 @@ mod tests {
             .unwrap();
 
         let new_quotas = TenantQuotas::professional();
-        let updated = repo.update_quotas(&tenant_id, new_quotas.clone()).await.unwrap();
+        let updated = repo
+            .update_quotas(&tenant_id, new_quotas.clone())
+            .await
+            .unwrap();
         assert!(updated);
 
         let tenant = repo.find_by_id(&tenant_id).await.unwrap().unwrap();

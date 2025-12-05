@@ -14,9 +14,9 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
-    Admin,      // Full system access
-    Developer,  // Read/write events, manage schemas
-    ReadOnly,   // Read-only access to events
+    Admin,          // Full system access
+    Developer,      // Read/write events, manage schemas
+    ReadOnly,       // Read-only access to events
     ServiceAccount, // Programmatic access for services
 }
 
@@ -295,8 +295,9 @@ impl AuthManager {
             Duration::hours(24), // Token expires in 24 hours
         );
 
-        let token = encode(&Header::default(), &claims, &self.encoding_key)
-            .map_err(|e| AllSourceError::ValidationError(format!("Failed to create token: {}", e)))?;
+        let token = encode(&Header::default(), &claims, &self.encoding_key).map_err(|e| {
+            AllSourceError::ValidationError(format!("Failed to create token: {}", e))
+        })?;
 
         Ok(token)
     }
@@ -359,7 +360,10 @@ impl AuthManager {
 
     /// List all users (admin only)
     pub fn list_users(&self) -> Vec<User> {
-        self.users.iter().map(|entry| entry.value().clone()).collect()
+        self.users
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 
     /// Delete user
@@ -400,7 +404,7 @@ impl Default for AuthManager {
     fn default() -> Self {
         // Generate a random secret for development
         // In production, this should come from configuration
-        use base64::{Engine as _, engine::general_purpose};
+        use base64::{engine::general_purpose, Engine as _};
         let secret = general_purpose::STANDARD.encode(rand::random::<[u8; 32]>());
         Self::new(&secret)
     }
@@ -424,14 +428,19 @@ fn verify_password(password: &str, hash: &str) -> Result<bool> {
         .map_err(|e| AllSourceError::ValidationError(format!("Invalid password hash: {}", e)))?;
 
     let argon2 = Argon2::default();
-    Ok(argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok())
+    Ok(argon2
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok())
 }
 
 /// Generate API key
 fn generate_api_key() -> String {
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
     let random_bytes: [u8; 32] = rand::random();
-    format!("ask_{}", general_purpose::URL_SAFE_NO_PAD.encode(random_bytes))
+    format!(
+        "ask_{}",
+        general_purpose::URL_SAFE_NO_PAD.encode(random_bytes)
+    )
 }
 
 /// Hash API key for storage

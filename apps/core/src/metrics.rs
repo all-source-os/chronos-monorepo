@@ -1,6 +1,5 @@
 use prometheus::{
-    Histogram, HistogramOpts, HistogramVec, IntCounter,
-    IntCounterVec, IntGauge, Opts, Registry,
+    Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry,
 };
 use std::sync::Arc;
 
@@ -293,10 +292,7 @@ impl MetricsRegistry {
         .unwrap();
 
         let pipeline_errors_total = IntCounterVec::new(
-            Opts::new(
-                "allsource_pipeline_errors_total",
-                "Total pipeline errors",
-            ),
+            Opts::new("allsource_pipeline_errors_total", "Total pipeline errors"),
             &["pipeline_name"],
         )
         .unwrap();
@@ -633,11 +629,13 @@ mod tests {
         assert_eq!(metrics.events_ingested_total.get(), 1);
 
         // Increment by type
-        metrics.events_ingested_by_type
+        metrics
+            .events_ingested_by_type
             .with_label_values(&["user.created"])
             .inc();
         assert_eq!(
-            metrics.events_ingested_by_type
+            metrics
+                .events_ingested_by_type
                 .with_label_values(&["user.created"])
                 .get(),
             1
@@ -652,23 +650,27 @@ mod tests {
         let metrics = MetricsRegistry::new();
 
         // Increment query counter
-        metrics.queries_total
+        metrics
+            .queries_total
             .with_label_values(&["entity_id"])
             .inc();
         assert_eq!(
-            metrics.queries_total
+            metrics
+                .queries_total
                 .with_label_values(&["entity_id"])
                 .get(),
             1
         );
 
         // Record query duration
-        metrics.query_duration_seconds
+        metrics
+            .query_duration_seconds
             .with_label_values(&["entity_id"])
             .observe(0.05);
 
         // Record query results
-        metrics.query_results_total
+        metrics
+            .query_results_total
             .with_label_values(&["entity_id"])
             .inc_by(10);
     }
@@ -700,17 +702,20 @@ mod tests {
         assert_eq!(metrics.projections_total.get(), 3);
 
         // Process events in projection
-        metrics.projection_events_processed
+        metrics
+            .projection_events_processed
             .with_label_values(&["user_snapshot"])
             .inc_by(100);
 
         // Record processing duration
-        metrics.projection_processing_duration
+        metrics
+            .projection_processing_duration
             .with_label_values(&["user_snapshot"])
             .observe(0.2);
 
         // Record errors
-        metrics.projection_errors_total
+        metrics
+            .projection_errors_total
             .with_label_values(&["user_snapshot"])
             .inc();
     }
@@ -724,12 +729,14 @@ mod tests {
         assert_eq!(metrics.schemas_registered_total.get(), 1);
 
         // Validation success - requires both subject and result labels
-        metrics.schema_validations_total
+        metrics
+            .schema_validations_total
             .with_label_values(&["user.schema", "success"])
             .inc();
 
         // Validation failure
-        metrics.schema_validations_total
+        metrics
+            .schema_validations_total
             .with_label_values(&["order.schema", "failure"])
             .inc();
 
@@ -766,17 +773,20 @@ mod tests {
         assert_eq!(metrics.pipelines_registered_total.get(), 2);
 
         // Process events - requires both pipeline_id and pipeline_name labels
-        metrics.pipeline_events_processed
+        metrics
+            .pipeline_events_processed
             .with_label_values(&["pipeline-1", "filter_pipeline"])
             .inc_by(250);
 
         // Record errors - only requires pipeline_name
-        metrics.pipeline_errors_total
+        metrics
+            .pipeline_errors_total
             .with_label_values(&["filter_pipeline"])
             .inc();
 
         // Record duration - requires both pipeline_id and pipeline_name labels
-        metrics.pipeline_processing_duration
+        metrics
+            .pipeline_processing_duration
             .with_label_values(&["pipeline-1", "filter_pipeline"])
             .observe(0.15);
     }
@@ -865,12 +875,14 @@ mod tests {
         let metrics = MetricsRegistry::new();
 
         // Record request
-        metrics.http_requests_total
+        metrics
+            .http_requests_total
             .with_label_values(&["GET", "/api/events", "200"])
             .inc();
 
         // Record duration
-        metrics.http_request_duration_seconds
+        metrics
+            .http_request_duration_seconds
             .with_label_values(&["GET", "/api/events"])
             .observe(0.025);
 

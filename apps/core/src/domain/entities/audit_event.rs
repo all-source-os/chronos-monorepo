@@ -8,7 +8,6 @@
 /// - **Completeness**: All relevant context captured (who, what, when, where, result)
 /// - **Security**: Sensitive data (passwords, tokens) never logged
 /// - **Compliance**: Meets SOC 2, GDPR, HIPAA audit requirements
-
 use crate::domain::value_objects::TenantId;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -110,33 +109,38 @@ impl AuditAction {
     /// Get action category for filtering
     pub fn category(&self) -> AuditCategory {
         match self {
-            Self::Login | Self::Logout | Self::LoginFailed | Self::TokenRefreshed | Self::PasswordChanged => {
-                AuditCategory::Authentication
-            }
-            Self::ApiKeyCreated | Self::ApiKeyRevoked | Self::ApiKeyUsed => {
-                AuditCategory::ApiKey
-            }
+            Self::Login
+            | Self::Logout
+            | Self::LoginFailed
+            | Self::TokenRefreshed
+            | Self::PasswordChanged => AuditCategory::Authentication,
+            Self::ApiKeyCreated | Self::ApiKeyRevoked | Self::ApiKeyUsed => AuditCategory::ApiKey,
             Self::EventIngested | Self::EventQueried | Self::EventStreamCreated => {
                 AuditCategory::Event
             }
-            Self::TenantCreated | Self::TenantUpdated | Self::TenantActivated | Self::TenantDeactivated | Self::TenantDeleted => {
-                AuditCategory::Tenant
-            }
+            Self::TenantCreated
+            | Self::TenantUpdated
+            | Self::TenantActivated
+            | Self::TenantDeactivated
+            | Self::TenantDeleted => AuditCategory::Tenant,
             Self::SchemaRegistered | Self::SchemaUpdated | Self::SchemaDeleted => {
                 AuditCategory::Schema
             }
-            Self::ProjectionCreated | Self::ProjectionUpdated | Self::ProjectionStarted | Self::ProjectionStopped | Self::ProjectionDeleted => {
-                AuditCategory::Projection
-            }
+            Self::ProjectionCreated
+            | Self::ProjectionUpdated
+            | Self::ProjectionStarted
+            | Self::ProjectionStopped
+            | Self::ProjectionDeleted => AuditCategory::Projection,
             Self::PipelineCreated | Self::PipelineUpdated | Self::PipelineDeleted => {
                 AuditCategory::Pipeline
             }
             Self::UserCreated | Self::UserUpdated | Self::UserDeleted | Self::RoleChanged => {
                 AuditCategory::User
             }
-            Self::PermissionDenied | Self::RateLimitExceeded | Self::IpBlocked | Self::SuspiciousActivity => {
-                AuditCategory::Security
-            }
+            Self::PermissionDenied
+            | Self::RateLimitExceeded
+            | Self::IpBlocked
+            | Self::SuspiciousActivity => AuditCategory::Security,
             Self::ConfigurationChanged | Self::BackupCreated | Self::BackupRestored => {
                 AuditCategory::System
             }
@@ -185,17 +189,9 @@ pub enum AuditOutcome {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Actor {
-    User {
-        user_id: String,
-        username: String,
-    },
-    ApiKey {
-        key_id: String,
-        key_name: String,
-    },
-    System {
-        component: String,
-    },
+    User { user_id: String, username: String },
+    ApiKey { key_id: String, key_name: String },
+    System { component: String },
 }
 
 impl Actor {
@@ -398,11 +394,12 @@ impl AuditEvent {
             Actor::System { component } => format!("System component '{}'", component),
         };
 
-        let resource_desc = if let (Some(r_type), Some(r_id)) = (&self.resource_type, &self.resource_id) {
-            format!(" on {} '{}'", r_type, r_id)
-        } else {
-            String::new()
-        };
+        let resource_desc =
+            if let (Some(r_type), Some(r_id)) = (&self.resource_type, &self.resource_id) {
+                format!(" on {} '{}'", r_type, r_id)
+            } else {
+                String::new()
+            };
 
         let outcome_desc = match self.outcome {
             AuditOutcome::Success => "succeeded",
@@ -519,7 +516,10 @@ mod tests {
         assert_eq!(AuditAction::Login.category(), AuditCategory::Authentication);
         assert_eq!(AuditAction::EventIngested.category(), AuditCategory::Event);
         assert_eq!(AuditAction::TenantCreated.category(), AuditCategory::Tenant);
-        assert_eq!(AuditAction::PermissionDenied.category(), AuditCategory::Security);
+        assert_eq!(
+            AuditAction::PermissionDenied.category(),
+            AuditCategory::Security
+        );
     }
 
     #[test]
@@ -570,12 +570,7 @@ mod tests {
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
         let actor = Actor::user("user-123".to_string(), "john".to_string());
 
-        let event = AuditEvent::new(
-            tenant_id,
-            AuditAction::Login,
-            actor,
-            AuditOutcome::Success,
-        );
+        let event = AuditEvent::new(tenant_id, AuditAction::Login, actor, AuditOutcome::Success);
 
         // Serialize
         let json = serde_json::to_string(&event).unwrap();

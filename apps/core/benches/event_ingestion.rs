@@ -160,7 +160,9 @@ fn bench_state_reconstruction(c: &mut Criterion) {
 
     group.bench_function("reconstruct_100_events", |b| {
         b.iter(|| {
-            store.reconstruct_state(black_box("entity-1"), None).unwrap();
+            store
+                .reconstruct_state(black_box("entity-1"), None)
+                .unwrap();
         });
     });
 

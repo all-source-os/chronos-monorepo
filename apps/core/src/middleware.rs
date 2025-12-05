@@ -228,8 +228,14 @@ pub async fn rate_limit_middleware(
     // Add rate limit headers to response
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
-    headers.insert("X-RateLimit-Limit", result.limit.to_string().parse().unwrap());
-    headers.insert("X-RateLimit-Remaining", result.remaining.to_string().parse().unwrap());
+    headers.insert(
+        "X-RateLimit-Limit",
+        result.limit.to_string().parse().unwrap(),
+    );
+    headers.insert(
+        "X-RateLimit-Remaining",
+        result.remaining.to_string().parse().unwrap(),
+    );
 
     Ok(response)
 }
@@ -252,10 +258,9 @@ impl IntoResponse for RateLimitError {
                     .into_response();
 
                 if retry_after > 0 {
-                    response.headers_mut().insert(
-                        "Retry-After",
-                        retry_after.to_string().parse().unwrap(),
-                    );
+                    response
+                        .headers_mut()
+                        .insert("Retry-After", retry_after.to_string().parse().unwrap());
                 }
 
                 response
@@ -273,10 +278,12 @@ impl IntoResponse for RateLimitError {
 #[macro_export]
 macro_rules! require_permission {
     ($auth:expr, $perm:expr) => {
-        $auth
-            .0
-            .require_permission($perm)
-            .map_err(|_| (axum::http::StatusCode::FORBIDDEN, "Insufficient permissions"))?
+        $auth.0.require_permission($perm).map_err(|_| {
+            (
+                axum::http::StatusCode::FORBIDDEN,
+                "Insufficient permissions",
+            )
+        })?
     };
 }
 
@@ -341,8 +348,8 @@ pub async fn tenant_isolation_middleware<R: TenantRepository + 'static>(
         .clone();
 
     // Parse tenant ID
-    let tenant_id = TenantId::new(auth_ctx.tenant_id().to_string())
-        .map_err(|_| TenantError::InvalidTenant)?;
+    let tenant_id =
+        TenantId::new(auth_ctx.tenant_id().to_string()).map_err(|_| TenantError::InvalidTenant)?;
 
     // Load tenant from repository
     let tenant = tenant_state
@@ -381,18 +388,9 @@ impl IntoResponse for TenantError {
                 StatusCode::UNAUTHORIZED,
                 "Authentication required for tenant access",
             ),
-            TenantError::InvalidTenant => (
-                StatusCode::BAD_REQUEST,
-                "Invalid tenant identifier",
-            ),
-            TenantError::TenantNotFound => (
-                StatusCode::NOT_FOUND,
-                "Tenant not found",
-            ),
-            TenantError::TenantInactive => (
-                StatusCode::FORBIDDEN,
-                "Tenant is inactive",
-            ),
+            TenantError::InvalidTenant => (StatusCode::BAD_REQUEST, "Invalid tenant identifier"),
+            TenantError::TenantNotFound => (StatusCode::NOT_FOUND, "Tenant not found"),
+            TenantError::TenantInactive => (StatusCode::FORBIDDEN, "Tenant is inactive"),
             TenantError::RepositoryError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Failed to validate tenant",
@@ -439,10 +437,7 @@ impl RequestId {
 /// 2. Propagating IDs through the request lifecycle
 /// 3. Returning IDs in response headers
 /// 4. Supporting client-provided request IDs
-pub async fn request_id_middleware(
-    mut request: Request,
-    next: Next,
-) -> Response {
+pub async fn request_id_middleware(mut request: Request, next: Next) -> Response {
     // Check if request already has a request ID
     let request_id = request
         .headers()
@@ -458,10 +453,9 @@ pub async fn request_id_middleware(
     let mut response = next.run(request).await;
 
     // Add request ID to response headers
-    response.headers_mut().insert(
-        "x-request-id",
-        request_id.0.parse().unwrap(),
-    );
+    response
+        .headers_mut()
+        .insert("x-request-id", request_id.0.parse().unwrap());
 
     response
 }
@@ -515,7 +509,12 @@ impl Default for SecurityConfig {
             enable_xss_protection: true,
             csp: Some("default-src 'self'".to_string()),
             cors_origins: vec!["*".to_string()],
-            cors_methods: vec!["GET".to_string(), "POST".to_string(), "PUT".to_string(), "DELETE".to_string()],
+            cors_methods: vec![
+                "GET".to_string(),
+                "POST".to_string(),
+                "PUT".to_string(),
+                "DELETE".to_string(),
+            ],
             cors_headers: vec!["Content-Type".to_string(), "Authorization".to_string()],
             cors_max_age: 3600,
         }
@@ -655,7 +654,9 @@ pub async fn ip_filter_middleware(
 
     // Block if not allowed
     if !result.allowed {
-        return Err(IpFilterError::Blocked { reason: result.reason });
+        return Err(IpFilterError::Blocked {
+            reason: result.reason,
+        });
     }
 
     // Allow request to proceed
@@ -675,11 +676,11 @@ impl IntoResponse for IpFilterError {
             IpFilterError::NoIpAddress => (
                 StatusCode::BAD_REQUEST,
                 "Unable to determine client IP address",
-            ).into_response(),
-            IpFilterError::Blocked { reason } => (
-                StatusCode::FORBIDDEN,
-                format!("Access denied: {}", reason),
-            ).into_response(),
+            )
+                .into_response(),
+            IpFilterError::Blocked { reason } => {
+                (StatusCode::FORBIDDEN, format!("Access denied: {}", reason)).into_response()
+            }
         }
     }
 }

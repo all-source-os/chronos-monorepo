@@ -161,7 +161,9 @@ impl<T> MemoryPool<T> {
 
     /// Get a buffer from the pool or create new one
     pub fn get(&mut self) -> Vec<T> {
-        self.pool.pop().unwrap_or_else(|| Vec::with_capacity(self.capacity))
+        self.pool
+            .pop()
+            .unwrap_or_else(|| Vec::with_capacity(self.capacity))
     }
 
     /// Return buffer to pool for reuse

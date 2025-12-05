@@ -1,3 +1,4 @@
+use crate::domain::entities::Event;
 /// Backup and restore system for AllSource event store
 ///
 /// Features:
@@ -7,11 +8,9 @@
 /// - Metadata tracking
 /// - Verification and integrity checks
 /// - Support for filesystem and S3-compatible storage
-
 use crate::error::{AllSourceError, Result};
-use crate::domain::entities::Event;
 use chrono::{DateTime, Utc};
-use flate2::{write::GzEncoder, read::GzDecoder, Compression};
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -65,8 +64,9 @@ pub struct BackupManager {
 impl BackupManager {
     pub fn new(config: BackupConfig) -> Result<Self> {
         // Ensure backup directory exists
-        fs::create_dir_all(&config.backup_dir)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to create backup dir: {}", e)))?;
+        fs::create_dir_all(&config.backup_dir).map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to create backup dir: {}", e))
+        })?;
 
         Ok(Self { config })
     }
@@ -92,8 +92,9 @@ impl BackupManager {
         // Compress backup
         let backup_path = self.get_backup_path(&backup_id);
         let mut encoder = GzEncoder::new(
-            File::create(&backup_path)
-                .map_err(|e| AllSourceError::StorageError(format!("Failed to create backup file: {}", e)))?,
+            File::create(&backup_path).map_err(|e| {
+                AllSourceError::StorageError(format!("Failed to create backup file: {}", e))
+            })?,
             self.config.compression_level,
         );
 
@@ -101,9 +102,9 @@ impl BackupManager {
             .write_all(json_data.as_bytes())
             .map_err(|e| AllSourceError::StorageError(format!("Failed to write backup: {}", e)))?;
 
-        encoder
-            .finish()
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to finish compression: {}", e)))?;
+        encoder.finish().map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to finish compression: {}", e))
+        })?;
 
         let size_bytes = fs::metadata(&backup_path)
             .map_err(|e| AllSourceError::StorageError(e.to_string()))?
@@ -157,9 +158,9 @@ impl BackupManager {
 
         let mut decoder = GzDecoder::new(file);
         let mut json_data = String::new();
-        decoder
-            .read_to_string(&mut json_data)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to decompress backup: {}", e)))?;
+        decoder.read_to_string(&mut json_data).map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to decompress backup: {}", e))
+        })?;
 
         // Deserialize events
         let events: Vec<Event> = serde_json::from_str(&json_data)?;
@@ -288,8 +289,7 @@ impl BackupManager {
         let path = self.get_metadata_path(&metadata.backup_id);
         let json = serde_json::to_string_pretty(metadata)?;
 
-        fs::write(&path, json)
-            .map_err(|e| AllSourceError::StorageError(e.to_string()))?;
+        fs::write(&path, json).map_err(|e| AllSourceError::StorageError(e.to_string()))?;
 
         Ok(())
     }
@@ -303,17 +303,16 @@ impl BackupManager {
             ));
         }
 
-        let json = fs::read_to_string(&path)
-            .map_err(|e| AllSourceError::StorageError(e.to_string()))?;
+        let json =
+            fs::read_to_string(&path).map_err(|e| AllSourceError::StorageError(e.to_string()))?;
 
         Ok(serde_json::from_str(&json)?)
     }
 
     fn calculate_checksum(&self, path: &Path) -> Result<String> {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
 
-        let mut file = File::open(path)
-            .map_err(|e| AllSourceError::StorageError(e.to_string()))?;
+        let mut file = File::open(path).map_err(|e| AllSourceError::StorageError(e.to_string()))?;
 
         let mut hasher = Sha256::new();
         let mut buffer = [0; 8192];

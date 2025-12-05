@@ -111,7 +111,11 @@ fn bench_state_reconstruction(c: &mut Criterion) {
 
         group.bench_function("without_snapshot_1000_events", |b| {
             b.iter(|| {
-                black_box(store.reconstruct_state("reconstruction-entity", None).unwrap());
+                black_box(
+                    store
+                        .reconstruct_state("reconstruction-entity", None)
+                        .unwrap(),
+                );
             });
         });
     }
@@ -315,11 +319,7 @@ fn bench_wal_writes(c: &mut Criterion) {
             let store = EventStore::with_config(config);
 
             for i in 0..100 {
-                let event = create_event(
-                    "wal-entity",
-                    "wal.test",
-                    json!({"index": i}),
-                );
+                let event = create_event("wal-entity", "wal.test", json!({"index": i}));
                 store.ingest(event).unwrap();
             }
         });
@@ -365,11 +365,7 @@ fn bench_time_travel(c: &mut Criterion) {
 
     // Ingest events and capture timestamps
     for i in 0..1_000 {
-        let event = create_event(
-            "time-travel-entity",
-            "history.event",
-            json!({"version": i}),
-        );
+        let event = create_event("time-travel-entity", "history.event", json!({"version": i}));
         timestamps.push(event.timestamp);
         store.ingest(event).unwrap();
     }

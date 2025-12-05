@@ -6,14 +6,13 @@
 /// - System load
 /// - Tenant behavior
 /// - Attack detection
-
 use crate::error::Result;
 use crate::rate_limit::RateLimitResult;
 use chrono::{DateTime, Duration, Timelike, Utc};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 /// Adaptive rate limiting configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,9 +63,9 @@ struct TenantUsageProfile {
     tenant_id: String,
 
     // Historical patterns
-    hourly_averages: Vec<f64>,           // Average requests per hour
-    daily_averages: Vec<f64>,            // Average requests per day
-    peak_times: Vec<u32>,                // Hours with peak usage
+    hourly_averages: Vec<f64>, // Average requests per hour
+    daily_averages: Vec<f64>,  // Average requests per day
+    peak_times: Vec<u32>,      // Hours with peak usage
 
     // Statistical metrics
     avg_requests_per_hour: f64,
@@ -157,8 +156,9 @@ impl AdaptiveRateLimiter {
 
         // Get or create profile
         let mut profiles = self.profiles.write();
-        let profile = profiles.entry(tenant_id.to_string())
-            .or_insert_with(|| TenantUsageProfile::new(tenant_id.to_string(), config.max_rate_limit));
+        let profile = profiles.entry(tenant_id.to_string()).or_insert_with(|| {
+            TenantUsageProfile::new(tenant_id.to_string(), config.max_rate_limit)
+        });
 
         // Record request
         self.record_request(tenant_id, true, 1.0);
@@ -166,7 +166,8 @@ impl AdaptiveRateLimiter {
         // Get current hour's request count
         let recent = self.recent_requests.read();
         let cutoff = Utc::now() - Duration::hours(1);
-        let recent_count = recent.iter()
+        let recent_count = recent
+            .iter()
             .filter(|r| r.tenant_id.as_str() == tenant_id && r.timestamp > cutoff)
             .count();
 
@@ -180,7 +181,11 @@ impl AdaptiveRateLimiter {
             } else {
                 0
             },
-            retry_after: if allowed { None } else { Some(std::time::Duration::from_secs(60)) },
+            retry_after: if allowed {
+                None
+            } else {
+                Some(std::time::Duration::from_secs(60))
+            },
             limit: profile.current_limit,
         };
 
@@ -215,11 +220,14 @@ impl AdaptiveRateLimiter {
 
                 if usage_factor > 0.8 {
                     // High utilization - increase limit
-                    new_limit = ((profile.current_limit as f64) * (1.0 + config.adjustment_factor)) as u32;
+                    new_limit =
+                        ((profile.current_limit as f64) * (1.0 + config.adjustment_factor)) as u32;
                     reason = AdjustmentReason::NormalLearning;
                 } else if usage_factor < 0.3 {
                     // Low utilization - decrease limit (save resources)
-                    new_limit = ((profile.current_limit as f64) * (1.0 - config.adjustment_factor * 0.5)) as u32;
+                    new_limit = ((profile.current_limit as f64)
+                        * (1.0 - config.adjustment_factor * 0.5))
+                        as u32;
                     reason = AdjustmentReason::NormalLearning;
                 }
             }
@@ -228,7 +236,8 @@ impl AdaptiveRateLimiter {
             if config.enable_anomaly_throttling {
                 let recent = self.recent_requests.read();
                 let cutoff = Utc::now() - Duration::minutes(5);
-                let very_recent_count = recent.iter()
+                let very_recent_count = recent
+                    .iter()
                     .filter(|r| r.tenant_id.as_str() == tenant_id && r.timestamp > cutoff)
                     .count();
 
@@ -337,7 +346,8 @@ impl AdaptiveRateLimiter {
         profiles.get(tenant_id).map(|profile| {
             let recent = self.recent_requests.read();
             let cutoff = Utc::now() - Duration::hours(1);
-            let requests_last_hour = recent.iter()
+            let requests_last_hour = recent
+                .iter()
                 .filter(|r| r.tenant_id.as_str() == tenant_id && r.timestamp > cutoff)
                 .count();
 
@@ -519,6 +529,6 @@ mod tests {
 
         let stats = limiter.get_tenant_stats("tenant1").unwrap();
         assert!(stats.current_limit <= 200); // Should not exceed max
-        assert!(stats.current_limit >= 50);  // Should not go below min
+        assert!(stats.current_limit >= 50); // Should not go below min
     }
 }

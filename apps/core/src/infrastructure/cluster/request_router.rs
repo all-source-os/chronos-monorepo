@@ -1,3 +1,6 @@
+use super::node_registry::{Node, NodeRegistry};
+use crate::domain::value_objects::{EntityId, PartitionKey};
+use crate::error::{AllSourceError, Result};
 /// Request Router for Distributed Partitioning
 ///
 /// Routes requests to the correct node based on partition assignment.
@@ -18,11 +21,7 @@
 ///
 /// // Send request to target_node.address
 /// ```
-
 use std::sync::Arc;
-use crate::domain::value_objects::{EntityId, PartitionKey};
-use crate::error::{AllSourceError, Result};
-use super::node_registry::{Node, NodeRegistry};
 
 /// Request Router for partition-aware request routing
 pub struct RequestRouter {
@@ -63,17 +62,19 @@ impl RequestRouter {
     pub fn route_for_partition(&self, partition_key: &PartitionKey) -> Result<Node> {
         let partition_id = partition_key.partition_id();
 
-        let node_id = self.registry.node_for_partition(partition_id)
-            .ok_or_else(|| AllSourceError::StorageError(format!(
-                "No healthy node available for partition {}",
-                partition_id
-            )))?;
+        let node_id = self
+            .registry
+            .node_for_partition(partition_id)
+            .ok_or_else(|| {
+                AllSourceError::StorageError(format!(
+                    "No healthy node available for partition {}",
+                    partition_id
+                ))
+            })?;
 
-        self.registry.get_node(node_id)
-            .ok_or_else(|| AllSourceError::InternalError(format!(
-                "Node {} not found in registry",
-                node_id
-            )))
+        self.registry.get_node(node_id).ok_or_else(|| {
+            AllSourceError::InternalError(format!("Node {} not found in registry", node_id))
+        })
     }
 
     /// Get all nodes for load-balanced read operations

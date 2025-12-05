@@ -94,7 +94,8 @@ impl LockFreeMetrics {
         let latency_ns = latency.as_nanos() as u64;
 
         self.events_queried.fetch_add(1, Ordering::Relaxed);
-        self.total_latency_ns.fetch_add(latency_ns, Ordering::Relaxed);
+        self.total_latency_ns
+            .fetch_add(latency_ns, Ordering::Relaxed);
 
         // Update minimum latency (compare-and-swap loop)
         let mut current_min = self.min_latency_ns.load(Ordering::Relaxed);

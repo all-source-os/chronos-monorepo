@@ -7,15 +7,14 @@
 /// - Privilege escalation attempts
 /// - Data exfiltration patterns
 /// - Account compromise indicators
-
-use crate::domain::entities::{AuditEvent, AuditAction, AuditOutcome};
+use crate::domain::entities::{AuditAction, AuditEvent, AuditOutcome};
 use crate::domain::value_objects::TenantId;
 use crate::error::Result;
 use chrono::{DateTime, Duration, Timelike, Utc};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 /// Anomaly detection configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,11 +90,11 @@ pub enum AnomalyType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RecommendedAction {
-    Monitor,          // Continue monitoring
-    Alert,            // Send alert to security team
-    Block,            // Block the action
-    RequireMFA,       // Require additional authentication
-    RevokeAccess,     // Immediately revoke access
+    Monitor,      // Continue monitoring
+    Alert,        // Send alert to security team
+    Block,        // Block the action
+    RequireMFA,   // Require additional authentication
+    RevokeAccess, // Immediately revoke access
 }
 
 /// User behavior profile for baseline comparison
@@ -105,9 +104,9 @@ struct UserProfile {
     tenant_id: String,
 
     // Activity patterns
-    typical_hours: Vec<u32>,          // Hours of day when user is typically active
-    typical_actions: HashMap<AuditAction, usize>,  // Action frequency
-    typical_locations: Vec<String>,   // IP addresses or locations
+    typical_hours: Vec<u32>, // Hours of day when user is typically active
+    typical_actions: HashMap<AuditAction, usize>, // Action frequency
+    typical_locations: Vec<String>, // IP addresses or locations
 
     // Statistical baselines
     avg_actions_per_hour: f64,
@@ -215,7 +214,10 @@ impl AnomalyDetector {
                     factors: vec![],
                 });
             }
-            crate::domain::entities::Actor::ApiKey { key_id, key_name: _ } => key_id.clone(),
+            crate::domain::entities::Actor::ApiKey {
+                key_id,
+                key_name: _,
+            } => key_id.clone(),
         };
 
         // Check for brute force attacks
@@ -260,8 +262,14 @@ impl AnomalyDetector {
         let (max_anomaly_type, max_score, all_factors) = if anomaly_scores.is_empty() {
             (None, 0.0, vec![])
         } else {
-            let max_entry = anomaly_scores.iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
-            let all_factors: Vec<String> = anomaly_scores.iter().flat_map(|(_,  _, f)| f.clone()).collect();
+            let max_entry = anomaly_scores
+                .iter()
+                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                .unwrap();
+            let all_factors: Vec<String> = anomaly_scores
+                .iter()
+                .flat_map(|(_, _, f)| f.clone())
+                .collect();
             (Some(max_entry.0.clone()), max_entry.1, all_factors)
         };
 
@@ -280,7 +288,11 @@ impl AnomalyDetector {
         };
 
         let reason = if is_anomalous {
-            format!("Anomalous {:?} detected with score {:.2}", max_anomaly_type.as_ref().unwrap(), max_score)
+            format!(
+                "Anomalous {:?} detected with score {:.2}",
+                max_anomaly_type.as_ref().unwrap(),
+                max_score
+            )
         } else {
             "Normal behavior".to_string()
         };
@@ -299,13 +311,19 @@ impl AnomalyDetector {
     pub fn update_profile(&self, event: &AuditEvent) -> Result<()> {
         let user_id = match event.actor() {
             crate::domain::entities::Actor::User { user_id, .. } => user_id.clone(),
-            crate::domain::entities::Actor::ApiKey { key_id, key_name: _ } => key_id.clone(),
+            crate::domain::entities::Actor::ApiKey {
+                key_id,
+                key_name: _,
+            } => key_id.clone(),
             _ => return Ok(()),
         };
 
         let mut profiles = self.user_profiles.write();
-        let profile = profiles.entry(format!("{}-{}", event.tenant_id().as_str(), user_id))
-            .or_insert_with(|| UserProfile::new(user_id.clone(), event.tenant_id().as_str().to_string()));
+        let profile = profiles
+            .entry(format!("{}-{}", event.tenant_id().as_str(), user_id))
+            .or_insert_with(|| {
+                UserProfile::new(user_id.clone(), event.tenant_id().as_str().to_string())
+            });
 
         // Update activity patterns
         let hour = event.timestamp().hour();
@@ -314,7 +332,10 @@ impl AnomalyDetector {
         }
 
         // Update action frequency
-        *profile.typical_actions.entry(event.action().clone()).or_insert(0) += 1;
+        *profile
+            .typical_actions
+            .entry(event.action().clone())
+            .or_insert(0) += 1;
 
         // Update statistics
         profile.event_count += 1;
@@ -329,17 +350,23 @@ impl AnomalyDetector {
 
     // === Detection Methods ===
 
-    fn detect_brute_force(&self, user_id: &str, event: &AuditEvent) -> Result<Option<(f64, Vec<String>)>> {
+    fn detect_brute_force(
+        &self,
+        user_id: &str,
+        event: &AuditEvent,
+    ) -> Result<Option<(f64, Vec<String>)>> {
         // Detect multiple failed login attempts
         if event.action() != &AuditAction::Login {
             return Ok(None);
         }
 
         let recent = self.recent_events.read();
-        let mut recent_failures = recent.iter()
+        let mut recent_failures = recent
+            .iter()
             .filter(|e| {
                 if let crate::domain::entities::Actor::User { user_id: uid, .. } = e.actor() {
-                    uid == user_id && e.action() == &AuditAction::Login
+                    uid == user_id
+                        && e.action() == &AuditAction::Login
                         && e.outcome() == &AuditOutcome::Failure
                         && (Utc::now() - e.timestamp()) < Duration::minutes(15)
                 } else {
@@ -355,16 +382,21 @@ impl AnomalyDetector {
 
         if recent_failures >= 5 {
             let score = (recent_failures as f64 / 10.0).min(1.0);
-            let factors = vec![
-                format!("{} failed login attempts in 15 minutes", recent_failures),
-            ];
+            let factors = vec![format!(
+                "{} failed login attempts in 15 minutes",
+                recent_failures
+            )];
             return Ok(Some((score, factors)));
         }
 
         Ok(None)
     }
 
-    fn detect_unusual_access(&self, user_id: &str, event: &AuditEvent) -> Result<Option<(f64, Vec<String>)>> {
+    fn detect_unusual_access(
+        &self,
+        user_id: &str,
+        event: &AuditEvent,
+    ) -> Result<Option<(f64, Vec<String>)>> {
         let profiles = self.user_profiles.read();
         let profile_key = format!("{}-{}", event.tenant_id().as_str(), user_id);
 
@@ -384,7 +416,11 @@ impl AnomalyDetector {
             }
 
             // Check if action is unusual for this user
-            let action_count = profile.typical_actions.get(event.action()).copied().unwrap_or(0);
+            let action_count = profile
+                .typical_actions
+                .get(event.action())
+                .copied()
+                .unwrap_or(0);
             if action_count == 0 && profile.event_count > 50 {
                 factors.push(format!("First time performing {:?}", event.action()));
                 anomaly_indicators += 1;
@@ -399,19 +435,22 @@ impl AnomalyDetector {
         Ok(None)
     }
 
-    fn detect_privilege_escalation(&self, user_id: &str, event: &AuditEvent) -> Result<Option<(f64, Vec<String>)>> {
+    fn detect_privilege_escalation(
+        &self,
+        user_id: &str,
+        event: &AuditEvent,
+    ) -> Result<Option<(f64, Vec<String>)>> {
         // Detect attempts to gain unauthorized privileges
-        let sensitive_actions = vec![
-            AuditAction::TenantUpdated,
-            AuditAction::RoleChanged,
-        ];
+        let sensitive_actions = vec![AuditAction::TenantUpdated, AuditAction::RoleChanged];
 
         if sensitive_actions.contains(event.action()) && event.outcome() == &AuditOutcome::Failure {
             let recent = self.recent_events.read();
-            let recent_privilege_attempts = recent.iter()
+            let recent_privilege_attempts = recent
+                .iter()
                 .filter(|e| {
                     if let crate::domain::entities::Actor::User { user_id: uid, .. } = e.actor() {
-                        uid == user_id && sensitive_actions.contains(e.action())
+                        uid == user_id
+                            && sensitive_actions.contains(e.action())
                             && (Utc::now() - e.timestamp()) < Duration::hours(1)
                     } else {
                         false
@@ -422,7 +461,10 @@ impl AnomalyDetector {
             if recent_privilege_attempts >= 3 {
                 let score = 0.8;
                 let factors = vec![
-                    format!("{} privilege escalation attempts in 1 hour", recent_privilege_attempts),
+                    format!(
+                        "{} privilege escalation attempts in 1 hour",
+                        recent_privilege_attempts
+                    ),
                     format!("Latest action: {:?}", event.action()),
                 ];
                 return Ok(Some((score, factors)));
@@ -432,17 +474,23 @@ impl AnomalyDetector {
         Ok(None)
     }
 
-    fn detect_data_exfiltration(&self, user_id: &str, event: &AuditEvent) -> Result<Option<(f64, Vec<String>)>> {
+    fn detect_data_exfiltration(
+        &self,
+        user_id: &str,
+        event: &AuditEvent,
+    ) -> Result<Option<(f64, Vec<String>)>> {
         // Detect unusual data access patterns that might indicate exfiltration
         if event.action() != &AuditAction::EventQueried {
             return Ok(None);
         }
 
         let recent = self.recent_events.read();
-        let recent_queries = recent.iter()
+        let recent_queries = recent
+            .iter()
             .filter(|e| {
                 if let crate::domain::entities::Actor::User { user_id: uid, .. } = e.actor() {
-                    uid == user_id && e.action() == &AuditAction::EventQueried
+                    uid == user_id
+                        && e.action() == &AuditAction::EventQueried
                         && (Utc::now() - e.timestamp()) < Duration::hours(1)
                 } else {
                     false
@@ -460,7 +508,10 @@ impl AnomalyDetector {
                 if recent_queries as f64 > profile.avg_actions_per_hour * 5.0 {
                     let score = 0.75;
                     let factors = vec![
-                        format!("{} queries in 1 hour (baseline: {:.0})", recent_queries, profile.avg_actions_per_hour),
+                        format!(
+                            "{} queries in 1 hour (baseline: {:.0})",
+                            recent_queries, profile.avg_actions_per_hour
+                        ),
                         "Potential data exfiltration pattern".to_string(),
                     ];
                     return Ok(Some((score, factors)));
@@ -471,10 +522,15 @@ impl AnomalyDetector {
         Ok(None)
     }
 
-    fn detect_velocity_anomaly(&self, user_id: &str, event: &AuditEvent) -> Result<Option<(f64, Vec<String>)>> {
+    fn detect_velocity_anomaly(
+        &self,
+        user_id: &str,
+        event: &AuditEvent,
+    ) -> Result<Option<(f64, Vec<String>)>> {
         // Detect impossibly fast actions (e.g., actions from different locations in short time)
         let recent = self.recent_events.read();
-        let very_recent = recent.iter()
+        let very_recent = recent
+            .iter()
             .filter(|e| {
                 if let crate::domain::entities::Actor::User { user_id: uid, .. } = e.actor() {
                     uid == user_id && (Utc::now() - e.timestamp()) < Duration::seconds(10)
@@ -599,7 +655,8 @@ mod tests {
 
         // Simulate 25 actions in rapid succession
         for _ in 0..25 {
-            let event = create_test_event(AuditAction::EventQueried, AuditOutcome::Success, "user1");
+            let event =
+                create_test_event(AuditAction::EventQueried, AuditOutcome::Success, "user1");
             detector.add_recent_event(event.clone());
         }
 

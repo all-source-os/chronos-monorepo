@@ -298,10 +298,7 @@ mod tests {
 
     #[test]
     fn test_integrity_check_result() {
-        let success = IntegrityCheckResult::success(
-            "test.wal".to_string(),
-            "abc123".to_string(),
-        );
+        let success = IntegrityCheckResult::success("test.wal".to_string(), "abc123".to_string());
         assert!(success.valid);
         assert_eq!(success.checksum, Some("abc123".to_string()));
         assert_eq!(success.error, None);

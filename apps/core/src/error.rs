@@ -81,22 +81,15 @@ impl IntoResponse for AllSourceError {
         let (status, error_message) = match self {
             AllSourceError::EventNotFound(_)
             | AllSourceError::EntityNotFound(_)
-            | AllSourceError::TenantNotFound(_) => {
-                (StatusCode::NOT_FOUND, self.to_string())
-            }
+            | AllSourceError::TenantNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
             AllSourceError::InvalidEvent(_)
             | AllSourceError::InvalidQuery(_)
             | AllSourceError::InvalidInput(_)
-            | AllSourceError::ValidationError(_) => {
-                (StatusCode::BAD_REQUEST, self.to_string())
-            }
-            AllSourceError::TenantAlreadyExists(_)
-            | AllSourceError::ConcurrencyError(_) => {
+            | AllSourceError::ValidationError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            AllSourceError::TenantAlreadyExists(_) | AllSourceError::ConcurrencyError(_) => {
                 (StatusCode::CONFLICT, self.to_string())
             }
-            AllSourceError::QueueFull(_) => {
-                (StatusCode::SERVICE_UNAVAILABLE, self.to_string())
-            }
+            AllSourceError::QueueFull(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
             AllSourceError::StorageError(_)
             | AllSourceError::ArrowError(_)
             | AllSourceError::IndexError(_)

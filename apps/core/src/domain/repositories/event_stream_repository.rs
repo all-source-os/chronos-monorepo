@@ -1,7 +1,7 @@
-use async_trait::async_trait;
 use crate::domain::entities::{Event, EventStream};
 use crate::domain::value_objects::{EntityId, PartitionKey};
 use crate::error::Result;
+use async_trait::async_trait;
 
 /// Event Stream Repository Trait (SierraDB Pattern)
 ///
@@ -69,7 +69,10 @@ pub trait EventStreamRepository: Send + Sync {
     /// - Fixed partitions (32 for single-node)
     /// - Enables sequential writes within partition
     /// - Ready for horizontal scaling
-    async fn get_streams_by_partition(&self, partition_key: &PartitionKey) -> Result<Vec<EventStream>>;
+    async fn get_streams_by_partition(
+        &self,
+        partition_key: &PartitionKey,
+    ) -> Result<Vec<EventStream>>;
 
     /// Get watermark for a stream
     ///
@@ -105,13 +108,19 @@ pub trait EventStreamRepository: Send + Sync {
     /// # Tenant Isolation
     /// This method is critical for multi-tenancy support. It ensures that
     /// operations can be scoped to a single tenant for security and compliance.
-    async fn get_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<Vec<EventStream>>;
+    async fn get_streams_by_tenant(
+        &self,
+        tenant_id: &crate::domain::value_objects::TenantId,
+    ) -> Result<Vec<EventStream>>;
 
     /// Count streams for a specific tenant
     ///
     /// Returns the total number of streams belonging to the specified tenant.
     /// Used for quota enforcement and tenant monitoring.
-    async fn count_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<usize>;
+    async fn count_streams_by_tenant(
+        &self,
+        tenant_id: &crate::domain::value_objects::TenantId,
+    ) -> Result<usize>;
 }
 
 /// Read-only stream repository (query optimization)
@@ -121,10 +130,19 @@ pub trait EventStreamRepository: Send + Sync {
 pub trait EventStreamReader: Send + Sync {
     async fn load_stream(&self, stream_id: &EntityId) -> Result<Option<EventStream>>;
     async fn get_watermark(&self, stream_id: &EntityId) -> Result<u64>;
-    async fn get_streams_by_partition(&self, partition_key: &PartitionKey) -> Result<Vec<EventStream>>;
+    async fn get_streams_by_partition(
+        &self,
+        partition_key: &PartitionKey,
+    ) -> Result<Vec<EventStream>>;
     async fn verify_gapless(&self, stream_id: &EntityId) -> Result<bool>;
-    async fn get_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<Vec<EventStream>>;
-    async fn count_streams_by_tenant(&self, tenant_id: &crate::domain::value_objects::TenantId) -> Result<usize>;
+    async fn get_streams_by_tenant(
+        &self,
+        tenant_id: &crate::domain::value_objects::TenantId,
+    ) -> Result<Vec<EventStream>>;
+    async fn count_streams_by_tenant(
+        &self,
+        tenant_id: &crate::domain::value_objects::TenantId,
+    ) -> Result<usize>;
 }
 
 /// Write-only stream repository (ingestion optimization)

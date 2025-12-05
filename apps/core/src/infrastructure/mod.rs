@@ -6,7 +6,7 @@
 // - web/ (HTTP handlers, WebSocket handlers)
 // - messaging/ (Kafka, NATS integrations)
 
+pub mod cluster;
 pub mod persistence;
 pub mod repositories;
-pub mod cluster;
 pub mod security;

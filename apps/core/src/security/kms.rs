@@ -6,12 +6,11 @@
 /// - Azure Key Vault
 /// - HashiCorp Vault
 /// - Local HSM via PKCS#11
-
 use crate::error::{AllSourceError, Result};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 /// KMS provider type
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -110,7 +109,12 @@ pub enum KeyStatus {
 #[async_trait::async_trait]
 pub trait KmsClient: Send + Sync {
     /// Create a new key
-    async fn create_key(&self, alias: String, purpose: KeyPurpose, algorithm: KeyAlgorithm) -> Result<KeyMetadata>;
+    async fn create_key(
+        &self,
+        alias: String,
+        purpose: KeyPurpose,
+        algorithm: KeyAlgorithm,
+    ) -> Result<KeyMetadata>;
 
     /// Get key metadata
     async fn get_key(&self, key_id: &str) -> Result<KeyMetadata>;
@@ -159,29 +163,35 @@ impl LocalKms {
 
 #[async_trait::async_trait]
 impl KmsClient for LocalKms {
-    async fn create_key(&self, alias: String, purpose: KeyPurpose, algorithm: KeyAlgorithm) -> Result<KeyMetadata> {
+    async fn create_key(
+        &self,
+        alias: String,
+        purpose: KeyPurpose,
+        algorithm: KeyAlgorithm,
+    ) -> Result<KeyMetadata> {
         let key_id = uuid::Uuid::new_v4().to_string();
 
         // Generate key material based on algorithm
         let key_material = match algorithm {
             KeyAlgorithm::Aes256Gcm => {
                 let mut key = vec![0u8; 32];
-                use aes_gcm::aead::OsRng;
                 use aes_gcm::aead::rand_core::RngCore;
+                use aes_gcm::aead::OsRng;
                 RngCore::fill_bytes(&mut OsRng, &mut key);
                 key
             }
             KeyAlgorithm::Aes128Gcm => {
                 let mut key = vec![0u8; 16];
-                use aes_gcm::aead::OsRng;
                 use aes_gcm::aead::rand_core::RngCore;
+                use aes_gcm::aead::OsRng;
                 RngCore::fill_bytes(&mut OsRng, &mut key);
                 key
             }
             _ => {
-                return Err(AllSourceError::ValidationError(
-                    format!("Algorithm {:?} not supported in local KMS", algorithm)
-                ));
+                return Err(AllSourceError::ValidationError(format!(
+                    "Algorithm {:?} not supported in local KMS",
+                    algorithm
+                )));
             }
         };
 
@@ -207,43 +217,50 @@ impl KmsClient for LocalKms {
     }
 
     async fn get_key(&self, key_id: &str) -> Result<KeyMetadata> {
-        self.keys.read()
+        self.keys
+            .read()
             .get(key_id)
             .map(|k| k.metadata.clone())
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))
     }
 
     async fn list_keys(&self) -> Result<Vec<KeyMetadata>> {
-        Ok(self.keys.read()
+        Ok(self
+            .keys
+            .read()
             .values()
             .map(|k| k.metadata.clone())
             .collect())
     }
 
     async fn encrypt(&self, key_id: &str, plaintext: &[u8]) -> Result<Vec<u8>> {
-        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
         use aes_gcm::aead::Aead;
+        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
         let keys = self.keys.read();
-        let stored_key = keys.get(key_id)
+        let stored_key = keys
+            .get(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
 
         if stored_key.metadata.status != KeyStatus::Active {
-            return Err(AllSourceError::ValidationError("Key is not active".to_string()));
+            return Err(AllSourceError::ValidationError(
+                "Key is not active".to_string(),
+            ));
         }
 
         let cipher = Aes256Gcm::new_from_slice(&stored_key.key_material)
             .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
 
         // Generate nonce
-        use aes_gcm::aead::OsRng;
         use aes_gcm::aead::rand_core::RngCore;
+        use aes_gcm::aead::OsRng;
         let nonce_bytes = OsRng.next_u64().to_le_bytes();
         let mut nonce_array = [0u8; 12];
         nonce_array[..8].copy_from_slice(&nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_array);
 
-        let ciphertext = cipher.encrypt(nonce, plaintext)
+        let ciphertext = cipher
+            .encrypt(nonce, plaintext)
             .map_err(|e| AllSourceError::ValidationError(format!("Encryption failed: {}", e)))?;
 
         // Prepend nonce to ciphertext
@@ -254,15 +271,18 @@ impl KmsClient for LocalKms {
     }
 
     async fn decrypt(&self, key_id: &str, ciphertext_with_nonce: &[u8]) -> Result<Vec<u8>> {
-        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
         use aes_gcm::aead::Aead;
+        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
         if ciphertext_with_nonce.len() < 12 {
-            return Err(AllSourceError::ValidationError("Invalid ciphertext".to_string()));
+            return Err(AllSourceError::ValidationError(
+                "Invalid ciphertext".to_string(),
+            ));
         }
 
         let keys = self.keys.read();
-        let stored_key = keys.get(key_id)
+        let stored_key = keys
+            .get(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
 
         let cipher = Aes256Gcm::new_from_slice(&stored_key.key_material)
@@ -272,20 +292,22 @@ impl KmsClient for LocalKms {
         let nonce = Nonce::from_slice(&ciphertext_with_nonce[..12]);
         let ciphertext = &ciphertext_with_nonce[12..];
 
-        cipher.decrypt(nonce, ciphertext)
+        cipher
+            .decrypt(nonce, ciphertext)
             .map_err(|e| AllSourceError::ValidationError(format!("Decryption failed: {}", e)))
     }
 
     async fn rotate_key(&self, key_id: &str) -> Result<KeyMetadata> {
         let mut keys = self.keys.write();
-        let stored_key = keys.get_mut(key_id)
+        let stored_key = keys
+            .get_mut(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
 
         // Generate new key material
         let new_key_material = {
             let mut key = vec![0u8; 32];
-            use aes_gcm::aead::OsRng;
             use aes_gcm::aead::rand_core::RngCore;
+            use aes_gcm::aead::OsRng;
             RngCore::fill_bytes(&mut OsRng, &mut key);
             key
         };
@@ -299,7 +321,8 @@ impl KmsClient for LocalKms {
 
     async fn disable_key(&self, key_id: &str) -> Result<()> {
         let mut keys = self.keys.write();
-        let stored_key = keys.get_mut(key_id)
+        let stored_key = keys
+            .get_mut(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
 
         stored_key.metadata.status = KeyStatus::Deprecated;
@@ -308,7 +331,8 @@ impl KmsClient for LocalKms {
 
     async fn enable_key(&self, key_id: &str) -> Result<()> {
         let mut keys = self.keys.write();
-        let stored_key = keys.get_mut(key_id)
+        let stored_key = keys
+            .get_mut(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
 
         stored_key.metadata.status = KeyStatus::Active;
@@ -318,8 +342,8 @@ impl KmsClient for LocalKms {
     async fn generate_data_key(&self, key_id: &str) -> Result<(Vec<u8>, Vec<u8>)> {
         // Generate data encryption key
         let mut dek = vec![0u8; 32];
-        use aes_gcm::aead::OsRng;
         use aes_gcm::aead::rand_core::RngCore;
+        use aes_gcm::aead::OsRng;
         RngCore::fill_bytes(&mut OsRng, &mut dek);
 
         // Encrypt DEK with master key
@@ -339,13 +363,12 @@ impl KmsManager {
     /// Create new KMS manager
     pub fn new(config: KmsConfig) -> Result<Self> {
         let client: Arc<dyn KmsClient> = match config.provider {
-            KmsProvider::Local => {
-                Arc::new(LocalKms::new(config.clone()))
-            }
+            KmsProvider::Local => Arc::new(LocalKms::new(config.clone())),
             _ => {
-                return Err(AllSourceError::ValidationError(
-                    format!("KMS provider {:?} not yet implemented", config.provider)
-                ));
+                return Err(AllSourceError::ValidationError(format!(
+                    "KMS provider {:?} not yet implemented",
+                    config.provider
+                )));
             }
         };
 
@@ -358,25 +381,30 @@ impl KmsManager {
     }
 
     /// Encrypt data using envelope encryption
-    pub async fn envelope_encrypt(&self, master_key_id: &str, plaintext: &[u8]) -> Result<EnvelopeEncryptedData> {
+    pub async fn envelope_encrypt(
+        &self,
+        master_key_id: &str,
+        plaintext: &[u8],
+    ) -> Result<EnvelopeEncryptedData> {
         // Generate data encryption key
         let (dek, encrypted_dek) = self.client.generate_data_key(master_key_id).await?;
 
         // Encrypt data with DEK
-        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
         use aes_gcm::aead::Aead;
+        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
         let cipher = Aes256Gcm::new_from_slice(&dek)
             .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
 
-        use aes_gcm::aead::OsRng;
         use aes_gcm::aead::rand_core::RngCore;
+        use aes_gcm::aead::OsRng;
         let nonce_bytes = OsRng.next_u64().to_le_bytes();
         let mut nonce_array = [0u8; 12];
         nonce_array[..8].copy_from_slice(&nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_array);
 
-        let ciphertext = cipher.encrypt(nonce, plaintext)
+        let ciphertext = cipher
+            .encrypt(nonce, plaintext)
             .map_err(|e| AllSourceError::ValidationError(format!("Encryption failed: {}", e)))?;
 
         Ok(EnvelopeEncryptedData {
@@ -390,18 +418,22 @@ impl KmsManager {
     /// Decrypt data using envelope encryption
     pub async fn envelope_decrypt(&self, encrypted: &EnvelopeEncryptedData) -> Result<Vec<u8>> {
         // Decrypt DEK
-        let dek = self.client.decrypt(&encrypted.master_key_id, &encrypted.encrypted_dek).await?;
+        let dek = self
+            .client
+            .decrypt(&encrypted.master_key_id, &encrypted.encrypted_dek)
+            .await?;
 
         // Decrypt data with DEK
-        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
         use aes_gcm::aead::Aead;
+        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
         let cipher = Aes256Gcm::new_from_slice(&dek)
             .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
 
         let nonce = Nonce::from_slice(&encrypted.nonce);
 
-        cipher.decrypt(nonce, encrypted.ciphertext.as_ref())
+        cipher
+            .decrypt(nonce, encrypted.ciphertext.as_ref())
             .map_err(|e| AllSourceError::ValidationError(format!("Decryption failed: {}", e)))
     }
 }
@@ -431,11 +463,14 @@ mod tests {
         let config = KmsConfig::default();
         let kms = LocalKms::new(config);
 
-        let metadata = kms.create_key(
-            "test-key".to_string(),
-            KeyPurpose::DataEncryption,
-            KeyAlgorithm::Aes256Gcm,
-        ).await.unwrap();
+        let metadata = kms
+            .create_key(
+                "test-key".to_string(),
+                KeyPurpose::DataEncryption,
+                KeyAlgorithm::Aes256Gcm,
+            )
+            .await
+            .unwrap();
 
         assert_eq!(metadata.alias, "test-key");
         assert_eq!(metadata.status, KeyStatus::Active);
@@ -447,11 +482,14 @@ mod tests {
         let config = KmsConfig::default();
         let kms = LocalKms::new(config);
 
-        let key = kms.create_key(
-            "test-key".to_string(),
-            KeyPurpose::DataEncryption,
-            KeyAlgorithm::Aes256Gcm,
-        ).await.unwrap();
+        let key = kms
+            .create_key(
+                "test-key".to_string(),
+                KeyPurpose::DataEncryption,
+                KeyAlgorithm::Aes256Gcm,
+            )
+            .await
+            .unwrap();
 
         let plaintext = b"sensitive data";
         let ciphertext = kms.encrypt(&key.key_id, plaintext).await.unwrap();
@@ -465,11 +503,14 @@ mod tests {
         let config = KmsConfig::default();
         let kms = LocalKms::new(config);
 
-        let key = kms.create_key(
-            "test-key".to_string(),
-            KeyPurpose::DataEncryption,
-            KeyAlgorithm::Aes256Gcm,
-        ).await.unwrap();
+        let key = kms
+            .create_key(
+                "test-key".to_string(),
+                KeyPurpose::DataEncryption,
+                KeyAlgorithm::Aes256Gcm,
+            )
+            .await
+            .unwrap();
 
         let rotated = kms.rotate_key(&key.key_id).await.unwrap();
         assert_eq!(rotated.version, 2);
@@ -482,15 +523,22 @@ mod tests {
         let manager = KmsManager::new(config).unwrap();
 
         // Create master key
-        let master_key = manager.client().create_key(
-            "master-key".to_string(),
-            KeyPurpose::DataEncryption,
-            KeyAlgorithm::Aes256Gcm,
-        ).await.unwrap();
+        let master_key = manager
+            .client()
+            .create_key(
+                "master-key".to_string(),
+                KeyPurpose::DataEncryption,
+                KeyAlgorithm::Aes256Gcm,
+            )
+            .await
+            .unwrap();
 
         // Encrypt data
         let plaintext = b"sensitive data for envelope encryption";
-        let encrypted = manager.envelope_encrypt(&master_key.key_id, plaintext).await.unwrap();
+        let encrypted = manager
+            .envelope_encrypt(&master_key.key_id, plaintext)
+            .await
+            .unwrap();
 
         // Decrypt data
         let decrypted = manager.envelope_decrypt(&encrypted).await.unwrap();
@@ -503,11 +551,14 @@ mod tests {
         let config = KmsConfig::default();
         let kms = LocalKms::new(config);
 
-        let key = kms.create_key(
-            "test-key".to_string(),
-            KeyPurpose::DataEncryption,
-            KeyAlgorithm::Aes256Gcm,
-        ).await.unwrap();
+        let key = kms
+            .create_key(
+                "test-key".to_string(),
+                KeyPurpose::DataEncryption,
+                KeyAlgorithm::Aes256Gcm,
+            )
+            .await
+            .unwrap();
 
         // Disable key
         kms.disable_key(&key.key_id).await.unwrap();

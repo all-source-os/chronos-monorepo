@@ -99,7 +99,8 @@ impl EventStream {
         if events.len() as u64 != current_version {
             return Err(AllSourceError::InvalidInput(format!(
                 "Event count ({}) must match current version ({})",
-                events.len(), current_version
+                events.len(),
+                current_version
             )));
         }
 

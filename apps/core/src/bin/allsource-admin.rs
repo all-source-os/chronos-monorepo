@@ -2,7 +2,6 @@
 ///
 /// Command-line interface for managing AllSource v1.0
 /// Features: User management, Tenant management, Backups, Statistics
-
 use allsource_core::{
     auth::{AuthManager, Role},
     backup::{BackupConfig, BackupManager},
@@ -16,29 +15,50 @@ use std::sync::Arc;
 #[derive(Debug)]
 enum Command {
     // User commands
-    UserCreate { username: String, email: String, password: String, role: Role },
+    UserCreate {
+        username: String,
+        email: String,
+        password: String,
+        role: Role,
+    },
     UserList,
-    UserDelete { username: String },
+    UserDelete {
+        username: String,
+    },
 
     // Tenant commands
-    TenantCreate { id: String, name: String, tier: String },
+    TenantCreate {
+        id: String,
+        name: String,
+        tier: String,
+    },
     TenantList,
-    TenantStats { id: String },
-    TenantDeactivate { id: String },
+    TenantStats {
+        id: String,
+    },
+    TenantDeactivate {
+        id: String,
+    },
 
     // Backup commands
     BackupCreate,
     BackupList,
-    BackupRestore { backup_id: String },
+    BackupRestore {
+        backup_id: String,
+    },
 
     // System commands
-    Config { show: bool, generate: bool },
+    Config {
+        show: bool,
+        generate: bool,
+    },
     Stats,
     Help,
 }
 
 fn print_help() {
-    println!(r#"
+    println!(
+        r#"
 AllSource Admin CLI v1.0
 
 USAGE:
@@ -104,7 +124,8 @@ EXAMPLES:
     allsource-admin config show
 
 For more information, visit: https://docs.allsource.io
-"#);
+"#
+    );
 }
 
 fn parse_args() -> Result<Command> {
@@ -217,8 +238,14 @@ fn parse_args() -> Result<Command> {
                 return Ok(Command::Help);
             }
             match args[2].as_str() {
-                "show" => Ok(Command::Config { show: true, generate: false }),
-                "generate" => Ok(Command::Config { show: false, generate: true }),
+                "show" => Ok(Command::Config {
+                    show: true,
+                    generate: false,
+                }),
+                "generate" => Ok(Command::Config {
+                    show: false,
+                    generate: true,
+                }),
                 _ => Ok(Command::Help),
             }
         }
@@ -235,7 +262,12 @@ fn main() -> Result<()> {
     let command = parse_args()?;
 
     match command {
-        Command::UserCreate { username, email, password, role } => {
+        Command::UserCreate {
+            username,
+            email,
+            password,
+            role,
+        } => {
             println!("Creating user: {} ({})", username, email);
             let auth_manager = Arc::new(AuthManager::default());
             let user = auth_manager.register_user(
@@ -257,8 +289,10 @@ fn main() -> Result<()> {
             let users = auth_manager.list_users();
             println!("\nTotal users: {}\n", users.len());
             for user in users {
-                println!("  • {} ({}) - Role: {:?}, Tenant: {}",
-                    user.username, user.email, user.role, user.tenant_id);
+                println!(
+                    "  • {} ({}) - Role: {:?}, Tenant: {}",
+                    user.username, user.email, user.role, user.tenant_id
+                );
             }
         }
 
@@ -296,8 +330,10 @@ fn main() -> Result<()> {
             let tenants = tenant_manager.list_tenants();
             println!("\nTotal tenants: {}\n", tenants.len());
             for tenant in tenants {
-                println!("  • {} - {} (Active: {})",
-                    tenant.id, tenant.name, tenant.active);
+                println!(
+                    "  • {} - {} (Active: {})",
+                    tenant.id, tenant.name, tenant.active
+                );
             }
         }
 
@@ -331,8 +367,10 @@ fn main() -> Result<()> {
             let backups = manager.list_backups()?;
             println!("\nTotal backups: {}\n", backups.len());
             for backup in backups {
-                println!("  • {} - {} events ({} bytes)",
-                    backup.backup_id, backup.event_count, backup.size_bytes);
+                println!(
+                    "  • {} - {} events ({} bytes)",
+                    backup.backup_id, backup.event_count, backup.size_bytes
+                );
                 println!("    Created: {}", backup.created_at);
             }
         }
@@ -377,7 +415,10 @@ fn main() -> Result<()> {
             println!("Tenants: {}", tenants.len());
             println!("\nTenant Breakdown:");
             for tenant in tenants {
-                println!("  • {}: {} (Active: {})", tenant.id, tenant.name, tenant.active);
+                println!(
+                    "  • {}: {} (Active: {})",
+                    tenant.id, tenant.name, tenant.active
+                );
             }
         }
 

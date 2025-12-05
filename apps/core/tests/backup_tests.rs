@@ -1,5 +1,4 @@
 /// Additional backup & restore tests for comprehensive coverage
-
 use allsource_core::backup::{BackupConfig, BackupManager, BackupMetadata};
 use allsource_core::event::Event;
 use serde_json::json;

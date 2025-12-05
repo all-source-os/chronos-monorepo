@@ -8,13 +8,12 @@
 /// - Fast O(1) lookups by ID
 /// - In-memory filtering for queries
 /// - No persistence (data lost on restart)
-
 use async_trait::async_trait;
 use dashmap::DashMap;
 use std::sync::Arc;
 
 use crate::domain::entities::{AuditEvent, AuditEventId};
-use crate::domain::repositories::{AuditEventRepository, AuditEventQuery};
+use crate::domain::repositories::{AuditEventQuery, AuditEventRepository};
 use crate::domain::value_objects::TenantId;
 use crate::error::Result;
 use chrono::{DateTime, Utc};
@@ -36,7 +35,10 @@ impl InMemoryAuditRepository {
     /// Get all events (for testing/debugging)
     #[cfg(test)]
     pub fn all_events(&self) -> Vec<AuditEvent> {
-        self.events.iter().map(|entry| entry.value().clone()).collect()
+        self.events
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 
     /// Clear all events (for testing)
@@ -78,7 +80,10 @@ impl AuditEventRepository for InMemoryAuditRepository {
     }
 
     async fn get_by_id(&self, id: &AuditEventId) -> Result<Option<AuditEvent>> {
-        Ok(self.events.get(&id.as_str()).map(|entry| entry.value().clone()))
+        Ok(self
+            .events
+            .get(&id.as_str())
+            .map(|entry| entry.value().clone()))
     }
 
     async fn query(&self, query: AuditEventQuery) -> Result<Vec<AuditEvent>> {
@@ -216,8 +221,7 @@ impl AuditEventRepository for InMemoryAuditRepository {
         limit: usize,
         offset: usize,
     ) -> Result<Vec<AuditEvent>> {
-        let query = AuditEventQuery::new(tenant_id.clone())
-            .with_pagination(limit, offset);
+        let query = AuditEventQuery::new(tenant_id.clone()).with_pagination(limit, offset);
         self.query(query).await
     }
 
@@ -274,15 +278,8 @@ mod tests {
     use crate::domain::entities::{Actor, AuditAction, AuditOutcome};
     use crate::domain::value_objects::TenantId;
 
-    fn create_test_event(
-        tenant_id: TenantId,
-        action: AuditAction,
-        actor_name: &str,
-    ) -> AuditEvent {
-        let actor = Actor::user(
-            format!("user-{}", actor_name),
-            actor_name.to_string(),
-        );
+    fn create_test_event(tenant_id: TenantId, action: AuditAction, actor_name: &str) -> AuditEvent {
+        let actor = Actor::user(format!("user-{}", actor_name), actor_name.to_string());
         AuditEvent::new(tenant_id, action, actor, AuditOutcome::Success)
     }
 
@@ -333,9 +330,27 @@ mod tests {
         let tenant2 = TenantId::new("tenant-2".to_string()).unwrap();
 
         // Add events for two tenants
-        repo.append(create_test_event(tenant1.clone(), AuditAction::Login, "john")).await.unwrap();
-        repo.append(create_test_event(tenant1.clone(), AuditAction::Logout, "john")).await.unwrap();
-        repo.append(create_test_event(tenant2.clone(), AuditAction::Login, "jane")).await.unwrap();
+        repo.append(create_test_event(
+            tenant1.clone(),
+            AuditAction::Login,
+            "john",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant1.clone(),
+            AuditAction::Logout,
+            "john",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant2.clone(),
+            AuditAction::Login,
+            "jane",
+        ))
+        .await
+        .unwrap();
 
         // Query tenant 1
         let results = repo.get_by_tenant(&tenant1, 10, 0).await.unwrap();
@@ -353,12 +368,29 @@ mod tests {
         let repo = InMemoryAuditRepository::new();
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
 
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::Login, "john")).await.unwrap();
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::Login, "jane")).await.unwrap();
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::Logout, "bob")).await.unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::Login,
+            "john",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::Login,
+            "jane",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::Logout,
+            "bob",
+        ))
+        .await
+        .unwrap();
 
-        let query = AuditEventQuery::new(tenant_id.clone())
-            .with_action(AuditAction::Login);
+        let query = AuditEventQuery::new(tenant_id.clone()).with_action(AuditAction::Login);
 
         let results = repo.query(query).await.unwrap();
         assert_eq!(results.len(), 2);
@@ -370,13 +402,36 @@ mod tests {
         let repo = InMemoryAuditRepository::new();
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
 
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::Login, "john")).await.unwrap();
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::EventIngested, "john")).await.unwrap();
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::Login, "jane")).await.unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::Login,
+            "john",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::EventIngested,
+            "john",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::Login,
+            "jane",
+        ))
+        .await
+        .unwrap();
 
-        let results = repo.get_by_actor(&tenant_id, "user:user-john", 10).await.unwrap();
+        let results = repo
+            .get_by_actor(&tenant_id, "user:user-john", 10)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 2);
-        assert!(results.iter().all(|e| e.actor().identifier() == "user:user-john"));
+        assert!(results
+            .iter()
+            .all(|e| e.actor().identifier() == "user:user-john"));
     }
 
     #[tokio::test]
@@ -384,9 +439,27 @@ mod tests {
         let repo = InMemoryAuditRepository::new();
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
 
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::Login, "john")).await.unwrap();
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::LoginFailed, "john")).await.unwrap();
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::PermissionDenied, "jane")).await.unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::Login,
+            "john",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::LoginFailed,
+            "john",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::PermissionDenied,
+            "jane",
+        ))
+        .await
+        .unwrap();
 
         let results = repo.get_security_events(&tenant_id, 10).await.unwrap();
         assert_eq!(results.len(), 2);
@@ -401,7 +474,13 @@ mod tests {
         // Add 10 events
         for i in 0..10 {
             let actor_name = format!("user-{}", i);
-            repo.append(create_test_event(tenant_id.clone(), AuditAction::Login, &actor_name)).await.unwrap();
+            repo.append(create_test_event(
+                tenant_id.clone(),
+                AuditAction::Login,
+                &actor_name,
+            ))
+            .await
+            .unwrap();
         }
 
         // Get first page (5 events)
@@ -423,12 +502,29 @@ mod tests {
         let repo = InMemoryAuditRepository::new();
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
 
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::Login, "john")).await.unwrap();
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::Login, "jane")).await.unwrap();
-        repo.append(create_test_event(tenant_id.clone(), AuditAction::Logout, "bob")).await.unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::Login,
+            "john",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::Login,
+            "jane",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant_id.clone(),
+            AuditAction::Logout,
+            "bob",
+        ))
+        .await
+        .unwrap();
 
-        let query = AuditEventQuery::new(tenant_id.clone())
-            .with_action(AuditAction::Login);
+        let query = AuditEventQuery::new(tenant_id.clone()).with_action(AuditAction::Login);
 
         let count = repo.count(query).await.unwrap();
         assert_eq!(count, 2);
@@ -442,7 +538,13 @@ mod tests {
         // Add some events
         for i in 0..5 {
             let actor_name = format!("user-{}", i);
-            repo.append(create_test_event(tenant_id.clone(), AuditAction::Login, &actor_name)).await.unwrap();
+            repo.append(create_test_event(
+                tenant_id.clone(),
+                AuditAction::Login,
+                &actor_name,
+            ))
+            .await
+            .unwrap();
         }
 
         assert_eq!(repo.len(), 5);
@@ -484,8 +586,20 @@ mod tests {
         let tenant2 = TenantId::new("tenant-2".to_string()).unwrap();
 
         // Add events for both tenants
-        repo.append(create_test_event(tenant1.clone(), AuditAction::Login, "john")).await.unwrap();
-        repo.append(create_test_event(tenant2.clone(), AuditAction::Login, "jane")).await.unwrap();
+        repo.append(create_test_event(
+            tenant1.clone(),
+            AuditAction::Login,
+            "john",
+        ))
+        .await
+        .unwrap();
+        repo.append(create_test_event(
+            tenant2.clone(),
+            AuditAction::Login,
+            "jane",
+        ))
+        .await
+        .unwrap();
 
         // Query should only return events for requested tenant
         let query1 = AuditEventQuery::new(tenant1.clone());

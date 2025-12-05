@@ -7,7 +7,6 @@
 /// - Configurable limits
 /// - Efficient in-memory storage with DashMap
 /// - Automatic token replenishment
-
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use std::sync::Arc;
@@ -158,12 +157,14 @@ impl RateLimiter {
 
     /// Check rate limit with custom cost (for expensive operations)
     pub fn check_rate_limit_with_cost(&self, identifier: &str, cost: f64) -> RateLimitResult {
-        let config = self.custom_configs
+        let config = self
+            .custom_configs
             .get(identifier)
             .map(|c| c.clone())
             .unwrap_or_else(|| self.default_config.clone());
 
-        let mut entry = self.buckets
+        let mut entry = self
+            .buckets
             .entry(identifier.to_string())
             .or_insert_with(|| TokenBucket::new(&config));
 
@@ -185,12 +186,12 @@ impl RateLimiter {
 
     /// Get current stats for an identifier
     pub fn get_stats(&self, identifier: &str) -> Option<RateLimitStats> {
-        self.buckets.get_mut(identifier).map(|mut bucket| {
-            RateLimitStats {
+        self.buckets
+            .get_mut(identifier)
+            .map(|mut bucket| RateLimitStats {
                 remaining: bucket.remaining(),
                 retry_after: bucket.retry_after(),
-            }
-        })
+            })
     }
 
     /// Cleanup old buckets (call periodically)
@@ -295,7 +296,11 @@ mod tests {
 
         // Should have ~2 tokens refilled
         let remaining = bucket.remaining();
-        assert!(remaining >= 1 && remaining <= 3, "Expected 1-3 tokens, got {}", remaining);
+        assert!(
+            remaining >= 1 && remaining <= 3,
+            "Expected 1-3 tokens, got {}",
+            remaining
+        );
     }
 
     #[test]

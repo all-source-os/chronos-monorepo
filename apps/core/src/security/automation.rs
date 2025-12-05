@@ -6,7 +6,6 @@
 /// - Secret detection
 /// - License compliance
 /// - Security policy enforcement
-
 use crate::error::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -166,7 +165,9 @@ impl SecurityScanner {
                 Ok(findings) => {
                     if !findings.is_empty() {
                         all_findings.insert("dependencies".to_string(), findings);
-                        recommendations.push("Run 'cargo update' to update vulnerable dependencies".to_string());
+                        recommendations.push(
+                            "Run 'cargo update' to update vulnerable dependencies".to_string(),
+                        );
                     }
                 }
                 Err(e) => {
@@ -181,7 +182,9 @@ impl SecurityScanner {
                 Ok(findings) => {
                     if !findings.is_empty() {
                         all_findings.insert("secrets".to_string(), findings);
-                        recommendations.push("Remove hardcoded secrets and use environment variables".to_string());
+                        recommendations.push(
+                            "Remove hardcoded secrets and use environment variables".to_string(),
+                        );
                     }
                 }
                 Err(e) => {
@@ -211,7 +214,8 @@ impl SecurityScanner {
                 Ok(findings) => {
                     if !findings.is_empty() {
                         all_findings.insert("licenses".to_string(), findings);
-                        recommendations.push("Review dependency licenses for compliance".to_string());
+                        recommendations
+                            .push("Review dependency licenses for compliance".to_string());
                     }
                 }
                 Err(e) => {
@@ -245,9 +249,7 @@ impl SecurityScanner {
         let mut findings = Vec::new();
 
         // Run cargo audit
-        let output = Command::new("cargo")
-            .args(&["audit", "--json"])
-            .output();
+        let output = Command::new("cargo").args(&["audit", "--json"]).output();
 
         match output {
             Ok(output) if output.status.success() => {
@@ -296,25 +298,35 @@ impl SecurityScanner {
 
         // Common secret patterns
         let secret_patterns = vec![
-            (r"(?i)(api[_-]?key|apikey)\s*[:=]\s*[a-zA-Z0-9]{20,}", "API Key"),
-            (r"(?i)(password|passwd|pwd)\s*[:=]\s*[\w@#$%^&*]{8,}", "Password"),
-            (r"(?i)(secret[_-]?key)\s*[:=]\s*[a-zA-Z0-9]{20,}", "Secret Key"),
-            (r"(?i)(aws[_-]?access[_-]?key[_-]?id)\s*[:=]\s*[A-Z0-9]{20}", "AWS Access Key"),
+            (
+                r"(?i)(api[_-]?key|apikey)\s*[:=]\s*[a-zA-Z0-9]{20,}",
+                "API Key",
+            ),
+            (
+                r"(?i)(password|passwd|pwd)\s*[:=]\s*[\w@#$%^&*]{8,}",
+                "Password",
+            ),
+            (
+                r"(?i)(secret[_-]?key)\s*[:=]\s*[a-zA-Z0-9]{20,}",
+                "Secret Key",
+            ),
+            (
+                r"(?i)(aws[_-]?access[_-]?key[_-]?id)\s*[:=]\s*[A-Z0-9]{20}",
+                "AWS Access Key",
+            ),
             (r"(?i)(private[_-]?key)\s*[:=]", "Private Key"),
         ];
 
         // Check common files (in production, scan all source files)
-        let files_to_check = vec![
-            ".env",
-            ".env.example",
-            "config.toml",
-            "Cargo.toml",
-        ];
+        let files_to_check = vec![".env", ".env.example", "config.toml", "Cargo.toml"];
 
         for file in files_to_check {
             if let Ok(content) = std::fs::read_to_string(file) {
                 for (pattern, secret_type) in &secret_patterns {
-                    if content.contains("password") || content.contains("secret") || content.contains("key") {
+                    if content.contains("password")
+                        || content.contains("secret")
+                        || content.contains("key")
+                    {
                         findings.push(SecurityFinding {
                             id: format!("SEC-{:03}", findings.len() + 1),
                             title: format!("Potential {} found", secret_type),
@@ -490,7 +502,8 @@ jobs:
           path: ./
           base: main
           head: HEAD
-"#.to_string()
+"#
+        .to_string()
     }
 
     /// Generate GitLab CI configuration
@@ -504,7 +517,8 @@ jobs:
     - cargo clippy -- -D warnings
     - cargo test --lib security
   allow_failure: false
-"#.to_string()
+"#
+        .to_string()
     }
 }
 
@@ -524,28 +538,31 @@ mod tests {
         let scanner = SecurityScanner::new(SecurityScanConfig::default());
         let mut findings = HashMap::new();
 
-        findings.insert("test".to_string(), vec![
-            SecurityFinding {
-                id: "1".to_string(),
-                title: "Test".to_string(),
-                description: "Test".to_string(),
-                severity: Severity::Critical,
-                category: FindingCategory::Dependency,
-                component: "test".to_string(),
-                fix: None,
-                cve: None,
-            },
-            SecurityFinding {
-                id: "2".to_string(),
-                title: "Test2".to_string(),
-                description: "Test2".to_string(),
-                severity: Severity::High,
-                category: FindingCategory::Dependency,
-                component: "test".to_string(),
-                fix: None,
-                cve: None,
-            },
-        ]);
+        findings.insert(
+            "test".to_string(),
+            vec![
+                SecurityFinding {
+                    id: "1".to_string(),
+                    title: "Test".to_string(),
+                    description: "Test".to_string(),
+                    severity: Severity::Critical,
+                    category: FindingCategory::Dependency,
+                    component: "test".to_string(),
+                    fix: None,
+                    cve: None,
+                },
+                SecurityFinding {
+                    id: "2".to_string(),
+                    title: "Test2".to_string(),
+                    description: "Test2".to_string(),
+                    severity: Severity::High,
+                    category: FindingCategory::Dependency,
+                    component: "test".to_string(),
+                    fix: None,
+                    cve: None,
+                },
+            ],
+        );
 
         let summary = scanner.calculate_summary(&findings);
         assert_eq!(summary.total_findings, 2);
@@ -565,7 +582,10 @@ mod tests {
             low: 0,
             info: 0,
         };
-        assert_eq!(scanner.determine_status(&summary_critical), ScanStatus::Fail);
+        assert_eq!(
+            scanner.determine_status(&summary_critical),
+            ScanStatus::Fail
+        );
 
         let summary_clean = ScanSummary {
             total_findings: 0,

@@ -2,10 +2,12 @@ use crate::analytics::{
     AnalyticsEngine, CorrelationRequest, CorrelationResponse, EventFrequencyRequest,
     EventFrequencyResponse, StatsSummaryRequest, StatsSummaryResponse,
 };
+use crate::application::dto::{
+    EventDto, IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse,
+};
 use crate::compaction::CompactionResult;
 use crate::domain::entities::Event;
 use crate::error::Result;
-use crate::application::dto::{IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse, EventDto};
 use crate::pipeline::{PipelineConfig, PipelineStats};
 use crate::replay::{ReplayProgress, StartReplayRequest, StartReplayResponse};
 use crate::schema::{
@@ -33,12 +35,15 @@ type SharedStore = Arc<EventStore>;
 pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(health))
-        .route("/metrics", get(prometheus_metrics))  // v0.6: Prometheus metrics endpoint
+        .route("/metrics", get(prometheus_metrics)) // v0.6: Prometheus metrics endpoint
         .route("/api/v1/events", post(ingest_event))
         .route("/api/v1/events/query", get(query_events))
         .route("/api/v1/events/stream", get(events_websocket)) // v0.2: WebSocket streaming
         .route("/api/v1/entities/:entity_id/state", get(get_entity_state))
-        .route("/api/v1/entities/:entity_id/snapshot", get(get_entity_snapshot))
+        .route(
+            "/api/v1/entities/:entity_id/snapshot",
+            get(get_entity_snapshot),
+        )
         .route("/api/v1/stats", get(get_stats))
         // v0.2: Advanced analytics endpoints
         .route("/api/v1/analytics/frequency", get(analytics_frequency))
@@ -47,7 +52,10 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         // v0.2: Snapshot management endpoints
         .route("/api/v1/snapshots", post(create_snapshot))
         .route("/api/v1/snapshots", get(list_snapshots))
-        .route("/api/v1/snapshots/:entity_id/latest", get(get_latest_snapshot))
+        .route(
+            "/api/v1/snapshots/:entity_id/latest",
+            get(get_latest_snapshot),
+        )
         // v0.2: Compaction endpoints
         .route("/api/v1/compaction/trigger", post(trigger_compaction))
         .route("/api/v1/compaction/stats", get(compaction_stats))
@@ -55,22 +63,37 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         .route("/api/v1/schemas", post(register_schema))
         .route("/api/v1/schemas", get(list_subjects))
         .route("/api/v1/schemas/:subject", get(get_schema))
-        .route("/api/v1/schemas/:subject/versions", get(list_schema_versions))
+        .route(
+            "/api/v1/schemas/:subject/versions",
+            get(list_schema_versions),
+        )
         .route("/api/v1/schemas/validate", post(validate_event_schema))
-        .route("/api/v1/schemas/:subject/compatibility", put(set_compatibility_mode))
+        .route(
+            "/api/v1/schemas/:subject/compatibility",
+            put(set_compatibility_mode),
+        )
         // v0.5: Replay and projection rebuild endpoints
         .route("/api/v1/replay", post(start_replay))
         .route("/api/v1/replay", get(list_replays))
         .route("/api/v1/replay/:replay_id", get(get_replay_progress))
         .route("/api/v1/replay/:replay_id/cancel", post(cancel_replay))
-        .route("/api/v1/replay/:replay_id", axum::routing::delete(delete_replay))
+        .route(
+            "/api/v1/replay/:replay_id",
+            axum::routing::delete(delete_replay),
+        )
         // v0.5: Stream processing pipeline endpoints
         .route("/api/v1/pipelines", post(register_pipeline))
         .route("/api/v1/pipelines", get(list_pipelines))
         .route("/api/v1/pipelines/stats", get(all_pipeline_stats))
         .route("/api/v1/pipelines/:pipeline_id", get(get_pipeline))
-        .route("/api/v1/pipelines/:pipeline_id", axum::routing::delete(remove_pipeline))
-        .route("/api/v1/pipelines/:pipeline_id/stats", get(get_pipeline_stats))
+        .route(
+            "/api/v1/pipelines/:pipeline_id",
+            axum::routing::delete(remove_pipeline),
+        )
+        .route(
+            "/api/v1/pipelines/:pipeline_id/stats",
+            get(get_pipeline_stats),
+        )
         .route("/api/v1/pipelines/:pipeline_id/reset", put(reset_pipeline))
         .layer(
             CorsLayer::new()
@@ -187,10 +210,7 @@ pub async fn get_stats(State(store): State<SharedStore>) -> impl IntoResponse {
 }
 
 // v0.2: WebSocket endpoint for real-time event streaming
-pub async fn events_websocket(
-    ws: WebSocketUpgrade,
-    State(store): State<SharedStore>,
-) -> Response {
+pub async fn events_websocket(ws: WebSocketUpgrade, State(store): State<SharedStore>) -> Response {
     let websocket_manager = store.websocket_manager();
 
     ws.on_upgrade(move |socket| async move {
@@ -329,12 +349,14 @@ pub async fn get_latest_snapshot(
 }
 
 // v0.2: Trigger manual compaction
-pub async fn trigger_compaction(State(store): State<SharedStore>) -> Result<Json<CompactionResult>> {
-    let compaction_manager = store
-        .compaction_manager()
-        .ok_or_else(|| crate::error::AllSourceError::InternalError(
-            "Compaction not enabled (no Parquet storage)".to_string()
-        ))?;
+pub async fn trigger_compaction(
+    State(store): State<SharedStore>,
+) -> Result<Json<CompactionResult>> {
+    let compaction_manager = store.compaction_manager().ok_or_else(|| {
+        crate::error::AllSourceError::InternalError(
+            "Compaction not enabled (no Parquet storage)".to_string(),
+        )
+    })?;
 
     tracing::info!("📦 Manual compaction triggered via API");
 
@@ -345,11 +367,11 @@ pub async fn trigger_compaction(State(store): State<SharedStore>) -> Result<Json
 
 // v0.2: Get compaction statistics
 pub async fn compaction_stats(State(store): State<SharedStore>) -> Result<Json<serde_json::Value>> {
-    let compaction_manager = store
-        .compaction_manager()
-        .ok_or_else(|| crate::error::AllSourceError::InternalError(
-            "Compaction not enabled (no Parquet storage)".to_string()
-        ))?;
+    let compaction_manager = store.compaction_manager().ok_or_else(|| {
+        crate::error::AllSourceError::InternalError(
+            "Compaction not enabled (no Parquet storage)".to_string(),
+        )
+    })?;
 
     let stats = compaction_manager.stats();
     let config = compaction_manager.config();
@@ -375,14 +397,14 @@ pub async fn register_schema(
 ) -> Result<Json<RegisterSchemaResponse>> {
     let schema_registry = store.schema_registry();
 
-    let response = schema_registry.register_schema(
-        req.subject,
-        req.schema,
-        req.description,
-        req.tags,
-    )?;
+    let response =
+        schema_registry.register_schema(req.subject, req.schema, req.description, req.tags)?;
 
-    tracing::info!("📋 Schema registered: v{} for '{}'", response.version, response.subject);
+    tracing::info!(
+        "📋 Schema registered: v{} for '{}'",
+        response.version,
+        response.subject
+    );
 
     Ok(Json(response))
 }
@@ -452,9 +474,17 @@ pub async fn validate_event_schema(
     let response = schema_registry.validate(&req.subject, req.version, &req.payload)?;
 
     if response.valid {
-        tracing::debug!("✅ Event validated against schema '{}' v{}", req.subject, response.schema_version);
+        tracing::debug!(
+            "✅ Event validated against schema '{}' v{}",
+            req.subject,
+            response.schema_version
+        );
     } else {
-        tracing::warn!("❌ Event validation failed for '{}': {:?}", req.subject, response.errors);
+        tracing::warn!(
+            "❌ Event validation failed for '{}': {:?}",
+            req.subject,
+            response.errors
+        );
     }
 
     Ok(Json(response))
@@ -475,7 +505,11 @@ pub async fn set_compatibility_mode(
 
     schema_registry.set_compatibility_mode(subject.clone(), req.compatibility);
 
-    tracing::info!("🔧 Set compatibility mode for '{}' to {:?}", subject, req.compatibility);
+    tracing::info!(
+        "🔧 Set compatibility mode for '{}' to {:?}",
+        subject,
+        req.compatibility
+    );
 
     Json(serde_json::json!({
         "subject": subject,
@@ -492,7 +526,11 @@ pub async fn start_replay(
 
     let response = replay_manager.start_replay(store, req)?;
 
-    tracing::info!("🔄 Started replay {} with {} events", response.replay_id, response.total_events);
+    tracing::info!(
+        "🔄 Started replay {} with {} events",
+        response.replay_id,
+        response.total_events
+    );
 
     Ok(Json(response))
 }
@@ -600,11 +638,12 @@ pub async fn get_pipeline(
 ) -> Result<Json<PipelineConfig>> {
     let pipeline_manager = store.pipeline_manager();
 
-    let pipeline = pipeline_manager
-        .get(pipeline_id)
-        .ok_or_else(|| crate::error::AllSourceError::ValidationError(
-            format!("Pipeline not found: {}", pipeline_id)
-        ))?;
+    let pipeline = pipeline_manager.get(pipeline_id).ok_or_else(|| {
+        crate::error::AllSourceError::ValidationError(format!(
+            "Pipeline not found: {}",
+            pipeline_id
+        ))
+    })?;
 
     Ok(Json(pipeline.config().clone()))
 }
@@ -647,11 +686,12 @@ pub async fn get_pipeline_stats(
 ) -> Result<Json<PipelineStats>> {
     let pipeline_manager = store.pipeline_manager();
 
-    let pipeline = pipeline_manager
-        .get(pipeline_id)
-        .ok_or_else(|| crate::error::AllSourceError::ValidationError(
-            format!("Pipeline not found: {}", pipeline_id)
-        ))?;
+    let pipeline = pipeline_manager.get(pipeline_id).ok_or_else(|| {
+        crate::error::AllSourceError::ValidationError(format!(
+            "Pipeline not found: {}",
+            pipeline_id
+        ))
+    })?;
 
     Ok(Json(pipeline.stats()))
 }
@@ -663,11 +703,12 @@ pub async fn reset_pipeline(
 ) -> Result<Json<serde_json::Value>> {
     let pipeline_manager = store.pipeline_manager();
 
-    let pipeline = pipeline_manager
-        .get(pipeline_id)
-        .ok_or_else(|| crate::error::AllSourceError::ValidationError(
-            format!("Pipeline not found: {}", pipeline_id)
-        ))?;
+    let pipeline = pipeline_manager.get(pipeline_id).ok_or_else(|| {
+        crate::error::AllSourceError::ValidationError(format!(
+            "Pipeline not found: {}",
+            pipeline_id
+        ))
+    })?;
 
     pipeline.reset();
 

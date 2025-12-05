@@ -1,7 +1,9 @@
+use crate::domain::entities::{
+    Projection, ProjectionConfig, ProjectionStats, ProjectionStatus, ProjectionType,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::domain::entities::{Projection, ProjectionType, ProjectionStatus, ProjectionConfig, ProjectionStats};
 
 /// DTO for creating a new projection
 #[derive(Debug, Deserialize)]
@@ -158,7 +160,11 @@ impl From<&Projection> for ProjectionDto {
             tenant_id: projection.tenant_id().to_string(),
             status: projection.status().into(),
             version: projection.version(),
-            event_types: projection.event_types().iter().map(|s| s.to_string()).collect(),
+            event_types: projection
+                .event_types()
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             description: projection.description().map(String::from),
             config: projection.config().clone().into(),
             stats: projection.stats().into(),

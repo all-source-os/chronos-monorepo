@@ -1,6 +1,6 @@
+use crate::application::dto::QueryEventsRequest;
 use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
-use crate::application::dto::QueryEventsRequest;
 use crate::projection::Projection;
 use crate::store::EventStore;
 use chrono::{DateTime, Utc};
@@ -159,7 +159,8 @@ impl ReplayManager {
             "🔄 Starting replay {} for {} events{}",
             replay_id,
             total_events,
-            request.projection_name
+            request
+                .projection_name
                 .as_ref()
                 .map(|n| format!(" (projection: {})", n))
                 .unwrap_or_default()
@@ -195,7 +196,8 @@ impl ReplayManager {
                 config,
                 replays.clone(),
                 replay_idx,
-            ).await;
+            )
+            .await;
 
             // Update final status
             let mut replays_lock = replays.write();
@@ -242,18 +244,19 @@ impl ReplayManager {
         let projections = store.projections.read();
 
         // Get target projection(s)
-        let target_projections: Vec<(String, Arc<dyn Projection>)> = if let Some(name) = projection_name {
-            if let Some(proj) = projections.get_projection(&name) {
-                vec![(name, proj)]
+        let target_projections: Vec<(String, Arc<dyn Projection>)> =
+            if let Some(name) = projection_name {
+                if let Some(proj) = projections.get_projection(&name) {
+                    vec![(name, proj)]
+                } else {
+                    return Err(AllSourceError::ValidationError(format!(
+                        "Projection not found: {}",
+                        name
+                    )));
+                }
             } else {
-                return Err(AllSourceError::ValidationError(format!(
-                    "Projection not found: {}",
-                    name
-                )));
-            }
-        } else {
-            projections.list_projections()
-        };
+                projections.list_projections()
+            };
 
         drop(projections); // Release lock
 
@@ -315,12 +318,9 @@ impl ReplayManager {
     pub fn get_progress(&self, replay_id: Uuid) -> Result<ReplayProgress> {
         let replays = self.replays.read();
 
-        let state = replays
-            .iter()
-            .find(|r| r.id == replay_id)
-            .ok_or_else(|| {
-                AllSourceError::ValidationError(format!("Replay not found: {}", replay_id))
-            })?;
+        let state = replays.iter().find(|r| r.id == replay_id).ok_or_else(|| {
+            AllSourceError::ValidationError(format!("Replay not found: {}", replay_id))
+        })?;
 
         let processed = state.processed_events.load(Ordering::Relaxed);
         let failed = state.failed_events.load(Ordering::Relaxed);
@@ -361,12 +361,9 @@ impl ReplayManager {
     pub fn cancel_replay(&self, replay_id: Uuid) -> Result<()> {
         let replays = self.replays.read();
 
-        let state = replays
-            .iter()
-            .find(|r| r.id == replay_id)
-            .ok_or_else(|| {
-                AllSourceError::ValidationError(format!("Replay not found: {}", replay_id))
-            })?;
+        let state = replays.iter().find(|r| r.id == replay_id).ok_or_else(|| {
+            AllSourceError::ValidationError(format!("Replay not found: {}", replay_id))
+        })?;
 
         let status = *state.status.read();
         if status != ReplayStatus::Running {
@@ -475,7 +472,8 @@ mod tests {
                 "default".to_string(),
                 json!({"value": i}),
                 None,
-            ).unwrap();
+            )
+            .unwrap();
             store.ingest(event).unwrap();
         }
 

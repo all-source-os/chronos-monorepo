@@ -1,5 +1,5 @@
-use crate::error::{AllSourceError, Result};
 use crate::domain::entities::Event;
+use crate::error::{AllSourceError, Result};
 use crate::storage::ParquetStorage;
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
@@ -52,10 +52,10 @@ impl Default for CompactionConfig {
     fn default() -> Self {
         Self {
             min_files_to_compact: 3,
-            target_file_size: 128 * 1024 * 1024,      // 128 MB
-            max_file_size: 256 * 1024 * 1024,         // 256 MB
-            small_file_threshold: 10 * 1024 * 1024,   // 10 MB
-            compaction_interval_seconds: 3600,         // 1 hour
+            target_file_size: 128 * 1024 * 1024,    // 128 MB
+            max_file_size: 256 * 1024 * 1024,       // 256 MB
+            small_file_threshold: 10 * 1024 * 1024, // 10 MB
+            compaction_interval_seconds: 3600,      // 1 hour
             auto_compact: true,
             strategy: CompactionStrategy::SizeBased,
         }
@@ -135,12 +135,10 @@ impl CompactionManager {
                         .created()
                         .ok()
                         .and_then(|t| {
-                            t.duration_since(std::time::UNIX_EPOCH)
-                                .ok()
-                                .map(|d| {
-                                    DateTime::from_timestamp(d.as_secs() as i64, 0)
-                                        .unwrap_or_else(Utc::now)
-                                })
+                            t.duration_since(std::time::UNIX_EPOCH).ok().map(|d| {
+                                DateTime::from_timestamp(d.as_secs() as i64, 0)
+                                    .unwrap_or_else(Utc::now)
+                            })
                         })
                         .unwrap_or_else(Utc::now);
 
@@ -270,11 +268,7 @@ impl CompactionManager {
                     all_events.append(&mut events);
                 }
                 Err(e) => {
-                    tracing::error!(
-                        "Failed to read Parquet file {:?}: {}",
-                        file_info.path,
-                        e
-                    );
+                    tracing::error!("Failed to read Parquet file {:?}: {}", file_info.path, e);
                     // Continue with other files
                 }
             }
@@ -299,20 +293,15 @@ impl CompactionManager {
         // Write compacted file(s)
         let compacted_files = self.write_compacted_files(&all_events)?;
 
-        let bytes_after: u64 = compacted_files.iter().map(|p| {
-            fs::metadata(p)
-                .map(|m| m.len())
-                .unwrap_or(0)
-        }).sum();
+        let bytes_after: u64 = compacted_files
+            .iter()
+            .map(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(0))
+            .sum();
 
         // Delete original files atomically
         for file_info in &files_to_compact {
             if let Err(e) = fs::remove_file(&file_info.path) {
-                tracing::error!(
-                    "Failed to remove old file {:?}: {}",
-                    file_info.path,
-                    e
-                );
+                tracing::error!("Failed to remove old file {:?}: {}", file_info.path, e);
             } else {
                 tracing::debug!("Removed old file: {:?}", file_info.path);
             }
@@ -385,7 +374,8 @@ impl CompactionManager {
                 .unwrap_or(1024);
 
             // Check if adding this event would exceed target size
-            if current_size + event_size > self.config.target_file_size && !current_batch.is_empty() {
+            if current_size + event_size > self.config.target_file_size && !current_batch.is_empty()
+            {
                 // Write current batch
                 let file_path = self.write_batch(&current_batch)?;
                 compacted_files.push(file_path);
@@ -503,7 +493,8 @@ impl CompactionTask {
                             tracing::info!(
                                 "Auto-compaction succeeded: {} files, {:.2} MB saved",
                                 result.files_compacted,
-                                (result.bytes_before - result.bytes_after) as f64 / (1024.0 * 1024.0)
+                                (result.bytes_before - result.bytes_after) as f64
+                                    / (1024.0 * 1024.0)
                             );
                         }
                     }

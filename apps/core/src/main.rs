@@ -1,10 +1,10 @@
 use allsource_core::{
+    api_v1,
     auth::AuthManager,
-    rate_limit::{RateLimiter, RateLimitConfig},
+    config::ServerConfig,
+    rate_limit::{RateLimitConfig, RateLimiter},
     store::EventStore,
     tenant::TenantManager,
-    api_v1,
-    config::ServerConfig,
 };
 use anyhow::Result;
 use std::sync::Arc;
@@ -21,7 +21,10 @@ async fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("🌟 AllSource Core v{} starting...", env!("CARGO_PKG_VERSION"));
+    tracing::info!(
+        "🌟 AllSource Core v{} starting...",
+        env!("CARGO_PKG_VERSION")
+    );
     tracing::info!("   Production-ready event store with authentication & multi-tenancy");
 
     // Initialize components

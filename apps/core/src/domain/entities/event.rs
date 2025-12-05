@@ -1,4 +1,4 @@
-use crate::domain::value_objects::{TenantId, EventType, EntityId};
+use crate::domain::value_objects::{EntityId, EventType, TenantId};
 use crate::error::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -319,11 +319,7 @@ mod tests {
 
     #[test]
     fn test_event_with_default_tenant() {
-        let event = Event::with_default_tenant(
-            test_event_type(),
-            test_entity_id(),
-            json!({}),
-        );
+        let event = Event::with_default_tenant(test_event_type(), test_entity_id(), json!({}));
 
         assert_eq!(event.tenant_id_str(), "default");
     }
@@ -440,12 +436,7 @@ mod tests {
         let type1 = EventType::new("order.placed".to_string()).unwrap();
         let type2 = EventType::new("order.cancelled".to_string()).unwrap();
 
-        let event = Event::new(
-            type1.clone(),
-            test_entity_id(),
-            test_tenant_id(),
-            json!({}),
-        );
+        let event = Event::new(type1.clone(), test_entity_id(), test_tenant_id(), json!({}));
 
         assert!(event.is_type(&type1));
         assert!(!event.is_type(&type2));

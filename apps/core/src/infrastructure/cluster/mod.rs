@@ -42,7 +42,6 @@
 ///
 /// println!("Send request to: {}", target_node.address);
 /// ```
-
 pub mod node_registry;
 pub mod request_router;
 

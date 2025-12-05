@@ -1,12 +1,11 @@
+use parking_lot::RwLock;
 /// IP Address Filtering for Access Control
 ///
 /// Provides allowlist/blocklist functionality for IP-based access control.
 /// Supports both global and per-tenant IP restrictions.
-
 use std::collections::HashSet;
 use std::net::IpAddr;
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 use crate::domain::value_objects::TenantId;
 

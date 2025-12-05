@@ -1,5 +1,5 @@
 # Shared rustfmt configuration for all Rust projects
-# Projects can symlink to this file or override locally
+# Uses only stable rustfmt options for CI compatibility
 
 edition = "2021"
 max_width = 100
@@ -8,20 +8,9 @@ tab_spaces = 4
 newline_style = "Unix"
 use_small_heuristics = "Default"
 
-# Import organization
+# Import organization (stable)
 reorder_imports = true
 reorder_modules = true
-imports_granularity = "Crate"
-group_imports = "StdExternalCrate"
 
-# Formatting
+# Formatting (stable)
 remove_nested_parens = true
-format_strings = true
-format_macro_matchers = true
-format_macro_bodies = true
-
-# Comments
-normalize_comments = true
-normalize_doc_attributes = true
-wrap_comments = true
-comment_width = 80

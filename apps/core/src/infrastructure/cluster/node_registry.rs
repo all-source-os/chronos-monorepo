@@ -30,7 +30,6 @@
 /// // Find node for partition
 /// let node_id = registry.node_for_partition(15);
 /// ```
-
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -118,7 +117,8 @@ impl NodeRegistry {
         }
 
         // Get healthy nodes sorted by ID for deterministic assignment
-        let mut healthy_nodes: Vec<u32> = nodes.iter()
+        let mut healthy_nodes: Vec<u32> = nodes
+            .iter()
             .filter(|(_, n)| n.healthy)
             .map(|(id, _)| *id)
             .collect();
@@ -146,7 +146,8 @@ impl NodeRegistry {
     pub fn node_for_partition(&self, partition_id: u32) -> Option<u32> {
         let nodes = self.nodes.read();
 
-        nodes.values()
+        nodes
+            .values()
             .find(|n| n.healthy && n.assigned_partitions.contains(&partition_id))
             .map(|n| n.id)
     }
@@ -163,7 +164,8 @@ impl NodeRegistry {
 
     /// Get healthy nodes
     pub fn healthy_nodes(&self) -> Vec<Node> {
-        self.nodes.read()
+        self.nodes
+            .read()
             .values()
             .filter(|n| n.healthy)
             .cloned()
@@ -174,7 +176,8 @@ impl NodeRegistry {
     pub fn partition_distribution(&self) -> HashMap<u32, Vec<u32>> {
         let nodes = self.nodes.read();
 
-        nodes.iter()
+        nodes
+            .iter()
             .filter(|(_, n)| n.healthy)
             .map(|(id, n)| (*id, n.assigned_partitions.clone()))
             .collect()
@@ -187,7 +190,8 @@ impl NodeRegistry {
         let nodes = self.nodes.read();
 
         for partition_id in 0..self.partition_count {
-            let has_node = nodes.values()
+            let has_node = nodes
+                .values()
                 .any(|n| n.healthy && n.assigned_partitions.contains(&partition_id));
 
             if !has_node {

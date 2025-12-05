@@ -1,5 +1,5 @@
-use crate::error::{AllSourceError, Result};
 use crate::domain::entities::Event;
+use crate::error::{AllSourceError, Result};
 use arrow::array::{
     Array, ArrayRef, StringBuilder, TimestampMicrosecondArray, TimestampMicrosecondBuilder,
     UInt64Builder,
@@ -227,9 +227,7 @@ impl ParquetStorage {
             .column(1)
             .as_any()
             .downcast_ref::<arrow::array::StringArray>()
-            .ok_or_else(|| {
-                AllSourceError::StorageError("Invalid event_type column".to_string())
-            })?;
+            .ok_or_else(|| AllSourceError::StorageError("Invalid event_type column".to_string()))?;
 
         let entity_ids = batch
             .column(2)
@@ -264,14 +262,11 @@ impl ParquetStorage {
         let mut events = Vec::new();
 
         for i in 0..batch.num_rows() {
-            let id = uuid::Uuid::parse_str(event_ids.value(i)).map_err(|e| {
-                AllSourceError::StorageError(format!("Invalid UUID: {}", e))
-            })?;
+            let id = uuid::Uuid::parse_str(event_ids.value(i))
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid UUID: {}", e)))?;
 
             let timestamp = chrono::DateTime::from_timestamp_micros(timestamps.value(i))
-                .ok_or_else(|| {
-                    AllSourceError::StorageError("Invalid timestamp".to_string())
-                })?;
+                .ok_or_else(|| AllSourceError::StorageError("Invalid timestamp".to_string()))?;
 
             let metadata = if metadatas.is_null(i) {
                 None
@@ -391,7 +386,9 @@ mod tests {
 
         // Add and flush events
         for i in 0..5 {
-            storage.append_event(create_test_event(&format!("entity-{}", i))).unwrap();
+            storage
+                .append_event(create_test_event(&format!("entity-{}", i)))
+                .unwrap();
         }
         storage.flush().unwrap();
 

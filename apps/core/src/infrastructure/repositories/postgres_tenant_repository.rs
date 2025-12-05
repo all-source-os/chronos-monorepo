@@ -6,11 +6,11 @@
 #[cfg(feature = "postgres")]
 use async_trait::async_trait;
 #[cfg(feature = "postgres")]
-use sqlx::{PgPool, Row};
-#[cfg(feature = "postgres")]
 use chrono::{DateTime, Utc};
 #[cfg(feature = "postgres")]
 use serde_json::Value as JsonValue;
+#[cfg(feature = "postgres")]
+use sqlx::{PgPool, Row};
 
 #[cfg(feature = "postgres")]
 use crate::domain::entities::{Tenant, TenantQuotas, TenantUsage};
@@ -46,38 +46,58 @@ impl PostgresTenantRepository {
     /// Helper: Convert database row to Tenant
     fn row_to_tenant(row: &sqlx::postgres::PgRow) -> Result<Tenant> {
         // Extract ID
-        let id_str: String = row.try_get("id")
+        let id_str: String = row
+            .try_get("id")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get id: {}", e)))?;
         let id = TenantId::new(id_str)?;
 
         // Extract basic fields
-        let name: String = row.try_get("name")
+        let name: String = row
+            .try_get("name")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get name: {}", e)))?;
         let description: Option<String> = row.try_get("description").ok();
-        let active: bool = row.try_get("active")
+        let active: bool = row
+            .try_get("active")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get active: {}", e)))?;
-        let metadata: JsonValue = row.try_get("metadata")
+        let metadata: JsonValue = row
+            .try_get("metadata")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get metadata: {}", e)))?;
 
         // Extract timestamps
-        let created_at: DateTime<Utc> = row.try_get("created_at")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get created_at: {}", e)))?;
-        let updated_at: DateTime<Utc> = row.try_get("updated_at")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get updated_at: {}", e)))?;
+        let created_at: DateTime<Utc> = row.try_get("created_at").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get created_at: {}", e))
+        })?;
+        let updated_at: DateTime<Utc> = row.try_get("updated_at").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get updated_at: {}", e))
+        })?;
 
         // Extract quotas
-        let quota_max_events_per_day: i64 = row.try_get("quota_max_events_per_day")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get quota_max_events_per_day: {}", e)))?;
-        let quota_max_storage_bytes: i64 = row.try_get("quota_max_storage_bytes")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get quota_max_storage_bytes: {}", e)))?;
-        let quota_max_queries_per_hour: i64 = row.try_get("quota_max_queries_per_hour")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get quota_max_queries_per_hour: {}", e)))?;
-        let quota_max_api_keys: i32 = row.try_get("quota_max_api_keys")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get quota_max_api_keys: {}", e)))?;
-        let quota_max_projections: i32 = row.try_get("quota_max_projections")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get quota_max_projections: {}", e)))?;
-        let quota_max_pipelines: i32 = row.try_get("quota_max_pipelines")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get quota_max_pipelines: {}", e)))?;
+        let quota_max_events_per_day: i64 =
+            row.try_get("quota_max_events_per_day").map_err(|e| {
+                AllSourceError::StorageError(format!(
+                    "Failed to get quota_max_events_per_day: {}",
+                    e
+                ))
+            })?;
+        let quota_max_storage_bytes: i64 = row.try_get("quota_max_storage_bytes").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get quota_max_storage_bytes: {}", e))
+        })?;
+        let quota_max_queries_per_hour: i64 =
+            row.try_get("quota_max_queries_per_hour").map_err(|e| {
+                AllSourceError::StorageError(format!(
+                    "Failed to get quota_max_queries_per_hour: {}",
+                    e
+                ))
+            })?;
+        let quota_max_api_keys: i32 = row.try_get("quota_max_api_keys").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get quota_max_api_keys: {}", e))
+        })?;
+        let quota_max_projections: i32 = row.try_get("quota_max_projections").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get quota_max_projections: {}", e))
+        })?;
+        let quota_max_pipelines: i32 = row.try_get("quota_max_pipelines").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get quota_max_pipelines: {}", e))
+        })?;
 
         let quotas = TenantQuotas::new(
             quota_max_events_per_day as u64,
@@ -91,24 +111,42 @@ impl PostgresTenantRepository {
         // Extract usage - we need to reconstruct TenantUsage from individual fields
         // Since TenantUsage doesn't have a reconstruct method, we'll need to use a different approach
         // Let's serialize the usage fields into JSON and deserialize into TenantUsage
-        let usage_events_today: i64 = row.try_get("usage_events_today")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get usage_events_today: {}", e)))?;
-        let usage_total_events: i64 = row.try_get("usage_total_events")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get usage_total_events: {}", e)))?;
-        let usage_storage_bytes: i64 = row.try_get("usage_storage_bytes")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get usage_storage_bytes: {}", e)))?;
-        let usage_queries_this_hour: i64 = row.try_get("usage_queries_this_hour")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get usage_queries_this_hour: {}", e)))?;
-        let usage_active_api_keys: i32 = row.try_get("usage_active_api_keys")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get usage_active_api_keys: {}", e)))?;
-        let usage_active_projections: i32 = row.try_get("usage_active_projections")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get usage_active_projections: {}", e)))?;
-        let usage_active_pipelines: i32 = row.try_get("usage_active_pipelines")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get usage_active_pipelines: {}", e)))?;
-        let usage_last_daily_reset: DateTime<Utc> = row.try_get("usage_last_daily_reset")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get usage_last_daily_reset: {}", e)))?;
-        let usage_last_hourly_reset: DateTime<Utc> = row.try_get("usage_last_hourly_reset")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get usage_last_hourly_reset: {}", e)))?;
+        let usage_events_today: i64 = row.try_get("usage_events_today").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get usage_events_today: {}", e))
+        })?;
+        let usage_total_events: i64 = row.try_get("usage_total_events").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get usage_total_events: {}", e))
+        })?;
+        let usage_storage_bytes: i64 = row.try_get("usage_storage_bytes").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get usage_storage_bytes: {}", e))
+        })?;
+        let usage_queries_this_hour: i64 = row.try_get("usage_queries_this_hour").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get usage_queries_this_hour: {}", e))
+        })?;
+        let usage_active_api_keys: i32 = row.try_get("usage_active_api_keys").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get usage_active_api_keys: {}", e))
+        })?;
+        let usage_active_projections: i32 =
+            row.try_get("usage_active_projections").map_err(|e| {
+                AllSourceError::StorageError(format!(
+                    "Failed to get usage_active_projections: {}",
+                    e
+                ))
+            })?;
+        let usage_active_pipelines: i32 = row.try_get("usage_active_pipelines").map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to get usage_active_pipelines: {}", e))
+        })?;
+        let usage_last_daily_reset: DateTime<Utc> =
+            row.try_get("usage_last_daily_reset").map_err(|e| {
+                AllSourceError::StorageError(format!("Failed to get usage_last_daily_reset: {}", e))
+            })?;
+        let usage_last_hourly_reset: DateTime<Utc> =
+            row.try_get("usage_last_hourly_reset").map_err(|e| {
+                AllSourceError::StorageError(format!(
+                    "Failed to get usage_last_hourly_reset: {}",
+                    e
+                ))
+            })?;
 
         // Create a JSON object to deserialize into TenantUsage
         let usage_json = serde_json::json!({
@@ -123,8 +161,9 @@ impl PostgresTenantRepository {
             "last_hourly_reset": usage_last_hourly_reset,
         });
 
-        let usage: TenantUsage = serde_json::from_value(usage_json)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to deserialize usage: {}", e)))?;
+        let usage: TenantUsage = serde_json::from_value(usage_json).map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to deserialize usage: {}", e))
+        })?;
 
         // Reconstruct tenant
         Ok(Tenant::reconstruct(
@@ -146,13 +185,13 @@ impl PostgresTenantRepository {
 impl TenantRepository for PostgresTenantRepository {
     async fn create(&self, id: TenantId, name: String, quotas: TenantQuotas) -> Result<Tenant> {
         // Check if tenant already exists
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM tenants WHERE id = $1)"
-        )
-        .bind(id.as_str())
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to check tenant existence: {}", e)))?;
+        let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tenants WHERE id = $1)")
+            .bind(id.as_str())
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| {
+                AllSourceError::StorageError(format!("Failed to check tenant existence: {}", e))
+            })?;
 
         if exists {
             return Err(AllSourceError::TenantAlreadyExists(id.as_str().to_string()));
@@ -260,13 +299,13 @@ impl TenantRepository for PostgresTenantRepository {
     }
 
     async fn find_by_id(&self, id: &TenantId) -> Result<Option<Tenant>> {
-        let row = sqlx::query(
-            "SELECT * FROM tenants WHERE id = $1"
-        )
-        .bind(id.as_str())
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to find tenant by id: {}", e)))?;
+        let row = sqlx::query("SELECT * FROM tenants WHERE id = $1")
+            .bind(id.as_str())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| {
+                AllSourceError::StorageError(format!("Failed to find tenant by id: {}", e))
+            })?;
 
         match row {
             Some(r) => Ok(Some(Self::row_to_tenant(&r)?)),
@@ -275,13 +314,13 @@ impl TenantRepository for PostgresTenantRepository {
     }
 
     async fn find_by_name(&self, name: &str) -> Result<Option<Tenant>> {
-        let row = sqlx::query(
-            "SELECT * FROM tenants WHERE LOWER(name) = LOWER($1) LIMIT 1"
-        )
-        .bind(name)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to find tenant by name: {}", e)))?;
+        let row = sqlx::query("SELECT * FROM tenants WHERE LOWER(name) = LOWER($1) LIMIT 1")
+            .bind(name)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| {
+                AllSourceError::StorageError(format!("Failed to find tenant by name: {}", e))
+            })?;
 
         match row {
             Some(r) => Ok(Some(Self::row_to_tenant(&r)?)),
@@ -290,14 +329,14 @@ impl TenantRepository for PostgresTenantRepository {
     }
 
     async fn find_all(&self, limit: usize, offset: usize) -> Result<Vec<Tenant>> {
-        let rows = sqlx::query(
-            "SELECT * FROM tenants ORDER BY created_at DESC LIMIT $1 OFFSET $2"
-        )
-        .bind(limit as i64)
-        .bind(offset as i64)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to find all tenants: {}", e)))?;
+        let rows = sqlx::query("SELECT * FROM tenants ORDER BY created_at DESC LIMIT $1 OFFSET $2")
+            .bind(limit as i64)
+            .bind(offset as i64)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                AllSourceError::StorageError(format!("Failed to find all tenants: {}", e))
+            })?;
 
         let mut tenants = Vec::new();
         for row in rows {
@@ -309,13 +348,15 @@ impl TenantRepository for PostgresTenantRepository {
 
     async fn find_active(&self, limit: usize, offset: usize) -> Result<Vec<Tenant>> {
         let rows = sqlx::query(
-            "SELECT * FROM tenants WHERE active = TRUE ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+            "SELECT * FROM tenants WHERE active = TRUE ORDER BY created_at DESC LIMIT $1 OFFSET $2",
         )
         .bind(limit as i64)
         .bind(offset as i64)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to find active tenants: {}", e)))?;
+        .map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to find active tenants: {}", e))
+        })?;
 
         let mut tenants = Vec::new();
         for row in rows {
@@ -326,35 +367,31 @@ impl TenantRepository for PostgresTenantRepository {
     }
 
     async fn count(&self) -> Result<usize> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM tenants"
-        )
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to count tenants: {}", e)))?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tenants")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to count tenants: {}", e)))?;
 
         Ok(count as usize)
     }
 
     async fn count_active(&self) -> Result<usize> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM tenants WHERE active = TRUE"
-        )
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to count active tenants: {}", e)))?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tenants WHERE active = TRUE")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| {
+                AllSourceError::StorageError(format!("Failed to count active tenants: {}", e))
+            })?;
 
         Ok(count as usize)
     }
 
     async fn delete(&self, id: &TenantId) -> Result<bool> {
-        let result = sqlx::query(
-            "DELETE FROM tenants WHERE id = $1"
-        )
-        .bind(id.as_str())
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to delete tenant: {}", e)))?;
+        let result = sqlx::query("DELETE FROM tenants WHERE id = $1")
+            .bind(id.as_str())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to delete tenant: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -418,25 +455,27 @@ impl TenantRepository for PostgresTenantRepository {
     }
 
     async fn activate(&self, id: &TenantId) -> Result<bool> {
-        let result = sqlx::query(
-            "UPDATE tenants SET active = TRUE, updated_at = NOW() WHERE id = $1"
-        )
-        .bind(id.as_str())
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to activate tenant: {}", e)))?;
+        let result =
+            sqlx::query("UPDATE tenants SET active = TRUE, updated_at = NOW() WHERE id = $1")
+                .bind(id.as_str())
+                .execute(&self.pool)
+                .await
+                .map_err(|e| {
+                    AllSourceError::StorageError(format!("Failed to activate tenant: {}", e))
+                })?;
 
         Ok(result.rows_affected() > 0)
     }
 
     async fn deactivate(&self, id: &TenantId) -> Result<bool> {
-        let result = sqlx::query(
-            "UPDATE tenants SET active = FALSE, updated_at = NOW() WHERE id = $1"
-        )
-        .bind(id.as_str())
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to deactivate tenant: {}", e)))?;
+        let result =
+            sqlx::query("UPDATE tenants SET active = FALSE, updated_at = NOW() WHERE id = $1")
+                .bind(id.as_str())
+                .execute(&self.pool)
+                .await
+                .map_err(|e| {
+                    AllSourceError::StorageError(format!("Failed to deactivate tenant: {}", e))
+                })?;
 
         Ok(result.rows_affected() > 0)
     }

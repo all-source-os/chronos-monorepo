@@ -57,7 +57,10 @@ fn test_full_lifecycle_in_memory() {
     assert!(state["current_state"]["score"].is_number());
     // Note: history array may be shorter if snapshot optimization is used
     // Verify total events through stats instead
-    assert!(state["history"].as_array().unwrap().len() > 0, "Should have events in history");
+    assert!(
+        state["history"].as_array().unwrap().len() > 0,
+        "Should have events in history"
+    );
 
     // Get stats
     let stats = store.stats();
@@ -95,7 +98,10 @@ fn test_parquet_persistence_and_recovery() {
         let store = EventStore::with_config(config);
 
         let stats = store.stats();
-        assert_eq!(stats.total_events, 50, "Should recover all events from Parquet");
+        assert_eq!(
+            stats.total_events, 50,
+            "Should recover all events from Parquet"
+        );
 
         let state = store.reconstruct_state("order-1", None).unwrap();
         assert_eq!(state["event_count"], 50);
@@ -354,11 +360,7 @@ fn test_projection_aggregations() {
             "user.updated"
         };
 
-        let event = create_test_event(
-            &format!("user-{}", i),
-            event_type,
-            json!({"index": i}),
-        );
+        let event = create_test_event(&format!("user-{}", i), event_type, json!({"index": i}));
         store.ingest(event).unwrap();
     }
 
@@ -407,11 +409,7 @@ fn test_event_stream_ordering() {
 
     let mut timestamps = vec![];
     for i in 0..50 {
-        let event = create_test_event(
-            "ordered-entity",
-            "sequence.event",
-            json!({"sequence": i}),
-        );
+        let event = create_test_event("ordered-entity", "sequence.event", json!({"sequence": i}));
         timestamps.push(event.timestamp);
         store.ingest(event).unwrap();
     }
@@ -470,11 +468,7 @@ fn test_full_production_config() {
 
     // Ingest events
     for i in 0..100 {
-        let event = create_test_event(
-            "production-entity",
-            "production.event",
-            json!({"value": i}),
-        );
+        let event = create_test_event("production-entity", "production.event", json!({"value": i}));
         store.ingest(event).unwrap();
     }
 
@@ -484,7 +478,9 @@ fn test_full_production_config() {
 
     // Snapshot should exist
     let snapshot_manager = store.snapshot_manager();
-    assert!(snapshot_manager.get_latest_snapshot("production-entity").is_some());
+    assert!(snapshot_manager
+        .get_latest_snapshot("production-entity")
+        .is_some());
 
     // Flush storage
     store.flush_storage().unwrap();
@@ -572,16 +568,17 @@ fn test_snapshot_time_travel_optimization() {
     // When using snapshot, event_count reflects events after snapshot (optimization)
     // Verify the snapshot was created by checking snapshot manager
     let snapshot_manager = store.snapshot_manager();
-    let snapshot = snapshot_manager.get_latest_snapshot("heavy-entity").unwrap();
-    assert_eq!(snapshot.event_count, 100, "Snapshot should contain 100 events");
+    let snapshot = snapshot_manager
+        .get_latest_snapshot("heavy-entity")
+        .unwrap();
+    assert_eq!(
+        snapshot.event_count, 100,
+        "Snapshot should contain 100 events"
+    );
 
     // Ingest more events
     for i in 100..110 {
-        let event = create_test_event(
-            "heavy-entity",
-            "data.update",
-            json!({"value": i}),
-        );
+        let event = create_test_event("heavy-entity", "data.update", json!({"value": i}));
         store.ingest(event).unwrap();
     }
 
@@ -596,7 +593,10 @@ fn test_snapshot_time_travel_optimization() {
     );
 
     // Verify the final state is correct even though history is shortened
-    assert_eq!(state["current_state"]["value"], 109, "Final state should reflect all events");
+    assert_eq!(
+        state["current_state"]["value"], 109,
+        "Final state should reflect all events"
+    );
 }
 
 #[test]

@@ -90,7 +90,6 @@
       "Bash(curl -s http://localhost:3901/health)",
       "Bash(curl -s http://localhost:3900/api/tenants)",
       "Bash(bun run build)",
-      "Bash(timeout 10 go run .)",
       "Bash(tree:*)",
       "Bash(cloc:*)",
       "Bash(find:*)",
@@ -98,7 +97,10 @@
       "Bash(cat:*)",
       "Bash(mix compile:*)",
       "Bash(mix test:*)",
-      "Bash(bun run dev:*)"
+      "Bash(bun run dev:*)",
+      "Bash(mkdir:*)",
+      "Bash(bun pm:*)",
+      "Bash(cargo fmt:*)"
     ],
     "deny": [],
     "ask": []

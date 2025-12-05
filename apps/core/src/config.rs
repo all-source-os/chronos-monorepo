@@ -1,3 +1,4 @@
+use crate::error::{AllSourceError, Result};
 /// Configuration management for AllSource v1.0
 ///
 /// Features:
@@ -6,11 +7,9 @@
 /// - Runtime configuration validation
 /// - Hot-reloading support (via file watcher)
 /// - Secure credential handling
-
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::error::{AllSourceError, Result};
 
 /// Main application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -246,8 +245,9 @@ pub enum LogOutput {
 impl Config {
     /// Load configuration from file
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let content = fs::read_to_string(path.as_ref())
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to read config file: {}", e)))?;
+        let content = fs::read_to_string(path.as_ref()).map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to read config file: {}", e))
+        })?;
 
         toml::from_str(&content)
             .map_err(|e| AllSourceError::ValidationError(format!("Invalid config format: {}", e)))
@@ -263,7 +263,8 @@ impl Config {
             config.server.host = host;
         }
         if let Ok(port) = std::env::var("ALLSOURCE_PORT") {
-            config.server.port = port.parse()
+            config.server.port = port
+                .parse()
                 .map_err(|_| AllSourceError::ValidationError("Invalid port number".to_string()))?;
         }
 
@@ -354,18 +355,21 @@ impl Config {
 
     /// Save configuration to TOML file
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let toml = toml::to_string_pretty(self)
-            .map_err(|e| AllSourceError::ValidationError(format!("Failed to serialize config: {}", e)))?;
+        let toml = toml::to_string_pretty(self).map_err(|e| {
+            AllSourceError::ValidationError(format!("Failed to serialize config: {}", e))
+        })?;
 
-        fs::write(path.as_ref(), toml)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to write config file: {}", e)))?;
+        fs::write(path.as_ref(), toml).map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to write config file: {}", e))
+        })?;
 
         Ok(())
     }
 
     /// Generate example configuration file
     pub fn example() -> String {
-        toml::to_string_pretty(&Config::default()).unwrap_or_else(|_| String::from("# Failed to generate example config"))
+        toml::to_string_pretty(&Config::default())
+            .unwrap_or_else(|_| String::from("# Failed to generate example config"))
     }
 }
 

@@ -1,7 +1,7 @@
+use crate::domain::entities::{Tenant, TenantQuotas};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::domain::entities::{Tenant, TenantQuotas};
 
 /// DTO for creating a new tenant
 #[derive(Debug, Deserialize)]

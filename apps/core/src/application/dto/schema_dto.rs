@@ -1,8 +1,8 @@
+use crate::domain::entities::{CompatibilityMode, Schema};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
-use crate::domain::entities::{Schema, CompatibilityMode};
 
 /// DTO for registering a new schema
 #[derive(Debug, Deserialize)]

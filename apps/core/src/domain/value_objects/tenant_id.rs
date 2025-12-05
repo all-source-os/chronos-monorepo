@@ -77,13 +77,17 @@ impl TenantId {
 
         // Rule: Maximum length 64 characters
         if value.len() > 64 {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Tenant ID cannot exceed 64 characters, got {}", value.len()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Tenant ID cannot exceed 64 characters, got {}",
+                value.len()
+            )));
         }
 
         // Rule: Only alphanumeric, hyphens, and underscores
-        if !value.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        if !value
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
             return Err(crate::error::AllSourceError::InvalidInput(
                 format!("Tenant ID '{}' contains invalid characters. Only alphanumeric, hyphens, and underscores allowed", value),
             ));

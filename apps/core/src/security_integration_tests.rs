@@ -8,26 +8,27 @@
 /// - Audit logging verification
 /// - Security headers
 /// - IP filtering
-
 use crate::{
-    auth::{AuthManager, Claims, Role, Permission, ApiKey},
+    auth::{ApiKey, AuthManager, Claims, Permission, Role},
     domain::{
-        entities::{Tenant, TenantQuotas, Event},
-        repositories::{TenantRepository, AuditEventRepository, EventStreamRepository},
-        value_objects::{TenantId, EntityId},
+        entities::{Event, Tenant, TenantQuotas},
+        repositories::{AuditEventRepository, EventStreamRepository, TenantRepository},
+        value_objects::{EntityId, TenantId},
     },
     infrastructure::{
-        repositories::{InMemoryTenantRepository, InMemoryAuditRepository, InMemoryEventStreamRepository},
+        repositories::{
+            InMemoryAuditRepository, InMemoryEventStreamRepository, InMemoryTenantRepository,
+        },
         security::IpFilter,
     },
-    middleware::{AuthContext, TenantContext, RequestId, SecurityConfig},
-    rate_limit::{RateLimiter, RateLimitConfig},
+    middleware::{AuthContext, RequestId, SecurityConfig, TenantContext},
+    rate_limit::{RateLimitConfig, RateLimiter},
 };
 use chrono::{Duration, Utc};
 use serde_json::json;
-use std::sync::Arc;
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 
 // ============================================================================
 // Test Helpers
@@ -103,7 +104,9 @@ fn test_jwt_token_validation() {
         .unwrap();
 
     // Authenticate to get a valid token
-    let token = auth.authenticate("testuser2", "SecurePassword123!").unwrap();
+    let token = auth
+        .authenticate("testuser2", "SecurePassword123!")
+        .unwrap();
 
     // Validate token should succeed
     let result = auth.validate_token(&token);
@@ -246,12 +249,20 @@ async fn test_tenant_isolation_repository_level() {
     let tenant2_id = TenantId::new("tenant-2".to_string()).unwrap();
 
     let tenant1 = repo
-        .create(tenant1_id.clone(), "Tenant 1".to_string(), TenantQuotas::standard())
+        .create(
+            tenant1_id.clone(),
+            "Tenant 1".to_string(),
+            TenantQuotas::standard(),
+        )
         .await
         .unwrap();
 
     let tenant2 = repo
-        .create(tenant2_id.clone(), "Tenant 2".to_string(), TenantQuotas::standard())
+        .create(
+            tenant2_id.clone(),
+            "Tenant 2".to_string(),
+            TenantQuotas::standard(),
+        )
         .await
         .unwrap();
 
@@ -306,12 +317,20 @@ async fn test_tenant_isolation_prevents_cross_tenant_access() {
 
     // Create two tenants
     tenant_repo
-        .create(tenant1_id.clone(), "Tenant 1".to_string(), TenantQuotas::standard())
+        .create(
+            tenant1_id.clone(),
+            "Tenant 1".to_string(),
+            TenantQuotas::standard(),
+        )
         .await
         .unwrap();
 
     tenant_repo
-        .create(tenant2_id.clone(), "Tenant 2".to_string(), TenantQuotas::standard())
+        .create(
+            tenant2_id.clone(),
+            "Tenant 2".to_string(),
+            TenantQuotas::standard(),
+        )
         .await
         .unwrap();
 
@@ -333,14 +352,17 @@ fn test_rate_limiting_per_tenant() {
     // Create rate limiter with low limit for testing
     let rate_limiter = RateLimiter::new(RateLimitConfig {
         requests_per_minute: 1000, // Default
-        burst_size: 1000
+        burst_size: 1000,
     });
 
     // Configure low limit for tenant-1
-    rate_limiter.set_config("tenant-1", RateLimitConfig {
-        requests_per_minute: 5,
-        burst_size: 5
-    });
+    rate_limiter.set_config(
+        "tenant-1",
+        RateLimitConfig {
+            requests_per_minute: 5,
+            burst_size: 5,
+        },
+    );
 
     // Make 5 requests (should succeed)
     for _ in 0..5 {
@@ -358,14 +380,20 @@ fn test_rate_limiting_multiple_tenants() {
     let rate_limiter = RateLimiter::new(RateLimitConfig::dev_mode());
 
     // Configure different limits for different tenants
-    rate_limiter.set_config("tenant-1", RateLimitConfig {
-        requests_per_minute: 5,
-        burst_size: 5,
-    });
-    rate_limiter.set_config("tenant-2", RateLimitConfig {
-        requests_per_minute: 10,
-        burst_size: 10,
-    });
+    rate_limiter.set_config(
+        "tenant-1",
+        RateLimitConfig {
+            requests_per_minute: 5,
+            burst_size: 5,
+        },
+    );
+    rate_limiter.set_config(
+        "tenant-2",
+        RateLimitConfig {
+            requests_per_minute: 10,
+            burst_size: 10,
+        },
+    );
 
     // Exhaust tenant-1's quota
     for _ in 0..5 {
@@ -385,7 +413,7 @@ fn test_rate_limiting_multiple_tenants() {
 
 #[tokio::test]
 async fn test_audit_logging_records_events() {
-    use crate::domain::entities::{AuditEvent, AuditAction, AuditOutcome, Actor};
+    use crate::domain::entities::{Actor, AuditAction, AuditEvent, AuditOutcome};
 
     let audit_repo = InMemoryAuditRepository::new();
     let tenant_id = create_test_tenant_id();
@@ -407,10 +435,7 @@ async fn test_audit_logging_records_events() {
     audit_repo.append(event.clone()).await.unwrap();
 
     // Query events
-    let events = audit_repo
-        .get_by_tenant(&tenant_id, 10, 0)
-        .await
-        .unwrap();
+    let events = audit_repo.get_by_tenant(&tenant_id, 10, 0).await.unwrap();
 
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].action(), &AuditAction::Login);
@@ -418,7 +443,7 @@ async fn test_audit_logging_records_events() {
 
 #[tokio::test]
 async fn test_audit_logging_tenant_isolation() {
-    use crate::domain::entities::{AuditEvent, AuditAction, AuditOutcome, Actor};
+    use crate::domain::entities::{Actor, AuditAction, AuditEvent, AuditOutcome};
 
     let audit_repo = InMemoryAuditRepository::new();
     let tenant1_id = TenantId::new("tenant-1".to_string()).unwrap();

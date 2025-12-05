@@ -1,6 +1,6 @@
-use crossbeam::queue::ArrayQueue;
 use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
+use crossbeam::queue::ArrayQueue;
 use std::sync::Arc;
 
 /// Lock-free bounded event queue for high-throughput ingestion
@@ -67,11 +67,9 @@ impl LockFreeEventQueue {
     /// - No waiting on contention
     /// - Constant time O(1)
     pub fn try_push(&self, event: Event) -> Result<()> {
-        self.queue
-            .push(event)
-            .map_err(|_| AllSourceError::QueueFull(
-                format!("Event queue at capacity ({})", self.capacity)
-            ))
+        self.queue.push(event).map_err(|_| {
+            AllSourceError::QueueFull(format!("Event queue at capacity ({})", self.capacity))
+        })
     }
 
     /// Try to pop an event from the queue (non-blocking)

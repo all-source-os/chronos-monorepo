@@ -1,5 +1,5 @@
-use crate::error::{AllSourceError, Result};
 use crate::domain::entities::Event;
+use crate::error::{AllSourceError, Result};
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -117,10 +117,7 @@ impl WALFile {
             .open(&path)
             .map_err(|e| AllSourceError::StorageError(format!("Failed to open WAL file: {}", e)))?;
 
-        let size = file
-            .metadata()
-            .map(|m| m.len() as usize)
-            .unwrap_or(0);
+        let size = file.metadata().map(|m| m.len() as usize).unwrap_or(0);
 
         Ok(Self {
             path,
@@ -170,8 +167,9 @@ impl WriteAheadLog {
         let wal_dir = wal_dir.into();
 
         // Create WAL directory if it doesn't exist
-        fs::create_dir_all(&wal_dir)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to create WAL directory: {}", e)))?;
+        fs::create_dir_all(&wal_dir).map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to create WAL directory: {}", e))
+        })?;
 
         // Create initial WAL file
         let initial_file_path = Self::generate_wal_filename(&wal_dir, 0);
@@ -277,8 +275,9 @@ impl WriteAheadLog {
 
     /// List all WAL files in the directory
     fn list_wal_files(&self) -> Result<Vec<PathBuf>> {
-        let entries = fs::read_dir(&self.wal_dir)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to read WAL directory: {}", e)))?;
+        let entries = fs::read_dir(&self.wal_dir).map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to read WAL directory: {}", e))
+        })?;
 
         let mut wal_files = Vec::new();
         for entry in entries {
@@ -288,7 +287,9 @@ impl WriteAheadLog {
 
             let path = entry.path();
             if let Some(name) = path.file_name() {
-                if name.to_string_lossy().starts_with("wal-") && name.to_string_lossy().ends_with(".log") {
+                if name.to_string_lossy().starts_with("wal-")
+                    && name.to_string_lossy().ends_with(".log")
+                {
                     wal_files.push(path);
                 }
             }

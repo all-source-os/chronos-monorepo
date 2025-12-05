@@ -182,9 +182,10 @@ impl Schema {
         Self::validate_tag(&tag)?;
 
         if self.tags.contains(&tag) {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Tag '{}' already exists", tag),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Tag '{}' already exists",
+                tag
+            )));
         }
 
         self.tags.push(tag);
@@ -197,9 +198,10 @@ impl Schema {
         self.tags.retain(|t| t != tag);
 
         if self.tags.len() == initial_len {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Tag '{}' not found", tag),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Tag '{}' not found",
+                tag
+            )));
         }
 
         Ok(())
@@ -240,16 +242,21 @@ impl Schema {
         }
 
         if subject.len() > 256 {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Schema subject cannot exceed 256 characters, got {}", subject.len()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Schema subject cannot exceed 256 characters, got {}",
+                subject.len()
+            )));
         }
 
         // Subject should follow similar naming as event types
-        if !subject.chars().all(|c| c.is_lowercase() || c.is_numeric() || c == '.' || c == '_' || c == '-') {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Schema subject '{}' must be lowercase with dots, underscores, or hyphens", subject),
-            ));
+        if !subject
+            .chars()
+            .all(|c| c.is_lowercase() || c.is_numeric() || c == '.' || c == '_' || c == '-')
+        {
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Schema subject '{}' must be lowercase with dots, underscores, or hyphens",
+                subject
+            )));
         }
 
         Ok(())
@@ -290,9 +297,10 @@ impl Schema {
 
     fn validate_description(description: &str) -> Result<()> {
         if description.len() > 1000 {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Schema description cannot exceed 1000 characters, got {}", description.len()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Schema description cannot exceed 1000 characters, got {}",
+                description.len()
+            )));
         }
         Ok(())
     }
@@ -305,15 +313,20 @@ impl Schema {
         }
 
         if tag.len() > 50 {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Tag cannot exceed 50 characters, got {}", tag.len()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Tag cannot exceed 50 characters, got {}",
+                tag.len()
+            )));
         }
 
-        if !tag.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Tag '{}' must be alphanumeric with hyphens or underscores", tag),
-            ));
+        if !tag
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Tag '{}' must be alphanumeric with hyphens or underscores",
+                tag
+            )));
         }
 
         Ok(())
@@ -367,12 +380,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_subject() {
-        let result = Schema::new(
-            "".to_string(),
-            1,
-            valid_schema(),
-            CompatibilityMode::None,
-        );
+        let result = Schema::new("".to_string(), 1, valid_schema(), CompatibilityMode::None);
 
         assert!(result.is_err());
     }
@@ -380,12 +388,7 @@ mod tests {
     #[test]
     fn test_reject_too_long_subject() {
         let long_subject = "a".repeat(257);
-        let result = Schema::new(
-            long_subject,
-            1,
-            valid_schema(),
-            CompatibilityMode::None,
-        );
+        let result = Schema::new(long_subject, 1, valid_schema(), CompatibilityMode::None);
 
         assert!(result.is_err());
     }
@@ -488,7 +491,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(schema.description().is_none());
 
@@ -503,7 +507,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let long_desc = "a".repeat(1001);
         let result = schema.set_description(long_desc);
@@ -516,7 +521,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         schema.set_description("Test".to_string()).unwrap();
         assert!(schema.description().is_some());
@@ -531,7 +537,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(schema.tags().len(), 0);
 
@@ -547,7 +554,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         schema.add_tag("test".to_string()).unwrap();
         let result = schema.add_tag("test".to_string());
@@ -560,7 +568,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         schema.add_tag("tag1".to_string()).unwrap();
         schema.add_tag("tag2".to_string()).unwrap();
@@ -578,7 +587,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let result = schema.remove_tag("nonexistent");
         assert!(result.is_err());
@@ -590,7 +600,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         // Empty tag
         assert!(schema.add_tag("".to_string()).is_err());
@@ -609,7 +620,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let valid_tags = vec!["production", "test-env", "v2_schema", "important123"];
 
@@ -624,14 +636,16 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let schema_v2 = Schema::new(
             "test.event".to_string(),
             2,
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(schema_v1.is_first_version());
         assert!(!schema_v2.is_first_version());
@@ -643,7 +657,8 @@ mod tests {
             "user.created".to_string(),
             valid_schema(),
             CompatibilityMode::None,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(schema.applies_to("user.created"));
         assert!(!schema.applies_to("order.placed"));
@@ -655,7 +670,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::Backward,
-        ).unwrap();
+        )
+        .unwrap();
 
         let new_schema = json!({
             "type": "object",
@@ -697,7 +713,8 @@ mod tests {
             "test.event".to_string(),
             valid_schema(),
             CompatibilityMode::Backward,
-        ).unwrap();
+        )
+        .unwrap();
 
         // Should be able to serialize
         let json = serde_json::to_string(&schema);

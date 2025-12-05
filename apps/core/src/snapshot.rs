@@ -1,5 +1,5 @@
-use crate::error::Result;
 use crate::domain::entities::Event;
+use crate::error::Result;
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -222,11 +222,7 @@ impl SnapshotManager {
     }
 
     /// Get the best snapshot to use for reconstruction as of a specific time
-    pub fn get_snapshot_as_of(
-        &self,
-        entity_id: &str,
-        as_of: DateTime<Utc>,
-    ) -> Option<Snapshot> {
+    pub fn get_snapshot_as_of(&self, entity_id: &str, as_of: DateTime<Utc>) -> Option<Snapshot> {
         let snapshots = self.snapshots.read();
         snapshots.get(entity_id).and_then(|entity_snapshots| {
             entity_snapshots

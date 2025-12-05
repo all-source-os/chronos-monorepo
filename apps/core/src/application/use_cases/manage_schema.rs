@@ -1,8 +1,8 @@
 use crate::application::dto::{
-    RegisterSchemaRequest, RegisterSchemaResponse, UpdateSchemaRequest, ListSchemasResponse,
-    SchemaDto, CompatibilityModeDto,
+    CompatibilityModeDto, ListSchemasResponse, RegisterSchemaRequest, RegisterSchemaResponse,
+    SchemaDto, UpdateSchemaRequest,
 };
-use crate::domain::entities::{Schema, CompatibilityMode};
+use crate::domain::entities::{CompatibilityMode, Schema};
 use crate::error::Result;
 
 /// Use Case: Register Schema
@@ -19,11 +19,7 @@ impl RegisterSchemaUseCase {
             .unwrap_or(CompatibilityMode::None);
 
         // Create schema (version 1)
-        let mut schema = Schema::new_v1(
-            request.subject,
-            request.schema,
-            compatibility_mode,
-        )?;
+        let mut schema = Schema::new_v1(request.subject, request.schema, compatibility_mode)?;
 
         // Set description if provided
         if let Some(description) = request.description {
@@ -147,7 +143,10 @@ mod tests {
         assert_eq!(response.schema.subject, "user.created");
         assert_eq!(response.schema.version, 1);
         assert_eq!(response.schema.tags.len(), 2);
-        assert_eq!(response.schema.compatibility_mode, CompatibilityModeDto::Backward);
+        assert_eq!(
+            response.schema.compatibility_mode,
+            CompatibilityModeDto::Backward
+        );
     }
 
     #[test]

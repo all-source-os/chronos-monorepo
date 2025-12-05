@@ -129,13 +129,17 @@ impl EventType {
 
         // Rule: Maximum length 128 characters
         if value.len() > 128 {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Event type cannot exceed 128 characters, got {}", value.len()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Event type cannot exceed 128 characters, got {}",
+                value.len()
+            )));
         }
 
         // Rule: Must be lowercase with dots/underscores
-        if !value.chars().all(|c| c.is_lowercase() || c.is_numeric() || c == '.' || c == '_') {
+        if !value
+            .chars()
+            .all(|c| c.is_lowercase() || c.is_numeric() || c == '.' || c == '_')
+        {
             return Err(crate::error::AllSourceError::InvalidInput(
                 format!("Event type '{}' must be lowercase with dots/underscores. Convention: namespace.entity.action", value),
             ));
@@ -143,16 +147,18 @@ impl EventType {
 
         // Rule: Cannot start or end with a dot
         if value.starts_with('.') || value.ends_with('.') {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Event type '{}' cannot start or end with a dot", value),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Event type '{}' cannot start or end with a dot",
+                value
+            )));
         }
 
         // Rule: Cannot have consecutive dots
         if value.contains("..") {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Event type '{}' cannot have consecutive dots", value),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Event type '{}' cannot have consecutive dots",
+                value
+            )));
         }
 
         Ok(())

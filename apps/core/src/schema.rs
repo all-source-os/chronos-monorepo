@@ -197,11 +197,8 @@ impl SchemaRegistry {
             let prev_version = next_version - 1;
             if let Some(prev_schema) = subject_schemas.get(&prev_version) {
                 let compatibility = self.get_compatibility_mode(&subject);
-                let check_result = self.check_compatibility(
-                    &prev_schema.schema,
-                    &schema,
-                    compatibility,
-                )?;
+                let check_result =
+                    self.check_compatibility(&prev_schema.schema, &schema, compatibility)?;
 
                 if !check_result.compatible {
                     return Err(AllSourceError::ValidationError(format!(
@@ -249,9 +246,9 @@ impl SchemaRegistry {
     pub fn get_schema(&self, subject: &str, version: Option<u32>) -> Result<Schema> {
         let schemas = self.schemas.read();
 
-        let subject_schemas = schemas
-            .get(subject)
-            .ok_or_else(|| AllSourceError::ValidationError(format!("Subject not found: {}", subject)))?;
+        let subject_schemas = schemas.get(subject).ok_or_else(|| {
+            AllSourceError::ValidationError(format!("Subject not found: {}", subject))
+        })?;
 
         let version = match version {
             Some(v) => v,
@@ -263,24 +260,21 @@ impl SchemaRegistry {
             }
         };
 
-        subject_schemas
-            .get(&version)
-            .cloned()
-            .ok_or_else(|| {
-                AllSourceError::ValidationError(format!(
-                    "Schema version {} not found for subject: {}",
-                    version, subject
-                ))
-            })
+        subject_schemas.get(&version).cloned().ok_or_else(|| {
+            AllSourceError::ValidationError(format!(
+                "Schema version {} not found for subject: {}",
+                version, subject
+            ))
+        })
     }
 
     /// List all versions of a schema subject
     pub fn list_versions(&self, subject: &str) -> Result<Vec<u32>> {
         let schemas = self.schemas.read();
 
-        let subject_schemas = schemas
-            .get(subject)
-            .ok_or_else(|| AllSourceError::ValidationError(format!("Subject not found: {}", subject)))?;
+        let subject_schemas = schemas.get(subject).ok_or_else(|| {
+            AllSourceError::ValidationError(format!("Subject not found: {}", subject))
+        })?;
 
         let mut versions: Vec<u32> = subject_schemas.keys().copied().collect();
         versions.sort_unstable();
@@ -427,11 +421,7 @@ impl SchemaRegistry {
             let new_required = new_schema
                 .get("required")
                 .and_then(|r| r.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .collect::<Vec<_>>()
-                })
+                .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
                 .unwrap_or_default();
 
             for old_req in old_required {
@@ -461,11 +451,7 @@ impl SchemaRegistry {
             let old_required = old_schema
                 .get("required")
                 .and_then(|r| r.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .collect::<Vec<_>>()
-                })
+                .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
                 .unwrap_or_default();
 
             for new_req in new_required {
@@ -492,7 +478,10 @@ impl SchemaRegistry {
     /// Get compatibility mode for a subject (or default)
     pub fn get_compatibility_mode(&self, subject: &str) -> CompatibilityMode {
         let modes = self.compatibility_modes.read();
-        modes.get(subject).copied().unwrap_or(self.config.default_compatibility)
+        modes
+            .get(subject)
+            .copied()
+            .unwrap_or(self.config.default_compatibility)
     }
 
     /// Delete a specific schema version
@@ -579,7 +568,9 @@ mod tests {
             "email": "test@example.com"
         });
 
-        let result = registry.validate("user.created", None, &valid_payload).unwrap();
+        let result = registry
+            .validate("user.created", None, &valid_payload)
+            .unwrap();
         assert!(result.valid);
 
         // Invalid payload (missing required field)
@@ -587,7 +578,9 @@ mod tests {
             "user_id": "123"
         });
 
-        let result = registry.validate("user.created", None, &invalid_payload).unwrap();
+        let result = registry
+            .validate("user.created", None, &invalid_payload)
+            .unwrap();
         assert!(!result.valid);
         assert!(!result.errors.is_empty());
     }

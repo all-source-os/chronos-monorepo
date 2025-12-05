@@ -107,7 +107,10 @@ impl EntityId {
     /// assert_eq!(entity_id.prefix('-'), None);
     /// ```
     pub fn prefix(&self, delimiter: char) -> Option<&str> {
-        self.0.split(delimiter).next().filter(|_| self.0.contains(delimiter))
+        self.0
+            .split(delimiter)
+            .next()
+            .filter(|_| self.0.contains(delimiter))
     }
 
     /// Validate an entity ID string
@@ -121,9 +124,10 @@ impl EntityId {
 
         // Rule: Maximum length 128 characters
         if value.len() > 128 {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Entity ID cannot exceed 128 characters, got {}", value.len()),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Entity ID cannot exceed 128 characters, got {}",
+                value.len()
+            )));
         }
 
         // Rule: No control characters (check before whitespace checks)

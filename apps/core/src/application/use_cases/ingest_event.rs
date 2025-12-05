@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use crate::application::dto::{IngestEventRequest, IngestEventResponse};
 use crate::domain::entities::Event;
 use crate::domain::repositories::EventRepository;
-use crate::application::dto::{IngestEventRequest, IngestEventResponse};
 use crate::error::Result;
+use std::sync::Arc;
 
 /// Use Case: Ingest Event
 ///
@@ -89,9 +89,9 @@ impl IngestEventsBatchUseCase {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use chrono::Utc;
     use serde_json::json;
     use uuid::Uuid;
-    use chrono::Utc;
 
     // Mock repository for testing
     struct MockEventRepository {
