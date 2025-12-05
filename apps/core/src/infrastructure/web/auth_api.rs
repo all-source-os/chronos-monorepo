@@ -1,11 +1,11 @@
-use crate::auth::{Permission, Role, User};
-use crate::middleware::{Admin, Authenticated, OptionalAuth};
+use crate::infrastructure::security::auth::{Permission, Role, User};
+use crate::infrastructure::security::middleware::{Admin, Authenticated, OptionalAuth};
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 // AppState is defined in api_v1.rs and re-exported
-use crate::api_v1::AppState;
+use crate::infrastructure::web::api_v1::AppState;
 
 // ============================================================================
 // Request/Response Types

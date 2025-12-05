@@ -9,7 +9,6 @@
 /// - Security headers
 /// - IP filtering
 use crate::{
-    auth::{ApiKey, AuthManager, Claims, Permission, Role},
     domain::{
         entities::{Event, Tenant, TenantQuotas},
         repositories::{AuditEventRepository, EventStreamRepository, TenantRepository},
@@ -19,10 +18,13 @@ use crate::{
         repositories::{
             InMemoryAuditRepository, InMemoryEventStreamRepository, InMemoryTenantRepository,
         },
-        security::IpFilter,
+        security::{
+            auth::{ApiKey, AuthManager, Claims, Permission, Role},
+            middleware::{AuthContext, RequestId, SecurityConfig, TenantContext},
+            rate_limit::{RateLimitConfig, RateLimiter},
+            IpFilter,
+        },
     },
-    middleware::{AuthContext, RequestId, SecurityConfig, TenantContext},
-    rate_limit::{RateLimitConfig, RateLimiter},
 };
 use chrono::{Duration, Utc};
 use serde_json::json;

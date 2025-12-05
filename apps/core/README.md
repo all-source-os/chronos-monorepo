@@ -99,6 +99,46 @@ allsource-core = "0.2"
 - **Pipeline Statistics**: Track processing metrics per pipeline
 - **Integrated Processing**: Events flow through pipelines during ingestion
 
+### 🏗️ Clean Architecture
+
+The codebase follows a strict layered architecture for maintainability and testability:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Infrastructure Layer                     │
+│  (HTTP handlers, WebSocket, persistence, security)          │
+│  infrastructure::web, infrastructure::persistence,          │
+│  infrastructure::security, infrastructure::repositories     │
+├─────────────────────────────────────────────────────────────┤
+│                    Application Layer                        │
+│  (Use cases, services, DTOs)                                │
+│  application::use_cases, application::services,             │
+│  application::dto                                           │
+├─────────────────────────────────────────────────────────────┤
+│                      Domain Layer                           │
+│  (Entities, value objects, repository traits)               │
+│  domain::entities, domain::value_objects,                   │
+│  domain::repositories                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Module Organization:**
+
+| Layer | Path | Contents |
+|-------|------|----------|
+| Domain | `domain::entities` | Event, Tenant, Schema, Projection, AuditEvent, EventStream |
+| Domain | `domain::value_objects` | EntityId, TenantId, EventType, PartitionKey |
+| Domain | `domain::repositories` | Repository trait definitions (no implementations) |
+| Application | `application::use_cases` | IngestEvent, QueryEvents, ManageTenant, ManageSchema |
+| Application | `application::services` | AuditLogger, Pipeline, Replay, Analytics |
+| Application | `application::dto` | Request/Response DTOs for API boundaries |
+| Infrastructure | `infrastructure::web` | HTTP handlers, WebSocket, API routes |
+| Infrastructure | `infrastructure::persistence` | Storage, WAL, Snapshots, Compaction, Index |
+| Infrastructure | `infrastructure::security` | Auth, Middleware, Rate Limiting |
+| Infrastructure | `infrastructure::repositories` | In-memory, PostgreSQL, RocksDB implementations |
+
+**Dependency Rule:** Inner layers never depend on outer layers. Domain has zero external dependencies.
+
 ### 🏔️ SierraDB-Inspired Production Patterns (NEW)
 
 Based on battle-tested patterns from [SierraDB](https://github.com/cablehead/xs), a production-grade event store:

@@ -7,7 +7,7 @@
 /// - Tenant behavior
 /// - Attack detection
 use crate::error::Result;
-use crate::rate_limit::RateLimitResult;
+use crate::infrastructure::security::rate_limit::RateLimitResult;
 use chrono::{DateTime, Duration, Timelike, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

@@ -1,6 +1,6 @@
-use crate::auth::{AuthManager, Claims, Permission};
+use crate::infrastructure::security::auth::{AuthManager, Claims, Permission};
 use crate::error::AllSourceError;
-use crate::rate_limit::RateLimiter;
+use crate::infrastructure::security::rate_limit::RateLimiter;
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode},
@@ -704,7 +704,7 @@ impl IntoResponse for IpFilterError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::{Role, User};
+    use crate::infrastructure::security::auth::{Role, User};
 
     #[test]
     fn test_extract_bearer_token() {

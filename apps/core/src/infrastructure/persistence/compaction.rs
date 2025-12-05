@@ -1,6 +1,6 @@
 use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
-use crate::storage::ParquetStorage;
+use crate::infrastructure::persistence::storage::ParquetStorage;
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

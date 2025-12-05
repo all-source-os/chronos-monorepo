@@ -65,6 +65,15 @@ impl From<parquet::errors::ParquetError> for AllSourceError {
     }
 }
 
+impl From<crate::infrastructure::persistence::SimdJsonError> for AllSourceError {
+    fn from(err: crate::infrastructure::persistence::SimdJsonError) -> Self {
+        AllSourceError::SerializationError(serde_json::Error::io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            err.to_string(),
+        )))
+    }
+}
+
 #[cfg(feature = "postgres")]
 impl From<sqlx::Error> for AllSourceError {
     fn from(err: sqlx::Error) -> Self {

@@ -4,9 +4,14 @@
 // - persistence/ (Storage integrity, checksums, lock-free structures)
 // - cluster/ (Node registry, request routing for distributed systems)
 // - web/ (HTTP handlers, WebSocket handlers)
-// - messaging/ (Kafka, NATS integrations)
+// - security/ (Authentication, authorization, rate limiting)
+// - config/ (Configuration loading)
+// - observability/ (Metrics, tracing)
 
 pub mod cluster;
+pub mod config;
+pub mod observability;
 pub mod persistence;
 pub mod repositories;
 pub mod security;
+pub mod web;

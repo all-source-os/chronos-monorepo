@@ -1,6 +1,6 @@
 use crate::domain::entities::Event;
 use crate::error::Result;
-use crate::metrics::MetricsRegistry;
+use crate::infrastructure::observability::metrics::MetricsRegistry;
 use dashmap::DashMap;
 use serde_json::Value;
 use std::sync::Arc;

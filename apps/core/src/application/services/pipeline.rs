@@ -1,6 +1,6 @@
 use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
-use crate::metrics::MetricsRegistry;
+use crate::infrastructure::observability::metrics::MetricsRegistry;
 use chrono::{DateTime, Duration, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

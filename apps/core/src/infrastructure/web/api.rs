@@ -1,20 +1,20 @@
-use crate::analytics::{
+use crate::application::services::analytics::{
     AnalyticsEngine, CorrelationRequest, CorrelationResponse, EventFrequencyRequest,
     EventFrequencyResponse, StatsSummaryRequest, StatsSummaryResponse,
 };
 use crate::application::dto::{
     EventDto, IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse,
 };
-use crate::compaction::CompactionResult;
+use crate::infrastructure::persistence::compaction::CompactionResult;
 use crate::domain::entities::Event;
 use crate::error::Result;
-use crate::pipeline::{PipelineConfig, PipelineStats};
-use crate::replay::{ReplayProgress, StartReplayRequest, StartReplayResponse};
-use crate::schema::{
+use crate::application::services::pipeline::{PipelineConfig, PipelineStats};
+use crate::application::services::replay::{ReplayProgress, StartReplayRequest, StartReplayResponse};
+use crate::application::services::schema::{
     CompatibilityMode, RegisterSchemaRequest, RegisterSchemaResponse, ValidateEventRequest,
     ValidateEventResponse,
 };
-use crate::snapshot::{
+use crate::infrastructure::persistence::snapshot::{
     CreateSnapshotRequest, CreateSnapshotResponse, ListSnapshotsRequest, ListSnapshotsResponse,
     SnapshotInfo,
 };

@@ -1,10 +1,10 @@
-use crate::middleware::{Admin, Authenticated};
-use crate::tenant::{Tenant, TenantQuotas};
+use crate::infrastructure::security::middleware::{Admin, Authenticated};
+use crate::application::services::tenant_service::{Tenant, TenantQuotas};
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 
 // AppState is defined in api_v1.rs
-use crate::api_v1::AppState;
+use crate::infrastructure::web::api_v1::AppState;
 
 // ============================================================================
 // Request/Response Types
@@ -96,7 +96,7 @@ pub async fn get_tenant_handler(
     // Users can only view their own tenant, admins can view any
     if tenant_id != auth_ctx.tenant_id() {
         auth_ctx
-            .require_permission(crate::auth::Permission::Admin)
+            .require_permission(crate::infrastructure::security::auth::Permission::Admin)
             .map_err(|_| {
                 (
                     StatusCode::FORBIDDEN,
@@ -133,7 +133,7 @@ pub async fn get_tenant_stats_handler(
     // Users can only view their own tenant stats
     if tenant_id != auth_ctx.tenant_id() {
         auth_ctx
-            .require_permission(crate::auth::Permission::Admin)
+            .require_permission(crate::infrastructure::security::auth::Permission::Admin)
             .map_err(|_| {
                 (
                     StatusCode::FORBIDDEN,
