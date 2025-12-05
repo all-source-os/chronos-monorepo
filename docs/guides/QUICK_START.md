@@ -5,7 +5,7 @@
 The fastest way to get started is adding `allsource-core` to your Rust project:
 
 ```bash
-cargo add allsource-core@0.1
+cargo add allsource-core@0.2
 ```
 
 Or add to your `Cargo.toml` (pin to minor version for stability):
@@ -14,10 +14,10 @@ Or add to your `Cargo.toml` (pin to minor version for stability):
 [dependencies]
 # allsource-core: High-performance event store
 # Pin to minor version - allows patch updates only
-allsource-core = "0.1"
+allsource-core = "0.2"
 ```
 
-> **Version Pinning**: We recommend pinning to `"0.1"` (minor version) rather than `"0.1.0"` (exact) or `"0"` (major only). This allows automatic patch updates for bug fixes while avoiding breaking changes. See our [Dependency Management Guide](https://github.com/all-source-os/all-frame/blob/main/docs/DEPENDENCY_MANAGEMENT.md) for best practices.
+> **Version Pinning**: We recommend pinning to `"0.2"` (minor version) rather than `"0.2.0"` (exact) or `"0"` (major only). This allows automatic patch updates for bug fixes while avoiding breaking changes. See our [Dependency Management Guide](https://github.com/all-source-os/all-frame/blob/main/docs/DEPENDENCY_MANAGEMENT.md) for best practices.
 
 **Links**: [crates.io](https://crates.io/crates/allsource-core) · [docs.rs](https://docs.rs/allsource-core) · [GitHub](https://github.com/all-source-os/chronos-monorepo)
 

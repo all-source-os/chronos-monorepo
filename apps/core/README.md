@@ -19,7 +19,7 @@ AllSource is a high-performance event store designed for modern event-sourcing a
 
 The Rust core provides blazing-fast event ingestion (469K events/sec) and sub-microsecond queries, while the Go control plane handles cluster coordination and operational tasks.
 
-**Current Version**: v0.1.0 · [crates.io](https://crates.io/crates/allsource-core) · [docs.rs](https://docs.rs/allsource-core)
+**Current Version**: v0.2.0 · [crates.io](https://crates.io/crates/allsource-core) · [docs.rs](https://docs.rs/allsource-core)
 
 ## Installation
 
@@ -28,7 +28,7 @@ The Rust core provides blazing-fast event ingestion (469K events/sec) and sub-mi
 ### Add to Your Project
 
 ```bash
-cargo add allsource-core@0.1
+cargo add allsource-core@0.2
 ```
 
 Or add to your `Cargo.toml` (pin to minor version for stability):
@@ -37,10 +37,10 @@ Or add to your `Cargo.toml` (pin to minor version for stability):
 [dependencies]
 # allsource-core: High-performance event store
 # Pin to minor version - allows patch updates only
-allsource-core = "0.1"
+allsource-core = "0.2"
 ```
 
-> **Version Pinning Best Practice**: We recommend `"0.1"` (minor version) rather than `"0.1.0"` (exact) or `"0"` (major only). This allows automatic patch updates while avoiding breaking changes.
+> **Version Pinning Best Practice**: We recommend `"0.2"` (minor version) rather than `"0.2.0"` (exact) or `"0"` (major only). This allows automatic patch updates while avoiding breaking changes.
 
 ### Usage Patterns
 
@@ -418,13 +418,13 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-allsource-core = "0.1"  # Pin to minor version
+allsource-core = "0.2"  # Pin to minor version
 ```
 
 Or:
 
 ```bash
-cargo add allsource-core@0.1
+cargo add allsource-core@0.2
 ```
 
 ### Option 2: Build from Source
