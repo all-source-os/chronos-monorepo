@@ -1,0 +1,51 @@
+Chronos has been deployed successfully!
+
+{{- if .Values.core.enabled }}
+
+RUST CORE:
+  Get the Core URL:
+  {{- if eq .Values.core.service.type "NodePort" }}
+    export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "chronos.core.fullname" . }})
+    export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo http://$NODE_IP:$NODE_PORT
+  {{- else if eq .Values.core.service.type "LoadBalancer" }}
+    NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+    You can watch the status by running:
+      kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "chronos.core.fullname" . }}
+  {{- else }}
+    kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "chronos.core.fullname" . }} 3900:{{ .Values.core.service.httpPort }}
+    echo "Core API: http://localhost:3900"
+  {{- end }}
+{{- end }}
+
+{{- if .Values.queryService.enabled }}
+
+QUERY SERVICE:
+  Get the Query Service URL:
+  {{- if eq .Values.queryService.service.type "NodePort" }}
+    export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "chronos.queryService.fullname" . }})
+    export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+    echo http://$NODE_IP:$NODE_PORT
+  {{- else if eq .Values.queryService.service.type "LoadBalancer" }}
+    NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+    You can watch the status by running:
+      kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "chronos.queryService.fullname" . }}
+  {{- else }}
+    kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "chronos.queryService.fullname" . }} 3902:{{ .Values.queryService.service.port }}
+    echo "Query Service: http://localhost:3902"
+  {{- end }}
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+
+INGRESS:
+  {{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  {{- end }}
+{{- end }}
+
+HEALTH CHECKS:
+  Core:          curl http://localhost:3900/health
+  Query Service: curl http://localhost:3902/api/health
+
+For more information, visit: https://github.com/all-source-os/chronos-monorepo

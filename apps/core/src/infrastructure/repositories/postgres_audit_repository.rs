@@ -155,11 +155,8 @@ impl PostgresAuditRepository {
 
         let resource_type: Option<String> = row.try_get("resource_type").ok();
         let resource_id: Option<String> = row.try_get("resource_id").ok();
-        let ip_address: Option<String> = row
-            .try_get::<Option<std::net::IpAddr>, _>("ip_address")
-            .ok()
-            .flatten()
-            .map(|ip| ip.to_string());
+        // Read ip_address as String (stored as TEXT in database for sqlx compatibility)
+        let ip_address: Option<String> = row.try_get("ip_address").ok().flatten();
         let user_agent: Option<String> = row.try_get("user_agent").ok();
         let request_id: Option<String> = row.try_get("request_id").ok();
         let error_message: Option<String> = row.try_get("error_message").ok();
@@ -205,7 +202,8 @@ impl AuditEventRepository for PostgresAuditRepository {
         let category_str = format!("{:?}", event.category()).to_lowercase();
         let outcome_str = Self::outcome_to_string(event.outcome());
 
-        let ip_addr: Option<std::net::IpAddr> = event.ip_address().and_then(|s| s.parse().ok());
+        // Convert IpAddr to String for sqlx compatibility
+        let ip_addr_str: Option<String> = event.ip_address().map(|s| s.to_string());
 
         sqlx::query(
             r#"
@@ -229,7 +227,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         .bind(event.resource_type())
         .bind(event.resource_id())
         .bind(outcome_str)
-        .bind(ip_addr)
+        .bind(ip_addr_str)
         .bind(event.user_agent())
         .bind(event.request_id())
         .bind(event.error_message())
@@ -253,7 +251,8 @@ impl AuditEventRepository for PostgresAuditRepository {
             let action_str = Self::action_to_string(event.action());
             let category_str = format!("{:?}", event.category()).to_lowercase();
             let outcome_str = Self::outcome_to_string(event.outcome());
-            let ip_addr: Option<std::net::IpAddr> = event.ip_address().and_then(|s| s.parse().ok());
+            // Convert IpAddr to String for sqlx compatibility
+            let ip_addr_str: Option<String> = event.ip_address().map(|s| s.to_string());
 
             sqlx::query(
                 r#"
@@ -277,7 +276,7 @@ impl AuditEventRepository for PostgresAuditRepository {
             .bind(event.resource_type())
             .bind(event.resource_id())
             .bind(outcome_str)
-            .bind(ip_addr)
+            .bind(ip_addr_str)
             .bind(event.user_agent())
             .bind(event.request_id())
             .bind(event.error_message())
@@ -377,8 +376,8 @@ impl AuditEventRepository for PostgresAuditRepository {
             db_query = db_query.bind(format!("{:?}", category).to_lowercase());
         }
         if let Some(actor_id) = query.actor_identifier {
-            // Extract just the ID part after the colon
-            let actor_id_only = actor_id.split(':').nth(1).unwrap_or(&actor_id);
+            // Extract just the ID part after the colon and convert to owned String
+            let actor_id_only = actor_id.split(':').nth(1).unwrap_or(&actor_id).to_string();
             db_query = db_query.bind(actor_id_only);
         }
         if let Some(resource_type) = query.resource_type {

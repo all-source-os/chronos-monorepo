@@ -1,0 +1,42 @@
+# Fly.io Configuration for Chronos Query Service
+# Deploy: flyctl deploy --app chronos-query-service
+# Scale: flyctl scale count 3 --app chronos-query-service
+
+app = "chronos-query-service"
+primary_region = "iad"  # US East (Virginia) - change to your preferred region
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  MIX_ENV = "prod"
+  PHX_HOST = "chronos-query-service.fly.dev"
+  CORE_URL = "http://chronos-core.internal:8080"
+  CORE_WS_URL = "ws://chronos-core.internal:8080"
+  # PORT is automatically set by Fly.io
+  # SECRET_KEY_BASE should be set via: flyctl secrets set SECRET_KEY_BASE=...
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 500
+    soft_limit = 400
+
+  [[http_service.checks]]
+    grace_period = "5s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "3s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256

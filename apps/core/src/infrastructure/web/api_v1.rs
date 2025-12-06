@@ -1,11 +1,13 @@
+use crate::application::services::tenant_service::TenantManager;
 /// v1.0 API router with authentication and multi-tenancy
 use crate::infrastructure::security::auth::AuthManager;
-use crate::infrastructure::web::auth_api::*;
-use crate::infrastructure::security::middleware::{auth_middleware, rate_limit_middleware, AuthState, RateLimitState};
+use crate::infrastructure::security::middleware::{
+    auth_middleware, rate_limit_middleware, AuthState, RateLimitState,
+};
 use crate::infrastructure::security::rate_limit::RateLimiter;
-use crate::store::EventStore;
-use crate::application::services::tenant_service::TenantManager;
+use crate::infrastructure::web::auth_api::*;
 use crate::infrastructure::web::tenant_api::*;
+use crate::store::EventStore;
 use axum::{
     middleware,
     routing::{delete, get, post, put},
@@ -174,6 +176,21 @@ pub async fn serve_v1(
             "/api/v1/pipelines/:pipeline_id/reset",
             put(super::api::reset_pipeline),
         )
+        // v0.7: Projection State API for Query Service integration
+        .route("/api/v1/projections", get(super::api::list_projections))
+        .route("/api/v1/projections/:name", get(super::api::get_projection))
+        .route(
+            "/api/v1/projections/:name/:entity_id/state",
+            get(super::api::get_projection_state),
+        )
+        .route(
+            "/api/v1/projections/:name/:entity_id/state",
+            put(super::api::save_projection_state),
+        )
+        .route(
+            "/api/v1/projections/:name/bulk",
+            post(super::api::bulk_get_projection_states),
+        )
         .with_state(app_state)
         .layer(middleware::from_fn_with_state(auth_state, auth_middleware))
         .layer(middleware::from_fn_with_state(
@@ -189,7 +206,41 @@ pub async fn serve_v1(
         .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
 
+    // Graceful shutdown on SIGTERM (required for serverless platforms)
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    tracing::info!("🛑 AllSource Core shutdown complete");
     Ok(())
+}
+
+/// Listen for shutdown signals (SIGTERM for serverless, SIGINT for local dev)
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("📤 Received Ctrl+C, initiating graceful shutdown...");
+        }
+        _ = terminate => {
+            tracing::info!("📤 Received SIGTERM, initiating graceful shutdown...");
+        }
+    }
 }

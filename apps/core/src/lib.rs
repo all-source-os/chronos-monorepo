@@ -52,6 +52,16 @@
 #![allow(unused_variables)]
 #![allow(deprecated)]
 #![allow(unused_must_use)]
+// Clippy configuration - allow common patterns in this codebase
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::module_inception)]
+#![allow(clippy::derivable_impls)]
+#![allow(clippy::empty_line_after_doc_comments)]
+#![allow(clippy::useless_vec)]
+#![allow(clippy::or_fun_call)]
+#![allow(clippy::only_used_in_recursion)]
+#![allow(clippy::assign_op_pattern)]
 
 // =============================================================================
 // Clean Architecture Layers
@@ -114,6 +124,41 @@ pub use infrastructure::web::{serve, WebSocketManager};
 
 // Error handling
 pub use error::{AllSourceError, Result};
+
+// =============================================================================
+// Backward-Compatible Aliases (for binaries and external users)
+// =============================================================================
+
+/// Auth module re-export for backward compatibility
+pub mod auth {
+    pub use crate::infrastructure::security::{AuthManager, Permission, Role};
+}
+
+/// Rate limiting module re-export
+pub mod rate_limit {
+    pub use crate::infrastructure::security::rate_limit::{RateLimitConfig, RateLimiter};
+}
+
+/// Tenant module re-export
+pub mod tenant {
+    pub use crate::application::services::tenant_service::{TenantManager, TenantQuotas};
+    pub use crate::domain::entities::Tenant;
+}
+
+/// Config module re-export
+pub mod config {
+    pub use crate::infrastructure::config::*;
+}
+
+/// Backup module re-export
+pub mod backup {
+    pub use crate::infrastructure::persistence::backup::*;
+}
+
+/// API v1 module re-export
+pub mod api_v1 {
+    pub use crate::infrastructure::web::api_v1::*;
+}
 
 // Main store facade
 pub use store::EventStore;

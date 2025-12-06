@@ -9,7 +9,6 @@ use allsource_core::{
     tenant::TenantManager,
 };
 use anyhow::Result;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -354,7 +353,7 @@ fn main() -> Result<()> {
         Command::BackupCreate => {
             println!("Creating backup...");
             let config = BackupConfig::default();
-            let manager = BackupManager::new(config)?;
+            let _manager = BackupManager::new(config)?;
             // Note: In real usage, you'd pass actual events from the store
             println!("⚠️  Backup creation requires event store access");
             println!("    Use the API endpoint: POST /api/v1/backups");

@@ -292,9 +292,7 @@ mod tests {
     #[test]
     fn test_simd_json_parse() {
         let parser = SimdJsonParser::new();
-        let mut json = r#"{"id":"123","type":"test","value":42}"#
-            .as_bytes()
-            .to_vec();
+        let mut json = r#"{"id":"123","type":"test","value":42}"#.as_bytes().to_vec();
 
         let result: TestEvent = parser.parse(&mut json).unwrap();
         assert_eq!(result.id, "123");
@@ -335,9 +333,7 @@ mod tests {
     #[test]
     fn test_stats_tracking() {
         let parser = SimdJsonParser::new();
-        let mut json = r#"{"id":"test","type":"event","value":0}"#
-            .as_bytes()
-            .to_vec();
+        let mut json = r#"{"id":"test","type":"event","value":0}"#.as_bytes().to_vec();
 
         let _: TestEvent = parser.parse(&mut json).unwrap();
 
@@ -359,9 +355,7 @@ mod tests {
 
     #[test]
     fn test_zero_copy_json() {
-        let mut json = r#"{"name":"test","count":42,"active":true}"#
-            .as_bytes()
-            .to_vec();
+        let mut json = r#"{"name":"test","count":42,"active":true}"#.as_bytes().to_vec();
 
         let zc = ZeroCopyJson::parse(&mut json).unwrap();
         assert_eq!(zc.get_str("name"), Some("test"));

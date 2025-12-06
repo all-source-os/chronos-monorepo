@@ -1,7 +1,7 @@
 use crate::application::dto::QueryEventsRequest;
+use crate::application::services::projection::Projection;
 use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
-use crate::application::services::projection::Projection;
 use crate::store::EventStore;
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;

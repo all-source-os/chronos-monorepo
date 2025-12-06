@@ -27,10 +27,12 @@ pub use batch_processor::{
     RawEventData,
 };
 pub use compaction::{CompactionConfig, CompactionManager, CompactionResult, CompactionStrategy};
-pub use simd_json::{BatchEventParser, SimdJsonError, SimdJsonParser, SimdJsonStats, ZeroCopyJson};
 pub use index::{EventIndex, IndexEntry};
-pub use lock_free::{LockFreeEventQueue, LockFreeMetrics, MetricsSnapshot, ShardedEventQueue, ShardedQueueStats};
+pub use lock_free::{
+    LockFreeEventQueue, LockFreeMetrics, MetricsSnapshot, ShardedEventQueue, ShardedQueueStats,
+};
 pub use performance::{BatchWriter, MemoryPool, PerformanceMetrics};
+pub use simd_json::{BatchEventParser, SimdJsonError, SimdJsonParser, SimdJsonStats, ZeroCopyJson};
 pub use snapshot::{
     CreateSnapshotRequest, CreateSnapshotResponse, ListSnapshotsRequest, ListSnapshotsResponse,
     Snapshot, SnapshotConfig, SnapshotInfo, SnapshotManager, SnapshotType,

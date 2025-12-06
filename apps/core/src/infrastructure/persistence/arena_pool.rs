@@ -23,7 +23,7 @@
 
 use bumpalo::Bump;
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Default arena size (16MB)
 const DEFAULT_ARENA_SIZE: usize = 16 * 1024 * 1024;
@@ -36,7 +36,7 @@ static ARENAS_CREATED: AtomicU64 = AtomicU64::new(0);
 static ARENAS_RECYCLED: AtomicU64 = AtomicU64::new(0);
 static BYTES_ALLOCATED: AtomicU64 = AtomicU64::new(0);
 
-/// Thread-local arena pool
+// Thread-local arena pool
 thread_local! {
     static ARENA_POOL: RefCell<Vec<Bump>> = RefCell::new(Vec::with_capacity(MAX_THREAD_LOCAL_ARENAS));
 }
@@ -240,9 +240,9 @@ impl Default for ScopedArena {
 /// Useful when you need buffers of predictable sizes and want
 /// to avoid arena overhead for very small allocations.
 pub struct SizedBufferPool {
-    small: Vec<Vec<u8>>,   // < 1KB
-    medium: Vec<Vec<u8>>,  // 1KB - 64KB
-    large: Vec<Vec<u8>>,   // > 64KB
+    small: Vec<Vec<u8>>,  // < 1KB
+    medium: Vec<Vec<u8>>, // 1KB - 64KB
+    large: Vec<Vec<u8>>,  // > 64KB
     small_size: usize,
     medium_size: usize,
     large_size: usize,
@@ -343,7 +343,9 @@ mod tests {
         let total_after = stats_after.arenas_created + stats_after.arenas_recycled;
         assert!(
             total_after >= total_before,
-            "Expected total ops {} >= {}", total_after, total_before
+            "Expected total ops {} >= {}",
+            total_after,
+            total_before
         );
     }
 

@@ -1,5 +1,5 @@
-use crate::infrastructure::security::middleware::{Admin, Authenticated};
 use crate::application::services::tenant_service::{Tenant, TenantQuotas};
+use crate::infrastructure::security::middleware::{Admin, Authenticated};
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 

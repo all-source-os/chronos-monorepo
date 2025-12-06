@@ -5,6 +5,55 @@ All notable changes to AllSource Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-12-06
+
+### Added
+
+#### Serverless & Cloud-Native Support
+- **Graceful Shutdown**: Proper SIGTERM/SIGINT signal handling for serverless platforms
+  - `shutdown_signal()` handler in `api_v1.rs`
+  - `with_graceful_shutdown()` integration with Axum server
+  - Clean shutdown logging for observability
+- **PORT Environment Variable**: Standard serverless port configuration
+  - Fallback chain: `ALLSOURCE_PORT` → `PORT` (Cloud Run, Fly.io standard)
+  - `HOST` environment variable support
+- **Optimized Dockerfile**: Serverless-ready container image
+  - `cargo-chef` for optimal dependency caching
+  - Stripped binaries for smaller images (~50% reduction)
+  - `tini` init system for proper signal propagation
+  - `MALLOC_ARENA_MAX=2` for reduced memory footprint
+
+#### Cloud Deployment Configurations
+- **Fly.io**: `fly.toml` with auto-scaling and health checks
+- **Google Cloud Run**: Knative service YAML with startup probes
+- **Helm Charts**: Complete Kubernetes deployment (`deploy/helm/chronos/`)
+  - Core deployment, service, PVC
+  - Query Service deployment with secrets
+  - Ingress, ServiceMonitor, PodDisruptionBudget
+- **Kustomize**: Standalone K8s manifests (`deploy/k8s/`)
+- **Docker Compose**: Full stack with Prometheus/Grafana monitoring
+
+#### Projection State API (Query Service Integration)
+- `GET /api/v1/projections` - List all projections
+- `GET /api/v1/projections/:name` - Get projection details
+- `GET /api/v1/projections/:name/:entity_id/state` - Get entity state
+- `PUT /api/v1/projections/:name/:entity_id/state` - Save entity state
+- `POST /api/v1/projections/:name/bulk` - Bulk get states
+- DashMap-backed storage with **11.9μs** access latency
+
+### Fixed
+- **PostgreSQL Audit Repository**: `IpAddr` type compatibility with sqlx
+  - Converted to `Option<String>` for binding and reading
+- **PostgreSQL Audit Repository**: Lifetime issue with `actor_id_only`
+  - Fixed by converting to owned `String`
+
+### Changed
+- Container images now use non-root user (UID 1000)
+- Health checks disabled in Dockerfile (platforms provide their own)
+- Default port changed to 8080 for serverless compatibility
+
+---
+
 ## [0.6.0] - 2025-12-05
 
 ### Added

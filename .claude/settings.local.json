@@ -103,7 +103,10 @@
       "Bash(cargo fmt:*)",
       "Bash(cargo search:*)",
       "Bash(cargo test:*)",
-      "Bash(cargo build:*)"
+      "Bash(cargo build:*)",
+      "Bash(helm lint:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo doc:*)"
     ],
     "deny": [],
     "ask": []

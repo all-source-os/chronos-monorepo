@@ -16,7 +16,7 @@
 mod tests {
     use crate::domain::entities::Event;
     use crate::infrastructure::persistence::{
-        arena_pool::{get_arena, reset_stats as reset_arena_stats, arena_stats},
+        arena_pool::{arena_stats, get_arena, reset_stats as reset_arena_stats},
         batch_processor::{BatchProcessor, BatchProcessorConfig},
         lock_free::{LockFreeEventQueue, LockFreeMetrics, ShardedEventQueue},
         simd_json::SimdJsonParser,

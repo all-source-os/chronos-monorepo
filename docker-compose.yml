@@ -1,0 +1,122 @@
+# Chronos Monorepo - Docker Compose
+# Local development and testing configuration
+#
+# Usage:
+#   docker compose up -d              # Start all services
+#   docker compose up core            # Start only core
+#   docker compose logs -f            # Follow logs
+#   docker compose down               # Stop and remove
+
+services:
+  # =============================================================================
+  # Rust Core - Event Store Engine
+  # =============================================================================
+  core:
+    build:
+      context: ./apps/core
+      dockerfile: Dockerfile
+    container_name: chronos-core
+    ports:
+      - "3900:3900"   # HTTP API
+      - "3901:3901"   # WebSocket
+    environment:
+      - RUST_LOG=allsource_core=info,tower_http=info
+      - ALLSOURCE_HOST=0.0.0.0
+      - ALLSOURCE_PORT=3900
+    volumes:
+      - core-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3900/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - chronos
+
+  # =============================================================================
+  # Elixir Query Service - CQRS Read Model
+  # =============================================================================
+  query-service:
+    build:
+      context: ./apps/query-service
+      dockerfile: Dockerfile
+    container_name: chronos-query-service
+    ports:
+      - "3902:3902"
+    environment:
+      - MIX_ENV=prod
+      - PORT=3902
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:-changeme_in_production_with_64_chars_minimum_for_security}
+      - CORE_URL=http://core:3900
+      - CORE_WS_URL=ws://core:3901
+      - PHX_HOST=localhost
+    depends_on:
+      core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3902/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - chronos
+
+  # =============================================================================
+  # Prometheus - Metrics Collection
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:v2.47.2
+    container_name: chronos-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    restart: unless-stopped
+    networks:
+      - chronos
+    profiles:
+      - monitoring
+
+  # =============================================================================
+  # Grafana - Metrics Dashboard
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: chronos-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - chronos
+    profiles:
+      - monitoring
+
+volumes:
+  core-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  chronos:
+    driver: bridge

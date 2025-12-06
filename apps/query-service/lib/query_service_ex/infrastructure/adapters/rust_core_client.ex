@@ -269,6 +269,112 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
+  ## Projection State (v0.7 Core Integration)
+
+  @doc """
+  Get projection state for an entity from Core's DashMap.
+
+  ## Parameters
+    * `projection_name` - Name of the projection (e.g., "entity_snapshots")
+    * `entity_id` - Entity identifier
+
+  ## Returns
+    * `{:ok, state}` - Projection state as map
+    * `{:error, :not_found}` - No state found
+    * `{:error, reason}` - Error details
+  """
+  def get_projection_state(projection_name, entity_id) do
+    case get("/api/v1/projections/#{projection_name}/#{entity_id}/state") do
+      {:ok, %Tesla.Env{status: 200, body: %{"found" => true, "state" => state}}} ->
+        {:ok, state}
+
+      {:ok, %Tesla.Env{status: 200, body: %{"found" => false}}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Save projection state for an entity to Core's DashMap.
+
+  ## Parameters
+    * `projection_name` - Name of the projection
+    * `entity_id` - Entity identifier
+    * `state` - State to save (map)
+
+  ## Returns
+    * `:ok` - State saved successfully
+    * `{:error, reason}` - Error details
+  """
+  def save_projection_state(projection_name, entity_id, state) when is_map(state) do
+    case put("/api/v1/projections/#{projection_name}/#{entity_id}/state", %{state: state}) do
+      {:ok, %Tesla.Env{status: 200, body: %{"saved" => true}}} ->
+        :ok
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Bulk get projection states for multiple entities.
+
+  ## Parameters
+    * `projection_name` - Name of the projection
+    * `entity_ids` - List of entity identifiers
+
+  ## Returns
+    * `{:ok, states}` - List of %{entity_id, state, found}
+    * `{:error, reason}` - Error details
+  """
+  def bulk_get_projection_states(projection_name, entity_ids) when is_list(entity_ids) do
+    case post("/api/v1/projections/#{projection_name}/bulk", %{entity_ids: entity_ids}) do
+      {:ok, %Tesla.Env{status: 200, body: %{"states" => states}}} ->
+        {:ok, states}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Bulk save projection states for multiple entities.
+
+  ## Parameters
+    * `states` - List of %{projection_name, entity_id, state}
+
+  ## Returns
+    * `:ok` - All states saved
+    * `{:error, reason}` - Error details
+  """
+  def bulk_save_projection_states(states) when is_list(states) do
+    # Save states sequentially (could be parallelized with Task.async_stream)
+    results =
+      Enum.map(states, fn %{projection_name: name, entity_id: id, state: state} ->
+        save_projection_state(name, id, state)
+      end)
+
+    if Enum.all?(results, &(&1 == :ok)) do
+      :ok
+    else
+      {:error, {:partial_failure, results}}
+    end
+  end
+
   ## Metrics & Health
 
   @doc "Get system metrics"

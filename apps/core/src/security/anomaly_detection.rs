@@ -8,7 +8,6 @@
 /// - Data exfiltration patterns
 /// - Account compromise indicators
 use crate::domain::entities::{AuditAction, AuditEvent, AuditOutcome};
-use crate::domain::value_objects::TenantId;
 use crate::error::Result;
 use chrono::{DateTime, Duration, Timelike, Utc};
 use parking_lot::RwLock;

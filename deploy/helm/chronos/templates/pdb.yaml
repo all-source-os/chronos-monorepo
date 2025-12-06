@@ -1,0 +1,37 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- if .Values.core.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "chronos.core.fullname" . }}
+  labels:
+    {{- include "chronos.core.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  {{- else if .Values.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "chronos.core.selectorLabels" . | nindent 6 }}
+{{- end }}
+---
+{{- if .Values.queryService.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "chronos.queryService.fullname" . }}
+  labels:
+    {{- include "chronos.queryService.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  {{- else if .Values.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "chronos.queryService.selectorLabels" . | nindent 6 }}
+{{- end }}
+{{- end }}

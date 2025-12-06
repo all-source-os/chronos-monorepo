@@ -33,6 +33,9 @@ defmodule QueryServiceEx.MixProject do
       {:hackney, "~> 1.20"},
       {:jason, "~> 1.4"},
 
+      # WebSocket Client for real-time event streaming from Core
+      {:websockex, "~> 0.4"},
+
       # Database & State Management
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.18"},

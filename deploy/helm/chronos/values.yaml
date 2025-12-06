@@ -1,0 +1,173 @@
+# Chronos Helm Chart Values
+# Override these values for your deployment
+
+# =============================================================================
+# Global Configuration
+# =============================================================================
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# =============================================================================
+# Rust Core - Event Store Engine
+# =============================================================================
+core:
+  enabled: true
+
+  image:
+    repository: chronos/core
+    tag: "0.6.0"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    type: ClusterIP
+    httpPort: 3900
+    wsPort: 3901
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+
+  config:
+    logLevel: info
+    host: "0.0.0.0"
+    port: 3900
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  podAnnotations: {}
+  podSecurityContext:
+    fsGroup: 1000
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+# =============================================================================
+# Elixir Query Service - CQRS Read Model
+# =============================================================================
+queryService:
+  enabled: true
+
+  image:
+    repository: chronos/query-service
+    tag: "0.6.0"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 2
+
+  service:
+    type: ClusterIP
+    port: 3902
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  config:
+    secretKeyBase: ""  # Required: generate with `mix phx.gen.secret`
+    phxHost: "localhost"
+
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 30
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 3
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  podAnnotations: {}
+  podSecurityContext:
+    fsGroup: 1000
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+# =============================================================================
+# Ingress Configuration
+# =============================================================================
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: chronos.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: core
+        - path: /query
+          pathType: Prefix
+          service: queryService
+  tls: []
+  #  - secretName: chronos-tls
+  #    hosts:
+  #      - chronos.local
+
+# =============================================================================
+# Service Monitor (Prometheus Operator)
+# =============================================================================
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  labels: {}
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1

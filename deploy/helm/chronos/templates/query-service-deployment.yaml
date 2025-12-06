@@ -1,0 +1,72 @@
+{{- if .Values.queryService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chronos.queryService.fullname" . }}
+  labels:
+    {{- include "chronos.queryService.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.queryService.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "chronos.queryService.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.queryService.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "chronos.queryService.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.queryService.podSecurityContext | nindent 8 }}
+      containers:
+        - name: query-service
+          securityContext:
+            {{- toYaml .Values.queryService.securityContext | nindent 12 }}
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.queryService.image.repository }}:{{ .Values.queryService.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.queryService.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.queryService.service.port }}
+              protocol: TCP
+          env:
+            - name: MIX_ENV
+              value: "prod"
+            - name: PORT
+              value: "{{ .Values.queryService.service.port }}"
+            - name: PHX_HOST
+              value: "{{ .Values.queryService.config.phxHost }}"
+            - name: CORE_URL
+              value: "http://{{ include "chronos.core.fullname" . }}:{{ .Values.core.service.httpPort }}"
+            - name: CORE_WS_URL
+              value: "ws://{{ include "chronos.core.fullname" . }}:{{ .Values.core.service.wsPort }}"
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "chronos.queryService.fullname" . }}-secrets
+                  key: secret-key-base
+          livenessProbe:
+            {{- toYaml .Values.queryService.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.queryService.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.queryService.resources | nindent 12 }}
+      {{- with .Values.queryService.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.queryService.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.queryService.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

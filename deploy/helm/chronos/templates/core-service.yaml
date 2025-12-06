@@ -1,0 +1,21 @@
+{{- if .Values.core.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chronos.core.fullname" . }}
+  labels:
+    {{- include "chronos.core.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.core.service.type }}
+  ports:
+    - port: {{ .Values.core.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.core.service.wsPort }}
+      targetPort: websocket
+      protocol: TCP
+      name: websocket
+  selector:
+    {{- include "chronos.core.selectorLabels" . | nindent 4 }}
+{{- end }}

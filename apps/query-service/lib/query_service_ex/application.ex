@@ -7,9 +7,25 @@ defmodule QueryServiceEx.Application do
 
   @impl true
   def start(_type, _args) do
+    # Initialize ETS cache for projections
+    QueryServiceEx.Application.Services.ProjectionSync.init_cache()
+
     children = [
+      # PubSub for event broadcasting
+      {Phoenix.PubSub, name: QueryServiceEx.PubSub},
+
+      # Registry for projection sync processes
+      {Registry, keys: :unique, name: QueryServiceEx.ProjectionRegistry},
+
+      # DynamicSupervisor for projection sync processes
+      {DynamicSupervisor, strategy: :one_for_one, name: QueryServiceEx.ProjectionSyncSupervisor},
+
+      # WebSocket client for real-time events from Core
+      {QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient, []},
+
       # Start the Phoenix endpoint
       QueryServiceExWeb.Endpoint
+
       # Add other workers here as needed:
       # {QueryServiceEx.ProjectionSupervisor, []},
       # {QueryServiceEx.PipelineSupervisor, []}

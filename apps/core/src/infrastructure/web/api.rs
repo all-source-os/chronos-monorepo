@@ -1,19 +1,21 @@
+use crate::application::dto::{
+    EventDto, IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse,
+};
 use crate::application::services::analytics::{
     AnalyticsEngine, CorrelationRequest, CorrelationResponse, EventFrequencyRequest,
     EventFrequencyResponse, StatsSummaryRequest, StatsSummaryResponse,
 };
-use crate::application::dto::{
-    EventDto, IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse,
-};
-use crate::infrastructure::persistence::compaction::CompactionResult;
-use crate::domain::entities::Event;
-use crate::error::Result;
 use crate::application::services::pipeline::{PipelineConfig, PipelineStats};
-use crate::application::services::replay::{ReplayProgress, StartReplayRequest, StartReplayResponse};
+use crate::application::services::replay::{
+    ReplayProgress, StartReplayRequest, StartReplayResponse,
+};
 use crate::application::services::schema::{
     CompatibilityMode, RegisterSchemaRequest, RegisterSchemaResponse, ValidateEventRequest,
     ValidateEventResponse,
 };
+use crate::domain::entities::Event;
+use crate::error::Result;
+use crate::infrastructure::persistence::compaction::CompactionResult;
 use crate::infrastructure::persistence::snapshot::{
     CreateSnapshotRequest, CreateSnapshotResponse, ListSnapshotsRequest, ListSnapshotsResponse,
     SnapshotInfo,
@@ -95,6 +97,21 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
             get(get_pipeline_stats),
         )
         .route("/api/v1/pipelines/:pipeline_id/reset", put(reset_pipeline))
+        // v0.7: Projection State API for Query Service integration
+        .route("/api/v1/projections", get(list_projections))
+        .route("/api/v1/projections/:name", get(get_projection))
+        .route(
+            "/api/v1/projections/:name/:entity_id/state",
+            get(get_projection_state),
+        )
+        .route(
+            "/api/v1/projections/:name/:entity_id/state",
+            put(save_projection_state),
+        )
+        .route(
+            "/api/v1/projections/:name/bulk",
+            post(bulk_get_projection_states),
+        )
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -718,4 +735,305 @@ pub async fn reset_pipeline(
         "pipeline_id": pipeline_id,
         "reset": true
     })))
+}
+
+// =============================================================================
+// v0.7: Projection State API for Query Service Integration
+// =============================================================================
+
+/// List all registered projections
+pub async fn list_projections(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+    let projection_manager = store.projection_manager();
+
+    let projections: Vec<serde_json::Value> = projection_manager
+        .list_projections()
+        .iter()
+        .map(|(name, projection)| {
+            serde_json::json!({
+                "name": name,
+                "type": format!("{:?}", projection.name()),
+            })
+        })
+        .collect();
+
+    tracing::debug!("Listed {} projections", projections.len());
+
+    Json(serde_json::json!({
+        "projections": projections,
+        "total": projections.len()
+    }))
+}
+
+/// Get projection metadata by name
+pub async fn get_projection(
+    State(store): State<SharedStore>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let projection_manager = store.projection_manager();
+
+    let projection = projection_manager.get_projection(&name).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{}' not found", name))
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "name": projection.name(),
+        "found": true
+    })))
+}
+
+/// Get projection state for a specific entity
+///
+/// This endpoint allows the Elixir Query Service to fetch projection state
+/// from the Rust Core for synchronization.
+pub async fn get_projection_state(
+    State(store): State<SharedStore>,
+    Path((name, entity_id)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>> {
+    let projection_manager = store.projection_manager();
+
+    let projection = projection_manager.get_projection(&name).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{}' not found", name))
+    })?;
+
+    let state = projection.get_state(&entity_id);
+
+    tracing::debug!("Projection state retrieved: {} / {}", name, entity_id);
+
+    Ok(Json(serde_json::json!({
+        "projection": name,
+        "entity_id": entity_id,
+        "state": state,
+        "found": state.is_some()
+    })))
+}
+
+/// Request body for saving projection state
+#[derive(Debug, Deserialize)]
+pub struct SaveProjectionStateRequest {
+    pub state: serde_json::Value,
+}
+
+/// Save/update projection state for an entity
+///
+/// This endpoint allows external services (like Elixir Query Service) to
+/// store computed projection state back to the Core for persistence.
+pub async fn save_projection_state(
+    State(store): State<SharedStore>,
+    Path((name, entity_id)): Path<(String, String)>,
+    Json(req): Json<SaveProjectionStateRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let projection_cache = store.projection_state_cache();
+
+    // Store in the projection state cache
+    projection_cache.insert(format!("{}:{}", name, entity_id), req.state.clone());
+
+    tracing::info!("Projection state saved: {} / {}", name, entity_id);
+
+    Ok(Json(serde_json::json!({
+        "projection": name,
+        "entity_id": entity_id,
+        "saved": true
+    })))
+}
+
+/// Bulk get projection states for multiple entities
+///
+/// Efficient endpoint for fetching multiple entity states in a single request.
+#[derive(Debug, Deserialize)]
+pub struct BulkGetStateRequest {
+    pub entity_ids: Vec<String>,
+}
+
+pub async fn bulk_get_projection_states(
+    State(store): State<SharedStore>,
+    Path(name): Path<String>,
+    Json(req): Json<BulkGetStateRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let projection_manager = store.projection_manager();
+
+    let projection = projection_manager.get_projection(&name).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{}' not found", name))
+    })?;
+
+    let states: Vec<serde_json::Value> = req
+        .entity_ids
+        .iter()
+        .map(|entity_id| {
+            let state = projection.get_state(entity_id);
+            serde_json::json!({
+                "entity_id": entity_id,
+                "state": state,
+                "found": state.is_some()
+            })
+        })
+        .collect();
+
+    tracing::debug!(
+        "Bulk projection state retrieved: {} entities from {}",
+        states.len(),
+        name
+    );
+
+    Ok(Json(serde_json::json!({
+        "projection": name,
+        "states": states,
+        "total": states.len()
+    })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::entities::Event;
+    use crate::store::EventStore;
+
+    fn create_test_store() -> Arc<EventStore> {
+        Arc::new(EventStore::new())
+    }
+
+    fn create_test_event(entity_id: &str, event_type: &str) -> Event {
+        Event::from_strings(
+            event_type.to_string(),
+            entity_id.to_string(),
+            "test-stream".to_string(),
+            serde_json::json!({
+                "name": "Test",
+                "value": 42
+            }),
+            None,
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_cache() {
+        let store = create_test_store();
+
+        // Test cache insertion
+        let cache = store.projection_state_cache();
+        cache.insert(
+            "entity_snapshots:user-123".to_string(),
+            serde_json::json!({"name": "Test User", "age": 30}),
+        );
+
+        // Test cache retrieval
+        let state = cache.get("entity_snapshots:user-123");
+        assert!(state.is_some());
+        let state = state.unwrap();
+        assert_eq!(state["name"], "Test User");
+        assert_eq!(state["age"], 30);
+    }
+
+    #[tokio::test]
+    async fn test_projection_manager_list_projections() {
+        let store = create_test_store();
+
+        // List projections (built-in projections should be available)
+        let projection_manager = store.projection_manager();
+        let projections = projection_manager.list_projections();
+
+        // Should have entity_snapshots and event_counters
+        assert!(projections.len() >= 2);
+
+        let names: Vec<&str> = projections.iter().map(|(name, _)| name.as_str()).collect();
+        assert!(names.contains(&"entity_snapshots"));
+        assert!(names.contains(&"event_counters"));
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_after_event_ingestion() {
+        let store = create_test_store();
+
+        // Ingest an event
+        let event = create_test_event("user-456", "user.created");
+        store.ingest(event).unwrap();
+
+        // Get projection state
+        let projection_manager = store.projection_manager();
+        let snapshot_projection = projection_manager
+            .get_projection("entity_snapshots")
+            .unwrap();
+
+        let state = snapshot_projection.get_state("user-456");
+        assert!(state.is_some());
+        let state = state.unwrap();
+        assert_eq!(state["name"], "Test");
+        assert_eq!(state["value"], 42);
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_cache_multiple_entities() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Insert multiple entities
+        for i in 0..10 {
+            cache.insert(
+                format!("entity_snapshots:entity-{}", i),
+                serde_json::json!({"id": i, "status": "active"}),
+            );
+        }
+
+        // Verify all insertions
+        assert_eq!(cache.len(), 10);
+
+        // Verify each entity
+        for i in 0..10 {
+            let key = format!("entity_snapshots:entity-{}", i);
+            let state = cache.get(&key);
+            assert!(state.is_some());
+            assert_eq!(state.unwrap()["id"], i);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_update() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Initial state
+        cache.insert(
+            "entity_snapshots:user-789".to_string(),
+            serde_json::json!({"balance": 100}),
+        );
+
+        // Update state
+        cache.insert(
+            "entity_snapshots:user-789".to_string(),
+            serde_json::json!({"balance": 150}),
+        );
+
+        // Verify update
+        let state = cache.get("entity_snapshots:user-789").unwrap();
+        assert_eq!(state["balance"], 150);
+    }
+
+    #[tokio::test]
+    async fn test_event_counter_projection() {
+        let store = create_test_store();
+
+        // Ingest events of different types
+        store
+            .ingest(create_test_event("user-1", "user.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("user-2", "user.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("user-1", "user.updated"))
+            .unwrap();
+
+        // Get event counter projection
+        let projection_manager = store.projection_manager();
+        let counter_projection = projection_manager.get_projection("event_counters").unwrap();
+
+        // Check counts
+        let created_state = counter_projection.get_state("user.created");
+        assert!(created_state.is_some());
+        assert_eq!(created_state.unwrap()["count"], 2);
+
+        let updated_state = counter_projection.get_state("user.updated");
+        assert!(updated_state.is_some());
+        assert_eq!(updated_state.unwrap()["count"], 1);
+    }
 }

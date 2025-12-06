@@ -11,7 +11,7 @@
 //! - Linear scalability with CPU cores
 
 use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
+use crate::error::Result;
 use crate::infrastructure::persistence::lock_free::{LockFreeMetrics, ShardedEventQueue};
 use crate::infrastructure::persistence::simd_json::{SimdJsonParser, SimdJsonStats};
 use bumpalo::Bump;
@@ -511,9 +511,7 @@ mod tests {
     fn test_process_batch_bytes() {
         let processor = BatchProcessor::new();
 
-        let events: Vec<Vec<u8>> = (0..50)
-            .map(|i| create_test_json(i).into_bytes())
-            .collect();
+        let events: Vec<Vec<u8>> = (0..50).map(|i| create_test_json(i).into_bytes()).collect();
         let result = processor.process_batch_bytes(events);
 
         assert_eq!(result.success_count, 50);
@@ -615,9 +613,8 @@ mod tests {
             for t in 0..4 {
                 let proc = processor.clone();
                 s.spawn(move || {
-                    let events: Vec<String> = (0..100)
-                        .map(|i| create_test_json(t * 100 + i))
-                        .collect();
+                    let events: Vec<String> =
+                        (0..100).map(|i| create_test_json(t * 100 + i)).collect();
                     proc.process_batch(events);
                 });
             }

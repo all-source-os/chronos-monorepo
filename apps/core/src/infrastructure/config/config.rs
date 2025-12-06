@@ -255,14 +255,18 @@ impl Config {
 
     /// Load configuration from environment variables
     /// Variables are prefixed with ALLSOURCE_
+    /// Also supports standard PORT env var for serverless platforms (Cloud Run, Fly.io, etc.)
     pub fn from_env() -> Result<Self> {
         let mut config = Config::default();
 
-        // Server
-        if let Ok(host) = std::env::var("ALLSOURCE_HOST") {
+        // Server - check ALLSOURCE_HOST first, then HOST (serverless fallback)
+        if let Ok(host) = std::env::var("ALLSOURCE_HOST").or_else(|_| std::env::var("HOST")) {
             config.server.host = host;
         }
-        if let Ok(port) = std::env::var("ALLSOURCE_PORT") {
+
+        // Port priority: ALLSOURCE_PORT > PORT (serverless standard)
+        let port_str = std::env::var("ALLSOURCE_PORT").or_else(|_| std::env::var("PORT"));
+        if let Ok(port) = port_str {
             config.server.port = port
                 .parse()
                 .map_err(|_| AllSourceError::ValidationError("Invalid port number".to_string()))?;

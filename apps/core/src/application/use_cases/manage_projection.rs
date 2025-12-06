@@ -1,6 +1,6 @@
 use crate::application::dto::{
-    CreateProjectionRequest, CreateProjectionResponse, ListProjectionsResponse,
-    ProjectionConfigDto, ProjectionDto, ProjectionTypeDto, UpdateProjectionRequest,
+    CreateProjectionRequest, CreateProjectionResponse, ListProjectionsResponse, ProjectionDto,
+    UpdateProjectionRequest,
 };
 use crate::domain::entities::{Projection, ProjectionConfig, ProjectionType};
 use crate::domain::value_objects::{EventType, TenantId};

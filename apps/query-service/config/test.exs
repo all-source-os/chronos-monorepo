@@ -6,6 +6,12 @@ config :query_service_ex, QueryServiceExWeb.Endpoint,
   secret_key_base: "test_secret_key_base_at_least_64_bytes_long_for_security_testing_purposes",
   server: false
 
+# Disable WebSocket client during tests (Core may not be running)
+config :query_service_ex, core_ws_enabled: false
+
+# Disable EventPipeline during tests (Core may not be running)
+config :query_service_ex, event_pipeline_enabled: false
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

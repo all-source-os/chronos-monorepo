@@ -1,0 +1,66 @@
+# Google Cloud Run Service Configuration for Chronos Core
+#
+# Deploy:
+#   gcloud run services replace deploy/cloudrun/core-service.yaml --region=us-central1
+#
+# Or with gcloud run deploy:
+#   gcloud run deploy chronos-core \
+#     --image gcr.io/PROJECT_ID/chronos-core:latest \
+#     --region us-central1 \
+#     --platform managed \
+#     --allow-unauthenticated \
+#     --memory 512Mi \
+#     --cpu 1 \
+#     --min-instances 0 \
+#     --max-instances 10 \
+#     --port 8080
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: chronos-core
+  labels:
+    cloud.googleapis.com/location: us-central1
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        # Autoscaling settings
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+        # CPU allocation only during request processing (cost optimization)
+        run.googleapis.com/cpu-throttling: "true"
+        # Cold start optimization
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      containerConcurrency: 100
+      timeoutSeconds: 300
+      containers:
+        - image: gcr.io/PROJECT_ID/chronos-core:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: RUST_LOG
+              value: "allsource_core=info,tower_http=info"
+            - name: ALLSOURCE_HOST
+              value: "0.0.0.0"
+            # PORT is automatically set by Cloud Run
+          resources:
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 30

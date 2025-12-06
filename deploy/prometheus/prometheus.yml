@@ -1,0 +1,24 @@
+# Prometheus configuration for Chronos monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Chronos Core metrics
+  - job_name: 'chronos-core'
+    static_configs:
+      - targets: ['core:3900']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Query Service metrics
+  - job_name: 'chronos-query-service'
+    static_configs:
+      - targets: ['query-service:3902']
+    metrics_path: /api/metrics
+    scrape_interval: 10s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

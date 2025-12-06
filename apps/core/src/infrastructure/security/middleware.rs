@@ -1,5 +1,5 @@
-use crate::infrastructure::security::auth::{AuthManager, Claims, Permission};
 use crate::error::AllSourceError;
+use crate::infrastructure::security::auth::{AuthManager, Claims, Permission};
 use crate::infrastructure::security::rate_limit::RateLimiter;
 use axum::{
     extract::{Request, State},
