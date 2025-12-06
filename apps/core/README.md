@@ -19,7 +19,7 @@ AllSource is a high-performance event store designed for modern event-sourcing a
 
 The Rust core provides blazing-fast event ingestion (469K events/sec) and sub-microsecond queries, while the Go control plane handles cluster coordination and operational tasks.
 
-**Current Version**: v0.2.0 · [crates.io](https://crates.io/crates/allsource-core) · [docs.rs](https://docs.rs/allsource-core)
+**Current Version**: v0.7.1 · [crates.io](https://crates.io/crates/allsource-core) · [docs.rs](https://docs.rs/allsource-core)
 
 ## Installation
 
@@ -28,7 +28,7 @@ The Rust core provides blazing-fast event ingestion (469K events/sec) and sub-mi
 ### Add to Your Project
 
 ```bash
-cargo add allsource-core@0.2
+cargo add allsource-core@0.7
 ```
 
 Or add to your `Cargo.toml` (pin to minor version for stability):
@@ -37,10 +37,10 @@ Or add to your `Cargo.toml` (pin to minor version for stability):
 [dependencies]
 # allsource-core: High-performance event store
 # Pin to minor version - allows patch updates only
-allsource-core = "0.2"
+allsource-core = "0.7"
 ```
 
-> **Version Pinning Best Practice**: We recommend `"0.2"` (minor version) rather than `"0.2.0"` (exact) or `"0"` (major only). This allows automatic patch updates while avoiding breaking changes.
+> **Version Pinning Best Practice**: We recommend `"0.7"` (minor version) rather than `"0.7.1"` (exact) or `"0"` (major only). This allows automatic patch updates while avoiding breaking changes.
 
 ### Usage Patterns
 
@@ -84,6 +84,16 @@ allsource-core = "0.2"
 - **Async Execution**: Non-blocking background replay operations
 - **Cancellable Operations**: Stop replays gracefully with proper cleanup
 - **Progress Metrics**: Real-time statistics (events/sec, percentage complete)
+
+### 🔐 Security & Multi-tenancy (v0.7)
+
+- **Authentication**: JWT tokens with RBAC, API keys for services
+- **Authorization**: Role-based access control (Admin, Operator, Reader)
+- **Rate Limiting**: Per-tenant configurable limits
+- **IP Filtering**: Global allowlist/blocklist support
+- **Audit Logging**: Comprehensive audit trail with PostgreSQL support
+- **Tenant Isolation**: Repository-level isolation with quotas
+- **Serverless Ready**: Graceful shutdown, PORT env var, optimized containers
 
 ### ⚡ Stream Processing (v0.5)
 
@@ -458,13 +468,13 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-allsource-core = "0.2"  # Pin to minor version
+allsource-core = "0.7"  # Pin to minor version
 ```
 
 Or:
 
 ```bash
-cargo add allsource-core@0.2
+cargo add allsource-core@0.7
 ```
 
 ### Option 2: Build from Source
@@ -780,21 +790,39 @@ Storage Layer:
   - [ ] Service layer extraction
   - [ ] Dependency injection
 
-### 📋 v0.7 - Performance & Optimization (PLANNED)
-- [ ] Zero-copy deserialization optimization
-- [ ] SIMD-accelerated queries
-- [ ] Memory-mapped Parquet files
-- [ ] Adaptive indexing strategies
-- [ ] Query result caching
-- [ ] Compression tuning
+### ✅ v0.7 - Security & Cloud-Native (COMPLETED)
+- [x] **Security Infrastructure**
+  - [x] JWT authentication with role-based access control (RBAC)
+  - [x] API key authentication for service-to-service
+  - [x] Rate limiting per tenant
+  - [x] IP filtering (global allowlist/blocklist)
+  - [x] Request ID tracking for audit trail
+- [x] **Multi-tenancy with Quotas**
+  - [x] Tenant isolation at repository level
+  - [x] Configurable quotas (events/day, storage, rate limits)
+  - [x] Tenant activation/deactivation
+- [x] **Audit Logging**
+  - [x] Comprehensive audit events for all operations
+  - [x] PostgreSQL audit repository
+  - [x] In-memory audit repository for testing
+- [x] **Serverless & Cloud Support**
+  - [x] Graceful shutdown (SIGTERM handling)
+  - [x] PORT environment variable support
+  - [x] Fly.io deployment configurations
+  - [x] Google Cloud Run configurations
+  - [x] Helm charts for Kubernetes
+- [x] **Performance Optimizations**
+  - [x] Arena-based memory pooling (2-5ns allocations)
+  - [x] SIMD JSON parsing
+  - [x] Lock-free batch processing
 
 ### 📋 v0.8 - Advanced Features (PLANNED)
-- [x] Multi-tenancy support (Domain layer complete)
+- [x] Multi-tenancy support (Complete)
+- [x] Audit logging (Complete)
 - [ ] Event encryption at rest
-- [ ] Audit logging
 - [ ] Retention policies
 - [ ] Data archival
-- [ ] Backup/restore (Partially implemented)
+- [ ] Backup/restore enhancements
 
 ### 🌐 v1.0 - Distributed & Cloud-Native (PLANNED)
 - [ ] Distributed replication
@@ -1011,6 +1039,6 @@ MIT License - see LICENSE file for details
 
 Built with 🦀 Rust | Clean Architecture | Made for Production
 
-Version 0.6.0 | 469K events/sec | 219 tests passing | Phase 2 Complete
+Version 0.7.1 | 469K events/sec | 470+ tests passing | Security & Cloud-Native
 
 </div>

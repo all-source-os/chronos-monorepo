@@ -235,6 +235,7 @@ impl EventStreamWriter for InMemoryEventStreamRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::AllSourceError;
     use serde_json::json;
 
     fn create_test_event(entity_id: &str) -> Event {

@@ -118,6 +118,7 @@ impl ListSchemasUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::dto::CompatibilityModeDto;
     use serde_json::json;
 
     #[test]

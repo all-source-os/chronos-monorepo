@@ -354,27 +354,29 @@ mod tests {
         // Clear the thread-local pool first
         ARENA_POOL.with(|pool| pool.borrow_mut().clear());
 
-        let stats_before = arena_stats();
+        // Verify pool is empty
+        let pool_empty = ARENA_POOL.with(|pool| pool.borrow().is_empty());
+        assert!(pool_empty, "Pool should be empty after clear");
 
-        // Create and drop arena
+        // Create and drop arena - should return to pool
         let arena1 = get_arena();
+        let _ = arena1.alloc_str("test"); // Use the arena
         drop(arena1);
 
-        // Get another arena (should be recycled)
-        let arena2 = get_arena();
-        assert!(arena2.allocated() == 0 || arena2.allocated() > 0); // Just verify it works
-        drop(arena2);
+        // Verify arena was returned to pool
+        let pool_has_arena = ARENA_POOL.with(|pool| !pool.borrow().is_empty());
+        assert!(pool_has_arena, "Pool should have arena after drop");
 
-        let stats_after = arena_stats();
-        // Should have at least one create + one recycle, or two creates if pool was full
-        let total_before = stats_before.arenas_created + stats_before.arenas_recycled;
-        let total_after = stats_after.arenas_created + stats_after.arenas_recycled;
-        assert!(
-            total_after >= total_before,
-            "Expected at least same total: {} >= {}",
-            total_after,
-            total_before
-        );
+        // Get another arena (should be recycled from pool)
+        let arena2 = get_arena();
+        // Verify we can allocate in the recycled arena (it was reset)
+        let s = arena2.alloc_str("recycled");
+        assert_eq!(s, "recycled");
+
+        // Pool should now be empty (we took the arena)
+        let pool_empty_after = ARENA_POOL.with(|pool| pool.borrow().is_empty());
+        assert!(pool_empty_after, "Pool should be empty after taking arena");
+        drop(arena2);
     }
 
     #[test]

@@ -151,6 +151,7 @@ impl ListProjectionsUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::dto::{ProjectionConfigDto, ProjectionTypeDto};
 
     #[test]
     fn test_create_projection() {

@@ -590,6 +590,7 @@ pub struct DetectionStats {
 mod tests {
     use super::*;
     use crate::domain::entities::Actor;
+    use crate::domain::value_objects::TenantId;
 
     fn create_test_event(action: AuditAction, outcome: AuditOutcome, user_id: &str) -> AuditEvent {
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
