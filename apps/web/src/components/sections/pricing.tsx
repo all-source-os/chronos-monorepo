@@ -29,7 +29,7 @@ export default function PricingSection() {
         <span className="ml-2 font-semibold">Yearly</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 sm:2 gap-4">
-        {siteConfig.pricing.map((plan) => (
+        {siteConfig.pricing.map((plan, index) => (
           <motion.div
             key={plan.name}
             initial={{ y: 50, opacity: 1 }}

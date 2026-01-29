@@ -78,8 +78,12 @@ Thumbs.db
 .github/
 docs/
 deploy/
-tooling/
 scripts/
+
+# Tooling - exclude contents but keep package.jsons and typescript configs
+tooling/**
+!tooling/typescript/
+!tooling/e2e/package.json
 *.yml
 *.yaml
 !**/fly.toml

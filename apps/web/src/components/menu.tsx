@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { siteConfig } from "@/lib/config";
 import {
+  Icons,
   NavigationMenu,
   NavigationMenuContent,
   NavigationMenuItem,
@@ -39,7 +40,9 @@ export default function NavigationMenuDemo() {
                             className="flex h-full w-full select-none flex-col justify-end rounded-md bg-primary/10 from-muted/50 to-muted p-6 no-underline outline-none focus:shadow-md"
                             href={item.content.main.href}
                           >
-                            {item.content.main.icon}
+                            {item.content.main.icon === "logo" && (
+                              <Icons.logo className="h-6 w-6" />
+                            )}
                             <div className="mb-2 mt-4 text-lg font-medium">
                               {item.content.main.title}
                             </div>

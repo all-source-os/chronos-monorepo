@@ -5,7 +5,7 @@
 # Build from monorepo root: docker build -f apps/web/Dockerfile -t chronos-web .
 # =============================================================================
 
-ARG BUN_VERSION=1.1
+ARG BUN_VERSION=1.3
 ARG ALPINE_VERSION=3.20
 
 # =============================================================================
@@ -20,27 +20,37 @@ RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
-# Copy root package files
+# Copy root package files first for better layer caching
 COPY package.json bun.lock ./
 
-# Copy workspace packages
+# Copy ALL workspace package.jsons to satisfy lockfile (monorepo pattern)
+# Tooling packages
+COPY tooling/typescript/package.json tooling/typescript/
+
+# Package packages
 COPY packages/ui/package.json packages/ui/
-COPY packages/ui/src packages/ui/src
-COPY packages/ui/bunfig.toml packages/ui/
+
+# Install dependencies (cached layer if package.jsons unchanged)
+RUN bun install
+
+# Copy tooling configs (shared across packages)
 COPY tooling/typescript tooling/typescript
 
-# Copy web app
-COPY apps/web/package.json apps/web/
+# Copy packages/ui source and config
+COPY packages/ui/src packages/ui/src
+COPY packages/ui/tsconfig.json packages/ui/
+COPY packages/ui/bunfig.toml packages/ui/
+COPY packages/ui/postcss.config.mjs packages/ui/
+
+# Copy web app source and configs
 COPY apps/web/src apps/web/src
 COPY apps/web/public apps/web/public
 COPY apps/web/next.config.mjs apps/web/
 COPY apps/web/postcss.config.mjs apps/web/
 COPY apps/web/tsconfig.json apps/web/
+COPY apps/web/next-env.d.ts apps/web/
 COPY apps/web/components.json apps/web/
 COPY apps/web/content apps/web/content
-
-# Install dependencies with Bun
-RUN bun install --frozen-lockfile
 
 # Environment for build
 ENV NEXT_TELEMETRY_DISABLED=1 \

@@ -2,6 +2,15 @@ import { siteConfig } from "@/lib/config";
 import { Icons } from "@allsource/ui";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { FaTwitter } from "react-icons/fa";
+import { FaYoutube } from "react-icons/fa6";
+import { RiInstagramFill } from "react-icons/ri";
+
+const socialIcons = {
+  twitter: FaTwitter,
+  instagram: RiInstagramFill,
+  youtube: FaYoutube,
+} as const;
 
 export default function Footer() {
   return (
@@ -17,18 +26,24 @@ export default function Footer() {
             <div key={section.title} className="mb-5">
               <h2 className="font-semibold">{section.title}</h2>
               <ul>
-                {section.links.map((link) => (
-                  <li key={link.text} className="my-2">
-                    <Link
-                      href={link.href}
-                      className="group inline-flex cursor-pointer items-center justify-start gap-1 text-muted-foreground duration-200 hover:text-foreground hover:opacity-90"
-                    >
-                      {link.icon && link.icon}
-                      {link.text}
-                      <ChevronRight className="h-4 w-4 translate-x-0 transform opacity-0 transition-all duration-300 ease-out group-hover:translate-x-1 group-hover:opacity-100" />
-                    </Link>
-                  </li>
-                ))}
+                {section.links.map((link) => {
+                  const IconComponent =
+                    link.icon && typeof link.icon === "string"
+                      ? socialIcons[link.icon as keyof typeof socialIcons]
+                      : null;
+                  return (
+                    <li key={link.text} className="my-2">
+                      <Link
+                        href={link.href}
+                        className="group inline-flex cursor-pointer items-center justify-start gap-1 text-muted-foreground duration-200 hover:text-foreground hover:opacity-90"
+                      >
+                        {IconComponent && <IconComponent />}
+                        {link.text}
+                        <ChevronRight className="h-4 w-4 translate-x-0 transform opacity-0 transition-all duration-300 ease-out group-hover:translate-x-1 group-hover:opacity-100" />
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
