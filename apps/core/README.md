@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core)
 [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
-[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/rust-1.78%2B-orange.svg)](https://www.rust-lang.org/)
 [![Tests](https://img.shields.io/badge/tests-250%20passing-brightgreen.svg)]()
 [![Performance](https://img.shields.io/badge/throughput-469K%20events%2Fsec-blue.svg)]()
 [![Architecture](https://img.shields.io/badge/clean%20architecture-Phase%203%20Infrastructure-success.svg)]()

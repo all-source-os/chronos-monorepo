@@ -170,7 +170,7 @@ allsource-core = "0.2"  # Pin to minor version for stability
 ## Development
 
 ### Prerequisites
-- **Rust**: 1.75+
+- **Rust**: 1.78+
 - **Go**: 1.21+
 - **Elixir**: 1.19+ (with Erlang/OTP 27+)
 - **Bun**: 1.1+ (for TypeScript/web apps)
