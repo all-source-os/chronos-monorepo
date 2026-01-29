@@ -56,7 +56,7 @@
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^11.0.0",
-    "lucide-react": "^0.417.0",
+    "lucide-react": "^0.563.0",
     "recharts": "^2.15.1",
     "tailwind-merge": "^2.6.0",
     "vaul": "^1.1.2"
