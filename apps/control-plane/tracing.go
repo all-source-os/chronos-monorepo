@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -24,26 +24,28 @@ const (
 
 // TracingConfig holds OpenTelemetry configuration
 type TracingConfig struct {
-	Enabled        bool
-	JaegerEndpoint string
-	SamplingRate   float64
+	Enabled      bool
+	OTLPEndpoint string // OTLP HTTP endpoint (e.g., "localhost:4318")
+	SamplingRate float64
 }
 
-// InitTracing initializes OpenTelemetry with Jaeger exporter
+// InitTracing initializes OpenTelemetry with OTLP HTTP exporter
 func InitTracing(config TracingConfig) (func(context.Context) error, error) {
 	if !config.Enabled {
 		log.Println("📊 Tracing disabled")
 		return func(ctx context.Context) error { return nil }, nil
 	}
 
-	// Create Jaeger exporter
-	exp, err := jaeger.New(
-		jaeger.WithCollectorEndpoint(
-			jaeger.WithEndpoint(config.JaegerEndpoint),
-		),
-	)
+	ctx := context.Background()
+
+	// Create OTLP HTTP exporter (works with Jaeger, Tempo, and other OTLP-compatible backends)
+	opts := []otlptracehttp.Option{
+		otlptracehttp.WithEndpoint(config.OTLPEndpoint),
+		otlptracehttp.WithInsecure(), // Use WithInsecure for local/dev; remove for production with TLS
+	}
+	exp, err := otlptracehttp.New(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
+		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
 
 	// Create resource with service information
@@ -70,8 +72,8 @@ func InitTracing(config TracingConfig) (func(context.Context) error, error) {
 	// Set global tracer provider
 	otel.SetTracerProvider(tp)
 
-	log.Printf("📊 Tracing enabled (Jaeger: %s, sampling: %.2f%%)\n",
-		config.JaegerEndpoint, config.SamplingRate*100)
+	log.Printf("📊 Tracing enabled (OTLP: %s, sampling: %.2f%%)\n",
+		config.OTLPEndpoint, config.SamplingRate*100)
 
 	// Return shutdown function
 	return tp.Shutdown, nil

@@ -16,7 +16,7 @@ The AllSource Control Plane has been upgraded from **v0.1.0** to **v1.0** with e
 - ✅ **JWT Authentication** - Validates tokens from Rust core
 - ✅ **Role-Based Access Control (RBAC)** - 4 roles, 7 permissions
 - ✅ **Audit Logging** - Complete audit trail of all operations
-- ✅ **OpenTelemetry Tracing** - Distributed tracing with Jaeger
+- ✅ **OpenTelemetry Tracing** - Distributed tracing via OTLP (Jaeger, Tempo, etc.)
 - ✅ **Policy Enforcement** - 5 default policies, custom policy engine
 - ✅ **Permission-Based Routes** - Fine-grained access control
 - ✅ **Authenticated Proxying** - Secure forwarding to Rust core
@@ -82,7 +82,7 @@ The AllSource Control Plane has been upgraded from **v0.1.0** to **v1.0** with e
 
 ### 📊 Distributed Tracing
 - **OpenTelemetry SDK** - Industry-standard tracing
-- **Jaeger Exporter** - Export traces to Jaeger
+- **OTLP Exporter** - Export traces via OTLP HTTP (works with Jaeger, Tempo, etc.)
 - **Span Propagation** - Distributed context across services
 - **Rich Attributes** - HTTP method, route, status, user info
 - **Error Tracking** - Automatic error recording in spans
@@ -166,7 +166,7 @@ DELETE /api/v1/users/:id       Delete user
 ### Prerequisites
 - Go 1.22 or higher
 - AllSource Rust Core v1.0 running on `localhost:3900`
-- (Optional) Jaeger for distributed tracing
+- (Optional) OTLP-compatible tracing backend (Jaeger, Tempo, etc.)
 
 ### Installation
 
@@ -180,7 +180,7 @@ go mod download
 # Set environment variables
 export JWT_SECRET="your-jwt-secret-key"  # Must match Rust core
 export AUDIT_LOG_PATH="audit.log"
-export JAEGER_ENDPOINT="http://localhost:14268/api/traces"  # Optional
+export OTLP_ENDPOINT="localhost:4318"  # Optional, OTLP HTTP endpoint
 export GIN_MODE="release"  # For production
 ```
 
@@ -228,7 +228,7 @@ CMD ["./control-plane"]
 | `PORT` | `8081` | Port to listen on |
 | `JWT_SECRET` | `default-secret-change-in-production` | JWT secret (must match Rust core) |
 | `AUDIT_LOG_PATH` | `audit.log` | Path to audit log file |
-| `JAEGER_ENDPOINT` | `` | Jaeger collector endpoint (e.g., `http://localhost:14268/api/traces`) |
+| `OTLP_ENDPOINT` | `` | OTLP HTTP endpoint (e.g., `localhost:4318` for Jaeger/Tempo) |
 | `ENVIRONMENT` | `development` | Environment name (development, staging, production) |
 | `GIN_MODE` | `debug` | Gin mode (`debug` or `release`) |
 
@@ -239,7 +239,7 @@ CMD ["./control-plane"]
 export PORT=8081
 export JWT_SECRET="$(openssl rand -base64 32)"  # Generate secure secret
 export AUDIT_LOG_PATH="/var/log/allsource/audit.log"
-export JAEGER_ENDPOINT="http://jaeger:14268/api/traces"
+export OTLP_ENDPOINT="jaeger:4318"  # OTLP HTTP endpoint
 export ENVIRONMENT="production"
 export GIN_MODE="release"
 ```
@@ -429,22 +429,23 @@ control_plane_replay_operations_total
 control_plane_uptime_seconds
 ```
 
-### Jaeger Tracing
+### Distributed Tracing (OTLP)
 
-View distributed traces in Jaeger UI:
+View distributed traces in Jaeger UI (or any OTLP-compatible backend like Grafana Tempo):
 
 ```bash
-# Start Jaeger (Docker)
+# Start Jaeger with OTLP support (Docker)
 docker run -d --name jaeger \
   -p 16686:16686 \
-  -p 14268:14268 \
+  -p 4317:4317 \
+  -p 4318:4318 \
   jaegertracing/all-in-one:latest
 
 # Access Jaeger UI
 open http://localhost:16686
 
-# Configure control-plane
-export JAEGER_ENDPOINT="http://localhost:14268/api/traces"
+# Configure control-plane with OTLP HTTP endpoint
+export OTLP_ENDPOINT="localhost:4318"
 ```
 
 ### Audit Logs
@@ -535,7 +536,7 @@ go vet ./...
 ### Breaking Changes
 1. **Authentication Required** - All endpoints (except `/health` and `/metrics`) now require authentication
 2. **New Main File** - Use `main_v1.go` instead of `main.go`
-3. **Environment Variables** - New env vars for JWT secret, audit log, Jaeger
+3. **Environment Variables** - New env vars for JWT secret, audit log, OTLP tracing
 
 ### Migration Steps
 
