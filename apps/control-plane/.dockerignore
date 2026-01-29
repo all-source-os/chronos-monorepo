@@ -1,0 +1,42 @@
+# Build artifacts
+control-plane
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Version control
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Test artifacts
+*_test.go
+coverage.out
+*.test
+*.out
+
+# Environment files
+.env*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local development
+.turbo/
+vendor/

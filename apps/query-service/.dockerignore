@@ -1,0 +1,40 @@
+# Build artifacts
+_build/
+deps/
+*.ez
+
+# Version control
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation
+*.md
+!README.md
+
+# Test artifacts
+cover/
+test/
+
+# Environment files
+.env*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local development
+.turbo/
+.fetch
+.elixir_ls/
+erl_crash.dump

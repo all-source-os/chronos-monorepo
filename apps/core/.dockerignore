@@ -1,0 +1,36 @@
+# Build artifacts
+target/
+*.pdb
+
+# Version control
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation (keep README for builds if needed)
+*.md
+!README.md
+
+# Test artifacts
+*.profraw
+*.profdata
+coverage/
+
+# Environment files
+.env*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local development
+.turbo/
