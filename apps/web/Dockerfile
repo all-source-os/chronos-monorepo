@@ -64,7 +64,7 @@ RUN bun run build
 # =============================================================================
 # Stage 2: Runtime
 # =============================================================================
-FROM node:20-alpine AS runner
+FROM node:25-alpine AS runner
 
 ARG VERSION=dev
 ARG REVISION=unknown
