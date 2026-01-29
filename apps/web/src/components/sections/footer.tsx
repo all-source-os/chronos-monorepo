@@ -1,5 +1,5 @@
-import { Icons } from "@/components/icons";
 import { siteConfig } from "@/lib/config";
+import { Icons } from "@allsource/ui";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 

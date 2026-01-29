@@ -1,6 +1,6 @@
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { render } from "@testing-library/react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./card";
 
 describe("Card", () => {
   it("renders children correctly", () => {
@@ -96,6 +96,20 @@ describe("CardTitle", () => {
     const title = getByTestId("title");
     expect(title).toHaveAttribute("data-slot", "card-title");
   });
+
+  it("renders as h3 by default for semantic HTML", () => {
+    const { container } = render(<CardTitle>Title</CardTitle>);
+    const heading = container.querySelector("h3");
+    expect(heading).toBeTruthy();
+    expect(heading?.textContent).toBe("Title");
+  });
+
+  it("supports custom heading level via as prop", () => {
+    const { container } = render(<CardTitle as="h2">Title</CardTitle>);
+    const heading = container.querySelector("h2");
+    expect(heading).toBeTruthy();
+    expect(heading?.textContent).toBe("Title");
+  });
 });
 
 describe("CardDescription", () => {
@@ -131,6 +145,13 @@ describe("CardDescription", () => {
     );
     const desc = getByTestId("desc");
     expect(desc).toHaveAttribute("data-slot", "card-description");
+  });
+
+  it("renders as p element for semantic HTML", () => {
+    const { container } = render(<CardDescription>Description</CardDescription>);
+    const paragraph = container.querySelector("p");
+    expect(paragraph).toBeTruthy();
+    expect(paragraph?.textContent).toBe("Description");
   });
 });
 

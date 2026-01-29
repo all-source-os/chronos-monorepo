@@ -1,12 +1,12 @@
-import BlurFade from "@/components/magicui/blur-fade";
-import Section from "@/components/section";
 import {
+  BlurFade,
+  Section,
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from "@/components/ui/carousel";
+} from "@allsource/ui";
 import Image from "next/image";
 import { MdOutlineFormatQuote } from "react-icons/md";
 

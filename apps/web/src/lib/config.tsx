@@ -1,4 +1,4 @@
-import { Icons } from "@/components/icons";
+import { Icons } from "@allsource/ui";
 import { FaTwitter } from "react-icons/fa";
 import { FaYoutube } from "react-icons/fa6";
 import { RiInstagramFill } from "react-icons/ri";

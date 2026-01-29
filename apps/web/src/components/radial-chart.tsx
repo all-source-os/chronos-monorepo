@@ -1,7 +1,6 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { ChartConfig, ChartContainer } from "@/components/ui/chart";
+import { Card, CardContent, ChartContainer, type ChartConfig } from "@allsource/ui";
 import { Label, PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 const chartData = [{ browser: "safari", visitors: 1260, fill: "var(--color-safari)" }];
 

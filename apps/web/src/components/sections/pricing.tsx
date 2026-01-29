@@ -1,12 +1,8 @@
 "use client";
 
-import Section from "@/components/section";
-import { buttonVariants } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { siteConfig } from "@/lib/config";
 import useWindowSize from "@/lib/hooks/use-window-size";
-import { cn } from "@/lib/utils";
+import { Section, buttonVariants, Label, Switch, cn } from "@allsource/ui";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import Link from "next/link";

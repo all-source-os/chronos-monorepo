@@ -1,5 +1,5 @@
 import Features from "@/components/features-vertical";
-import Section from "@/components/section";
+import { Section } from "@allsource/ui";
 import { Sparkles, Upload, Zap } from "lucide-react";
 
 const data = [

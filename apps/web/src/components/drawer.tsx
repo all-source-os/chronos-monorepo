@@ -1,6 +1,6 @@
-import { Icons } from "@/components/icons";
-import { buttonVariants } from "@/components/ui/button";
 import {
+  Icons,
+  buttonVariants,
   Drawer,
   DrawerContent,
   DrawerFooter,
@@ -8,9 +8,9 @@ import {
   DrawerTrigger,
   DrawerDescription,
   DrawerTitle,
-} from "@/components/ui/drawer";
+  cn,
+} from "@allsource/ui";
 import { siteConfig } from "@/lib/config";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { IoMenuSharp } from "react-icons/io5";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";

@@ -11,9 +11,7 @@ import { SecurityDemo } from "@/components/demo/security-demo";
 import { TimeTravelDemo } from "@/components/demo/time-travel-demo";
 import { AnalyticsDemo } from "@/components/demo/analytics-demo";
 import { PipelinesDemo } from "@/components/demo/pipelines-demo";
-import DotPattern from "@/components/magicui/dot-pattern";
-import Ripple from "@/components/magicui/ripple";
-import BlurFade from "@/components/magicui/blur-fade";
+import { DotPattern, Ripple, BlurFade } from "@allsource/ui";
 
 const features = [
   {

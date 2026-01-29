@@ -1,5 +1,5 @@
 import Features from "@/components/features-horizontal";
-import Section from "@/components/section";
+import { Section } from "@allsource/ui";
 import { BarChart3, Brain, FileText, LineChart } from "lucide-react";
 
 const data = [

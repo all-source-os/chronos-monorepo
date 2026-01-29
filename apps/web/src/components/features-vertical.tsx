@@ -1,10 +1,9 @@
 "use client";
 
+import { cn } from "@allsource/ui";
 import * as Accordion from "@radix-ui/react-accordion";
 import { motion, useInView } from "framer-motion";
-import React, { forwardRef, ReactNode, useEffect, useRef, useState } from "react";
-
-import { cn } from "@/lib/utils";
+import React, { forwardRef, type ReactNode, useEffect, useRef, useState } from "react";
 
 type AccordionItemProps = {
   children: React.ReactNode;

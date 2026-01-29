@@ -11,9 +11,9 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu";
+  cn,
+} from "@allsource/ui";
 import { siteConfig } from "@/lib/config";
-import { cn } from "@/lib/utils";
 
 export default function NavigationMenuDemo() {
   return (

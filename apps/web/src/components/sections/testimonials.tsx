@@ -1,8 +1,6 @@
 "use client";
 
-import Marquee from "@/components/magicui/marquee";
-import Section from "@/components/section";
-import { cn } from "@/lib/utils";
+import { Marquee, Section, cn } from "@allsource/ui";
 import { motion } from "framer-motion";
 import { Star } from "lucide-react";
 import Image from "next/image";

@@ -1,6 +1,5 @@
-import { describe, it, expect, mock } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import { render } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { Button } from "./button";
 
 describe("Button", () => {
@@ -9,12 +8,13 @@ describe("Button", () => {
     expect(getByRole("button")).toHaveTextContent("Click me");
   });
 
-  it("handles click events", async () => {
+  it("handles click events", () => {
     const handleClick = mock();
-    const user = userEvent.setup();
-
     const { getByRole } = render(<Button onClick={handleClick}>Click me</Button>);
-    await user.click(getByRole("button"));
+
+    // Dispatch a click event directly instead of using userEvent
+    // (happy-dom has limited support for userEvent)
+    getByRole("button").click();
 
     expect(handleClick).toHaveBeenCalledTimes(1);
   });
@@ -32,13 +32,13 @@ describe("Button", () => {
 
   it("applies size variants correctly", () => {
     const { rerender, getByRole } = render(<Button size="default">Default Size</Button>);
-    expect(getByRole("button")).toHaveClass("h-10");
-
-    rerender(<Button size="sm">Small</Button>);
     expect(getByRole("button")).toHaveClass("h-9");
 
+    rerender(<Button size="sm">Small</Button>);
+    expect(getByRole("button")).toHaveClass("h-8");
+
     rerender(<Button size="lg">Large</Button>);
-    expect(getByRole("button")).toHaveClass("h-11");
+    expect(getByRole("button")).toHaveClass("h-10");
   });
 
   it("can be disabled", () => {
@@ -49,5 +49,17 @@ describe("Button", () => {
   it("accepts custom className", () => {
     const { getByRole } = render(<Button className="custom-class">Custom</Button>);
     expect(getByRole("button")).toHaveClass("custom-class");
+  });
+
+  it("renders as child element when asChild is true", () => {
+    const { getByRole } = render(
+      <Button asChild>
+        <a href="/test">Link Button</a>
+      </Button>
+    );
+    const link = getByRole("link");
+    expect(link).toHaveTextContent("Link Button");
+    expect(link).toHaveAttribute("href", "/test");
+    expect(link).toHaveClass("bg-primary");
   });
 });

@@ -1,11 +1,18 @@
-import { describe, it, expect } from "bun:test";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "bun:test";
+import { render } from "@testing-library/react";
 import { Badge } from "./badge";
 
 describe("Badge", () => {
   it("renders children correctly", () => {
     const { getByText } = render(<Badge>Badge text</Badge>);
     expect(getByText("Badge text")).toBeInTheDocument();
+  });
+
+  it("renders as span element for inline semantics", () => {
+    const { container } = render(<Badge>Badge</Badge>);
+    const span = container.querySelector("span");
+    expect(span).toBeTruthy();
+    expect(span?.textContent).toBe("Badge");
   });
 
   it("applies default variant classes", () => {

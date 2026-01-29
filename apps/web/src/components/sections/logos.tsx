@@ -1,4 +1,4 @@
-import Marquee from "@/components/magicui/marquee";
+import { Marquee } from "@allsource/ui";
 import Image from "next/image";
 
 const companies = [

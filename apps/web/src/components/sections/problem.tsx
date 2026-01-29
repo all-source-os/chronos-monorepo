@@ -1,6 +1,4 @@
-import BlurFade from "@/components/magicui/blur-fade";
-import Section from "@/components/section";
-import { Card, CardContent } from "@/components/ui/card";
+import { BlurFade, Section, Card, CardContent } from "@allsource/ui";
 import { Brain, Shield, Zap } from "lucide-react";
 
 const problems = [
