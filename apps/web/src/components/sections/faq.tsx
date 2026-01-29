@@ -16,9 +16,9 @@ export default function FAQ() {
           collapsible
           className="flex w-full flex-col items-center justify-center space-y-2"
         >
-          {siteConfig.faqs.map((faq, idx) => (
+          {siteConfig.faqs.map((faq) => (
             <AccordionItem
-              key={idx}
+              key={faq.question}
               value={faq.question}
               className="w-full border rounded-lg overflow-hidden"
             >

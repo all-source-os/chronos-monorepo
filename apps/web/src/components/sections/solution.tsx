@@ -85,9 +85,9 @@ export default function Component() {
       className="bg-neutral-100 dark:bg-neutral-900"
     >
       <div className="mx-auto mt-16 grid max-w-sm grid-cols-1 gap-6 text-gray-500 md:max-w-3xl md:grid-cols-2 xl:grid-rows-2 md:grid-rows-3 xl:max-w-6xl xl:auto-rows-fr xl:grid-cols-3">
-        {features.map((feature, index) => (
+        {features.map((feature) => (
           <motion.div
-            key={index}
+            key={feature.title}
             className={cn(
               "group relative items-start overflow-hidden bg-neutral-50 dark:bg-neutral-800 p-6 rounded-2xl",
               feature.className
@@ -99,7 +99,6 @@ export default function Component() {
               type: "spring",
               stiffness: 100,
               damping: 30,
-              delay: index * 0.1,
             }}
             viewport={{ once: true }}
           >

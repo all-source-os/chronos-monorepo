@@ -28,7 +28,8 @@ export default function Component() {
         <div className="max-w-2xl mx-auto relative">
           <CarouselContent>
             {Array.from({ length: 7 }).map((_, index) => (
-              <CarouselItem key={index}>
+              // biome-ignore lint/suspicious/noArrayIndexKey: Testimonial carousel uses index as key since items are identical
+              <CarouselItem key={`testimonial-${index}`}>
                 <div className="p-2 pb-5">
                   <div className="text-center">
                     <MdOutlineFormatQuote className="text-4xl text-themeDarkGray my-4 mx-auto" />
@@ -36,7 +37,7 @@ export default function Component() {
                       <h4 className="text-1xl font-semibold max-w-lg mx-auto px-10">
                         There is a lot of exciting stuff going on in the stars above us that make
                         astronomy so much fun. The truth is the universe is a constantly changing,
-                        moving, some would say “living” thing because you just never know what you
+                        moving, some would say "living" thing because you just never know what you
                         are going to see on any given night of stargazing.
                       </h4>
                     </BlurFade>
@@ -45,7 +46,6 @@ export default function Component() {
                         <Image
                           width={0}
                           height={40}
-                          key={index}
                           src={`https://cdn.magicui.design/companies/${
                             companies[index % companies.length]
                           }.svg`}

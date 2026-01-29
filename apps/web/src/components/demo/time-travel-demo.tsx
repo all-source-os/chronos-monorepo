@@ -77,7 +77,7 @@ export function TimeTravelDemo() {
     let eventCount = 0;
     let totalAmount = 0;
 
-    events.forEach((event) => {
+    for (const event of events) {
       eventCount++;
       if (event.payload.amount && typeof event.payload.amount === "number") {
         totalAmount += event.payload.amount;
@@ -88,7 +88,7 @@ export function TimeTravelDemo() {
       if (event.payload.customer) {
         state.customer = event.payload.customer;
       }
-    });
+    }
 
     return {
       ...state,
@@ -173,6 +173,7 @@ export function TimeTravelDemo() {
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchTimelineData is defined within component, entityId is the only trigger needed
   useEffect(() => {
     fetchTimelineData();
   }, [entityId]);

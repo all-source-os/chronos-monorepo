@@ -79,8 +79,9 @@ export function HeroVideoDialog({
 
   return (
     <div className={cn("relative", className)}>
-      <div
-        className="relative cursor-pointer group rounded-md p-2 ring-1 ring-slate-200/50 dark:bg-gray-900/70 dark:ring-white/10 backdrop-blur-md"
+      <button
+        type="button"
+        className="relative cursor-pointer group rounded-md p-2 ring-1 ring-slate-200/50 dark:bg-gray-900/70 dark:ring-white/10 backdrop-blur-md w-full"
         onClick={() => setIsVideoOpen(true)}
       >
         <Image
@@ -103,7 +104,7 @@ export function HeroVideoDialog({
             </div>
           </div>
         </div>
-      </div>
+      </button>
       <AnimatePresence>
         {isVideoOpen && (
           <motion.div
@@ -127,6 +128,7 @@ export function HeroVideoDialog({
                   className="size-full rounded-2xl"
                   allowFullScreen
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  title="Video player"
                 />
               </div>
             </motion.div>

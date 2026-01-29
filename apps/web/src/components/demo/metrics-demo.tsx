@@ -48,11 +48,13 @@ export function MetricsDemo() {
   };
 
   // Initial fetch
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchMetrics is defined within component and would cause infinite loops if included
   useEffect(() => {
     fetchMetrics();
   }, []);
 
   // Auto-refresh
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchMetrics is defined within component and would cause infinite loops if included
   useEffect(() => {
     if (!autoRefresh) return;
 
@@ -243,7 +245,7 @@ export function MetricsDemo() {
                   {metricHistory
                     .slice(0, 10)
                     .reverse()
-                    .map((history, idx) => {
+                    .map((history) => {
                       const value = history.metrics[
                         metric.label === "Ingestion Rate"
                           ? "ingestion_rate"
@@ -273,10 +275,9 @@ export function MetricsDemo() {
                       const height = maxValue > 0 ? (value / maxValue) * 100 : 0;
                       return (
                         <motion.div
-                          key={idx}
+                          key={history.timestamp}
                           initial={{ height: 0 }}
                           animate={{ height: `${height}%` }}
-                          transition={{ delay: idx * 0.05 }}
                           className={`flex-1 ${metric.bgColor} ${metric.borderColor} border-t-2 rounded-sm min-h-[4px]`}
                         />
                       );

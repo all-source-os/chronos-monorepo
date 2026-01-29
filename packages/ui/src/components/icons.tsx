@@ -18,13 +18,14 @@ export const Icons = {
       strokeLinejoin="round"
       className={cn("h-6 w-6", className)}
       style={style}
+      aria-hidden="true"
     >
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
     </svg>
   ),
   google: ({ className }: IconProps) => (
-    <svg className={cn("h-4 w-4", className)} viewBox="0 0 24 24">
+    <svg className={cn("h-4 w-4", className)} viewBox="0 0 24 24" aria-hidden="true">
       <path
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
         fill="#4285F4"
@@ -54,6 +55,7 @@ export const Icons = {
       viewBox="0 0 24 24"
       fill="currentColor"
       className={cn("h-4 w-4", className)}
+      aria-hidden="true"
     >
       <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
     </svg>

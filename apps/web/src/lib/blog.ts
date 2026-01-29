@@ -30,14 +30,14 @@ function parseFrontmatter(fileContent: string) {
   const frontMatterLines = frontMatterBlock.trim().split("\n");
   const metadata: Partial<Post> = {};
 
-  frontMatterLines.forEach((line) => {
+  for (const line of frontMatterLines) {
     const [key, ...valueArr] = line.split(": ");
-    if (!key) return;
+    if (!key) continue;
 
     let value = valueArr.join(": ").trim();
     value = value.replace(/^['"](.*)['"]$/, "$1"); // Remove quotes
     metadata[key.trim() as keyof Post] = value;
-  });
+  }
 
   return { data: metadata as Post, content };
 }

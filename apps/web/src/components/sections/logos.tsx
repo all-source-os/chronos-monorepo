@@ -21,9 +21,9 @@ export default function Logos() {
         </h3>
         <div className="relative mt-6">
           <Marquee className="max-w-full [--duration:40s]">
-            {companies.map((logo, idx) => (
+            {companies.map((logo) => (
               <Image
-                key={idx}
+                key={logo}
                 width={112}
                 height={40}
                 src={`https://cdn.magicui.design/companies/${logo}.svg`}

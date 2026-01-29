@@ -30,7 +30,7 @@ export interface TestimonialCardProps {
   img?: string;
   description: React.ReactNode;
   className?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export const TestimonialCard = ({
@@ -260,16 +260,17 @@ export default function Testimonials() {
             .map((_, i) => (
               <Marquee
                 vertical
-                key={i}
+                // biome-ignore lint/suspicious/noArrayIndexKey: Marquee columns use index as key since items are generated dynamically
+                key={`marquee-col-${i}`}
                 className={cn({
                   "[--duration:60s]": i === 1,
                   "[--duration:30s]": i === 2,
                   "[--duration:70s]": i === 3,
                 })}
               >
-                {testimonials.slice(i * 3, (i + 1) * 3).map((card, idx) => (
+                {testimonials.slice(i * 3, (i + 1) * 3).map((card) => (
                   <motion.div
-                    key={idx}
+                    key={card.name}
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
                     viewport={{ once: true }}

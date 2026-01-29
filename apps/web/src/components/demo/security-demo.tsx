@@ -314,6 +314,7 @@ export function SecurityDemo() {
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchTenants is defined within component and only needs to run once on mount
   useEffect(() => {
     fetchTenants();
   }, []);
@@ -430,8 +431,9 @@ export function SecurityDemo() {
           { id: "audit", label: "Audit Logs", icon: FileText },
         ].map((tab) => (
           <button
+            type="button"
             key={tab.id}
-            onClick={() => setSelectedTab(tab.id as any)}
+            onClick={() => setSelectedTab(tab.id as "overview" | "tenants" | "audit")}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
               selectedTab === tab.id
                 ? "text-white border-b-2 border-red-500"
@@ -499,7 +501,7 @@ export function SecurityDemo() {
                     </div>
                     <div className="space-y-4">
                       <div>
-                        <label className="text-xs text-slate-300 block mb-2">Sample API Key</label>
+                        <span className="text-xs text-slate-300 block mb-2">Sample API Key</span>
                         <div className="flex items-center gap-2">
                           <div className="flex-1 px-4 py-2 bg-slate-900/50 rounded border border-slate-700 text-white text-sm font-mono">
                             {showApiKey ? mockApiKey : "•".repeat(40)}
@@ -594,8 +596,8 @@ export function SecurityDemo() {
                             </span>
                           </div>
                           <ul className="text-xs text-slate-300 space-y-1">
-                            {policyTestResult.reasons.map((reason, i) => (
-                              <li key={i}>• {reason}</li>
+                            {policyTestResult.reasons.map((reason) => (
+                              <li key={reason}>• {reason}</li>
                             ))}
                           </ul>
                         </motion.div>

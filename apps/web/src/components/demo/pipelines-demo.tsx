@@ -24,7 +24,7 @@ interface OperatorDefinition {
   type: string;
   name: string;
   description: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   color: string;
   defaultConfig: Record<string, unknown>;
 }
@@ -121,7 +121,7 @@ export function PipelinesDemo() {
 
   const addOperator = (operatorDef: OperatorDefinition) => {
     const newOperator: PipelineOperator = {
-      type: operatorDef.type as any,
+      type: operatorDef.type as PipelineOperator["type"],
       config: operatorDef.defaultConfig,
     };
     setOperators([...operators, newOperator]);
@@ -168,8 +168,11 @@ export function PipelinesDemo() {
     <div className="space-y-8">
       {/* Pipeline Name Input */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-slate-300">Pipeline Name</label>
+        <label htmlFor="pipeline-name" className="text-sm font-medium text-slate-300">
+          Pipeline Name
+        </label>
         <input
+          id="pipeline-name"
           type="text"
           value={pipelineName}
           onChange={(e) => setPipelineName(e.target.value)}
@@ -231,7 +234,7 @@ export function PipelinesDemo() {
                 const opDef = operatorTypes.find((d) => d.type === operator.type);
                 return (
                   <motion.div
-                    key={index}
+                    key={`${operator.type}-${index}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
@@ -251,6 +254,7 @@ export function PipelinesDemo() {
                             {index + 1}. {opDef?.name || operator.type}
                           </h4>
                           <button
+                            type="button"
                             onClick={() => removeOperator(index)}
                             className="text-red-400 hover:text-red-300 transition-colors"
                           >

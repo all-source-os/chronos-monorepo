@@ -19,8 +19,8 @@ export default function NavigationMenuDemo() {
   return (
     <NavigationMenu>
       <NavigationMenuList>
-        {siteConfig.header.map((item, index) => (
-          <NavigationMenuItem key={index}>
+        {siteConfig.header.map((item) => (
+          <NavigationMenuItem key={item.label || item.trigger}>
             {item.trigger ? (
               <>
                 <NavigationMenuTrigger>{item.trigger}</NavigationMenuTrigger>
@@ -50,9 +50,9 @@ export default function NavigationMenuDemo() {
                         </NavigationMenuLink>
                       </li>
                     )}
-                    {item.content.items.map((subItem, subIndex) => (
+                    {item.content.items.map((subItem) => (
                       <ListItem
-                        key={subIndex}
+                        key={subItem.title}
                         href={subItem.href}
                         title={subItem.title}
                         className="hover:bg-primary/10"

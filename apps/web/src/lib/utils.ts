@@ -59,14 +59,12 @@ export function constructMetadata({
 
 export function formatDate(date: string) {
   const currentDate = new Date().getTime();
-  if (!date.includes("T")) {
-    date = `${date}T00:00:00`;
-  }
-  const targetDate = new Date(date).getTime();
+  const normalizedDate = date.includes("T") ? date : `${date}T00:00:00`;
+  const targetDate = new Date(normalizedDate).getTime();
   const timeDifference = Math.abs(currentDate - targetDate);
   const daysAgo = Math.floor(timeDifference / (1000 * 60 * 60 * 24));
 
-  const fullDate = new Date(date).toLocaleString("en-us", {
+  const fullDate = new Date(normalizedDate).toLocaleString("en-us", {
     month: "long",
     day: "numeric",
     year: "numeric",

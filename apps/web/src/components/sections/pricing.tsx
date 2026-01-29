@@ -21,17 +21,17 @@ export default function PricingSection() {
     <Section title="Pricing" subtitle="Choose the plan that's right for you">
       <div className="flex justify-center mb-10">
         <span className="mr-2 font-semibold">Monthly</span>
-        <label className="relative inline-flex items-center cursor-pointer">
+        <div className="relative inline-flex items-center cursor-pointer">
           <Label>
             <Switch checked={!isMonthly} onCheckedChange={handleToggle} />
           </Label>
-        </label>
+        </div>
         <span className="ml-2 font-semibold">Yearly</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 sm:2 gap-4">
-        {siteConfig.pricing.map((plan, index) => (
+        {siteConfig.pricing.map((plan) => (
           <motion.div
-            key={index}
+            key={plan.name}
             initial={{ y: 50, opacity: 1 }}
             whileInView={
               isDesktop
@@ -86,8 +86,8 @@ export default function PricingSection() {
               </p>
 
               <ul className="mt-5 gap-2 flex flex-col">
-                {plan.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-center">
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-center">
                     <Check className="mr-2 h-4 w-4 text-primary" />
                     <span>{feature}</span>
                   </li>

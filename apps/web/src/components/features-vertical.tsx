@@ -132,8 +132,9 @@ export default function Features({
     }, collapseDelay);
 
     return () => clearInterval(timer);
-  }, [collapseDelay, currentIndex, data.length]);
+  }, [collapseDelay, data.length]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scrollToIndex is stable (uses refs) and doesn't need to be a dependency
   useEffect(() => {
     const handleAutoScroll = () => {
       const nextIndex = (currentIndex !== undefined ? currentIndex + 1 : 0) % data.length;
@@ -274,9 +275,10 @@ export default function Features({
               }}
             >
               {data.map((item, index) => (
-                <div
+                <button
+                  type="button"
                   key={item.id}
-                  className="card relative mr-8 grid h-full max-w-60 shrink-0 items-start justify-center py-4 last:mr-0"
+                  className="card relative mr-8 grid h-full max-w-60 shrink-0 items-start justify-center py-4 last:mr-0 text-left"
                   onClick={() => setCurrentIndex(index)}
                   style={{
                     scrollSnapAlign: "center",
@@ -294,7 +296,7 @@ export default function Features({
                   </div>
                   <h2 className="text-xl font-bold">{item.title}</h2>
                   <p className="mx-0 max-w-sm text-balance text-sm">{item.content}</p>
-                </div>
+                </button>
               ))}
             </ul>
           </div>

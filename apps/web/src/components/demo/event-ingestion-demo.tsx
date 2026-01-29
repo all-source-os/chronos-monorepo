@@ -98,9 +98,9 @@ export function EventIngestionDemo() {
   // Calculate event type breakdown
   const eventTypeBreakdown = events.reduce(
     (acc, batch) => {
-      batch.events.forEach((event) => {
+      for (const event of batch.events) {
         acc[event.event_type] = (acc[event.event_type] || 0) + 1;
-      });
+      }
       return acc;
     },
     {} as Record<string, number>
@@ -116,8 +116,11 @@ export function EventIngestionDemo() {
       {/* Batch Size Selector */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-slate-300">Batch Size:</label>
+          <label htmlFor="batch-size" className="text-sm font-medium text-slate-300">
+            Batch Size:
+          </label>
           <select
+            id="batch-size"
             value={batchSize}
             onChange={(e) => setBatchSize(Number(e.target.value))}
             disabled={isLoading}
@@ -221,8 +224,9 @@ export function EventIngestionDemo() {
                         : "bg-red-950/30 border-red-700/50"
                     }`}
                   >
-                    <div
-                      className="p-4 cursor-pointer"
+                    <button
+                      type="button"
+                      className="p-4 cursor-pointer w-full text-left"
                       onClick={() => setExpandedIndex(expandedIndex === index ? null : index)}
                     >
                       <div className="flex items-center justify-between">
@@ -252,7 +256,7 @@ export function EventIngestionDemo() {
                           )}
                         </div>
                       </div>
-                    </div>
+                    </button>
 
                     {/* Expanded Event Details */}
                     <AnimatePresence>
@@ -265,9 +269,9 @@ export function EventIngestionDemo() {
                           className="border-t border-emerald-700/30 overflow-hidden"
                         >
                           <div className="p-4 max-h-64 overflow-y-auto space-y-2">
-                            {batch.events.slice(0, 3).map((event, eventIdx) => (
+                            {batch.events.slice(0, 3).map((event) => (
                               <div
-                                key={eventIdx}
+                                key={`${event.entity_id}-${event.event_type}`}
                                 className="p-3 bg-slate-900/50 rounded border border-slate-700"
                               >
                                 <div className="flex items-start justify-between mb-2">

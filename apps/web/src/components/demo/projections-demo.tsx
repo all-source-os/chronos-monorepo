@@ -145,6 +145,7 @@ export function ProjectionsDemo() {
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchProjections is defined within component and only needs to run once on mount
   useEffect(() => {
     fetchProjections();
   }, []);
@@ -367,8 +368,11 @@ export function ProjectionsDemo() {
                   className="space-y-4 pt-4 border-t border-slate-700"
                 >
                   <div>
-                    <label className="text-xs text-slate-300 block mb-2">Projection Name</label>
+                    <label htmlFor="projection-name" className="text-xs text-slate-300 block mb-2">
+                      Projection Name
+                    </label>
                     <input
+                      id="projection-name"
                       type="text"
                       value={projectionName}
                       onChange={(e) => setProjectionName(e.target.value)}
@@ -378,9 +382,7 @@ export function ProjectionsDemo() {
                   </div>
 
                   <div>
-                    <label className="text-xs text-slate-300 block mb-2">
-                      Configuration (JSON)
-                    </label>
+                    <span className="text-xs text-slate-300 block mb-2">Configuration (JSON)</span>
                     <pre className="text-xs text-slate-300 bg-slate-900/50 p-4 rounded-lg border border-slate-700 overflow-x-auto">
                       {JSON.stringify(selectedTemplate.sampleConfig, null, 2)}
                     </pre>

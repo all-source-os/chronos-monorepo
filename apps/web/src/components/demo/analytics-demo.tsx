@@ -369,12 +369,11 @@ export function AnalyticsDemo() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {analyticsResults.map((result, index) => (
+            {analyticsResults.map((result) => (
               <motion.div
-                key={index}
+                key={result.metric}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
                 className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6"
               >
                 <div className="space-y-2">
@@ -400,8 +399,8 @@ export function AnalyticsDemo() {
                 {/* Data visualization (simplified for demo) */}
                 {result.data && result.data.length > 0 && (
                   <div className="mt-4 space-y-2">
-                    {result.data.map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
+                    {result.data.map((item) => (
+                      <div key={item.label} className="flex items-center gap-2">
                         <span className="text-xs text-slate-400 w-20">{item.label}</span>
                         <div className="flex-1 bg-slate-700/30 rounded-full h-2">
                           <div

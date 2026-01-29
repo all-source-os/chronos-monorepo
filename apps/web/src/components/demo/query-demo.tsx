@@ -136,8 +136,11 @@ export function QueryDemo() {
         <h4 className="text-sm font-semibold text-white mb-3">Query Parameters</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-slate-300 block mb-1">Entity ID</label>
+            <label htmlFor="entity-id" className="text-xs text-slate-300 block mb-1">
+              Entity ID
+            </label>
             <input
+              id="entity-id"
               type="text"
               value={customEntityId}
               onChange={(e) => setCustomEntityId(e.target.value)}
@@ -147,8 +150,11 @@ export function QueryDemo() {
             />
           </div>
           <div>
-            <label className="text-xs text-slate-300 block mb-1">Event Type</label>
+            <label htmlFor="event-type" className="text-xs text-slate-300 block mb-1">
+              Event Type
+            </label>
             <input
+              id="event-type"
               type="text"
               value={customEventType}
               onChange={(e) => setCustomEventType(e.target.value)}
@@ -158,8 +164,11 @@ export function QueryDemo() {
             />
           </div>
           <div>
-            <label className="text-xs text-slate-300 block mb-1">Time Range (hours)</label>
+            <label htmlFor="time-range" className="text-xs text-slate-300 block mb-1">
+              Time Range (hours)
+            </label>
             <select
+              id="time-range"
               value={timeRangeHours}
               onChange={(e) => setTimeRangeHours(Number(e.target.value))}
               disabled={isQuerying}
@@ -172,8 +181,11 @@ export function QueryDemo() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-slate-300 block mb-1">Result Limit</label>
+            <label htmlFor="result-limit" className="text-xs text-slate-300 block mb-1">
+              Result Limit
+            </label>
             <select
+              id="result-limit"
               value={resultLimit}
               onChange={(e) => setResultLimit(Number(e.target.value))}
               disabled={isQuerying}
@@ -313,7 +325,11 @@ export function QueryDemo() {
                   transition={{ delay: index * 0.03 }}
                   className="bg-slate-800/70 rounded-lg border border-slate-600 hover:border-slate-500 transition-colors overflow-hidden"
                 >
-                  <div className="p-3 cursor-pointer" onClick={() => toggleExpanded(event.id)}>
+                  <button
+                    type="button"
+                    className="p-3 cursor-pointer text-left w-full"
+                    onClick={() => toggleExpanded(event.id)}
+                  >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -335,7 +351,7 @@ export function QueryDemo() {
                         )}
                       </div>
                     </div>
-                  </div>
+                  </button>
 
                   <AnimatePresence>
                     {isExpanded && (
@@ -389,9 +405,9 @@ export function QueryDemo() {
             Recent Queries
           </h4>
           <div className="space-y-2">
-            {queryHistory.map((query, index) => (
+            {queryHistory.map((query) => (
               <div
-                key={index}
+                key={`${query.type}-${query.timestamp}`}
                 className="flex items-center justify-between text-xs p-2 bg-slate-900/30 rounded"
               >
                 <div className="flex-1">
