@@ -83,26 +83,26 @@ jobs:
               echo 'matrix=["core","query-service","mcp-server","control-plane","web"]' >> $GITHUB_OUTPUT
             else
               # Convert comma-separated to JSON array
-              containers=$(echo '${{ github.event.inputs.containers }}' | tr ',' '\n' | jq -R . | jq -s .)
+              containers=$(echo '${{ github.event.inputs.containers }}' | tr ',' '\n' | jq -R . | jq -sc .)
               echo "matrix=$containers" >> $GITHUB_OUTPUT
             fi
           else
             # Build matrix from changed paths
             matrix='[]'
             if [[ "${{ steps.filter.outputs.core }}" == "true" ]]; then
-              matrix=$(echo $matrix | jq '. + ["core"]')
+              matrix=$(echo $matrix | jq -c '. + ["core"]')
             fi
             if [[ "${{ steps.filter.outputs.query-service }}" == "true" ]]; then
-              matrix=$(echo $matrix | jq '. + ["query-service"]')
+              matrix=$(echo $matrix | jq -c '. + ["query-service"]')
             fi
             if [[ "${{ steps.filter.outputs.mcp-server }}" == "true" ]]; then
-              matrix=$(echo $matrix | jq '. + ["mcp-server"]')
+              matrix=$(echo $matrix | jq -c '. + ["mcp-server"]')
             fi
             if [[ "${{ steps.filter.outputs.control-plane }}" == "true" ]]; then
-              matrix=$(echo $matrix | jq '. + ["control-plane"]')
+              matrix=$(echo $matrix | jq -c '. + ["control-plane"]')
             fi
             if [[ "${{ steps.filter.outputs.web }}" == "true" ]]; then
-              matrix=$(echo $matrix | jq '. + ["web"]')
+              matrix=$(echo $matrix | jq -c '. + ["web"]')
             fi
             
             # If no changes detected (e.g., workflow file change), test all
