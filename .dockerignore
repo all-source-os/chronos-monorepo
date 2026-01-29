@@ -1,0 +1,92 @@
+# =============================================================================
+# Monorepo Docker Ignore
+# Used when building from repository root (e.g., web app)
+# =============================================================================
+
+# Dependencies
+**/node_modules/
+**/.pnpm-store/
+
+# Build artifacts
+**/.next/
+**/out/
+**/build/
+**/dist/
+**/target/
+**/_build/
+**/deps/
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+
+# Documentation (but keep content for blogs)
+*.md
+!README.md
+!**/content/**
+
+# Test artifacts
+**/coverage/
+**/.nyc_output/
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/test-results/
+**/playwright-report/
+
+# Environment files
+.env*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Local development
+**/.turbo/
+**/tsconfig.tsbuildinfo
+**/*.tsbuildinfo
+
+# Rust specific
+**/Cargo.lock
+**/*.rs.bk
+
+# Elixir specific
+**/.elixir_ls/
+**/*.beam
+**/erl_crash.dump
+
+# Go specific
+**/*.exe
+**/*.dll
+**/*.so
+**/*.dylib
+
+# CI/CD and docs
+.github/
+docs/
+deploy/
+tooling/
+scripts/
+*.yml
+*.yaml
+!**/fly.toml
+Makefile
+biome.json
+turbo.json
+bun.lock

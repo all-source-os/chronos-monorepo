@@ -142,12 +142,16 @@ jobs:
         service:
           - name: core
             context: apps/core
+            dockerfile: apps/core/Dockerfile
           - name: control-plane
             context: apps/control-plane
+            dockerfile: apps/control-plane/Dockerfile
           - name: web
-            context: apps/web
+            context: .
+            dockerfile: apps/web/Dockerfile
           - name: query-service
             context: apps/query-service
+            dockerfile: apps/query-service/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
@@ -159,6 +163,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.dockerfile }}
           push: false
           load: true
           tags: scan-${{ matrix.service.name }}:latest
@@ -174,8 +179,8 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        if: success()
         with:
           sarif_file: "trivy-${{ matrix.service.name }}.sarif"
           category: "trivy-${{ matrix.service.name }}"
