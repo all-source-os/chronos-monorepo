@@ -266,12 +266,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .bind(event.event_type().as_str())
         .bind(event.entity_id().as_str())
         .bind(serde_json::to_value(event.payload())?)
-        .bind(
-            event
-                .metadata()
-                .map(serde_json::to_value)
-                .transpose()?,
-        )
+        .bind(event.metadata().map(serde_json::to_value).transpose()?)
         .bind(event.timestamp())
         .execute(&mut *tx)
         .await

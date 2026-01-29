@@ -575,7 +575,8 @@ fn test_security_integration_complete() {
     assert!(rate_result.allowed);
 
     // Verify IP filter works
-    let filter_result = ip_filter.is_allowed(&std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)));
+    let filter_result =
+        ip_filter.is_allowed(&std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)));
     assert!(filter_result.allowed);
 
     // Verify security config defaults
