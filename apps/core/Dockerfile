@@ -27,8 +27,12 @@ WORKDIR /app
 # =============================================================================
 FROM chef AS planner
 
+# Copy all source files needed by Cargo.toml
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY benches ./benches
+COPY examples ./examples
+COPY tests ./tests
 
 RUN cargo chef prepare --recipe-path recipe.json
 
@@ -45,13 +49,16 @@ ARG BUILDTIME=unknown
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
-# Copy source and build application
+# Copy all source files
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY benches ./benches
+COPY examples ./examples
+COPY tests ./tests
 
 # Build with version info embedded
 ENV CARGO_BUILD_JOBS=4
-RUN cargo build --release --locked --bin allsource-core && \
+RUN cargo build --release --bin allsource-core && \
     strip /app/target/release/allsource-core
 
 # =============================================================================

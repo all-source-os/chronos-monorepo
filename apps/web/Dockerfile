@@ -70,7 +70,7 @@ RUN bun run build
 # =============================================================================
 # Stage 3: Runtime
 # =============================================================================
-FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION:+${ALPINE_VERSION}} AS runner
+FROM node:${NODE_VERSION}-alpine3.20 AS runner
 
 ARG VERSION=dev
 ARG REVISION=unknown
@@ -94,8 +94,8 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME="0.0.0.0"
 
-# Install tini and create non-root user
-RUN apk add --no-cache tini && \
+# Install tini, wget for healthcheck, and create non-root user
+RUN apk add --no-cache tini wget && \
     rm -rf /var/cache/apk/* && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs

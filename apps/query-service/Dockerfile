@@ -3,7 +3,7 @@
 # Chronos Query Service - Production-Optimized Multi-Stage Dockerfile
 # =============================================================================
 
-ARG ELIXIR_VERSION=1.18
+ARG ELIXIR_VERSION=1.17
 ARG OTP_VERSION=27
 ARG ALPINE_VERSION=3.20
 
@@ -70,7 +70,8 @@ RUN apk add --no-cache \
     ncurses-libs \
     libstdc++ \
     libgcc \
-    tini && \
+    tini \
+    wget && \
     rm -rf /var/cache/apk/* /tmp/*
 
 # Create non-root user
