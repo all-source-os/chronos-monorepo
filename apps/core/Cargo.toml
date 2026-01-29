@@ -1,6 +1,6 @@
 [package]
 name = "allsource-core"
-version = "0.7.1"
+version = "0.7.3"
 edition = "2021"
 rust-version = "1.75"
 authors = ["AllSource Team"]
@@ -26,107 +26,48 @@ name = "allsource-admin"
 path = "src/bin/allsource-admin.rs"
 
 [dependencies]
-# =============================================================================
-# Arrow/Parquet - Columnar storage (Updated: 2025-12-05)
-# Pin to minor version for stability, major updates quarterly
-# =============================================================================
-arrow = { version = "57.1", features = ["ipc", "json"] }
-arrow-flight = "57.1"
-datafusion = "51.0"
-parquet = { version = "57.1", features = ["arrow", "async"] }
-
-# =============================================================================
-# Async runtime (Updated: 2025-12-05)
-# Tokio 1.48 is current stable, 1.47.x is LTS until Sept 2026
-# =============================================================================
-async-trait = "0.1"  # Stable API, minimal changes
-futures = "0.3"      # Stable API
-tokio = { version = "1.48", features = ["full"] }
-tokio-stream = "0.1" # Follows tokio versioning
-
-# =============================================================================
-# Web framework (Updated: 2025-12-05)
-# Axum 0.8.x is stable, 0.9 in development
-# =============================================================================
+# Note: arrow/parquet pinned to ~57.1 - version 57.2+ requires edition2024/Rust 1.85+
+aes-gcm = "0.10"
+anyhow = "1.0"
+argon2 = "0.5"
+arrow = { version = "~57.1", features = ["ipc", "json"] }
+arrow-flight = "~57.1"
+async-trait = "0.1"
 axum = { version = "0.8", features = ["json", "ws"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
-tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace"] }
-
-# =============================================================================
-# Serialization (Updated: 2025-12-05)
-# Stable APIs with long-term compatibility
-# =============================================================================
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-simd-json = "0.14"  # SIMD-accelerated JSON parsing for high throughput
-toml = "0.8"
-
-# =============================================================================
-# Time handling (Updated: 2025-12-05)
-# =============================================================================
+base64 = "0.22"
+bumpalo = { version = "3.16", features = ["collections"] }
 chrono = { version = "0.4", features = ["serde"] }
-
-# =============================================================================
-# Logging & Tracing (Updated: 2025-12-05)
-# =============================================================================
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# =============================================================================
-# Utilities (Updated: 2025-12-05)
-# =============================================================================
-anyhow = "1.0"       # Stable error handling
-thiserror = "2.0"    # Updated: v2.0 released 2024, stable API
-uuid = { version = "1.19", features = ["v4", "serde"] }
-
-# =============================================================================
-# High-performance data structures (Updated: 2025-12-05)
-# DashMap 6.x is stable, 7.0 is RC - stay on stable
-# =============================================================================
-bumpalo = { version = "3.16", features = ["collections"] }  # Arena allocator for zero-copy
+crc32fast = "1.4"
 crossbeam = "0.8"
 crossbeam-queue = "0.3"
 dashmap = "6.1"
-parking_lot = "0.12"
-
-# =============================================================================
-# Compression (Updated: 2025-12-05)
-# =============================================================================
+datafusion = "~51.0"
 flate2 = "1.0"
-lz4 = "1.28"
-
-# =============================================================================
-# Checksums & Cryptography (Updated: 2025-12-05)
-# =============================================================================
-crc32fast = "1.4"
-sha2 = "0.10"
-
-# =============================================================================
-# Metrics (Updated: 2025-12-05)
-# =============================================================================
-prometheus = "0.13"
-
-# =============================================================================
-# Schema validation (Updated: 2025-12-05)
-# =============================================================================
+futures = "0.3"
+http = "1.0"
 jsonschema = "0.26"
-
-# =============================================================================
-# Authentication & Security (Updated: 2025-12-05)
-# jsonwebtoken 10.0 requires explicit crypto backend
-# =============================================================================
-aes-gcm = "0.10"
-argon2 = "0.5"
-base64 = "0.22"
-jsonwebtoken = "9.3"  # Stay on 9.x for now, 10.x has breaking changes
+jsonwebtoken = "9.3"
+lz4 = "1.28"
+parking_lot = "0.12"
+parquet = { version = "~57.1", features = ["arrow", "async"] }
+prometheus = "0.13"
 rand = "0.8"
-
-# =============================================================================
-# Database - Optional features (Updated: 2025-12-05)
-# =============================================================================
 rocksdb = { version = "0.22", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+simd-json = "0.14"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json", "chrono", "uuid"], optional = true }
+thiserror = "2.0"
+tokio = { version = "1.48", features = ["full"] }
+tokio-stream = "0.1"
+toml = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.19", features = ["v4", "serde"] }
 
 [features]
 default = []

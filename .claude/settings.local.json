@@ -106,7 +106,14 @@
       "Bash(cargo build:*)",
       "Bash(helm lint:*)",
       "Bash(cargo clippy:*)",
-      "Bash(cargo doc:*)"
+      "Bash(cargo doc:*)",
+      "WebFetch(domain:crates.io)",
+      "Bash(git -C /Users/decebaldobrica/Projects/chronos/chronos-monorepo log --oneline -10)",
+      "Skill(ralph-tui-create-beads)",
+      "Bash(bd init:*)",
+      "Bash(bd create:*)",
+      "Bash(bd list:*)",
+      "Bash(bd close:*)"
     ],
     "deny": [],
     "ask": []

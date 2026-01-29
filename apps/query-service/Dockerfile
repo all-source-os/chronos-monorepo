@@ -4,7 +4,7 @@
 # =============================================================================
 
 # Build stage
-FROM hexpm/elixir:1.19.1-erlang-27.3.1-alpine-3.20.3 AS build
+FROM elixir:1.17-otp-27-alpine AS build
 
 # Install build dependencies
 RUN apk add --no-cache build-base git
@@ -35,7 +35,7 @@ RUN mix compile && mix release
 # =============================================================================
 # Runtime stage - minimal image for serverless
 # =============================================================================
-FROM alpine:3.20.3 AS runtime
+FROM alpine:3.20 AS runtime
 
 # Install minimal runtime dependencies
 RUN apk add --no-cache \
