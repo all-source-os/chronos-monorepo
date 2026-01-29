@@ -144,10 +144,10 @@ impl SimdJsonParser {
     ///
     /// The arena provides fast bump allocation and all allocations are freed
     /// together when the arena is dropped.
-    pub fn parse_with_arena<'a, T: DeserializeOwned>(
+    pub fn parse_with_arena<T: DeserializeOwned>(
         &self,
         data: &mut [u8],
-        _arena: &'a Bump,
+        _arena: &Bump,
     ) -> Result<T, SimdJsonError> {
         // Currently just uses standard parsing, but arena can be used for
         // custom string interning or buffer management in the future

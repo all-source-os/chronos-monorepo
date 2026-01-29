@@ -12,13 +12,22 @@ defmodule QueryServiceEx.Domain.Entities.Query do
   """
 
   @type operator ::
-          :eq | :ne | :gt | :gte | :lt | :lte |
-          :contains | :in | :not_in | :between |
-          :and | :or | :not
+          :eq
+          | :ne
+          | :gt
+          | :gte
+          | :lt
+          | :lte
+          | :contains
+          | :in
+          | :not_in
+          | :between
+          | :and
+          | :or
+          | :not
 
   @type aggregation_function ::
-          :count | :sum | :avg | :min | :max |
-          :count_distinct | :percentile | :first | :last
+          :count | :sum | :avg | :min | :max | :count_distinct | :percentile | :first | :last
 
   @type sort_direction :: :asc | :desc
 
@@ -197,7 +206,8 @@ defmodule QueryServiceEx.Domain.Entities.Query do
   end
 
   @doc "Combine multiple predicates with AND or OR"
-  def combine_predicates(operator, predicates) when operator in [:and, :or] and is_list(predicates) do
+  def combine_predicates(operator, predicates)
+      when operator in [:and, :or] and is_list(predicates) do
     Predicate.new(operator, nil, predicates)
   end
 

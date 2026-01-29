@@ -29,16 +29,23 @@ defmodule McpServerElixir.Server do
     :ok = :io.setopts(:standard_io, encoding: :utf8)
 
     Logger.info("🌟 AllSource MCP Server (Elixir) starting...")
-    Logger.info("📡 Core API: #{Application.get_env(:mcp_server_elixir, :core_url, "http://localhost:3900")}")
-    Logger.info("🎛️  Control Plane: #{Application.get_env(:mcp_server_elixir, :control_url, "http://localhost:3901")}")
+
+    Logger.info(
+      "📡 Core API: #{Application.get_env(:mcp_server_elixir, :core_url, "http://localhost:3900")}"
+    )
+
+    Logger.info(
+      "🎛️  Control Plane: #{Application.get_env(:mcp_server_elixir, :control_url, "http://localhost:3901")}"
+    )
 
     # Start reading from stdin using a Task
     {:ok, _pid} = Task.start_link(fn -> stdin_reader_loop() end)
 
-    {:ok, %{
-      core_client: CoreClient.new(),
-      control_client: ControlPlaneClient.new()
-    }}
+    {:ok,
+     %{
+       core_client: CoreClient.new(),
+       control_client: ControlPlaneClient.new()
+     }}
   end
 
   @impl true
@@ -81,13 +88,13 @@ defmodule McpServerElixir.Server do
             process_request(request, state)
 
           {:error, reason} ->
-            Logger.warn("Failed to parse JSON-RPC request: #{inspect(reason)}")
+            Logger.warning("Failed to parse JSON-RPC request: #{inspect(reason)}")
             send_error(nil, -32700, "Parse error", nil)
         end
     end
   end
 
-  defp process_request(%{method: "initialize", params: params, id: id}, state) do
+  defp process_request(%{method: "initialize", params: _params, id: id}, state) do
     response = %{
       jsonrpc: "2.0",
       id: id,
@@ -146,13 +153,13 @@ defmodule McpServerElixir.Server do
   end
 
   defp process_request(%{method: method, id: id}, state) do
-    Logger.warn("Unknown method: #{method}")
+    Logger.warning("Unknown method: #{method}")
     send_error(id, -32601, "Method not found", nil)
     {:noreply, state}
   end
 
   defp process_request(request, state) do
-    Logger.warn("Invalid request format: #{inspect(request)}")
+    Logger.warning("Invalid request format: #{inspect(request)}")
     send_error(nil, -32600, "Invalid Request", nil)
     {:noreply, state}
   end
@@ -180,4 +187,3 @@ defmodule McpServerElixir.Server do
     send_response(response)
   end
 end
-

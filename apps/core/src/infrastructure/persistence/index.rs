@@ -54,13 +54,13 @@ impl EventIndex {
         // Index by entity_id
         self.entity_index
             .entry(entity_id.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(entry.clone());
 
         // Index by event_type
         self.type_index
             .entry(event_type.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(entry.clone());
 
         // Index by event_id

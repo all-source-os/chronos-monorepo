@@ -345,8 +345,11 @@ mod tests {
     #[tokio::test]
     async fn test_audit_logger_creation() {
         let logger = setup_logger();
-        // Logger should be created successfully
-        assert!(true);
+        // Logger should be created successfully - verify we can log
+        let result = logger
+            .log_success(test_tenant_id(), AuditAction::Login, test_actor())
+            .await;
+        assert!(result.is_ok());
     }
 
     #[tokio::test]

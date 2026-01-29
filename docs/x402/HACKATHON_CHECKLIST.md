@@ -43,7 +43,7 @@
 - [ ] Confirm event appears in results
 
 **WebSocket Test**
-- [ ] Install wscat: `npm install -g wscat`
+- [ ] Install wscat: `bun add -g wscat`
 - [ ] Test WebSocket connection:
   ```bash
   wscat -c wss://chronos-x402-demo.fly.dev/api/v1/events/stream
@@ -700,7 +700,7 @@
 #### Deploy Demo App (1 hour)
 
 - [ ] Create Vercel account (if needed)
-- [ ] Install Vercel CLI: `npm i -g vercel`
+- [ ] Install Vercel CLI: `bun add -g vercel`
 - [ ] Deploy:
   ```bash
   cd apps/x402-demo

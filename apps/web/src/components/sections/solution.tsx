@@ -12,7 +12,7 @@ const features = [
     content: (
       <>
         <Safari
-          src={`/dashboard.png`}
+          src={"/dashboard.png"}
           url="https://acme.ai"
           className="-mb-32 mt-4 max-h-64 w-full px-4 select-none drop-shadow-[0_0_28px_rgba(0,0,0,.1)] group-hover:translate-y-[-10px] transition-all duration-300"
         />
@@ -26,7 +26,7 @@ const features = [
     className: "order-3 xl:order-none hover:bg-blue-500/10 transition-all duration-500 ease-out",
     content: (
       <Safari
-        src={`/dashboard.png`}
+        src={"/dashboard.png"}
         url="https://acme.ai"
         className="-mb-32 mt-4 max-h-64 w-full px-4 select-none drop-shadow-[0_0_28px_rgba(0,0,0,.1)] group-hover:translate-y-[-10px] transition-all duration-300"
       />
@@ -50,7 +50,7 @@ const features = [
           width={800}
         />
         <Safari
-          src={`/dashboard.png`}
+          src={"/dashboard.png"}
           url="https://acme.ai"
           className="-mb-48 ml-12 mt-16 h-full px-4 select-none drop-shadow-[0_0_28px_rgba(0,0,0,.1)] group-hover:translate-x-[-10px] transition-all duration-300"
         />
@@ -67,7 +67,7 @@ const features = [
       <>
         <Ripple className="absolute -bottom-full" />
         <Safari
-          src={`/dashboard.png`}
+          src={"/dashboard.png"}
           url="https://acme.ai"
           className="-mb-32 mt-4 max-h-64 w-full px-4 select-none drop-shadow-[0_0_28px_rgba(0,0,0,.1)] group-hover:translate-y-[-10px] transition-all duration-300"
         />
@@ -108,7 +108,7 @@ export default function Component() {
               <p className="text-foreground">{feature.description}</p>
             </div>
             {feature.content}
-            <div className="absolute bottom-0 left-0 h-32 w-full bg-gradient-to-t from-neutral-50 dark:from-neutral-900 pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 h-32 w-full bg-gradient-to-t from-neutral-50 dark:from-neutral-900 pointer-events-none" />
           </motion.div>
         ))}
       </div>

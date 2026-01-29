@@ -478,7 +478,7 @@ await mcp.call('get_projection_state', {
 ### 1. Install Dependencies
 ```bash
 cd packages/mcp-server
-npm install
+bun install
 ```
 
 ### 2. Configure Environment
@@ -496,11 +496,11 @@ ALLSOURCE_CONTROL_API_KEY=your-key
 ### 3. Run Enhanced Server
 ```bash
 # Development
-npm run dev:enhanced
+bun run dev:enhanced
 
 # Production
-npm run build
-npm run start:enhanced
+bun run build
+bun run start:enhanced
 ```
 
 ### 4. Configure Claude Desktop

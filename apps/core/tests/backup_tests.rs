@@ -1,8 +1,7 @@
 /// Additional backup & restore tests for comprehensive coverage
-use allsource_core::backup::{BackupConfig, BackupManager, BackupMetadata};
-use allsource_core::event::Event;
+use allsource_core::backup::{BackupConfig, BackupManager};
+use allsource_core::domain::entities::Event;
 use serde_json::json;
-use std::sync::Arc;
 use tempfile::TempDir;
 use uuid::Uuid;
 

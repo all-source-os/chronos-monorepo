@@ -209,7 +209,10 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
 
     # Exponential backoff with jitter
     backoff = calculate_backoff(new_state.backoff_ms)
-    Logger.info("[CoreWebSocketClient] Reconnecting in #{backoff}ms (attempt #{new_state.reconnect_attempts})")
+
+    Logger.info(
+      "[CoreWebSocketClient] Reconnecting in #{backoff}ms (attempt #{new_state.reconnect_attempts})"
+    )
 
     Process.sleep(backoff)
 
@@ -244,7 +247,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
   end
 
   @impl WebSockex
-  def terminate(reason, state) do
+  def terminate(reason, _state) do
     Logger.info("[CoreWebSocketClient] Terminating: #{inspect(reason)}")
     :ok
   end

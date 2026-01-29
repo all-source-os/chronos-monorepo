@@ -161,7 +161,7 @@ impl StatefulOperator {
         let mut windows = self.windows.write();
         windows
             .entry(window_key.to_string())
-            .or_insert_with(VecDeque::new)
+            .or_default()
             .push_back((timestamp, event));
     }
 

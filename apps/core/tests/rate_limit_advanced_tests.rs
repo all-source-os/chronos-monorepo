@@ -67,7 +67,7 @@ fn test_rate_limit_headers() {
 
     assert_eq!(result.limit, 60);
     assert_eq!(result.remaining, 9); // Used 1, 9 remaining
-    assert!(result.reset > 0);
+    assert!(result.retry_after.is_none()); // No retry_after when allowed
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn test_custom_tier_config() {
     });
 
     // Set custom config for premium tenant
-    limiter.set_tenant_config(
+    limiter.set_config(
         "premium-tenant",
         RateLimitConfig {
             requests_per_minute: 1000,
@@ -212,5 +212,5 @@ fn test_retry_after() {
     assert!(result.retry_after.is_some());
 
     let retry_after = result.retry_after.unwrap();
-    assert!(retry_after > 0);
+    assert!(!retry_after.is_zero());
 }

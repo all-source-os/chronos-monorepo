@@ -10,12 +10,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
     test "creates a projection definition with all required fields" do
       project_fn = fn state, _event -> state + 1 end
 
-      definition = Definition.new(
-        name: :counter,
-        version: 1,
-        initial_state: 0,
-        project_fn: project_fn
-      )
+      definition =
+        Definition.new(
+          name: :counter,
+          version: 1,
+          initial_state: 0,
+          project_fn: project_fn
+        )
 
       assert definition.name == :counter
       assert definition.version == 1
@@ -28,13 +29,14 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
       project_fn = fn state, _event -> state end
       metadata = %{author: "team", description: "Test projection"}
 
-      definition = Definition.new(
-        name: :test,
-        version: 1,
-        initial_state: %{},
-        project_fn: project_fn,
-        metadata: metadata
-      )
+      definition =
+        Definition.new(
+          name: :test,
+          version: 1,
+          initial_state: %{},
+          project_fn: project_fn,
+          metadata: metadata
+        )
 
       assert definition.metadata == metadata
     end
@@ -46,12 +48,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
         items: []
       }
 
-      definition = Definition.new(
-        name: :order_stats,
-        version: 1,
-        initial_state: initial_state,
-        project_fn: fn state, _event -> state end
-      )
+      definition =
+        Definition.new(
+          name: :order_stats,
+          version: 1,
+          initial_state: initial_state,
+          project_fn: fn state, _event -> state end
+        )
 
       assert definition.initial_state == initial_state
     end
@@ -61,13 +64,14 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
     test "creates a snapshot with all required fields" do
       timestamp = DateTime.utc_now()
 
-      snapshot = Snapshot.new(
-        projection_name: :user_stats,
-        entity_id: "user-123",
-        state: %{count: 42},
-        version: 1,
-        timestamp: timestamp
-      )
+      snapshot =
+        Snapshot.new(
+          projection_name: :user_stats,
+          entity_id: "user-123",
+          state: %{count: 42},
+          version: 1,
+          timestamp: timestamp
+        )
 
       assert snapshot.projection_name == :user_stats
       assert snapshot.entity_id == "user-123"
@@ -112,25 +116,27 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
 
   describe "valid_projection?/1" do
     test "validates a complete projection definition" do
-      definition = Definition.new(
-        name: :counter,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Definition.new(
+          name: :counter,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
       assert Projection.valid_projection?(definition)
     end
 
     test "validates projection with complex state" do
-      definition = Definition.new(
-        name: :order_stats,
-        version: 1,
-        initial_state: %{count: 0, total: 0.0},
-        project_fn: fn state, event ->
-          Map.update!(state, :count, &(&1 + 1))
-        end
-      )
+      definition =
+        Definition.new(
+          name: :order_stats,
+          version: 1,
+          initial_state: %{count: 0, total: 0.0},
+          project_fn: fn state, event ->
+            Map.update!(state, :count, &(&1 + 1))
+          end
+        )
 
       assert Projection.valid_projection?(definition)
     end
@@ -184,7 +190,8 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
         name: :test,
         version: 1,
         initial_state: 0,
-        project_fn: fn state -> state end  # arity 1 instead of 2
+        # arity 1 instead of 2
+        project_fn: fn state -> state end
       }
 
       refute Projection.valid_projection?(definition)
@@ -198,12 +205,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
 
   describe "apply_event/3" do
     test "applies a single event to state using project_fn" do
-      definition = Definition.new(
-        name: :counter,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Definition.new(
+          name: :counter,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
       event = %{event_type: "test.event"}
       new_state = Projection.apply_event(definition, 0, event)
@@ -212,22 +220,23 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
     end
 
     test "applies event with state transformation" do
-      definition = Definition.new(
-        name: :order_stats,
-        version: 1,
-        initial_state: %{count: 0, total_amount: 0.0},
-        project_fn: fn state, event ->
-          case event.event_type do
-            "order.placed" ->
-              state
-              |> Map.update!(:count, &(&1 + 1))
-              |> Map.update!(:total_amount, &(&1 + event.amount))
+      definition =
+        Definition.new(
+          name: :order_stats,
+          version: 1,
+          initial_state: %{count: 0, total_amount: 0.0},
+          project_fn: fn state, event ->
+            case event.event_type do
+              "order.placed" ->
+                state
+                |> Map.update!(:count, &(&1 + 1))
+                |> Map.update!(:total_amount, &(&1 + event.amount))
 
-            _ ->
-              state
+              _ ->
+                state
+            end
           end
-        end
-      )
+        )
 
       event = %{event_type: "order.placed", amount: 100.50}
       new_state = Projection.apply_event(definition, %{count: 0, total_amount: 0.0}, event)
@@ -237,14 +246,15 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
     end
 
     test "returns unchanged state for unmatched events" do
-      definition = Definition.new(
-        name: :selective,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, event ->
-          if event.event_type == "increment", do: state + 1, else: state
-        end
-      )
+      definition =
+        Definition.new(
+          name: :selective,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, event ->
+            if event.event_type == "increment", do: state + 1, else: state
+          end
+        )
 
       event = %{event_type: "other"}
       new_state = Projection.apply_event(definition, 5, event)
@@ -255,12 +265,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
 
   describe "apply_events/3" do
     test "applies multiple events in sequence" do
-      definition = Definition.new(
-        name: :counter,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Definition.new(
+          name: :counter,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
       events = [
         %{event_type: "event1"},
@@ -274,25 +285,26 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
     end
 
     test "applies events with complex transformations" do
-      definition = Definition.new(
-        name: :order_processor,
-        version: 1,
-        initial_state: %{orders: 0, cancellations: 0, revenue: 0.0},
-        project_fn: fn state, event ->
-          case event.event_type do
-            "order.placed" ->
-              state
-              |> Map.update!(:orders, &(&1 + 1))
-              |> Map.update!(:revenue, &(&1 + event.amount))
+      definition =
+        Definition.new(
+          name: :order_processor,
+          version: 1,
+          initial_state: %{orders: 0, cancellations: 0, revenue: 0.0},
+          project_fn: fn state, event ->
+            case event.event_type do
+              "order.placed" ->
+                state
+                |> Map.update!(:orders, &(&1 + 1))
+                |> Map.update!(:revenue, &(&1 + event.amount))
 
-            "order.cancelled" ->
-              Map.update!(state, :cancellations, &(&1 + 1))
+              "order.cancelled" ->
+                Map.update!(state, :cancellations, &(&1 + 1))
 
-            _ ->
-              state
+              _ ->
+                state
+            end
           end
-        end
-      )
+        )
 
       events = [
         %{event_type: "order.placed", amount: 100.0},
@@ -309,12 +321,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
     end
 
     test "handles empty event list" do
-      definition = Definition.new(
-        name: :counter,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Definition.new(
+          name: :counter,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
       final_state = Projection.apply_events(definition, 5, [])
 
@@ -324,12 +337,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
 
   describe "initialize_state/1" do
     test "returns the initial state from definition" do
-      definition = Definition.new(
-        name: :test,
-        version: 1,
-        initial_state: %{count: 0},
-        project_fn: fn state, _event -> state end
-      )
+      definition =
+        Definition.new(
+          name: :test,
+          version: 1,
+          initial_state: %{count: 0},
+          project_fn: fn state, _event -> state end
+        )
 
       state = Projection.initialize_state(definition)
 
@@ -343,12 +357,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
         stats: %{total: 0, avg: 0.0}
       }
 
-      definition = Definition.new(
-        name: :complex,
-        version: 1,
-        initial_state: initial,
-        project_fn: fn state, _event -> state end
-      )
+      definition =
+        Definition.new(
+          name: :complex,
+          version: 1,
+          initial_state: initial,
+          project_fn: fn state, _event -> state end
+        )
 
       state = Projection.initialize_state(definition)
 
@@ -378,13 +393,14 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
 
   describe "accessor functions" do
     setup do
-      definition = Definition.new(
-        name: :test_projection,
-        version: 3,
-        initial_state: %{value: 0},
-        project_fn: fn state, _event -> state end,
-        metadata: %{author: "test"}
-      )
+      definition =
+        Definition.new(
+          name: :test_projection,
+          version: 3,
+          initial_state: %{value: 0},
+          project_fn: fn state, _event -> state end,
+          metadata: %{author: "test"}
+        )
 
       %{definition: definition}
     end
@@ -410,12 +426,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
     test "creates a snapshot with current timestamp" do
       before = DateTime.utc_now()
 
-      snapshot = Projection.snapshot_state(
-        :user_stats,
-        "user-123",
-        %{count: 42},
-        1
-      )
+      snapshot =
+        Projection.snapshot_state(
+          :user_stats,
+          "user-123",
+          %{count: 42},
+          1
+        )
 
       after_time = DateTime.utc_now()
 
@@ -434,12 +451,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
         metadata: %{last_updated: "2024-01-01"}
       }
 
-      snapshot = Projection.snapshot_state(
-        :order_stats,
-        "tenant-456",
-        complex_state,
-        2
-      )
+      snapshot =
+        Projection.snapshot_state(
+          :order_stats,
+          "tenant-456",
+          complex_state,
+          2
+        )
 
       assert snapshot.state == complex_state
       assert snapshot.version == 2
@@ -448,13 +466,14 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
 
   describe "restore_from_snapshot/1" do
     test "restores state from snapshot" do
-      snapshot = Snapshot.new(
-        projection_name: :user_stats,
-        entity_id: "user-123",
-        state: %{count: 42, total: 1000.0},
-        version: 1,
-        timestamp: DateTime.utc_now()
-      )
+      snapshot =
+        Snapshot.new(
+          projection_name: :user_stats,
+          entity_id: "user-123",
+          state: %{count: 42, total: 1000.0},
+          version: 1,
+          timestamp: DateTime.utc_now()
+        )
 
       restored_state = Projection.restore_from_snapshot(snapshot)
 
@@ -467,13 +486,14 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
         list: [1, 2, 3]
       }
 
-      snapshot = Snapshot.new(
-        projection_name: :complex,
-        entity_id: "entity-789",
-        state: complex_state,
-        version: 3,
-        timestamp: DateTime.utc_now()
-      )
+      snapshot =
+        Snapshot.new(
+          projection_name: :complex,
+          entity_id: "entity-789",
+          state: complex_state,
+          version: 3,
+          timestamp: DateTime.utc_now()
+        )
 
       restored = Projection.restore_from_snapshot(snapshot)
 
@@ -484,20 +504,21 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
   describe "integration: complete projection lifecycle" do
     test "creates, applies events, snapshots, and restores" do
       # 1. Create projection definition
-      definition = Definition.new(
-        name: :user_activity,
-        version: 1,
-        initial_state: %{login_count: 0, last_login: nil},
-        project_fn: fn state, event ->
-          case event.event_type do
-            "user.login" ->
-              %{state | login_count: state.login_count + 1, last_login: event.timestamp}
+      definition =
+        Definition.new(
+          name: :user_activity,
+          version: 1,
+          initial_state: %{login_count: 0, last_login: nil},
+          project_fn: fn state, event ->
+            case event.event_type do
+              "user.login" ->
+                %{state | login_count: state.login_count + 1, last_login: event.timestamp}
 
-            _ ->
-              state
+              _ ->
+                state
+            end
           end
-        end
-      )
+        )
 
       # 2. Initialize state
       state = Projection.initialize_state(definition)
@@ -515,12 +536,13 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
       assert final_state.last_login == "2024-01-01T18:00:00Z"
 
       # 4. Create snapshot
-      snapshot = Projection.snapshot_state(
-        definition.name,
-        "user-123",
-        final_state,
-        definition.version
-      )
+      snapshot =
+        Projection.snapshot_state(
+          definition.name,
+          "user-123",
+          final_state,
+          definition.version
+        )
 
       assert snapshot.state.login_count == 3
 
@@ -531,18 +553,19 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
 
     test "migration scenario: upgrade from v1 to v2" do
       # V1 projection
-      v1_definition = Definition.new(
-        name: :order_stats,
-        version: 1,
-        initial_state: %{count: 0},
-        project_fn: fn state, event ->
-          if event.event_type == "order.placed" do
-            Map.update!(state, :count, &(&1 + 1))
-          else
-            state
+      v1_definition =
+        Definition.new(
+          name: :order_stats,
+          version: 1,
+          initial_state: %{count: 0},
+          project_fn: fn state, event ->
+            if event.event_type == "order.placed" do
+              Map.update!(state, :count, &(&1 + 1))
+            else
+              state
+            end
           end
-        end
-      )
+        )
 
       # Apply some events to v1
       v1_events = [
@@ -562,20 +585,21 @@ defmodule QueryServiceEx.Domain.Entities.ProjectionTest do
       assert v2_state == %{count: 2, total_amount: 0.0}
 
       # V2 projection with new field
-      v2_definition = Definition.new(
-        name: :order_stats,
-        version: 2,
-        initial_state: %{count: 0, total_amount: 0.0},
-        project_fn: fn state, event ->
-          if event.event_type == "order.placed" do
-            state
-            |> Map.update!(:count, &(&1 + 1))
-            |> Map.update!(:total_amount, &(&1 + event.amount))
-          else
-            state
+      v2_definition =
+        Definition.new(
+          name: :order_stats,
+          version: 2,
+          initial_state: %{count: 0, total_amount: 0.0},
+          project_fn: fn state, event ->
+            if event.event_type == "order.placed" do
+              state
+              |> Map.update!(:count, &(&1 + 1))
+              |> Map.update!(:total_amount, &(&1 + event.amount))
+            else
+              state
+            end
           end
-        end
-      )
+        )
 
       # Apply new events to v2
       v2_events = [

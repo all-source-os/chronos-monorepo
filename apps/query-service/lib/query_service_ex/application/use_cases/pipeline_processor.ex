@@ -250,9 +250,7 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessor do
 
   @impl true
   def terminate(reason, state) do
-    Logger.info(
-      "Stopping pipeline processor for #{state.pipeline.name}: #{inspect(reason)}"
-    )
+    Logger.info("Stopping pipeline processor for #{state.pipeline.name}: #{inspect(reason)}")
 
     :telemetry.execute(
       [:pipeline_processor, :stopped],

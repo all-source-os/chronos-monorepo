@@ -20,9 +20,9 @@ type Tenant struct {
 type TenantStatus string
 
 const (
-	TenantStatusActive   TenantStatus = "active"
+	TenantStatusActive    TenantStatus = "active"
 	TenantStatusSuspended TenantStatus = "suspended"
-	TenantStatusDeleted  TenantStatus = "deleted"
+	TenantStatusDeleted   TenantStatus = "deleted"
 )
 
 // NewTenant creates a new tenant with validation

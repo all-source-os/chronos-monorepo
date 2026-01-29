@@ -1,4 +1,4 @@
-import type { Page, Locator } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { BasePage } from "./BasePage";
 
 /**
@@ -68,7 +68,9 @@ export class DemoPage extends BasePage {
     this.generateIoTBtn = page.getByRole("button", {
       name: /Generate IoT Sensor Data/i,
     });
-    this.eventStream = page.getByRole("heading", { name: /^Event Stream$/i, level: 3 }).locator("..");
+    this.eventStream = page
+      .getByRole("heading", { name: /^Event Stream$/i, level: 3 })
+      .locator("..");
     this.eventStreamTitle = page.getByRole("heading", { name: /^Event Stream$/i, level: 3 });
     this.totalBatchesStat = page.getByText(/Total Batches/i);
     this.totalEventsStat = page.getByText(/Total Events/i);

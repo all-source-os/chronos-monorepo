@@ -1,14 +1,14 @@
 import type {
+  AnalyticsQuery,
   CreateEventRequest,
   Event,
-  QueryEventsParams,
+  Metrics,
+  Pipeline,
   Projection,
+  QueryEventsParams,
   Schema,
   Snapshot,
-  Pipeline,
-  AnalyticsQuery,
   Tenant,
-  Metrics,
 } from "./types";
 
 const EVENT_STORE_URL = process.env.NEXT_PUBLIC_EVENT_STORE_URL || "http://localhost:3900";
@@ -53,7 +53,7 @@ class EventStoreClient {
 
     // Add authentication header if available
     if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
+      headers.Authorization = `Bearer ${this.token}`;
     } else if (this.apiKey) {
       headers["X-API-Key"] = this.apiKey;
     }

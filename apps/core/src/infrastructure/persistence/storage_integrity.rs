@@ -77,7 +77,7 @@ impl StorageIntegrity {
         let mut hasher = Sha256::new();
 
         // Include length to prevent length extension
-        hasher.update(&(data.len() as u64).to_le_bytes());
+        hasher.update((data.len() as u64).to_le_bytes());
 
         // Include label if provided
         if let Some(l) = label {

@@ -1,19 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Button } from "@allsource/ui";
-import {
-  TrendingUp,
-  BarChart,
-  PieChart,
-  LineChart,
-  Activity,
-  Users,
-  ArrowRight,
-} from "lucide-react";
 import { eventStoreClient } from "@/lib/event-store/client";
 import type { AnalyticsQuery } from "@/lib/event-store/types";
+import { Button } from "@allsource/ui";
+import { motion } from "framer-motion";
+import {
+  Activity,
+  ArrowRight,
+  BarChart,
+  LineChart,
+  PieChart,
+  TrendingUp,
+  Users,
+} from "lucide-react";
+import { useState } from "react";
 
 interface AnalyticsResultData {
   metric: string;
@@ -365,9 +365,7 @@ export function AnalyticsDemo() {
         >
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-semibold text-slate-200">Analysis Results</h3>
-            <span className="text-sm text-slate-400">
-              {new Date().toLocaleTimeString()}
-            </span>
+            <span className="text-sm text-slate-400">{new Date().toLocaleTimeString()}</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -383,9 +381,7 @@ export function AnalyticsDemo() {
                   <p className="text-sm text-slate-400">{result.metric}</p>
                   <div className="flex items-baseline gap-2">
                     <p className="text-3xl font-bold text-white">{result.value}</p>
-                    {result.unit && (
-                      <p className="text-sm text-slate-400">{result.unit}</p>
-                    )}
+                    {result.unit && <p className="text-sm text-slate-400">{result.unit}</p>}
                   </div>
                   {result.change && (
                     <div className="flex items-center gap-1 text-sm">
@@ -394,11 +390,7 @@ export function AnalyticsDemo() {
                           result.change > 0 ? "text-green-500" : "text-red-500"
                         } rotate-${result.change > 0 ? "-45" : "45"}`}
                       />
-                      <span
-                        className={
-                          result.change > 0 ? "text-green-500" : "text-red-500"
-                        }
-                      >
+                      <span className={result.change > 0 ? "text-green-500" : "text-red-500"}>
                         {Math.abs(result.change)}%
                       </span>
                     </div>
@@ -419,9 +411,7 @@ export function AnalyticsDemo() {
                             }}
                           />
                         </div>
-                        <span className="text-xs text-slate-300 w-12 text-right">
-                          {item.value}
-                        </span>
+                        <span className="text-xs text-slate-300 w-12 text-right">{item.value}</span>
                       </div>
                     ))}
                   </div>
@@ -436,16 +426,26 @@ export function AnalyticsDemo() {
               Available Aggregation Functions
             </h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {["count", "sum", "avg", "min", "max", "stddev", "variance", "percentile", "distinct", "first", "last"].map(
-                (func) => (
-                  <div
-                    key={func}
-                    className="bg-slate-700/30 rounded-lg px-3 py-2 text-sm text-slate-300 text-center"
-                  >
-                    {func}
-                  </div>
-                )
-              )}
+              {[
+                "count",
+                "sum",
+                "avg",
+                "min",
+                "max",
+                "stddev",
+                "variance",
+                "percentile",
+                "distinct",
+                "first",
+                "last",
+              ].map((func) => (
+                <div
+                  key={func}
+                  className="bg-slate-700/30 rounded-lg px-3 py-2 text-sm text-slate-300 text-center"
+                >
+                  {func}
+                </div>
+              ))}
             </div>
           </div>
         </motion.div>

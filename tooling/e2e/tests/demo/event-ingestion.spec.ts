@@ -1,4 +1,4 @@
-import { test, expect } from "../../fixtures/pages";
+import { expect, test } from "../../fixtures/pages";
 
 test.describe("Event Ingestion Demo", () => {
   test.beforeEach(async ({ demoPage }) => {
@@ -17,12 +17,8 @@ test.describe("Event Ingestion Demo", () => {
     ).toBeVisible();
 
     // Check buttons
-    await expect(
-      page.getByRole("button", { name: /Generate E-Commerce Events/i })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Generate IoT Sensor Data/i })
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /Generate E-Commerce Events/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Generate IoT Sensor Data/i })).toBeVisible();
 
     // Check event stream section
     const eventStreamVisible = await demoPage.isEventStreamVisible();
@@ -61,10 +57,7 @@ test.describe("Event Ingestion Demo", () => {
     expect(statsVisible).toBe(true);
   });
 
-  test("should display event statistics after generating events", async ({
-    demoPage,
-    page,
-  }) => {
+  test("should display event statistics after generating events", async ({ demoPage, page }) => {
     // Generate events
     await demoPage.generateEcommerceEvents();
     await page.waitForTimeout(1500);

@@ -87,7 +87,7 @@ mod tests {
     use super::*;
     use crate::domain::entities::Event;
     use async_trait::async_trait;
-    use chrono::{Duration, Utc};
+    use chrono::Utc;
     use serde_json::json;
     use uuid::Uuid;
 

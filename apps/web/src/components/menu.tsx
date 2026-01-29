@@ -3,6 +3,7 @@
 import Link from "next/link";
 import * as React from "react";
 
+import { siteConfig } from "@/lib/config";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -10,10 +11,9 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
   cn,
+  navigationMenuTriggerStyle,
 } from "@allsource/ui";
-import { siteConfig } from "@/lib/config";
 
 export default function NavigationMenuDemo() {
   return (

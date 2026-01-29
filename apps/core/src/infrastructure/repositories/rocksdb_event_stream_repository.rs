@@ -106,22 +106,22 @@ impl RocksDBEventStreamRepository {
             event_count: stream.event_count() as u64,
         };
 
-        serde_json::to_vec(&metadata).map_err(|e| AllSourceError::SerializationError(e))
+        serde_json::to_vec(&metadata).map_err(AllSourceError::SerializationError)
     }
 
     /// Helper: Deserialize stream metadata
     fn deserialize_stream_metadata(data: &[u8]) -> Result<StreamMetadata> {
-        serde_json::from_slice(data).map_err(|e| AllSourceError::SerializationError(e))
+        serde_json::from_slice(data).map_err(AllSourceError::SerializationError)
     }
 
     /// Helper: Serialize event
     fn serialize_event(event: &Event) -> Result<Vec<u8>> {
-        serde_json::to_vec(event).map_err(|e| AllSourceError::SerializationError(e))
+        serde_json::to_vec(event).map_err(AllSourceError::SerializationError)
     }
 
     /// Helper: Deserialize event
     fn deserialize_event(data: &[u8]) -> Result<Event> {
-        serde_json::from_slice(data).map_err(|e| AllSourceError::SerializationError(e))
+        serde_json::from_slice(data).map_err(AllSourceError::SerializationError)
     }
 
     /// Helper: Generate event key (stream_id:version)
@@ -169,7 +169,7 @@ impl RocksDBEventStreamRepository {
             .map_err(|e| {
                 AllSourceError::StorageError(format!("Failed to read partition index: {}", e))
             })? {
-            serde_json::from_slice(&data).map_err(|e| AllSourceError::SerializationError(e))?
+            serde_json::from_slice(&data).map_err(AllSourceError::SerializationError)?
         } else {
             Vec::new()
         };
@@ -441,8 +441,8 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
                 item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {}", e)))?;
 
             if let Ok(key_str) = std::str::from_utf8(&key) {
-                if key_str.starts_with("partition:") {
-                    if let Ok(partition_id) = key_str[10..].parse::<u32>() {
+                if let Some(partition_suffix) = key_str.strip_prefix("partition:") {
+                    if let Ok(partition_id) = partition_suffix.parse::<u32>() {
                         let stream_ids: Vec<String> = serde_json::from_slice(&value)?;
                         stats.push((partition_id, stream_ids.len()));
                     }

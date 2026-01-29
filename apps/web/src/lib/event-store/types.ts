@@ -92,7 +92,18 @@ export interface AnalyticsQuery {
     to: string;
   };
   granularity?: "minute" | "hour" | "day" | "week" | "month";
-  aggregation?: "count" | "sum" | "avg" | "min" | "max" | "stddev" | "variance" | "percentile" | "distinct" | "first" | "last";
+  aggregation?:
+    | "count"
+    | "sum"
+    | "avg"
+    | "min"
+    | "max"
+    | "stddev"
+    | "variance"
+    | "percentile"
+    | "distinct"
+    | "first"
+    | "last";
   field?: string;
   funnel_steps?: string[];
   cohort_definition?: {

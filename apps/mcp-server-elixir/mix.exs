@@ -53,4 +53,3 @@ defmodule McpServerElixir.MixProject do
     ]
   end
 end
-

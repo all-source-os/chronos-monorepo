@@ -1,4 +1,4 @@
-import { test, expect } from "../../fixtures/pages";
+import { expect, test } from "../../fixtures/pages";
 
 test.describe("Demo Page UI and Navigation", () => {
   test.beforeEach(async ({ demoPage }) => {
@@ -16,9 +16,7 @@ test.describe("Demo Page UI and Navigation", () => {
     await expect(page.getByRole("heading", { name: /AllSource Event Store/i })).toBeVisible();
 
     // Check hero description
-    await expect(
-      page.getByText(/AI-Native Event Sourcing Platform/i)
-    ).toBeVisible();
+    await expect(page.getByText(/AI-Native Event Sourcing Platform/i)).toBeVisible();
     await expect(
       page.getByText(/Experience the next generation of event streaming/i)
     ).toBeVisible();
@@ -49,18 +47,11 @@ test.describe("Demo Page UI and Navigation", () => {
 
     // Check that Event Ingestion demo is displayed
     await expect(page.getByRole("heading", { name: /Live Event Ingestion/i })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Generate E-Commerce Events/i })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Generate IoT Sensor Data/i })
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /Generate E-Commerce Events/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Generate IoT Sensor Data/i })).toBeVisible();
   });
 
-  test("should switch to Query demo when clicking Queries card", async ({
-    demoPage,
-    page,
-  }) => {
+  test("should switch to Query demo when clicking Queries card", async ({ demoPage, page }) => {
     await demoPage.clickQueriesCard();
 
     // Check that Query demo is displayed
@@ -70,10 +61,7 @@ test.describe("Demo Page UI and Navigation", () => {
     await expect(page.getByRole("button", { name: /Time Range Query/i })).toBeVisible();
   });
 
-  test("should switch to Metrics demo when clicking Metrics card", async ({
-    demoPage,
-    page,
-  }) => {
+  test("should switch to Metrics demo when clicking Metrics card", async ({ demoPage, page }) => {
     await demoPage.clickMetricsCard();
 
     // Check that Metrics demo is displayed

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface FlickeringGridProps {
   squareSize?: number;
@@ -29,7 +30,7 @@ export const FlickeringGrid: React.FC<FlickeringGridProps> = ({
   const memoizedColor = useMemo(() => {
     const toRGBA = (color: string) => {
       if (typeof window === "undefined") {
-        return `rgba(0, 0, 0,`;
+        return "rgba(0, 0, 0,";
       }
       const canvas = document.createElement("canvas");
       canvas.width = canvas.height = 1;

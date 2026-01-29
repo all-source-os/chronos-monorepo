@@ -78,14 +78,21 @@ defmodule QueryServiceEx.Application.Services.EventPipeline do
   defp do_start_link(opts) do
     name = opts[:name] || __MODULE__
 
-    processors = opts[:processors] ||
-      Application.get_env(:query_service_ex, :event_pipeline_processors, @default_processors)
+    processors =
+      opts[:processors] ||
+        Application.get_env(:query_service_ex, :event_pipeline_processors, @default_processors)
 
-    batch_size = opts[:batch_size] ||
-      Application.get_env(:query_service_ex, :event_pipeline_batch_size, @default_batch_size)
+    batch_size =
+      opts[:batch_size] ||
+        Application.get_env(:query_service_ex, :event_pipeline_batch_size, @default_batch_size)
 
-    batch_timeout = opts[:batch_timeout] ||
-      Application.get_env(:query_service_ex, :event_pipeline_batch_timeout, @default_batch_timeout)
+    batch_timeout =
+      opts[:batch_timeout] ||
+        Application.get_env(
+          :query_service_ex,
+          :event_pipeline_batch_timeout,
+          @default_batch_timeout
+        )
 
     Broadway.start_link(__MODULE__,
       name: name,
@@ -151,7 +158,6 @@ defmodule QueryServiceEx.Application.Services.EventPipeline do
       message
       |> Broadway.Message.put_data(%{event: event, projections: get_affected_projections(event)})
       |> Broadway.Message.put_batcher(:projection_updates)
-
     rescue
       error ->
         Logger.warning("[EventPipeline] Failed to process event: #{inspect(error)}")
@@ -198,7 +204,7 @@ defmodule QueryServiceEx.Application.Services.EventPipeline do
     Enum.each(messages, fn message ->
       Logger.warning(
         "[EventPipeline] Message failed: #{inspect(message.status)}, " <>
-        "event: #{inspect(message.data)}"
+          "event: #{inspect(message.data)}"
       )
     end)
 

@@ -1,4 +1,4 @@
-import { test, expect } from "../../fixtures/pages";
+import { expect, test } from "../../fixtures/pages";
 
 test.describe("Query Demo", () => {
   test.beforeEach(async ({ demoPage }) => {
@@ -132,10 +132,7 @@ test.describe("Query Demo", () => {
     expect(true).toBe(true);
   });
 
-  test("query results should display event details when available", async ({
-    demoPage,
-    page,
-  }) => {
+  test("query results should display event details when available", async ({ demoPage, page }) => {
     // First ingest some events
     await demoPage.clickEventsCard();
     await demoPage.generateEcommerceEvents();

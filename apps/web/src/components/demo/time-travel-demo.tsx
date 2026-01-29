@@ -1,26 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { eventStoreClient } from "@/lib/event-store/client";
+import type { Event } from "@/lib/event-store/types";
 import { Button } from "@allsource/ui";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Clock,
   Calendar,
-  Rewind,
-  FastForward,
-  Play,
-  Pause,
-  RotateCcw,
-  History,
-  TrendingUp,
-  Database,
-  Zap,
   ChevronLeft,
   ChevronRight,
   CircleDot,
+  Clock,
+  Database,
+  FastForward,
+  History,
+  Pause,
+  Play,
+  Rewind,
+  RotateCcw,
+  TrendingUp,
+  Zap,
 } from "lucide-react";
-import { eventStoreClient } from "@/lib/event-store/client";
-import type { Event } from "@/lib/event-store/types";
+import { useEffect, useState } from "react";
 
 interface TimelinePoint {
   timestamp: string;
@@ -44,14 +44,17 @@ export function TimeTravelDemo() {
     if (events.length === 0) return [];
 
     // Group events by hour
-    const grouped = events.reduce((acc, event) => {
-      const hour = new Date(event.timestamp).toISOString().slice(0, 13);
-      if (!acc[hour]) {
-        acc[hour] = [];
-      }
-      acc[hour].push(event);
-      return acc;
-    }, {} as Record<string, Event[]>);
+    const grouped = events.reduce(
+      (acc, event) => {
+        const hour = new Date(event.timestamp).toISOString().slice(0, 13);
+        if (!acc[hour]) {
+          acc[hour] = [];
+        }
+        acc[hour].push(event);
+        return acc;
+      },
+      {} as Record<string, Event[]>
+    );
 
     return Object.entries(grouped)
       .map(([timestamp, events]) => ({
@@ -258,7 +261,8 @@ export function TimeTravelDemo() {
       (e) => new Date(e.timestamp) <= new Date(selectedTimestamp || Date.now())
     ) || [];
 
-  const progress = timelinePoints.length > 0 ? ((currentIndex + 1) / timelinePoints.length) * 100 : 0;
+  const progress =
+    timelinePoints.length > 0 ? ((currentIndex + 1) / timelinePoints.length) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -266,9 +270,7 @@ export function TimeTravelDemo() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white">Temporal Queries</h2>
-          <p className="text-sm text-slate-400 mt-1">
-            Query historical state at any point in time
-          </p>
+          <p className="text-sm text-slate-400 mt-1">Query historical state at any point in time</p>
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -512,9 +514,9 @@ export function TimeTravelDemo() {
           <div>
             <h4 className="text-sm font-semibold text-white mb-1">How Time Travel Works</h4>
             <p className="text-xs text-slate-400">
-              Navigate through your entity's history using the timeline controls. The entity state is
-              reconstructed by replaying events up to the selected point in time, allowing you to see
-              exactly how the entity looked at any moment in its history.
+              Navigate through your entity's history using the timeline controls. The entity state
+              is reconstructed by replaying events up to the selected point in time, allowing you to
+              see exactly how the entity looked at any moment in its history.
             </p>
           </div>
         </div>

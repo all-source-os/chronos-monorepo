@@ -32,11 +32,9 @@ use allsource_core::{
         KmsProvider,
         RecommendedAction,
 
-        ScanStatus,
         SecurityScanConfig,
         // Security Automation
         SecurityScanner,
-        Severity,
         SystemLoad,
     },
 };

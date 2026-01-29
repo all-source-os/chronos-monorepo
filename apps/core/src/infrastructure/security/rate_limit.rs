@@ -297,7 +297,7 @@ mod tests {
         // Should have ~2 tokens refilled
         let remaining = bucket.remaining();
         assert!(
-            remaining >= 1 && remaining <= 3,
+            (1..=3).contains(&remaining),
             "Expected 1-3 tokens, got {}",
             remaining
         );

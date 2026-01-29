@@ -1,4 +1,4 @@
-import { BlurFade, Section, Card, CardContent } from "@allsource/ui";
+import { BlurFade, Card, CardContent, Section } from "@allsource/ui";
 import { Brain, Shield, Zap } from "lucide-react";
 
 const problems = [

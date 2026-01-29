@@ -442,9 +442,11 @@ mod tests {
 
     #[test]
     fn test_limit_adjustment() {
-        let mut config = AdaptiveRateLimitConfig::default();
-        config.min_rate_limit = 10;
-        config.max_rate_limit = 1000;
+        let config = AdaptiveRateLimitConfig {
+            min_rate_limit: 10,
+            max_rate_limit: 1000,
+            ..Default::default()
+        };
 
         let limiter = AdaptiveRateLimiter::new(config);
 
@@ -497,8 +499,10 @@ mod tests {
 
     #[test]
     fn test_disabled_adaptive_limiting() {
-        let mut config = AdaptiveRateLimitConfig::default();
-        config.enabled = false;
+        let config = AdaptiveRateLimitConfig {
+            enabled: false,
+            ..Default::default()
+        };
 
         let limiter = AdaptiveRateLimiter::new(config);
         let result = limiter.check_adaptive_limit("tenant1").unwrap();

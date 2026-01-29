@@ -249,7 +249,7 @@ impl SecurityScanner {
         let mut findings = Vec::new();
 
         // Run cargo audit
-        let output = Command::new("cargo").args(&["audit", "--json"]).output();
+        let output = Command::new("cargo").args(["audit", "--json"]).output();
 
         match output {
             Ok(output) if output.status.success() => {
@@ -351,7 +351,7 @@ impl SecurityScanner {
 
         // Run clippy with security lints
         let output = Command::new("cargo")
-            .args(&["clippy", "--", "-W", "clippy::all"])
+            .args(["clippy", "--", "-W", "clippy::all"])
             .output();
 
         match output {

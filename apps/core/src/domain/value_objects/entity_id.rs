@@ -282,7 +282,7 @@ mod tests {
         assert!(result.is_err());
 
         // Null byte
-        let result = EntityId::new("user\0123".to_string());
+        let result = EntityId::new("user\x00123".to_string());
         assert!(result.is_err());
 
         if let Err(e) = EntityId::new("test\n".to_string()) {

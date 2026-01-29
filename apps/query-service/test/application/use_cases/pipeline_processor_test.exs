@@ -7,16 +7,17 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessorTest do
 
   setup do
     # Create a simple test pipeline
-    pipeline = Definition.new(
-      name: :test_pipeline,
-      version: 1,
-      operators: [
-        Pipeline.filter_operator("active_only", fn e -> Map.get(e, :active, true) end),
-        Pipeline.transform_operator("add_timestamp", fn e ->
-          Map.put(e, :processed_at, "2024-01-01")
-        end)
-      ]
-    )
+    pipeline =
+      Definition.new(
+        name: :test_pipeline,
+        version: 1,
+        operators: [
+          Pipeline.filter_operator("active_only", fn e -> Map.get(e, :active, true) end),
+          Pipeline.transform_operator("add_timestamp", fn e ->
+            Map.put(e, :processed_at, "2024-01-01")
+          end)
+        ]
+      )
 
     {:ok, pipeline: pipeline}
   end
@@ -112,15 +113,16 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessorTest do
     end
 
     test "returns error when pipeline operator fails", %{pipeline: _pipeline} do
-      error_pipeline = Definition.new(
-        name: :error_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.transform_operator("fail", fn _e ->
-            raise "Processing error"
-          end)
-        ]
-      )
+      error_pipeline =
+        Definition.new(
+          name: :error_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.transform_operator("fail", fn _e ->
+              raise "Processing error"
+            end)
+          ]
+        )
 
       {:ok, pid} = PipelineProcessor.start_link(pipeline: error_pipeline)
 
@@ -257,15 +259,16 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessorTest do
     end
 
     test "handles error rate in statistics", %{pipeline: _pipeline} do
-      error_pipeline = Definition.new(
-        name: :error_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.transform_operator("conditional_fail", fn e ->
-            if rem(e.id, 2) == 0, do: e, else: raise "Odd number error"
-          end)
-        ]
-      )
+      error_pipeline =
+        Definition.new(
+          name: :error_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.transform_operator("conditional_fail", fn e ->
+              if rem(e.id, 2) == 0, do: e, else: raise("Odd number error")
+            end)
+          ]
+        )
 
       {:ok, pid} = PipelineProcessor.start_link(pipeline: error_pipeline)
 
@@ -371,24 +374,25 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessorTest do
 
   describe "complex pipeline scenarios" do
     test "multi-stage data enrichment pipeline" do
-      pipeline = Definition.new(
-        name: :enrichment_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.filter_operator("valid_orders", fn e ->
-            Map.has_key?(e, :order_id) and e.order_id != nil
-          end),
-          Pipeline.transform_operator("normalize", fn e ->
-            Map.put(e, :normalized, true)
-          end),
-          Pipeline.enrich_operator("add_metadata", fn e ->
-            Map.put(e, :metadata, %{processed_by: "pipeline", timestamp: "2024-01-01"})
-          end),
-          Pipeline.validate_operator("validate_complete", fn e ->
-            if Map.has_key?(e, :metadata), do: e, else: raise "Missing metadata"
-          end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :enrichment_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.filter_operator("valid_orders", fn e ->
+              Map.has_key?(e, :order_id) and e.order_id != nil
+            end),
+            Pipeline.transform_operator("normalize", fn e ->
+              Map.put(e, :normalized, true)
+            end),
+            Pipeline.enrich_operator("add_metadata", fn e ->
+              Map.put(e, :metadata, %{processed_by: "pipeline", timestamp: "2024-01-01"})
+            end),
+            Pipeline.validate_operator("validate_complete", fn e ->
+              if Map.has_key?(e, :metadata), do: e, else: raise("Missing metadata")
+            end)
+          ]
+        )
 
       {:ok, pid} = PipelineProcessor.start_link(pipeline: pipeline)
 
@@ -411,22 +415,23 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessorTest do
     end
 
     test "event routing pipeline" do
-      pipeline = Definition.new(
-        name: :routing_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.transform_operator("classify", fn e ->
-            priority = if e.amount > 1000, do: :high, else: :normal
-            Map.put(e, :priority, priority)
-          end),
-          Pipeline.route_operator("route_by_priority", fn e ->
-            case e.priority do
-              :high -> :priority_queue
-              :normal -> :standard_queue
-            end
-          end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :routing_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.transform_operator("classify", fn e ->
+              priority = if e.amount > 1000, do: :high, else: :normal
+              Map.put(e, :priority, priority)
+            end),
+            Pipeline.route_operator("route_by_priority", fn e ->
+              case e.priority do
+                :high -> :priority_queue
+                :normal -> :standard_queue
+              end
+            end)
+          ]
+        )
 
       {:ok, pid} = PipelineProcessor.start_link(pipeline: pipeline)
 
@@ -465,11 +470,12 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessorTest do
         nil
       )
 
-      pipeline = Definition.new(
-        name: :telemetry_test,
-        version: 1,
-        operators: []
-      )
+      pipeline =
+        Definition.new(
+          name: :telemetry_test,
+          version: 1,
+          operators: []
+        )
 
       {:ok, pid} = PipelineProcessor.start_link(pipeline: pipeline)
 
@@ -493,13 +499,14 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessorTest do
         nil
       )
 
-      pipeline = Definition.new(
-        name: :telemetry_test,
-        version: 1,
-        operators: [
-          Pipeline.transform_operator("test", fn e -> e end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :telemetry_test,
+          version: 1,
+          operators: [
+            Pipeline.transform_operator("test", fn e -> e end)
+          ]
+        )
 
       {:ok, pid} = PipelineProcessor.start_link(pipeline: pipeline)
       PipelineProcessor.process_event(pid, %{id: 1})

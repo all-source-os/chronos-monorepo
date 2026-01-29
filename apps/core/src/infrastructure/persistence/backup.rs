@@ -336,7 +336,6 @@ impl BackupManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[test]
     fn test_backup_config_default() {

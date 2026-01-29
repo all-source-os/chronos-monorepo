@@ -17,71 +17,79 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "start_link/1" do
     test "starts a projection server with valid definition" do
-      definition = Projection.Definition.new(
-        name: :counter,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :counter,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
-      assert {:ok, pid} = ProjectionServer.start_link(
-               projection: definition,
-               entity_id: "test-1"
-             )
+      assert {:ok, pid} =
+               ProjectionServer.start_link(
+                 projection: definition,
+                 entity_id: "test-1"
+               )
 
       assert Process.alive?(pid)
       ProjectionServer.stop(pid)
     end
 
     test "starts with custom snapshot interval" do
-      definition = Projection.Definition.new(
-        name: :test,
-        version: 1,
-        initial_state: %{},
-        project_fn: fn state, _event -> state end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :test,
+          version: 1,
+          initial_state: %{},
+          project_fn: fn state, _event -> state end
+        )
 
-      assert {:ok, pid} = ProjectionServer.start_link(
-               projection: definition,
-               entity_id: "test-2",
-               snapshot_interval: 50
-             )
+      assert {:ok, pid} =
+               ProjectionServer.start_link(
+                 projection: definition,
+                 entity_id: "test-2",
+                 snapshot_interval: 50
+               )
 
       assert Process.alive?(pid)
       ProjectionServer.stop(pid)
     end
 
     test "starts with state store" do
-      definition = Projection.Definition.new(
-        name: :test,
-        version: 1,
-        initial_state: %{},
-        project_fn: fn state, _event -> state end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :test,
+          version: 1,
+          initial_state: %{},
+          project_fn: fn state, _event -> state end
+        )
 
-      assert {:ok, pid} = ProjectionServer.start_link(
-               projection: definition,
-               entity_id: "test-3",
-               state_store: MockStateStore
-             )
+      assert {:ok, pid} =
+               ProjectionServer.start_link(
+                 projection: definition,
+                 entity_id: "test-3",
+                 state_store: MockStateStore
+               )
 
       assert Process.alive?(pid)
       ProjectionServer.stop(pid)
     end
 
     test "can be started with a name" do
-      definition = Projection.Definition.new(
-        name: :test,
-        version: 1,
-        initial_state: %{},
-        project_fn: fn state, _event -> state end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :test,
+          version: 1,
+          initial_state: %{},
+          project_fn: fn state, _event -> state end
+        )
 
-      assert {:ok, pid} = ProjectionServer.start_link(
-               projection: definition,
-               entity_id: "test-4",
-               name: :test_projection_server
-             )
+      assert {:ok, pid} =
+               ProjectionServer.start_link(
+                 projection: definition,
+                 entity_id: "test-4",
+                 name: :test_projection_server
+               )
 
       assert Process.whereis(:test_projection_server) == pid
       ProjectionServer.stop(pid)
@@ -92,16 +100,18 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
         name: :test,
         version: 1,
         initial_state: 0,
-        project_fn: :not_a_function  # Invalid: not a function
+        # Invalid: not a function
+        project_fn: :not_a_function
       }
 
       # Catch the EXIT signal
       Process.flag(:trap_exit, true)
 
-      result = ProjectionServer.start_link(
-        projection: invalid_definition,
-        entity_id: "test-5"
-      )
+      result =
+        ProjectionServer.start_link(
+          projection: invalid_definition,
+          entity_id: "test-5"
+        )
 
       case result do
         {:error, {:invalid_projection, _}} ->
@@ -126,17 +136,19 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "apply_event/2" do
     setup do
-      definition = Projection.Definition.new(
-        name: :counter,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :counter,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "apply-event-test"
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "apply-event-test"
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -179,17 +191,19 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "apply_events/2" do
     setup do
-      definition = Projection.Definition.new(
-        name: :accumulator,
-        version: 1,
-        initial_state: [],
-        project_fn: fn state, event -> [event.value | state] end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :accumulator,
+          version: 1,
+          initial_state: [],
+          project_fn: fn state, event -> [event.value | state] end
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "apply-events-test"
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "apply-events-test"
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -219,19 +233,21 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "get_state/1" do
     setup do
-      definition = Projection.Definition.new(
-        name: :state_test,
-        version: 1,
-        initial_state: %{count: 0},
-        project_fn: fn state, _event ->
-          Map.update!(state, :count, &(&1 + 1))
-        end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :state_test,
+          version: 1,
+          initial_state: %{count: 0},
+          project_fn: fn state, _event ->
+            Map.update!(state, :count, &(&1 + 1))
+          end
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "get-state-test"
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "get-state-test"
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -259,17 +275,19 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "get_metadata/1" do
     setup do
-      definition = Projection.Definition.new(
-        name: :metadata_test,
-        version: 3,
-        initial_state: 0,
-        project_fn: fn state, _event -> state end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :metadata_test,
+          version: 3,
+          initial_state: 0,
+          project_fn: fn state, _event -> state end
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "metadata-test-123"
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "metadata-test-123"
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -301,18 +319,20 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "snapshot/1" do
     setup do
-      definition = Projection.Definition.new(
-        name: :snapshot_test,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :snapshot_test,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "snapshot-test",
-        state_store: MockStateStore
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "snapshot-test",
+          state_store: MockStateStore
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -332,18 +352,20 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
     end
 
     test "handles snapshot errors gracefully", %{} do
-      definition = Projection.Definition.new(
-        name: :failing_snapshot,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :failing_snapshot,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "failing-test",
-        state_store: FailingStateStore
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "failing-test",
+          state_store: FailingStateStore
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -358,17 +380,19 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "reset/1" do
     setup do
-      definition = Projection.Definition.new(
-        name: :reset_test,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :reset_test,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "reset-test"
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "reset-test"
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -410,20 +434,22 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "automatic snapshots" do
     test "creates snapshot after reaching interval" do
-      definition = Projection.Definition.new(
-        name: :auto_snapshot,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :auto_snapshot,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
       # Set snapshot interval to 3 events
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "auto-snapshot-test",
-        state_store: MockStateStore,
-        snapshot_interval: 3
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "auto-snapshot-test",
+          state_store: MockStateStore,
+          snapshot_interval: 3
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -446,19 +472,21 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
     end
 
     test "snapshots on batch events exceeding interval" do
-      definition = Projection.Definition.new(
-        name: :batch_snapshot,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :batch_snapshot,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "batch-snapshot-test",
-        state_store: MockStateStore,
-        snapshot_interval: 5
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "batch-snapshot-test",
+          state_store: MockStateStore,
+          snapshot_interval: 5
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -476,27 +504,29 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "complex projections" do
     test "order statistics projection" do
-      definition = Projection.Definition.new(
-        name: :order_stats,
-        version: 1,
-        initial_state: %{count: 0, total_amount: 0.0},
-        project_fn: fn state, event ->
-          case event.event_type do
-            "order.placed" ->
-              state
-              |> Map.update!(:count, &(&1 + 1))
-              |> Map.update!(:total_amount, &(&1 + event.amount))
+      definition =
+        Projection.Definition.new(
+          name: :order_stats,
+          version: 1,
+          initial_state: %{count: 0, total_amount: 0.0},
+          project_fn: fn state, event ->
+            case event.event_type do
+              "order.placed" ->
+                state
+                |> Map.update!(:count, &(&1 + 1))
+                |> Map.update!(:total_amount, &(&1 + event.amount))
 
-            _ ->
-              state
+              _ ->
+                state
+            end
           end
-        end
-      )
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "order-stats-test"
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "order-stats-test"
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -517,31 +547,33 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
     end
 
     test "user activity projection with nested state" do
-      definition = Projection.Definition.new(
-        name: :user_activity,
-        version: 1,
-        initial_state: %{
-          events: [],
-          stats: %{login_count: 0, last_login: nil}
-        },
-        project_fn: fn state, event ->
-          case event.event_type do
-            "user.login" ->
-              state
-              |> update_in([:events], fn events -> [event | events] end)
-              |> update_in([:stats, :login_count], &(&1 + 1))
-              |> put_in([:stats, :last_login], event.timestamp)
+      definition =
+        Projection.Definition.new(
+          name: :user_activity,
+          version: 1,
+          initial_state: %{
+            events: [],
+            stats: %{login_count: 0, last_login: nil}
+          },
+          project_fn: fn state, event ->
+            case event.event_type do
+              "user.login" ->
+                state
+                |> update_in([:events], fn events -> [event | events] end)
+                |> update_in([:stats, :login_count], &(&1 + 1))
+                |> put_in([:stats, :last_login], event.timestamp)
 
-            _ ->
-              state
+              _ ->
+                state
+            end
           end
-        end
-      )
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "user-activity-test"
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "user-activity-test"
+        )
 
       on_exit(fn ->
         if Process.alive?(pid), do: ProjectionServer.stop(pid)
@@ -563,12 +595,13 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "concurrency" do
     test "multiple projection servers can run independently" do
-      definition = Projection.Definition.new(
-        name: :concurrent_test,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :concurrent_test,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
       # Start 3 independent servers
       {:ok, pid1} = ProjectionServer.start_link(projection: definition, entity_id: "entity-1")
@@ -602,18 +635,20 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServerTest do
 
   describe "graceful shutdown" do
     test "takes final snapshot on termination" do
-      definition = Projection.Definition.new(
-        name: :shutdown_test,
-        version: 1,
-        initial_state: 0,
-        project_fn: fn state, _event -> state + 1 end
-      )
+      definition =
+        Projection.Definition.new(
+          name: :shutdown_test,
+          version: 1,
+          initial_state: 0,
+          project_fn: fn state, _event -> state + 1 end
+        )
 
-      {:ok, pid} = ProjectionServer.start_link(
-        projection: definition,
-        entity_id: "shutdown-test",
-        state_store: MockStateStore
-      )
+      {:ok, pid} =
+        ProjectionServer.start_link(
+          projection: definition,
+          entity_id: "shutdown-test",
+          state_store: MockStateStore
+        )
 
       event = %{event_type: "test"}
       ProjectionServer.apply_event(pid, event)

@@ -11,13 +11,15 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   @default_base_url "http://localhost:3900"
   @default_timeout 30_000
 
-  plug Tesla.Middleware.BaseUrl,
+  plug(
+    Tesla.Middleware.BaseUrl,
     Application.get_env(:mcp_server_elixir, :core_url, @default_base_url)
+  )
 
-  plug Tesla.Middleware.JSON
-  plug Tesla.Middleware.Timeout, timeout: @default_timeout
+  plug(Tesla.Middleware.JSON)
+  plug(Tesla.Middleware.Timeout, timeout: @default_timeout)
 
-  plug Tesla.Middleware.Retry,
+  plug(Tesla.Middleware.Retry,
     delay: 100,
     max_retries: 3,
     max_delay: 2_000,
@@ -26,13 +28,14 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
       {:ok, _} -> false
       {:error, _} -> true
     end
+  )
 
   def new do
     %{client: __MODULE__}
   end
 
   @doc "Query events with flexible filters"
-  def query_events(client, params) when is_map(params) do
+  def query_events(_client, params) when is_map(params) do
     # Clean up params - remove nil values
     query_params =
       params
@@ -52,7 +55,7 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Reconstruct entity state at a point in time"
-  def reconstruct_state(client, entity_id, as_of \\ nil) do
+  def reconstruct_state(_client, entity_id, as_of \\ nil) do
     path = "/api/v1/entities/#{entity_id}/state"
     query_params = if as_of, do: [as_of: as_of], else: []
 
@@ -69,7 +72,7 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get current snapshot of an entity"
-  def get_snapshot(client, entity_id) do
+  def get_snapshot(_client, entity_id) do
     case get("/api/v1/entities/#{entity_id}/snapshot") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -83,7 +86,7 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Ingest a new event"
-  def ingest_event(client, event_data) do
+  def ingest_event(_client, event_data) do
     case post("/api/v1/events", event_data) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
@@ -97,7 +100,7 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get event store statistics"
-  def get_stats(client) do
+  def get_stats(_client) do
     case get("/api/v1/stats") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -110,4 +113,3 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
     end
   end
 end
-

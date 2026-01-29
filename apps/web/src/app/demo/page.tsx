@@ -1,17 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Sparkles, Database, Zap, BarChart3, Shield, Clock, PieChart, Workflow } from "lucide-react";
+import { AnalyticsDemo } from "@/components/demo/analytics-demo";
 import { EventIngestionDemo } from "@/components/demo/event-ingestion-demo";
-import { QueryDemo } from "@/components/demo/query-demo";
 import { MetricsDemo } from "@/components/demo/metrics-demo";
+import { PipelinesDemo } from "@/components/demo/pipelines-demo";
 import { ProjectionsDemo } from "@/components/demo/projections-demo";
+import { QueryDemo } from "@/components/demo/query-demo";
 import { SecurityDemo } from "@/components/demo/security-demo";
 import { TimeTravelDemo } from "@/components/demo/time-travel-demo";
-import { AnalyticsDemo } from "@/components/demo/analytics-demo";
-import { PipelinesDemo } from "@/components/demo/pipelines-demo";
-import { DotPattern, Ripple, BlurFade } from "@allsource/ui";
+import { BlurFade, DotPattern, Ripple } from "@allsource/ui";
+import { motion } from "framer-motion";
+import {
+  BarChart3,
+  Clock,
+  Database,
+  PieChart,
+  Shield,
+  Sparkles,
+  Workflow,
+  Zap,
+} from "lucide-react";
+import { useState } from "react";
 
 const features = [
   {
@@ -150,7 +159,7 @@ export default function DemoPage() {
                   whileTap={{ scale: 0.95 }}
                   className={`p-6 rounded-xl border transition-all ${
                     activeDemo === feature.id
-                      ? "bg-gradient-to-br " + feature.color + " border-transparent shadow-2xl"
+                      ? `bg-gradient-to-br ${feature.color} border-transparent shadow-2xl`
                       : "bg-slate-800/30 border-slate-700 hover:border-slate-600"
                   }`}
                 >
@@ -273,7 +282,8 @@ export default function DemoPage() {
                     Event Analytics
                   </h2>
                   <p className="text-slate-400 mb-8">
-                    Advanced analytics with time series, funnels, cohorts, and 11 aggregation functions
+                    Advanced analytics with time series, funnels, cohorts, and 11 aggregation
+                    functions
                   </p>
                   <AnalyticsDemo />
                 </div>

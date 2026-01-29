@@ -476,7 +476,7 @@ Unless you use Chronos x402."
 **Shot 2: Code Simplicity (0:15-0:30)**
 ```
 [Screen: Terminal]
-$ npm install @chronos/x402-solana-sdk
+$ bun add @chronos/x402-solana-sdk
 
 [Screen: VS Code showing middleware code]
 app.use(x402({

@@ -65,17 +65,28 @@ defmodule McpServerElixir.Protocol.McpTools do
   defp tool_query_events do
     %{
       name: "query_events",
-      description: "Query events with flexible filters. Use natural language timeframes like \"since yesterday\" and the LLM will convert them to ISO timestamps. Returns TOON format by default (~50% fewer tokens than JSON).",
+      description:
+        "Query events with flexible filters. Use natural language timeframes like \"since yesterday\" and the LLM will convert them to ISO timestamps. Returns TOON format by default (~50% fewer tokens than JSON).",
       inputSchema: %{
         type: "object",
         properties: %{
           "entity_id" => %{type: "string", description: "Filter by entity ID (e.g., \"user-123\")"},
-          "event_type" => %{type: "string", description: "Filter by event type (e.g., \"user.created\")"},
-          "as_of" => %{type: "string", description: "Time-travel: get events as of this ISO timestamp"},
+          "event_type" => %{
+            type: "string",
+            description: "Filter by event type (e.g., \"user.created\")"
+          },
+          "as_of" => %{
+            type: "string",
+            description: "Time-travel: get events as of this ISO timestamp"
+          },
           "since" => %{type: "string", description: "Get events since this ISO timestamp"},
           "until" => %{type: "string", description: "Get events until this ISO timestamp"},
           "limit" => %{type: "number", description: "Limit number of results (default: all)"},
-          "format" => %{type: "string", enum: ["toon", "json"], description: "Response format: 'toon' (default, ~50% fewer tokens) or 'json'"}
+          "format" => %{
+            type: "string",
+            enum: ["toon", "json"],
+            description: "Response format: 'toon' (default, ~50% fewer tokens) or 'json'"
+          }
         }
       }
     }
@@ -84,12 +95,17 @@ defmodule McpServerElixir.Protocol.McpTools do
   defp tool_reconstruct_state do
     %{
       name: "reconstruct_state",
-      description: "Reconstruct the complete state of an entity at any point in time by replaying its event stream. Perfect for answering \"What did this entity look like on date X?\"",
+      description:
+        "Reconstruct the complete state of an entity at any point in time by replaying its event stream. Perfect for answering \"What did this entity look like on date X?\"",
       inputSchema: %{
         type: "object",
         properties: %{
           "entity_id" => %{type: "string", description: "The entity ID to reconstruct state for"},
-          "as_of" => %{type: "string", description: "Reconstruct state as of this ISO timestamp (optional, defaults to current)"}
+          "as_of" => %{
+            type: "string",
+            description:
+              "Reconstruct state as of this ISO timestamp (optional, defaults to current)"
+          }
         },
         required: ["entity_id"]
       }
@@ -99,7 +115,8 @@ defmodule McpServerElixir.Protocol.McpTools do
   defp tool_get_snapshot do
     %{
       name: "get_snapshot",
-      description: "Get the current snapshot of an entity (much faster than reconstruction). Use this when you need the latest state without time-travel.",
+      description:
+        "Get the current snapshot of an entity (much faster than reconstruction). Use this when you need the latest state without time-travel.",
       inputSchema: %{
         type: "object",
         properties: %{
@@ -113,7 +130,8 @@ defmodule McpServerElixir.Protocol.McpTools do
   defp tool_analyze_changes do
     %{
       name: "analyze_changes",
-      description: "Analyze what changed for an entity between two points in time. Returns a detailed diff showing added, modified, and removed fields.",
+      description:
+        "Analyze what changed for an entity between two points in time. Returns a detailed diff showing added, modified, and removed fields.",
       inputSchema: %{
         type: "object",
         properties: %{
@@ -129,17 +147,28 @@ defmodule McpServerElixir.Protocol.McpTools do
   defp tool_find_patterns do
     %{
       name: "find_patterns",
-      description: "Detect patterns in event streams: frequency analysis, event sequences, or anomalies. Perfect for answering \"What unusual patterns exist?\"",
+      description:
+        "Detect patterns in event streams: frequency analysis, event sequences, or anomalies. Perfect for answering \"What unusual patterns exist?\"",
       inputSchema: %{
         type: "object",
         properties: %{
-          "entity_id" => %{type: "string", description: "Analyze patterns for specific entity (optional)"},
-          "event_type" => %{type: "string", description: "Analyze patterns for specific event type (optional)"},
-          "since" => %{type: "string", description: "Analyze patterns since this timestamp (optional)"},
+          "entity_id" => %{
+            type: "string",
+            description: "Analyze patterns for specific entity (optional)"
+          },
+          "event_type" => %{
+            type: "string",
+            description: "Analyze patterns for specific event type (optional)"
+          },
+          "since" => %{
+            type: "string",
+            description: "Analyze patterns since this timestamp (optional)"
+          },
           "pattern_type" => %{
             type: "string",
             enum: ["frequency", "sequence", "anomaly"],
-            description: "Type of pattern to detect (frequency=event counts, sequence=event order, anomaly=unusual events)"
+            description:
+              "Type of pattern to detect (frequency=event counts, sequence=event order, anomaly=unusual events)"
           }
         }
       }
@@ -149,7 +178,8 @@ defmodule McpServerElixir.Protocol.McpTools do
   defp tool_compare_entities do
     %{
       name: "compare_entities",
-      description: "Compare multiple entities to find similarities and differences in their event histories.",
+      description:
+        "Compare multiple entities to find similarities and differences in their event histories.",
       inputSchema: %{
         type: "object",
         properties: %{
@@ -158,7 +188,10 @@ defmodule McpServerElixir.Protocol.McpTools do
             items: %{type: "string"},
             description: "Array of entity IDs to compare"
           },
-          "timeframe" => %{type: "string", description: "Compare within this timeframe (ISO timestamp)"}
+          "timeframe" => %{
+            type: "string",
+            description: "Compare within this timeframe (ISO timestamp)"
+          }
         },
         required: ["entity_ids"]
       }
@@ -168,7 +201,8 @@ defmodule McpServerElixir.Protocol.McpTools do
   defp tool_event_timeline do
     %{
       name: "event_timeline",
-      description: "Get a chronological timeline of all events for an entity, formatted for easy reading and understanding.",
+      description:
+        "Get a chronological timeline of all events for an entity, formatted for easy reading and understanding.",
       inputSchema: %{
         type: "object",
         properties: %{
@@ -184,7 +218,8 @@ defmodule McpServerElixir.Protocol.McpTools do
   defp tool_explain_entity do
     %{
       name: "explain_entity",
-      description: "Get a comprehensive explanation of an entity: current state, event history, key changes, and timeline summary.",
+      description:
+        "Get a comprehensive explanation of an entity: current state, event history, key changes, and timeline summary.",
       inputSchema: %{
         type: "object",
         properties: %{
@@ -248,14 +283,15 @@ defmodule McpServerElixir.Protocol.McpTools do
         formatted_data = ToonEncoder.format_response(data, format)
         text = summary <> formatted_data
 
-        {:ok, %{
-          content: [
-            %{
-              type: "text",
-              text: text
-            }
-          ]
-        }}
+        {:ok,
+         %{
+           content: [
+             %{
+               type: "text",
+               text: text
+             }
+           ]
+         }}
 
       {:error, reason} ->
         {:error, "Failed to query events: #{inspect(reason)}"}
@@ -283,14 +319,15 @@ defmodule McpServerElixir.Protocol.McpTools do
         formatted_data = ToonEncoder.format_response(state_data, format)
         text = summary <> formatted_data
 
-        {:ok, %{
-          content: [
-            %{
-              type: "text",
-              text: text
-            }
-          ]
-        }}
+        {:ok,
+         %{
+           content: [
+             %{
+               type: "text",
+               text: text
+             }
+           ]
+         }}
 
       {:error, reason} ->
         {:error, "Failed to reconstruct state: #{inspect(reason)}"}
@@ -306,14 +343,15 @@ defmodule McpServerElixir.Protocol.McpTools do
         formatted_data = ToonEncoder.format_response(snapshot, format)
         text = summary <> formatted_data
 
-        {:ok, %{
-          content: [
-            %{
-              type: "text",
-              text: text
-            }
-          ]
-        }}
+        {:ok,
+         %{
+           content: [
+             %{
+               type: "text",
+               text: text
+             }
+           ]
+         }}
 
       {:error, reason} ->
         {:error, "Failed to get snapshot: #{inspect(reason)}"}
@@ -349,14 +387,15 @@ defmodule McpServerElixir.Protocol.McpTools do
             formatted_data = ToonEncoder.format_response(changes, format)
             text = summary <> formatted_data
 
-            {:ok, %{
-              content: [
-                %{
-                  type: "text",
-                  text: text
-                }
-              ]
-            }}
+            {:ok,
+             %{
+               content: [
+                 %{
+                   type: "text",
+                   text: text
+                 }
+               ]
+             }}
 
           {:error, reason} ->
             {:error, "Failed to get after state: #{inspect(reason)}"}
@@ -387,14 +426,15 @@ defmodule McpServerElixir.Protocol.McpTools do
         formatted_data = ToonEncoder.format_response(analysis, format)
         text = summary <> formatted_data
 
-        {:ok, %{
-          content: [
-            %{
-              type: "text",
-              text: text
-            }
-          ]
-        }}
+        {:ok,
+         %{
+           content: [
+             %{
+               type: "text",
+               text: text
+             }
+           ]
+         }}
 
       {:error, reason} ->
         {:error, "Failed to find patterns: #{inspect(reason)}"}
@@ -440,14 +480,15 @@ defmodule McpServerElixir.Protocol.McpTools do
     formatted_data = ToonEncoder.format_response(comparisons, format)
     text = summary <> formatted_data
 
-    {:ok, %{
-      content: [
-        %{
-          type: "text",
-          text: text
-        }
-      ]
-    }}
+    {:ok,
+     %{
+       content: [
+         %{
+           type: "text",
+           text: text
+         }
+       ]
+     }}
   end
 
   defp handle_event_timeline(args, state, format) do
@@ -487,14 +528,15 @@ defmodule McpServerElixir.Protocol.McpTools do
         formatted_data = ToonEncoder.format_response(timeline, format)
         text = summary <> formatted_data
 
-        {:ok, %{
-          content: [
-            %{
-              type: "text",
-              text: text
-            }
-          ]
-        }}
+        {:ok,
+         %{
+           content: [
+             %{
+               type: "text",
+               text: text
+             }
+           ]
+         }}
 
       {:error, reason} ->
         {:error, "Failed to get timeline: #{inspect(reason)}"}
@@ -542,14 +584,15 @@ defmodule McpServerElixir.Protocol.McpTools do
             formatted_data = ToonEncoder.format_response(explanation, format)
             text = summary <> formatted_data
 
-            {:ok, %{
-              content: [
-                %{
-                  type: "text",
-                  text: text
-                }
-              ]
-            }}
+            {:ok,
+             %{
+               content: [
+                 %{
+                   type: "text",
+                   text: text
+                 }
+               ]
+             }}
 
           {:error, reason} ->
             {:error, "Failed to get events: #{inspect(reason)}"}
@@ -583,14 +626,15 @@ defmodule McpServerElixir.Protocol.McpTools do
         formatted_data = ToonEncoder.format_response(result, format)
         text = summary <> formatted_data
 
-        {:ok, %{
-          content: [
-            %{
-              type: "text",
-              text: text
-            }
-          ]
-        }}
+        {:ok,
+         %{
+           content: [
+             %{
+               type: "text",
+               text: text
+             }
+           ]
+         }}
 
       {:error, reason} ->
         {:error, "Failed to ingest event: #{inspect(reason)}"}
@@ -604,14 +648,15 @@ defmodule McpServerElixir.Protocol.McpTools do
         formatted_data = ToonEncoder.format_response(stats, format)
         text = summary <> formatted_data
 
-        {:ok, %{
-          content: [
-            %{
-              type: "text",
-              text: text
-            }
-          ]
-        }}
+        {:ok,
+         %{
+           content: [
+             %{
+               type: "text",
+               text: text
+             }
+           ]
+         }}
 
       {:error, reason} ->
         {:error, "Failed to get stats: #{inspect(reason)}"}
@@ -625,14 +670,15 @@ defmodule McpServerElixir.Protocol.McpTools do
         formatted_data = ToonEncoder.format_response(status, format)
         text = summary <> formatted_data
 
-        {:ok, %{
-          content: [
-            %{
-              type: "text",
-              text: text
-            }
-          ]
-        }}
+        {:ok,
+         %{
+           content: [
+             %{
+               type: "text",
+               text: text
+             }
+           ]
+         }}
 
       {:error, reason} ->
         {:error, "Failed to get cluster status: #{inspect(reason)}"}
@@ -715,4 +761,3 @@ defmodule McpServerElixir.Protocol.McpTools do
     analysis
   end
 end
-

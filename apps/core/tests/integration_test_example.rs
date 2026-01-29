@@ -6,8 +6,8 @@
 /// - Rate limiting
 /// - Event ingestion with auth
 use allsource_core::{
-    auth::{AuthManager, Role},
-    event::Event,
+    auth::{AuthManager, Permission, Role},
+    domain::entities::Event,
     rate_limit::{RateLimitConfig, RateLimiter},
     store::EventStore,
     tenant::{TenantManager, TenantQuotas},
@@ -213,37 +213,19 @@ fn test_permission_based_access() {
         .expect("Failed to create readonly user");
 
     // Admin can do everything
-    assert!(admin
-        .role
-        .has_permission(allsource_core::auth::Permission::Admin));
-    assert!(admin
-        .role
-        .has_permission(allsource_core::auth::Permission::Write));
-    assert!(admin
-        .role
-        .has_permission(allsource_core::auth::Permission::Read));
+    assert!(admin.role.has_permission(Permission::Admin));
+    assert!(admin.role.has_permission(Permission::Write));
+    assert!(admin.role.has_permission(Permission::Read));
 
     // Developer can read and write
-    assert!(!developer
-        .role
-        .has_permission(allsource_core::auth::Permission::Admin));
-    assert!(developer
-        .role
-        .has_permission(allsource_core::auth::Permission::Write));
-    assert!(developer
-        .role
-        .has_permission(allsource_core::auth::Permission::Read));
+    assert!(!developer.role.has_permission(Permission::Admin));
+    assert!(developer.role.has_permission(Permission::Write));
+    assert!(developer.role.has_permission(Permission::Read));
 
     // ReadOnly can only read
-    assert!(!readonly
-        .role
-        .has_permission(allsource_core::auth::Permission::Admin));
-    assert!(!readonly
-        .role
-        .has_permission(allsource_core::auth::Permission::Write));
-    assert!(readonly
-        .role
-        .has_permission(allsource_core::auth::Permission::Read));
+    assert!(!readonly.role.has_permission(Permission::Admin));
+    assert!(!readonly.role.has_permission(Permission::Write));
+    assert!(readonly.role.has_permission(Permission::Read));
 
     println!("✅ Permission-based access test passed!");
 }

@@ -19,12 +19,13 @@ defmodule QueryServiceEx.Domain.Entities.QueryTest do
     end
 
     test "creates a query with custom values" do
-      query = Query.new(
-        select: [:entity_id, :event_type],
-        from: :projections,
-        limit: 100,
-        offset: 50
-      )
+      query =
+        Query.new(
+          select: [:entity_id, :event_type],
+          from: :projections,
+          limit: 100,
+          offset: 50
+        )
 
       assert query.select == [:entity_id, :event_type]
       assert query.from == :projections

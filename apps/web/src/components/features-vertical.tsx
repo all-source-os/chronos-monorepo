@@ -3,7 +3,8 @@
 import { cn } from "@allsource/ui";
 import * as Accordion from "@radix-ui/react-accordion";
 import { motion, useInView } from "framer-motion";
-import React, { forwardRef, type ReactNode, useEffect, useRef, useState } from "react";
+import type React from "react";
+import { type ReactNode, forwardRef, useEffect, useRef, useState } from "react";
 
 type AccordionItemProps = {
   children: React.ReactNode;
@@ -196,7 +197,7 @@ export default function Features({
                             transitionDuration:
                               currentIndex === index ? `${collapseDelay}ms` : "0s",
                           }}
-                        ></div>
+                        />
                       </div>
                     ) : null}
 
@@ -216,7 +217,7 @@ export default function Features({
                             transitionDuration:
                               currentIndex === index ? `${collapseDelay}ms` : "0s",
                           }}
-                        ></div>
+                        />
                       </div>
                     ) : null}
 
@@ -261,7 +262,7 @@ export default function Features({
                   muted
                 />
               ) : (
-                <div className="aspect-auto h-full w-full rounded-xl border border-neutral-300/50 bg-gray-200 p-1"></div>
+                <div className="aspect-auto h-full w-full rounded-xl border border-neutral-300/50 bg-gray-200 p-1" />
               )}
             </div>
 
@@ -289,7 +290,7 @@ export default function Features({
                       style={{
                         transitionDuration: currentIndex === index ? `${collapseDelay}ms` : "0s",
                       }}
-                    ></div>
+                    />
                   </div>
                   <h2 className="text-xl font-bold">{item.title}</h2>
                   <p className="mx-0 max-w-sm text-balance text-sm">{item.content}</p>

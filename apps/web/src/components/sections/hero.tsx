@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 
-import { Icons, HeroVideoDialog, buttonVariants, cn } from "@allsource/ui";
+import { HeroVideoDialog, Icons, buttonVariants, cn } from "@allsource/ui";
 import Link from "next/link";
 
 const ease = [0.16, 1, 0.3, 1];
@@ -141,7 +141,7 @@ export default function Hero2() {
         <HeroTitles />
         <HeroCTA />
         <HeroImage />
-        <div className="pointer-events-none absolute inset-x-0 -bottom-12 h-1/3 bg-gradient-to-t from-background via-background to-transparent lg:h-1/4"></div>
+        <div className="pointer-events-none absolute inset-x-0 -bottom-12 h-1/3 bg-gradient-to-t from-background via-background to-transparent lg:h-1/4" />
       </div>
     </section>
   );

@@ -12,8 +12,8 @@ export async function generateMetadata({
   params,
 }: { params: Promise<{ slug: string }> }): Promise<Metadata | undefined> {
   const { slug } = await params;
-  let post = await getPost(slug);
-  let { title, publishedAt: publishedTime, summary: description, image } = post.metadata;
+  const post = await getPost(slug);
+  const { title, publishedAt: publishedTime, summary: description, image } = post.metadata;
 
   return {
     title,
@@ -45,7 +45,7 @@ export default async function Blog({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  let post = await getPost(slug);
+  const post = await getPost(slug);
   if (!post) {
     notFound();
   }
@@ -75,7 +75,7 @@ export default async function Blog({
       />
       <div className="mx-auto w-full max-w-[800px] px-4 sm:px-6 lg:px-8 space-y-4 my-12">
         <Suspense
-          fallback={<div className="mb-8 w-full h-64 bg-gray-200 animate-pulse rounded-lg"></div>}
+          fallback={<div className="mb-8 w-full h-64 bg-gray-200 animate-pulse rounded-lg" />}
         >
           {post.metadata.image && (
             <div className="mb-8">
@@ -111,7 +111,7 @@ export default async function Blog({
         <article
           className="prose dark:prose-invert mx-auto max-w-full"
           dangerouslySetInnerHTML={{ __html: post.source }}
-        ></article>
+        />
       </div>
       <CtaSection />
     </section>

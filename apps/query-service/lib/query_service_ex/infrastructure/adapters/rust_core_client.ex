@@ -18,10 +18,15 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   @default_base_url "http://localhost:3900"
   @default_timeout 30_000
 
-  plug Tesla.Middleware.BaseUrl, Application.get_env(:query_service_ex, :rust_core_url, @default_base_url)
-  plug Tesla.Middleware.JSON
-  plug Tesla.Middleware.Timeout, timeout: @default_timeout
-  plug Tesla.Middleware.Retry,
+  plug(
+    Tesla.Middleware.BaseUrl,
+    Application.get_env(:query_service_ex, :rust_core_url, @default_base_url)
+  )
+
+  plug(Tesla.Middleware.JSON)
+  plug(Tesla.Middleware.Timeout, timeout: @default_timeout)
+
+  plug(Tesla.Middleware.Retry,
     delay: 100,
     max_retries: 3,
     max_delay: 2_000,
@@ -30,6 +35,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
       {:ok, _} -> false
       {:error, _} -> true
     end
+  )
 
   ## Event Management
 
@@ -416,8 +422,8 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     |> Map.reject(fn {_k, v} -> is_nil(v) end)
   end
 
-  defp maybe_add_param(params, key, nil), do: params
-  defp maybe_add_param(params, key, value) when is_function(value), do: params
+  defp maybe_add_param(params, _key, nil), do: params
+  defp maybe_add_param(params, _key, value) when is_function(value), do: params
   defp maybe_add_param(params, key, value), do: Map.put(params, key, value)
 
   defp maybe_add_param(params, key, source, extractor) when is_function(extractor) do

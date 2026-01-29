@@ -1,24 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@allsource/ui";
-import {
-  Filter,
-  GitBranch,
-  Layers,
-  Plus,
-  Play,
-  Trash2,
-  Clock,
-  Combine,
-  Timer,
-  Grid3x3,
-  BarChart2,
-  Workflow,
-} from "lucide-react";
 import { eventStoreClient } from "@/lib/event-store/client";
 import type { Pipeline, PipelineOperator } from "@/lib/event-store/types";
+import { Button } from "@allsource/ui";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  BarChart2,
+  Clock,
+  Combine,
+  Filter,
+  GitBranch,
+  Grid3x3,
+  Layers,
+  Play,
+  Plus,
+  Timer,
+  Trash2,
+  Workflow,
+} from "lucide-react";
+import { useState } from "react";
 
 interface OperatorDefinition {
   type: string;
@@ -276,11 +276,7 @@ export function PipelinesDemo() {
             </AnimatePresence>
 
             {/* Create Pipeline Button */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="pt-4"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-4">
               <Button
                 onClick={createPipeline}
                 disabled={isCreating || operators.length === 0}
@@ -344,9 +340,9 @@ export function PipelinesDemo() {
               Event Processing Pipelines from Clojure
             </h4>
             <p className="text-slate-400 text-sm leading-relaxed mb-3">
-              Build composable event processing pipelines with 10 operator types. Pipelines
-              execute operators in sequence to transform, filter, enrich, and aggregate event
-              streams in real-time.
+              Build composable event processing pipelines with 10 operator types. Pipelines execute
+              operators in sequence to transform, filter, enrich, and aggregate event streams in
+              real-time.
             </p>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               {operatorTypes.map((op) => (

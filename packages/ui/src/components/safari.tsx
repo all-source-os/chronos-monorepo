@@ -1,4 +1,4 @@
-import { SVGProps } from "react";
+import type { SVGProps } from "react";
 
 export interface SafariProps extends SVGProps<SVGSVGElement> {
   url?: string;
@@ -7,13 +7,7 @@ export interface SafariProps extends SVGProps<SVGSVGElement> {
   height?: number;
 }
 
-export function Safari({
-  src,
-  url,
-  width = 1203,
-  height = 753,
-  ...props
-}: SafariProps) {
+export function Safari({ src, url, width = 1203, height = 753, ...props }: SafariProps) {
   return (
     <svg
       width={width}
@@ -99,7 +93,9 @@ export function Safari({
           <rect width={width} height={height} fill="white" rx="12" />
         </clipPath>
         <clipPath id="roundedBottom">
-          <path d={`M0 52H${width}V${height - 12}C${width} ${height - 6} ${width - 6} ${height} ${width - 12} ${height}H12C6 ${height} 0 ${height - 6} 0 ${height - 12}V52Z`} />
+          <path
+            d={`M0 52H${width}V${height - 12}C${width} ${height - 6} ${width - 6} ${height} ${width - 12} ${height}H12C6 ${height} 0 ${height - 6} 0 ${height - 12}V52Z`}
+          />
         </clipPath>
       </defs>
     </svg>

@@ -225,7 +225,7 @@ func (cp *ControlPlaneV1) clusterStatusHandler(c *gin.Context) {
 
 	var coreStats map[string]interface{}
 	if err == nil {
-		json.Unmarshal(resp.Body(),&coreStats)
+		json.Unmarshal(resp.Body(), &coreStats)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -267,7 +267,7 @@ func (cp *ControlPlaneV1) metricsHandler(c *gin.Context) {
 	}
 
 	var stats map[string]interface{}
-	json.Unmarshal(resp.Body(),&stats)
+	json.Unmarshal(resp.Body(), &stats)
 
 	c.JSON(http.StatusOK, gin.H{
 		"metrics": gin.H{
@@ -317,10 +317,10 @@ func (cp *ControlPlaneV1) replayHandler(c *gin.Context) {
 	cp.auditLogger.LogOperationEvent("replay", req.EntityID, auth.UserID, "initiated")
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":     "replay_initiated",
-		"entity_id":  req.EntityID,
-		"as_of":      req.AsOf,
-		"timestamp":  time.Now().UTC(),
+		"status":       "replay_initiated",
+		"entity_id":    req.EntityID,
+		"as_of":        req.AsOf,
+		"timestamp":    time.Now().UTC(),
 		"initiated_by": auth.Username,
 	})
 }
@@ -346,7 +346,7 @@ func (cp *ControlPlaneV1) backupHandler(c *gin.Context) {
 	cp.auditLogger.LogOperationEvent("backup_create", backupID, auth.UserID, "initiated")
 
 	var result map[string]interface{}
-	json.Unmarshal(resp.Body(),&result)
+	json.Unmarshal(resp.Body(), &result)
 	c.JSON(http.StatusOK, result)
 }
 
@@ -375,7 +375,7 @@ func (cp *ControlPlaneV1) createTenantHandler(c *gin.Context) {
 	}
 
 	var result map[string]interface{}
-	json.Unmarshal(resp.Body(),&result)
+	json.Unmarshal(resp.Body(), &result)
 	c.JSON(resp.StatusCode(), result)
 }
 
@@ -394,7 +394,7 @@ func (cp *ControlPlaneV1) updateTenantHandler(c *gin.Context) {
 	cp.auditLogger.LogTenantEvent("update", tenantID, auth.UserID, "tenant updated")
 
 	var result map[string]interface{}
-	json.Unmarshal(resp.Body(),&result)
+	json.Unmarshal(resp.Body(), &result)
 	c.JSON(resp.StatusCode(), result)
 }
 
@@ -452,7 +452,7 @@ func (cp *ControlPlaneV1) proxyToCoreAuth(c *gin.Context, method, path string) {
 	}
 
 	var result map[string]interface{}
-	json.Unmarshal(resp.Body(),&result)
+	json.Unmarshal(resp.Body(), &result)
 	c.JSON(resp.StatusCode(), result)
 }
 

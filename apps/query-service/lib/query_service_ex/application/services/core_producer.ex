@@ -88,11 +88,17 @@ defmodule QueryServiceEx.Application.Services.CoreProducer do
 
   @impl GenStage
   def init(opts) do
-    poll_interval = opts[:poll_interval_ms] ||
-      Application.get_env(:query_service_ex, :core_producer_poll_interval_ms, @default_poll_interval_ms)
+    poll_interval =
+      opts[:poll_interval_ms] ||
+        Application.get_env(
+          :query_service_ex,
+          :core_producer_poll_interval_ms,
+          @default_poll_interval_ms
+        )
 
-    batch_size = opts[:batch_size] ||
-      Application.get_env(:query_service_ex, :core_producer_batch_size, @default_batch_size)
+    batch_size =
+      opts[:batch_size] ||
+        Application.get_env(:query_service_ex, :core_producer_batch_size, @default_batch_size)
 
     # Initialize cursor table
     init_cursor_table()
@@ -152,6 +158,7 @@ defmodule QueryServiceEx.Application.Services.CoreProducer do
       last_poll_at: state.last_poll_at,
       last_error: state.last_error
     }
+
     {:reply, stats, [], state}
   end
 
@@ -171,7 +178,7 @@ defmodule QueryServiceEx.Application.Services.CoreProducer do
     fetch_count = min(state.demand, state.batch_size)
 
     case fetch_events(state.cursor, fetch_count) do
-      {:ok, events} when length(events) > 0 ->
+      {:ok, [_ | _] = events} ->
         # Convert to Broadway messages
         messages = Enum.map(events, &to_broadway_message/1)
 
@@ -179,13 +186,14 @@ defmodule QueryServiceEx.Application.Services.CoreProducer do
         new_cursor = get_last_timestamp(events) || state.cursor
         save_cursor(new_cursor)
 
-        new_state = %{state |
-          cursor: new_cursor,
-          demand: state.demand - length(messages),
-          events_fetched: state.events_fetched + length(messages),
-          polls_count: state.polls_count + 1,
-          last_poll_at: DateTime.utc_now(),
-          last_error: nil
+        new_state = %{
+          state
+          | cursor: new_cursor,
+            demand: state.demand - length(messages),
+            events_fetched: state.events_fetched + length(messages),
+            polls_count: state.polls_count + 1,
+            last_poll_at: DateTime.utc_now(),
+            last_error: nil
         }
 
         # Emit telemetry
@@ -200,9 +208,10 @@ defmodule QueryServiceEx.Application.Services.CoreProducer do
 
       {:ok, []} ->
         # No new events
-        new_state = %{state |
-          polls_count: state.polls_count + 1,
-          last_poll_at: DateTime.utc_now()
+        new_state = %{
+          state
+          | polls_count: state.polls_count + 1,
+            last_poll_at: DateTime.utc_now()
         }
 
         schedule_poll(state.poll_interval)
@@ -211,10 +220,11 @@ defmodule QueryServiceEx.Application.Services.CoreProducer do
       {:error, reason} ->
         Logger.warning("[CoreProducer] Failed to fetch events: #{inspect(reason)}")
 
-        new_state = %{state |
-          polls_count: state.polls_count + 1,
-          last_poll_at: DateTime.utc_now(),
-          last_error: reason
+        new_state = %{
+          state
+          | polls_count: state.polls_count + 1,
+            last_poll_at: DateTime.utc_now(),
+            last_error: reason
         }
 
         # Back off on error
@@ -239,7 +249,6 @@ defmodule QueryServiceEx.Application.Services.CoreProducer do
     }
   end
 
-  defp get_last_timestamp([]), do: nil
   defp get_last_timestamp(events) do
     events
     |> List.last()
@@ -255,13 +264,15 @@ defmodule QueryServiceEx.Application.Services.CoreProducer do
       :ets.new(@cursor_table, [:set, :public, :named_table])
     end
   rescue
-    ArgumentError -> :ok  # Table already exists
+    # Table already exists
+    ArgumentError -> :ok
   end
 
   defp load_cursor do
     case :ets.lookup(@cursor_table, @cursor_key) do
       [{@cursor_key, cursor}] -> cursor
-      [] -> "1970-01-01T00:00:00Z"  # Epoch start
+      # Epoch start
+      [] -> "1970-01-01T00:00:00Z"
     end
   rescue
     ArgumentError -> "1970-01-01T00:00:00Z"

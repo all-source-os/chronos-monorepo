@@ -1,10 +1,10 @@
 import { siteConfig } from "@/lib/config";
 import {
-  Section,
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
+  Section,
 } from "@allsource/ui";
 
 export default function FAQ() {

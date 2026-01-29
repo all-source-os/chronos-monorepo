@@ -227,7 +227,7 @@ pub async fn rate_limit_middleware(
     let auth_ctx = request
         .extensions()
         .get::<AuthContext>()
-        .ok_or_else(|| RateLimitError::Unauthorized)?;
+        .ok_or(RateLimitError::Unauthorized)?;
 
     // Check rate limit for this tenant
     let result = rate_limit_state
@@ -426,6 +426,12 @@ use uuid::Uuid;
 /// Request context with unique ID for tracing
 #[derive(Debug, Clone)]
 pub struct RequestId(pub String);
+
+impl Default for RequestId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl RequestId {
     /// Generate a new request ID
@@ -704,7 +710,7 @@ impl IntoResponse for IpFilterError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::security::auth::{Role, User};
+    use crate::infrastructure::security::auth::Role;
 
     #[test]
     fn test_extract_bearer_token() {

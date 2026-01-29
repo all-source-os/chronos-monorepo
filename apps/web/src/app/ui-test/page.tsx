@@ -1,4 +1,4 @@
-import { Button, Card, CardHeader, CardTitle, CardContent, Badge } from "@allsource/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 
 export default function UITestPage() {
   return (

@@ -11,3 +11,5 @@ config :logger,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
+# Tesla configuration (suppress deprecated builder warning)
+config :tesla, disable_deprecated_builder_warning: true

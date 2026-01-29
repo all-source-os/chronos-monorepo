@@ -99,7 +99,8 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
       [] -> nil
     end
   rescue
-    ArgumentError -> nil  # Table doesn't exist
+    # Table doesn't exist
+    ArgumentError -> nil
   end
 
   @doc """
@@ -110,6 +111,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
       :ets.new(@ets_table, [:set, :public, :named_table, read_concurrency: true])
       Logger.info("[ProjectionSync] ETS cache initialized")
     end
+
     :ok
   end
 
@@ -140,16 +142,17 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
 
     Logger.debug("[ProjectionSync] Started for #{projection_name}:#{entity_id}")
 
-    {:ok, %{
-      projection_name: projection_name,
-      entity_id: entity_id,
-      state: state,
-      dirty: false,
-      sync_interval: sync_interval,
-      project_fn: project_fn,
-      sync_count: 0,
-      events_applied: 0
-    }}
+    {:ok,
+     %{
+       projection_name: projection_name,
+       entity_id: entity_id,
+       state: state,
+       dirty: false,
+       sync_interval: sync_interval,
+       project_fn: project_fn,
+       sync_count: 0,
+       events_applied: 0
+     }}
   end
 
   @impl GenServer
@@ -175,11 +178,8 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
     # Update ETS cache
     update_cache(state.projection_name, state.entity_id, new_projection_state)
 
-    {:noreply, %{state |
-      state: new_projection_state,
-      dirty: true,
-      events_applied: state.events_applied + 1
-    }}
+    {:noreply,
+     %{state | state: new_projection_state, dirty: true, events_applied: state.events_applied + 1}}
   end
 
   @impl GenServer
@@ -190,11 +190,8 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
     # Update ETS cache
     update_cache(state.projection_name, state.entity_id, new_projection_state)
 
-    {:noreply, %{state |
-      state: new_projection_state,
-      dirty: true,
-      events_applied: state.events_applied + 1
-    }}
+    {:noreply,
+     %{state | state: new_projection_state, dirty: true, events_applied: state.events_applied + 1}}
   end
 
   @impl GenServer
@@ -216,6 +213,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
     if state.dirty do
       sync_to_core(state)
     end
+
     :ok
   end
 
@@ -224,27 +222,39 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
   defp load_from_core(projection_name, entity_id, default_state) do
     case RustCoreClient.get_projection_state(projection_name, entity_id) do
       {:ok, state} ->
-        Logger.debug("[ProjectionSync] Loaded state from Core for #{projection_name}:#{entity_id}")
+        Logger.debug(
+          "[ProjectionSync] Loaded state from Core for #{projection_name}:#{entity_id}"
+        )
+
         state
 
       {:error, :not_found} ->
-        Logger.debug("[ProjectionSync] No state in Core for #{projection_name}:#{entity_id}, using default")
+        Logger.debug(
+          "[ProjectionSync] No state in Core for #{projection_name}:#{entity_id}, using default"
+        )
+
         default_state
 
       {:error, reason} ->
-        Logger.warning("[ProjectionSync] Failed to load from Core: #{inspect(reason)}, using default")
+        Logger.warning(
+          "[ProjectionSync] Failed to load from Core: #{inspect(reason)}, using default"
+        )
+
         default_state
     end
   end
 
   defp sync_to_core(state) do
     case RustCoreClient.save_projection_state(
-      state.projection_name,
-      state.entity_id,
-      state.state
-    ) do
+           state.projection_name,
+           state.entity_id,
+           state.state
+         ) do
       :ok ->
-        Logger.debug("[ProjectionSync] Synced to Core: #{state.projection_name}:#{state.entity_id}")
+        Logger.debug(
+          "[ProjectionSync] Synced to Core: #{state.projection_name}:#{state.entity_id}"
+        )
+
         state
 
       {:error, reason} ->

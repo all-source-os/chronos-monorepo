@@ -83,7 +83,12 @@ defmodule QueryServiceEx.Domain.Entities.Projection do
   def valid_name?(_), do: false
 
   @doc "Validate a complete projection definition"
-  def valid_projection?(%Definition{name: name, version: version, initial_state: initial, project_fn: project_fn})
+  def valid_projection?(%Definition{
+        name: name,
+        version: version,
+        initial_state: initial,
+        project_fn: project_fn
+      })
       when is_function(project_fn, 2) do
     valid_name?(name) and valid_version?(version) and not is_nil(initial)
   end

@@ -242,7 +242,7 @@ impl AnalyticsEngine {
 
         for event in &events {
             let bucket_time = request.window.truncate(event.timestamp);
-            let bucket = buckets_map.entry(bucket_time).or_insert_with(HashMap::new);
+            let bucket = buckets_map.entry(bucket_time).or_default();
             *bucket
                 .entry(event.event_type_str().to_string())
                 .or_insert(0) += 1;
@@ -433,14 +433,14 @@ impl AnalyticsEngine {
         for event in &events_a {
             entity_events_a
                 .entry(event.entity_id_str().to_string())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(event);
         }
 
         for event in &events_b {
             entity_events_b
                 .entry(event.entity_id_str().to_string())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(event);
         }
 

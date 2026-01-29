@@ -10,13 +10,15 @@ defmodule McpServerElixir.Infrastructure.ControlPlaneClient do
   @default_base_url "http://localhost:3901"
   @default_timeout 10_000
 
-  plug Tesla.Middleware.BaseUrl,
+  plug(
+    Tesla.Middleware.BaseUrl,
     Application.get_env(:mcp_server_elixir, :control_url, @default_base_url)
+  )
 
-  plug Tesla.Middleware.JSON
-  plug Tesla.Middleware.Timeout, timeout: @default_timeout
+  plug(Tesla.Middleware.JSON)
+  plug(Tesla.Middleware.Timeout, timeout: @default_timeout)
 
-  plug Tesla.Middleware.Retry,
+  plug(Tesla.Middleware.Retry,
     delay: 100,
     max_retries: 2,
     max_delay: 1_000,
@@ -25,13 +27,14 @@ defmodule McpServerElixir.Infrastructure.ControlPlaneClient do
       {:ok, _} -> false
       {:error, _} -> true
     end
+  )
 
   def new do
     %{client: __MODULE__}
   end
 
   @doc "Get cluster status and health information"
-  def get_cluster_status(client) do
+  def get_cluster_status(_client) do
     case get("/api/v1/cluster/status") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -44,4 +47,3 @@ defmodule McpServerElixir.Infrastructure.ControlPlaneClient do
     end
   end
 end
-

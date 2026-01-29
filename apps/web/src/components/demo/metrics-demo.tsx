@@ -1,21 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Button } from "@allsource/ui";
-import {
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Zap,
-  HardDrive,
-  Activity,
-  RefreshCw,
-  Pause,
-  Play,
-} from "lucide-react";
 import { eventStoreClient } from "@/lib/event-store/client";
 import type { Metrics } from "@/lib/event-store/types";
+import { Button } from "@allsource/ui";
+import { motion } from "framer-motion";
+import {
+  Activity,
+  HardDrive,
+  Minus,
+  Pause,
+  Play,
+  RefreshCw,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface MetricHistory {
   timestamp: number;
@@ -135,10 +135,8 @@ export function MetricsDemo() {
     : [];
 
   const TrendIcon = ({ direction }: { direction: string }) => {
-    if (direction === "up")
-      return <TrendingUp className="h-3 w-3 text-green-400" />;
-    if (direction === "down")
-      return <TrendingDown className="h-3 w-3 text-red-400" />;
+    if (direction === "up") return <TrendingUp className="h-3 w-3 text-green-400" />;
+    if (direction === "down") return <TrendingDown className="h-3 w-3 text-red-400" />;
     return <Minus className="h-3 w-3 text-slate-500" />;
   };
 
@@ -173,11 +171,7 @@ export function MetricsDemo() {
                 : "bg-slate-700 border-slate-600 text-white"
             }`}
           >
-            {autoRefresh ? (
-              <Pause className="h-4 w-4 mr-2" />
-            ) : (
-              <Play className="h-4 w-4 mr-2" />
-            )}
+            {autoRefresh ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
             {autoRefresh ? "Auto" : "Manual"}
           </Button>
 
@@ -366,9 +360,7 @@ export function MetricsDemo() {
             </div>
             <div className="p-2 bg-slate-900/30 rounded text-center">
               <p className="text-slate-400">Total Events</p>
-              <p className="text-white font-bold">
-                {metrics.events_total.toLocaleString()}
-              </p>
+              <p className="text-white font-bold">{metrics.events_total.toLocaleString()}</p>
             </div>
           </div>
         </motion.div>

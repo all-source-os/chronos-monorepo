@@ -245,7 +245,7 @@ mod tests {
 
         // Should have approximately 2000 events (some may have been lost if queue was full)
         let final_len = queue.len();
-        assert!(final_len >= 1900 && final_len <= 2000);
+        assert!((1900..=2000).contains(&final_len));
     }
 
     #[test]

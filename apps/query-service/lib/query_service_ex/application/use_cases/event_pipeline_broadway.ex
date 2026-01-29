@@ -79,9 +79,10 @@ defmodule QueryServiceEx.Application.UseCases.EventPipelineBroadway do
           producer: broadway_opts[:producer],
           processors: broadway_opts[:processors] || [default: [concurrency: 10]],
           batchers:
-            broadway_opts[:batchers] || [
-              default: [concurrency: 5, batch_size: 100, batch_timeout: 1000]
-            ],
+            broadway_opts[:batchers] ||
+              [
+                default: [concurrency: 5, batch_size: 100, batch_timeout: 1000]
+              ],
           context: %{pipeline: pipeline()}
         )
       end

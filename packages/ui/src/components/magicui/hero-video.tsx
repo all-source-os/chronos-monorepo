@@ -1,10 +1,10 @@
 "use client";
 
-import { cn } from "../../lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { Play, XIcon } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
+import { cn } from "../../lib/utils";
 
 type AnimationStyle =
   | "from-bottom"
@@ -127,7 +127,7 @@ export function HeroVideoDialog({
                   className="size-full rounded-2xl"
                   allowFullScreen
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                ></iframe>
+                />
               </div>
             </motion.div>
           </motion.div>

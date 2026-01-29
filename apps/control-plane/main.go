@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	DefaultPort     = "3901"
-	CoreServiceURL  = "http://localhost:3900"
+	DefaultPort    = "3901"
+	CoreServiceURL = "http://localhost:3900"
 )
 
 type ControlPlane struct {
@@ -94,9 +94,9 @@ func (cp *ControlPlane) setupRoutes() {
 
 func (cp *ControlPlane) healthHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"status":  "healthy",
-		"service": "allsource-control-plane",
-		"version": "0.1.0",
+		"status":    "healthy",
+		"service":   "allsource-control-plane",
+		"version":   "0.1.0",
 		"timestamp": time.Now().UTC(),
 	})
 }
@@ -151,9 +151,9 @@ func (cp *ControlPlane) clusterStatusHandler(c *gin.Context) {
 				"stats":  coreStats,
 			},
 		},
-		"total_nodes":    1,
-		"healthy_nodes":  1,
-		"timestamp":      time.Now().UTC(),
+		"total_nodes":   1,
+		"healthy_nodes": 1,
+		"timestamp":     time.Now().UTC(),
 	})
 }
 
@@ -175,7 +175,7 @@ func (cp *ControlPlane) metricsHandler(c *gin.Context) {
 		"metrics": gin.H{
 			"event_store": stats,
 			"control_plane": gin.H{
-				"uptime_seconds": time.Since(startTime).Seconds(),
+				"uptime_seconds":   time.Since(startTime).Seconds(),
 				"requests_handled": 0, // Would track this in production
 			},
 		},

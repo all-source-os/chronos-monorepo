@@ -3,7 +3,7 @@ use crate::domain::entities::{Event, EventStream};
 #[cfg(feature = "postgres")]
 use crate::domain::repositories::EventStreamRepository;
 #[cfg(feature = "postgres")]
-use crate::domain::value_objects::{EntityId, EventType, PartitionKey, TenantId};
+use crate::domain::value_objects::{EntityId, PartitionKey, TenantId};
 #[cfg(feature = "postgres")]
 use crate::error::{AllSourceError, Result};
 #[cfg(feature = "postgres")]
@@ -269,7 +269,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .bind(
             event
                 .metadata()
-                .map(|m| serde_json::to_value(m))
+                .map(serde_json::to_value)
                 .transpose()?,
         )
         .bind(event.timestamp())

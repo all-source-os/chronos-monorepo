@@ -11,7 +11,8 @@ defmodule QueryServiceEx.Application.Services.EventPipelineTest do
       assert :ignore = EventPipeline.start_link(name: :test_pipeline_disabled)
     end
 
-    @tag :skip  # Skip unless you want to test with Core running
+    # Skip unless you want to test with Core running
+    @tag :skip
     test "starts when enabled" do
       # Temporarily enable
       Application.put_env(:query_service_ex, :event_pipeline_enabled, true)

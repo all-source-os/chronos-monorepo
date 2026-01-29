@@ -106,7 +106,7 @@ impl IpFilter {
         let mut allowlists = self.tenant_allowlists.write();
         allowlists
             .entry(tenant_id.as_str().to_string())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(ip);
     }
 
@@ -125,7 +125,7 @@ impl IpFilter {
         let mut blocklists = self.tenant_blocklists.write();
         blocklists
             .entry(tenant_id.as_str().to_string())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(ip);
     }
 

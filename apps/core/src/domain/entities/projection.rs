@@ -876,9 +876,11 @@ mod tests {
             Projection::new_v1(test_tenant_id(), "test".to_string(), ProjectionType::Custom)
                 .unwrap();
 
-        let mut config = ProjectionConfig::default();
-        config.batch_size = 500;
-        config.parallel_processing = true;
+        let config = ProjectionConfig {
+            batch_size: 500,
+            parallel_processing: true,
+            ..Default::default()
+        };
 
         projection.update_config(config);
         assert_eq!(projection.config().batch_size, 500);

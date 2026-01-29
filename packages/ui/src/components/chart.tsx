@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { cn } from "../lib/utils";
 import * as RechartsPrimitive from "recharts";
+import { cn } from "../lib/utils";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -63,7 +63,9 @@ const ChartContainer = React.forwardRef<
 ChartContainer.displayName = "Chart";
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(([, itemConfig]) => itemConfig.theme || itemConfig.color);
+  const colorConfig = Object.entries(config).filter(
+    ([, itemConfig]) => itemConfig.theme || itemConfig.color
+  );
 
   if (!colorConfig.length) {
     return null;
@@ -156,7 +158,9 @@ const ChartTooltipContent = React.forwardRef<HTMLDivElement, ChartTooltipContent
           : itemConfig?.label;
 
       if (labelFormatter) {
-        return <div className={cn("font-medium", labelClassName)}>{labelFormatter(value, payload)}</div>;
+        return (
+          <div className={cn("font-medium", labelClassName)}>{labelFormatter(value, payload)}</div>
+        );
       }
 
       if (!value) {
@@ -209,7 +213,8 @@ const ChartTooltipContent = React.forwardRef<HTMLDivElement, ChartTooltipContent
                             {
                               "h-2.5 w-2.5": indicator === "dot",
                               "w-1": indicator === "line",
-                              "w-0 border-[1.5px] border-dashed bg-transparent": indicator === "dashed",
+                              "w-0 border-[1.5px] border-dashed bg-transparent":
+                                indicator === "dashed",
                               "my-0.5": nestLabel && indicator === "dashed",
                             }
                           )}
@@ -230,11 +235,15 @@ const ChartTooltipContent = React.forwardRef<HTMLDivElement, ChartTooltipContent
                     >
                       <div className="grid gap-1.5">
                         {nestLabel ? tooltipLabel : null}
-                        <span className="text-muted-foreground">{itemConfig?.label || item.name}</span>
+                        <span className="text-muted-foreground">
+                          {itemConfig?.label || item.name}
+                        </span>
                       </div>
                       {item.value !== undefined && (
                         <span className="font-mono font-medium tabular-nums text-foreground">
-                          {typeof item.value === "number" ? item.value.toLocaleString() : item.value}
+                          {typeof item.value === "number"
+                            ? item.value.toLocaleString()
+                            : item.value}
                         </span>
                       )}
                     </div>
@@ -287,7 +296,9 @@ const ChartLegendContent = React.forwardRef<HTMLDivElement, ChartLegendContentPr
           return (
             <div
               key={item.value}
-              className={cn("flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground")}
+              className={cn(
+                "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground"
+              )}
             >
               {itemConfig?.icon && !hideIcon ? (
                 <itemConfig.icon />

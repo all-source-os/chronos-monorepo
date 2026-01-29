@@ -114,10 +114,11 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClientTest do
 
   describe "query_events/1 with Query struct" do
     test "compiles Query struct to params" do
-      query = Query.new(
-        from: :events,
-        limit: 50
-      )
+      query =
+        Query.new(
+          from: :events,
+          limit: 50
+        )
 
       result = RustCoreClient.query_events(query)
       assert_result(result)
@@ -307,7 +308,8 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClientTest do
           # 4. Create snapshot
           case RustCoreClient.create_snapshot(event.entity_id, "test") do
             {:ok, _snapshot} -> assert true
-            {:error, _} -> assert true  # Snapshots might not be fully implemented
+            # Snapshots might not be fully implemented
+            {:error, _} -> assert true
           end
 
         {:error, _reason} ->
@@ -320,13 +322,14 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClientTest do
     test "batch event creation and querying" do
       base_id = "batch-test-#{System.unique_integer([:positive])}"
 
-      events = Enum.map(1..5, fn i ->
-        %{
-          entity_id: "#{base_id}-#{i}",
-          event_type: "batch.test",
-          payload: %{index: i}
-        }
-      end)
+      events =
+        Enum.map(1..5, fn i ->
+          %{
+            entity_id: "#{base_id}-#{i}",
+            event_type: "batch.test",
+            payload: %{index: i}
+          }
+        end)
 
       case RustCoreClient.create_event_batch(events) do
         {:ok, created_events} ->

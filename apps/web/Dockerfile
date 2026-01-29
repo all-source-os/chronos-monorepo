@@ -1,48 +1,32 @@
 # syntax=docker/dockerfile:1.7
 # =============================================================================
-# Chronos Web - Production-Optimized Multi-Stage Dockerfile
+# Chronos Web - Production-Optimized Multi-Stage Dockerfile (Bun)
 # 
 # Build from monorepo root: docker build -f apps/web/Dockerfile -t chronos-web .
 # =============================================================================
 
-ARG NODE_VERSION=20
+ARG BUN_VERSION=1.1
 ARG ALPINE_VERSION=3.20
 
 # =============================================================================
-# Stage 1: Build
+# Stage 1: Build with Bun
 # =============================================================================
-FROM node:${NODE_VERSION}-alpine AS builder
+FROM oven/bun:${BUN_VERSION}-alpine AS builder
 
 ARG VERSION=dev
 ARG REVISION=unknown
 
 RUN apk add --no-cache libc6-compat
 
-# Install pnpm globally
-RUN npm install -g pnpm@9
-
 WORKDIR /app
 
-# Create pnpm-workspace.yaml for the monorepo build
-RUN echo "packages:" > pnpm-workspace.yaml && \
-    echo "  - 'packages/*'" >> pnpm-workspace.yaml && \
-    echo "  - 'apps/*'" >> pnpm-workspace.yaml && \
-    echo "  - 'tooling/*'" >> pnpm-workspace.yaml
-
-# Copy root package.json (minimal version for workspace)
-COPY package.json ./
-# Remove workspace-specific scripts and packageManager constraint
-RUN cat package.json | \
-    node -e "const p=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); \
-    delete p.scripts; \
-    delete p.packageManager; \
-    p.scripts = {}; \
-    console.log(JSON.stringify(p,null,2))" > package.json.tmp && \
-    mv package.json.tmp package.json
+# Copy root package files
+COPY package.json bun.lock ./
 
 # Copy workspace packages
 COPY packages/ui/package.json packages/ui/
 COPY packages/ui/src packages/ui/src
+COPY packages/ui/bunfig.toml packages/ui/
 COPY tooling/typescript tooling/typescript
 
 # Copy web app
@@ -55,8 +39,8 @@ COPY apps/web/tsconfig.json apps/web/
 COPY apps/web/components.json apps/web/
 COPY apps/web/content apps/web/content
 
-# Install dependencies
-RUN pnpm install --no-frozen-lockfile
+# Install dependencies with Bun
+RUN bun install --frozen-lockfile
 
 # Environment for build
 ENV NEXT_TELEMETRY_DISABLED=1 \
@@ -65,12 +49,12 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 
 # Build the web application
 WORKDIR /app/apps/web
-RUN pnpm run build
+RUN bun run build
 
 # =============================================================================
 # Stage 2: Runtime
 # =============================================================================
-FROM node:${NODE_VERSION}-alpine AS runner
+FROM node:20-alpine AS runner
 
 ARG VERSION=dev
 ARG REVISION=unknown

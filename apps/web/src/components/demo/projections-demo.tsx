@@ -1,29 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@allsource/ui";
-import {
-  Database,
-  Play,
-  Pause,
-  Trash2,
-  Plus,
-  Activity,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  TrendingUp,
-  Filter,
-  BarChart3,
-  Layers,
-  Sparkles,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
 import { eventStoreClient } from "@/lib/event-store/client";
 import type { Projection } from "@/lib/event-store/types";
+import { Button } from "@allsource/ui";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Activity,
+  BarChart3,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Database,
+  Filter,
+  Layers,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  TrendingUp,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface ProjectionTemplate {
   type: "EntitySnapshot" | "EventCounter" | "Custom" | "TimeSeries" | "Funnel";
@@ -344,9 +344,7 @@ export function ProjectionsDemo() {
                   >
                     <template.icon
                       className={`h-8 w-8 mx-auto mb-2 ${
-                        selectedTemplate?.type === template.type
-                          ? template.color
-                          : "text-slate-400"
+                        selectedTemplate?.type === template.type ? template.color : "text-slate-400"
                       }`}
                     />
                     <p
@@ -489,7 +487,9 @@ export function ProjectionsDemo() {
                           {projection.stats && (
                             <>
                               <span>•</span>
-                              <span>{projection.stats.events_processed.toLocaleString()} events</span>
+                              <span>
+                                {projection.stats.events_processed.toLocaleString()} events
+                              </span>
                               {projection.stats.errors > 0 && (
                                 <>
                                   <span>•</span>

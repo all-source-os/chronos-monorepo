@@ -13,9 +13,7 @@ use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 
 #[cfg(feature = "postgres")]
-use crate::domain::entities::{
-    Actor, AuditAction, AuditCategory, AuditEvent, AuditEventId, AuditOutcome,
-};
+use crate::domain::entities::{Actor, AuditAction, AuditEvent, AuditEventId, AuditOutcome};
 #[cfg(feature = "postgres")]
 use crate::domain::repositories::{AuditEventQuery, AuditEventRepository};
 #[cfg(feature = "postgres")]
@@ -514,8 +512,6 @@ impl AuditEventRepository for PostgresAuditRepository {
 
 #[cfg(all(test, feature = "postgres"))]
 mod tests {
-    use super::*;
-
     // Note: These tests require a running PostgreSQL database
     // Run with: cargo test --features postgres
 

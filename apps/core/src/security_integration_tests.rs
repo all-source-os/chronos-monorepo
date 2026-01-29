@@ -10,7 +10,7 @@
 /// - IP filtering
 use crate::{
     domain::{
-        entities::{Event, Tenant, TenantQuotas},
+        entities::{Event, TenantQuotas},
         repositories::{AuditEventRepository, EventStreamRepository, TenantRepository},
         value_objects::{EntityId, TenantId},
     },
@@ -20,7 +20,7 @@ use crate::{
         },
         security::{
             auth::{ApiKey, AuthManager, Claims, Permission, Role},
-            middleware::{AuthContext, RequestId, SecurityConfig, TenantContext},
+            middleware::{AuthContext, RequestId, SecurityConfig},
             rate_limit::{RateLimitConfig, RateLimiter},
             IpFilter,
         },
@@ -30,7 +30,6 @@ use chrono::{Duration, Utc};
 use serde_json::json;
 use std::net::IpAddr;
 use std::str::FromStr;
-use std::sync::Arc;
 
 // ============================================================================
 // Test Helpers
@@ -536,8 +535,8 @@ fn test_request_id_generation() {
     assert_ne!(req_id1.as_str(), req_id2.as_str());
 
     // Should be valid UUIDs
-    assert!(req_id1.as_str().len() > 0);
-    assert!(req_id2.as_str().len() > 0);
+    assert!(!req_id1.as_str().is_empty());
+    assert!(!req_id2.as_str().is_empty());
 }
 
 // ============================================================================
@@ -566,11 +565,22 @@ fn test_security_integration_complete() {
     // and can be instantiated together
 
     let _auth = setup_auth_manager();
-    let _rate_limiter = RateLimiter::new(RateLimitConfig::dev_mode());
-    let _ip_filter = IpFilter::new();
-    let _security_config = SecurityConfig::default();
-    let _request_id = RequestId::new();
+    let rate_limiter = RateLimiter::new(RateLimitConfig::dev_mode());
+    let ip_filter = IpFilter::new();
+    let security_config = SecurityConfig::default();
+    let request_id = RequestId::new();
 
-    // If we get here, all security components are available
-    assert!(true);
+    // Verify rate limiter works
+    let rate_result = rate_limiter.check_rate_limit("test");
+    assert!(rate_result.allowed);
+
+    // Verify IP filter works
+    let filter_result = ip_filter.is_allowed(&std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)));
+    assert!(filter_result.allowed);
+
+    // Verify security config defaults
+    assert!(security_config.enable_hsts);
+
+    // Verify request ID is generated
+    assert!(!request_id.as_str().is_empty());
 }

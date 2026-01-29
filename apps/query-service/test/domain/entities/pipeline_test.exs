@@ -8,11 +8,12 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.Definition.new/1" do
     test "creates a new pipeline definition" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: []
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: []
+        )
 
       assert pipeline.name == :test_pipeline
       assert pipeline.version == 1
@@ -22,13 +23,14 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "accepts optional config and metadata" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [],
-        config: %{batch_size: 100},
-        metadata: %{author: "test"}
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [],
+          config: %{batch_size: 100},
+          metadata: %{author: "test"}
+        )
 
       assert pipeline.config == %{batch_size: 100}
       assert pipeline.metadata == %{author: "test"}
@@ -131,24 +133,26 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.valid_pipeline?/1" do
     test "accepts valid pipeline definition" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [
-          %{type: :filter, name: "filter_orders"},
-          %{type: :transform, name: "add_timestamp"}
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [
+            %{type: :filter, name: "filter_orders"},
+            %{type: :transform, name: "add_timestamp"}
+          ]
+        )
 
       assert Pipeline.valid_pipeline?(pipeline)
     end
 
     test "accepts pipeline with empty operators list" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: []
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: []
+        )
 
       assert Pipeline.valid_pipeline?(pipeline)
     end
@@ -174,13 +178,14 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "rejects pipeline with invalid operators" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [
-          %{type: :invalid, name: "bad_op"}
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [
+            %{type: :invalid, name: "bad_op"}
+          ]
+        )
 
       refute Pipeline.valid_pipeline?(pipeline)
     end
@@ -194,9 +199,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.filter_operator/2" do
     test "creates a filter operator with predicate function" do
-      operator = Pipeline.filter_operator("only_orders", fn event ->
-        event.event_type == "order.placed"
-      end)
+      operator =
+        Pipeline.filter_operator("only_orders", fn event ->
+          event.event_type == "order.placed"
+        end)
 
       assert operator.type == :filter
       assert operator.name == "only_orders"
@@ -205,9 +211,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "filter function is callable" do
-      operator = Pipeline.filter_operator("test", fn event ->
-        event.value > 100
-      end)
+      operator =
+        Pipeline.filter_operator("test", fn event ->
+          event.value > 100
+        end)
 
       assert operator.function.(%{value: 150})
       refute operator.function.(%{value: 50})
@@ -216,9 +223,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.transform_operator/2" do
     test "creates a transform operator with transform function" do
-      operator = Pipeline.transform_operator("add_timestamp", fn event ->
-        Map.put(event, :processed_at, DateTime.utc_now())
-      end)
+      operator =
+        Pipeline.transform_operator("add_timestamp", fn event ->
+          Map.put(event, :processed_at, DateTime.utc_now())
+        end)
 
       assert operator.type == :transform
       assert operator.name == "add_timestamp"
@@ -227,9 +235,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "transform function modifies event" do
-      operator = Pipeline.transform_operator("uppercase", fn event ->
-        Map.update!(event, :name, &String.upcase/1)
-      end)
+      operator =
+        Pipeline.transform_operator("uppercase", fn event ->
+          Map.update!(event, :name, &String.upcase/1)
+        end)
 
       result = operator.function.(%{name: "test"})
       assert result.name == "TEST"
@@ -238,9 +247,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.enrich_operator/2" do
     test "creates an enrich operator with enrich function" do
-      operator = Pipeline.enrich_operator("add_user_data", fn event ->
-        Map.put(event, :user, %{id: event.user_id, name: "Test User"})
-      end)
+      operator =
+        Pipeline.enrich_operator("add_user_data", fn event ->
+          Map.put(event, :user, %{id: event.user_id, name: "Test User"})
+        end)
 
       assert operator.type == :enrich
       assert operator.name == "add_user_data"
@@ -248,9 +258,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "enrich function adds data to event" do
-      operator = Pipeline.enrich_operator("add_metadata", fn event ->
-        Map.put(event, :metadata, %{source: "api", version: 1})
-      end)
+      operator =
+        Pipeline.enrich_operator("add_metadata", fn event ->
+          Map.put(event, :metadata, %{source: "api", version: 1})
+        end)
 
       result = operator.function.(%{id: 1})
       assert result.metadata == %{source: "api", version: 1}
@@ -259,9 +270,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.validate_operator/2" do
     test "creates a validate operator with validation function" do
-      operator = Pipeline.validate_operator("validate_schema", fn event ->
-        if Map.has_key?(event, :required_field), do: event, else: raise "Missing field"
-      end)
+      operator =
+        Pipeline.validate_operator("validate_schema", fn event ->
+          if Map.has_key?(event, :required_field), do: event, else: raise("Missing field")
+        end)
 
       assert operator.type == :validate
       assert operator.name == "validate_schema"
@@ -271,13 +283,14 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.route_operator/2" do
     test "creates a route operator with routing function" do
-      operator = Pipeline.route_operator("route_by_type", fn event ->
-        case event.event_type do
-          "order." <> _ -> :orders
-          "user." <> _ -> :users
-          _ -> :default
-        end
-      end)
+      operator =
+        Pipeline.route_operator("route_by_type", fn event ->
+          case event.event_type do
+            "order." <> _ -> :orders
+            "user." <> _ -> :users
+            _ -> :default
+          end
+        end)
 
       assert operator.type == :route
       assert operator.name == "route_by_type"
@@ -303,9 +316,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.apply_operator/2 - transform" do
     test "transforms event successfully" do
-      operator = Pipeline.transform_operator("add_field", fn event ->
-        Map.put(event, :processed, true)
-      end)
+      operator =
+        Pipeline.transform_operator("add_field", fn event ->
+          Map.put(event, :processed, true)
+        end)
 
       event = %{id: 1}
       assert {:ok, result} = Pipeline.apply_operator(event, operator)
@@ -313,9 +327,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "returns error when transform function raises" do
-      operator = Pipeline.transform_operator("fail", fn _event ->
-        raise "Transform error"
-      end)
+      operator =
+        Pipeline.transform_operator("fail", fn _event ->
+          raise "Transform error"
+        end)
 
       event = %{id: 1}
       assert {:error, "Transform error"} = Pipeline.apply_operator(event, operator)
@@ -324,9 +339,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.apply_operator/2 - enrich" do
     test "enriches event successfully" do
-      operator = Pipeline.enrich_operator("add_data", fn event ->
-        Map.put(event, :extra, "data")
-      end)
+      operator =
+        Pipeline.enrich_operator("add_data", fn event ->
+          Map.put(event, :extra, "data")
+        end)
 
       event = %{id: 1}
       assert {:ok, result} = Pipeline.apply_operator(event, operator)
@@ -334,9 +350,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "returns error when enrich function raises" do
-      operator = Pipeline.enrich_operator("fail", fn _event ->
-        raise RuntimeError, "Enrich error"
-      end)
+      operator =
+        Pipeline.enrich_operator("fail", fn _event ->
+          raise RuntimeError, "Enrich error"
+        end)
 
       event = %{id: 1}
       assert {:error, "Enrich error"} = Pipeline.apply_operator(event, operator)
@@ -345,18 +362,20 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.apply_operator/2 - validate" do
     test "validates event successfully" do
-      operator = Pipeline.validate_operator("check", fn event ->
-        if event.valid, do: event, else: raise "Invalid"
-      end)
+      operator =
+        Pipeline.validate_operator("check", fn event ->
+          if event.valid, do: event, else: raise("Invalid")
+        end)
 
       event = %{valid: true}
       assert {:ok, ^event} = Pipeline.apply_operator(event, operator)
     end
 
     test "returns error when validation fails" do
-      operator = Pipeline.validate_operator("check", fn _event ->
-        raise "Validation failed"
-      end)
+      operator =
+        Pipeline.validate_operator("check", fn _event ->
+          raise "Validation failed"
+        end)
 
       event = %{valid: false}
       assert {:error, "Validation failed"} = Pipeline.apply_operator(event, operator)
@@ -365,9 +384,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.apply_operator/2 - route" do
     test "routes event and adds route metadata" do
-      operator = Pipeline.route_operator("router", fn event ->
-        if event.priority == :high, do: :priority_queue, else: :normal_queue
-      end)
+      operator =
+        Pipeline.route_operator("router", fn event ->
+          if event.priority == :high, do: :priority_queue, else: :normal_queue
+        end)
 
       event = %{priority: :high, id: 1}
       assert {:ok, result} = Pipeline.apply_operator(event, operator)
@@ -375,9 +395,10 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "returns error when routing function raises" do
-      operator = Pipeline.route_operator("router", fn _event ->
-        raise "Routing error"
-      end)
+      operator =
+        Pipeline.route_operator("router", fn _event ->
+          raise "Routing error"
+        end)
 
       event = %{id: 1}
       assert {:error, "Routing error"} = Pipeline.apply_operator(event, operator)
@@ -386,19 +407,20 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.apply_pipeline/2" do
     test "applies all operators in sequence" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.filter_operator("active_only", fn e -> e.active end),
-          Pipeline.transform_operator("add_timestamp", fn e ->
-            Map.put(e, :timestamp, "2024-01-01")
-          end),
-          Pipeline.enrich_operator("add_source", fn e ->
-            Map.put(e, :source, "pipeline")
-          end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.filter_operator("active_only", fn e -> e.active end),
+            Pipeline.transform_operator("add_timestamp", fn e ->
+              Map.put(e, :timestamp, "2024-01-01")
+            end),
+            Pipeline.enrich_operator("add_source", fn e ->
+              Map.put(e, :source, "pipeline")
+            end)
+          ]
+        )
 
       event = %{id: 1, active: true}
       assert {:ok, result} = Pipeline.apply_pipeline(event, pipeline)
@@ -409,45 +431,48 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "stops at first filter that rejects" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.filter_operator("first", fn e -> e.active end),
-          Pipeline.filter_operator("second", fn e -> e.premium end),
-          Pipeline.transform_operator("should_not_run", fn e ->
-            Map.put(e, :processed, true)
-          end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.filter_operator("first", fn e -> e.active end),
+            Pipeline.filter_operator("second", fn e -> e.premium end),
+            Pipeline.transform_operator("should_not_run", fn e ->
+              Map.put(e, :processed, true)
+            end)
+          ]
+        )
 
       event = %{id: 1, active: true, premium: false}
       assert :filtered == Pipeline.apply_pipeline(event, pipeline)
     end
 
     test "stops at first error" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.transform_operator("first", fn e -> Map.put(e, :step1, true) end),
-          Pipeline.transform_operator("error", fn _e -> raise "Error!" end),
-          Pipeline.transform_operator("should_not_run", fn e ->
-            Map.put(e, :step3, true)
-          end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.transform_operator("first", fn e -> Map.put(e, :step1, true) end),
+            Pipeline.transform_operator("error", fn _e -> raise "Error!" end),
+            Pipeline.transform_operator("should_not_run", fn e ->
+              Map.put(e, :step3, true)
+            end)
+          ]
+        )
 
       event = %{id: 1}
       assert {:error, "Error!"} = Pipeline.apply_pipeline(event, pipeline)
     end
 
     test "handles empty operators list" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: []
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: []
+        )
 
       event = %{id: 1}
       assert {:ok, ^event} = Pipeline.apply_pipeline(event, pipeline)
@@ -456,15 +481,16 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline.apply_pipeline_batch/2" do
     test "applies pipeline to multiple events" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.transform_operator("add_processed", fn e ->
-            Map.put(e, :processed, true)
-          end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.transform_operator("add_processed", fn e ->
+              Map.put(e, :processed, true)
+            end)
+          ]
+        )
 
       events = [%{id: 1}, %{id: 2}, %{id: 3}]
       results = Pipeline.apply_pipeline_batch(events, pipeline)
@@ -474,13 +500,14 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "filters out rejected events" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.filter_operator("even_only", fn e -> rem(e.id, 2) == 0 end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.filter_operator("even_only", fn e -> rem(e.id, 2) == 0 end)
+          ]
+        )
 
       events = [%{id: 1}, %{id: 2}, %{id: 3}, %{id: 4}]
       results = Pipeline.apply_pipeline_batch(events, pipeline)
@@ -490,15 +517,16 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "filters out events that errored" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [
-          Pipeline.transform_operator("fail_odd", fn e ->
-            if rem(e.id, 2) == 0, do: e, else: raise "Odd number"
-          end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [
+            Pipeline.transform_operator("fail_odd", fn e ->
+              if rem(e.id, 2) == 0, do: e, else: raise("Odd number")
+            end)
+          ]
+        )
 
       events = [%{id: 1}, %{id: 2}, %{id: 3}, %{id: 4}]
       results = Pipeline.apply_pipeline_batch(events, pipeline)
@@ -508,11 +536,12 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "handles empty event list" do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 1,
-        operators: [Pipeline.filter_operator("test", fn _ -> true end)]
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 1,
+          operators: [Pipeline.filter_operator("test", fn _ -> true end)]
+        )
 
       assert [] == Pipeline.apply_pipeline_batch([], pipeline)
     end
@@ -520,13 +549,14 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "Pipeline accessors" do
     setup do
-      pipeline = Definition.new(
-        name: :test_pipeline,
-        version: 2,
-        operators: [%{type: :filter, name: "test"}],
-        config: %{batch_size: 100},
-        metadata: %{author: "test"}
-      )
+      pipeline =
+        Definition.new(
+          name: :test_pipeline,
+          version: 2,
+          operators: [%{type: :filter, name: "test"}],
+          config: %{batch_size: 100},
+          metadata: %{author: "test"}
+        )
 
       {:ok, pipeline: pipeline}
     end
@@ -560,34 +590,35 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
 
   describe "real-world pipeline scenarios" do
     test "order processing pipeline" do
-      pipeline = Definition.new(
-        name: :order_pipeline,
-        version: 1,
-        operators: [
-          # Only process order events
-          Pipeline.filter_operator("orders_only", fn e ->
-            String.starts_with?(e.event_type, "order.")
-          end),
-          # Validate required fields
-          Pipeline.validate_operator("validate", fn e ->
-            if Map.has_key?(e, :order_id) and Map.has_key?(e, :amount),
-              do: e,
-              else: raise "Missing required fields"
-          end),
-          # Enrich with customer data
-          Pipeline.enrich_operator("add_customer", fn e ->
-            Map.put(e, :customer, %{id: e.customer_id, tier: "premium"})
-          end),
-          # Transform amount to cents
-          Pipeline.transform_operator("to_cents", fn e ->
-            Map.update!(e, :amount, &(&1 * 100))
-          end),
-          # Route based on amount
-          Pipeline.route_operator("route_by_amount", fn e ->
-            if e.amount > 10000, do: :high_value, else: :standard
-          end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :order_pipeline,
+          version: 1,
+          operators: [
+            # Only process order events
+            Pipeline.filter_operator("orders_only", fn e ->
+              String.starts_with?(e.event_type, "order.")
+            end),
+            # Validate required fields
+            Pipeline.validate_operator("validate", fn e ->
+              if Map.has_key?(e, :order_id) and Map.has_key?(e, :amount),
+                do: e,
+                else: raise("Missing required fields")
+            end),
+            # Enrich with customer data
+            Pipeline.enrich_operator("add_customer", fn e ->
+              Map.put(e, :customer, %{id: e.customer_id, tier: "premium"})
+            end),
+            # Transform amount to cents
+            Pipeline.transform_operator("to_cents", fn e ->
+              Map.update!(e, :amount, &(&1 * 100))
+            end),
+            # Route based on amount
+            Pipeline.route_operator("route_by_amount", fn e ->
+              if e.amount > 10000, do: :high_value, else: :standard
+            end)
+          ]
+        )
 
       event = %{
         event_type: "order.placed",
@@ -603,25 +634,26 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
     end
 
     test "user activity pipeline with filtering" do
-      pipeline = Definition.new(
-        name: :activity_pipeline,
-        version: 1,
-        operators: [
-          # Filter out bot traffic
-          Pipeline.filter_operator("no_bots", fn e ->
-            not Map.get(e, :is_bot, false)
-          end),
-          # Filter active users only
-          Pipeline.filter_operator("active_users", fn e ->
-            Map.get(e, :last_active_days, 999) <= 30
-          end),
-          # Add activity score
-          Pipeline.transform_operator("score", fn e ->
-            score = calculate_score(e)
-            Map.put(e, :activity_score, score)
-          end)
-        ]
-      )
+      pipeline =
+        Definition.new(
+          name: :activity_pipeline,
+          version: 1,
+          operators: [
+            # Filter out bot traffic
+            Pipeline.filter_operator("no_bots", fn e ->
+              not Map.get(e, :is_bot, false)
+            end),
+            # Filter active users only
+            Pipeline.filter_operator("active_users", fn e ->
+              Map.get(e, :last_active_days, 999) <= 30
+            end),
+            # Add activity score
+            Pipeline.transform_operator("score", fn e ->
+              score = calculate_score(e)
+              Map.put(e, :activity_score, score)
+            end)
+          ]
+        )
 
       events = [
         %{user_id: 1, is_bot: false, last_active_days: 5},

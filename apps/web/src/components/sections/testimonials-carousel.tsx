@@ -1,11 +1,11 @@
 import {
   BlurFade,
-  Section,
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
+  Section,
 } from "@allsource/ui";
 import Image from "next/image";
 import { MdOutlineFormatQuote } from "react-icons/md";
@@ -69,8 +69,8 @@ export default function Component() {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <div className="pointer-events-none absolute inset-y-0 left-0 h-full w-2/12 bg-gradient-to-r from-background"></div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 h-full  w-2/12 bg-gradient-to-l from-background"></div>
+          <div className="pointer-events-none absolute inset-y-0 left-0 h-full w-2/12 bg-gradient-to-r from-background" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 h-full  w-2/12 bg-gradient-to-l from-background" />
         </div>
         <div className="md:block hidden absolute bottom-0 left-1/2 -translate-x-1/2">
           <CarouselPrevious />

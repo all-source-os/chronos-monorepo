@@ -1,4 +1,4 @@
-import { test, expect } from "../../fixtures/pages";
+import { expect, test } from "../../fixtures/pages";
 
 test.describe("Metrics Demo", () => {
   test.beforeEach(async ({ demoPage }) => {
@@ -68,7 +68,7 @@ test.describe("Metrics Demo", () => {
 
     // Check for spinning icon (loading state)
     await page.waitForTimeout(100);
-    const spinner = page.locator('.animate-\\[.*rotate.*\\]');
+    const spinner = page.locator(".animate-\\[.*rotate.*\\]");
     const isSpinning = await spinner.isVisible().catch(() => false);
 
     // Either spinner is visible or metrics loaded quickly

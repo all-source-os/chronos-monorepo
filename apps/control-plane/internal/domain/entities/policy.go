@@ -29,7 +29,7 @@ type Policy struct {
 	Resource    string // tenant, user, operation, etc.
 	Action      PolicyAction
 	Conditions  []PolicyCondition
-	Priority    int  // Higher priority = evaluated first
+	Priority    int // Higher priority = evaluated first
 	Enabled     bool
 }
 

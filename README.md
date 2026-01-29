@@ -173,7 +173,7 @@ allsource-core = "0.2"  # Pin to minor version for stability
 - **Rust**: 1.75+
 - **Go**: 1.21+
 - **Elixir**: 1.19+ (with Erlang/OTP 27+)
-- **Node.js**: 18+ (for MCP server)
+- **Bun**: 1.1+ (for TypeScript/web apps)
 
 ### Quick Start
 

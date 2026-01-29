@@ -134,7 +134,10 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServer do
             snapshot_state
 
           {:error, _reason} ->
-            Logger.info("Starting projection #{projection.name} for #{entity_id} with initial state")
+            Logger.info(
+              "Starting projection #{projection.name} for #{entity_id} with initial state"
+            )
+
             Projection.initialize_state(projection)
         end
 
@@ -173,7 +176,9 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServer do
     new_state =
       if should_snapshot?(new_state) do
         case take_snapshot(new_state) do
-          :ok -> %{new_state | events_since_snapshot: 0, last_snapshot_at: DateTime.utc_now()}
+          :ok ->
+            %{new_state | events_since_snapshot: 0, last_snapshot_at: DateTime.utc_now()}
+
           {:error, reason} ->
             Logger.error("Failed to snapshot: #{inspect(reason)}")
             new_state
@@ -207,7 +212,9 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServer do
     new_state =
       if should_snapshot?(new_state) do
         case take_snapshot(new_state) do
-          :ok -> %{new_state | events_since_snapshot: 0, last_snapshot_at: DateTime.utc_now()}
+          :ok ->
+            %{new_state | events_since_snapshot: 0, last_snapshot_at: DateTime.utc_now()}
+
           {:error, reason} ->
             Logger.error("Failed to snapshot: #{inspect(reason)}")
             new_state
@@ -256,7 +263,7 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServer do
 
         {:reply, :ok, new_state}
 
-      {:error, reason} = error ->
+      {:error, _reason} = error ->
         {:reply, error, state}
     end
   end
@@ -279,7 +286,9 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServer do
 
   @impl true
   def terminate(reason, state) do
-    Logger.info("Stopping projection server for #{state.projection.name}/#{state.entity_id}: #{inspect(reason)}")
+    Logger.info(
+      "Stopping projection server for #{state.projection.name}/#{state.entity_id}: #{inspect(reason)}"
+    )
 
     # Take final snapshot before terminating
     take_snapshot(state)

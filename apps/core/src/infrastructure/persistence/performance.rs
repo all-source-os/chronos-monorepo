@@ -1,18 +1,20 @@
 use std::time::{Duration, Instant};
 
-/// Performance optimization utilities
+/// Batch writer for high-throughput ingestion.
 ///
 /// Inspired by SierraDB's focus on high-throughput operations.
 ///
 /// # Design Principles
+///
 /// - Batch operations for reduced overhead
 /// - Minimal allocations
 /// - Zero-copy where possible
 /// - Lock-free when feasible
-
-/// Batch writer for high-throughput ingestion
+///
+/// # Behavior
 ///
 /// Accumulates items in a buffer and flushes when:
+///
 /// - Buffer reaches capacity
 /// - Time threshold exceeded
 /// - Explicit flush called

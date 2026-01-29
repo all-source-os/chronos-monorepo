@@ -1,24 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@allsource/ui";
-import {
-  Zap,
-  ShoppingCart,
-  Thermometer,
-  Activity,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  ChevronDown,
-  ChevronUp,
-  Trash2,
-  TrendingUp,
-} from "lucide-react";
 import { eventStoreClient } from "@/lib/event-store/client";
 import { generateEcommerceEvents, generateIoTEvents } from "@/lib/event-store/demo-data";
 import type { CreateEventRequest } from "@/lib/event-store/types";
+import { Button } from "@allsource/ui";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Activity,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  ShoppingCart,
+  Thermometer,
+  Trash2,
+  TrendingUp,
+  XCircle,
+  Zap,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface EventBatch {
   type: string;
@@ -322,9 +322,7 @@ export function EventIngestionDemo() {
                 <TrendingUp className="h-3 w-3" />
                 Throughput
               </p>
-              <p className="text-2xl font-bold text-blue-400 mt-1">
-                {throughput.toFixed(1)}/s
-              </p>
+              <p className="text-2xl font-bold text-blue-400 mt-1">{throughput.toFixed(1)}/s</p>
             </div>
             <div className="p-4 bg-slate-800/70 rounded-lg border border-slate-600">
               <p className="text-xs text-slate-300 font-medium">Success Rate</p>

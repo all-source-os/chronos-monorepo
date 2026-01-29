@@ -40,7 +40,7 @@ defmodule QueryServiceExWeb.EventController do
   @doc """
   Get a specific event by ID.
   """
-  def show(conn, %{"id" => id}) do
+  def show(conn, %{"id" => _id}) do
     # Note: RustCoreClient doesn't have get_event_by_id, so we query by entity_id
     # This is a limitation that should be addressed in the backend
     conn
@@ -141,12 +141,14 @@ defmodule QueryServiceExWeb.EventController do
 
   # Helper to parse integer parameters with defaults
   defp parse_int(nil, default), do: default
+
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
       {int, _} -> int
       :error -> default
     end
   end
+
   defp parse_int(value, _default) when is_integer(value), do: value
   defp parse_int(_, default), do: default
 end

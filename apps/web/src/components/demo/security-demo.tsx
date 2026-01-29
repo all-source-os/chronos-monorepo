@@ -1,31 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@allsource/ui";
-import {
-  Shield,
-  Lock,
-  Key,
-  Users,
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  Copy,
-  CheckCheck,
-  TrendingDown,
-  Zap,
-  Database,
-  FileText,
-  Clock,
-  Filter as FilterIcon,
-} from "lucide-react";
 import { eventStoreClient } from "@/lib/event-store/client";
 import type { Tenant } from "@/lib/event-store/types";
+import { Button } from "@allsource/ui";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Activity,
+  AlertTriangle,
+  CheckCheck,
+  CheckCircle2,
+  Clock,
+  Copy,
+  Database,
+  Eye,
+  EyeOff,
+  FileText,
+  Filter as FilterIcon,
+  Key,
+  Lock,
+  RefreshCw,
+  Shield,
+  TrendingDown,
+  Users,
+  XCircle,
+  Zap,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface SecurityFeature {
   id: string;
@@ -134,7 +134,13 @@ interface AuditLogEntry {
 
 // Mock audit log data
 const generateMockAuditLogs = (): AuditLogEntry[] => {
-  const actions = ["CREATE_EVENT", "QUERY_EVENTS", "CREATE_PROJECTION", "UPDATE_TENANT", "DELETE_EVENT"];
+  const actions = [
+    "CREATE_EVENT",
+    "QUERY_EVENTS",
+    "CREATE_PROJECTION",
+    "UPDATE_TENANT",
+    "DELETE_EVENT",
+  ];
   const users = ["admin@acme.com", "dev@startup.io", "ops@enterprise.com"];
   const tenants = ["acme-corp", "startup-io", "enterprise-inc"];
   const resources = ["events", "projections", "tenants", "schemas"];
@@ -148,7 +154,7 @@ const generateMockAuditLogs = (): AuditLogEntry[] => {
       user: users[i % users.length] as string,
       tenant: tenants[i % tenants.length] as string,
       resource: resources[i % resources.length] as string,
-      status: Math.random() > 0.1 ? "success" : "failure" as "success" | "failure",
+      status: Math.random() > 0.1 ? "success" : ("failure" as "success" | "failure"),
       ip_address: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
     };
   });
@@ -246,18 +252,21 @@ export function SecurityDemo() {
       if (response.ok) {
         const newTenant = await response.json();
         // Add mock quotas for display
-        setTenants(prev => [...prev, {
-          ...newTenant,
-          tier: "Standard",
-          quotas: {
-            events_per_day: 100000,
-            storage_gb: 10,
-            queries_per_hour: 1000,
-            max_projections: 5,
-            max_pipelines: 2,
-            max_api_keys: 3,
+        setTenants((prev) => [
+          ...prev,
+          {
+            ...newTenant,
+            tier: "Standard",
+            quotas: {
+              events_per_day: 100000,
+              storage_gb: 10,
+              queries_per_hour: 1000,
+              max_projections: 5,
+              max_pipelines: 2,
+              max_api_keys: 3,
+            },
           },
-        }]);
+        ]);
       } else {
         console.error("Failed to create tenant");
       }
@@ -345,7 +354,9 @@ export function SecurityDemo() {
 
   const enabledFeatures = securityFeatures.filter((f) => f.status === "enabled").length;
   const configuredFeatures = securityFeatures.filter((f) => f.status === "configured").length;
-  const totalSecurity = Math.round(((enabledFeatures + configuredFeatures * 0.5) / securityFeatures.length) * 100);
+  const totalSecurity = Math.round(
+    ((enabledFeatures + configuredFeatures * 0.5) / securityFeatures.length) * 100
+  );
 
   return (
     <div className="space-y-6">
@@ -445,7 +456,9 @@ export function SecurityDemo() {
             {securityFeatures.map((feature, index) => (
               <motion.button
                 key={feature.id}
-                onClick={() => setSelectedFeature(selectedFeature === feature.id ? null : feature.id)}
+                onClick={() =>
+                  setSelectedFeature(selectedFeature === feature.id ? null : feature.id)
+                }
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: index * 0.05 }}
@@ -497,7 +510,11 @@ export function SecurityDemo() {
                             variant="outline"
                             className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600"
                           >
-                            {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            {showApiKey ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
                           </Button>
                           <Button
                             onClick={handleCopyApiKey}
@@ -505,7 +522,11 @@ export function SecurityDemo() {
                             variant="outline"
                             className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600"
                           >
-                            {copied ? <CheckCheck className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                            {copied ? (
+                              <CheckCheck className="h-4 w-4 text-green-400" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -625,7 +646,9 @@ export function SecurityDemo() {
           <div className="flex items-center justify-between p-4 bg-slate-800/70 rounded-lg border border-slate-600">
             <div>
               <h3 className="text-lg font-semibold text-white">Tenant Management</h3>
-              <p className="text-sm text-slate-400 mt-1">Create and manage isolated tenant environments</p>
+              <p className="text-sm text-slate-400 mt-1">
+                Create and manage isolated tenant environments
+              </p>
             </div>
             <Button
               onClick={createDemoTenant}
@@ -657,7 +680,9 @@ export function SecurityDemo() {
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-xl font-bold text-white">{tenant.name}</h3>
-                        <span className={`text-xs px-2 py-1 rounded border ${getTierColor(tenant.tier)}`}>
+                        <span
+                          className={`text-xs px-2 py-1 rounded border ${getTierColor(tenant.tier)}`}
+                        >
                           {tenant.tier}
                         </span>
                       </div>
@@ -674,7 +699,9 @@ export function SecurityDemo() {
                     </div>
                     <div className="p-3 bg-slate-900/50 rounded">
                       <p className="text-xs text-slate-400">Storage</p>
-                      <p className="text-sm font-bold text-white mt-1">{tenant.quotas.storage_gb}GB</p>
+                      <p className="text-sm font-bold text-white mt-1">
+                        {tenant.quotas.storage_gb}GB
+                      </p>
                     </div>
                     <div className="p-3 bg-slate-900/50 rounded">
                       <p className="text-xs text-slate-400">Queries/Hour</p>
@@ -684,15 +711,21 @@ export function SecurityDemo() {
                     </div>
                     <div className="p-3 bg-slate-900/50 rounded">
                       <p className="text-xs text-slate-400">Projections</p>
-                      <p className="text-sm font-bold text-white mt-1">{tenant.quotas.max_projections}</p>
+                      <p className="text-sm font-bold text-white mt-1">
+                        {tenant.quotas.max_projections}
+                      </p>
                     </div>
                     <div className="p-3 bg-slate-900/50 rounded">
                       <p className="text-xs text-slate-400">Pipelines</p>
-                      <p className="text-sm font-bold text-white mt-1">{tenant.quotas.max_pipelines}</p>
+                      <p className="text-sm font-bold text-white mt-1">
+                        {tenant.quotas.max_pipelines}
+                      </p>
                     </div>
                     <div className="p-3 bg-slate-900/50 rounded">
                       <p className="text-xs text-slate-400">API Keys</p>
-                      <p className="text-sm font-bold text-white mt-1">{tenant.quotas.max_api_keys}</p>
+                      <p className="text-sm font-bold text-white mt-1">
+                        {tenant.quotas.max_api_keys}
+                      </p>
                     </div>
                   </div>
                 </motion.div>

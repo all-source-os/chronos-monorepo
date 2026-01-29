@@ -24,9 +24,9 @@ const (
 
 // TracingConfig holds OpenTelemetry configuration
 type TracingConfig struct {
-	Enabled         bool
-	JaegerEndpoint  string
-	SamplingRate    float64
+	Enabled        bool
+	JaegerEndpoint string
+	SamplingRate   float64
 }
 
 // InitTracing initializes OpenTelemetry with Jaeger exporter

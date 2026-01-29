@@ -11,7 +11,8 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClientTest do
       assert :ignore = CoreWebSocketClient.start_link(enabled: false)
     end
 
-    @tag :skip  # Skip this test unless Core is running
+    # Skip this test unless Core is running
+    @tag :skip
     test "starts with default options when enabled" do
       # This test requires Core to be running
       assert {:ok, _pid} = CoreWebSocketClient.start_link(enabled: true, name: :test_ws_client)
@@ -27,11 +28,12 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClientTest do
       Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:all")
 
       # Verify subscription works (we won't receive events without real connection)
-      assert :ok = Phoenix.PubSub.broadcast(
-        QueryServiceEx.PubSub,
-        "events:all",
-        {:new_event, %{"id" => "test-event"}}
-      )
+      assert :ok =
+               Phoenix.PubSub.broadcast(
+                 QueryServiceEx.PubSub,
+                 "events:all",
+                 {:new_event, %{"id" => "test-event"}}
+               )
 
       assert_receive {:new_event, %{"id" => "test-event"}}
     end
@@ -40,11 +42,12 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClientTest do
       entity_id = "user-123"
       Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{entity_id}")
 
-      assert :ok = Phoenix.PubSub.broadcast(
-        QueryServiceEx.PubSub,
-        "events:#{entity_id}",
-        {:new_event, %{"entity_id" => entity_id}}
-      )
+      assert :ok =
+               Phoenix.PubSub.broadcast(
+                 QueryServiceEx.PubSub,
+                 "events:#{entity_id}",
+                 {:new_event, %{"entity_id" => entity_id}}
+               )
 
       assert_receive {:new_event, %{"entity_id" => ^entity_id}}
     end
@@ -53,11 +56,12 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClientTest do
       event_type = "user.created"
       Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:type:#{event_type}")
 
-      assert :ok = Phoenix.PubSub.broadcast(
-        QueryServiceEx.PubSub,
-        "events:type:#{event_type}",
-        {:new_event, %{"event_type" => event_type}}
-      )
+      assert :ok =
+               Phoenix.PubSub.broadcast(
+                 QueryServiceEx.PubSub,
+                 "events:type:#{event_type}",
+                 {:new_event, %{"event_type" => event_type}}
+               )
 
       assert_receive {:new_event, %{"event_type" => ^event_type}}
     end

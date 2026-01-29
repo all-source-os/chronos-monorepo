@@ -12,28 +12,28 @@ import (
 
 // AuditEvent represents an auditable action
 type AuditEvent struct {
-	Timestamp   time.Time          `json:"timestamp"`
-	EventType   string             `json:"event_type"`
-	UserID      string             `json:"user_id,omitempty"`
-	Username    string             `json:"username,omitempty"`
-	TenantID    string             `json:"tenant_id,omitempty"`
-	Action      string             `json:"action"`
-	Resource    string             `json:"resource,omitempty"`
-	ResourceID  string             `json:"resource_id,omitempty"`
-	Method      string             `json:"method"`
-	Path        string             `json:"path"`
-	StatusCode  int                `json:"status_code"`
-	Duration    float64            `json:"duration_ms"`
-	IPAddress   string             `json:"ip_address,omitempty"`
-	UserAgent   string             `json:"user_agent,omitempty"`
-	Error       string             `json:"error,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Timestamp  time.Time              `json:"timestamp"`
+	EventType  string                 `json:"event_type"`
+	UserID     string                 `json:"user_id,omitempty"`
+	Username   string                 `json:"username,omitempty"`
+	TenantID   string                 `json:"tenant_id,omitempty"`
+	Action     string                 `json:"action"`
+	Resource   string                 `json:"resource,omitempty"`
+	ResourceID string                 `json:"resource_id,omitempty"`
+	Method     string                 `json:"method"`
+	Path       string                 `json:"path"`
+	StatusCode int                    `json:"status_code"`
+	Duration   float64                `json:"duration_ms"`
+	IPAddress  string                 `json:"ip_address,omitempty"`
+	UserAgent  string                 `json:"user_agent,omitempty"`
+	Error      string                 `json:"error,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // AuditLogger handles audit logging
 type AuditLogger struct {
-	file   *os.File
-	mu     sync.Mutex
+	file    *os.File
+	mu      sync.Mutex
 	enabled bool
 }
 
@@ -50,7 +50,7 @@ func NewAuditLogger(filePath string) (*AuditLogger, error) {
 	}
 
 	return &AuditLogger{
-		file:   file,
+		file:    file,
 		enabled: true,
 	}, nil
 }

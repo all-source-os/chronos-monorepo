@@ -1,22 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@allsource/ui";
-import {
-  Search,
-  Database,
-  Clock,
-  Filter,
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
-  Zap,
-  Download,
-  History,
-} from "lucide-react";
 import { eventStoreClient } from "@/lib/event-store/client";
 import type { Event } from "@/lib/event-store/types";
+import { Button } from "@allsource/ui";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Database,
+  Download,
+  Filter,
+  History,
+  Search,
+  Sparkles,
+  Zap,
+} from "lucide-react";
+import { useState } from "react";
 
 interface QueryHistory {
   type: string;
@@ -58,7 +58,7 @@ export function QueryDemo() {
           results = await eventStoreClient.getEventsByType(customEventType);
           queryParams = `event_type: ${customEventType}`;
           break;
-        case "timerange":
+        case "timerange": {
           const now = new Date();
           const hoursAgo = new Date(now.getTime() - timeRangeHours * 60 * 60 * 1000);
           results = await eventStoreClient.queryEvents({
@@ -68,7 +68,8 @@ export function QueryDemo() {
           });
           queryParams = `last ${timeRangeHours}h, limit: ${resultLimit}`;
           break;
-        case "custom":
+        }
+        case "custom": {
           // Advanced query combining multiple filters
           const customNow = new Date();
           const customHoursAgo = new Date(customNow.getTime() - timeRangeHours * 60 * 60 * 1000);
@@ -80,6 +81,7 @@ export function QueryDemo() {
           });
           queryParams = `type: ${customEventType}, time: ${timeRangeHours}h, limit: ${resultLimit}`;
           break;
+        }
       }
 
       const duration = Date.now() - startTime;
@@ -311,10 +313,7 @@ export function QueryDemo() {
                   transition={{ delay: index * 0.03 }}
                   className="bg-slate-800/70 rounded-lg border border-slate-600 hover:border-slate-500 transition-colors overflow-hidden"
                 >
-                  <div
-                    className="p-3 cursor-pointer"
-                    onClick={() => toggleExpanded(event.id)}
-                  >
+                  <div className="p-3 cursor-pointer" onClick={() => toggleExpanded(event.id)}>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -372,7 +371,9 @@ export function QueryDemo() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
           <Database className="h-12 w-12 mx-auto text-slate-600 mb-3" />
           <p className="text-slate-400">No events found for this query</p>
-          <p className="text-sm text-slate-500 mt-2">Try ingesting some events first or adjusting your filters</p>
+          <p className="text-sm text-slate-500 mt-2">
+            Try ingesting some events first or adjusting your filters
+          </p>
         </motion.div>
       )}
 

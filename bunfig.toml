@@ -1,0 +1,26 @@
+# =============================================================================
+# Bun Configuration - Chronos Monorepo
+# https://bun.sh/docs/runtime/bunfig
+# =============================================================================
+
+[install]
+# Use frozen lockfile in CI environments
+frozen = false
+
+[install.lockfile]
+# Always save the lockfile
+save = true
+
+[test]
+# Test coverage configuration
+coverage = false
+
+# Test timeout in milliseconds
+timeout = 30000
+
+# Preload files before running tests (used in packages/ui)
+# preload = ["./src/__tests__/setup.ts"]
+
+[run]
+# Shell to use when running scripts
+shell = "bun"

@@ -125,7 +125,7 @@ impl TenantRepository for InMemoryTenantRepository {
             .collect();
 
         // Sort by created_at (newest first)
-        tenants.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        tenants.sort_by_key(|t| std::cmp::Reverse(t.created_at()));
 
         // Apply pagination
         Ok(tenants.into_iter().skip(offset).take(limit).collect())
@@ -140,7 +140,7 @@ impl TenantRepository for InMemoryTenantRepository {
             .collect();
 
         // Sort by created_at (newest first)
-        tenants.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        tenants.sort_by_key(|t| std::cmp::Reverse(t.created_at()));
 
         // Apply pagination
         Ok(tenants.into_iter().skip(offset).take(limit).collect())

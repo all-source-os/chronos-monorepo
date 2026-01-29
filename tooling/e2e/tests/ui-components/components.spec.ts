@@ -1,4 +1,4 @@
-import { test, expect } from "../../fixtures/pages";
+import { expect, test } from "../../fixtures/pages";
 
 test.describe("UI Components Test Page", () => {
   test.beforeEach(async ({ uiTestPage }) => {

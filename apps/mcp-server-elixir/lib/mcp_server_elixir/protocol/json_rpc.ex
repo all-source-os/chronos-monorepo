@@ -46,4 +46,3 @@ defmodule McpServerElixir.Protocol.JsonRpc do
     }
   end
 end
-

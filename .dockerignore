@@ -5,7 +5,6 @@
 
 # Dependencies
 **/node_modules/
-**/.pnpm-store/
 
 # Build artifacts
 **/.next/
@@ -54,8 +53,6 @@ Thumbs.db
 
 # Logs
 *.log
-npm-debug.log*
-yarn-debug.log*
 
 # Local development
 **/.turbo/
@@ -89,4 +86,3 @@ scripts/
 Makefile
 biome.json
 turbo.json
-bun.lock

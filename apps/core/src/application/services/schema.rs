@@ -187,7 +187,7 @@ impl SchemaRegistry {
         let mut latest_versions = self.latest_versions.write();
 
         // Get or create subject entry
-        let subject_schemas = schemas.entry(subject.clone()).or_insert_with(HashMap::new);
+        let subject_schemas = schemas.entry(subject.clone()).or_default();
 
         // Determine next version
         let next_version = latest_versions.get(&subject).map(|v| v + 1).unwrap_or(1);

@@ -8,7 +8,18 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": ["node_modules", "dist", "build", ".next", "target", "*.min.js", "*.d.ts"]
+    "ignore": [
+      "node_modules",
+      "dist",
+      "build",
+      ".next",
+      "target",
+      "*.min.js",
+      "*.d.ts",
+      ".beads",
+      "deps",
+      "_build"
+    ]
   },
   "formatter": {
     "enabled": true,

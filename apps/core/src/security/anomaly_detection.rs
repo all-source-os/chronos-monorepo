@@ -669,8 +669,10 @@ mod tests {
 
     #[test]
     fn test_disabled_detection() {
-        let mut config = AnomalyDetectionConfig::default();
-        config.enabled = false;
+        let config = AnomalyDetectionConfig {
+            enabled: false,
+            ..Default::default()
+        };
 
         let detector = AnomalyDetector::new(config);
         let event = create_test_event(AuditAction::Login, AuditOutcome::Failure, "user1");

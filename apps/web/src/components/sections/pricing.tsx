@@ -2,7 +2,7 @@
 
 import { siteConfig } from "@/lib/config";
 import useWindowSize from "@/lib/hooks/use-window-size";
-import { Section, buttonVariants, Label, Switch, cn } from "@allsource/ui";
+import { Label, Section, Switch, buttonVariants, cn } from "@allsource/ui";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import Link from "next/link";
@@ -53,7 +53,7 @@ export default function PricingSection() {
               opacity: { duration: 0.5 },
             }}
             className={cn(
-              `rounded-2xl border-[1px] p-6 bg-background text-center lg:flex lg:flex-col lg:justify-center relative`,
+              "rounded-2xl border-[1px] p-6 bg-background text-center lg:flex lg:flex-col lg:justify-center relative",
               plan.isPopular ? "border-primary border-[2px]" : "border-border",
               index === 0 || index === siteConfig.pricing.length - 1
                 ? "z-0 transform translate-x-0 translate-y-0 -translate-z-[50px] rotate-y-[10deg]"

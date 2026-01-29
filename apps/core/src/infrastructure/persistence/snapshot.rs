@@ -170,7 +170,7 @@ impl SnapshotManager {
         let snapshot = Snapshot::new(entity_id.clone(), state, as_of, event_count, snapshot_type);
 
         let mut snapshots = self.snapshots.write();
-        let entity_snapshots = snapshots.entry(entity_id.clone()).or_insert_with(Vec::new);
+        let entity_snapshots = snapshots.entry(entity_id.clone()).or_default();
 
         // Add new snapshot
         entity_snapshots.push(snapshot.clone());
@@ -236,10 +236,7 @@ impl SnapshotManager {
     /// Get all snapshots for an entity
     pub fn get_all_snapshots(&self, entity_id: &str) -> Vec<Snapshot> {
         let snapshots = self.snapshots.read();
-        snapshots
-            .get(entity_id)
-            .map(|v| v.clone())
-            .unwrap_or_default()
+        snapshots.get(entity_id).cloned().unwrap_or_default()
     }
 
     /// Check if a new snapshot should be created for an entity

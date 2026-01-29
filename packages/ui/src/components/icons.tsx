@@ -1,4 +1,4 @@
-import { Github, Linkedin, Instagram, Youtube, Twitter, MessageCircle } from "lucide-react";
+import { Github, Instagram, Linkedin, MessageCircle, Twitter, Youtube } from "lucide-react";
 import { cn } from "../lib/utils";
 
 interface IconProps {

@@ -4,7 +4,7 @@ import type { CreateEventRequest } from "./types";
 export const DEMO_TENANT_ID = "demo-tenant-001";
 
 // Generate sample e-commerce events
-export function generateEcommerceEvents(count: number = 50): CreateEventRequest[] {
+export function generateEcommerceEvents(count = 50): CreateEventRequest[] {
   const events: CreateEventRequest[] = [];
   const userIds = Array.from({ length: 10 }, (_, i) => `user-${i + 1}`);
   const productIds = Array.from({ length: 20 }, (_, i) => `product-${i + 1}`);
@@ -133,7 +133,7 @@ export function generateEcommerceEvents(count: number = 50): CreateEventRequest[
 }
 
 // Generate IoT sensor events
-export function generateIoTEvents(count: number = 100): CreateEventRequest[] {
+export function generateIoTEvents(count = 100): CreateEventRequest[] {
   const events: CreateEventRequest[] = [];
   const sensorIds = Array.from({ length: 5 }, (_, i) => `sensor-${i + 1}`);
   const locations = ["warehouse-1", "warehouse-2", "factory-floor", "loading-dock", "storage-room"];
@@ -164,7 +164,7 @@ export function generateIoTEvents(count: number = 100): CreateEventRequest[] {
 }
 
 // Generate user activity events
-export function generateUserActivityEvents(count: number = 75): CreateEventRequest[] {
+export function generateUserActivityEvents(count = 75): CreateEventRequest[] {
   const events: CreateEventRequest[] = [];
   const userIds = Array.from({ length: 20 }, (_, i) => `user-${i + 1}`);
   const pages = ["/home", "/products", "/cart", "/checkout", "/profile", "/orders", "/help"];

@@ -483,8 +483,6 @@ impl TenantRepository for PostgresTenantRepository {
 
 #[cfg(all(test, feature = "postgres"))]
 mod tests {
-    use super::*;
-
     // Note: These tests require a running PostgreSQL database
     // Run with: cargo test --features postgres
 

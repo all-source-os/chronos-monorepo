@@ -509,7 +509,7 @@ private async validateTenantAccess(tenantId: string, resourceId: string) {
 ```bash
 # Install dependencies
 cd packages/mcp-server
-npm install axios zod
+bun add axios zod
 
 # Create ClojureQueryClient class
 # Implement basic query, projection, analytics tools

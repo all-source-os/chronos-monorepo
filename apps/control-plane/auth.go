@@ -14,11 +14,11 @@ import (
 
 // Claims represents JWT claims
 type Claims struct {
-	UserID    string        `json:"sub"`
-	Username  string        `json:"username"`
-	TenantID  string        `json:"tenant_id"`
-	Role      entities.Role `json:"role"`
-	IsAPIKey  bool          `json:"is_api_key,omitempty"`
+	UserID   string        `json:"sub"`
+	Username string        `json:"username"`
+	TenantID string        `json:"tenant_id"`
+	Role     entities.Role `json:"role"`
+	IsAPIKey bool          `json:"is_api_key,omitempty"`
 	jwt.StandardClaims
 }
 

@@ -382,8 +382,10 @@ mod tests {
 
     #[test]
     fn test_disabled_encryption() {
-        let mut config = EncryptionConfig::default();
-        config.enabled = false;
+        let config = EncryptionConfig {
+            enabled: false,
+            ..Default::default()
+        };
 
         let encryption = FieldEncryption::new(config).unwrap();
         let plaintext = "test";
