@@ -1,10 +1,19 @@
+# syntax=docker/dockerfile:1.7
 # =============================================================================
-# Chronos Query Service - Serverless-Ready Dockerfile
-# Optimized for fast cold starts and minimal image size
+# Chronos Query Service - Production-Optimized Multi-Stage Dockerfile
 # =============================================================================
 
-# Build stage
-FROM elixir:1.17-otp-27-alpine AS build
+ARG ELIXIR_VERSION=1.18
+ARG OTP_VERSION=27
+ARG ALPINE_VERSION=3.20
+
+# =============================================================================
+# Stage 1: Build
+# =============================================================================
+FROM elixir:${ELIXIR_VERSION}-otp-${OTP_VERSION}-alpine AS build
+
+ARG VERSION=dev
+ARG REVISION=unknown
 
 # Install build dependencies
 RUN apk add --no-cache build-base git
@@ -15,10 +24,11 @@ WORKDIR /app
 RUN mix local.hex --force && \
     mix local.rebar --force
 
+# Set build environment
+ENV MIX_ENV=prod
+
 # Copy mix files first for dependency caching
 COPY mix.exs mix.lock ./
-
-ENV MIX_ENV=prod
 
 # Install and compile dependencies (cached layer)
 RUN mix deps.get --only prod && \
@@ -27,15 +37,32 @@ RUN mix deps.get --only prod && \
 # Copy source code
 COPY lib ./lib
 COPY config ./config
-COPY priv ./priv
+
+# Create priv directory if it doesn't exist (optional for Phoenix)
+RUN mkdir -p priv
 
 # Compile and build release
-RUN mix compile && mix release
+RUN mix compile && \
+    mix release
 
 # =============================================================================
-# Runtime stage - minimal image for serverless
+# Stage 2: Runtime
 # =============================================================================
-FROM alpine:3.20 AS runtime
+FROM alpine:${ALPINE_VERSION} AS runtime
+
+ARG VERSION=dev
+ARG REVISION=unknown
+ARG BUILDTIME=unknown
+
+# OCI Image Labels
+LABEL org.opencontainers.image.title="Chronos Query Service" \
+      org.opencontainers.image.description="High-performance query service for Chronos event store" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${BUILDTIME}" \
+      org.opencontainers.image.vendor="AllSource Team" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo"
 
 # Install minimal runtime dependencies
 RUN apk add --no-cache \
@@ -44,11 +71,11 @@ RUN apk add --no-cache \
     libstdc++ \
     libgcc \
     tini && \
-    rm -rf /var/cache/apk/*
+    rm -rf /var/cache/apk/* /tmp/*
 
 # Create non-root user
 RUN addgroup -g 1000 -S app && \
-    adduser -u 1000 -S app -G app
+    adduser -u 1000 -S app -G app -h /app -s /sbin/nologin
 
 WORKDIR /app
 
@@ -57,35 +84,21 @@ COPY --from=build --chown=app:app /app/_build/prod/rel/query_service_ex ./
 
 USER app
 
-# Expose port (serverless platforms typically use PORT env var)
+# Expose port
 EXPOSE 4000
 
-# =============================================================================
-# Serverless-optimized environment
-# =============================================================================
+# Environment configuration
 ENV HOME=/app \
     MIX_ENV=prod \
-    # Default port - serverless platforms override via PORT
     PORT=4000 \
-    # Erlang VM tuning for serverless
     ERL_FLAGS="+sbwt very_short +sbwtdcpu very_short +sbwtdio very_short" \
-    # Reduce memory footprint
     MALLOC_ARENA_MAX=2
 
-# Health check (disabled for serverless - platforms have their own)
-# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-#   CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT}/api/health || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:4000/api/health || exit 1
 
-# Use tini for proper signal handling (SIGTERM for graceful shutdown)
+# Use tini for proper signal handling
 ENTRYPOINT ["/sbin/tini", "-g", "--"]
 
-# Start the application
 CMD ["bin/query_service_ex", "start"]
-
-# =============================================================================
-# Build targets for different platforms
-# =============================================================================
-# Standard: docker build -t chronos-query-service .
-# Cloud Run: docker build -t gcr.io/PROJECT/chronos-query-service .
-# Fly.io: flyctl deploy (uses fly.toml)
-# AWS: docker build -t ECR_URI/chronos-query-service .

@@ -1,9 +1,19 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7
+# =============================================================================
+# Chronos MCP Server - Production-Optimized Multi-Stage Dockerfile
+# =============================================================================
 
-# ============================================================================
+ARG ELIXIR_VERSION=1.17
+ARG OTP_VERSION=27
+ARG ALPINE_VERSION=3.20
+
+# =============================================================================
 # Stage 1: Build
-# ============================================================================
-FROM elixir:1.17-otp-27-alpine AS builder
+# =============================================================================
+FROM elixir:${ELIXIR_VERSION}-otp-${OTP_VERSION}-alpine AS builder
+
+ARG VERSION=dev
+ARG REVISION=unknown
 
 # Install build dependencies
 RUN apk add --no-cache git build-base
@@ -22,32 +32,45 @@ COPY mix.exs mix.lock ./
 COPY config config
 
 # Install dependencies
-RUN mix deps.get --only $MIX_ENV
-RUN mix deps.compile
+RUN mix deps.get --only $MIX_ENV && \
+    mix deps.compile
 
 # Copy source code
 COPY lib lib
 
 # Compile and create release
-RUN mix compile
-RUN mix release
+RUN mix compile && \
+    mix release
 
-# ============================================================================
+# =============================================================================
 # Stage 2: Runtime
-# ============================================================================
-FROM alpine:3.20
+# =============================================================================
+FROM alpine:${ALPINE_VERSION}
 
-# Labels for OCI compliance
+ARG VERSION=dev
+ARG REVISION=unknown
+ARG BUILDTIME=unknown
+
+# OCI Image Labels
 LABEL org.opencontainers.image.title="Chronos MCP Server" \
       org.opencontainers.image.description="Model Context Protocol server for AI-native Chronos integration" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.vendor="AllSource Team" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo"
 
 # Install runtime dependencies
-RUN apk add --no-cache libstdc++ libgcc ncurses-libs openssl \
-    && addgroup -g 1000 chronos \
-    && adduser -u 1000 -G chronos -s /bin/sh -D chronos
+RUN apk add --no-cache \
+    libstdc++ \
+    libgcc \
+    ncurses-libs \
+    openssl \
+    tini && \
+    rm -rf /var/cache/apk/* /tmp/* && \
+    addgroup -g 1000 chronos && \
+    adduser -u 1000 -G chronos -s /sbin/nologin -D chronos
 
 WORKDIR /app
 
@@ -57,15 +80,19 @@ COPY --from=builder --chown=chronos:chronos /app/_build/prod/rel/mcp_server_elix
 # Use non-root user
 USER chronos:chronos
 
-# Expose port (MCP typically uses stdio, but HTTP endpoint may be needed)
+# Expose port
 EXPOSE 4001
 
-ENV PHX_SERVER=true
-ENV MIX_ENV=prod
+# Environment
+ENV PHX_SERVER=true \
+    MIX_ENV=prod \
+    PORT=4001
 
-# Health check via /health endpoint if available
+# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD bin/mcp_server_elixir rpc "System.otp_release()" || exit 1
 
-ENTRYPOINT ["bin/mcp_server_elixir"]
-CMD ["start"]
+# Use tini for signal handling
+ENTRYPOINT ["/sbin/tini", "-g", "--"]
+
+CMD ["bin/mcp_server_elixir", "start"]

@@ -1,86 +1,115 @@
+# syntax=docker/dockerfile:1.7
 # =============================================================================
-# Chronos Core - Serverless-Ready Dockerfile
-# Optimized for fast cold starts and minimal image size
+# Chronos Core - Production-Optimized Multi-Stage Dockerfile
+# Optimized for: Fast cold starts, minimal image size, security
 # =============================================================================
 
-# Build stage - use cargo-chef for optimal caching
-FROM rust:1.75-alpine AS chef
-RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconf
+ARG RUST_VERSION=1.85
+ARG ALPINE_VERSION=3.20
+
+# =============================================================================
+# Stage 1: Chef - Prepare cargo-chef for dependency caching
+# =============================================================================
+FROM rust:${RUST_VERSION}-alpine AS chef
+
+RUN apk add --no-cache \
+    musl-dev \
+    openssl-dev \
+    openssl-libs-static \
+    pkgconf
+
 RUN cargo install cargo-chef --locked
+
 WORKDIR /app
 
-# Planner stage - analyze dependencies
+# =============================================================================
+# Stage 2: Planner - Analyze dependencies
+# =============================================================================
 FROM chef AS planner
+
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+
 RUN cargo chef prepare --recipe-path recipe.json
 
-# Builder stage - build with cached dependencies
+# =============================================================================
+# Stage 3: Builder - Build with cached dependencies
+# =============================================================================
 FROM chef AS builder
+
+ARG VERSION=dev
+ARG REVISION=unknown
+ARG BUILDTIME=unknown
+
+# Copy dependency recipe and build dependencies (cached layer)
 COPY --from=planner /app/recipe.json recipe.json
-# Build dependencies (cached layer)
 RUN cargo chef cook --release --recipe-path recipe.json
-# Build application
+
+# Copy source and build application
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+
+# Build with version info embedded
+ENV CARGO_BUILD_JOBS=4
 RUN cargo build --release --locked --bin allsource-core && \
     strip /app/target/release/allsource-core
 
 # =============================================================================
-# Runtime stage - minimal distroless-like image
+# Stage 4: Runtime - Minimal production image
 # =============================================================================
-FROM alpine:3.20 AS runtime
+FROM alpine:${ALPINE_VERSION} AS runtime
+
+# Build arguments for labels
+ARG VERSION=dev
+ARG REVISION=unknown
+ARG BUILDTIME=unknown
+
+# OCI Image Labels
+LABEL org.opencontainers.image.title="Chronos Core" \
+      org.opencontainers.image.description="High-performance event store built in Rust" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${BUILDTIME}" \
+      org.opencontainers.image.vendor="AllSource Team" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo" \
+      org.opencontainers.image.base.name="alpine:${ALPINE_VERSION}"
 
 # Install minimal runtime dependencies
 RUN apk add --no-cache \
     libgcc \
     ca-certificates \
     tini && \
-    rm -rf /var/cache/apk/*
+    rm -rf /var/cache/apk/* /tmp/*
 
-# Create non-root user
+# Security: Create non-root user
 RUN addgroup -g 1000 -S allsource && \
-    adduser -u 1000 -S allsource -G allsource
+    adduser -u 1000 -S allsource -G allsource -h /app -s /sbin/nologin
 
 WORKDIR /app
 
-# Copy binary
+# Copy binary with proper ownership
 COPY --from=builder --chown=allsource:allsource /app/target/release/allsource-core ./allsource-core
 
-# Create data directory for persistent storage (optional in serverless)
+# Create data directory
 RUN mkdir -p /app/data && chown -R allsource:allsource /app
 
+# Switch to non-root user
 USER allsource
 
-# Expose port (serverless platforms typically use PORT env var)
+# Expose port
 EXPOSE 3900
 
-# =============================================================================
-# Serverless-optimized environment
-# =============================================================================
+# Environment configuration
 ENV RUST_LOG=allsource_core=info,tower_http=info \
     ALLSOURCE_HOST=0.0.0.0 \
     ALLSOURCE_PORT=3900 \
     ALLSOURCE_DATA_DIR=/app/data \
-    # Serverless: respect PORT env var (Cloud Run, Fly.io, etc.)
     PORT=3900 \
-    # Reduce memory footprint
     MALLOC_ARENA_MAX=2
 
-# Health check (disabled for serverless - platforms have their own)
-# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-#   CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT}/health || exit 1
-
-# Use tini for proper signal handling (SIGTERM for graceful shutdown)
+# Use tini for proper signal handling
 ENTRYPOINT ["/sbin/tini", "-g", "--"]
 
-# Start the application
+# Start application
 CMD ["./allsource-core"]
-
-# =============================================================================
-# Build targets for different platforms
-# =============================================================================
-# Standard: docker build -t chronos-core .
-# Cloud Run: docker build -t gcr.io/PROJECT/chronos-core .
-# Fly.io: flyctl deploy (uses fly.toml)
-# AWS: docker build -t ECR_URI/chronos-core .

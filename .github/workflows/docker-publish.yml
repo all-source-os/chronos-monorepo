@@ -1,49 +1,131 @@
-name: Docker Publish
+name: Docker Build & Publish
 
 on:
   push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ["v*"]
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      force_build:
+        description: "Force build all images"
+        required: false
+        default: "false"
+        type: boolean
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/chronos
 
 jobs:
-  build-and-push:
+  # ============================================================================
+  # Wait for CI to pass (quality gates)
+  # ============================================================================
+  wait-for-ci:
+    name: Wait for CI
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.force_build != 'true'
+    steps:
+      - name: Wait for CI workflow
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.ref }}
+          check-name: "Quality Gate"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+          allowed-conclusions: success,skipped
+
+  # ============================================================================
+  # Change Detection
+  # ============================================================================
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    needs: wait-for-ci
+    if: always() && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped')
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      control-plane: ${{ steps.filter.outputs.control-plane }}
+      web: ${{ steps.filter.outputs.web }}
+      query-service: ${{ steps.filter.outputs.query-service }}
+      mcp-server: ${{ steps.filter.outputs.mcp-server }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'apps/core/**'
+            control-plane:
+              - 'apps/control-plane/**'
+            web:
+              - 'apps/web/**'
+              - 'packages/ui/**'
+            query-service:
+              - 'apps/query-service/**'
+            mcp-server:
+              - 'apps/mcp-server-elixir/**'
+
+      - name: Build matrix
+        id: matrix
+        run: |
+          MATRIX='{"include":['
+          FIRST=true
+
+          add_service() {
+            local name=$1
+            local context=$2
+            local changed=$3
+
+            # Build if changed, on main branch push, or force build
+            if [ "$changed" == "true" ] || [ "${{ github.event_name }}" == "push" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+              if [ "$FIRST" != "true" ]; then
+                MATRIX="$MATRIX,"
+              fi
+              MATRIX="$MATRIX{\"name\":\"$name\",\"context\":\"$context\"}"
+              FIRST=false
+            fi
+          }
+
+          add_service "core" "apps/core" "${{ steps.filter.outputs.core }}"
+          add_service "control-plane" "apps/control-plane" "${{ steps.filter.outputs.control-plane }}"
+          add_service "web" "apps/web" "${{ steps.filter.outputs.web }}"
+          add_service "query-service" "apps/query-service" "${{ steps.filter.outputs.query-service }}"
+          add_service "mcp-server" "apps/mcp-server-elixir" "${{ steps.filter.outputs.mcp-server }}"
+
+          MATRIX="$MATRIX]}"
+
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Matrix: $MATRIX"
+
+  # ============================================================================
+  # Build and Push Docker Images
+  # ============================================================================
+  build:
+    name: Build ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.matrix != '{"include":[]}'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write
+      attestations: write
 
     strategy:
       fail-fast: false
-      matrix:
-        service:
-          - name: core
-            context: apps/core
-            image: core
-          - name: query-service
-            context: apps/query-service
-            image: query-service
-          - name: control-plane
-            context: apps/control-plane
-            image: control-plane
-          - name: web
-            context: apps/web
-            image: web
-          - name: mcp-server
-            context: apps/mcp-server-elixir
-            image: mcp-server
+      matrix: ${{ fromJson(needs.changes.outputs.matrix) }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up QEMU
@@ -51,6 +133,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:master
+            network=host
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
@@ -60,11 +146,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service.image }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -74,42 +160,63 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.service.context }}
+          context: ${{ matrix.context }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
           build-args: |
             BUILDTIME=${{ github.event.repository.updated_at }}
             VERSION=${{ github.ref_name }}
             REVISION=${{ github.sha }}
 
-  # Summary job to report overall status
-  publish-summary:
+      - name: Generate artifact attestation
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  # ============================================================================
+  # Summary
+  # ============================================================================
+  summary:
+    name: Build Summary
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: build
     if: always()
     steps:
-      - name: Check build results
+      - name: Generate summary
         run: |
-          if [ "${{ needs.build-and-push.result }}" == "success" ]; then
-            echo "## Docker Images Published Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "## 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.build.result }}" == "success" ]; then
+            echo "| All Services | ✅ Success |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "The following images are now available:" >> $GITHUB_STEP_SUMMARY
+            echo "### Published Images" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ github.repository_owner }}/chronos-core\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ github.repository_owner }}/chronos-query-service\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ github.repository_owner }}/chronos-control-plane\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ github.repository_owner }}/chronos-web\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`ghcr.io/${{ github.repository_owner }}/chronos-mcp-server\`" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-core" >> $GITHUB_STEP_SUMMARY
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-control-plane" >> $GITHUB_STEP_SUMMARY
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-web" >> $GITHUB_STEP_SUMMARY
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-query-service" >> $GITHUB_STEP_SUMMARY
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-mcp-server" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.build.result }}" == "skipped" ]; then
+            echo "| Build | ⏭️ Skipped (no changes) |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "## Docker Build Failed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Please check the build logs for details." >> $GITHUB_STEP_SUMMARY
+            echo "| Build | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
