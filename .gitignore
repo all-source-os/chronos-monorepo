@@ -44,7 +44,6 @@ coverage
 .turbo
 
 # Rust
-Cargo.lock
 **/*.rs.bk
 
 # Go

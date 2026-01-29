@@ -331,10 +331,10 @@ defmodule McpServerElixir.Protocol.McpTools do
         # Get state at to_time (or current)
         case CoreClient.reconstruct_state(state.core_client, entity_id, to_time) do
           {:ok, after_state} ->
-            before = Map.get(before_state, "current_state", %{})
-            after = Map.get(after_state, "current_state", %{})
+            before_state_map = Map.get(before_state, "current_state", %{})
+            after_state_map = Map.get(after_state, "current_state", %{})
 
-            changes = calculate_diff(before, after)
+            changes = calculate_diff(before_state_map, after_state_map)
 
             summary = """
             🔍 Change Analysis for "#{entity_id}"
@@ -643,28 +643,28 @@ defmodule McpServerElixir.Protocol.McpTools do
   # Helper Functions
   # ============================================================================
 
-  defp calculate_diff(before, after) do
+  defp calculate_diff(before_map, after_map) do
     added =
-      after
+      after_map
       |> Map.keys()
-      |> Enum.filter(fn key -> not Map.has_key?(before, key) end)
+      |> Enum.filter(fn key -> not Map.has_key?(before_map, key) end)
 
     removed =
-      before
+      before_map
       |> Map.keys()
-      |> Enum.filter(fn key -> not Map.has_key?(after, key) end)
+      |> Enum.filter(fn key -> not Map.has_key?(after_map, key) end)
 
     modified =
-      before
+      before_map
       |> Map.keys()
       |> Enum.filter(fn key ->
-        Map.has_key?(after, key) and Map.get(before, key) != Map.get(after, key)
+        Map.has_key?(after_map, key) and Map.get(before_map, key) != Map.get(after_map, key)
       end)
       |> Enum.map(fn key ->
         %{
           field: key,
-          before: Map.get(before, key),
-          after: Map.get(after, key)
+          before_value: Map.get(before_map, key),
+          after_value: Map.get(after_map, key)
         }
       end)
 

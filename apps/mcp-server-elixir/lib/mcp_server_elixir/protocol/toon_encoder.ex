@@ -4,6 +4,13 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
 
   Formats tabular data as TOON for ~50% token reduction compared to JSON.
   Falls back to JSON for non-tabular or complex nested structures.
+
+  TOON Format Example:
+  ```
+  [name|age|city]
+  Alice|30|NYC
+  Bob|25|LA
+  ```
   """
 
   @doc """
@@ -33,14 +40,87 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
   end
 
   defp encode_toon(data) do
-    case ToonEx.encode(data) do
+    case do_encode_toon(data) do
       {:ok, toon_string} -> toon_string
-      {:error, _reason} -> encode_json(data) # Fallback to JSON if TOON encoding fails
+      {:error, _reason} -> encode_json(data)
     end
   end
 
   defp encode_json(data) do
     Jason.encode!(data, pretty: true)
+  end
+
+  # Simple TOON encoder implementation
+  defp do_encode_toon(data) when is_map(data) do
+    # Find the list of items to encode
+    items = find_tabular_items(data)
+
+    if items != nil and length(items) > 0 do
+      encode_items_as_toon(items)
+    else
+      {:error, :not_tabular}
+    end
+  end
+
+  defp do_encode_toon(_), do: {:error, :not_tabular}
+
+  defp find_tabular_items(%{"events" => events}) when is_list(events), do: events
+  defp find_tabular_items(%{events: events}) when is_list(events), do: events
+  defp find_tabular_items(%{"items" => items}) when is_list(items), do: items
+  defp find_tabular_items(%{items: items}) when is_list(items), do: items
+  defp find_tabular_items(%{"data" => data}) when is_list(data), do: data
+  defp find_tabular_items(%{data: data}) when is_list(data), do: data
+
+  defp find_tabular_items(data) when is_map(data) do
+    # Find the first list value that looks tabular
+    Enum.find_value(data, fn
+      {_key, value} when is_list(value) and length(value) > 0 ->
+        if uniform_list?(value), do: value, else: nil
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp find_tabular_items(_), do: nil
+
+  defp encode_items_as_toon(items) when is_list(items) and length(items) > 0 do
+    first_item = List.first(items)
+
+    case first_item do
+      item when is_map(item) ->
+        keys = Map.keys(item) |> Enum.sort()
+        header = "[" <> Enum.join(keys, "|") <> "]"
+
+        rows =
+          Enum.map(items, fn item ->
+            Enum.map(keys, fn key ->
+              value = Map.get(item, key, "")
+              encode_value(value)
+            end)
+            |> Enum.join("|")
+          end)
+
+        {:ok, Enum.join([header | rows], "\n")}
+
+      _ ->
+        {:error, :not_map_items}
+    end
+  end
+
+  defp encode_items_as_toon(_), do: {:error, :empty_list}
+
+  defp encode_value(nil), do: ""
+  defp encode_value(value) when is_binary(value), do: escape_toon_value(value)
+  defp encode_value(value) when is_number(value), do: to_string(value)
+  defp encode_value(value) when is_boolean(value), do: to_string(value)
+  defp encode_value(value) when is_atom(value), do: to_string(value)
+  defp encode_value(value), do: inspect(value)
+
+  defp escape_toon_value(value) do
+    value
+    |> String.replace("|", "\\|")
+    |> String.replace("\n", "\\n")
   end
 
   @doc """
@@ -154,4 +234,3 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
 
   defp all_primitive_values?(_), do: false
 end
-

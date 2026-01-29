@@ -25,7 +25,8 @@ RUN mix local.hex --force && \
     mix local.rebar --force
 
 # Set build environment
-ENV MIX_ENV=prod
+ENV MIX_ENV=prod \
+    SECRET_KEY_BASE=build_time_dummy_key_will_be_replaced_at_runtime_minimum_64_chars
 
 # Copy mix files first for dependency caching
 COPY mix.exs mix.lock ./

@@ -5,7 +5,7 @@ defmodule McpServerElixir.MixProject do
     [
       app: :mcp_server_elixir,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -29,9 +29,6 @@ defmodule McpServerElixir.MixProject do
       {:tesla, "~> 1.11"},
       {:hackney, "~> 1.20"},
       {:jason, "~> 1.4"},
-
-      # TOON format for LLM-optimized responses
-      {:toon_ex, "~> 0.1"},
 
       # JSON Schema validation (optional, for input validation)
       {:ex_json_schema, "~> 0.9", optional: true},

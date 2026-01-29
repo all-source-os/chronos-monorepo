@@ -25,13 +25,18 @@ path = "src/main.rs"
 name = "allsource-admin"
 path = "src/bin/allsource-admin.rs"
 
+[features]
+default = []
+postgres = ["sqlx"]
+rocksdb-storage = ["rocksdb"]
+
 [dependencies]
-# Note: arrow/parquet pinned to ~57.1 - version 57.2+ requires edition2024/Rust 1.85+
+# Note: arrow/parquet versions must be compatible with datafusion
 aes-gcm = "0.10"
 anyhow = "1.0"
 argon2 = "0.5"
-arrow = { version = "~57.1", features = ["ipc", "json"] }
-arrow-flight = "~57.1"
+arrow = { version = "53.4", features = ["ipc", "json"] }
+arrow-flight = "53.4"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["json", "ws"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
@@ -42,7 +47,8 @@ crc32fast = "1.4"
 crossbeam = "0.8"
 crossbeam-queue = "0.3"
 dashmap = "6.1"
-datafusion = "~51.0"
+# Note: datafusion 51+ requires Rust 1.88+, pinned to 44.x for Rust 1.85 compatibility
+datafusion = "44.0"
 flate2 = "1.0"
 futures = "0.3"
 http = "1.0"
@@ -50,7 +56,7 @@ jsonschema = "0.26"
 jsonwebtoken = "9.3"
 lz4 = "1.28"
 parking_lot = "0.12"
-parquet = { version = "~57.1", features = ["arrow", "async"] }
+parquet = { version = "53.4", features = ["arrow", "async"] }
 prometheus = "0.13"
 rand = "0.8"
 rocksdb = { version = "0.22", optional = true }
@@ -68,11 +74,6 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.19", features = ["v4", "serde"] }
-
-[features]
-default = []
-postgres = ["sqlx"]
-rocksdb-storage = ["rocksdb"]
 
 [dev-dependencies]
 criterion = "0.5"
