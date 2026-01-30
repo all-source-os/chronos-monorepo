@@ -33,7 +33,7 @@ type TracingConfig struct {
 func InitTracing(config TracingConfig) (func(context.Context) error, error) {
 	if !config.Enabled {
 		log.Println("📊 Tracing disabled")
-		return func(ctx context.Context) error { return nil }, nil
+		return func(_ context.Context) error { return nil }, nil
 	}
 
 	ctx := context.Background()
@@ -174,7 +174,7 @@ func (g *ginCarrier) Set(key string, value string) {
 }
 
 func (g *ginCarrier) Keys() []string {
-	keys := make([]string, 0)
+	keys := make([]string, 0, len(g.c.Request.Header))
 	for key := range g.c.Request.Header {
 		keys = append(keys, key)
 	}

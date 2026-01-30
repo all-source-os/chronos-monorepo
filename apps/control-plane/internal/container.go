@@ -1,3 +1,4 @@
+// Package internal contains the dependency injection container and internal wiring.
 package internal
 
 import (

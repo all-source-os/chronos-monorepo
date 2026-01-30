@@ -1,3 +1,4 @@
+// Package persistence provides repository implementations for data persistence.
 package persistence
 
 import (

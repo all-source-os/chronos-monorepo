@@ -1,10 +1,12 @@
+// Package usecases contains application use cases implementing business logic.
 package usecases
 
 import (
+	"sort"
+
 	"github.com/allsource/control-plane/internal/application/dto"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
-	"sort"
 )
 
 // EvaluatePolicyUseCase handles policy evaluation

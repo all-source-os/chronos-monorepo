@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/dgrijalva/jwt-go"
+
+	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
 func TestAuthClient_ValidateToken(t *testing.T) {

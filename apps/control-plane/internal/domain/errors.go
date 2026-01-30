@@ -1,3 +1,4 @@
+// Package domain contains domain errors and business logic.
 package domain
 
 import "errors"

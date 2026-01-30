@@ -1,3 +1,4 @@
+// Package dto contains data transfer objects for the application layer.
 package dto
 
 // CreatePolicyRequest represents a request to create a policy

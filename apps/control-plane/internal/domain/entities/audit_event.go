@@ -1,3 +1,4 @@
+// Package entities contains domain entities and value objects.
 package entities
 
 import (

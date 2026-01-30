@@ -19,6 +19,7 @@ type Tenant struct {
 // TenantStatus represents the status of a tenant
 type TenantStatus string
 
+// TenantStatus constants define the possible statuses of a tenant.
 const (
 	TenantStatusActive    TenantStatus = "active"
 	TenantStatusSuspended TenantStatus = "suspended"

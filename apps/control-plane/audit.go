@@ -1,3 +1,4 @@
+// Package main provides the control plane for the Chronos event sourcing system.
 package main
 
 import (
@@ -56,7 +57,7 @@ func NewAuditLogger(filePath string) (*AuditLogger, error) {
 		return &AuditLogger{enabled: false}, nil
 	}
 
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) //nolint:gosec // file path is from trusted config
 	if err != nil {
 		return nil, fmt.Errorf("failed to open audit log file: %w", err)
 	}

@@ -1,3 +1,4 @@
+// Package repositories defines repository interfaces for domain persistence.
 package repositories
 
 import (

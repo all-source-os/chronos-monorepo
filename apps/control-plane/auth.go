@@ -104,7 +104,7 @@ func RoleHasPermission(role entities.Role, perm entities.Permission) bool {
 func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip auth for health endpoints
-		if c.Request.URL.Path == "/health" || c.Request.URL.Path == "/metrics" {
+		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathMetrics {
 			c.Next()
 			return
 		}

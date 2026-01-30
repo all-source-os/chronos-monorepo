@@ -5,8 +5,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/gin-gonic/gin"
+
+	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
 // PolicyAction represents an action that can be taken
@@ -250,14 +251,22 @@ func (pe *PolicyEngine) Evaluate(ctx PolicyContext) PolicyResult {
 	for _, policy := range applicablePolicies {
 		if pe.evaluateConditions(policy.Conditions, ctx) {
 			// Policy matched
-			if policy.Action == ActionDeny {
+			switch policy.Action {
+			case ActionAllow:
+				return PolicyResult{
+					Allowed:  true,
+					Action:   ActionAllow,
+					PolicyID: policy.ID,
+					Message:  policy.Description,
+				}
+			case ActionDeny:
 				return PolicyResult{
 					Allowed:  false,
 					Action:   ActionDeny,
 					PolicyID: policy.ID,
 					Message:  policy.Description,
 				}
-			} else if policy.Action == ActionWarn {
+			case ActionWarn:
 				// Log warning but continue
 				return PolicyResult{
 					Allowed:  true,
@@ -292,7 +301,7 @@ func (pe *PolicyEngine) evaluateCondition(condition PolicyCondition, ctx PolicyC
 	// Get the field value from context
 	var fieldValue interface{}
 	switch condition.Field {
-	case "operation":
+	case resourceOperation:
 		fieldValue = ctx.Operation
 	case "user_id":
 		fieldValue = ctx.UserID
@@ -422,7 +431,7 @@ func PolicyMiddleware(policyEngine *PolicyEngine, auditLogger *AuditLogger) gin.
 		// Handle result
 		if !result.Allowed {
 			// Log policy denial
-			auditLogger.Log(AuditEvent{
+			_ = auditLogger.Log(AuditEvent{
 				EventType:  "policy_denial",
 				UserID:     authCtx.UserID,
 				Username:   authCtx.Username,
@@ -449,7 +458,7 @@ func PolicyMiddleware(policyEngine *PolicyEngine, auditLogger *AuditLogger) gin.
 
 		if result.Action == ActionWarn {
 			// Log warning
-			auditLogger.Log(AuditEvent{
+			_ = auditLogger.Log(AuditEvent{
 				EventType: "policy_warning",
 				UserID:    authCtx.UserID,
 				Username:  authCtx.Username,
@@ -475,13 +484,14 @@ func extractResourceAndOperation(method, path string) (string, string) {
 	operation := "unknown"
 
 	// Determine resource
-	if strings.Contains(path, "/tenants") {
+	switch {
+	case strings.Contains(path, "/tenants"):
 		resource = "tenant"
-	} else if strings.Contains(path, "/users") {
+	case strings.Contains(path, "/users"):
 		resource = "user"
-	} else if strings.Contains(path, "/operations") {
-		resource = "operation"
-	} else if strings.Contains(path, "/auth") {
+	case strings.Contains(path, "/operations"):
+		resource = resourceOperation
+	case strings.Contains(path, "/auth"):
 		resource = "auth"
 	}
 

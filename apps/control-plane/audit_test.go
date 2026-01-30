@@ -7,20 +7,34 @@ import (
 	"testing"
 )
 
-func TestAuditLogger_Log(t *testing.T) {
-	// Create a temporary audit log file
+// testLoggerSetup creates a temporary logger for testing and returns cleanup function
+func testLoggerSetup(t *testing.T) (*AuditLogger, string) {
+	t.Helper()
 	tmpfile, err := os.CreateTemp("", "audit-test-*.log")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpfile.Name())
-	defer tmpfile.Close()
+	tmpfileName := tmpfile.Name()
+	_ = tmpfile.Close()
 
-	logger, err := NewAuditLogger(tmpfile.Name())
+	t.Cleanup(func() {
+		_ = os.Remove(tmpfileName)
+	})
+
+	logger, err := NewAuditLogger(tmpfileName)
 	if err != nil {
 		t.Fatalf("Failed to create audit logger: %v", err)
 	}
-	defer logger.Close()
+
+	t.Cleanup(func() {
+		_ = logger.Close()
+	})
+
+	return logger, tmpfileName
+}
+
+func TestAuditLogger_Log(t *testing.T) {
+	logger, tmpfileName := testLoggerSetup(t)
 
 	// Create a test event
 	event := AuditEvent{
@@ -39,16 +53,16 @@ func TestAuditLogger_Log(t *testing.T) {
 	}
 
 	// Log the event
-	err = logger.Log(event)
+	err := logger.Log(event)
 	if err != nil {
 		t.Fatalf("Failed to log event: %v", err)
 	}
 
 	// Close logger to flush
-	logger.Close()
+	_ = logger.Close()
 
 	// Read the log file
-	content, err := os.ReadFile(tmpfile.Name())
+	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
 	if err != nil {
 		t.Fatalf("Failed to read log file: %v", err)
 	}
@@ -87,18 +101,7 @@ func TestAuditLogger_Log(t *testing.T) {
 }
 
 func TestAuditLogger_MultipleEvents(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "audit-test-*.log")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpfile.Name())
-	defer tmpfile.Close()
-
-	logger, err := NewAuditLogger(tmpfile.Name())
-	if err != nil {
-		t.Fatalf("Failed to create audit logger: %v", err)
-	}
-	defer logger.Close()
+	logger, tmpfileName := testLoggerSetup(t)
 
 	// Log multiple events
 	numEvents := 10
@@ -114,10 +117,10 @@ func TestAuditLogger_MultipleEvents(t *testing.T) {
 		}
 	}
 
-	logger.Close()
+	_ = logger.Close()
 
 	// Read and verify
-	content, err := os.ReadFile(tmpfile.Name())
+	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
 	if err != nil {
 		t.Fatalf("Failed to read log file: %v", err)
 	}
@@ -128,127 +131,84 @@ func TestAuditLogger_MultipleEvents(t *testing.T) {
 	}
 }
 
-func TestAuditLogger_LogAuthEvent(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "audit-test-*.log")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpfile.Name())
-	defer tmpfile.Close()
+// testLogAndVerify is a helper that logs an event and verifies its content
+func testLogAndVerify(t *testing.T, logger *AuditLogger, tmpfileName string, logFunc func(), verify func(*AuditEvent)) {
+	t.Helper()
 
-	logger, err := NewAuditLogger(tmpfile.Name())
-	if err != nil {
-		t.Fatalf("Failed to create audit logger: %v", err)
-	}
-	defer logger.Close()
+	logFunc()
+	_ = logger.Close()
 
-	// Log an auth event
-	logger.LogAuthEvent("login", "user-123", "testuser", "tenant-456", "successful login")
-
-	logger.Close()
-
-	// Verify
-	content, err := os.ReadFile(tmpfile.Name())
+	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
 	if err != nil {
 		t.Fatalf("Failed to read log file: %v", err)
 	}
 
 	var logged AuditEvent
-	err = json.Unmarshal(content, &logged)
-	if err != nil {
+	if err := json.Unmarshal(content, &logged); err != nil {
 		t.Fatalf("Failed to parse logged event: %v", err)
 	}
 
-	if logged.EventType != "login" {
-		t.Errorf("EventType mismatch: expected 'login', got '%s'", logged.EventType)
-	}
-	if logged.UserID != "user-123" {
-		t.Errorf("UserID mismatch: expected 'user-123', got '%s'", logged.UserID)
-	}
+	verify(&logged)
+}
+
+func TestAuditLogger_LogAuthEvent(t *testing.T) {
+	logger, tmpfileName := testLoggerSetup(t)
+
+	testLogAndVerify(t, logger, tmpfileName,
+		func() {
+			logger.LogAuthEvent("login", "user-123", "testuser", "tenant-456", "successful login")
+		},
+		func(logged *AuditEvent) {
+			if logged.EventType != "login" {
+				t.Errorf("EventType mismatch: expected 'login', got '%s'", logged.EventType)
+			}
+			if logged.UserID != "user-123" {
+				t.Errorf("UserID mismatch: expected 'user-123', got '%s'", logged.UserID)
+			}
+		},
+	)
 }
 
 func TestAuditLogger_LogTenantEvent(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "audit-test-*.log")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpfile.Name())
-	defer tmpfile.Close()
+	logger, tmpfileName := testLoggerSetup(t)
 
-	logger, err := NewAuditLogger(tmpfile.Name())
-	if err != nil {
-		t.Fatalf("Failed to create audit logger: %v", err)
-	}
-	defer logger.Close()
-
-	// Log a tenant event
-	logger.LogTenantEvent("create", "tenant-789", "user-123", "new tenant created")
-
-	logger.Close()
-
-	// Verify
-	content, err := os.ReadFile(tmpfile.Name())
-	if err != nil {
-		t.Fatalf("Failed to read log file: %v", err)
-	}
-
-	var logged AuditEvent
-	err = json.Unmarshal(content, &logged)
-	if err != nil {
-		t.Fatalf("Failed to parse logged event: %v", err)
-	}
-
-	if logged.EventType != "tenant_management" {
-		t.Errorf("EventType mismatch: expected 'tenant_management', got '%s'", logged.EventType)
-	}
-	if logged.ResourceID != "tenant-789" {
-		t.Errorf("ResourceID mismatch: expected 'tenant-789', got '%s'", logged.ResourceID)
-	}
-	if logged.Action != "create" {
-		t.Errorf("Action mismatch: expected 'create', got '%s'", logged.Action)
-	}
+	testLogAndVerify(t, logger, tmpfileName,
+		func() {
+			logger.LogTenantEvent("create", "tenant-789", "user-123", "new tenant created")
+		},
+		func(logged *AuditEvent) {
+			if logged.EventType != "tenant_management" {
+				t.Errorf("EventType mismatch: expected 'tenant_management', got '%s'", logged.EventType)
+			}
+			if logged.ResourceID != "tenant-789" {
+				t.Errorf("ResourceID mismatch: expected 'tenant-789', got '%s'", logged.ResourceID)
+			}
+			if logged.Action != "create" {
+				t.Errorf("Action mismatch: expected 'create', got '%s'", logged.Action)
+			}
+		},
+	)
 }
 
 func TestAuditLogger_LogOperationEvent(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "audit-test-*.log")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpfile.Name())
-	defer tmpfile.Close()
+	logger, tmpfileName := testLoggerSetup(t)
 
-	logger, err := NewAuditLogger(tmpfile.Name())
-	if err != nil {
-		t.Fatalf("Failed to create audit logger: %v", err)
-	}
-	defer logger.Close()
-
-	// Log an operation event
-	logger.LogOperationEvent("snapshot", "snapshot-123", "user-456", "success")
-
-	logger.Close()
-
-	// Verify
-	content, err := os.ReadFile(tmpfile.Name())
-	if err != nil {
-		t.Fatalf("Failed to read log file: %v", err)
-	}
-
-	var logged AuditEvent
-	err = json.Unmarshal(content, &logged)
-	if err != nil {
-		t.Fatalf("Failed to parse logged event: %v", err)
-	}
-
-	if logged.EventType != "operation" {
-		t.Errorf("EventType mismatch: expected 'operation', got '%s'", logged.EventType)
-	}
-	if logged.Action != "snapshot" {
-		t.Errorf("Action mismatch: expected 'snapshot', got '%s'", logged.Action)
-	}
-	if logged.ResourceID != "snapshot-123" {
-		t.Errorf("ResourceID mismatch: expected 'snapshot-123', got '%s'", logged.ResourceID)
-	}
+	testLogAndVerify(t, logger, tmpfileName,
+		func() {
+			logger.LogOperationEvent("snapshot", "snapshot-123", "user-456", "success")
+		},
+		func(logged *AuditEvent) {
+			if logged.EventType != "operation" {
+				t.Errorf("EventType mismatch: expected 'operation', got '%s'", logged.EventType)
+			}
+			if logged.Action != "snapshot" {
+				t.Errorf("Action mismatch: expected 'snapshot', got '%s'", logged.Action)
+			}
+			if logged.ResourceID != "snapshot-123" {
+				t.Errorf("ResourceID mismatch: expected 'snapshot-123', got '%s'", logged.ResourceID)
+			}
+		},
+	)
 }
 
 func TestAuditLogger_Disabled(t *testing.T) {
@@ -326,18 +286,7 @@ func TestExtractResource(t *testing.T) {
 }
 
 func TestAuditLogger_Concurrency(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "audit-test-*.log")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpfile.Name())
-	defer tmpfile.Close()
-
-	logger, err := NewAuditLogger(tmpfile.Name())
-	if err != nil {
-		t.Fatalf("Failed to create audit logger: %v", err)
-	}
-	defer logger.Close()
+	logger, tmpfileName := testLoggerSetup(t)
 
 	// Log events concurrently
 	numGoroutines := 10
@@ -345,17 +294,17 @@ func TestAuditLogger_Concurrency(t *testing.T) {
 	done := make(chan bool)
 
 	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
+		go func() {
 			for j := 0; j < eventsPerGoroutine; j++ {
 				event := AuditEvent{
 					EventType: "concurrent_test",
 					UserID:    "user-123",
 					Action:    "test",
 				}
-				logger.Log(event)
+				_ = logger.Log(event)
 			}
 			done <- true
-		}(i)
+		}()
 	}
 
 	// Wait for all goroutines
@@ -363,10 +312,10 @@ func TestAuditLogger_Concurrency(t *testing.T) {
 		<-done
 	}
 
-	logger.Close()
+	_ = logger.Close()
 
 	// Verify all events were logged
-	content, err := os.ReadFile(tmpfile.Name())
+	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
 	if err != nil {
 		t.Fatalf("Failed to read log file: %v", err)
 	}

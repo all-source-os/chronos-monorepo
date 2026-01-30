@@ -8,6 +8,7 @@ import (
 // PolicyAction represents an action that can be taken
 type PolicyAction string
 
+// PolicyAction constants define the possible actions a policy can take.
 const (
 	ActionAllow PolicyAction = "allow"
 	ActionDeny  PolicyAction = "deny"

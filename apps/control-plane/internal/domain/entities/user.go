@@ -19,6 +19,7 @@ type User struct {
 // Role represents a user's role in the system
 type Role string
 
+// Role constants define the possible roles in the system.
 const (
 	RoleAdmin          Role = "Admin"
 	RoleDeveloper      Role = "Developer"
@@ -29,6 +30,7 @@ const (
 // Permission represents a specific permission
 type Permission string
 
+// Permission constants define the possible permissions in the system.
 const (
 	PermissionRead            Permission = "Read"
 	PermissionWrite           Permission = "Write"

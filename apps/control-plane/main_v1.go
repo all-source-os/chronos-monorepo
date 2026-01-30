@@ -213,7 +213,7 @@ func (cp *ControlPlaneV1) clusterStatusHandler(c *gin.Context) {
 
 	var coreStats map[string]interface{}
 	if err == nil {
-		json.Unmarshal(resp.Body(), &coreStats)
+		_ = json.Unmarshal(resp.Body(), &coreStats)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -255,7 +255,7 @@ func (cp *ControlPlaneV1) metricsHandler(c *gin.Context) {
 	}
 
 	var stats map[string]interface{}
-	json.Unmarshal(resp.Body(), &stats)
+	_ = json.Unmarshal(resp.Body(), &stats)
 
 	c.JSON(http.StatusOK, gin.H{
 		"metrics": gin.H{
@@ -334,7 +334,7 @@ func (cp *ControlPlaneV1) backupHandler(c *gin.Context) {
 	cp.auditLogger.LogOperationEvent("backup_create", backupID, auth.UserID, "initiated")
 
 	var result map[string]interface{}
-	json.Unmarshal(resp.Body(), &result)
+	_ = json.Unmarshal(resp.Body(), &result)
 	c.JSON(http.StatusOK, result)
 }
 
@@ -351,7 +351,7 @@ func (cp *ControlPlaneV1) getTenantHandler(c *gin.Context) {
 func (cp *ControlPlaneV1) createTenantHandler(c *gin.Context) {
 	auth, _ := GetAuthContext(c)
 	var req map[string]interface{}
-	c.ShouldBindJSON(&req)
+	_ = c.ShouldBindJSON(&req)
 
 	resp, err := cp.proxyToCoreAuthWithBody(c, "POST", "/api/v1/tenants", req)
 	if err != nil {
@@ -363,7 +363,7 @@ func (cp *ControlPlaneV1) createTenantHandler(c *gin.Context) {
 	}
 
 	var result map[string]interface{}
-	json.Unmarshal(resp.Body(), &result)
+	_ = json.Unmarshal(resp.Body(), &result)
 	c.JSON(resp.StatusCode(), result)
 }
 
@@ -372,7 +372,7 @@ func (cp *ControlPlaneV1) updateTenantHandler(c *gin.Context) {
 	auth, _ := GetAuthContext(c)
 
 	var req map[string]interface{}
-	c.ShouldBindJSON(&req)
+	_ = c.ShouldBindJSON(&req)
 
 	resp, err := cp.proxyToCoreAuthWithBody(c, "PUT", "/api/v1/tenants/"+tenantID, req)
 	if err != nil {
@@ -382,7 +382,7 @@ func (cp *ControlPlaneV1) updateTenantHandler(c *gin.Context) {
 	cp.auditLogger.LogTenantEvent("update", tenantID, auth.UserID, "tenant updated")
 
 	var result map[string]interface{}
-	json.Unmarshal(resp.Body(), &result)
+	_ = json.Unmarshal(resp.Body(), &result)
 	c.JSON(resp.StatusCode(), result)
 }
 
@@ -440,7 +440,7 @@ func (cp *ControlPlaneV1) proxyToCoreAuth(c *gin.Context, method, path string) {
 	}
 
 	var result map[string]interface{}
-	json.Unmarshal(resp.Body(), &result)
+	_ = json.Unmarshal(resp.Body(), &result)
 	c.JSON(resp.StatusCode(), result)
 }
 

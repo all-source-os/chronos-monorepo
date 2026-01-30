@@ -1,4 +1,5 @@
-package http
+// Package http provides HTTP handlers for the control plane API.
+package http //nolint:revive // package name intentionally matches directory
 
 import (
 	"net/http"

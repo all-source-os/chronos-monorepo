@@ -1,6 +1,7 @@
 package usecases
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/allsource/control-plane/internal/application/dto"
@@ -44,7 +45,7 @@ func TestCreateTenantUseCase_Execute(t *testing.T) {
 		}
 
 		_, err := useCase.Execute(req)
-		if err != domain.ErrTenantAlreadyExists {
+		if !errors.Is(err, domain.ErrTenantAlreadyExists) {
 			t.Errorf("Expected ErrTenantAlreadyExists, got %v", err)
 		}
 	})
