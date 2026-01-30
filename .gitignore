@@ -53,3 +53,7 @@ coverage
 *.dll
 *.so
 *.dylib
+
+# Ralph tui
+.ralph-tui
+.beads

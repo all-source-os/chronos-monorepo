@@ -62,34 +62,34 @@ pub async fn serve_v1(
         .route("/api/v1/auth/me", get(me_handler))
         .route("/api/v1/auth/api-keys", post(create_api_key_handler))
         .route("/api/v1/auth/api-keys", get(list_api_keys_handler))
-        .route("/api/v1/auth/api-keys/:id", delete(revoke_api_key_handler))
+        .route("/api/v1/auth/api-keys/{id}", delete(revoke_api_key_handler))
         .route("/api/v1/auth/users", get(list_users_handler))
-        .route("/api/v1/auth/users/:id", delete(delete_user_handler))
+        .route("/api/v1/auth/users/{id}", delete(delete_user_handler))
         // Tenant routes (protected)
         .route("/api/v1/tenants", post(create_tenant_handler))
         .route("/api/v1/tenants", get(list_tenants_handler))
-        .route("/api/v1/tenants/:id", get(get_tenant_handler))
-        .route("/api/v1/tenants/:id/stats", get(get_tenant_stats_handler))
-        .route("/api/v1/tenants/:id/quotas", put(update_quotas_handler))
+        .route("/api/v1/tenants/{id}", get(get_tenant_handler))
+        .route("/api/v1/tenants/{id}/stats", get(get_tenant_stats_handler))
+        .route("/api/v1/tenants/{id}/quotas", put(update_quotas_handler))
         .route(
-            "/api/v1/tenants/:id/deactivate",
+            "/api/v1/tenants/{id}/deactivate",
             post(deactivate_tenant_handler),
         )
         .route(
-            "/api/v1/tenants/:id/activate",
+            "/api/v1/tenants/{id}/activate",
             post(activate_tenant_handler),
         )
-        .route("/api/v1/tenants/:id", delete(delete_tenant_handler))
+        .route("/api/v1/tenants/{id}", delete(delete_tenant_handler))
         // Event and data routes (protected by auth)
         .route("/api/v1/events", post(super::api::ingest_event))
         .route("/api/v1/events/query", get(super::api::query_events))
         .route("/api/v1/events/stream", get(super::api::events_websocket))
         .route(
-            "/api/v1/entities/:entity_id/state",
+            "/api/v1/entities/{entity_id}/state",
             get(super::api::get_entity_state),
         )
         .route(
-            "/api/v1/entities/:entity_id/snapshot",
+            "/api/v1/entities/{entity_id}/snapshot",
             get(super::api::get_entity_snapshot),
         )
         .route("/api/v1/stats", get(super::api::get_stats))
@@ -110,7 +110,7 @@ pub async fn serve_v1(
         .route("/api/v1/snapshots", post(super::api::create_snapshot))
         .route("/api/v1/snapshots", get(super::api::list_snapshots))
         .route(
-            "/api/v1/snapshots/:entity_id/latest",
+            "/api/v1/snapshots/{entity_id}/latest",
             get(super::api::get_latest_snapshot),
         )
         // Compaction
@@ -125,9 +125,9 @@ pub async fn serve_v1(
         // Schemas
         .route("/api/v1/schemas", post(super::api::register_schema))
         .route("/api/v1/schemas", get(super::api::list_subjects))
-        .route("/api/v1/schemas/:subject", get(super::api::get_schema))
+        .route("/api/v1/schemas/{subject}", get(super::api::get_schema))
         .route(
-            "/api/v1/schemas/:subject/versions",
+            "/api/v1/schemas/{subject}/versions",
             get(super::api::list_schema_versions),
         )
         .route(
@@ -135,22 +135,22 @@ pub async fn serve_v1(
             post(super::api::validate_event_schema),
         )
         .route(
-            "/api/v1/schemas/:subject/compatibility",
+            "/api/v1/schemas/{subject}/compatibility",
             put(super::api::set_compatibility_mode),
         )
         // Replay
         .route("/api/v1/replay", post(super::api::start_replay))
         .route("/api/v1/replay", get(super::api::list_replays))
         .route(
-            "/api/v1/replay/:replay_id",
+            "/api/v1/replay/{replay_id}",
             get(super::api::get_replay_progress),
         )
         .route(
-            "/api/v1/replay/:replay_id/cancel",
+            "/api/v1/replay/{replay_id}/cancel",
             post(super::api::cancel_replay),
         )
         .route(
-            "/api/v1/replay/:replay_id",
+            "/api/v1/replay/{replay_id}",
             delete(super::api::delete_replay),
         )
         // Pipelines
@@ -161,34 +161,34 @@ pub async fn serve_v1(
             get(super::api::all_pipeline_stats),
         )
         .route(
-            "/api/v1/pipelines/:pipeline_id",
+            "/api/v1/pipelines/{pipeline_id}",
             get(super::api::get_pipeline),
         )
         .route(
-            "/api/v1/pipelines/:pipeline_id",
+            "/api/v1/pipelines/{pipeline_id}",
             delete(super::api::remove_pipeline),
         )
         .route(
-            "/api/v1/pipelines/:pipeline_id/stats",
+            "/api/v1/pipelines/{pipeline_id}/stats",
             get(super::api::get_pipeline_stats),
         )
         .route(
-            "/api/v1/pipelines/:pipeline_id/reset",
+            "/api/v1/pipelines/{pipeline_id}/reset",
             put(super::api::reset_pipeline),
         )
         // v0.7: Projection State API for Query Service integration
         .route("/api/v1/projections", get(super::api::list_projections))
-        .route("/api/v1/projections/:name", get(super::api::get_projection))
+        .route("/api/v1/projections/{name}", get(super::api::get_projection))
         .route(
-            "/api/v1/projections/:name/:entity_id/state",
+            "/api/v1/projections/{name}/{entity_id}/state",
             get(super::api::get_projection_state),
         )
         .route(
-            "/api/v1/projections/:name/:entity_id/state",
+            "/api/v1/projections/{name}/{entity_id}/state",
             put(super::api::save_projection_state),
         )
         .route(
-            "/api/v1/projections/:name/bulk",
+            "/api/v1/projections/{name}/bulk",
             post(super::api::bulk_get_projection_states),
         )
         .with_state(app_state)

@@ -117,7 +117,8 @@
       "Bash(cargo-sort:*)",
       "Bash(golangci-lint:*)",
       "Bash(source:*)",
-      "Bash(gvm list:*)"
+      "Bash(gvm list:*)",
+      "Bash(docker build:*)"
     ],
     "deny": [],
     "ask": []

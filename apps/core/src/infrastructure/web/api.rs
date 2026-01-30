@@ -41,9 +41,9 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         .route("/api/v1/events", post(ingest_event))
         .route("/api/v1/events/query", get(query_events))
         .route("/api/v1/events/stream", get(events_websocket)) // v0.2: WebSocket streaming
-        .route("/api/v1/entities/:entity_id/state", get(get_entity_state))
+        .route("/api/v1/entities/{entity_id}/state", get(get_entity_state))
         .route(
-            "/api/v1/entities/:entity_id/snapshot",
+            "/api/v1/entities/{entity_id}/snapshot",
             get(get_entity_snapshot),
         )
         .route("/api/v1/stats", get(get_stats))
@@ -55,7 +55,7 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         .route("/api/v1/snapshots", post(create_snapshot))
         .route("/api/v1/snapshots", get(list_snapshots))
         .route(
-            "/api/v1/snapshots/:entity_id/latest",
+            "/api/v1/snapshots/{entity_id}/latest",
             get(get_latest_snapshot),
         )
         // v0.2: Compaction endpoints
@@ -64,52 +64,52 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         // v0.5: Schema registry endpoints
         .route("/api/v1/schemas", post(register_schema))
         .route("/api/v1/schemas", get(list_subjects))
-        .route("/api/v1/schemas/:subject", get(get_schema))
+        .route("/api/v1/schemas/{subject}", get(get_schema))
         .route(
-            "/api/v1/schemas/:subject/versions",
+            "/api/v1/schemas/{subject}/versions",
             get(list_schema_versions),
         )
         .route("/api/v1/schemas/validate", post(validate_event_schema))
         .route(
-            "/api/v1/schemas/:subject/compatibility",
+            "/api/v1/schemas/{subject}/compatibility",
             put(set_compatibility_mode),
         )
         // v0.5: Replay and projection rebuild endpoints
         .route("/api/v1/replay", post(start_replay))
         .route("/api/v1/replay", get(list_replays))
-        .route("/api/v1/replay/:replay_id", get(get_replay_progress))
-        .route("/api/v1/replay/:replay_id/cancel", post(cancel_replay))
+        .route("/api/v1/replay/{replay_id}", get(get_replay_progress))
+        .route("/api/v1/replay/{replay_id}/cancel", post(cancel_replay))
         .route(
-            "/api/v1/replay/:replay_id",
+            "/api/v1/replay/{replay_id}",
             axum::routing::delete(delete_replay),
         )
         // v0.5: Stream processing pipeline endpoints
         .route("/api/v1/pipelines", post(register_pipeline))
         .route("/api/v1/pipelines", get(list_pipelines))
         .route("/api/v1/pipelines/stats", get(all_pipeline_stats))
-        .route("/api/v1/pipelines/:pipeline_id", get(get_pipeline))
+        .route("/api/v1/pipelines/{pipeline_id}", get(get_pipeline))
         .route(
-            "/api/v1/pipelines/:pipeline_id",
+            "/api/v1/pipelines/{pipeline_id}",
             axum::routing::delete(remove_pipeline),
         )
         .route(
-            "/api/v1/pipelines/:pipeline_id/stats",
+            "/api/v1/pipelines/{pipeline_id}/stats",
             get(get_pipeline_stats),
         )
-        .route("/api/v1/pipelines/:pipeline_id/reset", put(reset_pipeline))
+        .route("/api/v1/pipelines/{pipeline_id}/reset", put(reset_pipeline))
         // v0.7: Projection State API for Query Service integration
         .route("/api/v1/projections", get(list_projections))
-        .route("/api/v1/projections/:name", get(get_projection))
+        .route("/api/v1/projections/{name}", get(get_projection))
         .route(
-            "/api/v1/projections/:name/:entity_id/state",
+            "/api/v1/projections/{name}/{entity_id}/state",
             get(get_projection_state),
         )
         .route(
-            "/api/v1/projections/:name/:entity_id/state",
+            "/api/v1/projections/{name}/{entity_id}/state",
             put(save_projection_state),
         )
         .route(
-            "/api/v1/projections/:name/bulk",
+            "/api/v1/projections/{name}/bulk",
             post(bulk_get_projection_states),
         )
         .layer(
