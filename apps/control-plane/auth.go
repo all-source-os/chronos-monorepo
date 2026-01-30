@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+
+	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
 // Claims represents JWT claims
@@ -147,7 +148,12 @@ func RequirePermission(perm entities.Permission) gin.HandlerFunc {
 			return
 		}
 
-		auth := authCtx.(*AuthContext)
+		auth, ok := authCtx.(*AuthContext)
+		if !ok {
+			c.JSON(500, gin.H{"error": "internal error", "message": "invalid auth context"})
+			c.Abort()
+			return
+		}
 		if !RoleHasPermission(auth.Role, perm) {
 			c.JSON(403, gin.H{
 				"error":   "forbidden",

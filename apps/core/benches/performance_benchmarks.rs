@@ -1,25 +1,24 @@
 use allsource_core::{
-    event::Event,
-    snapshot::SnapshotConfig,
+    domain::entities::Event,
+    infrastructure::persistence::{SnapshotConfig, WALConfig},
     store::{EventStore, EventStoreConfig},
+    QueryEventsRequest,
 };
 use chrono::Utc;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use serde_json::json;
 use std::sync::Arc;
 use tempfile::TempDir;
-use uuid::Uuid;
 
 fn create_event(entity_id: &str, event_type: &str, payload: serde_json::Value) -> Event {
-    Event {
-        id: Uuid::new_v4(),
-        event_type: event_type.to_string(),
-        entity_id: entity_id.to_string(),
+    Event::from_strings(
+        event_type.to_string(),
+        entity_id.to_string(),
+        "default".to_string(),
         payload,
-        timestamp: Utc::now(),
-        metadata: None,
-        version: 1,
-    }
+        None,
+    )
+    .unwrap()
 }
 
 /// Benchmark 1: Event ingestion throughput
@@ -64,9 +63,10 @@ fn bench_query_performance(c: &mut Criterion) {
 
     group.bench_function("query_all_entity_events", |b| {
         b.iter(|| {
-            let query = allsource_core::event::QueryEventsRequest {
+            let query = QueryEventsRequest {
                 entity_id: Some("entity-42".to_string()),
                 event_type: None,
+                tenant_id: None,
                 as_of: None,
                 since: None,
                 until: None,
@@ -78,9 +78,10 @@ fn bench_query_performance(c: &mut Criterion) {
 
     group.bench_function("query_by_type", |b| {
         b.iter(|| {
-            let query = allsource_core::event::QueryEventsRequest {
+            let query = QueryEventsRequest {
                 entity_id: None,
                 event_type: Some("query.test".to_string()),
+                tenant_id: None,
                 as_of: None,
                 since: None,
                 until: None,
@@ -218,9 +219,10 @@ fn bench_index_lookups(c: &mut Criterion) {
 
     group.bench_function("entity_index_lookup", |b| {
         b.iter(|| {
-            let query = allsource_core::event::QueryEventsRequest {
+            let query = QueryEventsRequest {
                 entity_id: Some("indexed-entity-50".to_string()),
                 event_type: None,
+                tenant_id: None,
                 as_of: None,
                 since: None,
                 until: None,
@@ -232,9 +234,10 @@ fn bench_index_lookups(c: &mut Criterion) {
 
     group.bench_function("type_index_lookup", |b| {
         b.iter(|| {
-            let query = allsource_core::event::QueryEventsRequest {
+            let query = QueryEventsRequest {
                 entity_id: None,
                 event_type: Some("event.type.5".to_string()),
+                tenant_id: None,
                 as_of: None,
                 since: None,
                 until: None,
@@ -290,7 +293,8 @@ fn bench_snapshot_operations(c: &mut Criterion) {
 
     group.bench_function("create_snapshot", |b| {
         b.iter(|| {
-            black_box(store.create_snapshot("snapshot-entity").unwrap());
+            store.create_snapshot("snapshot-entity").unwrap();
+            black_box(());
         });
     });
 
@@ -309,7 +313,7 @@ fn bench_wal_writes(c: &mut Criterion) {
             let config = EventStoreConfig {
                 storage_dir: Some(storage_dir.path().to_path_buf()),
                 wal_dir: Some(wal_dir.path().to_path_buf()),
-                wal_config: allsource_core::wal::WALConfig {
+                wal_config: WALConfig {
                     sync_on_write: true,
                     ..Default::default()
                 },

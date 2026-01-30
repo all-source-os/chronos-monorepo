@@ -1,12 +1,14 @@
 package http
 
 import (
+	"errors"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/allsource/control-plane/internal/application/dto"
 	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/domain"
-	"github.com/gin-gonic/gin"
 )
 
 // TenantHandler handles tenant-related HTTP requests
@@ -31,7 +33,7 @@ func (h *TenantHandler) Create(c *gin.Context) {
 
 	resp, err := h.createTenantUC.Execute(req)
 	if err != nil {
-		if err == domain.ErrTenantAlreadyExists {
+		if errors.Is(err, domain.ErrTenantAlreadyExists) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 			return
 		}

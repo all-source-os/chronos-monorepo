@@ -1,8 +1,9 @@
 package repositories
 
 import (
-	"github.com/allsource/control-plane/internal/domain/entities"
 	"time"
+
+	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
 // AuditRepository defines the interface for audit event persistence

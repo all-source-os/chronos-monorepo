@@ -52,7 +52,6 @@ jobs:
       core: ${{ steps.filter.outputs.core }}
       control-plane: ${{ steps.filter.outputs.control-plane }}
       query-service: ${{ steps.filter.outputs.query-service }}
-      mcp-server: ${{ steps.filter.outputs.mcp-server }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
@@ -67,8 +66,6 @@ jobs:
               - 'apps/control-plane/**'
             query-service:
               - 'apps/query-service/**'
-            mcp-server:
-              - 'apps/mcp-server-elixir/**'
 
       - name: Build matrix
         id: matrix

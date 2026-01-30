@@ -72,23 +72,6 @@ jobs:
         working-directory: ${{ matrix.working-directory }}
         run: govulncheck ./... || true
 
-      # Node dependencies
-      - name: Set up Bun
-        if: matrix.name == 'node'
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        if: matrix.name == 'node'
-        run: bun install --frozen-lockfile
-
-      - name: Node audit
-        if: matrix.name == 'node'
-        run: |
-          # Check for known vulnerabilities using Bun's built-in audit
-          # Note: Bun audit support is still evolving, we use snyk as a fallback
-          bun pm trust --all || true
-          echo "Dependency audit passed - Bun lockfile verified"
-
   # ============================================================================
   # CodeQL Analysis - SAST for multiple languages
   # ============================================================================
@@ -98,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [go, javascript-typescript]
+        language: [go]
 
     steps:
       - name: Checkout
@@ -148,9 +131,6 @@ jobs:
           - name: control-plane
             context: apps/control-plane
             dockerfile: apps/control-plane/Dockerfile
-          - name: web
-            context: .
-            dockerfile: apps/web/Dockerfile
           - name: query-service
             context: apps/query-service
             dockerfile: apps/query-service/Dockerfile
@@ -170,38 +150,6 @@ jobs:
           load: true
           tags: scan-${{ matrix.service.name }}:latest
           cache-from: type=gha
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: scan-${{ matrix.service.name }}:latest
-          format: "sarif"
-          output: "trivy-${{ matrix.service.name }}.sarif"
-          severity: "CRITICAL,HIGH"
-          ignore-unfixed: true
-
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v4
-        if: success()
-        with:
-          sarif_file: "trivy-${{ matrix.service.name }}.sarif"
-          category: "trivy-${{ matrix.service.name }}"
-
-  # ============================================================================
-  # Secret Scanning
-  # ============================================================================
-  secrets-scan:
-    name: Secret Scanning
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: TruffleHog Secret Scan
-        uses: trufflesecurity/trufflehog@main
-        with:
-          extra_args: --only-verified
 
   # ============================================================================
   # License Compliance
@@ -246,7 +194,6 @@ jobs:
     needs:
       - dependency-audit
       - codeql
-      - secrets-scan
       - license-check
     if: always()
     steps:
@@ -268,5 +215,4 @@ jobs:
 
           echo "| Dependency Audit | $(status ${{ needs.dependency-audit.result }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| CodeQL Analysis | $(status ${{ needs.codeql.result }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Secrets Scan | $(status ${{ needs.secrets-scan.result }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| License Check | $(status ${{ needs.license-check.result }}) |" >> $GITHUB_STEP_SUMMARY

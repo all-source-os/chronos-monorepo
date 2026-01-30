@@ -1,9 +1,10 @@
 package persistence
 
 import (
+	"sync"
+
 	"github.com/allsource/control-plane/internal/domain"
 	"github.com/allsource/control-plane/internal/domain/entities"
-	"sync"
 )
 
 // MemoryTenantRepository is an in-memory implementation of TenantRepository

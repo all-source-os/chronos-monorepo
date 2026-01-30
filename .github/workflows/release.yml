@@ -82,12 +82,8 @@ jobs:
             context: apps/core
           - name: control-plane
             context: apps/control-plane
-          - name: web
-            context: apps/web
           - name: query-service
             context: apps/query-service
-          - name: mcp-server
-            context: apps/mcp-server-elixir
 
     steps:
       - uses: actions/checkout@v4
@@ -319,9 +315,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "ghcr.io/${{ github.repository_owner }}/chronos-core:${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "ghcr.io/${{ github.repository_owner }}/chronos-control-plane:${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/${{ github.repository_owner }}/chronos-web:${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "ghcr.io/${{ github.repository_owner }}/chronos-query-service:${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/${{ github.repository_owner }}/chronos-mcp-server:${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Binary Artifacts" >> $GITHUB_STEP_SUMMARY

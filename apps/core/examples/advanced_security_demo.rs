@@ -161,7 +161,7 @@ fn demo_anomaly_detection() {
         username: "data_analyst".to_string(),
     };
 
-    for i in 1..=20 {
+    for _i in 1..=20 {
         let event = AuditEvent::new(
             tenant_id.clone(),
             AuditAction::EventQueried,

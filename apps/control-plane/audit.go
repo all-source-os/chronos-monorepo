@@ -10,6 +10,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Audit constants
+const (
+	resourceTenant    = "tenant"
+	resourceUser      = "user"
+	resourceUnknown   = "unknown"
+	actionLogin       = "login"
+	actionCreate      = "create"
+	resourceOperation = "operation"
+	pathHealth        = "/health"
+	pathMetrics       = "/metrics"
+)
+
 // AuditEvent represents an auditable action
 type AuditEvent struct {
 	Timestamp  time.Time              `json:"timestamp"`
@@ -44,7 +56,7 @@ func NewAuditLogger(filePath string) (*AuditLogger, error) {
 		return &AuditLogger{enabled: false}, nil
 	}
 
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open audit log file: %w", err)
 	}
@@ -90,7 +102,7 @@ func (a *AuditLogger) Close() error {
 func AuditMiddleware(logger *AuditLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip health and metrics endpoints
-		if c.Request.URL.Path == "/health" || c.Request.URL.Path == "/metrics" {
+		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathMetrics {
 			c.Next()
 			return
 		}
@@ -153,13 +165,13 @@ func determineAction(method, path string) string {
 	case "GET":
 		return "read"
 	case "POST":
-		if contains(path, "login") {
-			return "login"
+		if contains(path, actionLogin) {
+			return actionLogin
 		}
 		if contains(path, "register") {
 			return "register"
 		}
-		return "create"
+		return actionCreate
 	case "PUT":
 		return "update"
 	case "DELETE":
@@ -174,10 +186,10 @@ func determineAction(method, path string) string {
 // extractResource extracts the resource type from the path
 func extractResource(path string) string {
 	if contains(path, "/tenants") {
-		return "tenant"
+		return resourceTenant
 	}
 	if contains(path, "/users") {
-		return "user"
+		return resourceUser
 	}
 	if contains(path, "/snapshots") {
 		return "snapshot"
@@ -189,9 +201,9 @@ func extractResource(path string) string {
 		return "cluster"
 	}
 	if contains(path, "/operations") {
-		return "operation"
+		return resourceOperation
 	}
-	return "unknown"
+	return resourceUnknown
 }
 
 // contains checks if a string contains a substring
@@ -221,7 +233,7 @@ func (a *AuditLogger) LogAuthEvent(eventType, userID, username, tenantID, detail
 			"details": details,
 		},
 	}
-	a.Log(event)
+	_ = a.Log(event)
 }
 
 // LogTenantEvent logs a tenant management event
@@ -229,14 +241,14 @@ func (a *AuditLogger) LogTenantEvent(action, tenantID, userID, details string) {
 	event := AuditEvent{
 		EventType:  "tenant_management",
 		Action:     action,
-		Resource:   "tenant",
+		Resource:   resourceTenant,
 		ResourceID: tenantID,
 		UserID:     userID,
 		Metadata: map[string]interface{}{
 			"details": details,
 		},
 	}
-	a.Log(event)
+	_ = a.Log(event)
 }
 
 // LogOperationEvent logs an operational event (snapshot, backup, etc.)
@@ -251,5 +263,5 @@ func (a *AuditLogger) LogOperationEvent(operation, resourceID, userID, status st
 			"status": status,
 		},
 	}
-	a.Log(event)
+	_ = a.Log(event)
 }

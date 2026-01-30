@@ -1,9 +1,10 @@
 package persistence
 
 import (
-	"github.com/allsource/control-plane/internal/domain/entities"
 	"sync"
 	"time"
+
+	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
 // MemoryAuditRepository is an in-memory implementation of AuditRepository

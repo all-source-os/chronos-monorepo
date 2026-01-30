@@ -1,23 +1,22 @@
-use allsource_core::event::Event;
+use allsource_core::domain::entities::Event;
 use allsource_core::store::EventStore;
+use allsource_core::QueryEventsRequest;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use serde_json::json;
-use uuid::Uuid;
 
 fn generate_test_event(entity_id: usize) -> Event {
-    Event {
-        id: Uuid::new_v4(),
-        event_type: "benchmark.test".to_string(),
-        entity_id: format!("entity-{}", entity_id),
-        payload: json!({
+    Event::from_strings(
+        "benchmark.test".to_string(),
+        format!("entity-{}", entity_id),
+        "default".to_string(),
+        json!({
             "value": entity_id,
             "timestamp": chrono::Utc::now(),
             "data": "benchmark data payload"
         }),
-        timestamp: chrono::Utc::now(),
-        metadata: None,
-        version: 1,
-    }
+        None,
+    )
+    .unwrap()
 }
 
 fn bench_single_event_ingestion(c: &mut Criterion) {
@@ -106,12 +105,11 @@ fn bench_query_performance(c: &mut Criterion) {
     }
 
     group.bench_function("query_by_entity", |b| {
-        use allsource_core::event::QueryEventsRequest;
-
         b.iter(|| {
             let request = QueryEventsRequest {
                 entity_id: Some("entity-500".to_string()),
                 event_type: None,
+                tenant_id: None,
                 as_of: None,
                 since: None,
                 until: None,
@@ -123,12 +121,11 @@ fn bench_query_performance(c: &mut Criterion) {
     });
 
     group.bench_function("query_by_type", |b| {
-        use allsource_core::event::QueryEventsRequest;
-
         b.iter(|| {
             let request = QueryEventsRequest {
                 entity_id: None,
                 event_type: Some("benchmark.test".to_string()),
+                tenant_id: None,
                 as_of: None,
                 since: None,
                 until: None,

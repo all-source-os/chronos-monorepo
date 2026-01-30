@@ -114,7 +114,10 @@
       "Bash(bd create:*)",
       "Bash(bd list:*)",
       "Bash(bd close:*)",
-      "Bash(cargo-sort:*)"
+      "Bash(cargo-sort:*)",
+      "Bash(golangci-lint:*)",
+      "Bash(source:*)",
+      "Bash(gvm list:*)"
     ],
     "deny": [],
     "ask": []

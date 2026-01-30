@@ -11,10 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/allsource/control-plane/internal"
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/allsource/control-plane/internal"
 )
 
 const (
@@ -80,16 +81,14 @@ func (cp *ControlPlane) setupRoutes() {
 
 	// Management endpoints
 	api := cp.router.Group("/api/v1")
-	{
-		api.GET("/cluster/status", cp.clusterStatusHandler)
-		api.GET("/metrics/json", cp.metricsHandler)
-		api.POST("/operations/snapshot", cp.snapshotHandler)
-		api.POST("/operations/replay", cp.replayHandler)
+	api.GET("/cluster/status", cp.clusterStatusHandler)
+	api.GET("/metrics/json", cp.metricsHandler)
+	api.POST("/operations/snapshot", cp.snapshotHandler)
+	api.POST("/operations/replay", cp.replayHandler)
 
-		// Clean Architecture endpoints
-		api.POST("/tenants", cp.container.TenantHandler.Create)
-		api.POST("/policies/evaluate", cp.container.PolicyHandler.Evaluate)
-	}
+	// Clean Architecture endpoints
+	api.POST("/tenants", cp.container.TenantHandler.Create)
+	api.POST("/policies/evaluate", cp.container.PolicyHandler.Evaluate)
 }
 
 func (cp *ControlPlane) healthHandler(c *gin.Context) {
@@ -137,7 +136,7 @@ func (cp *ControlPlane) clusterStatusHandler(c *gin.Context) {
 
 	var coreStats map[string]interface{}
 	if err == nil {
-		json.Unmarshal(resp.Body(), &coreStats)
+		_ = json.Unmarshal(resp.Body(), &coreStats)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -169,7 +168,7 @@ func (cp *ControlPlane) metricsHandler(c *gin.Context) {
 	}
 
 	var stats map[string]interface{}
-	json.Unmarshal(resp.Body(), &stats)
+	_ = json.Unmarshal(resp.Body(), &stats)
 
 	c.JSON(http.StatusOK, gin.H{
 		"metrics": gin.H{
@@ -241,8 +240,9 @@ func main() {
 
 	// Graceful shutdown
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: cp.router,
+		Addr:              ":" + port,
+		Handler:           cp.router,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
@@ -259,11 +259,12 @@ func main() {
 
 	log.Println("Shutting down gracefully...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
+		cancel()
 		log.Fatal("Server forced to shutdown:", err)
 	}
+	cancel()
 
 	log.Println("Control Plane stopped")
 }

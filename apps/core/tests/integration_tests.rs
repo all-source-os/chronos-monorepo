@@ -1,27 +1,24 @@
 use allsource_core::{
-    compaction::CompactionConfig,
-    event::{Event, IngestEventRequest, QueryEventsRequest},
-    snapshot::{SnapshotConfig, SnapshotType},
+    domain::entities::Event,
+    infrastructure::persistence::{CompactionConfig, SnapshotConfig, SnapshotType, WALConfig},
     store::{EventStore, EventStoreConfig},
-    wal::WALConfig,
+    QueryEventsRequest,
 };
 use chrono::Utc;
 use serde_json::json;
 use std::sync::Arc;
 use tempfile::TempDir;
-use uuid::Uuid;
 
 /// Helper to create test events
 fn create_test_event(entity_id: &str, event_type: &str, payload: serde_json::Value) -> Event {
-    Event {
-        id: Uuid::new_v4(),
-        event_type: event_type.to_string(),
-        entity_id: entity_id.to_string(),
+    Event::from_strings(
+        event_type.to_string(),
+        entity_id.to_string(),
+        "default".to_string(),
         payload,
-        timestamp: Utc::now(),
-        metadata: None,
-        version: 1,
-    }
+        None,
+    )
+    .unwrap()
 }
 
 #[test]
@@ -43,6 +40,7 @@ fn test_full_lifecycle_in_memory() {
     let query = QueryEventsRequest {
         entity_id: Some("user-1".to_string()),
         event_type: None,
+        tenant_id: None,
         as_of: None,
         since: None,
         until: None,
@@ -58,7 +56,7 @@ fn test_full_lifecycle_in_memory() {
     // Note: history array may be shorter if snapshot optimization is used
     // Verify total events through stats instead
     assert!(
-        state["history"].as_array().unwrap().len() > 0,
+        !state["history"].as_array().unwrap().is_empty(),
         "Should have events in history"
     );
 
@@ -159,6 +157,7 @@ fn test_wal_durability_and_recovery() {
         let query = QueryEventsRequest {
             entity_id: Some("user-2".to_string()),
             event_type: None,
+            tenant_id: None,
             as_of: None,
             since: None,
             until: None,
@@ -232,7 +231,7 @@ fn test_time_travel_queries() {
                 "content.updated",
                 json!({"version": i, "content": format!("Version {}", i)}),
             );
-            let ts = event.timestamp;
+            let ts = event.timestamp();
             store.ingest(event).unwrap();
             ts
         })
@@ -275,6 +274,7 @@ fn test_multi_entity_queries() {
     let query = QueryEventsRequest {
         entity_id: Some("user-3".to_string()),
         event_type: None,
+        tenant_id: None,
         as_of: None,
         since: None,
         until: None,
@@ -287,6 +287,7 @@ fn test_multi_entity_queries() {
     let query = QueryEventsRequest {
         entity_id: None,
         event_type: Some("activity.logged".to_string()),
+        tenant_id: None,
         as_of: None,
         since: None,
         until: None,
@@ -417,6 +418,7 @@ fn test_event_stream_ordering() {
     let query = QueryEventsRequest {
         entity_id: Some("ordered-entity".to_string()),
         event_type: None,
+        tenant_id: None,
         as_of: None,
         since: None,
         until: None,
@@ -428,7 +430,7 @@ fn test_event_stream_ordering() {
     // Verify events are returned in timestamp order
     for i in 1..events.len() {
         assert!(
-            events[i - 1].timestamp <= events[i].timestamp,
+            events[i - 1].timestamp() <= events[i].timestamp(),
             "Events should be ordered by timestamp"
         );
     }
@@ -502,6 +504,7 @@ fn test_entity_not_found_error() {
     let query = QueryEventsRequest {
         entity_id: Some("non-existent".to_string()),
         event_type: None,
+        tenant_id: None,
         as_of: None,
         since: None,
         until: None,
@@ -514,35 +517,25 @@ fn test_entity_not_found_error() {
 #[test]
 fn test_event_validation() {
     // Test 13: Event validation
-    let store = EventStore::new();
+    // Empty entity_id should fail at construction time
+    let result = Event::from_strings(
+        "test".to_string(),
+        "".to_string(),
+        "default".to_string(),
+        json!({}),
+        None,
+    );
+    assert!(result.is_err(), "Empty entity_id should fail validation");
 
-    // Empty entity_id should fail
-    let invalid_event = Event {
-        id: Uuid::new_v4(),
-        event_type: "test".to_string(),
-        entity_id: "".to_string(),
-        payload: json!({}),
-        timestamp: Utc::now(),
-        metadata: None,
-        version: 1,
-    };
-
-    let result = store.ingest(invalid_event);
-    assert!(result.is_err());
-
-    // Empty event_type should fail
-    let invalid_event = Event {
-        id: Uuid::new_v4(),
-        event_type: "".to_string(),
-        entity_id: "entity-1".to_string(),
-        payload: json!({}),
-        timestamp: Utc::now(),
-        metadata: None,
-        version: 1,
-    };
-
-    let result = store.ingest(invalid_event);
-    assert!(result.is_err());
+    // Empty event_type should fail at construction time
+    let result = Event::from_strings(
+        "".to_string(),
+        "entity-1".to_string(),
+        "default".to_string(),
+        json!({}),
+        None,
+    );
+    assert!(result.is_err(), "Empty event_type should fail validation");
 }
 
 #[test]
@@ -564,7 +557,7 @@ fn test_snapshot_time_travel_optimization() {
     store.create_snapshot("heavy-entity").unwrap();
 
     // Now reconstruct state - should use snapshot
-    let state = store.reconstruct_state("heavy-entity", None).unwrap();
+    let _state = store.reconstruct_state("heavy-entity", None).unwrap();
     // When using snapshot, event_count reflects events after snapshot (optimization)
     // Verify the snapshot was created by checking snapshot manager
     let snapshot_manager = store.snapshot_manager();
@@ -604,21 +597,21 @@ fn test_metadata_preservation() {
     // Test 15: Metadata handling
     let store = EventStore::new();
 
-    let event = Event {
-        id: Uuid::new_v4(),
-        event_type: "metadata.test".to_string(),
-        entity_id: "meta-entity".to_string(),
-        payload: json!({"key": "value"}),
-        timestamp: Utc::now(),
-        metadata: Some(json!({"source": "test", "trace_id": "12345"})),
-        version: 1,
-    };
+    let event = Event::from_strings(
+        "metadata.test".to_string(),
+        "meta-entity".to_string(),
+        "default".to_string(),
+        json!({"key": "value"}),
+        Some(json!({"source": "test", "trace_id": "12345"})),
+    )
+    .unwrap();
 
     store.ingest(event).unwrap();
 
     let query = QueryEventsRequest {
         entity_id: Some("meta-entity".to_string()),
         event_type: None,
+        tenant_id: None,
         as_of: None,
         since: None,
         until: None,
@@ -627,6 +620,6 @@ fn test_metadata_preservation() {
 
     let events = store.query(query).unwrap();
     assert_eq!(events.len(), 1);
-    assert!(events[0].metadata.is_some());
-    assert_eq!(events[0].metadata.as_ref().unwrap()["source"], "test");
+    assert!(events[0].metadata().is_some());
+    assert_eq!(events[0].metadata().unwrap()["source"], "test");
 }

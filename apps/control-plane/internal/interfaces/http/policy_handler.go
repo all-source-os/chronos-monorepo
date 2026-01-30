@@ -3,9 +3,10 @@ package http
 import (
 	"net/http"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/allsource/control-plane/internal/application/dto"
 	"github.com/allsource/control-plane/internal/application/usecases"
-	"github.com/gin-gonic/gin"
 )
 
 // PolicyHandler handles policy-related HTTP requests

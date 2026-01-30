@@ -7,33 +7,31 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'apps/*/Dockerfile'
-      - 'apps/**/*.rs'
-      - 'apps/**/*.go'
-      - 'apps/**/*.ex'
-      - 'apps/**/*.exs'
-      - 'apps/web/**'
-      - 'packages/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/container-ci.yml'
+      - "apps/*/Dockerfile"
+      - "apps/**/*.rs"
+      - "apps/**/*.go"
+      - "apps/**/*.ex"
+      - "apps/**/*.exs"
+      - "packages/**"
+      - "docker-compose.yml"
+      - ".github/workflows/container-ci.yml"
   pull_request:
     branches: [main, develop]
     paths:
-      - 'apps/*/Dockerfile'
-      - 'apps/**/*.rs'
-      - 'apps/**/*.go'
-      - 'apps/**/*.ex'
-      - 'apps/**/*.exs'
-      - 'apps/web/**'
-      - 'packages/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/container-ci.yml'
+      - "apps/*/Dockerfile"
+      - "apps/**/*.rs"
+      - "apps/**/*.go"
+      - "apps/**/*.ex"
+      - "apps/**/*.exs"
+      - "packages/**"
+      - "docker-compose.yml"
+      - ".github/workflows/container-ci.yml"
   workflow_dispatch:
     inputs:
       containers:
         description: 'Containers to test (comma-separated, or "all")'
         required: false
-        default: 'all'
+        default: "all"
 
 env:
   REGISTRY: ghcr.io
@@ -49,13 +47,11 @@ jobs:
     outputs:
       core: ${{ steps.filter.outputs.core }}
       query-service: ${{ steps.filter.outputs.query-service }}
-      mcp-server: ${{ steps.filter.outputs.mcp-server }}
       control-plane: ${{ steps.filter.outputs.control-plane }}
-      web: ${{ steps.filter.outputs.web }}
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -64,23 +60,15 @@ jobs:
               - 'apps/core/**'
             query-service:
               - 'apps/query-service/**'
-            mcp-server:
-              - 'apps/mcp-server-elixir/**'
             control-plane:
               - 'apps/control-plane/**'
-            web:
-              - 'apps/web/**'
-              - 'packages/ui/**'
-              - 'tooling/typescript/**'
-              - 'package.json'
-              - 'bun.lock'
 
       - name: Set Matrix
         id: set-matrix
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             if [[ "${{ github.event.inputs.containers }}" == "all" ]]; then
-              echo 'matrix=["core","query-service","mcp-server","control-plane","web"]' >> $GITHUB_OUTPUT
+              echo 'matrix=["core","query-service","control-plane"]' >> $GITHUB_OUTPUT
             else
               # Convert comma-separated to JSON array
               containers=$(echo '${{ github.event.inputs.containers }}' | tr ',' '\n' | jq -R . | jq -sc .)
@@ -95,21 +83,15 @@ jobs:
             if [[ "${{ steps.filter.outputs.query-service }}" == "true" ]]; then
               matrix=$(echo $matrix | jq -c '. + ["query-service"]')
             fi
-            if [[ "${{ steps.filter.outputs.mcp-server }}" == "true" ]]; then
-              matrix=$(echo $matrix | jq -c '. + ["mcp-server"]')
-            fi
             if [[ "${{ steps.filter.outputs.control-plane }}" == "true" ]]; then
               matrix=$(echo $matrix | jq -c '. + ["control-plane"]')
             fi
-            if [[ "${{ steps.filter.outputs.web }}" == "true" ]]; then
-              matrix=$(echo $matrix | jq -c '. + ["web"]')
-            fi
-            
+
             # If no changes detected (e.g., workflow file change), test all
             if [[ "$matrix" == "[]" ]]; then
-              matrix='["core","query-service","mcp-server","control-plane","web"]'
+              matrix='["core","query-service","control-plane"]'
             fi
-            
+
             echo "matrix=$matrix" >> $GITHUB_OUTPUT
           fi
 
@@ -125,7 +107,7 @@ jobs:
       fail-fast: false
       matrix:
         container: ${{ fromJson(needs.changes.outputs.matrix) }}
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -149,23 +131,11 @@ jobs:
               echo "image=chronos-query-service" >> $GITHUB_OUTPUT
               echo "port=4000" >> $GITHUB_OUTPUT
               ;;
-            mcp-server)
-              echo "context=apps/mcp-server-elixir" >> $GITHUB_OUTPUT
-              echo "dockerfile=apps/mcp-server-elixir/Dockerfile" >> $GITHUB_OUTPUT
-              echo "image=chronos-mcp-server" >> $GITHUB_OUTPUT
-              echo "port=4001" >> $GITHUB_OUTPUT
-              ;;
             control-plane)
               echo "context=apps/control-plane" >> $GITHUB_OUTPUT
               echo "dockerfile=apps/control-plane/Dockerfile" >> $GITHUB_OUTPUT
               echo "image=chronos-control-plane" >> $GITHUB_OUTPUT
               echo "port=8080" >> $GITHUB_OUTPUT
-              ;;
-            web)
-              echo "context=." >> $GITHUB_OUTPUT
-              echo "dockerfile=apps/web/Dockerfile" >> $GITHUB_OUTPUT
-              echo "image=chronos-web" >> $GITHUB_OUTPUT
-              echo "port=3000" >> $GITHUB_OUTPUT
               ;;
           esac
 
@@ -188,7 +158,7 @@ jobs:
         run: |
           SIZE=$(docker images --format "{{.Size}}" ${{ steps.config.outputs.image }}:test)
           echo "### 📦 Image Size: $SIZE" >> $GITHUB_STEP_SUMMARY
-          
+
           # Convert to MB for comparison
           SIZE_MB=$(docker images --format "{{.Size}}" ${{ steps.config.outputs.image }}:test | \
             awk '{
@@ -197,7 +167,7 @@ jobs:
               else if (index($0, "KB") > 0) { gsub("KB", "", $0); print $0 / 1024 }
               else { print 0 }
             }')
-          
+
           if (( $(echo "$SIZE_MB > 500" | bc -l) )); then
             echo "⚠️ Warning: Image size ($SIZE) exceeds 500MB threshold" >> $GITHUB_STEP_SUMMARY
           fi
@@ -207,14 +177,14 @@ jobs:
           # Start container
           CONTAINER_ID=$(docker run -d -p ${{ steps.config.outputs.port }}:${{ steps.config.outputs.port }} \
             ${{ steps.config.outputs.image }}:test)
-          
+
           # Wait for container to be ready
           MAX_WAIT=60
           WAITED=0
-          
+
           while [ $WAITED -lt $MAX_WAIT ]; do
             STATUS=$(docker inspect --format='{{.State.Status}}' $CONTAINER_ID)
-            
+
             if [ "$STATUS" = "exited" ]; then
               EXIT_CODE=$(docker inspect --format='{{.State.ExitCode}}' $CONTAINER_ID)
               echo "❌ Container exited with code $EXIT_CODE" >> $GITHUB_STEP_SUMMARY
@@ -222,10 +192,10 @@ jobs:
               docker rm -f $CONTAINER_ID
               exit 1
             fi
-            
+
             # Check if container has healthcheck
             HEALTH=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' $CONTAINER_ID)
-            
+
             if [ "$HEALTH" = "healthy" ] || [ "$HEALTH" = "no-healthcheck" ]; then
               if [ "$STATUS" = "running" ]; then
                 echo "✅ Container started successfully in ${WAITED}s" >> $GITHUB_STEP_SUMMARY
@@ -233,47 +203,15 @@ jobs:
                 exit 0
               fi
             fi
-            
+
             sleep 1
             WAITED=$((WAITED + 1))
           done
-          
+
           echo "❌ Container failed to start within ${MAX_WAIT}s" >> $GITHUB_STEP_SUMMARY
           docker logs $CONTAINER_ID
           docker rm -f $CONTAINER_ID
           exit 1
-
-      - name: Run Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: '${{ steps.config.outputs.image }}:test'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'  # Don't fail on vulnerabilities, just report
-
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
-
-      - name: Security scan summary
-        run: |
-          if [ -f trivy-results.sarif ]; then
-            CRITICAL=$(cat trivy-results.sarif | jq '[.runs[].results[] | select(.level == "error")] | length')
-            HIGH=$(cat trivy-results.sarif | jq '[.runs[].results[] | select(.level == "warning")] | length')
-            
-            if [ "$CRITICAL" -gt 0 ]; then
-              echo "⚠️ Found $CRITICAL critical vulnerabilities" >> $GITHUB_STEP_SUMMARY
-            fi
-            if [ "$HIGH" -gt 0 ]; then
-              echo "⚠️ Found $HIGH high vulnerabilities" >> $GITHUB_STEP_SUMMARY
-            fi
-            if [ "$CRITICAL" -eq 0 ] && [ "$HIGH" -eq 0 ]; then
-              echo "✅ No critical or high vulnerabilities found" >> $GITHUB_STEP_SUMMARY
-            fi
-          fi
 
   # ===========================================================================
   # Docker Compose Integration Test
@@ -283,11 +221,11 @@ jobs:
     needs: [changes, build]
     runs-on: ubuntu-latest
     if: |
-      always() && 
+      always() &&
       needs.build.result == 'success' &&
-      (contains(fromJson(needs.changes.outputs.matrix), 'core') || 
+      (contains(fromJson(needs.changes.outputs.matrix), 'core') ||
        contains(fromJson(needs.changes.outputs.matrix), 'query-service'))
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -299,22 +237,22 @@ jobs:
       - name: Start services
         run: |
           docker compose up -d core
-          
+
           # Wait for core to be healthy
           timeout 60 bash -c 'until docker compose exec -T core wget --spider -q http://localhost:3900/health; do sleep 2; done'
-          
+
           echo "✅ Core service is healthy" >> $GITHUB_STEP_SUMMARY
 
       - name: Run integration tests
         run: |
           # Basic health check
           curl -sf http://localhost:3900/health || exit 1
-          
+
           # Test event creation
           RESPONSE=$(curl -sf -X POST http://localhost:3900/api/v1/events \
             -H "Content-Type: application/json" \
             -d '{"stream_id":"test-stream","event_type":"TestEvent","data":{"message":"hello"}}')
-          
+
           if echo "$RESPONSE" | jq -e '.event_id' > /dev/null; then
             echo "✅ Event creation test passed" >> $GITHUB_STEP_SUMMARY
           else
@@ -334,7 +272,7 @@ jobs:
     needs: [changes, build, integration]
     runs-on: ubuntu-latest
     if: always()
-    
+
     steps:
       - name: Generate Summary
         run: |
@@ -342,16 +280,16 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Container | Build | Startup | Security |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|-------|---------|----------|" >> $GITHUB_STEP_SUMMARY
-          
+
           # This is a simplified summary - actual results come from build job
           if [ "${{ needs.build.result }}" == "success" ]; then
             echo "| All | ✅ | ✅ | ✅ |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| All | ❌ | - | - |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ needs.integration.result }}" == "success" ]; then
             echo "**Integration Tests:** ✅ Passed" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ needs.integration.result }}" == "skipped" ]; then

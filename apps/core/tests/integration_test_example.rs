@@ -11,6 +11,7 @@ use allsource_core::{
     rate_limit::{RateLimitConfig, RateLimiter},
     store::EventStore,
     tenant::{TenantManager, TenantQuotas},
+    QueryEventsRequest,
 };
 use std::sync::Arc;
 
@@ -49,7 +50,7 @@ fn test_complete_auth_flow() {
     assert_eq!(claims.tenant_id, "default");
 
     // 5. Create API key
-    let (api_key, key_string) = auth_manager.create_api_key(
+    let (_api_key, key_string) = auth_manager.create_api_key(
         "test_api_key".to_string(),
         "default".to_string(),
         Role::ServiceAccount,
@@ -66,7 +67,7 @@ fn test_complete_auth_flow() {
     assert_eq!(api_claims.tenant_id, "default");
     assert_eq!(api_claims.role, Role::ServiceAccount);
 
-    println!("✅ Complete auth flow test passed!");
+    println!("Complete auth flow test passed!");
 }
 
 #[test]
@@ -97,13 +98,13 @@ fn test_multi_tenant_isolation() {
     assert_eq!(tenant1.quotas.max_events_per_day, 1_000_000); // Professional
     assert_eq!(tenant2.quotas.max_events_per_day, 10_000); // Free
 
-    // 3. Track usage separately
+    // 3. Track usage separately (using record_ingestion with event size)
     tenant_manager
-        .track_event(&tenant1.id)
-        .expect("Failed to track");
+        .record_ingestion(&tenant1.id, 100)
+        .expect("Failed to record ingestion");
     tenant_manager
-        .track_event(&tenant2.id)
-        .expect("Failed to track");
+        .record_ingestion(&tenant2.id, 100)
+        .expect("Failed to record ingestion");
 
     let stats1 = tenant_manager
         .get_stats(&tenant1.id)
@@ -115,7 +116,7 @@ fn test_multi_tenant_isolation() {
     assert_eq!(stats1["usage"]["events_today"], 1);
     assert_eq!(stats2["usage"]["events_today"], 1);
 
-    println!("✅ Multi-tenant isolation test passed!");
+    println!("Multi-tenant isolation test passed!");
 }
 
 #[test]
@@ -136,45 +137,54 @@ fn test_rate_limiting_enforcement() {
     assert!(!result.allowed, "Request 6 should be rate limited");
     assert!(result.retry_after.is_some());
 
-    println!("✅ Rate limiting enforcement test passed!");
+    println!("Rate limiting enforcement test passed!");
 }
 
 #[test]
 fn test_event_store_with_tenants() {
     let store = Arc::new(EventStore::new());
 
-    // Create events for different tenants
-    let event1 = Event::new_with_tenant(
+    // Create events for different tenants using from_strings
+    let event1 = Event::from_strings(
         "user.created".to_string(),
         "user-123".to_string(),
         "tenant1".to_string(),
         serde_json::json!({"name": "Alice"}),
-    );
+        None,
+    )
+    .unwrap();
 
-    let event2 = Event::new_with_tenant(
+    let event2 = Event::from_strings(
         "user.created".to_string(),
         "user-456".to_string(),
         "tenant2".to_string(),
         serde_json::json!({"name": "Bob"}),
-    );
+        None,
+    )
+    .unwrap();
+
+    let event1_entity_id = event1.entity_id().to_string();
 
     // Ingest events
-    store
-        .ingest(event1.clone())
-        .expect("Failed to ingest event1");
-    store
-        .ingest(event2.clone())
-        .expect("Failed to ingest event2");
+    store.ingest(event1).expect("Failed to ingest event1");
+    store.ingest(event2).expect("Failed to ingest event2");
 
-    // Query by entity (should work)
-    let entity_events = store
-        .query_by_entity(&event1.entity_id)
-        .expect("Failed to query by entity");
+    // Query by entity using query method
+    let query = QueryEventsRequest {
+        entity_id: Some(event1_entity_id),
+        event_type: None,
+        tenant_id: None,
+        as_of: None,
+        since: None,
+        until: None,
+        limit: None,
+    };
+    let entity_events = store.query(query).expect("Failed to query by entity");
 
     assert_eq!(entity_events.len(), 1);
-    assert_eq!(entity_events[0].tenant_id, "tenant1");
+    assert_eq!(entity_events[0].tenant_id_str(), "tenant1");
 
-    println!("✅ Event store with tenants test passed!");
+    println!("Event store with tenants test passed!");
 }
 
 #[test]
@@ -227,7 +237,7 @@ fn test_permission_based_access() {
     assert!(!readonly.role.has_permission(Permission::Write));
     assert!(readonly.role.has_permission(Permission::Read));
 
-    println!("✅ Permission-based access test passed!");
+    println!("Permission-based access test passed!");
 }
 
 #[test]
@@ -235,8 +245,10 @@ fn test_quota_enforcement() {
     let tenant_manager = Arc::new(TenantManager::new());
 
     // Create tenant with very low quota (1 event per day)
-    let mut quotas = TenantQuotas::default();
-    quotas.max_events_per_day = 1;
+    let quotas = TenantQuotas {
+        max_events_per_day: 1,
+        ..TenantQuotas::default()
+    };
 
     let tenant = tenant_manager
         .create_tenant(
@@ -246,17 +258,17 @@ fn test_quota_enforcement() {
         )
         .expect("Failed to create tenant");
 
-    // First event should succeed
-    let result1 = tenant_manager.check_quota(&tenant.id, 1);
+    // First event should succeed (check_can_ingest is the correct API)
+    let result1 = tenant_manager.check_can_ingest(&tenant.id);
     assert!(result1.is_ok(), "First event should be allowed");
 
     tenant_manager
-        .track_event(&tenant.id)
-        .expect("Failed to track event");
+        .record_ingestion(&tenant.id, 100)
+        .expect("Failed to record ingestion");
 
     // Second event should fail (quota exceeded)
-    let result2 = tenant_manager.check_quota(&tenant.id, 1);
+    let result2 = tenant_manager.check_can_ingest(&tenant.id);
     assert!(result2.is_err(), "Second event should exceed quota");
 
-    println!("✅ Quota enforcement test passed!");
+    println!("Quota enforcement test passed!");
 }

@@ -1,20 +1,18 @@
 package main
 
 import (
-	// "context"     // Unused - only needed in commented-out main()
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	// "os/signal"   // Unused - only needed in commented-out main()
-	// "syscall"     // Unused - only needed in commented-out main()
 	"time"
 
-	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
 const (
@@ -112,49 +110,39 @@ func (cp *ControlPlaneV1) setupRoutes() {
 
 	// Authentication endpoints (public for login/register)
 	auth := cp.router.Group("/api/v1/auth")
-	{
-		auth.POST("/login", cp.loginHandler)
-		auth.POST("/register", cp.registerHandler)
-		// auth.GET("/me", cp.meHandler) // TODO: implement meHandler
-	}
+	auth.POST("/login", cp.loginHandler)
+	auth.POST("/register", cp.registerHandler)
 
 	// Protected API endpoints
 	api := cp.router.Group("/api/v1")
-	{
-		// Cluster management (read access)
-		api.GET("/cluster/status", cp.clusterStatusHandler)
-		api.GET("/metrics/json", cp.metricsHandler)
 
-		// Core service health check
-		api.GET("/health/core", cp.coreHealthHandler)
+	// Cluster management (read access)
+	api.GET("/cluster/status", cp.clusterStatusHandler)
+	api.GET("/metrics/json", cp.metricsHandler)
 
-		// Operations (require specific permissions)
-		operations := api.Group("/operations")
-		{
-			operations.POST("/snapshot", RequirePermission(entities.PermissionAdmin), cp.snapshotHandler)
-			operations.POST("/replay", RequirePermission(entities.PermissionAdmin), cp.replayHandler)
-			operations.POST("/backup", RequirePermission(entities.PermissionAdmin), cp.backupHandler)
-		}
+	// Core service health check
+	api.GET("/health/core", cp.coreHealthHandler)
 
-		// Tenant management (admin only)
-		tenants := api.Group("/tenants")
-		tenants.Use(RequireAdmin())
-		{
-			tenants.GET("", cp.listTenantsHandler)
-			tenants.GET("/:id", cp.getTenantHandler)
-			tenants.POST("", cp.createTenantHandler)
-			tenants.PUT("/:id", cp.updateTenantHandler)
-			tenants.DELETE("/:id", cp.deleteTenantHandler)
-		}
+	// Operations (require specific permissions)
+	operations := api.Group("/operations")
+	operations.POST("/snapshot", RequirePermission(entities.PermissionAdmin), cp.snapshotHandler)
+	operations.POST("/replay", RequirePermission(entities.PermissionAdmin), cp.replayHandler)
+	operations.POST("/backup", RequirePermission(entities.PermissionAdmin), cp.backupHandler)
 
-		// User management (admin only)
-		users := api.Group("/users")
-		users.Use(RequireAdmin())
-		{
-			users.GET("", cp.listUsersHandler)
-			users.DELETE("/:id", cp.deleteUserHandler)
-		}
-	}
+	// Tenant management (admin only)
+	tenants := api.Group("/tenants")
+	tenants.Use(RequireAdmin())
+	tenants.GET("", cp.listTenantsHandler)
+	tenants.GET("/:id", cp.getTenantHandler)
+	tenants.POST("", cp.createTenantHandler)
+	tenants.PUT("/:id", cp.updateTenantHandler)
+	tenants.DELETE("/:id", cp.deleteTenantHandler)
+
+	// User management (admin only)
+	users := api.Group("/users")
+	users.Use(RequireAdmin())
+	users.GET("", cp.listUsersHandler)
+	users.DELETE("/:id", cp.deleteUserHandler)
 }
 
 // Health handler
@@ -177,8 +165,8 @@ func (cp *ControlPlaneV1) healthHandler(c *gin.Context) {
 func (cp *ControlPlaneV1) coreHealthHandler(c *gin.Context) {
 	start := time.Now()
 
-	// Get auth token from current request to pass to core
-	token, _ := ExtractToken(c)
+	// Get auth token from current request to pass to core (error ignored - empty token is acceptable)
+	token, _ := ExtractToken(c) //nolint:errcheck
 
 	// Make authenticated request to core
 	resp, err := cp.client.R().

@@ -1,9 +1,10 @@
 package persistence
 
 import (
+	"sync"
+
 	"github.com/allsource/control-plane/internal/domain"
 	"github.com/allsource/control-plane/internal/domain/entities"
-	"sync"
 )
 
 // MemoryUserRepository is an in-memory implementation of UserRepository
