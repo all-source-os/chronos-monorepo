@@ -6,15 +6,26 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
   and broadcasts received events via Phoenix.PubSub for local consumption.
 
   ## Features
-  - Auto-reconnect with exponential backoff
+  - Auto-reconnect with exponential backoff and jitter
+  - Configurable max reconnection attempts
   - Event parsing and validation
   - PubSub broadcasting for local GenServers
   - Connection state tracking
+  - Graceful degradation on persistent failures
 
   ## Topics
   - `events:all` - All events
   - `events:{entity_id}` - Events for specific entity
   - `events:type:{event_type}` - Events by type
+
+  ## Configuration
+
+      config :query_service_ex,
+        core_ws_url: "ws://localhost:3900/api/v1/events/stream",
+        core_ws_enabled: true,
+        core_ws_max_reconnect_attempts: 10,
+        core_ws_initial_backoff_ms: 1_000,
+        core_ws_max_backoff_ms: 30_000
 
   ## Example
 
@@ -35,8 +46,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
   require Logger
 
   @default_url "ws://localhost:3900/api/v1/events/stream"
-  @initial_backoff_ms 1_000
-  @max_backoff_ms 30_000
+  @default_initial_backoff_ms 1_000
+  @default_max_backoff_ms 30_000
+  @default_max_reconnect_attempts 10
   @pubsub QueryServiceEx.PubSub
 
   # Client API
@@ -64,13 +76,39 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
     url = opts[:url] || Application.get_env(:query_service_ex, :core_ws_url, @default_url)
     name = opts[:name] || __MODULE__
 
+    initial_backoff =
+      opts[:initial_backoff_ms] ||
+        Application.get_env(
+          :query_service_ex,
+          :core_ws_initial_backoff_ms,
+          @default_initial_backoff_ms
+        )
+
+    max_backoff =
+      opts[:max_backoff_ms] ||
+        Application.get_env(:query_service_ex, :core_ws_max_backoff_ms, @default_max_backoff_ms)
+
+    max_attempts =
+      opts[:max_reconnect_attempts] ||
+        Application.get_env(
+          :query_service_ex,
+          :core_ws_max_reconnect_attempts,
+          @default_max_reconnect_attempts
+        )
+
     state = %{
       url: url,
-      backoff_ms: @initial_backoff_ms,
+      backoff_ms: initial_backoff,
+      initial_backoff_ms: initial_backoff,
+      max_backoff_ms: max_backoff,
+      max_reconnect_attempts: max_attempts,
       connected: false,
       reconnect_attempts: 0,
+      total_reconnects: 0,
       events_received: 0,
-      last_event_at: nil
+      last_event_at: nil,
+      last_error: nil,
+      started_at: DateTime.utc_now()
     }
 
     Logger.info("[CoreWebSocketClient] Connecting to #{url}")
@@ -81,7 +119,6 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
 
       {:error, %WebSockex.ConnError{original: reason}} ->
         Logger.warning("[CoreWebSocketClient] Failed to connect: #{inspect(reason)}, will retry")
-        # Start a GenServer that will retry connection
         start_retry_loop(url, name, state)
 
       {:error, reason} ->
@@ -91,7 +128,6 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
   end
 
   defp start_retry_loop(url, name, initial_state) do
-    # Start a simple GenServer that retries connection
     Task.start_link(fn ->
       retry_connection(url, name, initial_state, 1)
     end)
@@ -99,24 +135,62 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
     :ignore
   end
 
-  defp retry_connection(url, name, state, attempt) when attempt < 10 do
-    backoff = min(state.backoff_ms * attempt, @max_backoff_ms)
-    Logger.info("[CoreWebSocketClient] Retry #{attempt} in #{backoff}ms")
+  defp retry_connection(url, name, state, attempt) when attempt <= state.max_reconnect_attempts do
+    backoff = calculate_backoff(state.initial_backoff_ms * attempt, state.max_backoff_ms)
+
+    Logger.info(
+      "[CoreWebSocketClient] Retry #{attempt}/#{state.max_reconnect_attempts} in #{backoff}ms"
+    )
+
+    :telemetry.execute(
+      [:query_service_ex, :websocket, :reconnect_attempt],
+      %{attempt: attempt, backoff_ms: backoff},
+      %{url: url}
+    )
+
     Process.sleep(backoff)
 
-    case WebSockex.start_link(url, __MODULE__, state, name: name) do
+    case WebSockex.start_link(url, __MODULE__, %{state | reconnect_attempts: attempt}, name: name) do
       {:ok, _pid} ->
         Logger.info("[CoreWebSocketClient] Connected after #{attempt} retries")
+
+        :telemetry.execute(
+          [:query_service_ex, :websocket, :reconnect_success],
+          %{attempts: attempt},
+          %{url: url}
+        )
+
         :ok
 
-      {:error, _reason} ->
-        retry_connection(url, name, state, attempt + 1)
+      {:error, reason} ->
+        Logger.warning("[CoreWebSocketClient] Retry #{attempt} failed: #{inspect(reason)}")
+        retry_connection(url, name, %{state | last_error: reason}, attempt + 1)
     end
   end
 
-  defp retry_connection(_url, _name, _state, _attempt) do
-    Logger.error("[CoreWebSocketClient] Failed to connect after 10 retries, giving up")
+  defp retry_connection(url, _name, state, attempt) do
+    Logger.error(
+      "[CoreWebSocketClient] Failed to connect after #{attempt - 1} retries, entering degraded mode",
+      url: url,
+      last_error: inspect(state.last_error)
+    )
+
+    :telemetry.execute(
+      [:query_service_ex, :websocket, :reconnect_exhausted],
+      %{attempts: attempt - 1},
+      %{url: url, last_error: state.last_error}
+    )
+
+    # Don't crash - just enter degraded mode where real-time updates won't work
+    # The service can still function with polling or cached data
     :error
+  end
+
+  defp calculate_backoff(base_ms, max_ms) do
+    # Add jitter (±20%) and cap at max
+    jitter = :rand.uniform() * 0.4 - 0.2
+    backoff = round(base_ms * (1 + jitter))
+    min(backoff, max_ms)
   end
 
   @doc """
@@ -149,13 +223,20 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
 
   @impl WebSockex
   def handle_connect(_conn, state) do
-    Logger.info("[CoreWebSocketClient] Connected to Core WebSocket")
+    Logger.info("[CoreWebSocketClient] Connected to Core WebSocket", url: state.url)
+
+    :telemetry.execute(
+      [:query_service_ex, :websocket, :connected],
+      %{reconnect_attempts: state.reconnect_attempts},
+      %{url: state.url}
+    )
 
     new_state = %{
       state
       | connected: true,
-        backoff_ms: @initial_backoff_ms,
-        reconnect_attempts: 0
+        backoff_ms: state.initial_backoff_ms,
+        reconnect_attempts: 0,
+        last_error: nil
     }
 
     {:ok, new_state}
@@ -167,6 +248,12 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
       {:ok, event} ->
         broadcast_event(event)
 
+        :telemetry.execute(
+          [:query_service_ex, :websocket, :message_received],
+          %{size_bytes: byte_size(json)},
+          %{message_type: "event", event_type: event["event_type"]}
+        )
+
         new_state = %{
           state
           | events_received: state.events_received + 1,
@@ -176,7 +263,10 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
         {:ok, new_state}
 
       {:error, reason} ->
-        Logger.warning("[CoreWebSocketClient] Failed to parse event: #{inspect(reason)}")
+        Logger.warning("[CoreWebSocketClient] Failed to parse event: #{inspect(reason)}",
+          error: inspect(reason)
+        )
+
         {:ok, state}
     end
   end
@@ -199,24 +289,57 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
 
   @impl WebSockex
   def handle_disconnect(%{reason: reason}, state) do
-    Logger.warning("[CoreWebSocketClient] Disconnected: #{inspect(reason)}")
+    new_attempts = state.reconnect_attempts + 1
+    new_total = state.total_reconnects + 1
 
-    new_state = %{
-      state
-      | connected: false,
-        reconnect_attempts: state.reconnect_attempts + 1
-    }
-
-    # Exponential backoff with jitter
-    backoff = calculate_backoff(new_state.backoff_ms)
-
-    Logger.info(
-      "[CoreWebSocketClient] Reconnecting in #{backoff}ms (attempt #{new_state.reconnect_attempts})"
+    Logger.warning(
+      "[CoreWebSocketClient] Disconnected: #{inspect(reason)} (attempt #{new_attempts}/#{state.max_reconnect_attempts})",
+      reason: inspect(reason),
+      reconnect_attempts: new_attempts
     )
 
-    Process.sleep(backoff)
+    :telemetry.execute(
+      [:query_service_ex, :websocket, :disconnected],
+      %{reconnect_attempts: new_attempts},
+      %{url: state.url, reason: reason}
+    )
 
-    {:reconnect, %{new_state | backoff_ms: min(backoff * 2, @max_backoff_ms)}}
+    # Check if we've exceeded max reconnection attempts
+    if new_attempts > state.max_reconnect_attempts do
+      Logger.error(
+        "[CoreWebSocketClient] Max reconnection attempts (#{state.max_reconnect_attempts}) exceeded, stopping",
+        url: state.url,
+        total_reconnects: new_total
+      )
+
+      :telemetry.execute(
+        [:query_service_ex, :websocket, :reconnect_exhausted],
+        %{attempts: new_attempts, total_reconnects: new_total},
+        %{url: state.url}
+      )
+
+      # Stop reconnecting - the supervision tree will handle restart if configured
+      {:ok, %{state | connected: false, last_error: reason}}
+    else
+      new_state = %{
+        state
+        | connected: false,
+          reconnect_attempts: new_attempts,
+          total_reconnects: new_total,
+          last_error: reason
+      }
+
+      # Exponential backoff with jitter
+      backoff = calculate_backoff(new_state.backoff_ms, state.max_backoff_ms)
+
+      Logger.info(
+        "[CoreWebSocketClient] Reconnecting in #{backoff}ms (attempt #{new_attempts}/#{state.max_reconnect_attempts})"
+      )
+
+      Process.sleep(backoff)
+
+      {:reconnect, %{new_state | backoff_ms: min(backoff * 2, state.max_backoff_ms)}}
+    end
   end
 
   @impl WebSockex
@@ -237,8 +360,12 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
     stats = %{
       connected: state.connected,
       reconnect_attempts: state.reconnect_attempts,
+      total_reconnects: state.total_reconnects,
+      max_reconnect_attempts: state.max_reconnect_attempts,
       events_received: state.events_received,
       last_event_at: state.last_event_at,
+      last_error: state.last_error,
+      started_at: state.started_at,
       url: state.url
     }
 
@@ -269,11 +396,5 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
     end
 
     Logger.debug("[CoreWebSocketClient] Broadcast event: #{event["id"] || "unknown"}")
-  end
-
-  defp calculate_backoff(base_ms) do
-    # Add jitter (±20%)
-    jitter = :rand.uniform() * 0.4 - 0.2
-    round(base_ms * (1 + jitter))
   end
 end

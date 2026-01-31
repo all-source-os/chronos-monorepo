@@ -1,5 +1,14 @@
 import Config
 
+# Configure your database for test
+config :query_service_ex, QueryServiceEx.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "query_service_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool: Ecto.Adapters.SQL.Sandbox,
+  pool_size: System.schedulers_online() * 2
+
 # We don't run a server during test
 config :query_service_ex, QueryServiceExWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
@@ -17,3 +26,12 @@ config :logger, level: :warning
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# Google OAuth configuration for testing
+config :ueberauth, Ueberauth.Strategy.Google.OAuth,
+  client_id: "test_client_id",
+  client_secret: "test_client_secret"
+
+# Guardian secret key for testing
+config :query_service_ex, QueryServiceEx.Accounts.Guardian,
+  secret_key: "test_guardian_secret_key_at_least_64_bytes_long_for_testing_purposes_only"

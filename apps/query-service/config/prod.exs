@@ -17,7 +17,21 @@ config :query_service_ex, QueryServiceExWeb.Endpoint,
 
 # Configure Rust Core backend
 config :query_service_ex,
-  rust_core_url: System.get_env("RUST_CORE_URL") || "http://localhost:3900"
+  rust_core_url: System.get_env("RUST_CORE_URL") || "http://localhost:3900",
+  core_ws_url: System.get_env("CORE_WS_URL") || "ws://localhost:3900"
 
 # Do not print debug messages in production
 config :logger, level: :info
+
+# Configure structured JSON logging for production
+config :logger, :console,
+  format: {LoggerJSON.Formatters.Basic, :format},
+  metadata: :all
+
+config :logger_json, :backend,
+  metadata: :all,
+  json_encoder: Jason,
+  formatter: LoggerJSON.Formatters.Basic
+
+# Database configuration is handled in runtime.exs for production
+# using the DATABASE_URL environment variable

@@ -3,11 +3,14 @@ defmodule QueryServiceExWeb.EventController do
   Controller for event-related endpoints.
 
   Provides CRUD operations and querying for events.
+  Uses FallbackController for consistent error handling.
   """
 
   use Phoenix.Controller, formats: [:json]
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+
+  action_fallback(QueryServiceExWeb.FallbackController)
 
   @doc """
   List events with optional filters.

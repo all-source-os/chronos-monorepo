@@ -1,11 +1,14 @@
 defmodule QueryServiceExWeb.SchemaController do
   @moduledoc """
   Controller for event schema management.
+  Uses FallbackController for consistent error handling.
   """
 
   use Phoenix.Controller, formats: [:json]
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+
+  action_fallback(QueryServiceExWeb.FallbackController)
 
   @doc """
   List all schemas.

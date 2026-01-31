@@ -57,6 +57,15 @@ defmodule QueryServiceEx.MixProject do
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.1"},
 
+      # Structured Logging
+      {:logger_json, "~> 6.0"},
+
+      # OAuth Authentication
+      {:ueberauth, "~> 0.10"},
+      {:ueberauth_google, "~> 0.12"},
+      {:ueberauth_github, "~> 0.8"},
+      {:guardian, "~> 2.3"},
+
       # Development & Testing
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},

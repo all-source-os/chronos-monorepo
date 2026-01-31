@@ -57,3 +57,21 @@ coverage
 # Ralph tui
 .ralph-tui
 .beads
+tasks
+
+# AI Tools / IDE Assistants
+.agent/
+.cursor/
+.gemini/
+.github/skills/
+.opencode/
+.windsurf/
+
+# Claude Code - ignore local/sensitive, keep shared config
+.claude/settings.local.json
+.claude/projects/
+.claude/todos/
+.claude/plans/
+.claude/statsig/
+.claude/credentialCache/
+.mcp.json

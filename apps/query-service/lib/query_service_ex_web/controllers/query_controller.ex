@@ -1,12 +1,15 @@
 defmodule QueryServiceExWeb.QueryController do
   @moduledoc """
   Controller for executing queries using the Query DSL.
+  Uses FallbackController for consistent error handling.
   """
 
   use Phoenix.Controller, formats: [:json]
 
   alias QueryServiceEx.Domain.Entities.Query
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+
+  action_fallback(QueryServiceExWeb.FallbackController)
 
   @doc """
   Execute a query.

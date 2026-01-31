@@ -1,4 +1,4 @@
-# golangci-lint configuration
+# golangci-lint configuration v2
 # https://golangci-lint.run/usage/configuration/
 
 version: "2"
@@ -10,9 +10,10 @@ run:
 
 output:
   formats:
-    colored-line-number: {}
-  print-issued-lines: true
-  print-linter-name: true
+    text:
+      path: stdout
+      print-issued-lines: true
+      print-linter-name: true
 
 linters:
   enable:
@@ -40,6 +41,78 @@ linters:
     - predeclared
     - revive
 
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        - whyNoLint
+        - hugeParam
+
+    gosec:
+      excludes:
+        - G104 # Errors unhandled (we use errcheck)
+        - G304 # File path provided as taint input
+
+    misspell:
+      locale: US
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unreachable-code
+
+  exclusions:
+    rules:
+      # Exclude some linters from running on tests files
+      - path: _test\.go
+        linters:
+          - dupl
+          - gosec
+          - goconst
+
+      # Exclude shadow checking on err
+      - text: 'shadow: declaration of "err"'
+        linters:
+          - govet
+
 formatters:
   enable:
     - gofmt
@@ -48,81 +121,5 @@ formatters:
     gofmt:
       simplify: true
     goimports:
-      local-prefixes: github.com/allsource
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - whyNoLint
-      - hugeParam
-
-
-  gosec:
-    excludes:
-      - G104 # Errors unhandled (we use errcheck)
-      - G304 # File path provided as taint input
-
-  misspell:
-    locale: US
-
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unreachable-code
-
-issues:
-  exclude-rules:
-    # Exclude some linters from running on tests files
-    - path: _test\.go
-      linters:
-        - dupl
-        - gosec
-        - goconst
-
-    # Exclude shadow checking on err
-    - text: 'shadow: declaration of "err"'
-      linters:
-        - govet
-
-  max-issues-per-linter: 50
-  max-same-issues: 10
-  new: false
+      local-prefixes:
+        - github.com/allsource

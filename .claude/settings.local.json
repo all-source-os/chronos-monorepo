@@ -118,7 +118,8 @@
       "Bash(golangci-lint:*)",
       "Bash(source:*)",
       "Bash(gvm list:*)",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "WebFetch(domain:golangci-lint.run)"
     ],
     "deny": [],
     "ask": []

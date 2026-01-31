@@ -1,7 +1,8 @@
 .PHONY: help install dev build clean demo test lint check-versions \
         core control web mcp \
         docker-build docker-test docker-test-quick docker-clean \
-        docker-core docker-web docker-query docker-mcp docker-control
+        docker-core docker-web docker-query docker-mcp docker-control \
+        quality-gates quality-rust quality-go quality-elixir
 
 # =============================================================================
 # General Commands
@@ -21,7 +22,13 @@ help:
 	@echo "  make lint           - Run linters across all services"
 	@echo "  make check-versions - Check version consistency across services"
 	@echo ""
-	@echo "Individual Services:"
+	@echo "Quality Gates (CI pipeline locally):"
+	@echo "  make quality-gates  - Run ALL quality checks (Rust + Go + Elixir)"
+	@echo "  make quality-rust   - Run Rust quality gates only"
+	@echo "  make quality-go     - Run Go quality gates only"
+	@echo "  make quality-elixir - Run Elixir quality gates only"
+	@echo ""
+	@echo "Individual Services:
 	@echo "  make core         - Run Rust event store only"
 	@echo "  make control      - Run Go control plane only"
 	@echo "  make web          - Run Next.js web UI only"
@@ -84,6 +91,74 @@ lint:
 check-versions:
 	@echo "🔢 Checking version consistency..."
 	./scripts/check-versions.sh
+
+# =============================================================================
+# Quality Gates (mirrors CI pipeline)
+# =============================================================================
+
+quality-gates: check-versions quality-rust quality-go quality-elixir
+	@echo ""
+	@echo "✅ All quality gates passed!"
+
+quality-rust:
+	@echo ""
+	@echo "🦀 Running Rust quality gates..."
+	@echo "================================"
+	@echo "→ Checking formatting..."
+	cd apps/core && cargo fmt --check
+	@echo "→ Checking Cargo.toml sorting..."
+	cd apps/core && cargo sort --check
+	@echo "→ Running Clippy..."
+	cd apps/core && cargo clippy --locked --all-targets --all-features -- -D warnings
+	@echo "→ Running tests..."
+	cd apps/core && cargo test --locked --lib --all-features
+	@echo "→ Building release..."
+	cd apps/core && cargo build --locked --lib --release
+	@echo "→ Checking documentation..."
+	cd apps/core && RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items
+	@echo "✅ Rust quality gates passed!"
+
+quality-go:
+	@echo ""
+	@echo "🐹 Running Go quality gates..."
+	@echo "=============================="
+	@echo "→ Downloading dependencies..."
+	cd apps/control-plane && go mod download
+	@echo "→ Verifying dependencies..."
+	cd apps/control-plane && go mod verify
+	@echo "→ Checking formatting..."
+	@cd apps/control-plane && if [ -n "$$(gofmt -l .)" ]; then \
+		echo "Go code is not formatted:"; \
+		gofmt -d .; \
+		exit 1; \
+	fi
+	@echo "→ Running go vet..."
+	cd apps/control-plane && go vet ./...
+	@echo "→ Running staticcheck..."
+	cd apps/control-plane && staticcheck ./...
+	@echo "→ Running golangci-lint..."
+	cd apps/control-plane && golangci-lint run --timeout=5m
+	@echo "→ Running tests..."
+	cd apps/control-plane && go test -v -race -covermode=atomic ./...
+	@echo "→ Building binary..."
+	cd apps/control-plane && CGO_ENABLED=0 go build -ldflags="-s -w" -o control-plane .
+	@echo "✅ Go quality gates passed!"
+
+quality-elixir:
+	@echo ""
+	@echo "💧 Running Elixir quality gates..."
+	@echo "=================================="
+	@echo "→ Installing dependencies..."
+	cd apps/query-service && mix deps.get
+	@echo "→ Checking formatting..."
+	cd apps/query-service && mix format --check-formatted
+	@echo "→ Compiling with warnings as errors..."
+	cd apps/query-service && mix compile --warnings-as-errors
+	@echo "→ Running Credo..."
+	-cd apps/query-service && mix credo --strict
+	@echo "→ Running tests..."
+	cd apps/query-service && mix test
+	@echo "✅ Elixir quality gates passed!"
 
 # =============================================================================
 # Individual Service Commands

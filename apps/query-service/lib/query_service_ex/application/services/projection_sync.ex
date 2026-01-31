@@ -11,6 +11,8 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
   - Periodic sync of dirty state to Core (configurable interval)
   - Event subscription for real-time updates
   - ETS cache for local reads
+  - Graceful degradation when Core is unavailable
+  - Automatic retry with backoff for failed syncs
 
   ## Usage
 
@@ -30,7 +32,9 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
 
       config :query_service_ex,
         projection_sync_interval_ms: 100,
-        projection_sync_enabled: true
+        projection_sync_enabled: true,
+        projection_sync_max_retries: 3,
+        projection_sync_retry_backoff_ms: 1_000
   """
 
   use GenServer
@@ -39,6 +43,8 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
 
   @default_sync_interval_ms 100
+  @default_max_retries 3
+  @default_retry_backoff_ms 1_000
   @ets_table :projection_state_cache
 
   # Client API
@@ -125,11 +131,30 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
     sync_interval = Keyword.get(opts, :sync_interval_ms, @default_sync_interval_ms)
     project_fn = Keyword.get(opts, :project_fn, &default_project_fn/2)
 
+    max_retries =
+      Keyword.get(
+        opts,
+        :max_retries,
+        Application.get_env(:query_service_ex, :projection_sync_max_retries, @default_max_retries)
+      )
+
+    retry_backoff =
+      Keyword.get(
+        opts,
+        :retry_backoff_ms,
+        Application.get_env(
+          :query_service_ex,
+          :projection_sync_retry_backoff_ms,
+          @default_retry_backoff_ms
+        )
+      )
+
     # Ensure ETS table exists
     init_cache()
 
-    # Load initial state from Core
-    state = load_from_core(projection_name, entity_id, initial_state)
+    # Load initial state from Core (with graceful degradation)
+    {state, core_available} =
+      load_from_core_with_fallback(projection_name, entity_id, initial_state)
 
     # Store in ETS cache
     update_cache(projection_name, entity_id, state)
@@ -140,7 +165,9 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
     # Schedule periodic sync
     schedule_sync(sync_interval)
 
-    Logger.debug("[ProjectionSync] Started for #{projection_name}:#{entity_id}")
+    Logger.debug("[ProjectionSync] Started for #{projection_name}:#{entity_id}",
+      core_available: core_available
+    )
 
     {:ok,
      %{
@@ -151,7 +178,12 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
        sync_interval: sync_interval,
        project_fn: project_fn,
        sync_count: 0,
-       events_applied: 0
+       events_applied: 0,
+       failed_syncs: 0,
+       max_retries: max_retries,
+       retry_backoff_ms: retry_backoff,
+       core_available: core_available,
+       last_sync_error: nil
      }}
   end
 
@@ -167,8 +199,8 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
 
   @impl GenServer
   def handle_call(:force_sync, _from, state) do
-    new_state = sync_to_core(state)
-    {:reply, :ok, new_state}
+    {new_state, _success} = sync_to_core_with_retry(state)
+    {:reply, :ok, %{new_state | dirty: false}}
   end
 
   @impl GenServer
@@ -196,9 +228,50 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
 
   @impl GenServer
   def handle_info(:sync, %{dirty: true} = state) do
-    new_state = sync_to_core(state)
-    schedule_sync(state.sync_interval)
-    {:noreply, %{new_state | dirty: false, sync_count: state.sync_count + 1}}
+    start_time = System.monotonic_time()
+
+    :telemetry.execute(
+      [:query_service_ex, :projection, :sync_started],
+      %{},
+      %{projection_name: state.projection_name, entity_id: state.entity_id}
+    )
+
+    {new_state, sync_successful} = sync_to_core_with_retry(state)
+
+    duration_ms =
+      System.convert_time_unit(System.monotonic_time() - start_time, :native, :millisecond)
+
+    if sync_successful do
+      :telemetry.execute(
+        [:query_service_ex, :projection, :sync_completed],
+        %{duration_ms: duration_ms},
+        %{projection_name: state.projection_name, entity_id: state.entity_id}
+      )
+
+      schedule_sync(state.sync_interval)
+
+      {:noreply,
+       %{
+         new_state
+         | dirty: false,
+           sync_count: state.sync_count + 1,
+           failed_syncs: 0,
+           core_available: true
+       }}
+    else
+      # Sync failed - schedule retry with backoff
+      retry_interval = calculate_retry_interval(state)
+
+      Logger.warning(
+        "[ProjectionSync] Sync failed, scheduling retry in #{retry_interval}ms",
+        projection_name: state.projection_name,
+        entity_id: state.entity_id,
+        failed_syncs: new_state.failed_syncs
+      )
+
+      schedule_sync(retry_interval)
+      {:noreply, %{new_state | core_available: false}}
+    end
   end
 
   @impl GenServer
@@ -211,7 +284,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
   def terminate(_reason, state) do
     # Sync any pending changes before shutdown
     if state.dirty do
-      sync_to_core(state)
+      sync_to_core_with_retry(state)
     end
 
     :ok
@@ -219,32 +292,42 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
 
   # Private Functions
 
-  defp load_from_core(projection_name, entity_id, default_state) do
+  defp load_from_core_with_fallback(projection_name, entity_id, default_state) do
     case RustCoreClient.get_projection_state(projection_name, entity_id) do
       {:ok, state} ->
         Logger.debug(
           "[ProjectionSync] Loaded state from Core for #{projection_name}:#{entity_id}"
         )
 
-        state
+        {state, true}
 
       {:error, :not_found} ->
         Logger.debug(
           "[ProjectionSync] No state in Core for #{projection_name}:#{entity_id}, using default"
         )
 
-        default_state
+        {default_state, true}
 
       {:error, reason} ->
         Logger.warning(
-          "[ProjectionSync] Failed to load from Core: #{inspect(reason)}, using default"
+          "[ProjectionSync] Failed to load from Core: #{inspect(reason)}, using default (degraded mode)"
         )
 
-        default_state
+        :telemetry.execute(
+          [:query_service_ex, :projection, :load_failed],
+          %{},
+          %{
+            projection_name: projection_name,
+            entity_id: entity_id,
+            error: reason
+          }
+        )
+
+        {default_state, false}
     end
   end
 
-  defp sync_to_core(state) do
+  defp sync_to_core_with_retry(state) do
     case RustCoreClient.save_projection_state(
            state.projection_name,
            state.entity_id,
@@ -252,15 +335,64 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
          ) do
       :ok ->
         Logger.debug(
-          "[ProjectionSync] Synced to Core: #{state.projection_name}:#{state.entity_id}"
+          "[ProjectionSync] Synced to Core: #{state.projection_name}:#{state.entity_id}",
+          projection_name: state.projection_name,
+          entity_id: state.entity_id
         )
 
-        state
+        {state, true}
 
       {:error, reason} ->
-        Logger.warning("[ProjectionSync] Failed to sync to Core: #{inspect(reason)}")
-        state
+        new_failed_syncs = state.failed_syncs + 1
+
+        if new_failed_syncs >= state.max_retries do
+          Logger.error(
+            "[ProjectionSync] Max retries (#{state.max_retries}) exceeded for sync to Core",
+            projection_name: state.projection_name,
+            entity_id: state.entity_id,
+            error: inspect(reason)
+          )
+
+          :telemetry.execute(
+            [:query_service_ex, :projection, :sync_exhausted],
+            %{failed_syncs: new_failed_syncs},
+            %{
+              projection_name: state.projection_name,
+              entity_id: state.entity_id,
+              error: reason
+            }
+          )
+        else
+          Logger.warning(
+            "[ProjectionSync] Failed to sync to Core (attempt #{new_failed_syncs}/#{state.max_retries}): #{inspect(reason)}",
+            projection_name: state.projection_name,
+            entity_id: state.entity_id,
+            error: inspect(reason)
+          )
+        end
+
+        :telemetry.execute(
+          [:query_service_ex, :projection, :sync_failed],
+          %{failed_syncs: new_failed_syncs},
+          %{
+            projection_name: state.projection_name,
+            entity_id: state.entity_id,
+            error: reason
+          }
+        )
+
+        {%{state | failed_syncs: new_failed_syncs, last_sync_error: reason}, false}
     end
+  end
+
+  defp calculate_retry_interval(state) do
+    # Exponential backoff with cap
+    base = state.retry_backoff_ms
+    # Cap at 5x backoff
+    multiplier = min(state.failed_syncs + 1, 5)
+    # Add up to 20% jitter
+    jitter = :rand.uniform() * 0.2
+    round(base * multiplier * (1 + jitter))
   end
 
   defp update_cache(projection_name, entity_id, value) do

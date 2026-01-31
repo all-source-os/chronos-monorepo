@@ -178,7 +178,10 @@ pub async fn serve_v1(
         )
         // v0.7: Projection State API for Query Service integration
         .route("/api/v1/projections", get(super::api::list_projections))
-        .route("/api/v1/projections/{name}", get(super::api::get_projection))
+        .route(
+            "/api/v1/projections/{name}",
+            get(super::api::get_projection),
+        )
         .route(
             "/api/v1/projections/{name}/{entity_id}/state",
             get(super::api::get_projection_state),

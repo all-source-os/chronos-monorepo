@@ -1,9 +1,10 @@
 # Fly.io Configuration for Chronos Query Service
 # Deploy: flyctl deploy --app chronos-query-service
 # Scale: flyctl scale count 3 --app chronos-query-service
+# Secrets: flyctl secrets set SECRET_KEY_BASE=... GOOGLE_CLIENT_ID=... etc
 
 app = "chronos-query-service"
-primary_region = "iad"  # US East (Virginia) - change to your preferred region
+primary_region = "iad"  # US East (Virginia)
 
 [build]
   dockerfile = "Dockerfile"
@@ -11,17 +12,31 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
 [env]
   MIX_ENV = "prod"
   PHX_HOST = "chronos-query-service.fly.dev"
-  CORE_URL = "http://chronos-core.internal:8080"
+  RUST_CORE_URL = "http://chronos-core.internal:8080"
   CORE_WS_URL = "ws://chronos-core.internal:8080"
-  # PORT is automatically set by Fly.io
-  # SECRET_KEY_BASE should be set via: flyctl secrets set SECRET_KEY_BASE=...
+  ECTO_IPV6 = "true"
+  # Use port 3902 to match application config
+  PORT = "3902"
+  # Enable structured JSON logging in production
+  LOGGER_LEVEL = "info"
+
+# Required secrets (set via flyctl secrets set):
+# - SECRET_KEY_BASE: mix phx.gen.secret
+# - DATABASE_URL: auto-set when attaching Fly Postgres
+# - GOOGLE_CLIENT_ID: from Google Cloud Console
+# - GOOGLE_CLIENT_SECRET: from Google Cloud Console
+# - GITHUB_CLIENT_ID: from GitHub Developer Settings
+# - GITHUB_CLIENT_SECRET: from GitHub Developer Settings
+# - LEMON_SQUEEZY_API_KEY: from LemonSqueezy dashboard
+# - LEMON_SQUEEZY_STORE_ID: from LemonSqueezy dashboard
+# - LEMON_SQUEEZY_WEBHOOK_SECRET: from LemonSqueezy webhook settings
 
 [http_service]
-  internal_port = 4000
+  internal_port = 3902
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["app"]
 
   [http_service.concurrency]
@@ -29,14 +44,36 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
     hard_limit = 500
     soft_limit = 400
 
+  # Readiness check - determines if instance should receive traffic
+  # Returns 503 when database or backend is unavailable
   [[http_service.checks]]
-    grace_period = "5s"
+    grace_period = "15s"
+    interval = "15s"
+    method = "GET"
+    path = "/api/health/ready"
+    timeout = "5s"
+
+  # Liveness check - determines if instance needs restart
+  # Only fails if Elixir process cannot respond
+  [[http_service.checks]]
+    grace_period = "10s"
     interval = "30s"
     method = "GET"
-    path = "/api/health"
+    path = "/api/health/live"
     timeout = "3s"
 
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256
+  memory_mb = 512  # Increased for production workload
+
+# Database: Attach Fly Postgres
+# flyctl postgres create --name chronos-db
+# flyctl postgres attach chronos-db --app chronos-query-service
+
+# Metrics: Prometheus-compatible endpoint available at /api/metrics
+# Configure Fly.io Prometheus scraping if needed
+
+[metrics]
+  port = 9091
+  path = "/metrics"

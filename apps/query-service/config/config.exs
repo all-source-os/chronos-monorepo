@@ -1,5 +1,16 @@
 import Config
 
+# Configure Ecto Repo
+config :query_service_ex,
+  ecto_repos: [QueryServiceEx.Repo]
+
+# Configure structured logging defaults
+config :logger,
+  backends: [:console]
+
+config :logger, :console,
+  metadata: [:request_id, :correlation_id, :entity_id, :event_type, :module, :function]
+
 # Configure the Phoenix endpoint
 config :query_service_ex, QueryServiceExWeb.Endpoint,
   url: [host: "localhost"],
@@ -13,9 +24,10 @@ config :query_service_ex, QueryServiceExWeb.Endpoint,
   http: [port: 3902],
   server: true
 
-# Configure Rust Core backend URL
+# Configure Rust Core backend URLs
 config :query_service_ex,
-  rust_core_url: System.get_env("RUST_CORE_URL") || "http://localhost:3900"
+  rust_core_url: System.get_env("RUST_CORE_URL") || "http://localhost:3900",
+  core_ws_url: System.get_env("CORE_WS_URL") || "ws://localhost:3900"
 
 # Configure Tesla HTTP client
 config :tesla,
@@ -23,6 +35,21 @@ config :tesla,
 
 # Configure JSON encoding
 config :phoenix, :json_library, Jason
+
+# Configure Ueberauth for OAuth
+config :ueberauth, Ueberauth,
+  providers: [
+    google: {Ueberauth.Strategy.Google, [default_scope: "email profile"]},
+    github: {Ueberauth.Strategy.Github, [default_scope: "user:email"]}
+  ]
+
+# Configure Guardian for JWT authentication
+config :query_service_ex, QueryServiceEx.Accounts.Guardian,
+  issuer: "query_service_ex",
+  # Default TTL: 1 hour for access tokens
+  ttl: {1, :hour},
+  allowed_algos: ["HS512"],
+  verify_issuer: true
 
 # Import environment specific config
 import_config "#{config_env()}.exs"

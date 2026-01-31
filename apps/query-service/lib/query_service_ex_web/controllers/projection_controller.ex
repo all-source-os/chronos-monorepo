@@ -1,11 +1,14 @@
 defmodule QueryServiceExWeb.ProjectionController do
   @moduledoc """
   Controller for managing projections.
+  Uses FallbackController for consistent error handling.
   """
 
   use Phoenix.Controller, formats: [:json]
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+
+  action_fallback(QueryServiceExWeb.FallbackController)
 
   @doc """
   List all projections.

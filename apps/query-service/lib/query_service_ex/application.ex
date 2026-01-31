@@ -7,12 +7,21 @@ defmodule QueryServiceEx.Application do
 
   @impl true
   def start(_type, _args) do
+    # Attach telemetry handlers for structured logging
+    QueryServiceEx.Telemetry.attach_handlers()
+
     # Initialize ETS cache for projections
     QueryServiceEx.Application.Services.ProjectionSync.init_cache()
 
     children = [
+      # Database repository
+      QueryServiceEx.Repo,
+
       # PubSub for event broadcasting
       {Phoenix.PubSub, name: QueryServiceEx.PubSub},
+
+      # Circuit breaker for Core backend calls
+      {QueryServiceEx.CircuitBreaker, name: QueryServiceEx.CircuitBreaker},
 
       # Registry for projection sync processes
       {Registry, keys: :unique, name: QueryServiceEx.ProjectionRegistry},
@@ -25,10 +34,6 @@ defmodule QueryServiceEx.Application do
 
       # Start the Phoenix endpoint
       QueryServiceExWeb.Endpoint
-
-      # Add other workers here as needed:
-      # {QueryServiceEx.ProjectionSupervisor, []},
-      # {QueryServiceEx.PipelineSupervisor, []}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
