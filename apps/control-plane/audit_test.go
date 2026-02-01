@@ -8,26 +8,26 @@ import (
 )
 
 // testLoggerSetup creates a temporary logger for testing and returns cleanup function
-func testLoggerSetup(t *testing.T) (*AuditLogger, string) {
+func testLoggerSetup(t *testing.T) (logger *AuditLogger, tmpfileName string) {
 	t.Helper()
 	tmpfile, err := os.CreateTemp("", "audit-test-*.log")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	tmpfileName := tmpfile.Name()
-	_ = tmpfile.Close()
+	tmpfileName = tmpfile.Name()
+	_ = tmpfile.Close() //nolint:errcheck // test cleanup
 
 	t.Cleanup(func() {
-		_ = os.Remove(tmpfileName)
+		_ = os.Remove(tmpfileName) //nolint:errcheck // test cleanup
 	})
 
-	logger, err := NewAuditLogger(tmpfileName)
+	logger, err = NewAuditLogger(tmpfileName)
 	if err != nil {
 		t.Fatalf("Failed to create audit logger: %v", err)
 	}
 
 	t.Cleanup(func() {
-		_ = logger.Close()
+		_ = logger.Close() //nolint:errcheck // test cleanup
 	})
 
 	return logger, tmpfileName
@@ -59,7 +59,7 @@ func TestAuditLogger_Log(t *testing.T) {
 	}
 
 	// Close logger to flush
-	_ = logger.Close()
+	_ = logger.Close() //nolint:errcheck // test cleanup
 
 	// Read the log file
 	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
@@ -117,7 +117,7 @@ func TestAuditLogger_MultipleEvents(t *testing.T) {
 		}
 	}
 
-	_ = logger.Close()
+	_ = logger.Close() //nolint:errcheck // test cleanup
 
 	// Read and verify
 	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
@@ -136,7 +136,7 @@ func testLogAndVerify(t *testing.T, logger *AuditLogger, tmpfileName string, log
 	t.Helper()
 
 	logFunc()
-	_ = logger.Close()
+	_ = logger.Close() //nolint:errcheck // test cleanup
 
 	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
 	if err != nil {
@@ -301,7 +301,7 @@ func TestAuditLogger_Concurrency(t *testing.T) {
 					UserID:    "user-123",
 					Action:    "test",
 				}
-				_ = logger.Log(event)
+				_ = logger.Log(event) //nolint:errcheck // concurrent test
 			}
 			done <- true
 		}()
@@ -312,7 +312,7 @@ func TestAuditLogger_Concurrency(t *testing.T) {
 		<-done
 	}
 
-	_ = logger.Close()
+	_ = logger.Close() //nolint:errcheck // test cleanup
 
 	// Verify all events were logged
 	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path

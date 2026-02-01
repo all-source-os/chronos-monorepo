@@ -25,7 +25,7 @@ func NewMemoryPolicyRepository() *MemoryPolicyRepository {
 // addDefaultPolicies adds default security policies
 func (r *MemoryPolicyRepository) addDefaultPolicies() {
 	// Policy 1: Prevent deletion of default tenant
-	policy1, _ := entities.NewPolicy(
+	policy1, _ := entities.NewPolicy( //nolint:errcheck // default policy initialization
 		"prevent-default-tenant-deletion",
 		"Prevent Default Tenant Deletion",
 		"Prevents deletion of the default tenant",
@@ -33,12 +33,12 @@ func (r *MemoryPolicyRepository) addDefaultPolicies() {
 		entities.ActionDeny,
 		100,
 	)
-	_ = policy1.AddCondition("tenant_id", "eq", "default")
-	_ = policy1.AddCondition("operation", "eq", "delete")
-	_ = r.Save(policy1)
+	_ = policy1.AddCondition("tenant_id", "eq", "default") //nolint:errcheck // default policy initialization
+	_ = policy1.AddCondition("operation", "eq", "delete")  //nolint:errcheck // default policy initialization
+	_ = r.Save(policy1)                                    //nolint:errcheck // default policy initialization
 
 	// Policy 2: Require admin for tenant creation
-	policy2, _ := entities.NewPolicy(
+	policy2, _ := entities.NewPolicy( //nolint:errcheck // default policy initialization
 		"require-admin-tenant-create",
 		"Require Admin for Tenant Creation",
 		"Only admins can create new tenants",
@@ -46,9 +46,9 @@ func (r *MemoryPolicyRepository) addDefaultPolicies() {
 		entities.ActionDeny,
 		90,
 	)
-	_ = policy2.AddCondition("operation", "eq", "create")
-	_ = policy2.AddCondition("role", "ne", "Admin")
-	_ = r.Save(policy2)
+	_ = policy2.AddCondition("operation", "eq", "create") //nolint:errcheck // default policy initialization
+	_ = policy2.AddCondition("role", "ne", "Admin")       //nolint:errcheck // default policy initialization
+	_ = r.Save(policy2)                                   //nolint:errcheck // default policy initialization
 }
 
 // Save persists a policy

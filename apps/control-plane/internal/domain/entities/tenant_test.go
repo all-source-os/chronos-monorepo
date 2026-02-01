@@ -58,7 +58,7 @@ func TestNewTenant(t *testing.T) {
 }
 
 func TestTenant_IsActive(t *testing.T) {
-	tenant, _ := NewTenant("tenant-1", "Test", "Description")
+	tenant, _ := NewTenant("tenant-1", "Test", "Description") //nolint:errcheck // test code
 
 	if !tenant.IsActive() {
 		t.Error("New tenant should be active")
@@ -77,7 +77,7 @@ func TestTenant_IsActive(t *testing.T) {
 
 func TestTenant_MarkDeleted(t *testing.T) {
 	t.Run("Delete default tenant", func(t *testing.T) {
-		tenant, _ := NewTenant("default", "Default", "Default tenant")
+		tenant, _ := NewTenant("default", "Default", "Default tenant") //nolint:errcheck // test code
 		err := tenant.MarkDeleted()
 		if err == nil {
 			t.Error("Should not be able to delete default tenant")
@@ -85,7 +85,7 @@ func TestTenant_MarkDeleted(t *testing.T) {
 	})
 
 	t.Run("Delete non-default tenant", func(t *testing.T) {
-		tenant, _ := NewTenant("tenant-1", "Test", "Test tenant")
+		tenant, _ := NewTenant("tenant-1", "Test", "Test tenant") //nolint:errcheck // test code
 		err := tenant.MarkDeleted()
 		if err != nil {
 			t.Errorf("Should be able to delete non-default tenant: %v", err)

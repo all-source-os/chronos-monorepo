@@ -62,7 +62,7 @@ func TestAuthClient_ValidateToken(t *testing.T) {
 		}
 
 		expiredToken := jwt.NewWithClaims(jwt.SigningMethodHS256, expiredClaims)
-		expiredTokenString, _ := expiredToken.SignedString([]byte(secret))
+		expiredTokenString, _ := expiredToken.SignedString([]byte(secret)) //nolint:errcheck // test code
 
 		_, err := authClient.ValidateToken(expiredTokenString)
 		if err == nil {
@@ -74,7 +74,7 @@ func TestAuthClient_ValidateToken(t *testing.T) {
 	t.Run("InvalidSignature", func(t *testing.T) {
 		wrongSecret := "wrong-secret"
 		wrongToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		wrongTokenString, _ := wrongToken.SignedString([]byte(wrongSecret))
+		wrongTokenString, _ := wrongToken.SignedString([]byte(wrongSecret)) //nolint:errcheck // test code
 
 		_, err := authClient.ValidateToken(wrongTokenString)
 		if err == nil {

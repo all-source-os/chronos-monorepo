@@ -234,7 +234,7 @@ func (a *AuditLogger) LogAuthEvent(eventType, userID, username, tenantID, detail
 			"details": details,
 		},
 	}
-	_ = a.Log(event)
+	_ = a.Log(event) //nolint:errcheck // audit logging should not fail the operation
 }
 
 // LogTenantEvent logs a tenant management event
@@ -249,7 +249,7 @@ func (a *AuditLogger) LogTenantEvent(action, tenantID, userID, details string) {
 			"details": details,
 		},
 	}
-	_ = a.Log(event)
+	_ = a.Log(event) //nolint:errcheck // audit logging should not fail the operation
 }
 
 // LogOperationEvent logs an operational event (snapshot, backup, etc.)
@@ -264,5 +264,5 @@ func (a *AuditLogger) LogOperationEvent(operation, resourceID, userID, status st
 			"status": status,
 		},
 	}
-	_ = a.Log(event)
+	_ = a.Log(event) //nolint:errcheck // audit logging should not fail the operation
 }

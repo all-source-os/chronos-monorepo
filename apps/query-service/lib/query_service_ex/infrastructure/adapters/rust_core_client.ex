@@ -9,6 +9,12 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   - Snapshot operations
 
   Uses Tesla for HTTP client with connection pooling via Hackney.
+
+  ## Tenant Isolation
+
+  All data operations require a `tenant_id` parameter to ensure strict
+  tenant isolation. Events are stored with tenant_id and all queries
+  are automatically filtered by tenant_id.
   """
 
   use Tesla
@@ -40,9 +46,10 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   ## Event Management
 
   @doc """
-  Create a single event.
+  Create a single event with tenant isolation.
 
   ## Parameters
+    * `tenant_id` - The tenant ID (required for isolation)
     * `event` - Map with event data
 
   ## Returns
@@ -51,13 +58,30 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   ## Examples
 
-      iex> create_event(%{
+      iex> create_event("tenant-uuid", %{
       ...>   entity_id: "user-123",
       ...>   event_type: "user.created",
       ...>   payload: %{email: "user@example.com"}
       ...> })
       {:ok, %{id: "evt-123", ...}}
   """
+  def create_event(tenant_id, event) when is_binary(tenant_id) and is_map(event) do
+    event_with_tenant = Map.put(event, :tenant_id, tenant_id)
+
+    case post("/api/events", event_with_tenant) do
+      {:ok, %Tesla.Env{status: 201, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # Deprecated: Use create_event/2 with tenant_id for proper isolation
+  @doc false
   def create_event(event) when is_map(event) do
     case post("/api/events", event) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
@@ -72,15 +96,33 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   end
 
   @doc """
-  Create multiple events in a batch.
+  Create multiple events in a batch with tenant isolation.
 
   ## Parameters
+    * `tenant_id` - The tenant ID (required for isolation)
     * `events` - List of event maps
 
   ## Returns
     * `{:ok, events}` - List of created events
     * `{:error, reason}` - Error details
   """
+  def create_event_batch(tenant_id, events) when is_binary(tenant_id) and is_list(events) do
+    events_with_tenant = Enum.map(events, &Map.put(&1, :tenant_id, tenant_id))
+
+    case post("/api/events/batch", %{events: events_with_tenant}) do
+      {:ok, %Tesla.Env{status: 201, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # Deprecated: Use create_event_batch/2 with tenant_id for proper isolation
+  @doc false
   def create_event_batch(events) when is_list(events) do
     case post("/api/events/batch", %{events: events}) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
@@ -95,9 +137,10 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   end
 
   @doc """
-  Query events from the event store.
+  Query events from the event store with tenant isolation.
 
   ## Parameters
+    * `tenant_id` - The tenant ID (required for isolation)
     * `query` - Query struct or map with query parameters
 
   ## Returns
@@ -106,14 +149,37 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   ## Examples
 
-      iex> query_events(%{entity_id: "user-123", limit: 10})
+      iex> query_events("tenant-uuid", %{entity_id: "user-123", limit: 10})
       {:ok, [%{id: "evt-1", ...}, ...]}
   """
+  def query_events(tenant_id, %Query{} = query) when is_binary(tenant_id) do
+    params = compile_query(query)
+    query_events(tenant_id, params)
+  end
+
+  def query_events(tenant_id, params) when is_binary(tenant_id) and is_map(params) do
+    params_with_tenant = Map.put(params, :tenant_id, tenant_id)
+
+    case get("/api/events", query: params_with_tenant) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # Deprecated: Use query_events/2 with tenant_id for proper isolation
+  @doc false
   def query_events(%Query{} = query) do
     params = compile_query(query)
     query_events(params)
   end
 
+  @doc false
   def query_events(params) when is_map(params) do
     case get("/api/events", query: params) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
@@ -127,12 +193,24 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
-  @doc "Get events by entity ID"
+  @doc "Get events by entity ID with tenant isolation"
+  def get_events_by_entity(tenant_id, entity_id) when is_binary(tenant_id) do
+    query_events(tenant_id, %{entity_id: entity_id})
+  end
+
+  # Deprecated: Use get_events_by_entity/2 with tenant_id
+  @doc false
   def get_events_by_entity(entity_id) do
     query_events(%{entity_id: entity_id})
   end
 
-  @doc "Get events by event type"
+  @doc "Get events by event type with tenant isolation"
+  def get_events_by_type(tenant_id, event_type) when is_binary(tenant_id) do
+    query_events(tenant_id, %{event_type: event_type})
+  end
+
+  # Deprecated: Use get_events_by_type/2 with tenant_id
+  @doc false
   def get_events_by_type(event_type) do
     query_events(%{event_type: event_type})
   end

@@ -147,6 +147,54 @@ defmodule QueryServiceExWeb.Router do
   end
 
   # -------------------------------------------------------------------
+  # Onboarding Routes
+  # -------------------------------------------------------------------
+
+  scope "/api/onboarding", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    # Onboarding status and progress
+    get("/", OnboardingController, :show)
+    get("/steps", OnboardingController, :steps)
+
+    # Step completion
+    post("/steps/:step/complete", OnboardingController, :complete_step)
+
+    # Skip or reset onboarding
+    post("/skip", OnboardingController, :skip)
+    post("/reset", OnboardingController, :reset)
+  end
+
+  # -------------------------------------------------------------------
+  # API Key Management Routes
+  # -------------------------------------------------------------------
+
+  scope "/api/api-keys", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    # List available scopes
+    get("/scopes", ApiKeyController, :scopes)
+
+    # List all API keys for current tenant
+    get("/", ApiKeyController, :index)
+
+    # Create a new API key
+    post("/", ApiKeyController, :create)
+
+    # Get a specific API key
+    get("/:id", ApiKeyController, :show)
+
+    # Update API key metadata
+    put("/:id", ApiKeyController, :update)
+
+    # Rotate API key (revoke old, create new)
+    post("/:id/rotate", ApiKeyController, :rotate)
+
+    # Revoke API key
+    delete("/:id", ApiKeyController, :delete)
+  end
+
+  # -------------------------------------------------------------------
   # Billing Routes
   # -------------------------------------------------------------------
 
@@ -156,6 +204,12 @@ defmodule QueryServiceExWeb.Router do
     # LemonSqueezy checkout and portal
     get("/portal", BillingController, :portal)
     post("/checkout", BillingController, :checkout)
+
+    # Hybrid pricing / overage billing
+    get("/overage", BillingController, :overage)
+    post("/overage/enable", BillingController, :enable_overage)
+    post("/overage/disable", BillingController, :disable_overage)
+    get("/projected-charges", BillingController, :projected_charges)
   end
 
   # LemonSqueezy webhooks (public, verified by signature)

@@ -22,7 +22,7 @@ func TestNewPolicy(t *testing.T) {
 }
 
 func TestPolicy_AddCondition(t *testing.T) {
-	policy, _ := NewPolicy("policy-1", "Test", "Description", "tenant", ActionDeny, 100)
+	policy, _ := NewPolicy("policy-1", "Test", "Description", "tenant", ActionDeny, 100) //nolint:errcheck // test code
 
 	err := policy.AddCondition("tenant_id", "eq", "default")
 	if err != nil {
@@ -35,9 +35,9 @@ func TestPolicy_AddCondition(t *testing.T) {
 }
 
 func TestPolicy_Evaluate(t *testing.T) {
-	policy, _ := NewPolicy("policy-1", "Test", "Description", "tenant", ActionDeny, 100)
-	_ = policy.AddCondition("tenant_id", "eq", "default")
-	_ = policy.AddCondition("operation", "eq", "delete")
+	policy, _ := NewPolicy("policy-1", "Test", "Description", "tenant", ActionDeny, 100) //nolint:errcheck // test code
+	_ = policy.AddCondition("tenant_id", "eq", "default")                                //nolint:errcheck // test code
+	_ = policy.AddCondition("operation", "eq", "delete")                                 //nolint:errcheck // test code
 
 	tests := []struct {
 		name       string
@@ -85,8 +85,8 @@ func TestPolicy_Evaluate(t *testing.T) {
 }
 
 func TestPolicy_Disabled(t *testing.T) {
-	policy, _ := NewPolicy("policy-1", "Test", "Description", "tenant", ActionDeny, 100)
-	_ = policy.AddCondition("tenant_id", "eq", "default")
+	policy, _ := NewPolicy("policy-1", "Test", "Description", "tenant", ActionDeny, 100) //nolint:errcheck // test code
+	_ = policy.AddCondition("tenant_id", "eq", "default")                                //nolint:errcheck // test code
 
 	policy.Disable()
 
@@ -94,7 +94,7 @@ func TestPolicy_Disabled(t *testing.T) {
 		"tenant_id": "default",
 	}
 
-	matches, _ := policy.Evaluate(attributes)
+	matches, _ := policy.Evaluate(attributes) //nolint:errcheck // test code
 	if matches {
 		t.Error("Disabled policy should not match")
 	}

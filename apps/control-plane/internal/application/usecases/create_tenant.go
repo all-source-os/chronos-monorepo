@@ -52,10 +52,10 @@ func (uc *CreateTenantUseCase) Execute(req dto.CreateTenantRequest) (*dto.Tenant
 		return nil, err
 	}
 
-	// Log audit event
-	auditEvent, _ := entities.NewAuditEvent("tenant.created", "create", "POST", "/tenants")
+	// Log audit event (errors are non-critical and intentionally ignored)
+	auditEvent, _ := entities.NewAuditEvent("tenant.created", "create", "POST", "/tenants") //nolint:errcheck // audit event creation is non-critical
 	auditEvent.WithResource("tenant", tenant.ID).WithTenant(tenant.ID)
-	_ = uc.auditRepo.Log(auditEvent)
+	_ = uc.auditRepo.Log(auditEvent) //nolint:errcheck // audit logging is non-critical
 
 	// Return response
 	return &dto.TenantResponse{

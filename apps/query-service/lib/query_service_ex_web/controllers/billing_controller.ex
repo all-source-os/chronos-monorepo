@@ -11,6 +11,7 @@ defmodule QueryServiceExWeb.BillingController do
 
   alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.Billing.LemonSqueezy
+  alias QueryServiceEx.Billing.HybridPricing
   alias QueryServiceEx.Tenants
 
   require Logger
@@ -116,5 +117,131 @@ defmodule QueryServiceExWeb.BillingController do
             |> json(%{error: %{code: "portal_failed", message: "Failed to generate portal URL"}})
         end
     end
+  end
+
+  @doc """
+  Returns the current overage usage and projected charges.
+
+  GET /api/billing/overage
+  """
+  def overage(conn, _params) do
+    user = Guardian.Plug.current_resource(conn)
+    tenant = Tenants.get_tenant!(user.tenant_id)
+
+    summary = HybridPricing.get_overage_summary(tenant.id)
+
+    conn
+    |> put_status(:ok)
+    |> json(%{data: summary})
+  end
+
+  @doc """
+  Enables overage billing for the tenant.
+
+  POST /api/billing/overage/enable
+
+  Params:
+  - events_rate: Rate in cents per event over quota (optional)
+  - queries_rate: Rate in cents per query over quota (optional)
+  - events_item_id: LemonSqueezy subscription item ID for events (optional)
+  - queries_item_id: LemonSqueezy subscription item ID for queries (optional)
+  """
+  def enable_overage(conn, params) do
+    user = Guardian.Plug.current_resource(conn)
+    tenant = Tenants.get_tenant!(user.tenant_id)
+    correlation_id = conn.assigns[:correlation_id] || "unknown"
+
+    Logger.info("[BillingController] Enabling overage billing for tenant #{tenant.id}",
+      correlation_id: correlation_id,
+      tenant_id: tenant.id
+    )
+
+    opts =
+      [
+        events_rate: params["events_rate"],
+        queries_rate: params["queries_rate"],
+        events_item_id: params["events_item_id"],
+        queries_item_id: params["queries_item_id"]
+      ]
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+
+    case HybridPricing.enable_overage(tenant.id, opts) do
+      {:ok, updated_tenant} ->
+        summary = HybridPricing.get_overage_summary(updated_tenant.id)
+
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          data: %{
+            message: "Overage billing enabled",
+            overage: summary
+          }
+        })
+
+      {:error, changeset} ->
+        Logger.error("[BillingController] Failed to enable overage: #{inspect(changeset)}",
+          correlation_id: correlation_id,
+          tenant_id: tenant.id
+        )
+
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: %{code: "enable_failed", message: "Failed to enable overage billing"}})
+    end
+  end
+
+  @doc """
+  Disables overage billing for the tenant.
+
+  POST /api/billing/overage/disable
+  """
+  def disable_overage(conn, _params) do
+    user = Guardian.Plug.current_resource(conn)
+    tenant = Tenants.get_tenant!(user.tenant_id)
+    correlation_id = conn.assigns[:correlation_id] || "unknown"
+
+    Logger.info("[BillingController] Disabling overage billing for tenant #{tenant.id}",
+      correlation_id: correlation_id,
+      tenant_id: tenant.id
+    )
+
+    case HybridPricing.disable_overage(tenant.id) do
+      {:ok, _tenant} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{data: %{message: "Overage billing disabled"}})
+
+      {:error, _changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: %{code: "disable_failed", message: "Failed to disable overage billing"}})
+    end
+  end
+
+  @doc """
+  Returns projected charges for the current billing period.
+
+  GET /api/billing/projected-charges
+  """
+  def projected_charges(conn, _params) do
+    user = Guardian.Plug.current_resource(conn)
+    tenant = Tenants.get_tenant!(user.tenant_id)
+
+    charges = HybridPricing.calculate_overage_charges(tenant)
+    usage_stats = Tenants.get_usage_stats(tenant.id)
+
+    conn
+    |> put_status(:ok)
+    |> json(%{
+      data: %{
+        subscription_tier: tenant.subscription_tier,
+        overage_enabled: tenant.overage_enabled,
+        usage: usage_stats,
+        overage_charges: charges,
+        billing_period: %{
+          reset_at: tenant.usage_reset_at
+        }
+      }
+    })
   end
 end

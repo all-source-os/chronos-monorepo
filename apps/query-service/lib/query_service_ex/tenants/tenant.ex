@@ -26,6 +26,12 @@ defmodule QueryServiceEx.Tenants.Tenant do
     enterprise: %{events: :unlimited, queries: :unlimited}
   }
 
+  # Default overage rates (cents per unit above quota)
+  @default_overage_rates %{
+    events: 100,
+    queries: 1000
+  }
+
   schema "tenants" do
     field(:name, :string)
     field(:slug, :string)
@@ -48,6 +54,16 @@ defmodule QueryServiceEx.Tenants.Tenant do
     field(:events_used, :integer, default: 0)
     field(:queries_used, :integer, default: 0)
     field(:usage_reset_at, :utc_datetime)
+
+    # Overage billing (hybrid pricing)
+    field(:overage_enabled, :boolean, default: false)
+    field(:overage_rate_events, :integer, default: 100)
+    field(:overage_rate_queries, :integer, default: 1000)
+    field(:lemon_squeezy_events_item_id, :string)
+    field(:lemon_squeezy_queries_item_id, :string)
+    field(:events_overage, :integer, default: 0)
+    field(:queries_overage, :integer, default: 0)
+    field(:overage_reported_at, :utc_datetime)
 
     # Settings
     field(:settings, :map, default: %{})
@@ -93,7 +109,30 @@ defmodule QueryServiceEx.Tenants.Tenant do
   """
   def usage_changeset(tenant, attrs) do
     tenant
-    |> cast(attrs, [:events_used, :queries_used, :usage_reset_at])
+    |> cast(attrs, [
+      :events_used,
+      :queries_used,
+      :events_overage,
+      :queries_overage,
+      :usage_reset_at,
+      :overage_reported_at
+    ])
+  end
+
+  @doc """
+  Changeset for updating overage billing settings.
+  """
+  def overage_changeset(tenant, attrs) do
+    tenant
+    |> cast(attrs, [
+      :overage_enabled,
+      :overage_rate_events,
+      :overage_rate_queries,
+      :lemon_squeezy_events_item_id,
+      :lemon_squeezy_queries_item_id
+    ])
+    |> validate_number(:overage_rate_events, greater_than: 0)
+    |> validate_number(:overage_rate_queries, greater_than: 0)
   end
 
   @doc """
@@ -143,6 +182,30 @@ defmodule QueryServiceEx.Tenants.Tenant do
       tenant.trial_ends_at != nil &&
       DateTime.compare(tenant.trial_ends_at, DateTime.utc_now()) == :gt
   end
+
+  @doc """
+  Checks if overage billing is enabled for this tenant.
+  """
+  def overage_enabled?(%__MODULE__{} = tenant) do
+    tenant.overage_enabled == true
+  end
+
+  @doc """
+  Returns the current overage usage for a specific type.
+  """
+  def get_overage(%__MODULE__{} = tenant, :events), do: tenant.events_overage
+  def get_overage(%__MODULE__{} = tenant, :queries), do: tenant.queries_overage
+
+  @doc """
+  Returns the overage rate (in cents) for a specific usage type.
+  """
+  def overage_rate(%__MODULE__{} = tenant, :events), do: tenant.overage_rate_events
+  def overage_rate(%__MODULE__{} = tenant, :queries), do: tenant.overage_rate_queries
+
+  @doc """
+  Returns the default overage rates map.
+  """
+  def default_overage_rates, do: @default_overage_rates
 
   # Private helpers
 

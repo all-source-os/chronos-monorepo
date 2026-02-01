@@ -169,7 +169,7 @@ func (g *ginCarrier) Get(key string) string {
 	return g.c.GetHeader(key)
 }
 
-func (g *ginCarrier) Set(key string, value string) {
+func (g *ginCarrier) Set(key, value string) {
 	g.c.Header(key, value)
 }
 
@@ -232,7 +232,7 @@ func (cp *ControlPlaneV1) TraceHTTPRequest(c *gin.Context, method, path string) 
 	)
 	defer span.End()
 
-	token, _ := ExtractToken(c)
+	token, _ := ExtractToken(c) //nolint:errcheck // empty token is acceptable
 
 	// Inject trace context into outgoing request
 	carrier := make(map[string]string)
@@ -277,7 +277,7 @@ func (m *mapCarrier) Get(key string) string {
 	return m.m[key]
 }
 
-func (m *mapCarrier) Set(key string, value string) {
+func (m *mapCarrier) Set(key, value string) {
 	m.m[key] = value
 }
 

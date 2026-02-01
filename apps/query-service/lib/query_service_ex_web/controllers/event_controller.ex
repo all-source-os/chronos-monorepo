@@ -4,11 +4,13 @@ defmodule QueryServiceExWeb.EventController do
 
   Provides CRUD operations and querying for events.
   Uses FallbackController for consistent error handling.
+  Tracks usage metering for billable operations.
   """
 
   use Phoenix.Controller, formats: [:json]
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+  alias QueryServiceEx.UsageMeter
 
   action_fallback(QueryServiceExWeb.FallbackController)
 
@@ -20,8 +22,12 @@ defmodule QueryServiceExWeb.EventController do
   - event_type: Filter by event type
   - limit: Maximum number of results (default: 100)
   - offset: Pagination offset (default: 0)
+
+  All queries are automatically filtered by the authenticated tenant.
   """
   def index(conn, params) do
+    tenant_id = get_tenant_id!(conn)
+
     query_params = %{
       entity_id: params["entity_id"],
       event_type: params["event_type"],
@@ -29,7 +35,7 @@ defmodule QueryServiceExWeb.EventController do
       offset: parse_int(params["offset"], 0)
     }
 
-    case RustCoreClient.query_events(query_params) do
+    case RustCoreClient.query_events(tenant_id, query_params) do
       {:ok, events} ->
         json(conn, %{data: events, count: length(events)})
 
@@ -60,16 +66,26 @@ defmodule QueryServiceExWeb.EventController do
     "event_type": "string",
     "payload": {}
   }
+
+  Events are automatically associated with the authenticated tenant.
   """
   def create(conn, params) do
+    tenant_id = get_tenant_id!(conn)
+
     event = %{
       entity_id: params["entity_id"],
       event_type: params["event_type"],
       payload: params["payload"] || %{}
     }
 
-    case RustCoreClient.create_event(event) do
+    case RustCoreClient.create_event(tenant_id, event) do
       {:ok, created_event} ->
+        # Record usage after successful event creation
+        record_event_usage(conn, 1, %{
+          entity_id: event.entity_id,
+          event_type: event.event_type
+        })
+
         conn
         |> put_status(:created)
         |> json(%{data: created_event})
@@ -91,13 +107,25 @@ defmodule QueryServiceExWeb.EventController do
       ...
     ]
   }
+
+  All events are automatically associated with the authenticated tenant.
   """
   def create_batch(conn, %{"events" => events}) when is_list(events) do
-    case RustCoreClient.create_event_batch(events) do
+    tenant_id = get_tenant_id!(conn)
+
+    case RustCoreClient.create_event_batch(tenant_id, events) do
       {:ok, created_events} ->
+        # Record usage for all events in the batch
+        event_count = length(created_events)
+
+        record_event_usage(conn, event_count, %{
+          batch: true,
+          event_count: event_count
+        })
+
         conn
         |> put_status(:created)
-        |> json(%{data: created_events, count: length(created_events)})
+        |> json(%{data: created_events, count: event_count})
 
       {:error, reason} ->
         conn
@@ -114,9 +142,13 @@ defmodule QueryServiceExWeb.EventController do
 
   @doc """
   Get events for a specific entity.
+
+  Results are filtered to the authenticated tenant's events only.
   """
   def by_entity(conn, %{"entity_id" => entity_id}) do
-    case RustCoreClient.get_events_by_entity(entity_id) do
+    tenant_id = get_tenant_id!(conn)
+
+    case RustCoreClient.get_events_by_entity(tenant_id, entity_id) do
       {:ok, events} ->
         json(conn, %{data: events, count: length(events), entity_id: entity_id})
 
@@ -129,9 +161,13 @@ defmodule QueryServiceExWeb.EventController do
 
   @doc """
   Get events of a specific type.
+
+  Results are filtered to the authenticated tenant's events only.
   """
   def by_type(conn, %{"event_type" => event_type}) do
-    case RustCoreClient.get_events_by_type(event_type) do
+    tenant_id = get_tenant_id!(conn)
+
+    case RustCoreClient.get_events_by_type(tenant_id, event_type) do
       {:ok, events} ->
         json(conn, %{data: events, count: length(events), event_type: event_type})
 
@@ -154,4 +190,30 @@ defmodule QueryServiceExWeb.EventController do
 
   defp parse_int(value, _default) when is_integer(value), do: value
   defp parse_int(_, default), do: default
+
+  # Gets tenant_id from connection, raises if not present (security check)
+  defp get_tenant_id!(conn) do
+    case conn.assigns[:tenant_id] do
+      nil ->
+        raise "Tenant context required but not present - security violation"
+
+      tenant_id when is_binary(tenant_id) ->
+        tenant_id
+    end
+  end
+
+  # Records event usage for the current tenant
+  defp record_event_usage(conn, count, metadata) do
+    case conn.assigns[:current_tenant] do
+      nil ->
+        # No tenant context - skip metering (should not happen in normal flow)
+        :ok
+
+      tenant ->
+        # Record usage asynchronously to not block the response
+        Task.start(fn ->
+          UsageMeter.record_events(tenant.id, count: count, metadata: metadata)
+        end)
+    end
+  end
 end

@@ -136,7 +136,7 @@ func (cp *ControlPlane) clusterStatusHandler(c *gin.Context) {
 
 	var coreStats map[string]interface{}
 	if err == nil {
-		_ = json.Unmarshal(resp.Body(), &coreStats)
+		_ = json.Unmarshal(resp.Body(), &coreStats) //nolint:errcheck // best effort parsing
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -168,7 +168,7 @@ func (cp *ControlPlane) metricsHandler(c *gin.Context) {
 	}
 
 	var stats map[string]interface{}
-	_ = json.Unmarshal(resp.Body(), &stats)
+	_ = json.Unmarshal(resp.Body(), &stats) //nolint:errcheck // best effort parsing
 
 	c.JSON(http.StatusOK, gin.H{
 		"metrics": gin.H{

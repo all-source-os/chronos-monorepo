@@ -85,7 +85,7 @@ func TestUser_HasPermission(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			user, _ := NewUser("user-1", "test", "tenant-1", tt.role)
+			user, _ := NewUser("user-1", "test", "tenant-1", tt.role) //nolint:errcheck // test code
 			if got := user.HasPermission(tt.permission); got != tt.want {
 				t.Errorf("User.HasPermission() = %v, want %v", got, tt.want)
 			}
@@ -94,7 +94,7 @@ func TestUser_HasPermission(t *testing.T) {
 }
 
 func TestUser_BelongsToTenant(t *testing.T) {
-	user, _ := NewUser("user-1", "test", "tenant-1", RoleDeveloper)
+	user, _ := NewUser("user-1", "test", "tenant-1", RoleDeveloper) //nolint:errcheck // test code
 
 	if !user.BelongsToTenant("tenant-1") {
 		t.Error("User should belong to tenant-1")

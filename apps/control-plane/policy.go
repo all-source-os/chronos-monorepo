@@ -431,7 +431,7 @@ func PolicyMiddleware(policyEngine *PolicyEngine, auditLogger *AuditLogger) gin.
 		// Handle result
 		if !result.Allowed {
 			// Log policy denial
-			_ = auditLogger.Log(AuditEvent{
+			_ = auditLogger.Log(AuditEvent{ //nolint:errcheck // audit logging should not fail the request
 				EventType:  "policy_denial",
 				UserID:     authCtx.UserID,
 				Username:   authCtx.Username,
@@ -458,7 +458,7 @@ func PolicyMiddleware(policyEngine *PolicyEngine, auditLogger *AuditLogger) gin.
 
 		if result.Action == ActionWarn {
 			// Log warning
-			_ = auditLogger.Log(AuditEvent{
+			_ = auditLogger.Log(AuditEvent{ //nolint:errcheck // audit logging should not fail the request
 				EventType: "policy_warning",
 				UserID:    authCtx.UserID,
 				Username:  authCtx.Username,
@@ -479,9 +479,9 @@ func PolicyMiddleware(policyEngine *PolicyEngine, auditLogger *AuditLogger) gin.
 }
 
 // extractResourceAndOperation extracts resource and operation from HTTP method and path
-func extractResourceAndOperation(method, path string) (string, string) {
-	resource := "unknown"
-	operation := "unknown"
+func extractResourceAndOperation(method, path string) (resource, operation string) {
+	resource = "unknown"
+	operation = "unknown"
 
 	// Determine resource
 	switch {
