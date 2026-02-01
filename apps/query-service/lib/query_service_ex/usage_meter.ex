@@ -10,11 +10,11 @@ defmodule QueryServiceEx.UsageMeter do
   """
 
   import Ecto.Query
+  alias QueryServiceEx.Billing.HybridPricing
   alias QueryServiceEx.Repo
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.Tenants.Tenant
   alias QueryServiceEx.UsageMeter.UsageRecord
-  alias QueryServiceEx.Billing.HybridPricing
 
   require Logger
 
@@ -218,19 +218,22 @@ defmodule QueryServiceEx.UsageMeter do
   """
   def check_all_tenants_usage(min_threshold \\ 75) do
     tenants = Tenants.list_tenants()
+    Enum.flat_map(tenants, &check_tenant_usage(&1, min_threshold))
+  end
 
-    Enum.flat_map(tenants, fn tenant ->
-      @usage_types
-      |> Enum.map(fn type ->
-        percentage = get_usage_percentage(tenant.id, type)
+  defp check_tenant_usage(tenant, min_threshold) do
+    @usage_types
+    |> Enum.map(&check_usage_type(tenant.id, &1, min_threshold))
+    |> Enum.reject(&is_nil/1)
+  end
 
-        if percentage >= min_threshold do
-          threshold = Enum.find(@alert_thresholds, fn t -> percentage >= t end)
-          {tenant.id, type, percentage, threshold}
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
-    end)
+  defp check_usage_type(tenant_id, type, min_threshold) do
+    percentage = get_usage_percentage(tenant_id, type)
+
+    if percentage >= min_threshold do
+      threshold = Enum.find(@alert_thresholds, fn t -> percentage >= t end)
+      {tenant_id, type, percentage, threshold}
+    end
   end
 
   # -------------------------------------------------------------------

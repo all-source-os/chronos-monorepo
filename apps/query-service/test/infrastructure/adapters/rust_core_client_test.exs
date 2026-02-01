@@ -1,8 +1,8 @@
 defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClientTest do
   use ExUnit.Case, async: false
 
-  alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceEx.Domain.Entities.Query
+  alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
 
   @moduletag :integration
 

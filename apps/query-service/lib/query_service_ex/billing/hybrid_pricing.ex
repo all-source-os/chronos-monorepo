@@ -9,10 +9,10 @@ defmodule QueryServiceEx.Billing.HybridPricing do
   """
 
   import Ecto.Query
+  alias QueryServiceEx.Billing.LemonSqueezy
   alias QueryServiceEx.Repo
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.Tenants.Tenant
-  alias QueryServiceEx.Billing.LemonSqueezy
 
   require Logger
 
@@ -84,9 +84,7 @@ defmodule QueryServiceEx.Billing.HybridPricing do
       when usage_type in @usage_types and is_integer(overage_count) and overage_count > 0 do
     tenant = Tenants.get_tenant!(tenant_id)
 
-    unless Tenant.overage_enabled?(tenant) do
-      {:error, :overage_not_enabled}
-    else
+    if Tenant.overage_enabled?(tenant) do
       case report_to_billing_provider(tenant, usage_type, overage_count) do
         :ok ->
           update_overage_tracking(tenant, usage_type, overage_count)
@@ -101,6 +99,8 @@ defmodule QueryServiceEx.Billing.HybridPricing do
 
           {:error, reason}
       end
+    else
+      {:error, :overage_not_enabled}
     end
   end
 

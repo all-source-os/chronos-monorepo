@@ -118,9 +118,7 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessor do
     pipeline = Keyword.fetch!(opts, :pipeline)
     config = Keyword.get(opts, :config, %{})
 
-    if not Pipeline.valid_pipeline?(pipeline) do
-      {:stop, {:invalid_pipeline, pipeline}}
-    else
+    if Pipeline.valid_pipeline?(pipeline) do
       state = %{
         pipeline: pipeline,
         stats: %{
@@ -139,6 +137,8 @@ defmodule QueryServiceEx.Application.UseCases.PipelineProcessor do
       )
 
       {:ok, state}
+    else
+      {:stop, {:invalid_pipeline, pipeline}}
     end
   end
 

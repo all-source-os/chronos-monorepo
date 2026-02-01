@@ -16,9 +16,9 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
   """
 
   import Plug.Conn
+  alias QueryServiceEx.Billing.HybridPricing
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.Tenants.Tenant
-  alias QueryServiceEx.Billing.HybridPricing
 
   require Logger
 

@@ -30,29 +30,43 @@ defmodule QueryServiceEx.AuthHelpers do
   Creates a mock Ueberauth auth struct for GitHub testing.
   """
   def mock_github_auth(attrs \\ %{}) do
+    defaults = github_auth_defaults()
+    merged = Map.merge(defaults, Map.new(attrs))
+
     %Ueberauth.Auth{
-      uid: attrs[:uid] || :rand.uniform(100_000),
+      uid: merged.uid,
       provider: :github,
       info: %Ueberauth.Auth.Info{
-        email: attrs[:email] || "ghuser@example.com",
-        name: attrs[:name] || "GitHub User",
-        nickname: attrs[:nickname] || "ghuser",
-        image: attrs[:avatar_url] || "https://avatars.githubusercontent.com/u/12345"
+        email: merged.email,
+        name: merged.name,
+        nickname: merged.nickname,
+        image: merged.avatar_url
       },
       credentials: %Ueberauth.Auth.Credentials{
-        token: attrs[:token] || "mock_github_token",
-        refresh_token: attrs[:refresh_token],
+        token: merged.token,
+        refresh_token: merged[:refresh_token],
         expires: false
       },
       extra: %Ueberauth.Auth.Extra{
         raw_info: %{
           "user" => %{
-            "login" => attrs[:nickname] || "ghuser",
-            "id" => attrs[:uid] || :rand.uniform(100_000),
-            "email" => attrs[:email] || "ghuser@example.com"
+            "login" => merged.nickname,
+            "id" => merged.uid,
+            "email" => merged.email
           }
         }
       }
+    }
+  end
+
+  defp github_auth_defaults do
+    %{
+      uid: :rand.uniform(100_000),
+      email: "ghuser@example.com",
+      name: "GitHub User",
+      nickname: "ghuser",
+      avatar_url: "https://avatars.githubusercontent.com/u/12345",
+      token: "mock_github_token"
     }
   end
 

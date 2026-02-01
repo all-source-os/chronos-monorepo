@@ -495,10 +495,7 @@ mod tests {
             .await
             .expect("Failed to get port");
 
-        let database_url = format!(
-            "postgresql://postgres:postgres@{}:{}/postgres",
-            host, port
-        );
+        let database_url = format!("postgresql://postgres:postgres@{}:{}/postgres", host, port);
 
         let pool = PgPoolOptions::new()
             .max_connections(5)

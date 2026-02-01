@@ -29,7 +29,7 @@ defmodule QueryServiceEx.Tenants.Tenant do
   # Default overage rates (cents per unit above quota)
   @default_overage_rates %{
     events: 100,
-    queries: 1000
+    queries: 1_000
   }
 
   schema "tenants" do
@@ -58,7 +58,7 @@ defmodule QueryServiceEx.Tenants.Tenant do
     # Overage billing (hybrid pricing)
     field(:overage_enabled, :boolean, default: false)
     field(:overage_rate_events, :integer, default: 100)
-    field(:overage_rate_queries, :integer, default: 1000)
+    field(:overage_rate_queries, :integer, default: 1_000)
     field(:lemon_squeezy_events_item_id, :string)
     field(:lemon_squeezy_queries_item_id, :string)
     field(:events_overage, :integer, default: 0)

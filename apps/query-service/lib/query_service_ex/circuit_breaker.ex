@@ -190,34 +190,32 @@ defmodule QueryServiceEx.CircuitBreaker do
   # Private Functions
 
   defp execute_with_tracking(server, circuit_name, fun, timeout) do
-    try do
-      case fun.() do
-        {:ok, result} ->
-          GenServer.call(server, {:record_success, circuit_name}, timeout)
-          {:ok, result}
+    case fun.() do
+      {:ok, result} ->
+        GenServer.call(server, {:record_success, circuit_name}, timeout)
+        {:ok, result}
 
-        :ok ->
-          GenServer.call(server, {:record_success, circuit_name}, timeout)
-          :ok
+      :ok ->
+        GenServer.call(server, {:record_success, circuit_name}, timeout)
+        :ok
 
-        {:error, reason} ->
-          GenServer.call(server, {:record_failure, circuit_name}, timeout)
-          {:error, reason}
-
-        other ->
-          # Treat unexpected return as success
-          GenServer.call(server, {:record_success, circuit_name}, timeout)
-          other
-      end
-    rescue
-      error ->
+      {:error, reason} ->
         GenServer.call(server, {:record_failure, circuit_name}, timeout)
-        {:error, {:exception, error}}
-    catch
-      kind, reason ->
-        GenServer.call(server, {:record_failure, circuit_name}, timeout)
-        {:error, {kind, reason}}
+        {:error, reason}
+
+      other ->
+        # Treat unexpected return as success
+        GenServer.call(server, {:record_success, circuit_name}, timeout)
+        other
     end
+  rescue
+    error ->
+      GenServer.call(server, {:record_failure, circuit_name}, timeout)
+      {:error, {:exception, error}}
+  catch
+    kind, reason ->
+      GenServer.call(server, {:record_failure, circuit_name}, timeout)
+      {:error, {kind, reason}}
   end
 
   defp get_or_init_circuit(circuits, name) do

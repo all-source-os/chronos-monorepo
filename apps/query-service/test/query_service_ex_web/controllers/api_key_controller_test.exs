@@ -8,9 +8,9 @@ defmodule QueryServiceExWeb.ApiKeyControllerTest do
   use QueryServiceExWeb.ConnCase
 
   alias QueryServiceEx.Accounts
+  alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.ApiKeys
   alias QueryServiceEx.Tenants
-  alias QueryServiceEx.Accounts.Guardian
 
   @moduletag :database
 

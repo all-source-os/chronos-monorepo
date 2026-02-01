@@ -9,9 +9,9 @@ defmodule QueryServiceEx.Billing.HybridPricingTest do
   """
   use QueryServiceEx.DataCase
 
+  alias QueryServiceEx.Billing.HybridPricing
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.Tenants.Tenant
-  alias QueryServiceEx.Billing.HybridPricing
   alias QueryServiceEx.UsageMeter
 
   @moduletag :database

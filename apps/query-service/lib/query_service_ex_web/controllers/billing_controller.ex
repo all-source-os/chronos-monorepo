@@ -10,8 +10,8 @@ defmodule QueryServiceExWeb.BillingController do
   use Phoenix.Controller, formats: [:json]
 
   alias QueryServiceEx.Accounts.Guardian
-  alias QueryServiceEx.Billing.LemonSqueezy
   alias QueryServiceEx.Billing.HybridPricing
+  alias QueryServiceEx.Billing.LemonSqueezy
   alias QueryServiceEx.Tenants
 
   require Logger

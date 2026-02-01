@@ -10,8 +10,8 @@ defmodule QueryServiceEx.ApiKeys do
   """
 
   import Ecto.Query
-  alias QueryServiceEx.Repo
   alias QueryServiceEx.ApiKeys.ApiKey
+  alias QueryServiceEx.Repo
 
   require Logger
 
@@ -156,36 +156,34 @@ defmodule QueryServiceEx.ApiKeys do
   """
   def rotate_api_key(%ApiKey{} = api_key, user_id) do
     Repo.transaction(fn ->
-      # Revoke the old key
-      case revoke_api_key(api_key) do
-        {:ok, _revoked} ->
-          # Create new key with same settings
-          attrs = %{
-            name: api_key.name,
-            description: api_key.description,
-            scopes: api_key.scopes,
-            expires_at: api_key.expires_at
-          }
-
-          case create_api_key(api_key.tenant_id, user_id, attrs) do
-            {:ok, {raw_key, new_api_key}} ->
-              Logger.info("API key rotated",
-                tenant_id: api_key.tenant_id,
-                old_api_key_id: api_key.id,
-                new_api_key_id: new_api_key.id,
-                name: api_key.name
-              )
-
-              {raw_key, new_api_key}
-
-            {:error, changeset} ->
-              Repo.rollback(changeset)
-          end
-
-        {:error, reason} ->
-          Repo.rollback(reason)
+      with {:ok, _revoked} <- revoke_api_key(api_key),
+           {:ok, {raw_key, new_api_key}} <- create_rotated_key(api_key, user_id) do
+        log_key_rotation(api_key, new_api_key)
+        {raw_key, new_api_key}
+      else
+        {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp create_rotated_key(api_key, user_id) do
+    attrs = %{
+      name: api_key.name,
+      description: api_key.description,
+      scopes: api_key.scopes,
+      expires_at: api_key.expires_at
+    }
+
+    create_api_key(api_key.tenant_id, user_id, attrs)
+  end
+
+  defp log_key_rotation(old_key, new_key) do
+    Logger.info("API key rotated",
+      tenant_id: old_key.tenant_id,
+      old_api_key_id: old_key.id,
+      new_api_key_id: new_key.id,
+      name: old_key.name
+    )
   end
 
   # -------------------------------------------------------------------
@@ -203,32 +201,40 @@ defmodule QueryServiceEx.ApiKeys do
     key_hash = hash_key(raw_key)
 
     case Repo.get_by(ApiKey, key_hash: key_hash) do
-      nil ->
-        {:error, :invalid_key}
-
-      api_key ->
-        cond do
-          not is_nil(api_key.revoked_at) ->
-            {:error, :key_revoked}
-
-          not is_nil(api_key.expires_at) and
-              DateTime.compare(api_key.expires_at, DateTime.utc_now()) != :gt ->
-            {:error, :key_expired}
-
-          true ->
-            # Update last_used_at asynchronously (fire and forget, ignore errors)
-            spawn(fn ->
-              try do
-                touch_api_key(api_key)
-              rescue
-                _ -> :ok
-              end
-            end)
-
-            tenant = QueryServiceEx.Tenants.get_tenant(api_key.tenant_id)
-            {:ok, {tenant, api_key}}
-        end
+      nil -> {:error, :invalid_key}
+      api_key -> validate_api_key(api_key)
     end
+  end
+
+  defp validate_api_key(api_key) do
+    cond do
+      not is_nil(api_key.revoked_at) ->
+        {:error, :key_revoked}
+
+      api_key_expired?(api_key) ->
+        {:error, :key_expired}
+
+      true ->
+        touch_api_key_async(api_key)
+        tenant = QueryServiceEx.Tenants.get_tenant(api_key.tenant_id)
+        {:ok, {tenant, api_key}}
+    end
+  end
+
+  defp api_key_expired?(%{expires_at: nil}), do: false
+
+  defp api_key_expired?(%{expires_at: expires_at}) do
+    DateTime.compare(expires_at, DateTime.utc_now()) != :gt
+  end
+
+  defp touch_api_key_async(api_key) do
+    spawn(fn ->
+      try do
+        touch_api_key(api_key)
+      rescue
+        _ -> :ok
+      end
+    end)
   end
 
   @doc """

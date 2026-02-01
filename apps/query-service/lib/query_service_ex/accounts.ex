@@ -10,8 +10,8 @@ defmodule QueryServiceEx.Accounts do
   """
 
   import Ecto.Query
-  alias QueryServiceEx.Repo
   alias QueryServiceEx.Accounts.User
+  alias QueryServiceEx.Repo
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.Tenants.Tenant
 
@@ -171,31 +171,14 @@ defmodule QueryServiceEx.Accounts do
   """
   def create_user_with_tenant(attrs) do
     Repo.transaction(fn ->
-      # Create tenant first
       tenant_name = derive_tenant_name(attrs)
       tenant_slug = Tenants.generate_slug(tenant_name)
 
-      tenant_result =
-        Tenants.create_tenant(%{
-          name: tenant_name,
-          slug: tenant_slug
-        })
-
-      case tenant_result do
-        {:ok, tenant} ->
-          # Create user with tenant association
-          user_attrs = Map.put(attrs, :tenant_id, tenant.id)
-
-          case create_user(user_attrs) do
-            {:ok, user} ->
-              Repo.preload(user, :tenant)
-
-            {:error, changeset} ->
-              Repo.rollback(changeset)
-          end
-
-        {:error, changeset} ->
-          Repo.rollback(changeset)
+      with {:ok, tenant} <- Tenants.create_tenant(%{name: tenant_name, slug: tenant_slug}),
+           {:ok, user} <- create_user(Map.put(attrs, :tenant_id, tenant.id)) do
+        Repo.preload(user, :tenant)
+      else
+        {:error, changeset} -> Repo.rollback(changeset)
       end
     end)
   end

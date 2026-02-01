@@ -2,7 +2,7 @@ defmodule QueryServiceEx.Domain.Entities.QueryTest do
   use ExUnit.Case, async: true
 
   alias QueryServiceEx.Domain.Entities.Query
-  alias QueryServiceEx.Domain.Entities.Query.{Predicate, Aggregation, SortOrder}
+  alias QueryServiceEx.Domain.Entities.Query.{Aggregation, Predicate, SortOrder}
 
   doctest Query
 

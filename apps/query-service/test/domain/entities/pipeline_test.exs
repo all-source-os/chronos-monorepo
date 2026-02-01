@@ -615,7 +615,7 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
             end),
             # Route based on amount
             Pipeline.route_operator("route_by_amount", fn e ->
-              if e.amount > 10000, do: :high_value, else: :standard
+              if e.amount > 10_000, do: :high_value, else: :standard
             end)
           ]
         )
@@ -628,7 +628,7 @@ defmodule QueryServiceEx.Domain.Entities.PipelineTest do
       }
 
       assert {:ok, result} = Pipeline.apply_pipeline(event, pipeline)
-      assert result.amount == 15050
+      assert result.amount == 15_050
       assert result.customer.tier == "premium"
       assert result.__route__ == :high_value
     end

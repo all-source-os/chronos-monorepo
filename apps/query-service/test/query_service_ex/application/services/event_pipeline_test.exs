@@ -2,6 +2,7 @@ defmodule QueryServiceEx.Application.Services.EventPipelineTest do
   use ExUnit.Case, async: false
 
   alias QueryServiceEx.Application.Services.EventPipeline
+  alias QueryServiceEx.Application.Services.ProjectionSync
 
   @moduletag :broadway
 
@@ -62,19 +63,16 @@ defmodule QueryServiceEx.Application.Services.EventPipelineTest do
   describe "projection handling" do
     setup do
       # Initialize ETS cache
-      QueryServiceEx.Application.Services.ProjectionSync.init_cache()
+      ProjectionSync.init_cache()
       :ok
     end
 
     test "get_state_from_cache returns nil for unknown entity" do
-      alias QueryServiceEx.Application.Services.ProjectionSync
-
       result = ProjectionSync.get_state_from_cache("entity_snapshots", "unknown-entity")
       assert result == nil
     end
 
     test "projection state is cached after insert" do
-      alias QueryServiceEx.Application.Services.ProjectionSync
 
       # Insert directly to ETS
       :ets.insert(:projection_state_cache, {{"entity_snapshots", "test-entity"}, %{name: "Test"}})

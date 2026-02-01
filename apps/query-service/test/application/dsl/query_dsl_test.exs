@@ -4,7 +4,7 @@ defmodule QueryServiceEx.Application.DSL.QueryDSLTest do
   import QueryServiceEx.Application.DSL.QueryDSL
 
   alias QueryServiceEx.Domain.Entities.Query
-  alias QueryServiceEx.Domain.Entities.Query.{Predicate, SortOrder, Aggregation}
+  alias QueryServiceEx.Domain.Entities.Query.{Aggregation, Predicate, SortOrder}
 
   describe "from_events/0" do
     test "creates a query from events table" do
@@ -528,7 +528,7 @@ defmodule QueryServiceEx.Application.DSL.QueryDSLTest do
         from_events()
         |> select([:entity_id, :timestamp, :payload])
         |> where(event_type: "payment.processed")
-        |> where(gt(:amount, 10000))
+        |> where(gt(:amount, 10_000))
         |> order_by_timestamp()
 
       assert query.select == [:entity_id, :timestamp, :payload]

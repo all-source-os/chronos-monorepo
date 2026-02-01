@@ -7,10 +7,10 @@ defmodule QueryServiceEx.UsageMeterTest do
   """
   use QueryServiceEx.DataCase
 
+  alias QueryServiceEx.Billing.HybridPricing
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.UsageMeter
   alias QueryServiceEx.UsageMeter.UsageRecord
-  alias QueryServiceEx.Billing.HybridPricing
 
   @moduletag :database
 
@@ -190,7 +190,7 @@ defmodule QueryServiceEx.UsageMeterTest do
     end
 
     test "returns warning when at 100% threshold", %{tenant: tenant} do
-      {:ok, _} = UsageMeter.record_events(tenant.id, count: 10000)
+      {:ok, _} = UsageMeter.record_events(tenant.id, count: 10_000)
 
       assert {:warning, 100.0, 100} = UsageMeter.check_quota_status(tenant.id, :events)
     end

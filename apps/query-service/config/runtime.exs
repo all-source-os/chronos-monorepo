@@ -1,5 +1,16 @@
 import Config
 
+# Runtime configuration for test environment with testcontainers
+# When DATABASE_URL is set (by testcontainers), use it
+if config_env() == :test do
+  if database_url = System.get_env("DATABASE_URL") do
+    config :query_service_ex, QueryServiceEx.Repo,
+      url: database_url,
+      pool: Ecto.Adapters.SQL.Sandbox,
+      pool_size: System.schedulers_online() * 2
+  end
+end
+
 # Runtime configuration for production
 if config_env() == :prod do
   database_url =

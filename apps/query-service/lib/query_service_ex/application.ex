@@ -5,13 +5,15 @@ defmodule QueryServiceEx.Application do
 
   use Application
 
+  alias QueryServiceEx.Application.Services.ProjectionSync
+
   @impl true
   def start(_type, _args) do
     # Attach telemetry handlers for structured logging
     QueryServiceEx.Telemetry.attach_handlers()
 
     # Initialize ETS cache for projections
-    QueryServiceEx.Application.Services.ProjectionSync.init_cache()
+    ProjectionSync.init_cache()
 
     children = [
       # Database repository

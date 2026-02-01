@@ -30,6 +30,7 @@ defmodule QueryServiceExWeb.HealthController do
 
   require Logger
 
+  alias QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
 
   @default_db_timeout_ms 2_000
@@ -213,29 +214,27 @@ defmodule QueryServiceExWeb.HealthController do
 
   defp check_websocket do
     # Check if WebSocket client is running and connected
-    try do
-      case Process.whereis(QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient) do
-        nil ->
-          # WebSocket client might be disabled in test/dev
-          if Application.get_env(:query_service_ex, :core_ws_enabled, true) do
-            Logger.warning("[HealthController] WebSocket client not running")
-            :degraded
-          else
-            :healthy
-          end
+    case Process.whereis(CoreWebSocketClient) do
+      nil ->
+        # WebSocket client might be disabled in test/dev
+        if Application.get_env(:query_service_ex, :core_ws_enabled, true) do
+          Logger.warning("[HealthController] WebSocket client not running")
+          :degraded
+        else
+          :healthy
+        end
 
-        pid when is_pid(pid) ->
-          case QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient.status(pid) do
-            :connected -> :healthy
-            :disconnected -> :degraded
-            {:error, :timeout} -> :degraded
-          end
-      end
-    rescue
-      _ -> :degraded
-    catch
-      :exit, _ -> :degraded
+      pid when is_pid(pid) ->
+        case CoreWebSocketClient.status(pid) do
+          :connected -> :healthy
+          :disconnected -> :degraded
+          {:error, :timeout} -> :degraded
+        end
     end
+  rescue
+    _ -> :degraded
+  catch
+    :exit, _ -> :degraded
   end
 
   defp format_checks(checks) do

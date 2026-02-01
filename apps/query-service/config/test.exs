@@ -1,23 +1,19 @@
 import Config
 
 # Configure your database for test
-# Note: When running with testcontainers, the test_helper.exs will override
-# these settings with the container's connection details.
-# This configuration serves as a fallback for when DATABASE_URL is set externally.
-if url = System.get_env("DATABASE_URL") do
-  config :query_service_ex, QueryServiceEx.Repo,
-    url: url,
-    pool: Ecto.Adapters.SQL.Sandbox,
-    pool_size: System.schedulers_online() * 2
-else
-  config :query_service_ex, QueryServiceEx.Repo,
-    username: "postgres",
-    password: "postgres",
-    hostname: "localhost",
-    database: "query_service_test#{System.get_env("MIX_TEST_PARTITION")}",
-    pool: Ecto.Adapters.SQL.Sandbox,
-    pool_size: System.schedulers_online() * 2
-end
+# Note: When running with testcontainers, the runtime.exs will override
+# these settings with the container's connection details via DATABASE_URL.
+# This configuration serves as a fallback for when a local PostgreSQL is available.
+#
+# IMPORTANT: The actual database connection will be configured at runtime
+# via runtime.exs when DATABASE_URL is set by testcontainers.
+config :query_service_ex, QueryServiceEx.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "query_service_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool: Ecto.Adapters.SQL.Sandbox,
+  pool_size: System.schedulers_online() * 2
 
 # We don't run a server during test
 config :query_service_ex, QueryServiceExWeb.Endpoint,

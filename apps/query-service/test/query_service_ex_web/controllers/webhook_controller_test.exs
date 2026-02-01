@@ -243,7 +243,7 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
       "data" => %{
         "id" => "sub_67890",
         "attributes" => %{
-          "customer_id" => 12345,
+          "customer_id" => 12_345,
           "status" => "active",
           "variant_id" => "variant_starter",
           "custom_data" => %{"tenant_id" => tenant_id}

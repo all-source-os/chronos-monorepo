@@ -180,20 +180,16 @@ defmodule QueryServiceEx.Domain.Entities.Pipeline do
 
   def apply_operator(event, %{type: type, function: fn_})
       when type in [:transform, :enrich, :validate] do
-    try do
-      {:ok, fn_.(event)}
-    rescue
-      e -> {:error, Exception.message(e)}
-    end
+    {:ok, fn_.(event)}
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   def apply_operator(event, %{type: :route, function: fn_}) do
-    try do
-      destination = fn_.(event)
-      {:ok, Map.put(event, :__route__, destination)}
-    rescue
-      e -> {:error, Exception.message(e)}
-    end
+    destination = fn_.(event)
+    {:ok, Map.put(event, :__route__, destination)}
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   @doc """

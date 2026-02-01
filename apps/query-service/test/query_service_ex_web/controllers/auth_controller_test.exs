@@ -4,8 +4,8 @@ defmodule QueryServiceExWeb.AuthControllerTest do
   import Plug.Test
   import Plug.Conn
 
-  alias QueryServiceExWeb.Router
   alias QueryServiceEx.Accounts.Guardian
+  alias QueryServiceExWeb.Router
 
   @opts Router.init([])
 

@@ -123,9 +123,7 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServer do
     state_store = Keyword.get(opts, :state_store)
     snapshot_interval = Keyword.get(opts, :snapshot_interval, @default_snapshot_interval)
 
-    if not Projection.valid_projection?(projection) do
-      {:stop, {:invalid_projection, projection}}
-    else
+    if Projection.valid_projection?(projection) do
       # Try to restore from snapshot
       initial_state =
         case restore_snapshot(projection, entity_id, state_store) do
@@ -159,6 +157,8 @@ defmodule QueryServiceEx.Application.UseCases.ProjectionServer do
       )
 
       {:ok, state}
+    else
+      {:stop, {:invalid_projection, projection}}
     end
   end
 

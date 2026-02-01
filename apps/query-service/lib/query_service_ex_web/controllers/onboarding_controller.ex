@@ -12,6 +12,7 @@ defmodule QueryServiceExWeb.OnboardingController do
 
   alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.Onboarding
+  alias QueryServiceEx.Onboarding.OnboardingProgress
 
   require Logger
 
@@ -85,7 +86,7 @@ defmodule QueryServiceExWeb.OnboardingController do
           error: %{
             code: "invalid_step",
             message: "Invalid onboarding step: #{step}",
-            valid_steps: QueryServiceEx.Onboarding.OnboardingProgress.step_names()
+            valid_steps: OnboardingProgress.step_names()
           }
         })
 

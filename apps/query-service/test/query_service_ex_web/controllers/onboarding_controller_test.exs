@@ -7,9 +7,9 @@ defmodule QueryServiceExWeb.OnboardingControllerTest do
   import Plug.Conn
 
   alias QueryServiceEx.Accounts
-  alias QueryServiceEx.Tenants
-  alias QueryServiceEx.Onboarding
   alias QueryServiceEx.Accounts.Guardian
+  alias QueryServiceEx.Onboarding
+  alias QueryServiceEx.Tenants
 
   @moduletag :database
 

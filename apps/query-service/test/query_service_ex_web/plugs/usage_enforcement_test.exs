@@ -10,10 +10,10 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcementTest do
   import Plug.Conn
   import Plug.Test
 
+  alias QueryServiceEx.Billing.HybridPricing
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.Tenants.Tenant
   alias QueryServiceEx.UsageMeter
-  alias QueryServiceEx.Billing.HybridPricing
   alias QueryServiceExWeb.Plugs.UsageEnforcement
 
   @moduletag :database

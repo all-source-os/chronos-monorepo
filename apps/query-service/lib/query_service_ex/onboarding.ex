@@ -8,8 +8,8 @@ defmodule QueryServiceEx.Onboarding do
   - Retrieving onboarding status and guidance
   """
 
-  alias QueryServiceEx.Repo
   alias QueryServiceEx.Onboarding.OnboardingProgress
+  alias QueryServiceEx.Repo
 
   require Logger
 
@@ -92,9 +92,7 @@ defmodule QueryServiceEx.Onboarding do
   def complete_step(tenant_id, step) do
     step_str = to_string(step)
 
-    unless step_str in OnboardingProgress.step_names() do
-      {:error, :invalid_step}
-    else
+    if step_str in OnboardingProgress.step_names() do
       with {:ok, progress} <- get_or_create_progress(tenant_id) do
         if OnboardingProgress.step_completed?(progress, step) do
           {:ok, progress}
@@ -105,6 +103,8 @@ defmodule QueryServiceEx.Onboarding do
           |> tap_completed_event(step_str)
         end
       end
+    else
+      {:error, :invalid_step}
     end
   end
 

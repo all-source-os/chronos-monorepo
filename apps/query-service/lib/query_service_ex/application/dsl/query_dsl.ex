@@ -29,7 +29,7 @@ defmodule QueryServiceEx.Application.DSL.QueryDSL do
   """
 
   alias QueryServiceEx.Domain.Entities.Query
-  alias QueryServiceEx.Domain.Entities.Query.{Predicate, SortOrder, Aggregation}
+  alias QueryServiceEx.Domain.Entities.Query.{Aggregation, Predicate, SortOrder}
 
   ## Query Builders
 

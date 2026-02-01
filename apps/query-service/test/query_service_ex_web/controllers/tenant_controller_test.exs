@@ -11,8 +11,8 @@ defmodule QueryServiceExWeb.TenantControllerTest do
   import Plug.Test
 
   alias QueryServiceEx.Accounts
-  alias QueryServiceEx.Tenants
   alias QueryServiceEx.Accounts.Guardian
+  alias QueryServiceEx.Tenants
 
   @moduletag :database
 

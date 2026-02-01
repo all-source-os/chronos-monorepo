@@ -81,35 +81,33 @@ defmodule QueryServiceExWeb.QueryController do
 
   # Build a DSL query from parameters
   defp build_dsl_query(params) do
-    try do
-      query = Query.new(from: String.to_atom(params["from"] || "events"))
+    query = Query.new(from: String.to_atom(params["from"] || "events"))
 
-      query =
-        if where = params["where"] do
-          predicate = build_predicate(where)
-          Query.add_predicate(query, predicate)
-        else
-          query
-        end
+    query =
+      if where = params["where"] do
+        predicate = build_predicate(where)
+        Query.add_predicate(query, predicate)
+      else
+        query
+      end
 
-      query =
-        if limit = params["limit"] do
-          Query.add_limit(query, limit)
-        else
-          query
-        end
+    query =
+      if limit = params["limit"] do
+        Query.add_limit(query, limit)
+      else
+        query
+      end
 
-      query =
-        if offset = params["offset"] do
-          Query.add_offset(query, offset)
-        else
-          query
-        end
+    query =
+      if offset = params["offset"] do
+        Query.add_offset(query, offset)
+      else
+        query
+      end
 
-      {:ok, query}
-    rescue
-      e -> {:error, Exception.message(e)}
-    end
+    {:ok, query}
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   # Build a simple query from basic parameters

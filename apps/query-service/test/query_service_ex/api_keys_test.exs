@@ -7,9 +7,9 @@ defmodule QueryServiceEx.ApiKeysTest do
   """
   use QueryServiceEx.DataCase
 
+  alias QueryServiceEx.Accounts
   alias QueryServiceEx.ApiKeys
   alias QueryServiceEx.ApiKeys.ApiKey
-  alias QueryServiceEx.Accounts
   alias QueryServiceEx.Tenants
 
   @moduletag :database
