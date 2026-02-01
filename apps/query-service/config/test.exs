@@ -32,6 +32,22 @@ config :ueberauth, Ueberauth.Strategy.Google.OAuth,
   client_id: "test_client_id",
   client_secret: "test_client_secret"
 
+# GitHub OAuth configuration for testing
+config :ueberauth, Ueberauth.Strategy.Github.OAuth,
+  client_id: "test_github_client_id",
+  client_secret: "test_github_client_secret"
+
 # Guardian secret key for testing
 config :query_service_ex, QueryServiceEx.Accounts.Guardian,
   secret_key: "test_guardian_secret_key_at_least_64_bytes_long_for_testing_purposes_only"
+
+# LemonSqueezy configuration for testing
+config :query_service_ex, :lemon_squeezy,
+  api_key: nil,
+  store_id: "test_store_123",
+  webhook_secret: "test_webhook_secret_for_testing",
+  variant_tiers: %{
+    "variant_starter" => :starter,
+    "variant_pro" => :pro,
+    "variant_enterprise" => :enterprise
+  }

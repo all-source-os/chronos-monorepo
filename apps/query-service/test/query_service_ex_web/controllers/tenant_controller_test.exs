@@ -1,4 +1,10 @@
 defmodule QueryServiceExWeb.TenantControllerTest do
+  @moduledoc """
+  Tests for TenantController.
+
+  These tests require a running PostgreSQL database.
+  Run with: mix test --include database
+  """
   use QueryServiceExWeb.ConnCase
 
   import Plug.Conn
@@ -7,6 +13,8 @@ defmodule QueryServiceExWeb.TenantControllerTest do
   alias QueryServiceEx.Accounts
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.Accounts.Guardian
+
+  @moduletag :database
 
   setup %{conn: conn} do
     # Create a tenant and user for testing

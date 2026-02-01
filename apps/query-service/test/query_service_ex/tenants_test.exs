@@ -1,8 +1,16 @@
 defmodule QueryServiceEx.TenantsTest do
+  @moduledoc """
+  Tests for the Tenants context.
+
+  These tests require a running PostgreSQL database.
+  Run with: mix test --include database
+  """
   use QueryServiceEx.DataCase
 
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.Tenants.Tenant
+
+  @moduletag :database
 
   describe "create_tenant/1" do
     test "creates a tenant with valid attributes" do

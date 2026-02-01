@@ -33,7 +33,8 @@ defmodule QueryServiceExWeb.Endpoint do
   plug(Plug.Parsers,
     parsers: [:json],
     pass: ["*/*"],
-    json_decoder: Jason
+    json_decoder: Jason,
+    body_reader: {QueryServiceExWeb.Plugs.RawBodyReader, :read_body, []}
   )
 
   plug(Plug.MethodOverride)

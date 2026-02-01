@@ -6,7 +6,7 @@ defmodule QueryServiceEx.AuthHelpers do
   alias QueryServiceEx.Accounts.Guardian
 
   @doc """
-  Creates a mock Ueberauth auth struct for testing.
+  Creates a mock Ueberauth auth struct for Google testing.
   """
   def mock_google_auth(attrs \\ %{}) do
     %Ueberauth.Auth{
@@ -22,6 +22,36 @@ defmodule QueryServiceEx.AuthHelpers do
         refresh_token: attrs[:refresh_token] || "mock_refresh_token",
         expires: true,
         expires_at: System.system_time(:second) + 3600
+      }
+    }
+  end
+
+  @doc """
+  Creates a mock Ueberauth auth struct for GitHub testing.
+  """
+  def mock_github_auth(attrs \\ %{}) do
+    %Ueberauth.Auth{
+      uid: attrs[:uid] || :rand.uniform(100_000),
+      provider: :github,
+      info: %Ueberauth.Auth.Info{
+        email: attrs[:email] || "ghuser@example.com",
+        name: attrs[:name] || "GitHub User",
+        nickname: attrs[:nickname] || "ghuser",
+        image: attrs[:avatar_url] || "https://avatars.githubusercontent.com/u/12345"
+      },
+      credentials: %Ueberauth.Auth.Credentials{
+        token: attrs[:token] || "mock_github_token",
+        refresh_token: attrs[:refresh_token],
+        expires: false
+      },
+      extra: %Ueberauth.Auth.Extra{
+        raw_info: %{
+          "user" => %{
+            "login" => attrs[:nickname] || "ghuser",
+            "id" => attrs[:uid] || :rand.uniform(100_000),
+            "email" => attrs[:email] || "ghuser@example.com"
+          }
+        }
       }
     }
   end
