@@ -38,7 +38,8 @@ help:
 	@echo "  make docker-test       - Full container test suite (all services)"
 	@echo "  make docker-test-quick - Quick build-only test"
 	@echo "  make docker-build      - Build all containers"
-	@echo "  make docker-clean      - Remove test images"
+	@echo "  make docker-clean      - Remove test containers and images"
+	@echo "  make docker-purge      - Remove ALL docker resources (nuclear option)"
 	@echo ""
 	@echo "Individual Container Builds:"
 	@echo "  make docker-core       - Build core container"
@@ -156,17 +157,8 @@ quality-elixir:
 	cd apps/query-service && mix compile --warnings-as-errors
 	@echo "→ Running Credo..."
 	-cd apps/query-service && mix credo --strict
-	@echo "→ Starting test database..."
-	@docker rm -f query-service-test-db 2>/dev/null || true
-	@docker run --name query-service-test-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=query_service_test -p 5432:5432 -d postgres:15
-	@echo "→ Waiting for database to be ready..."
-	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		docker exec query-service-test-db pg_isready -U postgres && break || sleep 1; \
-	done
-	@echo "→ Running tests..."
+	@echo "→ Running tests (testcontainers will start PostgreSQL automatically)..."
 	cd apps/query-service && mix test
-	@echo "→ Stopping test database..."
-	@docker rm -f query-service-test-db 2>/dev/null || true
 	@echo "✅ Elixir quality gates passed!"
 
 # =============================================================================
