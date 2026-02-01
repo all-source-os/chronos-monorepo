@@ -150,7 +150,7 @@ CREATE OR REPLACE FUNCTION get_audit_events(
 RETURNS TABLE (
     id UUID,
     tenant_id VARCHAR,
-    timestamp TIMESTAMP WITH TIME ZONE,
+    event_timestamp TIMESTAMP WITH TIME ZONE,
     action VARCHAR,
     actor_type VARCHAR,
     actor_id VARCHAR,
@@ -166,7 +166,7 @@ BEGIN
     SELECT
         ae.id,
         ae.tenant_id,
-        ae.timestamp,
+        ae."timestamp" AS event_timestamp,
         ae.action,
         ae.actor_type,
         ae.actor_id,
@@ -178,11 +178,11 @@ BEGIN
         ae.error_message
     FROM audit_events ae
     WHERE ae.tenant_id = p_tenant_id
-      AND (p_start_time IS NULL OR ae.timestamp >= p_start_time)
-      AND (p_end_time IS NULL OR ae.timestamp <= p_end_time)
+      AND (p_start_time IS NULL OR ae."timestamp" >= p_start_time)
+      AND (p_end_time IS NULL OR ae."timestamp" <= p_end_time)
       AND (p_action IS NULL OR ae.action = p_action)
       AND (p_actor_id IS NULL OR ae.actor_id = p_actor_id)
-    ORDER BY ae.timestamp DESC
+    ORDER BY ae."timestamp" DESC
     LIMIT p_limit
     OFFSET p_offset;
 END;
@@ -196,7 +196,7 @@ CREATE OR REPLACE FUNCTION get_security_events(
 )
 RETURNS TABLE (
     id UUID,
-    timestamp TIMESTAMP WITH TIME ZONE,
+    event_timestamp TIMESTAMP WITH TIME ZONE,
     action VARCHAR,
     actor_id VARCHAR,
     actor_name VARCHAR,
@@ -207,7 +207,7 @@ BEGIN
     RETURN QUERY
     SELECT
         ae.id,
-        ae.timestamp,
+        ae."timestamp" AS event_timestamp,
         ae.action,
         ae.actor_id,
         ae.actor_name,
@@ -215,9 +215,9 @@ BEGIN
         ae.error_message
     FROM audit_events ae
     WHERE ae.tenant_id = p_tenant_id
-      AND ae.timestamp > NOW() - (p_hours || ' hours')::INTERVAL
+      AND ae."timestamp" > NOW() - (p_hours || ' hours')::INTERVAL
       AND ae.action IN ('login_failed', 'permission_denied', 'rate_limit_exceeded', 'ip_blocked', 'suspicious_activity')
-    ORDER BY ae.timestamp DESC
+    ORDER BY ae."timestamp" DESC
     LIMIT p_limit;
 END;
 $$ LANGUAGE plpgsql;
@@ -233,7 +233,7 @@ DECLARE
 BEGIN
     DELETE FROM audit_events
     WHERE tenant_id = p_tenant_id
-      AND timestamp < p_older_than;
+      AND "timestamp" < p_older_than;
 
     GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
 

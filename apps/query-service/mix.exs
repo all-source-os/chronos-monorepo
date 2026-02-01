@@ -69,7 +69,10 @@ defmodule QueryServiceEx.MixProject do
       # Development & Testing
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+
+      # Testcontainers for database testing
+      {:testcontainers, "~> 1.13", only: :test}
     ]
   end
 

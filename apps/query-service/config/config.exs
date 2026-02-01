@@ -5,11 +5,75 @@ config :query_service_ex,
   ecto_repos: [QueryServiceEx.Repo]
 
 # Configure structured logging defaults
-config :logger,
-  backends: [:console]
-
 config :logger, :console,
-  metadata: [:request_id, :correlation_id, :entity_id, :event_type, :module, :function]
+  metadata: [
+    # Standard metadata
+    :request_id,
+    :correlation_id,
+    :entity_id,
+    :event_type,
+    :module,
+    :function,
+    # Auth and user context
+    :user_id,
+    :tenant_id,
+    :provider,
+    :api_key_id,
+    :name,
+    :old_api_key_id,
+    :new_api_key_id,
+    # Billing metadata
+    :customer_id,
+    :variant_id,
+    :subscription_id,
+    :status,
+    :usage_type,
+    :overage_count,
+    :count,
+    :percentage,
+    :threshold,
+    :reason,
+    # Error handling metadata
+    :error,
+    :kind,
+    :stacktrace,
+    :exception_type,
+    # Telemetry and metrics
+    :telemetry_event,
+    :duration_ms,
+    :source,
+    :queue_time_ms,
+    :decode_time_ms,
+    :method,
+    :path,
+    :event_id,
+    :processing_time_ms,
+    :projection_count,
+    :sync_time_ms,
+    :event_ids,
+    :projection_name,
+    # WebSocket metadata
+    :url,
+    :message_type,
+    :message_size_bytes,
+    :attempt,
+    :backoff_ms,
+    :attempts,
+    :last_error,
+    :total_reconnects,
+    :reconnect_attempts,
+    # Circuit breaker metadata
+    :circuit,
+    :from_state,
+    :failure_count,
+    # Health check metadata
+    :check,
+    :timeout_ms,
+    :core_available,
+    :failed_syncs,
+    # Step tracking
+    :step
+  ]
 
 # Configure the Phoenix endpoint
 config :query_service_ex, QueryServiceExWeb.Endpoint,

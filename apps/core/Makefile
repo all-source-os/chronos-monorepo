@@ -1,67 +1,104 @@
-.PHONY: help lint lint-sort format format-sort test build clean check ci
+.PHONY: help lint lint-sort format format-sort test build clean check ci quality-gates install-ci-toolchain
+
+# CI Rust toolchain version (must match .github/workflows/ci.yml)
+RUST_CI_VERSION := nightly
 
 # Default target
 help:
-	@echo "AllSource Core - Quality Gates & Development Commands"
+	@echo "AllSource Core - Development Commands"
 	@echo ""
-	@echo "Quality Gates (CI/CD):"
-	@echo "  make check         - Run all quality gates (format, lint, sort, test)"
-	@echo "  make ci            - Full CI pipeline (check + build)"
+	@echo "Quality Gates (run before pushing):"
+	@echo "  make quality-gates - Run exact CI checks with Rust nightly"
 	@echo ""
-	@echo "Linting:"
-	@echo "  make lint          - Check code formatting and run clippy"
+	@echo "Quick Checks (uses current toolchain):"
+	@echo "  make check         - Run format, lint, sort, and test"
+	@echo "  make lint          - Check formatting and run clippy"
 	@echo "  make lint-sort     - Check if Cargo.toml is sorted"
+	@echo "  make test          - Run tests"
 	@echo ""
 	@echo "Formatting:"
 	@echo "  make format        - Auto-format code with rustfmt"
 	@echo "  make format-sort   - Auto-sort Cargo.toml dependencies"
 	@echo ""
-	@echo "Testing & Building:"
-	@echo "  make test          - Run all tests"
+	@echo "Building:"
 	@echo "  make build         - Build the project"
 	@echo "  make clean         - Clean build artifacts"
+	@echo ""
+	@echo "Setup:"
+	@echo "  make install-ci-toolchain - Install Rust nightly for quality-gates"
 
 # Quality gate: Format check
 lint:
-	@echo "→ Checking code formatting..."
+	@echo "Checking code formatting..."
 	@cargo fmt --check
-	@echo "→ Running clippy..."
+	@echo "Running clippy..."
 	@cargo clippy --all-targets --all-features -- -D warnings
 
 # Quality gate: Cargo.toml sorting check
 lint-sort:
-	@echo "→ Checking Cargo.toml sort order..."
+	@echo "Checking Cargo.toml sort order..."
 	@cargo sort --check
 
 # Auto-format code
 format:
-	@echo "→ Formatting code..."
+	@echo "Formatting code..."
 	@cargo fmt
 
 # Auto-sort Cargo.toml
 format-sort:
-	@echo "→ Sorting Cargo.toml..."
+	@echo "Sorting Cargo.toml..."
 	@cargo sort -w
 
 # Run tests
 test:
-	@echo "→ Running tests..."
+	@echo "Running tests..."
 	@cargo test --lib
 
 # Build project
 build:
-	@echo "→ Building project..."
+	@echo "Building project..."
 	@cargo build --lib
 
 # Clean build artifacts
 clean:
-	@echo "→ Cleaning build artifacts..."
+	@echo "Cleaning build artifacts..."
 	@cargo clean
 
-# Combined quality check (recommended before commit)
+# Combined quality check (uses current toolchain)
 check: lint lint-sort test
-	@echo "✅ All quality gates passed!"
+	@echo "All checks passed!"
 
-# Full CI pipeline
+# Full CI pipeline (uses current toolchain)
 ci: check build
-	@echo "✅ CI pipeline completed successfully!"
+	@echo "CI pipeline completed!"
+
+# Exact CI quality gates using Rust nightly (matches GitHub Actions)
+# Requires: make install-ci-toolchain
+quality-gates:
+	@echo "Running CI quality gates with Rust $(RUST_CI_VERSION)..."
+	@echo ""
+	@echo "[1/6] Checking code formatting..."
+	@cargo +$(RUST_CI_VERSION) fmt --check
+	@echo ""
+	@echo "[2/6] Checking Cargo.toml sorting..."
+	@cargo +$(RUST_CI_VERSION) sort --check
+	@echo ""
+	@echo "[3/6] Running clippy..."
+	@cargo +$(RUST_CI_VERSION) clippy --locked --all-targets --all-features -- -D warnings
+	@echo ""
+	@echo "[4/6] Running tests..."
+	@cargo +$(RUST_CI_VERSION) test --locked --lib --all-features
+	@echo ""
+	@echo "[5/6] Building release..."
+	@cargo +$(RUST_CI_VERSION) build --locked --lib --release
+	@echo ""
+	@echo "[6/6] Checking documentation..."
+	@RUSTDOCFLAGS="-D warnings" cargo +$(RUST_CI_VERSION) doc --no-deps --document-private-items
+	@echo ""
+	@echo "All quality gates passed!"
+
+# Install CI toolchain
+install-ci-toolchain:
+	@echo "Installing Rust $(RUST_CI_VERSION) toolchain..."
+	@rustup toolchain install $(RUST_CI_VERSION) --component rustfmt clippy
+	@echo "Rust $(RUST_CI_VERSION) installed!"

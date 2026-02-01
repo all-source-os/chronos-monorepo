@@ -506,13 +506,50 @@ impl AuditEventRepository for PostgresAuditRepository {
 
 #[cfg(all(test, feature = "postgres"))]
 mod tests {
-    // Note: These tests require a running PostgreSQL database
-    // Run with: cargo test --features postgres
+    use super::*;
+    use sqlx::postgres::PgPoolOptions;
+    use testcontainers::{runners::AsyncRunner, ContainerAsync, ImageExt};
+    use testcontainers_modules::postgres::Postgres;
+
+    struct TestDb {
+        #[allow(dead_code)]
+        container: ContainerAsync<Postgres>,
+        pool: PgPool,
+    }
+
+    async fn setup_test_db() -> TestDb {
+        let container = Postgres::default()
+            .with_tag("16-alpine")
+            .start()
+            .await
+            .expect("Failed to start PostgreSQL container");
+
+        let host = container.get_host().await.expect("Failed to get host");
+        let port = container
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("Failed to get port");
+
+        let database_url = format!(
+            "postgresql://postgres:postgres@{}:{}/postgres",
+            host, port
+        );
+
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
+            .await
+            .expect("Failed to connect to test database");
+
+        TestDb { container, pool }
+    }
 
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL
     async fn test_postgres_audit_repository() {
-        // This test would require a test database
-        // In production, use testcontainers or similar
+        let test_db = setup_test_db().await;
+        let repo = PostgresAuditRepository::new(test_db.pool);
+
+        // Run migrations
+        repo.migrate().await.expect("Migrations should succeed");
     }
 }

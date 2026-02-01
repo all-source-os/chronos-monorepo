@@ -189,7 +189,10 @@ mod tests {
     }
 
     /// Test batch processor end-to-end throughput
+    /// Note: Ignored by default as throughput depends on system performance.
+    /// Run with: cargo test --release -- --ignored test_batch_processor_throughput
     #[test]
+    #[ignore]
     fn test_batch_processor_throughput() {
         let config = BatchProcessorConfig {
             max_batch_size: 10_000,
@@ -281,7 +284,10 @@ mod tests {
     }
 
     /// Integration test: Full pipeline throughput
+    /// Note: Ignored by default as throughput depends on system performance.
+    /// Run with: cargo test --release -- --ignored test_full_pipeline_throughput
     #[test]
+    #[ignore]
     fn test_full_pipeline_throughput() {
         let processor = Arc::new(BatchProcessor::with_config(
             BatchProcessorConfig::high_throughput(),
@@ -340,7 +346,10 @@ mod tests {
     }
 
     /// Test sustained throughput over time
+    /// Note: Ignored by default as throughput depends on system performance.
+    /// Run with: cargo test --release -- --ignored test_sustained_throughput
     #[test]
+    #[ignore]
     fn test_sustained_throughput() {
         let processor = BatchProcessor::new();
 

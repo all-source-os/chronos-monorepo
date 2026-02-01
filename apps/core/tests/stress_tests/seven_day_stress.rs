@@ -137,7 +137,7 @@ pub fn run_stress_test(config: StressConfig, stats: Arc<StressStats>, stop: Arc<
 
         // Periodic integrity checks
         let events = stats.events_ingested.load(Ordering::Relaxed);
-        if events % config.verify_interval == 0 {
+        if events.is_multiple_of(config.verify_interval) {
             stats.integrity_checks.fetch_add(1, Ordering::Relaxed);
             // TODO: Verify gapless property, partition balance, watermarks
         }

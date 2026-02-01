@@ -28,7 +28,7 @@ help:
 	@echo "  make quality-go     - Run Go quality gates only"
 	@echo "  make quality-elixir - Run Elixir quality gates only"
 	@echo ""
-	@echo "Individual Services:
+	@echo "Individual Services:"
 	@echo "  make core         - Run Rust event store only"
 	@echo "  make control      - Run Go control plane only"
 	@echo "  make web          - Run Next.js web UI only"
@@ -105,17 +105,17 @@ quality-rust:
 	@echo "🦀 Running Rust quality gates..."
 	@echo "================================"
 	@echo "→ Checking formatting..."
-	cd apps/core && cargo fmt --check
+	cd apps/core && cargo +nightly fmt --check
 	@echo "→ Checking Cargo.toml sorting..."
-	cd apps/core && cargo sort --check
+	cd apps/core && cargo +nightly sort --check
 	@echo "→ Running Clippy..."
-	cd apps/core && cargo clippy --locked --all-targets --all-features -- -D warnings
+	cd apps/core && cargo +nightly clippy --locked --all-targets --all-features -- -D warnings
 	@echo "→ Running tests..."
-	cd apps/core && cargo test --locked --lib --all-features
+	cd apps/core && cargo +nightly test --locked --lib --all-features
 	@echo "→ Building release..."
-	cd apps/core && cargo build --locked --lib --release
+	cd apps/core && cargo +nightly build --locked --lib --release
 	@echo "→ Checking documentation..."
-	cd apps/core && RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items
+	cd apps/core && RUSTDOCFLAGS="-D warnings" cargo +nightly doc --no-deps --document-private-items
 	@echo "✅ Rust quality gates passed!"
 
 quality-go:

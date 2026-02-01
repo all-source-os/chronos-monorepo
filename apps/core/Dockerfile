@@ -4,7 +4,7 @@
 # Optimized for: Fast cold starts, minimal image size, security
 # =============================================================================
 
-ARG RUST_VERSION=1.88
+ARG RUST_VERSION=1.92
 ARG ALPINE_VERSION=3.20
 
 # =============================================================================
