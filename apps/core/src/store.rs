@@ -535,7 +535,7 @@ impl EventStore {
             .collect();
 
         // Sort by timestamp (ascending)
-        results.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+        results.sort_by_key(|x| x.timestamp);
 
         // Apply limit
         if let Some(limit) = request.limit {

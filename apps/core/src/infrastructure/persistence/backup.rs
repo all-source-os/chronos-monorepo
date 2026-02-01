@@ -223,7 +223,7 @@ impl BackupManager {
         }
 
         // Sort by creation time, newest first
-        backups.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        backups.sort_by_key(|x| std::cmp::Reverse(x.created_at));
 
         Ok(backups)
     }
@@ -257,7 +257,7 @@ impl BackupManager {
         }
 
         // Sort by date, oldest last
-        backups.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        backups.sort_by_key(|x| std::cmp::Reverse(x.created_at));
 
         let to_delete = backups.split_off(keep_count);
         let delete_count = to_delete.len();

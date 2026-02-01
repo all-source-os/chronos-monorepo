@@ -367,7 +367,7 @@ impl AnalyticsEngine {
                 percentage: (count as f64 / events.len() as f64) * 100.0,
             })
             .collect();
-        top_event_types.sort_by(|a, b| b.count.cmp(&a.count));
+        top_event_types.sort_by_key(|x| std::cmp::Reverse(x.count));
         top_event_types.truncate(10);
 
         // Top entities
@@ -379,7 +379,7 @@ impl AnalyticsEngine {
                 percentage: (count as f64 / events.len() as f64) * 100.0,
             })
             .collect();
-        top_entities.sort_by(|a, b| b.count.cmp(&a.count));
+        top_entities.sort_by_key(|x| std::cmp::Reverse(x.count));
         top_entities.truncate(10);
 
         let time_range = TimeRange {

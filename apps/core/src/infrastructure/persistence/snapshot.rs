@@ -176,7 +176,7 @@ impl SnapshotManager {
         entity_snapshots.push(snapshot.clone());
 
         // Sort by timestamp (newest first)
-        entity_snapshots.sort_by(|a, b| b.as_of.cmp(&a.as_of));
+        entity_snapshots.sort_by_key(|x| std::cmp::Reverse(x.as_of));
 
         // Prune old snapshots if over limit
         let mut pruned = 0;

@@ -161,11 +161,7 @@ impl LockFreeMetrics {
         let total = self.total_latency_ns.load(Ordering::Relaxed);
         let count = self.events_queried.load(Ordering::Relaxed);
 
-        if count == 0 {
-            None
-        } else {
-            Some(Duration::from_nanos(total / count))
-        }
+        total.checked_div(count).map(Duration::from_nanos)
     }
 
     /// Get minimum query latency
