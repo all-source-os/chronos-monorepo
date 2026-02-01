@@ -196,7 +196,8 @@ defmodule QueryServiceEx.UsageMeter do
     percentage = get_usage_percentage(tenant_id, usage_type)
 
     # Find the highest threshold that has been reached/crossed
-    crossed_thresholds = Enum.filter(@alert_thresholds, fn threshold -> percentage >= threshold end)
+    crossed_thresholds =
+      Enum.filter(@alert_thresholds, fn threshold -> percentage >= threshold end)
 
     case Enum.max(crossed_thresholds, fn -> nil end) do
       nil -> {:ok, percentage}

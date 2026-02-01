@@ -47,7 +47,9 @@ mod tests {
     }
 
     /// Test SIMD JSON parsing throughput
+    /// Note: Ignored by default as throughput depends on system performance.
     #[test]
+    #[ignore]
     fn test_simd_json_throughput() {
         let parser = SimdJsonParser::new();
 
@@ -127,7 +129,9 @@ mod tests {
     }
 
     /// Test sharded queue throughput with multiple threads
+    /// Note: Ignored by default as throughput depends on system performance.
     #[test]
+    #[ignore]
     fn test_sharded_queue_concurrent_throughput() {
         let queue = Arc::new(ShardedEventQueue::new(1_000_000));
         let events_per_thread = 25_000;
@@ -245,7 +249,9 @@ mod tests {
     }
 
     /// Test arena pool performance
+    /// Note: Ignored by default as throughput depends on system performance.
     #[test]
+    #[ignore]
     fn test_arena_pool_allocation_speed() {
         reset_arena_stats();
 

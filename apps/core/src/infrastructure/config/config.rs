@@ -384,7 +384,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
-        assert_eq!(config.server.port, 8080);
+        assert_eq!(config.server.port, 3900);
         assert!(config.rate_limit.enabled);
     }
 

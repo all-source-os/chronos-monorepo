@@ -47,9 +47,9 @@ RUN mix compile && \
     mix release
 
 # =============================================================================
-# Stage 2: Runtime
+# Stage 2: Runtime (use same base as build for library compatibility)
 # =============================================================================
-FROM alpine:${ALPINE_VERSION} AS runtime
+FROM elixir:${ELIXIR_VERSION}-otp-${OTP_VERSION}-alpine AS runtime
 
 ARG VERSION=dev
 ARG REVISION=unknown
@@ -67,10 +67,6 @@ LABEL org.opencontainers.image.title="Chronos Query Service" \
 
 # Install minimal runtime dependencies
 RUN apk add --no-cache \
-    openssl \
-    ncurses-libs \
-    libstdc++ \
-    libgcc \
     tini \
     wget && \
     rm -rf /var/cache/apk/* /tmp/*

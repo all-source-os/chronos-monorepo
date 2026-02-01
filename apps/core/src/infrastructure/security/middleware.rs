@@ -746,6 +746,20 @@ mod tests {
     }
 
     #[test]
+    fn test_empty_auth_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "".parse().unwrap());
+        assert!(extract_token(&headers).is_err());
+    }
+
+    #[test]
+    fn test_bearer_with_empty_token() {
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "Bearer ".parse().unwrap());
+        assert!(extract_token(&headers).is_err());
+    }
+
+    #[test]
     fn test_auth_context_permissions() {
         let claims = Claims::new(
             "user1".to_string(),
@@ -759,5 +773,180 @@ mod tests {
         assert!(ctx.require_permission(Permission::Read).is_ok());
         assert!(ctx.require_permission(Permission::Write).is_ok());
         assert!(ctx.require_permission(Permission::Admin).is_err());
+    }
+
+    #[test]
+    fn test_auth_context_admin_permissions() {
+        let claims = Claims::new(
+            "admin1".to_string(),
+            "tenant1".to_string(),
+            Role::Admin,
+            chrono::Duration::hours(1),
+        );
+
+        let ctx = AuthContext { claims };
+
+        assert!(ctx.require_permission(Permission::Read).is_ok());
+        assert!(ctx.require_permission(Permission::Write).is_ok());
+        assert!(ctx.require_permission(Permission::Admin).is_ok());
+    }
+
+    #[test]
+    fn test_auth_context_readonly_permissions() {
+        let claims = Claims::new(
+            "readonly1".to_string(),
+            "tenant1".to_string(),
+            Role::ReadOnly,
+            chrono::Duration::hours(1),
+        );
+
+        let ctx = AuthContext { claims };
+
+        assert!(ctx.require_permission(Permission::Read).is_ok());
+        assert!(ctx.require_permission(Permission::Write).is_err());
+        assert!(ctx.require_permission(Permission::Admin).is_err());
+    }
+
+    #[test]
+    fn test_auth_context_tenant_id() {
+        let claims = Claims::new(
+            "user1".to_string(),
+            "my-tenant".to_string(),
+            Role::Developer,
+            chrono::Duration::hours(1),
+        );
+
+        let ctx = AuthContext { claims };
+        assert_eq!(ctx.tenant_id(), "my-tenant");
+    }
+
+    #[test]
+    fn test_auth_context_user_id() {
+        let claims = Claims::new(
+            "my-user".to_string(),
+            "tenant1".to_string(),
+            Role::Developer,
+            chrono::Duration::hours(1),
+        );
+
+        let ctx = AuthContext { claims };
+        assert_eq!(ctx.user_id(), "my-user");
+    }
+
+    #[test]
+    fn test_request_id_new() {
+        let id1 = RequestId::new();
+        let id2 = RequestId::new();
+
+        // IDs should be unique
+        assert_ne!(id1.as_str(), id2.as_str());
+        // IDs should be valid UUIDs (36 chars with hyphens)
+        assert_eq!(id1.as_str().len(), 36);
+    }
+
+    #[test]
+    fn test_request_id_default() {
+        let id = RequestId::default();
+        assert_eq!(id.as_str().len(), 36);
+    }
+
+    #[test]
+    fn test_security_config_default() {
+        let config = SecurityConfig::default();
+
+        assert!(config.enable_hsts);
+        assert_eq!(config.hsts_max_age, 31536000);
+        assert!(config.enable_frame_options);
+        assert!(config.enable_content_type_options);
+        assert!(config.enable_xss_protection);
+        assert!(config.csp.is_some());
+    }
+
+    #[test]
+    fn test_frame_options_variants() {
+        let deny = FrameOptions::Deny;
+        let same_origin = FrameOptions::SameOrigin;
+        let allow_from = FrameOptions::AllowFrom("https://example.com".to_string());
+
+        // Check that variants are distinct via debug formatting
+        assert!(format!("{:?}", deny).contains("Deny"));
+        assert!(format!("{:?}", same_origin).contains("SameOrigin"));
+        assert!(format!("{:?}", allow_from).contains("AllowFrom"));
+    }
+
+    #[test]
+    fn test_auth_error_from_validation_error() {
+        let error = AllSourceError::ValidationError("test error".to_string());
+        let auth_error = AuthError::from(error);
+        assert!(format!("{:?}", auth_error).contains("ValidationError"));
+    }
+
+    #[test]
+    fn test_rate_limit_error_display() {
+        let error = RateLimitError::RateLimitExceeded {
+            retry_after: 60,
+            limit: 100,
+        };
+        assert!(format!("{:?}", error).contains("RateLimitExceeded"));
+
+        let unauth_error = RateLimitError::Unauthorized;
+        assert!(format!("{:?}", unauth_error).contains("Unauthorized"));
+    }
+
+    #[test]
+    fn test_tenant_error_variants() {
+        let errors = vec![
+            TenantError::Unauthorized,
+            TenantError::InvalidTenant,
+            TenantError::TenantNotFound,
+            TenantError::TenantInactive,
+            TenantError::RepositoryError("test".to_string()),
+        ];
+
+        for error in errors {
+            // Ensure each variant can be debug-formatted
+            let _ = format!("{:?}", error);
+        }
+    }
+
+    #[test]
+    fn test_ip_filter_error_variants() {
+        let errors = vec![
+            IpFilterError::NoIpAddress,
+            IpFilterError::Blocked {
+                reason: "blocked".to_string(),
+            },
+        ];
+
+        for error in errors {
+            let _ = format!("{:?}", error);
+        }
+    }
+
+    #[test]
+    fn test_security_state_clone() {
+        let config = SecurityConfig::default();
+        let state = SecurityState {
+            config: config.clone(),
+        };
+        let cloned = state.clone();
+        assert_eq!(cloned.config.hsts_max_age, config.hsts_max_age);
+    }
+
+    #[test]
+    fn test_auth_state_clone() {
+        let auth_manager = Arc::new(AuthManager::new("test-secret".to_string()));
+        let state = AuthState { auth_manager };
+        let cloned = state.clone();
+        assert!(Arc::ptr_eq(&state.auth_manager, &cloned.auth_manager));
+    }
+
+    #[test]
+    fn test_rate_limit_state_clone() {
+        use crate::infrastructure::security::rate_limit::RateLimitConfig;
+        let rate_limiter = Arc::new(RateLimiter::new(RateLimitConfig::default()));
+        let state = RateLimitState { rate_limiter };
+        let cloned = state.clone();
+        assert!(Arc::ptr_eq(&state.rate_limiter, &cloned.rate_limiter));
     }
 }

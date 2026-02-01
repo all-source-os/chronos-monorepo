@@ -605,4 +605,339 @@ mod tests {
         assert!(workflow.contains("cargo clippy"));
         assert!(workflow.contains("Security Scan"));
     }
+
+    #[test]
+    fn test_default_security_scan_config() {
+        let config = SecurityScanConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.scan_frequency_hours, 24);
+        assert!(config.enable_dependency_scan);
+        assert!(config.enable_secrets_scan);
+        assert!(config.enable_sast);
+        assert!(config.enable_license_check);
+        assert!(config.fail_on_high_severity);
+        assert!(!config.fail_on_medium_severity);
+    }
+
+    #[test]
+    fn test_security_scan_config_serde() {
+        let config = SecurityScanConfig::default();
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: SecurityScanConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.enabled, config.enabled);
+        assert_eq!(parsed.scan_frequency_hours, config.scan_frequency_hours);
+    }
+
+    #[test]
+    fn test_scan_status_equality() {
+        assert_eq!(ScanStatus::Pass, ScanStatus::Pass);
+        assert_eq!(ScanStatus::Fail, ScanStatus::Fail);
+        assert_eq!(ScanStatus::Warning, ScanStatus::Warning);
+        assert_eq!(ScanStatus::Error, ScanStatus::Error);
+        assert_ne!(ScanStatus::Pass, ScanStatus::Fail);
+    }
+
+    #[test]
+    fn test_severity_ordering() {
+        assert!(Severity::Critical < Severity::High);
+        assert!(Severity::High < Severity::Medium);
+        assert!(Severity::Medium < Severity::Low);
+        assert!(Severity::Low < Severity::Info);
+    }
+
+    #[test]
+    fn test_scan_summary_all_severities() {
+        let scanner = SecurityScanner::new(SecurityScanConfig::default());
+        let mut findings = HashMap::new();
+
+        findings.insert(
+            "test".to_string(),
+            vec![
+                SecurityFinding {
+                    id: "1".to_string(),
+                    title: "Critical".to_string(),
+                    description: "Critical finding".to_string(),
+                    severity: Severity::Critical,
+                    category: FindingCategory::Dependency,
+                    component: "test".to_string(),
+                    fix: None,
+                    cve: None,
+                },
+                SecurityFinding {
+                    id: "2".to_string(),
+                    title: "High".to_string(),
+                    description: "High finding".to_string(),
+                    severity: Severity::High,
+                    category: FindingCategory::SecretLeak,
+                    component: "test".to_string(),
+                    fix: Some("Fix it".to_string()),
+                    cve: Some("CVE-2021-1234".to_string()),
+                },
+                SecurityFinding {
+                    id: "3".to_string(),
+                    title: "Medium".to_string(),
+                    description: "Medium finding".to_string(),
+                    severity: Severity::Medium,
+                    category: FindingCategory::CodeVulnerability,
+                    component: "test".to_string(),
+                    fix: None,
+                    cve: None,
+                },
+                SecurityFinding {
+                    id: "4".to_string(),
+                    title: "Low".to_string(),
+                    description: "Low finding".to_string(),
+                    severity: Severity::Low,
+                    category: FindingCategory::LicenseIssue,
+                    component: "test".to_string(),
+                    fix: None,
+                    cve: None,
+                },
+                SecurityFinding {
+                    id: "5".to_string(),
+                    title: "Info".to_string(),
+                    description: "Info finding".to_string(),
+                    severity: Severity::Info,
+                    category: FindingCategory::ConfigurationIssue,
+                    component: "test".to_string(),
+                    fix: None,
+                    cve: None,
+                },
+            ],
+        );
+
+        let summary = scanner.calculate_summary(&findings);
+        assert_eq!(summary.total_findings, 5);
+        assert_eq!(summary.critical, 1);
+        assert_eq!(summary.high, 1);
+        assert_eq!(summary.medium, 1);
+        assert_eq!(summary.low, 1);
+        assert_eq!(summary.info, 1);
+    }
+
+    #[test]
+    fn test_status_high_severity_fail() {
+        let scanner = SecurityScanner::new(SecurityScanConfig {
+            fail_on_high_severity: true,
+            ..Default::default()
+        });
+
+        let summary = ScanSummary {
+            total_findings: 1,
+            critical: 0,
+            high: 1,
+            medium: 0,
+            low: 0,
+            info: 0,
+        };
+        assert_eq!(scanner.determine_status(&summary), ScanStatus::Fail);
+    }
+
+    #[test]
+    fn test_status_high_severity_warning() {
+        let scanner = SecurityScanner::new(SecurityScanConfig {
+            fail_on_high_severity: false,
+            ..Default::default()
+        });
+
+        let summary = ScanSummary {
+            total_findings: 1,
+            critical: 0,
+            high: 1,
+            medium: 0,
+            low: 0,
+            info: 0,
+        };
+        assert_eq!(scanner.determine_status(&summary), ScanStatus::Warning);
+    }
+
+    #[test]
+    fn test_status_medium_severity_fail() {
+        let scanner = SecurityScanner::new(SecurityScanConfig {
+            fail_on_high_severity: false,
+            fail_on_medium_severity: true,
+            ..Default::default()
+        });
+
+        let summary = ScanSummary {
+            total_findings: 1,
+            critical: 0,
+            high: 0,
+            medium: 1,
+            low: 0,
+            info: 0,
+        };
+        assert_eq!(scanner.determine_status(&summary), ScanStatus::Fail);
+    }
+
+    #[test]
+    fn test_status_medium_severity_warning() {
+        let scanner = SecurityScanner::new(SecurityScanConfig {
+            fail_on_high_severity: false,
+            fail_on_medium_severity: false,
+            ..Default::default()
+        });
+
+        let summary = ScanSummary {
+            total_findings: 1,
+            critical: 0,
+            high: 0,
+            medium: 1,
+            low: 0,
+            info: 0,
+        };
+        assert_eq!(scanner.determine_status(&summary), ScanStatus::Warning);
+    }
+
+    #[test]
+    fn test_should_scan_disabled() {
+        let scanner = SecurityScanner::new(SecurityScanConfig {
+            enabled: false,
+            ..Default::default()
+        });
+        assert!(!scanner.should_scan());
+    }
+
+    #[test]
+    fn test_get_last_result_none() {
+        let scanner = SecurityScanner::new(SecurityScanConfig::default());
+        assert!(scanner.get_last_result().is_none());
+    }
+
+    #[test]
+    fn test_gitlab_ci_config_generation() {
+        let config = CiCdIntegration::generate_gitlab_ci_config();
+        assert!(config.contains("cargo audit"));
+        assert!(config.contains("cargo clippy"));
+        assert!(config.contains("security-scan"));
+    }
+
+    #[test]
+    fn test_finding_category_variants() {
+        let categories = vec![
+            FindingCategory::Dependency,
+            FindingCategory::SecretLeak,
+            FindingCategory::CodeVulnerability,
+            FindingCategory::LicenseIssue,
+            FindingCategory::ConfigurationIssue,
+        ];
+
+        for category in categories {
+            // Ensure each variant can be serialized
+            let json = serde_json::to_string(&category).unwrap();
+            assert!(!json.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_security_scan_result_serde() {
+        let result = SecurityScanResult {
+            timestamp: Utc::now(),
+            status: ScanStatus::Pass,
+            findings: HashMap::new(),
+            summary: ScanSummary {
+                total_findings: 0,
+                critical: 0,
+                high: 0,
+                medium: 0,
+                low: 0,
+                info: 0,
+            },
+            recommendations: vec!["Test recommendation".to_string()],
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: SecurityScanResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.status, result.status);
+        assert_eq!(parsed.summary.total_findings, 0);
+    }
+
+    #[test]
+    fn test_security_finding_serde() {
+        let finding = SecurityFinding {
+            id: "TEST-001".to_string(),
+            title: "Test Finding".to_string(),
+            description: "A test finding".to_string(),
+            severity: Severity::High,
+            category: FindingCategory::Dependency,
+            component: "test-component".to_string(),
+            fix: Some("Apply fix".to_string()),
+            cve: Some("CVE-2021-12345".to_string()),
+        };
+
+        let json = serde_json::to_string(&finding).unwrap();
+        let parsed: SecurityFinding = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.id, finding.id);
+        assert_eq!(parsed.title, finding.title);
+        assert_eq!(parsed.cve, finding.cve);
+    }
+
+    #[test]
+    fn test_scan_status_serde() {
+        let statuses = vec![
+            ScanStatus::Pass,
+            ScanStatus::Warning,
+            ScanStatus::Fail,
+            ScanStatus::Error,
+        ];
+
+        for status in statuses {
+            let json = serde_json::to_string(&status).unwrap();
+            let parsed: ScanStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, status);
+        }
+    }
+
+    #[test]
+    fn test_empty_findings_summary() {
+        let scanner = SecurityScanner::new(SecurityScanConfig::default());
+        let findings: HashMap<String, Vec<SecurityFinding>> = HashMap::new();
+
+        let summary = scanner.calculate_summary(&findings);
+        assert_eq!(summary.total_findings, 0);
+        assert_eq!(summary.critical, 0);
+        assert_eq!(summary.high, 0);
+        assert_eq!(summary.medium, 0);
+        assert_eq!(summary.low, 0);
+        assert_eq!(summary.info, 0);
+    }
+
+    #[test]
+    fn test_multiple_categories_summary() {
+        let scanner = SecurityScanner::new(SecurityScanConfig::default());
+        let mut findings = HashMap::new();
+
+        findings.insert(
+            "dependencies".to_string(),
+            vec![SecurityFinding {
+                id: "DEP-001".to_string(),
+                title: "Dependency issue".to_string(),
+                description: "A dependency issue".to_string(),
+                severity: Severity::High,
+                category: FindingCategory::Dependency,
+                component: "deps".to_string(),
+                fix: None,
+                cve: None,
+            }],
+        );
+
+        findings.insert(
+            "secrets".to_string(),
+            vec![SecurityFinding {
+                id: "SEC-001".to_string(),
+                title: "Secret issue".to_string(),
+                description: "A secret issue".to_string(),
+                severity: Severity::Critical,
+                category: FindingCategory::SecretLeak,
+                component: "secrets".to_string(),
+                fix: None,
+                cve: None,
+            }],
+        );
+
+        let summary = scanner.calculate_summary(&findings);
+        assert_eq!(summary.total_findings, 2);
+        assert_eq!(summary.critical, 1);
+        assert_eq!(summary.high, 1);
+    }
 }
