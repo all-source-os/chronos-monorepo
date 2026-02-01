@@ -26,14 +26,14 @@ defmodule QueryServiceEx.Billing.HybridPricing do
   """
   def calculate_overage(%Tenant{} = tenant, :events) do
     case tenant.events_quota do
-      :unlimited -> 0
+      -1 -> 0
       quota -> max(0, tenant.events_used - quota)
     end
   end
 
   def calculate_overage(%Tenant{} = tenant, :queries) do
     case tenant.queries_quota do
-      :unlimited -> 0
+      -1 -> 0
       quota -> max(0, tenant.queries_used - quota)
     end
   end

@@ -265,7 +265,7 @@ defmodule QueryServiceEx.Tenants do
     :crypto.strong_rand_bytes(3) |> Base.url_encode64(padding: false) |> String.downcase()
   end
 
-  defp calculate_percentage(_used, :unlimited), do: 0.0
+  defp calculate_percentage(_used, -1), do: 0.0
 
   defp calculate_percentage(used, quota) when quota > 0 do
     Float.round(used / quota * 100, 1)

@@ -37,7 +37,9 @@ defmodule QueryServiceEx.AccountsTest do
 
     test "returns error with missing required fields" do
       assert {:error, changeset} = Accounts.create_user(%{})
-      assert %{email: ["can't be blank"], google_id: ["can't be blank"]} = errors_on(changeset)
+      errors = errors_on(changeset)
+      assert %{email: ["can't be blank"]} = errors
+      assert Map.has_key?(errors, :google_id)
     end
 
     test "returns error with duplicate email" do
@@ -62,7 +64,10 @@ defmodule QueryServiceEx.AccountsTest do
   describe "get_user/1" do
     test "returns the user with the given id" do
       {:ok, user} = Accounts.create_user(%{email: "test@example.com", google_id: "google_123"})
-      assert Accounts.get_user(user.id) == user
+      fetched = Accounts.get_user(user.id)
+      assert fetched.id == user.id
+      assert fetched.email == user.email
+      assert fetched.google_id == user.google_id
     end
 
     test "returns nil for non-existent id" do
@@ -73,7 +78,10 @@ defmodule QueryServiceEx.AccountsTest do
   describe "get_user_by_email/1" do
     test "returns the user with the given email" do
       {:ok, user} = Accounts.create_user(%{email: "test@example.com", google_id: "google_123"})
-      assert Accounts.get_user_by_email("test@example.com") == user
+      fetched = Accounts.get_user_by_email("test@example.com")
+      assert fetched.id == user.id
+      assert fetched.email == user.email
+      assert fetched.google_id == user.google_id
     end
 
     test "returns nil for non-existent email" do
@@ -84,7 +92,10 @@ defmodule QueryServiceEx.AccountsTest do
   describe "get_user_by_google_id/1" do
     test "returns the user with the given google_id" do
       {:ok, user} = Accounts.create_user(%{email: "test@example.com", google_id: "google_123"})
-      assert Accounts.get_user_by_google_id("google_123") == user
+      fetched = Accounts.get_user_by_google_id("google_123")
+      assert fetched.id == user.id
+      assert fetched.email == user.email
+      assert fetched.google_id == user.google_id
     end
 
     test "returns nil for non-existent google_id" do

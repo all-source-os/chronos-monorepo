@@ -19,11 +19,13 @@ defmodule QueryServiceEx.Tenants.Tenant do
   @subscription_tiers ~w(free starter pro enterprise)a
 
   # Tier quotas (events per month, queries per month)
+  # Use -1 to represent unlimited quota
+  @unlimited_quota -1
   @tier_quotas %{
     free: %{events: 10_000, queries: 1_000},
     starter: %{events: 100_000, queries: 10_000},
     pro: %{events: 1_000_000, queries: 100_000},
-    enterprise: %{events: :unlimited, queries: :unlimited}
+    enterprise: %{events: @unlimited_quota, queries: @unlimited_quota}
   }
 
   # Default overage rates (cents per unit above quota)
@@ -149,23 +151,30 @@ defmodule QueryServiceEx.Tenants.Tenant do
 
   @doc """
   Checks if the tenant has exceeded their events quota.
+  Returns false for unlimited quota (-1).
   """
   def events_quota_exceeded?(%__MODULE__{} = tenant) do
     case tenant.events_quota do
-      :unlimited -> false
+      -1 -> false
       quota -> tenant.events_used >= quota
     end
   end
 
   @doc """
   Checks if the tenant has exceeded their queries quota.
+  Returns false for unlimited quota (-1).
   """
   def queries_quota_exceeded?(%__MODULE__{} = tenant) do
     case tenant.queries_quota do
-      :unlimited -> false
+      -1 -> false
       quota -> tenant.queries_used >= quota
     end
   end
+
+  @doc """
+  Returns the sentinel value for unlimited quota.
+  """
+  def unlimited_quota, do: @unlimited_quota
 
   @doc """
   Checks if the tenant has an active subscription (including trial).

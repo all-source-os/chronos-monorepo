@@ -170,7 +170,7 @@ defmodule QueryServiceEx.TenantsTest do
 
       slug = Tenants.generate_slug("Unique Name")
       assert slug != "unique-name"
-      assert slug =~ ~r/^unique-name-[a-z0-9]+$/
+      assert slug =~ ~r/^unique-name-[a-z0-9_-]+$/
     end
   end
 

@@ -328,23 +328,26 @@ impl AuthManager {
 
     /// Validate API key
     pub fn validate_api_key(&self, key: &str) -> Result<Claims> {
-        for entry in self.api_keys.iter() {
+        // First, find the matching key and extract the data we need
+        // We must complete iteration before calling get_mut to avoid deadlock
+        let found_key = self.api_keys.iter().find_map(|entry| {
             let api_key = entry.value();
             if api_key.verify(key) {
-                // Update last used timestamp
-                if let Some(mut key_mut) = self.api_keys.get_mut(&api_key.id) {
-                    key_mut.last_used = Some(Utc::now());
-                }
-
-                let claims = Claims::new(
-                    api_key.id.to_string(),
-                    api_key.tenant_id.clone(),
-                    api_key.role.clone(),
-                    Duration::hours(24),
-                );
-
-                return Ok(claims);
+                Some((api_key.id, api_key.tenant_id.clone(), api_key.role.clone()))
+            } else {
+                None
             }
+        });
+
+        if let Some((key_id, tenant_id, role)) = found_key {
+            // Now safe to acquire write lock since iteration is complete
+            if let Some(mut key_mut) = self.api_keys.get_mut(&key_id) {
+                key_mut.last_used = Some(Utc::now());
+            }
+
+            let claims = Claims::new(key_id.to_string(), tenant_id, role, Duration::hours(24));
+
+            return Ok(claims);
         }
 
         Err(AllSourceError::ValidationError(

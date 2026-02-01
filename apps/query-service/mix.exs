@@ -89,15 +89,12 @@ defmodule QueryServiceEx.MixProject do
 
   defp aliases do
     [
-      # Run tests with testcontainers (spins up PostgreSQL in Docker)
-      # Use `mix test.container` for convenient testcontainers-based testing
-      "test.container": ["testcontainers.test --database postgres"],
-      # Run tests with cached database container (faster subsequent runs)
-      "test.container.cached": ["testcontainers.test --database postgres --db-volume query_service_test_vol"],
       # Setup task runs migrations
       setup: ["deps.get", "ecto.setup"],
       "ecto.setup": ["ecto.create", "ecto.migrate"],
-      "ecto.reset": ["ecto.drop", "ecto.setup"]
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
+      # Test with database setup
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"]
     ]
   end
 end

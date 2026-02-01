@@ -195,7 +195,10 @@ defmodule QueryServiceEx.UsageMeter do
   def check_quota_status(tenant_id, usage_type) when usage_type in @usage_types do
     percentage = get_usage_percentage(tenant_id, usage_type)
 
-    case Enum.find(@alert_thresholds, fn threshold -> percentage >= threshold end) do
+    # Find the highest threshold that has been reached/crossed
+    crossed_thresholds = Enum.filter(@alert_thresholds, fn threshold -> percentage >= threshold end)
+
+    case Enum.max(crossed_thresholds, fn -> nil end) do
       nil -> {:ok, percentage}
       threshold -> {:warning, percentage, threshold}
     end
@@ -231,7 +234,9 @@ defmodule QueryServiceEx.UsageMeter do
     percentage = get_usage_percentage(tenant_id, type)
 
     if percentage >= min_threshold do
-      threshold = Enum.find(@alert_thresholds, fn t -> percentage >= t end)
+      # Find the highest threshold that has been reached/crossed
+      crossed_thresholds = Enum.filter(@alert_thresholds, fn t -> percentage >= t end)
+      threshold = Enum.max(crossed_thresholds, fn -> nil end)
       {tenant_id, type, percentage, threshold}
     end
   end
@@ -294,7 +299,7 @@ defmodule QueryServiceEx.UsageMeter do
     end
   end
 
-  defp calculate_percentage(_used, :unlimited), do: 0.0
+  defp calculate_percentage(_used, -1), do: 0.0
 
   defp calculate_percentage(used, quota) when is_integer(quota) and quota > 0 do
     Float.round(used / quota * 100, 1)

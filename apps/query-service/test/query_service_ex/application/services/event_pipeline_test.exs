@@ -73,7 +73,6 @@ defmodule QueryServiceEx.Application.Services.EventPipelineTest do
     end
 
     test "projection state is cached after insert" do
-
       # Insert directly to ETS
       :ets.insert(:projection_state_cache, {{"entity_snapshots", "test-entity"}, %{name: "Test"}})
 

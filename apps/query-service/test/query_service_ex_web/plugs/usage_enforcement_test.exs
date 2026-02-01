@@ -278,8 +278,9 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcementTest do
           subscription_tier: :enterprise
         })
 
-      assert tenant.events_quota == :unlimited
-      assert tenant.queries_quota == :unlimited
+      # -1 represents unlimited quota
+      assert tenant.events_quota == -1
+      assert tenant.queries_quota == -1
     end
   end
 

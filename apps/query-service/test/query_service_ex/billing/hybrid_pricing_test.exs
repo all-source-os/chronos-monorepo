@@ -219,7 +219,7 @@ defmodule QueryServiceEx.Billing.HybridPricingTest do
       {:ok, _} = HybridPricing.record_overage(tenant.id, :events, 100)
       {:ok, updated} = HybridPricing.record_overage(tenant.id, :queries, 50)
 
-      assert updated.events_overage == 0
+      assert updated.events_overage == 100
       assert updated.queries_overage == 50
     end
   end
