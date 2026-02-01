@@ -28,13 +28,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install actionlint
-        run: |
-          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-bash.sh)
-          sudo mv actionlint /usr/local/bin/
-
       - name: Lint workflow files
-        run: actionlint -color
+        uses: rhysd/actionlint@v1.7.7
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   # Validate workflow structure with act (dry-run)
   workflow-validate:
