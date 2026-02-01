@@ -567,4 +567,282 @@ mod tests {
         let selected = manager.select_files_for_compaction(&files);
         assert_eq!(selected.len(), 2); // Only the 2 small files
     }
+
+    #[test]
+    fn test_default_compaction_config() {
+        let config = CompactionConfig::default();
+        assert_eq!(config.min_files_to_compact, 3);
+        assert_eq!(config.target_file_size, 128 * 1024 * 1024);
+        assert_eq!(config.max_file_size, 256 * 1024 * 1024);
+        assert_eq!(config.small_file_threshold, 10 * 1024 * 1024);
+        assert_eq!(config.compaction_interval_seconds, 3600);
+        assert!(config.auto_compact);
+        assert_eq!(config.strategy, CompactionStrategy::SizeBased);
+    }
+
+    #[test]
+    fn test_should_compact_disabled() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig {
+            auto_compact: false,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        assert!(!manager.should_compact());
+    }
+
+    #[test]
+    fn test_compact_empty_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig::default();
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let result = manager.compact().unwrap();
+        assert_eq!(result.files_compacted, 0);
+        assert_eq!(result.bytes_before, 0);
+        assert_eq!(result.bytes_after, 0);
+        assert_eq!(result.events_compacted, 0);
+    }
+
+    #[test]
+    fn test_compact_now() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig::default();
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let result = manager.compact_now().unwrap();
+        assert_eq!(result.files_compacted, 0);
+    }
+
+    #[test]
+    fn test_get_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig {
+            min_files_to_compact: 5,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        assert_eq!(manager.config().min_files_to_compact, 5);
+    }
+
+    #[test]
+    fn test_get_stats() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig::default();
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let stats = manager.stats();
+        assert_eq!(stats.total_compactions, 0);
+        assert_eq!(stats.total_files_compacted, 0);
+        assert_eq!(stats.total_bytes_before, 0);
+        assert_eq!(stats.total_bytes_after, 0);
+        assert_eq!(stats.total_events_compacted, 0);
+        assert_eq!(stats.last_compaction_duration_ms, 0);
+        assert_eq!(stats.space_saved_bytes, 0);
+    }
+
+    #[test]
+    fn test_file_selection_not_enough_small_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig {
+            small_file_threshold: 1024 * 1024,
+            min_files_to_compact: 3, // Need 3 files
+            strategy: CompactionStrategy::SizeBased,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let files = vec![
+            FileInfo {
+                path: PathBuf::from("small1.parquet"),
+                size: 500_000,
+                created: Utc::now(),
+            },
+            FileInfo {
+                path: PathBuf::from("small2.parquet"),
+                size: 600_000,
+                created: Utc::now(),
+            },
+        ];
+
+        let selected = manager.select_files_for_compaction(&files);
+        assert_eq!(selected.len(), 0); // Not enough small files
+    }
+
+    #[test]
+    fn test_file_selection_time_based() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            strategy: CompactionStrategy::TimeBased,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let old_time = Utc::now() - chrono::Duration::hours(48);
+        let files = vec![
+            FileInfo {
+                path: PathBuf::from("old1.parquet"),
+                size: 1_000_000,
+                created: old_time,
+            },
+            FileInfo {
+                path: PathBuf::from("old2.parquet"),
+                size: 2_000_000,
+                created: old_time,
+            },
+            FileInfo {
+                path: PathBuf::from("new.parquet"),
+                size: 500_000,
+                created: Utc::now(),
+            },
+        ];
+
+        let selected = manager.select_files_for_compaction(&files);
+        assert_eq!(selected.len(), 2); // Only the 2 old files
+    }
+
+    #[test]
+    fn test_file_selection_time_based_not_enough() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig {
+            min_files_to_compact: 3,
+            strategy: CompactionStrategy::TimeBased,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let old_time = Utc::now() - chrono::Duration::hours(48);
+        let files = vec![
+            FileInfo {
+                path: PathBuf::from("old1.parquet"),
+                size: 1_000_000,
+                created: old_time,
+            },
+            FileInfo {
+                path: PathBuf::from("new.parquet"),
+                size: 500_000,
+                created: Utc::now(),
+            },
+        ];
+
+        let selected = manager.select_files_for_compaction(&files);
+        assert_eq!(selected.len(), 0); // Not enough old files
+    }
+
+    #[test]
+    fn test_file_selection_full_compaction() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig {
+            strategy: CompactionStrategy::FullCompaction,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let files = vec![
+            FileInfo {
+                path: PathBuf::from("file1.parquet"),
+                size: 1_000_000,
+                created: Utc::now(),
+            },
+            FileInfo {
+                path: PathBuf::from("file2.parquet"),
+                size: 2_000_000,
+                created: Utc::now(),
+            },
+        ];
+
+        let selected = manager.select_files_for_compaction(&files);
+        assert_eq!(selected.len(), 2); // All files selected
+    }
+
+    #[test]
+    fn test_compaction_strategy_serde() {
+        let strategies = vec![
+            CompactionStrategy::SizeBased,
+            CompactionStrategy::TimeBased,
+            CompactionStrategy::FullCompaction,
+        ];
+
+        for strategy in strategies {
+            let json = serde_json::to_string(&strategy).unwrap();
+            let parsed: CompactionStrategy = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, strategy);
+        }
+    }
+
+    #[test]
+    fn test_compaction_stats_default() {
+        let stats = CompactionStats::default();
+        assert_eq!(stats.total_compactions, 0);
+        assert_eq!(stats.total_files_compacted, 0);
+    }
+
+    #[test]
+    fn test_compaction_stats_serde() {
+        let stats = CompactionStats {
+            total_compactions: 5,
+            total_files_compacted: 20,
+            total_bytes_before: 1000000,
+            total_bytes_after: 500000,
+            total_events_compacted: 10000,
+            last_compaction_duration_ms: 500,
+            space_saved_bytes: 500000,
+        };
+
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("\"total_compactions\":5"));
+        assert!(json.contains("\"space_saved_bytes\":500000"));
+    }
+
+    #[test]
+    fn test_compaction_result_serde() {
+        let result = CompactionResult {
+            files_compacted: 3,
+            bytes_before: 1000000,
+            bytes_after: 500000,
+            events_compacted: 5000,
+            duration_ms: 250,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"files_compacted\":3"));
+        assert!(json.contains("\"bytes_before\":1000000"));
+    }
+
+    #[test]
+    fn test_compaction_task_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig::default();
+        let manager = Arc::new(CompactionManager::new(temp_dir.path(), config));
+
+        let _task = CompactionTask::new(manager.clone(), 60);
+        // Task created successfully
+    }
+
+    #[test]
+    fn test_list_parquet_files_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig::default();
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let files = manager.list_parquet_files().unwrap();
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_list_parquet_files_with_non_parquet() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = CompactionConfig::default();
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        // Create non-parquet files
+        std::fs::write(temp_dir.path().join("test.txt"), "test").unwrap();
+        std::fs::write(temp_dir.path().join("data.json"), "{}").unwrap();
+
+        let files = manager.list_parquet_files().unwrap();
+        assert!(files.is_empty()); // No parquet files
+    }
 }

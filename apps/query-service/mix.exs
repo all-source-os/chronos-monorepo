@@ -10,7 +10,19 @@ defmodule QueryServiceEx.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       releases: releases(),
-      aliases: aliases()
+      aliases: aliases(),
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test
+      ]
     ]
   end
 
@@ -73,7 +85,13 @@ defmodule QueryServiceEx.MixProject do
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
 
       # Testcontainers for database testing
-      {:testcontainers, "~> 1.13", only: :test}
+      {:testcontainers, "~> 1.13", only: :test},
+
+      # Mocking
+      {:mox, "~> 1.1", only: :test},
+
+      # Code coverage
+      {:excoveralls, "~> 0.18", only: :test}
     ]
   end
 
@@ -92,9 +110,8 @@ defmodule QueryServiceEx.MixProject do
       # Setup task runs migrations
       setup: ["deps.get", "ecto.setup"],
       "ecto.setup": ["ecto.create", "ecto.migrate"],
-      "ecto.reset": ["ecto.drop", "ecto.setup"],
-      # Test with database setup
-      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"]
+      "ecto.reset": ["ecto.drop", "ecto.setup"]
+      # Tests use testcontainers - no ecto.create needed before mix test
     ]
   end
 end

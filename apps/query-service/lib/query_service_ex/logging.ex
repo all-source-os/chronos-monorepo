@@ -75,7 +75,7 @@ defmodule QueryServiceEx.Logging do
   Clears logger metadata for the current process.
   """
   def clear_context do
-    Logger.metadata([])
+    Logger.reset_metadata([])
   end
 
   @doc """
@@ -89,7 +89,7 @@ defmodule QueryServiceEx.Logging do
     try do
       fun.()
     after
-      Logger.metadata(original)
+      Logger.reset_metadata(original)
     end
   end
 end

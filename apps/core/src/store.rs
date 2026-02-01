@@ -828,4 +828,440 @@ impl Default for EventStore {
     }
 }
 
-// Tests for store are covered in integration tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::entities::Event;
+    use tempfile::TempDir;
+
+    fn create_test_event(entity_id: &str, event_type: &str) -> Event {
+        Event::from_strings(
+            event_type.to_string(),
+            entity_id.to_string(),
+            "default".to_string(),
+            serde_json::json!({"name": "Test", "value": 42}),
+            None,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_event_store_new() {
+        let store = EventStore::new();
+        assert_eq!(store.stats().total_events, 0);
+        assert_eq!(store.stats().total_entities, 0);
+    }
+
+    #[test]
+    fn test_event_store_default() {
+        let store = EventStore::default();
+        assert_eq!(store.stats().total_events, 0);
+    }
+
+    #[test]
+    fn test_ingest_single_event() {
+        let store = EventStore::new();
+        let event = create_test_event("entity-1", "user.created");
+
+        store.ingest(event).unwrap();
+
+        assert_eq!(store.stats().total_events, 1);
+        assert_eq!(store.stats().total_ingested, 1);
+    }
+
+    #[test]
+    fn test_ingest_multiple_events() {
+        let store = EventStore::new();
+
+        for i in 0..10 {
+            let event = create_test_event(&format!("entity-{}", i), "user.created");
+            store.ingest(event).unwrap();
+        }
+
+        assert_eq!(store.stats().total_events, 10);
+        assert_eq!(store.stats().total_ingested, 10);
+    }
+
+    #[test]
+    fn test_query_by_entity_id() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "user.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-2", "user.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-1", "user.updated"))
+            .unwrap();
+
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: Some("entity-1".to_string()),
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_query_by_event_type() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "user.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-2", "user.updated"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-3", "user.created"))
+            .unwrap();
+
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: Some("user.created".to_string()),
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_query_with_limit() {
+        let store = EventStore::new();
+
+        for i in 0..10 {
+            let event = create_test_event(&format!("entity-{}", i), "user.created");
+            store.ingest(event).unwrap();
+        }
+
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: Some(5),
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 5);
+    }
+
+    #[test]
+    fn test_query_empty_store() {
+        let store = EventStore::new();
+
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: Some("non-existent".to_string()),
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+            })
+            .unwrap();
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_reconstruct_state() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "user.created"))
+            .unwrap();
+
+        let state = store.reconstruct_state("entity-1", None).unwrap();
+        // The state is wrapped with metadata
+        assert_eq!(state["current_state"]["name"], "Test");
+        assert_eq!(state["current_state"]["value"], 42);
+    }
+
+    #[test]
+    fn test_reconstruct_state_not_found() {
+        let store = EventStore::new();
+
+        let result = store.reconstruct_state("non-existent", None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_snapshot_empty() {
+        let store = EventStore::new();
+
+        let result = store.get_snapshot("non-existent");
+        // Entity not found error is expected
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_snapshot() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "user.created"))
+            .unwrap();
+
+        store.create_snapshot("entity-1").unwrap();
+
+        // Verify snapshot was created
+        let snapshot = store.get_snapshot("entity-1").unwrap();
+        assert!(snapshot != serde_json::json!(null));
+    }
+
+    #[test]
+    fn test_create_snapshot_entity_not_found() {
+        let store = EventStore::new();
+
+        let result = store.create_snapshot("non-existent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_websocket_manager() {
+        let store = EventStore::new();
+        let manager = store.websocket_manager();
+        // Manager should be accessible
+        assert!(Arc::strong_count(&manager) >= 1);
+    }
+
+    #[test]
+    fn test_snapshot_manager() {
+        let store = EventStore::new();
+        let manager = store.snapshot_manager();
+        assert!(Arc::strong_count(&manager) >= 1);
+    }
+
+    #[test]
+    fn test_compaction_manager_none() {
+        let store = EventStore::new();
+        // Without storage_dir, compaction manager should be None
+        assert!(store.compaction_manager().is_none());
+    }
+
+    #[test]
+    fn test_schema_registry() {
+        let store = EventStore::new();
+        let registry = store.schema_registry();
+        assert!(Arc::strong_count(&registry) >= 1);
+    }
+
+    #[test]
+    fn test_replay_manager() {
+        let store = EventStore::new();
+        let manager = store.replay_manager();
+        assert!(Arc::strong_count(&manager) >= 1);
+    }
+
+    #[test]
+    fn test_pipeline_manager() {
+        let store = EventStore::new();
+        let manager = store.pipeline_manager();
+        assert!(Arc::strong_count(&manager) >= 1);
+    }
+
+    #[test]
+    fn test_projection_manager() {
+        let store = EventStore::new();
+        let manager = store.projection_manager();
+        // Built-in projections should be registered
+        let projections = manager.list_projections();
+        assert!(projections.len() >= 2); // entity_snapshots and event_counters
+    }
+
+    #[test]
+    fn test_projection_state_cache() {
+        let store = EventStore::new();
+        let cache = store.projection_state_cache();
+
+        cache.insert("test:key".to_string(), serde_json::json!({"value": 123}));
+        assert_eq!(cache.len(), 1);
+
+        let value = cache.get("test:key").unwrap();
+        assert_eq!(value["value"], 123);
+    }
+
+    #[test]
+    fn test_metrics() {
+        let store = EventStore::new();
+        let metrics = store.metrics();
+        assert!(Arc::strong_count(&metrics) >= 1);
+    }
+
+    #[test]
+    fn test_store_stats() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "user.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-2", "order.placed"))
+            .unwrap();
+
+        let stats = store.stats();
+        assert_eq!(stats.total_events, 2);
+        assert_eq!(stats.total_entities, 2);
+        assert_eq!(stats.total_event_types, 2);
+        assert_eq!(stats.total_ingested, 2);
+    }
+
+    #[test]
+    fn test_event_store_config_default() {
+        let config = EventStoreConfig::default();
+        assert!(config.storage_dir.is_none());
+        assert!(config.wal_dir.is_none());
+    }
+
+    #[test]
+    fn test_event_store_config_with_persistence() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = EventStoreConfig::with_persistence(temp_dir.path());
+
+        assert!(config.storage_dir.is_some());
+        assert!(config.wal_dir.is_none());
+    }
+
+    #[test]
+    fn test_event_store_config_with_wal() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = EventStoreConfig::with_wal(temp_dir.path(), WALConfig::default());
+
+        assert!(config.storage_dir.is_none());
+        assert!(config.wal_dir.is_some());
+    }
+
+    #[test]
+    fn test_event_store_config_with_all() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = EventStoreConfig::with_all(temp_dir.path(), SnapshotConfig::default());
+
+        assert!(config.storage_dir.is_some());
+    }
+
+    #[test]
+    fn test_event_store_config_production() {
+        let storage_dir = TempDir::new().unwrap();
+        let wal_dir = TempDir::new().unwrap();
+        let config = EventStoreConfig::production(
+            storage_dir.path(),
+            wal_dir.path(),
+            SnapshotConfig::default(),
+            WALConfig::default(),
+            CompactionConfig::default(),
+        );
+
+        assert!(config.storage_dir.is_some());
+        assert!(config.wal_dir.is_some());
+    }
+
+    #[test]
+    fn test_store_stats_serde() {
+        let stats = StoreStats {
+            total_events: 100,
+            total_entities: 50,
+            total_event_types: 10,
+            total_ingested: 100,
+        };
+
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("\"total_events\":100"));
+        assert!(json.contains("\"total_entities\":50"));
+    }
+
+    #[test]
+    fn test_query_with_entity_and_type() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "user.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-1", "user.updated"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-2", "user.created"))
+            .unwrap();
+
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: Some("entity-1".to_string()),
+                event_type: Some("user.created".to_string()),
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].event_type_str(), "user.created");
+    }
+
+    #[test]
+    fn test_flush_storage_no_storage() {
+        let store = EventStore::new();
+        // Without storage, flush should succeed (no-op)
+        let result = store.flush_storage();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_state_evolution() {
+        let store = EventStore::new();
+
+        // Initial state
+        store
+            .ingest(
+                Event::from_strings(
+                    "user.created".to_string(),
+                    "user-1".to_string(),
+                    "default".to_string(),
+                    serde_json::json!({"name": "Alice", "age": 25}),
+                    None,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        // Update state
+        store
+            .ingest(
+                Event::from_strings(
+                    "user.updated".to_string(),
+                    "user-1".to_string(),
+                    "default".to_string(),
+                    serde_json::json!({"age": 26}),
+                    None,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        let state = store.reconstruct_state("user-1", None).unwrap();
+        // The state is wrapped with metadata
+        assert_eq!(state["current_state"]["name"], "Alice");
+        assert_eq!(state["current_state"]["age"], 26);
+    }
+}

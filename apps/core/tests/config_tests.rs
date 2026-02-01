@@ -11,15 +11,43 @@ fn test_config_from_toml() {
 [server]
 host = "0.0.0.0"
 port = 9090
+max_connections = 10000
+request_timeout_secs = 30
+cors_enabled = true
+cors_origins = ["*"]
 
 [storage]
 data_dir = "/tmp/test"
 wal_dir = "/tmp/wal"
 batch_size = 500
+compression = "lz4"
 
 [auth]
 jwt_secret = "test-secret"
 jwt_expiry_hours = 48
+password_min_length = 8
+require_email_verification = false
+session_timeout_minutes = 60
+
+[rate_limit]
+enabled = true
+default_tier = "professional"
+
+[backup]
+enabled = false
+backup_dir = "./backups"
+retention_count = 7
+compression_level = 6
+verify_after_backup = true
+
+[metrics]
+enabled = true
+endpoint = "/metrics"
+
+[logging]
+level = "info"
+format = "pretty"
+output = "stdout"
 "#;
 
     let mut temp_file = NamedTempFile::new().unwrap();
@@ -80,8 +108,8 @@ fn test_config_validation() {
 
     config.server.port = 3900;
 
-    // Empty JWT secret should fail
-    config.auth.jwt_secret = "".to_string();
+    // Empty data directory should fail
+    config.storage.data_dir = std::path::PathBuf::from("");
     assert!(config.validate().is_err());
 }
 

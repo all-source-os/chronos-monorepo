@@ -535,4 +535,122 @@ mod tests {
         assert!(stats.current_limit <= 200); // Should not exceed max
         assert!(stats.current_limit >= 50); // Should not go below min
     }
+
+    #[test]
+    fn test_default_config() {
+        let config = AdaptiveRateLimitConfig::default();
+        assert!(config.enabled);
+        assert!(config.min_rate_limit > 0);
+        assert!(config.max_rate_limit > config.min_rate_limit);
+    }
+
+    #[test]
+    fn test_config_serde() {
+        let config = AdaptiveRateLimitConfig::default();
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: AdaptiveRateLimitConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.enabled, config.enabled);
+        assert_eq!(parsed.min_rate_limit, config.min_rate_limit);
+    }
+
+    #[test]
+    fn test_system_load_clone() {
+        let load = SystemLoad {
+            cpu_usage: 0.5,
+            memory_usage: 0.6,
+            active_connections: 100,
+            queue_depth: 50,
+        };
+
+        let cloned = load.clone();
+        assert_eq!(cloned.cpu_usage, load.cpu_usage);
+        assert_eq!(cloned.active_connections, load.active_connections);
+    }
+
+    #[test]
+    fn test_get_tenant_stats_none() {
+        let limiter = AdaptiveRateLimiter::new(AdaptiveRateLimitConfig::default());
+        let stats = limiter.get_tenant_stats("nonexistent");
+        assert!(stats.is_none());
+    }
+
+    #[test]
+    fn test_adaptive_limit_stats_serde() {
+        let stats = AdaptiveLimitStats {
+            current_limit: 100,
+            base_limit: 50,
+            requests_last_hour: 25,
+            avg_requests_per_hour: 30.0,
+            utilization: 0.25,
+            total_adjustments: 5,
+            last_adjustment: Some(Utc::now()),
+        };
+
+        let json = serde_json::to_string(&stats).unwrap();
+        let parsed: AdaptiveLimitStats = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.current_limit, stats.current_limit);
+        assert_eq!(parsed.utilization, stats.utilization);
+    }
+
+    #[test]
+    fn test_record_system_load() {
+        let limiter = AdaptiveRateLimiter::new(AdaptiveRateLimitConfig::default());
+
+        // Record multiple loads
+        for i in 0..5 {
+            limiter.record_system_load(SystemLoad {
+                cpu_usage: i as f64 * 0.1,
+                memory_usage: 0.5,
+                active_connections: i * 10,
+                queue_depth: i,
+            });
+        }
+
+        let stats = limiter.get_stats();
+        assert_eq!(stats.total_tenants, 0); // No tenants yet
+    }
+
+    #[test]
+    fn test_multiple_tenants() {
+        let limiter = AdaptiveRateLimiter::new(AdaptiveRateLimitConfig {
+            enabled: true,
+            ..Default::default()
+        });
+
+        // Check limits for multiple tenants
+        limiter.check_adaptive_limit("tenant1").unwrap();
+        limiter.check_adaptive_limit("tenant2").unwrap();
+        limiter.check_adaptive_limit("tenant3").unwrap();
+
+        let stats = limiter.get_stats();
+        assert_eq!(stats.total_tenants, 3);
+    }
+
+    #[test]
+    fn test_adaptive_limiter_stats_serde() {
+        let stats = AdaptiveRateLimiterStats {
+            total_tenants: 10,
+            total_requests: 1000,
+            config: AdaptiveRateLimitConfig::default(),
+        };
+
+        let json = serde_json::to_string(&stats).unwrap();
+        let parsed: AdaptiveRateLimiterStats = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.total_tenants, stats.total_tenants);
+        assert_eq!(parsed.total_requests, stats.total_requests);
+    }
+
+    #[test]
+    fn test_tenant_profile_initialization() {
+        let limiter = AdaptiveRateLimiter::new(AdaptiveRateLimitConfig {
+            enabled: true,
+            ..Default::default()
+        });
+
+        // First request creates a profile
+        limiter.check_adaptive_limit("new_tenant").unwrap();
+
+        let stats = limiter.get_tenant_stats("new_tenant");
+        assert!(stats.is_some());
+    }
 }

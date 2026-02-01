@@ -225,7 +225,8 @@ fn test_time_travel_queries() {
 
     let timestamps: Vec<_> = (0..10)
         .map(|i| {
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            // Use 50ms sleep to ensure timestamps are clearly distinct on slow CI systems
+            std::thread::sleep(std::time::Duration::from_millis(50));
             let event = create_test_event(
                 "document-1",
                 "content.updated",

@@ -935,7 +935,7 @@ mod tests {
 
     #[test]
     fn test_auth_state_clone() {
-        let auth_manager = Arc::new(AuthManager::new("test-secret".to_string()));
+        let auth_manager = Arc::new(AuthManager::new("test-secret"));
         let state = AuthState { auth_manager };
         let cloned = state.clone();
         assert!(Arc::ptr_eq(&state.auth_manager, &cloned.auth_manager));
@@ -944,7 +944,7 @@ mod tests {
     #[test]
     fn test_rate_limit_state_clone() {
         use crate::infrastructure::security::rate_limit::RateLimitConfig;
-        let rate_limiter = Arc::new(RateLimiter::new(RateLimitConfig::default()));
+        let rate_limiter = Arc::new(RateLimiter::new(RateLimitConfig::free_tier()));
         let state = RateLimitState { rate_limiter };
         let cloned = state.clone();
         assert!(Arc::ptr_eq(&state.rate_limiter, &cloned.rate_limiter));

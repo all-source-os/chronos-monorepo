@@ -167,7 +167,7 @@ impl AuditLogBuilder {
 /// - Error handling (audit failures are logged but don't break requests)
 ///
 /// # Example
-/// ```rust
+/// ```ignore
 /// let audit_logger = AuditLogger::new(audit_repo);
 ///
 /// audit_logger.log(

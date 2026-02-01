@@ -1,18 +1,5 @@
 defmodule QueryServiceEx do
   @moduledoc """
-  Documentation for `QueryServiceEx`.
+  QueryServiceEx is the main module for the Query Service application.
   """
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> QueryServiceEx.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
 end

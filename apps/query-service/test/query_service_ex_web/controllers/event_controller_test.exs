@@ -1,6 +1,8 @@
 defmodule QueryServiceExWeb.EventControllerTest do
   use ExUnit.Case, async: false
-  use Plug.Test
+
+  import Plug.Test
+  import Plug.Conn
 
   alias QueryServiceExWeb.Router
 

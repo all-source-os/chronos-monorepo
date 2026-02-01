@@ -161,7 +161,7 @@ defmodule QueryServiceEx.CircuitBreaker do
   @impl GenServer
   def handle_call({:record_failure, circuit_name}, _from, state) do
     circuit = get_or_init_circuit(state.circuits, circuit_name)
-    new_circuit = record_failure(circuit, state)
+    new_circuit = record_failure(circuit, circuit_name, state)
     new_circuits = Map.put(state.circuits, circuit_name, new_circuit)
     {:reply, :ok, %{state | circuits: new_circuits}}
   end
@@ -265,7 +265,7 @@ defmodule QueryServiceEx.CircuitBreaker do
     end
   end
 
-  defp record_failure(circuit, config) do
+  defp record_failure(circuit, circuit_name, config) do
     new_failure_count = circuit.failure_count + 1
 
     new_circuit = %{
@@ -278,7 +278,7 @@ defmodule QueryServiceEx.CircuitBreaker do
       :half_open ->
         # Any failure in half-open reopens the circuit
         Logger.warning("[CircuitBreaker] Failure in half-open state, reopening circuit")
-        schedule_reset_timeout(config.reset_timeout_ms)
+        schedule_reset_timeout(circuit_name, config.reset_timeout_ms)
 
         :telemetry.execute(
           [:query_service_ex, :circuit_breaker, :opened],
@@ -294,7 +294,7 @@ defmodule QueryServiceEx.CircuitBreaker do
             "[CircuitBreaker] Failure threshold reached (#{new_failure_count}), opening circuit"
           )
 
-          schedule_reset_timeout(config.reset_timeout_ms)
+          schedule_reset_timeout(circuit_name, config.reset_timeout_ms)
 
           :telemetry.execute(
             [:query_service_ex, :circuit_breaker, :opened],
@@ -312,8 +312,7 @@ defmodule QueryServiceEx.CircuitBreaker do
     end
   end
 
-  defp schedule_reset_timeout(timeout_ms) do
-    # Using a default circuit name for the timer
-    Process.send_after(self(), {:reset_timeout, :default}, timeout_ms)
+  defp schedule_reset_timeout(circuit_name, timeout_ms) do
+    Process.send_after(self(), {:reset_timeout, circuit_name}, timeout_ms)
   end
 end

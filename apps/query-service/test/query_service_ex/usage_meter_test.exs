@@ -14,6 +14,15 @@ defmodule QueryServiceEx.UsageMeterTest do
 
   @moduletag :database
 
+  # Helper to wait for async operations with exponential backoff
+  # This handles CI timing variability better than fixed sleeps
+  defp wait_for_async(max_attempts \\ 10, initial_delay \\ 50) do
+    Enum.each(1..max_attempts, fn attempt ->
+      delay = min(initial_delay * attempt, 500)
+      :timer.sleep(delay)
+    end)
+  end
+
   setup do
     {:ok, tenant} =
       Tenants.create_tenant(%{
@@ -256,8 +265,8 @@ defmodule QueryServiceEx.UsageMeterTest do
       # Record usage that exceeds quota (10,000 default)
       {:ok, updated} = UsageMeter.record_events(tenant.id, count: 12_000)
 
-      # Wait for async overage recording
-      :timer.sleep(100)
+      # Wait for async overage recording with retries for CI stability
+      wait_for_async()
 
       # Check overage was calculated correctly
       assert updated.events_used == 12_000
@@ -270,11 +279,11 @@ defmodule QueryServiceEx.UsageMeterTest do
 
       # First push over quota
       {:ok, _} = UsageMeter.record_events(tenant.id, count: 11_000)
-      :timer.sleep(100)
+      wait_for_async()
 
       # Record more events (all should be overage)
       {:ok, updated} = UsageMeter.record_events(tenant.id, count: 500)
-      :timer.sleep(100)
+      wait_for_async()
 
       assert updated.events_used == 11_500
       overage = HybridPricing.calculate_overage(updated, :events)
@@ -285,7 +294,7 @@ defmodule QueryServiceEx.UsageMeterTest do
       # Overage billing not enabled (default)
       {:ok, updated} = UsageMeter.record_events(tenant.id, count: 12_000)
 
-      :timer.sleep(100)
+      wait_for_async()
 
       # Overage should not be reported
       refreshed = Tenants.get_tenant!(tenant.id)
@@ -301,7 +310,7 @@ defmodule QueryServiceEx.UsageMeterTest do
 
       # Record 1,000 more (crosses quota by 500)
       {:ok, updated} = UsageMeter.record_events(tenant.id, count: 1_000)
-      :timer.sleep(100)
+      wait_for_async()
 
       assert updated.events_used == 10_500
       overage = HybridPricing.calculate_overage(updated, :events)

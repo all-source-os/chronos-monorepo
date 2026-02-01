@@ -1,6 +1,6 @@
 .PHONY: help install dev build clean demo test lint check-versions \
         core control web mcp \
-        docker-build docker-test docker-test-quick docker-clean \
+        docker-build docker-test docker-test-quick docker-clean docker-purge \
         docker-core docker-web docker-query docker-mcp docker-control \
         quality-gates quality-rust quality-go quality-elixir
 
@@ -206,13 +206,24 @@ docker-build:
 	./scripts/container-test.sh --build-only
 
 docker-clean:
-	@echo "🧹 Cleaning test containers..."
+	@echo "🧹 Cleaning test containers and images..."
+	-docker rm -f query-service-test-db 2>/dev/null
 	-docker rmi chronos-core:test 2>/dev/null
 	-docker rmi chronos-web:test 2>/dev/null
 	-docker rmi chronos-query-service:test 2>/dev/null
 	-docker rmi chronos-mcp-server:test 2>/dev/null
 	-docker rmi chronos-control-plane:test 2>/dev/null
 	@echo "✅ Test images cleaned"
+
+docker-purge:
+	@echo "🧹 Purging ALL docker resources (containers, images, volumes, networks)..."
+	-docker stop $$(docker ps -aq) 2>/dev/null
+	-docker rm $$(docker ps -aq) 2>/dev/null
+	-docker rmi $$(docker images -q) 2>/dev/null
+	-docker volume prune -f 2>/dev/null
+	-docker network prune -f 2>/dev/null
+	-docker system prune -af 2>/dev/null
+	@echo "✅ All docker resources purged"
 
 # Individual container builds
 docker-core:

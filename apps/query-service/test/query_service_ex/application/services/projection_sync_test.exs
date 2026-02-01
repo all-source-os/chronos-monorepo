@@ -5,6 +5,15 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
 
   @moduletag :projection_sync
 
+  # Helper to wait for async GenServer operations with exponential backoff
+  # This handles CI timing variability better than fixed sleeps
+  defp wait_for_genserver(max_attempts \\ 10, initial_delay \\ 20) do
+    Enum.each(1..max_attempts, fn attempt ->
+      delay = min(initial_delay * attempt, 200)
+      Process.sleep(delay)
+    end)
+  end
+
   setup do
     # Initialize ETS cache
     ProjectionSync.init_cache()
@@ -91,7 +100,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
       ProjectionSync.apply_event(pid, event)
 
       # Give it a moment to process
-      Process.sleep(10)
+      wait_for_genserver()
 
       state = ProjectionSync.get_state(pid)
       assert state["name"] == "John"
@@ -115,7 +124,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
 
       # Apply event
       ProjectionSync.apply_event(pid, %{"payload" => %{"value" => 1}})
-      Process.sleep(10)
+      wait_for_genserver()
 
       # Now dirty
       assert ProjectionSync.dirty?(pid)
@@ -137,7 +146,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
 
       # Apply event
       ProjectionSync.apply_event(pid, %{"payload" => %{"cached" => true}})
-      Process.sleep(10)
+      wait_for_genserver()
 
       # Check ETS cache directly
       cached = ProjectionSync.get_state_from_cache("cache_test", "entity-cache")
@@ -149,7 +158,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
 
   describe "custom project function" do
     test "uses custom function to apply events" do
-      custom_fn = fn state, event ->
+      custom_fn = fn state, _event ->
         count = Map.get(state, :count, 0)
         Map.put(state, :count, count + 1)
       end
@@ -168,7 +177,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
       ProjectionSync.apply_event(pid, %{})
       ProjectionSync.apply_event(pid, %{})
       ProjectionSync.apply_event(pid, %{})
-      Process.sleep(10)
+      wait_for_genserver()
 
       state = ProjectionSync.get_state(pid)
       assert state.count == 3

@@ -249,17 +249,25 @@ defmodule QueryServiceEx.ApiKeysTest do
     end
 
     test "returns error for expired key", %{tenant: tenant, user: user} do
-      # Create key with very short expiration that we'll manually expire
-      {:ok, {raw_key, api_key}} =
+      # Create key with very short expiration
+      {:ok, {raw_key, _api_key}} =
         ApiKeys.create_api_key(tenant.id, user.id, %{
           name: "Expiring",
           expires_at: DateTime.utc_now() |> DateTime.add(1, :second)
         })
 
-      # Wait for expiration
-      Process.sleep(1500)
+      # Wait for expiration with retry loop to handle CI timing variability
+      result =
+        Enum.reduce_while(1..20, :not_expired, fn _attempt, _acc ->
+          Process.sleep(200)
 
-      assert {:error, :key_expired} = ApiKeys.verify_api_key(raw_key)
+          case ApiKeys.verify_api_key(raw_key) do
+            {:error, :key_expired} -> {:halt, {:error, :key_expired}}
+            _ -> {:cont, :not_expired}
+          end
+        end)
+
+      assert {:error, :key_expired} = result
     end
   end
 

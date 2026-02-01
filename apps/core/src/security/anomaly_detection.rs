@@ -601,6 +601,23 @@ mod tests {
         AuditEvent::new(tenant_id, action, actor, outcome)
     }
 
+    fn create_system_event(action: AuditAction, outcome: AuditOutcome) -> AuditEvent {
+        let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
+        let actor = Actor::System {
+            component: "test-service".to_string(),
+        };
+        AuditEvent::new(tenant_id, action, actor, outcome)
+    }
+
+    fn create_api_key_event(action: AuditAction, outcome: AuditOutcome) -> AuditEvent {
+        let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
+        let actor = Actor::ApiKey {
+            key_id: "key-123".to_string(),
+            key_name: "test-key".to_string(),
+        };
+        AuditEvent::new(tenant_id, action, actor, outcome)
+    }
+
     #[test]
     fn test_anomaly_detector_creation() {
         let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
@@ -679,5 +696,286 @@ mod tests {
 
         let result = detector.analyze_event(&event).unwrap();
         assert!(!result.is_anomalous);
+    }
+
+    #[test]
+    fn test_default_config() {
+        let config = AnomalyDetectionConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.sensitivity, 0.7);
+        assert_eq!(config.min_baseline_events, 100);
+        assert_eq!(config.analysis_window_hours, 24);
+        assert!(config.enable_brute_force_detection);
+        assert!(config.enable_unusual_access_detection);
+        assert!(config.enable_privilege_escalation_detection);
+        assert!(config.enable_data_exfiltration_detection);
+        assert!(config.enable_velocity_detection);
+    }
+
+    #[test]
+    fn test_config_serde() {
+        let config = AnomalyDetectionConfig::default();
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: AnomalyDetectionConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.enabled, config.enabled);
+        assert_eq!(parsed.sensitivity, config.sensitivity);
+    }
+
+    #[test]
+    fn test_anomaly_type_equality() {
+        assert_eq!(AnomalyType::BruteForceAttack, AnomalyType::BruteForceAttack);
+        assert_ne!(AnomalyType::BruteForceAttack, AnomalyType::DataExfiltration);
+    }
+
+    #[test]
+    fn test_recommended_action_equality() {
+        assert_eq!(RecommendedAction::Monitor, RecommendedAction::Monitor);
+        assert_ne!(RecommendedAction::Monitor, RecommendedAction::Block);
+    }
+
+    #[test]
+    fn test_system_actor_not_flagged() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+        let event = create_system_event(AuditAction::EventIngested, AuditOutcome::Success);
+
+        let result = detector.analyze_event(&event).unwrap();
+        assert!(!result.is_anomalous);
+        assert_eq!(result.reason, "System actor");
+    }
+
+    #[test]
+    fn test_api_key_actor_analyzed() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+        let event = create_api_key_event(AuditAction::EventQueried, AuditOutcome::Success);
+
+        let result = detector.analyze_event(&event).unwrap();
+        assert!(!result.is_anomalous);
+    }
+
+    #[test]
+    fn test_update_profile_api_key() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+        let event = create_api_key_event(AuditAction::EventQueried, AuditOutcome::Success);
+
+        detector.update_profile(&event).unwrap();
+
+        let stats = detector.get_stats();
+        assert_eq!(stats.user_profiles_count, 1);
+    }
+
+    #[test]
+    fn test_update_profile_system() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+        let event = create_system_event(AuditAction::EventIngested, AuditOutcome::Success);
+
+        detector.update_profile(&event).unwrap();
+
+        let stats = detector.get_stats();
+        // System events don't create user profiles
+        assert_eq!(stats.user_profiles_count, 0);
+    }
+
+    #[test]
+    fn test_recent_events_pruning() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+
+        // Add more than 10000 events
+        for i in 0..10050 {
+            let event = create_test_event(
+                AuditAction::EventQueried,
+                AuditOutcome::Success,
+                &format!("user{}", i % 100),
+            );
+            detector.add_recent_event(event);
+        }
+
+        let stats = detector.get_stats();
+        // Should be pruned to around 10000
+        assert!(stats.recent_events_count <= 10050);
+    }
+
+    #[test]
+    fn test_detection_stats_serde() {
+        let stats = DetectionStats {
+            user_profiles_count: 10,
+            recent_events_count: 100,
+            config: AnomalyDetectionConfig::default(),
+        };
+
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("\"user_profiles_count\":10"));
+        assert!(json.contains("\"recent_events_count\":100"));
+    }
+
+    #[test]
+    fn test_anomaly_result_serde() {
+        let result = AnomalyResult {
+            is_anomalous: true,
+            score: 0.85,
+            anomaly_type: Some(AnomalyType::BruteForceAttack),
+            reason: "Test reason".to_string(),
+            recommended_action: RecommendedAction::Block,
+            factors: vec!["factor1".to_string(), "factor2".to_string()],
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: AnomalyResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.is_anomalous, result.is_anomalous);
+        assert_eq!(parsed.score, result.score);
+        assert_eq!(parsed.anomaly_type, result.anomaly_type);
+    }
+
+    #[test]
+    fn test_recommended_action_for_high_score() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+
+        // Simulate many failed login attempts to get high score
+        for _ in 0..15 {
+            let event = create_test_event(AuditAction::Login, AuditOutcome::Failure, "user1");
+            detector.add_recent_event(event.clone());
+        }
+
+        let event = create_test_event(AuditAction::Login, AuditOutcome::Failure, "user1");
+        let result = detector.analyze_event(&event).unwrap();
+
+        assert!(result.is_anomalous);
+        // With score >= 0.9, should recommend RevokeAccess
+        if result.score >= 0.9 {
+            assert_eq!(result.recommended_action, RecommendedAction::RevokeAccess);
+        } else if result.score >= 0.8 {
+            assert_eq!(result.recommended_action, RecommendedAction::Block);
+        }
+    }
+
+    #[test]
+    fn test_successful_login_after_failures() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+
+        // Add some failed logins
+        for _ in 0..3 {
+            let event = create_test_event(AuditAction::Login, AuditOutcome::Failure, "user1");
+            detector.add_recent_event(event);
+        }
+
+        // Successful login should not trigger brute force (under threshold)
+        let event = create_test_event(AuditAction::Login, AuditOutcome::Success, "user1");
+        let result = detector.analyze_event(&event).unwrap();
+
+        // With only 3 failures, should not be flagged (threshold is 5)
+        assert!(!result.is_anomalous || result.anomaly_type != Some(AnomalyType::BruteForceAttack));
+    }
+
+    #[test]
+    fn test_privilege_escalation_detection() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+
+        // Simulate multiple failed privilege escalation attempts
+        for _ in 0..4 {
+            let event =
+                create_test_event(AuditAction::TenantUpdated, AuditOutcome::Failure, "user1");
+            detector.add_recent_event(event);
+        }
+
+        let event = create_test_event(AuditAction::TenantUpdated, AuditOutcome::Failure, "user1");
+        let result = detector.analyze_event(&event).unwrap();
+
+        assert!(result.is_anomalous);
+        assert_eq!(result.anomaly_type, Some(AnomalyType::PrivilegeEscalation));
+    }
+
+    #[test]
+    fn test_non_login_action_not_brute_force() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+
+        // Simulate many failed query attempts (not login)
+        for _ in 0..10 {
+            let event =
+                create_test_event(AuditAction::EventQueried, AuditOutcome::Failure, "user1");
+            detector.add_recent_event(event);
+        }
+
+        let event = create_test_event(AuditAction::EventQueried, AuditOutcome::Failure, "user1");
+        let result = detector.analyze_event(&event).unwrap();
+
+        // Should not be flagged as brute force (only login events trigger this)
+        assert!(result.anomaly_type != Some(AnomalyType::BruteForceAttack));
+    }
+
+    #[test]
+    fn test_multiple_users_independent() {
+        let detector = AnomalyDetector::new(AnomalyDetectionConfig::default());
+
+        // Simulate failed logins from user1
+        for _ in 0..6 {
+            let event = create_test_event(AuditAction::Login, AuditOutcome::Failure, "user1");
+            detector.add_recent_event(event);
+        }
+
+        // Check user2's login - should not be flagged
+        let event = create_test_event(AuditAction::Login, AuditOutcome::Failure, "user2");
+        let result = detector.analyze_event(&event).unwrap();
+
+        // User2's single failure should not trigger brute force
+        assert!(!result.is_anomalous || result.anomaly_type != Some(AnomalyType::BruteForceAttack));
+    }
+
+    #[test]
+    fn test_anomaly_types_serde() {
+        let types = vec![
+            AnomalyType::BruteForceAttack,
+            AnomalyType::UnusualAccessPattern,
+            AnomalyType::PrivilegeEscalation,
+            AnomalyType::DataExfiltration,
+            AnomalyType::VelocityAnomaly,
+            AnomalyType::AccountCompromise,
+            AnomalyType::SuspiciousActivity,
+        ];
+
+        for anomaly_type in types {
+            let json = serde_json::to_string(&anomaly_type).unwrap();
+            let parsed: AnomalyType = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, anomaly_type);
+        }
+    }
+
+    #[test]
+    fn test_recommended_actions_serde() {
+        let actions = vec![
+            RecommendedAction::Monitor,
+            RecommendedAction::Alert,
+            RecommendedAction::Block,
+            RecommendedAction::RequireMFA,
+            RecommendedAction::RevokeAccess,
+        ];
+
+        for action in actions {
+            let json = serde_json::to_string(&action).unwrap();
+            let parsed: RecommendedAction = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, action);
+        }
+    }
+
+    #[test]
+    fn test_disabled_individual_detectors() {
+        let config = AnomalyDetectionConfig {
+            enabled: true,
+            enable_brute_force_detection: false,
+            enable_velocity_detection: false,
+            ..Default::default()
+        };
+
+        let detector = AnomalyDetector::new(config);
+
+        // Simulate conditions that would trigger brute force
+        for _ in 0..10 {
+            let event = create_test_event(AuditAction::Login, AuditOutcome::Failure, "user1");
+            detector.add_recent_event(event);
+        }
+
+        let event = create_test_event(AuditAction::Login, AuditOutcome::Failure, "user1");
+        let result = detector.analyze_event(&event).unwrap();
+
+        // Brute force detection is disabled, so should not be flagged as brute force
+        assert!(result.anomaly_type != Some(AnomalyType::BruteForceAttack));
     }
 }

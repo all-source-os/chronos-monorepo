@@ -549,9 +549,13 @@ mod tests {
 
         assert_eq!(repo.len(), 5);
 
-        // Purge events older than now (should delete all)
-        let now = Utc::now();
-        let deleted = repo.purge_old_events(&tenant_id, now).await.unwrap();
+        // Purge events older than 1 second in the future (should delete all)
+        // We add a small buffer to ensure all events are older than the cutoff
+        let future_time = Utc::now() + chrono::Duration::seconds(1);
+        let deleted = repo
+            .purge_old_events(&tenant_id, future_time)
+            .await
+            .unwrap();
 
         assert_eq!(deleted, 5);
         assert_eq!(repo.len(), 0);

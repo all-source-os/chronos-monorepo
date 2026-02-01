@@ -399,6 +399,7 @@ impl From<Snapshot> for SnapshotInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Duration;
     use serde_json::json;
 
     fn create_test_snapshot(entity_id: &str, event_count: usize) -> Snapshot {
@@ -522,5 +523,305 @@ mod tests {
         let merged = snapshot.merge_with_events(&[event]);
         assert_eq!(merged["name"], "Alice");
         assert_eq!(merged["score"], 20);
+    }
+
+    #[test]
+    fn test_default_config() {
+        let config = SnapshotConfig::default();
+        assert_eq!(config.event_threshold, 100);
+        assert_eq!(config.time_threshold_seconds, 3600);
+        assert_eq!(config.max_snapshots_per_entity, 10);
+        assert!(config.auto_snapshot);
+    }
+
+    #[test]
+    fn test_snapshot_type_serde() {
+        let types = vec![
+            SnapshotType::Manual,
+            SnapshotType::Automatic,
+            SnapshotType::OnDemand,
+        ];
+
+        for snapshot_type in types {
+            let json = serde_json::to_string(&snapshot_type).unwrap();
+            let parsed: SnapshotType = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, snapshot_type);
+        }
+    }
+
+    #[test]
+    fn test_snapshot_serde() {
+        let snapshot = create_test_snapshot("entity-1", 50);
+        let json = serde_json::to_string(&snapshot).unwrap();
+        let parsed: Snapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.entity_id, snapshot.entity_id);
+        assert_eq!(parsed.event_count, snapshot.event_count);
+    }
+
+    #[test]
+    fn test_get_latest_snapshot_none() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+        let latest = manager.get_latest_snapshot("non-existent");
+        assert!(latest.is_none());
+    }
+
+    #[test]
+    fn test_get_all_snapshots_empty() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+        let snapshots = manager.get_all_snapshots("non-existent");
+        assert!(snapshots.is_empty());
+    }
+
+    #[test]
+    fn test_delete_snapshots() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+
+        manager
+            .create_snapshot(
+                "entity-1".to_string(),
+                json!({"value": 1}),
+                Utc::now(),
+                100,
+                SnapshotType::Manual,
+            )
+            .unwrap();
+
+        let deleted = manager.delete_snapshots("entity-1").unwrap();
+        assert_eq!(deleted, 1);
+
+        let latest = manager.get_latest_snapshot("entity-1");
+        assert!(latest.is_none());
+    }
+
+    #[test]
+    fn test_delete_single_snapshot() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+
+        let snapshot = manager
+            .create_snapshot(
+                "entity-1".to_string(),
+                json!({"value": 1}),
+                Utc::now(),
+                100,
+                SnapshotType::Manual,
+            )
+            .unwrap();
+
+        let deleted = manager.delete_snapshot("entity-1", snapshot.id).unwrap();
+        assert!(deleted);
+
+        let latest = manager.get_latest_snapshot("entity-1");
+        assert!(latest.is_none());
+    }
+
+    #[test]
+    fn test_delete_nonexistent_snapshot() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+        let deleted = manager.delete_snapshot("entity-1", Uuid::new_v4()).unwrap();
+        assert!(!deleted);
+    }
+
+    #[test]
+    fn test_clear_all() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+
+        manager
+            .create_snapshot(
+                "entity-1".to_string(),
+                json!({"value": 1}),
+                Utc::now(),
+                100,
+                SnapshotType::Manual,
+            )
+            .unwrap();
+        manager
+            .create_snapshot(
+                "entity-2".to_string(),
+                json!({"value": 2}),
+                Utc::now(),
+                200,
+                SnapshotType::Manual,
+            )
+            .unwrap();
+
+        manager.clear_all();
+
+        let stats = manager.stats();
+        assert_eq!(stats.total_snapshots, 0);
+        assert_eq!(stats.total_entities, 0);
+    }
+
+    #[test]
+    fn test_list_entities() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+
+        manager
+            .create_snapshot(
+                "entity-1".to_string(),
+                json!({"value": 1}),
+                Utc::now(),
+                100,
+                SnapshotType::Manual,
+            )
+            .unwrap();
+        manager
+            .create_snapshot(
+                "entity-2".to_string(),
+                json!({"value": 2}),
+                Utc::now(),
+                200,
+                SnapshotType::Manual,
+            )
+            .unwrap();
+
+        let entities = manager.list_entities();
+        assert_eq!(entities.len(), 2);
+        assert!(entities.contains(&"entity-1".to_string()));
+        assert!(entities.contains(&"entity-2".to_string()));
+    }
+
+    #[test]
+    fn test_get_config() {
+        let config = SnapshotConfig {
+            event_threshold: 50,
+            ..Default::default()
+        };
+        let manager = SnapshotManager::new(config);
+        assert_eq!(manager.config().event_threshold, 50);
+    }
+
+    #[test]
+    fn test_stats() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+
+        manager
+            .create_snapshot(
+                "entity-1".to_string(),
+                json!({"value": 1}),
+                Utc::now(),
+                100,
+                SnapshotType::Manual,
+            )
+            .unwrap();
+
+        let stats = manager.stats();
+        assert_eq!(stats.total_snapshots, 1);
+        assert_eq!(stats.total_entities, 1);
+        assert_eq!(stats.snapshots_created, 1);
+    }
+
+    #[test]
+    fn test_snapshot_as_of() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+        let now = Utc::now();
+        let past = now - Duration::hours(2);
+        let future = now + Duration::hours(2);
+
+        // Create snapshot in the past
+        manager
+            .create_snapshot(
+                "entity-1".to_string(),
+                json!({"value": 1}),
+                past,
+                100,
+                SnapshotType::Manual,
+            )
+            .unwrap();
+
+        // Should find snapshot as of now
+        let snapshot = manager.get_snapshot_as_of("entity-1", now);
+        assert!(snapshot.is_some());
+
+        // Should not find snapshot as of before it was created
+        let very_past = past - Duration::hours(1);
+        let snapshot = manager.get_snapshot_as_of("entity-1", very_past);
+        assert!(snapshot.is_none());
+    }
+
+    #[test]
+    fn test_should_create_snapshot_time_threshold() {
+        let config = SnapshotConfig {
+            event_threshold: 1000,     // High threshold so only time triggers
+            time_threshold_seconds: 1, // 1 second
+            auto_snapshot: true,
+            ..Default::default()
+        };
+        let manager = SnapshotManager::new(config);
+
+        // Create initial snapshot in the past
+        let past = Utc::now() - Duration::seconds(2);
+        manager
+            .create_snapshot(
+                "entity-1".to_string(),
+                json!({"value": 1}),
+                past,
+                100,
+                SnapshotType::Manual,
+            )
+            .unwrap();
+
+        // Time threshold should trigger
+        assert!(manager.should_create_snapshot("entity-1", 101, Utc::now()));
+    }
+
+    #[test]
+    fn test_should_create_snapshot_disabled() {
+        let config = SnapshotConfig {
+            auto_snapshot: false,
+            ..Default::default()
+        };
+        let manager = SnapshotManager::new(config);
+
+        // Even with many events, should not create if disabled
+        assert!(!manager.should_create_snapshot("entity-1", 1000, Utc::now()));
+    }
+
+    #[test]
+    fn test_snapshot_info_from() {
+        let snapshot = create_test_snapshot("entity-1", 50);
+        let info: SnapshotInfo = snapshot.clone().into();
+
+        assert_eq!(info.id, snapshot.id);
+        assert_eq!(info.entity_id, snapshot.entity_id);
+        assert_eq!(info.event_count, snapshot.event_count);
+        assert_eq!(info.snapshot_type, snapshot.metadata.snapshot_type);
+    }
+
+    #[test]
+    fn test_snapshot_metadata() {
+        let snapshot = create_test_snapshot("entity-1", 100);
+        assert_eq!(snapshot.metadata.version, 1);
+        assert!(snapshot.metadata.size_bytes > 0);
+    }
+
+    #[test]
+    fn test_multiple_entities() {
+        let manager = SnapshotManager::new(SnapshotConfig::default());
+
+        for i in 0..5 {
+            manager
+                .create_snapshot(
+                    format!("entity-{}", i),
+                    json!({"value": i}),
+                    Utc::now(),
+                    100 + i,
+                    SnapshotType::Automatic,
+                )
+                .unwrap();
+        }
+
+        let stats = manager.stats();
+        assert_eq!(stats.total_entities, 5);
+        assert_eq!(stats.total_snapshots, 5);
+    }
+
+    #[test]
+    fn test_snapshot_stats_default() {
+        let stats = SnapshotStats::default();
+        assert_eq!(stats.total_snapshots, 0);
+        assert_eq!(stats.total_entities, 0);
+        assert_eq!(stats.total_size_bytes, 0);
+        assert_eq!(stats.snapshots_created, 0);
+        assert_eq!(stats.snapshots_pruned, 0);
     }
 }

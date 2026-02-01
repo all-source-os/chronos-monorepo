@@ -1,12 +1,12 @@
 import Config
 
+# Skip automatic Repo startup - it will be started manually by test_helper.exs
+# after testcontainers sets up the PostgreSQL database.
+config :query_service_ex, skip_repo_start: true
+
 # Configure your database for test
-# Note: When running with testcontainers, the runtime.exs will override
-# these settings with the container's connection details via DATABASE_URL.
-# This configuration serves as a fallback for when a local PostgreSQL is available.
-#
-# IMPORTANT: The actual database connection will be configured at runtime
-# via runtime.exs when DATABASE_URL is set by testcontainers.
+# Note: These settings are placeholder values. The actual connection details
+# will be set by test_helper.exs after testcontainers starts PostgreSQL.
 config :query_service_ex, QueryServiceEx.Repo,
   username: "postgres",
   password: "postgres",

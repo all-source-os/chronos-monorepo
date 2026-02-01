@@ -56,11 +56,20 @@ defmodule QueryServiceEx.RateLimiterTest do
         RateLimiter.check_rate(tenant_id, :free)
       end
 
-      # Wait for some refill (rate tokens per second)
-      :timer.sleep(200)
+      # Wait for some refill with retries to handle CI timing variability
+      # Rate is 10 tokens/second for free tier, so we need at least 100ms for 1 token
+      result =
+        Enum.reduce_while(1..10, {:deny, 0}, fn attempt, _acc ->
+          :timer.sleep(100 * attempt)
+
+          case RateLimiter.check_rate(tenant_id, :free) do
+            {:allow, remaining} -> {:halt, {:allow, remaining}}
+            other -> {:cont, other}
+          end
+        end)
 
       # Should now have some tokens again
-      assert {:allow, _remaining} = RateLimiter.check_rate(tenant_id, :free)
+      assert {:allow, _remaining} = result
     end
   end
 

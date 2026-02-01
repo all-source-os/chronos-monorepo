@@ -117,3 +117,136 @@ impl IntoResponse for AllSourceError {
         (status, axum::Json(body)).into_response()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_display() {
+        let err = AllSourceError::EventNotFound("event-123".to_string());
+        assert_eq!(err.to_string(), "Event not found: event-123");
+
+        let err = AllSourceError::EntityNotFound("entity-456".to_string());
+        assert_eq!(err.to_string(), "Entity not found: entity-456");
+
+        let err = AllSourceError::TenantAlreadyExists("tenant-1".to_string());
+        assert_eq!(err.to_string(), "Tenant already exists: tenant-1");
+
+        let err = AllSourceError::TenantNotFound("tenant-2".to_string());
+        assert_eq!(err.to_string(), "Tenant not found: tenant-2");
+    }
+
+    #[test]
+    fn test_error_variants() {
+        let errors: Vec<AllSourceError> = vec![
+            AllSourceError::InvalidEvent("bad event".to_string()),
+            AllSourceError::InvalidQuery("bad query".to_string()),
+            AllSourceError::InvalidInput("bad input".to_string()),
+            AllSourceError::StorageError("storage failed".to_string()),
+            AllSourceError::ArrowError("arrow failed".to_string()),
+            AllSourceError::IndexError("index failed".to_string()),
+            AllSourceError::ValidationError("validation failed".to_string()),
+            AllSourceError::ConcurrencyError("conflict".to_string()),
+            AllSourceError::QueueFull("queue full".to_string()),
+            AllSourceError::InternalError("internal error".to_string()),
+        ];
+
+        for err in errors {
+            let msg = err.to_string();
+            assert!(!msg.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_into_response_not_found() {
+        let err = AllSourceError::EventNotFound("event-123".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let err = AllSourceError::EntityNotFound("entity-456".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let err = AllSourceError::TenantNotFound("tenant-1".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_into_response_bad_request() {
+        let err = AllSourceError::InvalidEvent("bad event".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let err = AllSourceError::InvalidQuery("bad query".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let err = AllSourceError::InvalidInput("bad input".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let err = AllSourceError::ValidationError("validation failed".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_into_response_conflict() {
+        let err = AllSourceError::TenantAlreadyExists("tenant-1".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+
+        let err = AllSourceError::ConcurrencyError("conflict".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+    }
+
+    #[test]
+    fn test_into_response_service_unavailable() {
+        let err = AllSourceError::QueueFull("queue is full".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[test]
+    fn test_into_response_internal_error() {
+        let err = AllSourceError::StorageError("storage error".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let err = AllSourceError::ArrowError("arrow error".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let err = AllSourceError::IndexError("index error".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let err = AllSourceError::InternalError("internal error".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_from_arrow_error() {
+        let arrow_err = arrow::error::ArrowError::InvalidArgumentError("test".to_string());
+        let err: AllSourceError = arrow_err.into();
+        assert!(matches!(err, AllSourceError::ArrowError(_)));
+    }
+
+    #[test]
+    fn test_from_parquet_error() {
+        let parquet_err = parquet::errors::ParquetError::General("test".to_string());
+        let err: AllSourceError = parquet_err.into();
+        assert!(matches!(err, AllSourceError::StorageError(_)));
+    }
+
+    #[test]
+    fn test_error_debug() {
+        let err = AllSourceError::EventNotFound("test".to_string());
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("EventNotFound"));
+    }
+}

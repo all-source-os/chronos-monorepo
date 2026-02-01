@@ -390,4 +390,123 @@ mod tests {
         let result = encryption.encrypt_string(plaintext, "test");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_encryption_config_default() {
+        let config = EncryptionConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.key_rotation_days, 90);
+        assert_eq!(config.algorithm, EncryptionAlgorithm::Aes256Gcm);
+    }
+
+    #[test]
+    fn test_encryption_algorithm_equality() {
+        assert_eq!(
+            EncryptionAlgorithm::Aes256Gcm,
+            EncryptionAlgorithm::Aes256Gcm
+        );
+        assert_ne!(
+            EncryptionAlgorithm::Aes256Gcm,
+            EncryptionAlgorithm::ChaCha20Poly1305
+        );
+    }
+
+    #[test]
+    fn test_encryption_config_serde() {
+        let config = EncryptionConfig::default();
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: EncryptionConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.enabled, config.enabled);
+        assert_eq!(parsed.algorithm, config.algorithm);
+    }
+
+    #[test]
+    fn test_encrypted_data_serde() {
+        let encrypted = EncryptedData {
+            ciphertext: "encrypted_data".to_string(),
+            nonce: "nonce_value".to_string(),
+            key_id: "key-123".to_string(),
+            algorithm: EncryptionAlgorithm::Aes256Gcm,
+            version: 1,
+        };
+
+        let json = serde_json::to_string(&encrypted).unwrap();
+        let parsed: EncryptedData = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.ciphertext, encrypted.ciphertext);
+        assert_eq!(parsed.key_id, encrypted.key_id);
+        assert_eq!(parsed.version, encrypted.version);
+    }
+
+    #[test]
+    fn test_encrypt_empty_string() {
+        let encryption = FieldEncryption::new(EncryptionConfig::default()).unwrap();
+        let plaintext = "";
+
+        let encrypted = encryption.encrypt_string(plaintext, "test_field").unwrap();
+        let decrypted = encryption.decrypt_string(&encrypted).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_encrypt_long_string() {
+        let encryption = FieldEncryption::new(EncryptionConfig::default()).unwrap();
+        let plaintext = "a".repeat(10000);
+
+        let encrypted = encryption.encrypt_string(&plaintext, "test_field").unwrap();
+        let decrypted = encryption.decrypt_string(&encrypted).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_encrypt_unicode_string() {
+        let encryption = FieldEncryption::new(EncryptionConfig::default()).unwrap();
+        let plaintext = "日本語テスト 🎉 émojis";
+
+        let encrypted = encryption.encrypt_string(plaintext, "test_field").unwrap();
+        let decrypted = encryption.decrypt_string(&encrypted).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_encryption_stats() {
+        let encryption = FieldEncryption::new(EncryptionConfig::default()).unwrap();
+
+        let stats = encryption.get_stats();
+        assert!(stats.enabled);
+        assert_eq!(stats.total_keys, 1);
+        assert_eq!(stats.active_key_version, 1);
+        assert_eq!(stats.algorithm, EncryptionAlgorithm::Aes256Gcm);
+    }
+
+    #[test]
+    fn test_decrypt_with_invalid_key() {
+        let encryption1 = FieldEncryption::new(EncryptionConfig::default()).unwrap();
+        let encryption2 = FieldEncryption::new(EncryptionConfig::default()).unwrap();
+
+        let plaintext = "test data";
+        let encrypted = encryption1.encrypt_string(plaintext, "test").unwrap();
+
+        // Try to decrypt with different encryption instance (different keys)
+        let result = encryption2.decrypt_string(&encrypted);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_encryption_different_fields() {
+        let encryption = FieldEncryption::new(EncryptionConfig::default()).unwrap();
+
+        let data1 = "data for field 1";
+        let data2 = "data for field 2";
+
+        let encrypted1 = encryption.encrypt_string(data1, "field1").unwrap();
+        let encrypted2 = encryption.encrypt_string(data2, "field2").unwrap();
+
+        // Even same data produces different ciphertext due to random nonce
+        let encrypted1_again = encryption.encrypt_string(data1, "field1").unwrap();
+        assert_ne!(encrypted1.ciphertext, encrypted1_again.ciphertext);
+
+        // Both should decrypt correctly
+        assert_eq!(encryption.decrypt_string(&encrypted1).unwrap(), data1);
+        assert_eq!(encryption.decrypt_string(&encrypted2).unwrap(), data2);
+    }
 }
