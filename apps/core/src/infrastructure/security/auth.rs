@@ -295,9 +295,8 @@ impl AuthManager {
             Duration::hours(24), // Token expires in 24 hours
         );
 
-        let token = encode(&Header::default(), &claims, &self.encoding_key).map_err(|e| {
-            AllSourceError::ValidationError(format!("Failed to create token: {e}"))
-        })?;
+        let token = encode(&Header::default(), &claims, &self.encoding_key)
+            .map_err(|e| AllSourceError::ValidationError(format!("Failed to create token: {e}")))?;
 
         Ok(token)
     }

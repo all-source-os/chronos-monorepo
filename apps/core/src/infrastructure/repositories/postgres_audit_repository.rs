@@ -133,15 +133,15 @@ impl PostgresAuditRepository {
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get action: {e}")))?;
         let action = Self::string_to_action(&action_str)?;
 
-        let actor_type: String = row.try_get("actor_type").map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to get actor_type: {e}"))
-        })?;
+        let actor_type: String = row
+            .try_get("actor_type")
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get actor_type: {e}")))?;
         let actor_id: String = row
             .try_get("actor_id")
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get actor_id: {e}")))?;
-        let actor_name: String = row.try_get("actor_name").map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to get actor_name: {e}"))
-        })?;
+        let actor_name: String = row
+            .try_get("actor_name")
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get actor_name: {e}")))?;
         let actor = Self::deserialize_actor(&actor_type, actor_id, actor_name)?;
 
         let outcome_str: String = row
@@ -230,9 +230,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         .bind(event.metadata())
         .execute(&self.pool)
         .await
-        .map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to append audit event: {e}"))
-        })?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to append audit event: {e}")))?;
 
         Ok(())
     }
@@ -500,9 +498,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         .bind(older_than)
         .execute(&self.pool)
         .await
-        .map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to purge audit events: {e}"))
-        })?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to purge audit events: {e}")))?;
 
         Ok(result.rows_affected() as usize)
     }

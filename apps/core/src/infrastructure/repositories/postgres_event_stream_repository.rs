@@ -151,9 +151,10 @@ impl PostgresEventStreamRepository {
 #[async_trait]
 impl EventStreamRepository for PostgresEventStreamRepository {
     async fn get_or_create_stream(&self, stream_id: &EntityId) -> Result<EventStream> {
-        let mut tx = self.pool.begin().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
-        })?;
+        let mut tx =
+            self.pool.begin().await.map_err(|e| {
+                AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
+            })?;
 
         // Try to load existing stream
         let maybe_row = sqlx::query(
@@ -170,9 +171,9 @@ impl EventStreamRepository for PostgresEventStreamRepository {
 
         let stream = if let Some(row) = maybe_row {
             // Stream exists, reconstruct it
-            let partition_id: i32 = row.try_get("partition_id").map_err(|e| {
-                AllSourceError::StorageError(format!("Invalid partition_id: {e}"))
-            })?;
+            let partition_id: i32 = row
+                .try_get("partition_id")
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid partition_id: {e}")))?;
             let current_version: i64 = row.try_get("current_version").map_err(|e| {
                 AllSourceError::StorageError(format!("Invalid current_version: {e}"))
             })?;
@@ -220,17 +221,18 @@ impl EventStreamRepository for PostgresEventStreamRepository {
             stream
         };
 
-        tx.commit().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction commit failed: {e}"))
-        })?;
+        tx.commit()
+            .await
+            .map_err(|e| AllSourceError::StorageError(format!("Transaction commit failed: {e}")))?;
 
         Ok(stream)
     }
 
     async fn append_to_stream(&self, stream: &mut EventStream, event: Event) -> Result<u64> {
-        let mut tx = self.pool.begin().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
-        })?;
+        let mut tx =
+            self.pool.begin().await.map_err(|e| {
+                AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
+            })?;
 
         // Get current version with row lock (pessimistic locking for DB)
         let current_version: i64 = sqlx::query_scalar(
@@ -286,9 +288,9 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .await
         .map_err(|e| AllSourceError::StorageError(format!("Failed to update stream: {e}")))?;
 
-        tx.commit().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction commit failed: {e}"))
-        })?;
+        tx.commit()
+            .await
+            .map_err(|e| AllSourceError::StorageError(format!("Transaction commit failed: {e}")))?;
 
         Ok(new_version)
     }
@@ -296,9 +298,10 @@ impl EventStreamRepository for PostgresEventStreamRepository {
     async fn save_stream(&self, stream: &EventStream) -> Result<()> {
         // For PostgreSQL, we don't need separate save - it's handled in append_to_stream
         // This method is here for compatibility with in-memory implementation
-        let mut tx = self.pool.begin().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
-        })?;
+        let mut tx =
+            self.pool.begin().await.map_err(|e| {
+                AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
+            })?;
 
         sqlx::query(
             "UPDATE event_streams
@@ -313,17 +316,18 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .await
         .map_err(|e| AllSourceError::StorageError(format!("Failed to save stream: {e}")))?;
 
-        tx.commit().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction commit failed: {e}"))
-        })?;
+        tx.commit()
+            .await
+            .map_err(|e| AllSourceError::StorageError(format!("Transaction commit failed: {e}")))?;
 
         Ok(())
     }
 
     async fn load_stream(&self, stream_id: &EntityId) -> Result<Option<EventStream>> {
-        let mut tx = self.pool.begin().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
-        })?;
+        let mut tx =
+            self.pool.begin().await.map_err(|e| {
+                AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
+            })?;
 
         let maybe_row = sqlx::query(
             "SELECT stream_id, partition_id, current_version, watermark,
@@ -361,9 +365,9 @@ impl EventStreamRepository for PostgresEventStreamRepository {
             None
         };
 
-        tx.commit().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction commit failed: {e}"))
-        })?;
+        tx.commit()
+            .await
+            .map_err(|e| AllSourceError::StorageError(format!("Transaction commit failed: {e}")))?;
 
         Ok(stream)
     }

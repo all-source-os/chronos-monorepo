@@ -64,19 +64,17 @@ impl PostgresTenantRepository {
             .map_err(|e| AllSourceError::StorageError(format!("Failed to get metadata: {e}")))?;
 
         // Extract timestamps
-        let created_at: DateTime<Utc> = row.try_get("created_at").map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to get created_at: {e}"))
-        })?;
-        let updated_at: DateTime<Utc> = row.try_get("updated_at").map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to get updated_at: {e}"))
-        })?;
+        let created_at: DateTime<Utc> = row
+            .try_get("created_at")
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get created_at: {e}")))?;
+        let updated_at: DateTime<Utc> = row
+            .try_get("updated_at")
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get updated_at: {e}")))?;
 
         // Extract quotas
         let quota_max_events_per_day: i64 =
             row.try_get("quota_max_events_per_day").map_err(|e| {
-                AllSourceError::StorageError(format!(
-                    "Failed to get quota_max_events_per_day: {e}"
-                ))
+                AllSourceError::StorageError(format!("Failed to get quota_max_events_per_day: {e}"))
             })?;
         let quota_max_storage_bytes: i64 = row.try_get("quota_max_storage_bytes").map_err(|e| {
             AllSourceError::StorageError(format!("Failed to get quota_max_storage_bytes: {e}"))
@@ -126,9 +124,7 @@ impl PostgresTenantRepository {
         })?;
         let usage_active_projections: i32 =
             row.try_get("usage_active_projections").map_err(|e| {
-                AllSourceError::StorageError(format!(
-                    "Failed to get usage_active_projections: {e}"
-                ))
+                AllSourceError::StorageError(format!("Failed to get usage_active_projections: {e}"))
             })?;
         let usage_active_pipelines: i32 = row.try_get("usage_active_pipelines").map_err(|e| {
             AllSourceError::StorageError(format!("Failed to get usage_active_pipelines: {e}"))
@@ -139,9 +135,7 @@ impl PostgresTenantRepository {
             })?;
         let usage_last_hourly_reset: DateTime<Utc> =
             row.try_get("usage_last_hourly_reset").map_err(|e| {
-                AllSourceError::StorageError(format!(
-                    "Failed to get usage_last_hourly_reset: {e}"
-                ))
+                AllSourceError::StorageError(format!("Failed to get usage_last_hourly_reset: {e}"))
             })?;
 
         // Create a JSON object to deserialize into TenantUsage
@@ -350,9 +344,7 @@ impl TenantRepository for PostgresTenantRepository {
         .bind(offset as i64)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to find active tenants: {e}"))
-        })?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to find active tenants: {e}")))?;
 
         let mut tenants = Vec::new();
         for row in rows {

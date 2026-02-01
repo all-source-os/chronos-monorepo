@@ -168,9 +168,7 @@ impl FieldEncryption {
 
         let nonce_bytes = general_purpose::STANDARD
             .decode(&encrypted.nonce)
-            .map_err(|e| {
-                AllSourceError::ValidationError(format!("Invalid nonce encoding: {e}"))
-            })?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid nonce encoding: {e}")))?;
 
         let nonce = Nonce::from_slice(&nonce_bytes);
 
@@ -267,9 +265,8 @@ pub fn encrypt_json_value(
     encryption: &FieldEncryption,
     field_name: &str,
 ) -> Result<EncryptedData> {
-    let json_string = serde_json::to_string(value).map_err(|e| {
-        AllSourceError::ValidationError(format!("JSON serialization failed: {e}"))
-    })?;
+    let json_string = serde_json::to_string(value)
+        .map_err(|e| AllSourceError::ValidationError(format!("JSON serialization failed: {e}")))?;
 
     encryption.encrypt_string(&json_string, field_name)
 }
