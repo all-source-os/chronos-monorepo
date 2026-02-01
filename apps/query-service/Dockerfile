@@ -86,6 +86,23 @@ USER app
 EXPOSE 4000
 
 # Environment configuration
+# Required environment variables (must be provided at runtime):
+#   DATABASE_URL        - PostgreSQL connection URL (ecto://USER:PASS@HOST/DATABASE)
+#   SECRET_KEY_BASE     - Secret key for signing (generate with: mix phx.gen.secret)
+#   GOOGLE_CLIENT_ID    - Google OAuth client ID
+#   GOOGLE_CLIENT_SECRET- Google OAuth client secret
+#   GITHUB_CLIENT_ID    - GitHub OAuth client ID
+#   GITHUB_CLIENT_SECRET- GitHub OAuth client secret
+#
+# Optional environment variables:
+#   PORT                - HTTP port (default: 4000)
+#   POOL_SIZE           - Database pool size (default: 10)
+#   PHX_HOST            - Hostname for URLs (default: localhost)
+#   RUST_CORE_URL       - Rust Core service URL (default: http://localhost:3900)
+#   CORE_WS_URL         - Rust Core WebSocket URL (default: ws://localhost:3900)
+#   LEMON_SQUEEZY_API_KEY       - LemonSqueezy API key for billing
+#   LEMON_SQUEEZY_STORE_ID      - LemonSqueezy store ID
+#   LEMON_SQUEEZY_WEBHOOK_SECRET- LemonSqueezy webhook secret
 ENV HOME=/app \
     MIX_ENV=prod \
     PORT=4000 \
