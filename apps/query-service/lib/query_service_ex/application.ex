@@ -20,6 +20,9 @@ defmodule QueryServiceEx.Application do
       # PubSub for event broadcasting
       {Phoenix.PubSub, name: QueryServiceEx.PubSub},
 
+      # Rate limiter for per-tenant request throttling
+      QueryServiceEx.RateLimiter,
+
       # Circuit breaker for Core backend calls
       {QueryServiceEx.CircuitBreaker, name: QueryServiceEx.CircuitBreaker},
 

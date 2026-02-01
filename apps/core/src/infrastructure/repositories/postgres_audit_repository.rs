@@ -39,7 +39,7 @@ impl PostgresAuditRepository {
         sqlx::migrate!("./migrations")
             .run(&self.pool)
             .await
-            .map_err(|e| AllSourceError::StorageError(format!("Migration failed: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Migration failed: {e}")))?;
         Ok(())
     }
 
@@ -73,8 +73,7 @@ impl PostgresAuditRepository {
                 component: actor_id,
             }),
             _ => Err(AllSourceError::StorageError(format!(
-                "Unknown actor type: {}",
-                actor_type
+                "Unknown actor type: {actor_type}"
             ))),
         }
     }
@@ -90,7 +89,7 @@ impl PostgresAuditRepository {
     /// Helper: Parse AuditAction from string
     fn string_to_action(s: &str) -> Result<AuditAction> {
         serde_json::from_str(&format!("\"{}\"", s))
-            .map_err(|e| AllSourceError::StorageError(format!("Invalid action: {}", e)))
+            .map_err(|e| AllSourceError::StorageError(format!("Invalid action: {e}")))
     }
 
     /// Helper: Convert AuditOutcome to string
@@ -109,8 +108,7 @@ impl PostgresAuditRepository {
             "failure" => Ok(AuditOutcome::Failure),
             "partial_success" => Ok(AuditOutcome::PartialSuccess),
             _ => Err(AllSourceError::StorageError(format!(
-                "Invalid outcome: {}",
-                s
+                "Invalid outcome: {s}"
             ))),
         }
     }
@@ -119,36 +117,36 @@ impl PostgresAuditRepository {
     fn row_to_audit_event(row: &sqlx::postgres::PgRow) -> Result<AuditEvent> {
         let id: uuid::Uuid = row
             .try_get("id")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get id: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get id: {e}")))?;
 
         let tenant_id_str: String = row
             .try_get("tenant_id")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get tenant_id: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get tenant_id: {e}")))?;
         let tenant_id = TenantId::new(tenant_id_str)?;
 
         let timestamp: DateTime<Utc> = row
             .try_get("timestamp")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get timestamp: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get timestamp: {e}")))?;
 
         let action_str: String = row
             .try_get("action")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get action: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get action: {e}")))?;
         let action = Self::string_to_action(&action_str)?;
 
         let actor_type: String = row.try_get("actor_type").map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to get actor_type: {}", e))
+            AllSourceError::StorageError(format!("Failed to get actor_type: {e}"))
         })?;
         let actor_id: String = row
             .try_get("actor_id")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get actor_id: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get actor_id: {e}")))?;
         let actor_name: String = row.try_get("actor_name").map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to get actor_name: {}", e))
+            AllSourceError::StorageError(format!("Failed to get actor_name: {e}"))
         })?;
         let actor = Self::deserialize_actor(&actor_type, actor_id, actor_name)?;
 
         let outcome_str: String = row
             .try_get("outcome")
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get outcome: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get outcome: {e}")))?;
         let outcome = Self::string_to_outcome(&outcome_str)?;
 
         let resource_type: Option<String> = row.try_get("resource_type").ok();
@@ -233,7 +231,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         .execute(&self.pool)
         .await
         .map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to append audit event: {}", e))
+            AllSourceError::StorageError(format!("Failed to append audit event: {e}"))
         })?;
 
         Ok(())
@@ -241,7 +239,7 @@ impl AuditEventRepository for PostgresAuditRepository {
 
     async fn append_batch(&self, events: Vec<AuditEvent>) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to begin transaction: {}", e))
+            AllSourceError::StorageError(format!("Failed to begin transaction: {e}"))
         })?;
 
         for event in events {
@@ -282,12 +280,12 @@ impl AuditEventRepository for PostgresAuditRepository {
             .execute(&mut *tx)
             .await
             .map_err(|e| {
-                AllSourceError::StorageError(format!("Failed to append audit event: {}", e))
+                AllSourceError::StorageError(format!("Failed to append audit event: {e}"))
             })?;
         }
 
         tx.commit().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to commit transaction: {}", e))
+            AllSourceError::StorageError(format!("Failed to commit transaction: {e}"))
         })?;
 
         Ok(())
@@ -302,7 +300,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         .bind(id.as_uuid())
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to get audit event: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to get audit event: {e}")))?;
 
         match row {
             Some(r) => Ok(Some(Self::row_to_audit_event(&r)?)),
@@ -392,7 +390,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         }
 
         let rows = db_query.fetch_all(&self.pool).await.map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to query audit events: {}", e))
+            AllSourceError::StorageError(format!("Failed to query audit events: {e}"))
         })?;
 
         let mut events = Vec::new();
@@ -444,12 +442,12 @@ impl AuditEventRepository for PostgresAuditRepository {
         }
 
         let row = db_query.fetch_one(&self.pool).await.map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to count audit events: {}", e))
+            AllSourceError::StorageError(format!("Failed to count audit events: {e}"))
         })?;
 
         let count: i64 = row
             .try_get(0)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to get count: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to get count: {e}")))?;
 
         Ok(count as usize)
     }
@@ -503,7 +501,7 @@ impl AuditEventRepository for PostgresAuditRepository {
         .execute(&self.pool)
         .await
         .map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to purge audit events: {}", e))
+            AllSourceError::StorageError(format!("Failed to purge audit events: {e}"))
         })?;
 
         Ok(result.rows_affected() as usize)

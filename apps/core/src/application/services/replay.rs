@@ -162,7 +162,7 @@ impl ReplayManager {
             request
                 .projection_name
                 .as_ref()
-                .map(|n| format!(" (projection: {})", n))
+                .map(|n| format!(" (projection: {n})"))
                 .unwrap_or_default()
         );
 
@@ -319,7 +319,7 @@ impl ReplayManager {
         let replays = self.replays.read();
 
         let state = replays.iter().find(|r| r.id == replay_id).ok_or_else(|| {
-            AllSourceError::ValidationError(format!("Replay not found: {}", replay_id))
+            AllSourceError::ValidationError(format!("Replay not found: {replay_id}"))
         })?;
 
         let processed = state.processed_events.load(Ordering::Relaxed);
@@ -362,7 +362,7 @@ impl ReplayManager {
         let replays = self.replays.read();
 
         let state = replays.iter().find(|r| r.id == replay_id).ok_or_else(|| {
-            AllSourceError::ValidationError(format!("Replay not found: {}", replay_id))
+            AllSourceError::ValidationError(format!("Replay not found: {replay_id}"))
         })?;
 
         let status = *state.status.read();
@@ -423,7 +423,7 @@ impl ReplayManager {
             .iter()
             .position(|r| r.id == replay_id)
             .ok_or_else(|| {
-                AllSourceError::ValidationError(format!("Replay not found: {}", replay_id))
+                AllSourceError::ValidationError(format!("Replay not found: {replay_id}"))
             })?;
 
         let status = *replays[idx].status.read();

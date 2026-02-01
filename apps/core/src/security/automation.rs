@@ -329,8 +329,8 @@ impl SecurityScanner {
                     {
                         findings.push(SecurityFinding {
                             id: format!("SEC-{:03}", findings.len() + 1),
-                            title: format!("Potential {} found", secret_type),
-                            description: format!("Potential hardcoded {} detected in {}", secret_type, file),
+                            title: format!("Potential {secret_type} found"),
+                            description: format!("Potential hardcoded {secret_type} detected in {file}"),
                             severity: Severity::High,
                             category: FindingCategory::SecretLeak,
                             component: file.to_string(),

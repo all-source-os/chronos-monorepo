@@ -141,7 +141,7 @@ impl EventType {
             .all(|c| c.is_lowercase() || c.is_numeric() || c == '.' || c == '_')
         {
             return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Event type '{}' must be lowercase with dots/underscores. Convention: namespace.entity.action", value),
+                format!("Event type '{value}' must be lowercase with dots/underscores. Convention: namespace.entity.action"),
             ));
         }
 

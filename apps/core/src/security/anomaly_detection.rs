@@ -319,7 +319,7 @@ impl AnomalyDetector {
 
         let mut profiles = self.user_profiles.write();
         let profile = profiles
-            .entry(format!("{}-{}", event.tenant_id().as_str(), user_id))
+            .entry(format!("{}-{user_id}", event.tenant_id().as_str()))
             .or_insert_with(|| {
                 UserProfile::new(user_id.clone(), event.tenant_id().as_str().to_string())
             });
@@ -397,7 +397,7 @@ impl AnomalyDetector {
         event: &AuditEvent,
     ) -> Result<Option<(f64, Vec<String>)>> {
         let profiles = self.user_profiles.read();
-        let profile_key = format!("{}-{}", event.tenant_id().as_str(), user_id);
+        let profile_key = format!("{}-{user_id}", event.tenant_id().as_str());
 
         if let Some(profile) = profiles.get(&profile_key) {
             if profile.event_count < self.config.read().min_baseline_events {
@@ -410,7 +410,7 @@ impl AnomalyDetector {
             // Check if access is outside typical hours
             let hour = event.timestamp().hour();
             if !profile.typical_hours.is_empty() && !profile.typical_hours.contains(&hour) {
-                factors.push(format!("Access at unusual hour: {}:00", hour));
+                factors.push(format!("Access at unusual hour: {hour}:00"));
                 anomaly_indicators += 1;
             }
 
@@ -499,7 +499,7 @@ impl AnomalyDetector {
 
         // Check user profile for baseline
         let profiles = self.user_profiles.read();
-        let profile_key = format!("{}-{}", event.tenant_id().as_str(), user_id);
+        let profile_key = format!("{}-{user_id}", event.tenant_id().as_str());
 
         if let Some(profile) = profiles.get(&profile_key) {
             if profile.event_count >= self.config.read().min_baseline_events {
@@ -543,7 +543,7 @@ impl AnomalyDetector {
         if very_recent >= 20 {
             let score = 0.7;
             let factors = vec![
-                format!("{} actions in 10 seconds", very_recent),
+                format!("{very_recent} actions in 10 seconds"),
                 "Potential automated attack or compromised credentials".to_string(),
             ];
             return Ok(Some((score, factors)));

@@ -296,7 +296,7 @@ impl AuthManager {
         );
 
         let token = encode(&Header::default(), &claims, &self.encoding_key).map_err(|e| {
-            AllSourceError::ValidationError(format!("Failed to create token: {}", e))
+            AllSourceError::ValidationError(format!("Failed to create token: {e}"))
         })?;
 
         Ok(token)
@@ -305,7 +305,7 @@ impl AuthManager {
     /// Validate JWT token
     pub fn validate_token(&self, token: &str) -> Result<Claims> {
         let token_data = decode::<Claims>(token, &self.decoding_key, &self.validation)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid token: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid token: {e}")))?;
 
         if token_data.claims.is_expired() {
             return Err(AllSourceError::ValidationError("Token expired".to_string()));
@@ -417,7 +417,7 @@ fn hash_password(password: &str) -> Result<String> {
 
     let hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| AllSourceError::ValidationError(format!("Password hashing failed: {}", e)))?;
+        .map_err(|e| AllSourceError::ValidationError(format!("Password hashing failed: {e}")))?;
 
     Ok(hash.to_string())
 }
@@ -425,7 +425,7 @@ fn hash_password(password: &str) -> Result<String> {
 /// Verify password against hash
 fn verify_password(password: &str, hash: &str) -> Result<bool> {
     let parsed_hash = PasswordHash::new(hash)
-        .map_err(|e| AllSourceError::ValidationError(format!("Invalid password hash: {}", e)))?;
+        .map_err(|e| AllSourceError::ValidationError(format!("Invalid password hash: {e}")))?;
 
     let argon2 = Argon2::default();
     Ok(argon2

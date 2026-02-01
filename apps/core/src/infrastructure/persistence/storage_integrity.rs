@@ -106,7 +106,7 @@ impl StorageIntegrity {
 
         // Read segment file
         let data = std::fs::read(segment_path).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read WAL segment: {}", e))
+            AllSourceError::StorageError(format!("Failed to read WAL segment: {e}"))
         })?;
 
         // WAL format: [checksum: 64 bytes][data: N bytes]
@@ -140,7 +140,7 @@ impl StorageIntegrity {
         // For now, just verify file can be read
         // TODO: Add Parquet metadata checksum verification
         let _data = std::fs::read(file_path).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read Parquet file: {}", e))
+            AllSourceError::StorageError(format!("Failed to read Parquet file: {e}"))
         })?;
 
         // Parquet has internal checksums, but we could add external ones

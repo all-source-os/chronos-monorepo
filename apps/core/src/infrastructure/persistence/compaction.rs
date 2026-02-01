@@ -113,21 +113,21 @@ impl CompactionManager {
     /// List all Parquet files in the storage directory
     fn list_parquet_files(&self) -> Result<Vec<FileInfo>> {
         let entries = fs::read_dir(&self.storage_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read storage directory: {}", e))
+            AllSourceError::StorageError(format!("Failed to read storage directory: {e}"))
         })?;
 
         let mut files = Vec::new();
 
         for entry in entries {
             let entry = entry.map_err(|e| {
-                AllSourceError::StorageError(format!("Failed to read directory entry: {}", e))
+                AllSourceError::StorageError(format!("Failed to read directory entry: {e}"))
             })?;
 
             let path = entry.path();
             if let Some(ext) = path.extension() {
                 if ext == "parquet" {
                     let metadata = entry.metadata().map_err(|e| {
-                        AllSourceError::StorageError(format!("Failed to read file metadata: {}", e))
+                        AllSourceError::StorageError(format!("Failed to read file metadata: {e}"))
                     })?;
 
                     let size = metadata.len();

@@ -13,10 +13,14 @@ import (
 // PolicyAction represents an action that can be taken
 type PolicyAction string
 
+// Policy action constants.
 const (
+	// ActionAllow permits the operation.
 	ActionAllow PolicyAction = "allow"
-	ActionDeny  PolicyAction = "deny"
-	ActionWarn  PolicyAction = "warn"
+	// ActionDeny blocks the operation.
+	ActionDeny PolicyAction = "deny"
+	// ActionWarn allows the operation but logs a warning.
+	ActionWarn PolicyAction = "warn"
 )
 
 // PolicyCondition represents a condition for a policy

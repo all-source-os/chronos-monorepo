@@ -210,9 +210,9 @@ impl Actor {
     /// Get actor identifier for logging
     pub fn identifier(&self) -> String {
         match self {
-            Self::User { user_id, .. } => format!("user:{}", user_id),
-            Self::ApiKey { key_id, .. } => format!("api_key:{}", key_id),
-            Self::System { component } => format!("system:{}", component),
+            Self::User { user_id, .. } => format!("user:{user_id}"),
+            Self::ApiKey { key_id, .. } => format!("api_key:{key_id}"),
+            Self::System { component } => format!("system:{component}"),
         }
     }
 }
@@ -389,14 +389,14 @@ impl AuditEvent {
     /// Get a human-readable description
     pub fn description(&self) -> String {
         let actor_desc = match &self.actor {
-            Actor::User { username, .. } => format!("User '{}'", username),
-            Actor::ApiKey { key_name, .. } => format!("API Key '{}'", key_name),
-            Actor::System { component } => format!("System component '{}'", component),
+            Actor::User { username, .. } => format!("User '{username}'"),
+            Actor::ApiKey { key_name, .. } => format!("API Key '{key_name}'"),
+            Actor::System { component } => format!("System component '{component}'"),
         };
 
         let resource_desc =
             if let (Some(r_type), Some(r_id)) = (&self.resource_type, &self.resource_id) {
-                format!(" on {} '{}'", r_type, r_id)
+                format!(" on {r_type} '{r_id}'")
             } else {
                 String::new()
             };

@@ -46,6 +46,11 @@ defmodule QueryServiceExWeb.Router do
     plug(QueryServiceExWeb.Plugs.UsageEnforcement, type: :queries)
   end
 
+  # Rate limiting to prevent any single tenant from overwhelming the system
+  pipeline :rate_limited do
+    plug(QueryServiceExWeb.Plugs.RateLimiting)
+  end
+
   # -------------------------------------------------------------------
   # Public Routes
   # -------------------------------------------------------------------
@@ -87,7 +92,7 @@ defmodule QueryServiceExWeb.Router do
 
   # Events endpoints (with usage quota enforcement for writes)
   scope "/api", QueryServiceExWeb do
-    pipe_through([:tenant_scoped, :events_quota])
+    pipe_through([:tenant_scoped, :rate_limited, :events_quota])
 
     post("/events", EventController, :create)
     post("/events/batch", EventController, :create_batch)
@@ -95,7 +100,7 @@ defmodule QueryServiceExWeb.Router do
 
   # Events read endpoints (no quota for reads)
   scope "/api", QueryServiceExWeb do
-    pipe_through(:tenant_scoped)
+    pipe_through([:tenant_scoped, :rate_limited])
 
     get("/events", EventController, :index)
     get("/events/:id", EventController, :show)
@@ -105,14 +110,14 @@ defmodule QueryServiceExWeb.Router do
 
   # Query execution (with usage quota enforcement)
   scope "/api", QueryServiceExWeb do
-    pipe_through([:tenant_scoped, :queries_quota])
+    pipe_through([:tenant_scoped, :rate_limited, :queries_quota])
 
     post("/query", QueryController, :execute)
   end
 
   # Projections endpoints (no quota for projection operations)
   scope "/api", QueryServiceExWeb do
-    pipe_through(:tenant_scoped)
+    pipe_through([:tenant_scoped, :rate_limited])
 
     get("/projections", ProjectionController, :index)
     get("/projections/:name", ProjectionController, :show)
@@ -124,7 +129,7 @@ defmodule QueryServiceExWeb.Router do
 
   # Schema endpoints
   scope "/api", QueryServiceExWeb do
-    pipe_through(:tenant_scoped)
+    pipe_through([:tenant_scoped, :rate_limited])
 
     get("/schemas", SchemaController, :index)
     get("/schemas/:event_type", SchemaController, :show)

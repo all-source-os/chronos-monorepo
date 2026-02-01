@@ -51,5 +51,17 @@ config :query_service_ex, QueryServiceEx.Accounts.Guardian,
   allowed_algos: ["HS512"],
   verify_issuer: true
 
+# Configure rate limiting (requests per second)
+config :query_service_ex, QueryServiceEx.RateLimiter,
+  default_rate: 100,
+  default_burst: 200,
+  cleanup_interval: 60_000,
+  tier_limits: %{
+    free: %{rate: 10, burst: 20},
+    starter: %{rate: 50, burst: 100},
+    pro: %{rate: 200, burst: 400},
+    enterprise: %{rate: 1000, burst: 2000}
+  }
+
 # Import environment specific config
 import_config "#{config_env()}.exs"

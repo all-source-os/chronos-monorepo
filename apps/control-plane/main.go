@@ -18,11 +18,15 @@ import (
 	"github.com/allsource/control-plane/internal"
 )
 
+// Control plane configuration constants.
 const (
-	DefaultPort    = "3901"
+	// DefaultPort is the default port the control plane listens on.
+	DefaultPort = "3901"
+	// CoreServiceURL is the URL of the core event store service.
 	CoreServiceURL = "http://localhost:3900"
 )
 
+// ControlPlane is the main control plane service that manages the event store cluster.
 type ControlPlane struct {
 	client    *resty.Client
 	router    *gin.Engine
@@ -30,6 +34,7 @@ type ControlPlane struct {
 	container *internal.Container
 }
 
+// NewControlPlane creates a new control plane instance with default configuration.
 func NewControlPlane() *ControlPlane {
 	client := resty.New().
 		SetTimeout(5 * time.Second).
@@ -220,6 +225,7 @@ func (cp *ControlPlane) replayHandler(c *gin.Context) {
 	})
 }
 
+// Start starts the control plane HTTP server on the specified port.
 func (cp *ControlPlane) Start(port string) error {
 	return cp.router.Run(":" + port)
 }

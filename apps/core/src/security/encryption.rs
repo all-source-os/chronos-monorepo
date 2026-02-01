@@ -121,7 +121,7 @@ impl FieldEncryption {
 
         // Use AES-256-GCM
         let cipher = Aes256Gcm::new_from_slice(&dek.key_bytes)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {e}")))?;
 
         // Generate random nonce
         let nonce_bytes = aes_gcm::aead::rand_core::RngCore::next_u64(&mut OsRng).to_le_bytes();
@@ -132,7 +132,7 @@ impl FieldEncryption {
         // Encrypt with associated data (field name) for integrity
         let ciphertext = cipher
             .encrypt(nonce, plaintext.as_bytes())
-            .map_err(|e| AllSourceError::ValidationError(format!("Encryption failed: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Encryption failed: {e}")))?;
 
         Ok(EncryptedData {
             ciphertext: general_purpose::STANDARD.encode(&ciphertext),
@@ -163,27 +163,27 @@ impl FieldEncryption {
         let ciphertext = general_purpose::STANDARD
             .decode(&encrypted.ciphertext)
             .map_err(|e| {
-                AllSourceError::ValidationError(format!("Invalid ciphertext encoding: {}", e))
+                AllSourceError::ValidationError(format!("Invalid ciphertext encoding: {e}"))
             })?;
 
         let nonce_bytes = general_purpose::STANDARD
             .decode(&encrypted.nonce)
             .map_err(|e| {
-                AllSourceError::ValidationError(format!("Invalid nonce encoding: {}", e))
+                AllSourceError::ValidationError(format!("Invalid nonce encoding: {e}"))
             })?;
 
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Decrypt
         let cipher = Aes256Gcm::new_from_slice(&dek.key_bytes)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {e}")))?;
 
         let plaintext_bytes = cipher
             .decrypt(nonce, ciphertext.as_ref())
-            .map_err(|e| AllSourceError::ValidationError(format!("Decryption failed: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Decryption failed: {e}")))?;
 
         String::from_utf8(plaintext_bytes)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid UTF-8: {}", e)))
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid UTF-8: {e}")))
     }
 
     /// Rotate encryption keys
@@ -268,7 +268,7 @@ pub fn encrypt_json_value(
     field_name: &str,
 ) -> Result<EncryptedData> {
     let json_string = serde_json::to_string(value).map_err(|e| {
-        AllSourceError::ValidationError(format!("JSON serialization failed: {}", e))
+        AllSourceError::ValidationError(format!("JSON serialization failed: {e}"))
     })?;
 
     encryption.encrypt_string(&json_string, field_name)
@@ -282,7 +282,7 @@ pub fn decrypt_json_value(
     let json_string = encryption.decrypt_string(encrypted)?;
 
     serde_json::from_str(&json_string)
-        .map_err(|e| AllSourceError::ValidationError(format!("JSON deserialization failed: {}", e)))
+        .map_err(|e| AllSourceError::ValidationError(format!("JSON deserialization failed: {e}")))
 }
 
 #[cfg(test)]

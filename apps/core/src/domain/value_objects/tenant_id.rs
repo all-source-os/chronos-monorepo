@@ -89,7 +89,7 @@ impl TenantId {
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
             return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Tenant ID '{}' contains invalid characters. Only alphanumeric, hyphens, and underscores allowed", value),
+                format!("Tenant ID '{value}' contains invalid characters. Only alphanumeric, hyphens, and underscores allowed"),
             ));
         }
 

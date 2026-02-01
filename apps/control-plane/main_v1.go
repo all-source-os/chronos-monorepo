@@ -15,10 +15,13 @@ import (
 	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
+// Version constants for the control plane.
 const (
+	// Version is the current version of the control plane.
 	Version = "1.0.0"
 )
 
+// ControlPlaneV1 is the v1.0 control plane with authentication and audit logging.
 type ControlPlaneV1 struct {
 	client      *resty.Client
 	router      *gin.Engine
@@ -27,6 +30,7 @@ type ControlPlaneV1 struct {
 	auditLogger *AuditLogger
 }
 
+// NewControlPlaneV1 creates a new v1.0 control plane instance with auth and audit logging.
 func NewControlPlaneV1() (*ControlPlaneV1, error) {
 	// Initialize auth client
 	jwtSecret := os.Getenv("JWT_SECRET")
@@ -463,10 +467,12 @@ func (cp *ControlPlaneV1) proxyToCoreAuthWithBody(c *gin.Context, method, path s
 	return resp, nil
 }
 
+// Start starts the control plane HTTP server on the specified port.
 func (cp *ControlPlaneV1) Start(port string) error {
 	return cp.router.Run(":" + port)
 }
 
+// Shutdown gracefully shuts down the control plane and closes resources.
 func (cp *ControlPlaneV1) Shutdown() error {
 	if cp.auditLogger != nil {
 		return cp.auditLogger.Close()

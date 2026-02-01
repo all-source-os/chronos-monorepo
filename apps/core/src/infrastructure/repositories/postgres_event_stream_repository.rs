@@ -67,7 +67,7 @@ impl PostgresEventStreamRepository {
         sqlx::migrate!("./migrations")
             .run(&self.pool)
             .await
-            .map_err(|e| AllSourceError::StorageError(format!("Migration failed: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Migration failed: {e}")))?;
         Ok(())
     }
 
@@ -85,25 +85,25 @@ impl PostgresEventStreamRepository {
         .bind(stream_id)
         .fetch_all(&mut **tx)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to load events: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to load events: {e}")))?;
 
         let mut events = Vec::new();
         for row in rows {
             let tenant_id: String = row
                 .try_get("tenant_id")
-                .map_err(|e| AllSourceError::StorageError(format!("Invalid tenant_id: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid tenant_id: {e}")))?;
             let event_type: String = row
                 .try_get("event_type")
-                .map_err(|e| AllSourceError::StorageError(format!("Invalid event_type: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid event_type: {e}")))?;
             let entity_id: String = row
                 .try_get("entity_id")
-                .map_err(|e| AllSourceError::StorageError(format!("Invalid entity_id: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid entity_id: {e}")))?;
             let payload: serde_json::Value = row
                 .try_get("payload")
-                .map_err(|e| AllSourceError::StorageError(format!("Invalid payload: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid payload: {e}")))?;
             let metadata: Option<serde_json::Value> = row
                 .try_get("metadata")
-                .map_err(|e| AllSourceError::StorageError(format!("Invalid metadata: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid metadata: {e}")))?;
 
             let event = Event::from_strings(event_type, entity_id, tenant_id, payload, metadata)?;
 
@@ -152,7 +152,7 @@ impl PostgresEventStreamRepository {
 impl EventStreamRepository for PostgresEventStreamRepository {
     async fn get_or_create_stream(&self, stream_id: &EntityId) -> Result<EventStream> {
         let mut tx = self.pool.begin().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction begin failed: {}", e))
+            AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
         })?;
 
         // Try to load existing stream
@@ -166,26 +166,26 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .bind(stream_id.as_str())
         .fetch_optional(&mut *tx)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to query stream: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to query stream: {e}")))?;
 
         let stream = if let Some(row) = maybe_row {
             // Stream exists, reconstruct it
             let partition_id: i32 = row.try_get("partition_id").map_err(|e| {
-                AllSourceError::StorageError(format!("Invalid partition_id: {}", e))
+                AllSourceError::StorageError(format!("Invalid partition_id: {e}"))
             })?;
             let current_version: i64 = row.try_get("current_version").map_err(|e| {
-                AllSourceError::StorageError(format!("Invalid current_version: {}", e))
+                AllSourceError::StorageError(format!("Invalid current_version: {e}"))
             })?;
             let watermark: i64 = row
                 .try_get("watermark")
-                .map_err(|e| AllSourceError::StorageError(format!("Invalid watermark: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid watermark: {e}")))?;
             let expected_version: Option<i64> = row.try_get("expected_version").ok();
             let created_at: DateTime<Utc> = row
                 .try_get("created_at")
-                .map_err(|e| AllSourceError::StorageError(format!("Invalid created_at: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid created_at: {e}")))?;
             let updated_at: DateTime<Utc> = row
                 .try_get("updated_at")
-                .map_err(|e| AllSourceError::StorageError(format!("Invalid updated_at: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid updated_at: {e}")))?;
 
             Self::reconstruct_stream(
                 &mut tx,
@@ -215,13 +215,13 @@ impl EventStreamRepository for PostgresEventStreamRepository {
             .bind(stream.updated_at())
             .execute(&mut *tx)
             .await
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to create stream: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to create stream: {e}")))?;
 
             stream
         };
 
         tx.commit().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction commit failed: {}", e))
+            AllSourceError::StorageError(format!("Transaction commit failed: {e}"))
         })?;
 
         Ok(stream)
@@ -229,7 +229,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
 
     async fn append_to_stream(&self, stream: &mut EventStream, event: Event) -> Result<u64> {
         let mut tx = self.pool.begin().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction begin failed: {}", e))
+            AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
         })?;
 
         // Get current version with row lock (pessimistic locking for DB)
@@ -239,7 +239,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .bind(stream.stream_id().as_str())
         .fetch_one(&mut *tx)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Stream not found: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Stream not found: {e}")))?;
 
         // Optimistic locking check (domain-level)
         if let Some(expected) = stream.expected_version() {
@@ -270,7 +270,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .bind(event.timestamp())
         .execute(&mut *tx)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to insert event: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to insert event: {e}")))?;
 
         // Update stream metadata
         sqlx::query(
@@ -284,10 +284,10 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .bind(stream.stream_id().as_str())
         .execute(&mut *tx)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to update stream: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to update stream: {e}")))?;
 
         tx.commit().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction commit failed: {}", e))
+            AllSourceError::StorageError(format!("Transaction commit failed: {e}"))
         })?;
 
         Ok(new_version)
@@ -297,7 +297,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         // For PostgreSQL, we don't need separate save - it's handled in append_to_stream
         // This method is here for compatibility with in-memory implementation
         let mut tx = self.pool.begin().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction begin failed: {}", e))
+            AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
         })?;
 
         sqlx::query(
@@ -311,10 +311,10 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .bind(stream.stream_id().as_str())
         .execute(&mut *tx)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to save stream: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to save stream: {e}")))?;
 
         tx.commit().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction commit failed: {}", e))
+            AllSourceError::StorageError(format!("Transaction commit failed: {e}"))
         })?;
 
         Ok(())
@@ -322,7 +322,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
 
     async fn load_stream(&self, stream_id: &EntityId) -> Result<Option<EventStream>> {
         let mut tx = self.pool.begin().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction begin failed: {}", e))
+            AllSourceError::StorageError(format!("Transaction begin failed: {e}"))
         })?;
 
         let maybe_row = sqlx::query(
@@ -334,7 +334,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .bind(stream_id.as_str())
         .fetch_optional(&mut *tx)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to query stream: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to query stream: {e}")))?;
 
         let stream = if let Some(row) = maybe_row {
             let partition_id: i32 = row.try_get("partition_id")?;
@@ -362,7 +362,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         };
 
         tx.commit().await.map_err(|e| {
-            AllSourceError::StorageError(format!("Transaction commit failed: {}", e))
+            AllSourceError::StorageError(format!("Transaction commit failed: {e}"))
         })?;
 
         Ok(stream)
@@ -384,7 +384,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .bind(partition_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Failed to query partition: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Failed to query partition: {e}")))?;
 
         let mut streams = Vec::new();
         for row in rows {
@@ -422,7 +422,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
                 .bind(stream_id.as_str())
                 .fetch_one(&self.pool)
                 .await
-                .map_err(|e| AllSourceError::EntityNotFound(format!("Stream not found: {}", e)))?;
+                .map_err(|e| AllSourceError::EntityNotFound(format!("Stream not found: {e}")))?;
 
         Ok(watermark as u64)
     }
@@ -432,7 +432,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
             .bind(stream_id.as_str())
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| AllSourceError::StorageError(format!("Gapless check failed: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Gapless check failed: {e}")))?;
 
         Ok(is_gapless)
     }
@@ -441,7 +441,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM event_streams")
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| AllSourceError::StorageError(format!("Count failed: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Count failed: {e}")))?;
 
         Ok(count as usize)
     }
@@ -452,7 +452,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| AllSourceError::StorageError(format!("Stats query failed: {}", e)))?;
+        .map_err(|e| AllSourceError::StorageError(format!("Stats query failed: {e}")))?;
 
         Ok(rows
             .into_iter()

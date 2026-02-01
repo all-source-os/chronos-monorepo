@@ -33,7 +33,7 @@ impl ParquetStorage {
 
         // Create storage directory if it doesn't exist
         fs::create_dir_all(&storage_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to create storage directory: {}", e))
+            AllSourceError::StorageError(format!("Failed to create storage directory: {e}"))
         })?;
 
         // Define Arrow schema for events
@@ -92,7 +92,7 @@ impl ParquetStorage {
 
         // Write to Parquet file
         let file = File::create(&file_path).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to create parquet file: {}", e))
+            AllSourceError::StorageError(format!("Failed to create parquet file: {e}"))
         })?;
 
         let props = WriterProperties::builder()
@@ -166,7 +166,7 @@ impl ParquetStorage {
 
         // Read all parquet files in storage directory
         let entries = fs::read_dir(&self.storage_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read storage directory: {}", e))
+            AllSourceError::StorageError(format!("Failed to read storage directory: {e}"))
         })?;
 
         let mut parquet_files: Vec<PathBuf> = entries
@@ -199,7 +199,7 @@ impl ParquetStorage {
         use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
         let file = File::open(file_path).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to open parquet file: {}", e))
+            AllSourceError::StorageError(format!("Failed to open parquet file: {e}"))
         })?;
 
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
@@ -263,7 +263,7 @@ impl ParquetStorage {
 
         for i in 0..batch.num_rows() {
             let id = uuid::Uuid::parse_str(event_ids.value(i))
-                .map_err(|e| AllSourceError::StorageError(format!("Invalid UUID: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Invalid UUID: {e}")))?;
 
             let timestamp = chrono::DateTime::from_timestamp_micros(timestamps.value(i))
                 .ok_or_else(|| AllSourceError::StorageError("Invalid timestamp".to_string()))?;
@@ -294,7 +294,7 @@ impl ParquetStorage {
     /// Get storage statistics
     pub fn stats(&self) -> Result<StorageStats> {
         let entries = fs::read_dir(&self.storage_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read storage directory: {}", e))
+            AllSourceError::StorageError(format!("Failed to read storage directory: {e}"))
         })?;
 
         let mut total_files = 0;

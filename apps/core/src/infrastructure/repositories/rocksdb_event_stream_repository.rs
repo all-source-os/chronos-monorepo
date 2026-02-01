@@ -88,7 +88,7 @@ impl RocksDBEventStreamRepository {
         let cf_partition = ColumnFamilyDescriptor::new(CF_PARTITION_INDEX, Options::default());
 
         let db = DB::open_cf_descriptors(&opts, path, vec![cf_streams, cf_events, cf_partition])
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to open RocksDB: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to open RocksDB: {e}")))?;
 
         Ok(Self { db: Arc::new(db) })
     }
@@ -142,9 +142,9 @@ impl RocksDBEventStreamRepository {
             let data = self
                 .db
                 .get_cf(cf_events, key.as_bytes())
-                .map_err(|e| AllSourceError::StorageError(format!("Failed to read event: {}", e)))?
+                .map_err(|e| AllSourceError::StorageError(format!("Failed to read event: {e}")))?
                 .ok_or_else(|| {
-                    AllSourceError::StorageError(format!("Event not found: version {}", version))
+                    AllSourceError::StorageError(format!("Event not found: version {version}"))
                 })?;
 
             let event = Self::deserialize_event(&data)?;
@@ -167,7 +167,7 @@ impl RocksDBEventStreamRepository {
             .db
             .get_cf(cf_partition, partition_key.as_bytes())
             .map_err(|e| {
-                AllSourceError::StorageError(format!("Failed to read partition index: {}", e))
+                AllSourceError::StorageError(format!("Failed to read partition index: {e}"))
             })? {
             serde_json::from_slice(&data).map_err(AllSourceError::SerializationError)?
         } else {
@@ -181,7 +181,7 @@ impl RocksDBEventStreamRepository {
             self.db
                 .put_cf(cf_partition, partition_key.as_bytes(), data)
                 .map_err(|e| {
-                    AllSourceError::StorageError(format!("Failed to update partition index: {}", e))
+                    AllSourceError::StorageError(format!("Failed to update partition index: {e}"))
                 })?;
         }
 
@@ -215,7 +215,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
         if let Some(data) = self
             .db
             .get_cf(cf_streams, stream_id.as_str().as_bytes())
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to read stream: {}", e)))?
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to read stream: {e}")))?
         {
             let metadata = Self::deserialize_stream_metadata(&data)?;
             let events = self.load_events(&metadata.stream_id, metadata.event_count)?;
@@ -241,7 +241,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
         let metadata_data = Self::serialize_stream_metadata(&stream)?;
         self.db
             .put_cf(cf_streams, stream_id.as_str().as_bytes(), metadata_data)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to create stream: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to create stream: {e}")))?;
 
         // Index by partition
         self.index_stream_partition(stream_id.as_str(), stream.partition_key().partition_id())?;
@@ -263,7 +263,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
         let current_data = self
             .db
             .get_cf(cf_streams, stream.stream_id().as_str().as_bytes())
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to read stream: {}", e)))?
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to read stream: {e}")))?
             .ok_or_else(|| AllSourceError::EntityNotFound("Stream not found".to_string()))?;
 
         let current_metadata = Self::deserialize_stream_metadata(&current_data)?;
@@ -300,7 +300,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
         // Commit batch atomically
         self.db
             .write(batch)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to write batch: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to write batch: {e}")))?;
 
         Ok(new_version)
     }
@@ -318,7 +318,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
                 stream.stream_id().as_str().as_bytes(),
                 metadata_data,
             )
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to save stream: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to save stream: {e}")))?;
 
         Ok(())
     }
@@ -332,7 +332,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
         if let Some(data) = self
             .db
             .get_cf(cf_streams, stream_id.as_str().as_bytes())
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to read stream: {}", e)))?
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to read stream: {e}")))?
         {
             let metadata = Self::deserialize_stream_metadata(&data)?;
             let events = self.load_events(&metadata.stream_id, metadata.event_count)?;
@@ -364,13 +364,13 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
         })?;
 
         let partition_id = partition_key.partition_id();
-        let partition_key_str = format!("partition:{}", partition_id);
+        let partition_key_str = format!("partition:{partition_id}");
 
         let stream_ids: Vec<String> = if let Some(data) = self
             .db
             .get_cf(cf_partition, partition_key_str.as_bytes())
             .map_err(|e| {
-                AllSourceError::StorageError(format!("Failed to read partition index: {}", e))
+                AllSourceError::StorageError(format!("Failed to read partition index: {e}"))
             })? {
             serde_json::from_slice(&data)?
         } else {
@@ -397,7 +397,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
         let data = self
             .db
             .get_cf(cf_streams, stream_id.as_str().as_bytes())
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to read stream: {}", e)))?
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to read stream: {e}")))?
             .ok_or_else(|| AllSourceError::EntityNotFound("Stream not found".to_string()))?;
 
         let metadata = Self::deserialize_stream_metadata(&data)?;
@@ -438,7 +438,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
 
         for item in iter {
             let (key, value) =
-                item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {}", e)))?;
+                item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {e}")))?;
 
             if let Ok(key_str) = std::str::from_utf8(&key) {
                 if let Some(partition_suffix) = key_str.strip_prefix("partition:") {
@@ -475,7 +475,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
 
         for item in iter {
             let (_, value) =
-                item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {}", e)))?;
+                item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {e}")))?;
 
             if let Ok(event) = Self::deserialize_event(&value) {
                 if event.tenant_id().as_str() == tenant_id.as_str() {
@@ -514,7 +514,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
 
         for item in iter {
             let (_, value) =
-                item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {}", e)))?;
+                item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {e}")))?;
 
             if let Ok(event) = Self::deserialize_event(&value) {
                 if event.tenant_id().as_str() == tenant_id.as_str() {

@@ -269,7 +269,7 @@ impl IntoResponse for RateLimitError {
             RateLimitError::RateLimitExceeded { retry_after, limit } => {
                 let mut response = (
                     StatusCode::TOO_MANY_REQUESTS,
-                    format!("Rate limit exceeded. Limit: {} requests/min", limit),
+                    format!("Rate limit exceeded. Limit: {limit} requests/min"),
                 )
                     .into_response();
 
@@ -701,7 +701,7 @@ impl IntoResponse for IpFilterError {
             )
                 .into_response(),
             IpFilterError::Blocked { reason } => {
-                (StatusCode::FORBIDDEN, format!("Access denied: {}", reason)).into_response()
+                (StatusCode::FORBIDDEN, format!("Access denied: {reason}")).into_response()
             }
         }
     }

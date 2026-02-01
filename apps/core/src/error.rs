@@ -77,7 +77,7 @@ impl From<crate::infrastructure::persistence::SimdJsonError> for AllSourceError 
 #[cfg(feature = "postgres")]
 impl From<sqlx::Error> for AllSourceError {
     fn from(err: sqlx::Error) -> Self {
-        AllSourceError::StorageError(format!("Database error: {}", err))
+        AllSourceError::StorageError(format!("Database error: {err}"))
     }
 }
 

@@ -148,7 +148,7 @@ pub async fn prometheus_metrics(State(store): State<SharedStore>) -> impl IntoRe
             .into_response(),
         Err(e) => Response::builder()
             .status(500)
-            .body(format!("Error encoding metrics: {}", e))
+            .body(format!("Error encoding metrics: {e}"))
             .unwrap()
             .into_response(),
     }
@@ -772,7 +772,7 @@ pub async fn get_projection(
     let projection_manager = store.projection_manager();
 
     let projection = projection_manager.get_projection(&name).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Projection '{}' not found", name))
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
     })?;
 
     Ok(Json(serde_json::json!({
@@ -792,7 +792,7 @@ pub async fn get_projection_state(
     let projection_manager = store.projection_manager();
 
     let projection = projection_manager.get_projection(&name).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Projection '{}' not found", name))
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
     })?;
 
     let state = projection.get_state(&entity_id);
@@ -825,7 +825,7 @@ pub async fn save_projection_state(
     let projection_cache = store.projection_state_cache();
 
     // Store in the projection state cache
-    projection_cache.insert(format!("{}:{}", name, entity_id), req.state.clone());
+    projection_cache.insert(format!("{name}:{entity_id}"), req.state.clone());
 
     tracing::info!("Projection state saved: {} / {}", name, entity_id);
 
@@ -852,7 +852,7 @@ pub async fn bulk_get_projection_states(
     let projection_manager = store.projection_manager();
 
     let projection = projection_manager.get_projection(&name).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Projection '{}' not found", name))
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
     })?;
 
     let states: Vec<serde_json::Value> = req

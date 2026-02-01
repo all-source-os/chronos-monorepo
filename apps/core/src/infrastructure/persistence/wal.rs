@@ -115,7 +115,7 @@ impl WALFile {
             .create(true)
             .append(true)
             .open(&path)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to open WAL file: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to open WAL file: {e}")))?;
 
         let size = file.metadata().map(|m| m.len() as usize).unwrap_or(0);
 
@@ -136,17 +136,17 @@ impl WALFile {
 
         self.writer
             .write_all(line.as_bytes())
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to write to WAL: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to write to WAL: {e}")))?;
 
         if sync {
             self.writer
                 .flush()
-                .map_err(|e| AllSourceError::StorageError(format!("Failed to flush WAL: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Failed to flush WAL: {e}")))?;
 
             self.writer
                 .get_ref()
                 .sync_all()
-                .map_err(|e| AllSourceError::StorageError(format!("Failed to sync WAL: {}", e)))?;
+                .map_err(|e| AllSourceError::StorageError(format!("Failed to sync WAL: {e}")))?;
         }
 
         self.size += bytes_written;
@@ -168,7 +168,7 @@ impl WriteAheadLog {
 
         // Create WAL directory if it doesn't exist
         fs::create_dir_all(&wal_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to create WAL directory: {}", e))
+            AllSourceError::StorageError(format!("Failed to create WAL directory: {e}"))
         })?;
 
         // Create initial WAL file
@@ -276,13 +276,13 @@ impl WriteAheadLog {
     /// List all WAL files in the directory
     fn list_wal_files(&self) -> Result<Vec<PathBuf>> {
         let entries = fs::read_dir(&self.wal_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read WAL directory: {}", e))
+            AllSourceError::StorageError(format!("Failed to read WAL directory: {e}"))
         })?;
 
         let mut wal_files = Vec::new();
         for entry in entries {
             let entry = entry.map_err(|e| {
-                AllSourceError::StorageError(format!("Failed to read directory entry: {}", e))
+                AllSourceError::StorageError(format!("Failed to read directory entry: {e}"))
             })?;
 
             let path = entry.path();
@@ -313,14 +313,14 @@ impl WriteAheadLog {
             tracing::debug!("Reading WAL file: {:?}", wal_file_path);
 
             let file = File::open(wal_file_path).map_err(|e| {
-                AllSourceError::StorageError(format!("Failed to open WAL file for recovery: {}", e))
+                AllSourceError::StorageError(format!("Failed to open WAL file for recovery: {e}"))
             })?;
 
             let reader = BufReader::new(file);
 
             for (line_num, line) in reader.lines().enumerate() {
                 let line = line.map_err(|e| {
-                    AllSourceError::StorageError(format!("Failed to read WAL line: {}", e))
+                    AllSourceError::StorageError(format!("Failed to read WAL line: {e}"))
                 })?;
 
                 if line.trim().is_empty() {
@@ -394,7 +394,7 @@ impl WriteAheadLog {
         let wal_files = self.list_wal_files()?;
         for file_path in wal_files {
             fs::remove_file(&file_path).map_err(|e| {
-                AllSourceError::StorageError(format!("Failed to remove WAL file: {}", e))
+                AllSourceError::StorageError(format!("Failed to remove WAL file: {e}"))
             })?;
             tracing::debug!("Removed WAL file: {:?}", file_path);
         }

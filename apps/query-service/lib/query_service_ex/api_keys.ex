@@ -216,8 +216,14 @@ defmodule QueryServiceEx.ApiKeys do
             {:error, :key_expired}
 
           true ->
-            # Update last_used_at asynchronously
-            Task.start(fn -> touch_api_key(api_key) end)
+            # Update last_used_at asynchronously (fire and forget, ignore errors)
+            spawn(fn ->
+              try do
+                touch_api_key(api_key)
+              rescue
+                _ -> :ok
+              end
+            end)
 
             tenant = QueryServiceEx.Tenants.get_tenant(api_key.tenant_id)
             {:ok, {tenant, api_key}}

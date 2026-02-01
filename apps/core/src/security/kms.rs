@@ -221,7 +221,7 @@ impl KmsClient for LocalKms {
             .read()
             .get(key_id)
             .map(|k| k.metadata.clone())
-            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))
+            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))
     }
 
     async fn list_keys(&self) -> Result<Vec<KeyMetadata>> {
@@ -240,7 +240,7 @@ impl KmsClient for LocalKms {
         let keys = self.keys.read();
         let stored_key = keys
             .get(key_id)
-            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
+            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
         if stored_key.metadata.status != KeyStatus::Active {
             return Err(AllSourceError::ValidationError(
@@ -249,7 +249,7 @@ impl KmsClient for LocalKms {
         }
 
         let cipher = Aes256Gcm::new_from_slice(&stored_key.key_material)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {e}")))?;
 
         // Generate nonce
         use aes_gcm::aead::rand_core::RngCore;
@@ -261,7 +261,7 @@ impl KmsClient for LocalKms {
 
         let ciphertext = cipher
             .encrypt(nonce, plaintext)
-            .map_err(|e| AllSourceError::ValidationError(format!("Encryption failed: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Encryption failed: {e}")))?;
 
         // Prepend nonce to ciphertext
         let mut result = nonce.to_vec();
@@ -283,10 +283,10 @@ impl KmsClient for LocalKms {
         let keys = self.keys.read();
         let stored_key = keys
             .get(key_id)
-            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
+            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
         let cipher = Aes256Gcm::new_from_slice(&stored_key.key_material)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {e}")))?;
 
         // Extract nonce and ciphertext
         let nonce = Nonce::from_slice(&ciphertext_with_nonce[..12]);
@@ -294,14 +294,14 @@ impl KmsClient for LocalKms {
 
         cipher
             .decrypt(nonce, ciphertext)
-            .map_err(|e| AllSourceError::ValidationError(format!("Decryption failed: {}", e)))
+            .map_err(|e| AllSourceError::ValidationError(format!("Decryption failed: {e}")))
     }
 
     async fn rotate_key(&self, key_id: &str) -> Result<KeyMetadata> {
         let mut keys = self.keys.write();
         let stored_key = keys
             .get_mut(key_id)
-            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
+            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
         // Generate new key material
         let new_key_material = {
@@ -323,7 +323,7 @@ impl KmsClient for LocalKms {
         let mut keys = self.keys.write();
         let stored_key = keys
             .get_mut(key_id)
-            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
+            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
         stored_key.metadata.status = KeyStatus::Deprecated;
         Ok(())
@@ -333,7 +333,7 @@ impl KmsClient for LocalKms {
         let mut keys = self.keys.write();
         let stored_key = keys
             .get_mut(key_id)
-            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {} not found", key_id)))?;
+            .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
         stored_key.metadata.status = KeyStatus::Active;
         Ok(())
@@ -394,7 +394,7 @@ impl KmsManager {
         use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
         let cipher = Aes256Gcm::new_from_slice(&dek)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {e}")))?;
 
         use aes_gcm::aead::rand_core::RngCore;
         use aes_gcm::aead::OsRng;
@@ -405,7 +405,7 @@ impl KmsManager {
 
         let ciphertext = cipher
             .encrypt(nonce, plaintext)
-            .map_err(|e| AllSourceError::ValidationError(format!("Encryption failed: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Encryption failed: {e}")))?;
 
         Ok(EnvelopeEncryptedData {
             ciphertext,
@@ -428,13 +428,13 @@ impl KmsManager {
         use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
         let cipher = Aes256Gcm::new_from_slice(&dek)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {}", e)))?;
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {e}")))?;
 
         let nonce = Nonce::from_slice(&encrypted.nonce);
 
         cipher
             .decrypt(nonce, encrypted.ciphertext.as_ref())
-            .map_err(|e| AllSourceError::ValidationError(format!("Decryption failed: {}", e)))
+            .map_err(|e| AllSourceError::ValidationError(format!("Decryption failed: {e}")))
     }
 }
 

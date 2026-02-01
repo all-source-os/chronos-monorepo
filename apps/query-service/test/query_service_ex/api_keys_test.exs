@@ -15,7 +15,8 @@ defmodule QueryServiceEx.ApiKeysTest do
   @moduletag :database
 
   setup do
-    {:ok, tenant} = Tenants.create_tenant(%{name: "Test Workspace", slug: "test-api-keys"})
+    slug = "test-api-keys-#{System.unique_integer([:positive])}"
+    {:ok, tenant} = Tenants.create_tenant(%{name: "Test Workspace", slug: slug})
 
     {:ok, user} =
       Accounts.create_user(%{
@@ -71,7 +72,9 @@ defmodule QueryServiceEx.ApiKeysTest do
 
       assert {:ok, _} = ApiKeys.create_api_key(tenant.id, user.id, attrs)
       assert {:error, changeset} = ApiKeys.create_api_key(tenant.id, user.id, attrs)
-      assert "an API key with this name already exists" in errors_on(changeset).name
+      errors = errors_on(changeset)
+      # Composite unique constraint error appears under first field (:tenant_id)
+      assert "an API key with this name already exists" in errors.tenant_id
     end
 
     test "validates invalid scopes", %{tenant: tenant, user: user} do

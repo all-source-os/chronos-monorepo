@@ -247,7 +247,7 @@ impl SchemaRegistry {
         let schemas = self.schemas.read();
 
         let subject_schemas = schemas.get(subject).ok_or_else(|| {
-            AllSourceError::ValidationError(format!("Subject not found: {}", subject))
+            AllSourceError::ValidationError(format!("Subject not found: {subject}"))
         })?;
 
         let version = match version {
@@ -255,7 +255,7 @@ impl SchemaRegistry {
             None => {
                 let latest_versions = self.latest_versions.read();
                 *latest_versions.get(subject).ok_or_else(|| {
-                    AllSourceError::ValidationError(format!("No versions for subject: {}", subject))
+                    AllSourceError::ValidationError(format!("No versions for subject: {subject}"))
                 })?
             }
         };
@@ -273,7 +273,7 @@ impl SchemaRegistry {
         let schemas = self.schemas.read();
 
         let subject_schemas = schemas.get(subject).ok_or_else(|| {
-            AllSourceError::ValidationError(format!("Subject not found: {}", subject))
+            AllSourceError::ValidationError(format!("Subject not found: {subject}"))
         })?;
 
         let mut versions: Vec<u32> = subject_schemas.keys().copied().collect();
@@ -326,7 +326,7 @@ impl SchemaRegistry {
                 for req_field in required {
                     if let Some(field_name) = req_field.as_str() {
                         if !obj.contains_key(field_name) {
-                            errors.push(format!("Missing required field: {}", field_name));
+                            errors.push(format!("Missing required field: {field_name}"));
                         }
                     }
                 }
@@ -361,7 +361,7 @@ impl SchemaRegistry {
                 if let Some(prop_schema) = properties.get(key) {
                     let nested_errors = self.validate_json(value, prop_schema);
                     for err in nested_errors {
-                        errors.push(format!("{}.{}", key, err));
+                        errors.push(format!("{key}.{err}"));
                     }
                 }
             }

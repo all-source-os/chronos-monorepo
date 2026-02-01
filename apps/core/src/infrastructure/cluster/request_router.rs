@@ -73,7 +73,7 @@ impl RequestRouter {
             })?;
 
         self.registry.get_node(node_id).ok_or_else(|| {
-            AllSourceError::InternalError(format!("Node {} not found in registry", node_id))
+            AllSourceError::InternalError(format!("Node {node_id} not found in registry"))
         })
     }
 

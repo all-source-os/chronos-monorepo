@@ -65,7 +65,7 @@ impl BackupManager {
     pub fn new(config: BackupConfig) -> Result<Self> {
         // Ensure backup directory exists
         fs::create_dir_all(&config.backup_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to create backup dir: {}", e))
+            AllSourceError::StorageError(format!("Failed to create backup dir: {e}"))
         })?;
 
         Ok(Self { config })
@@ -93,17 +93,17 @@ impl BackupManager {
         let backup_path = self.get_backup_path(&backup_id);
         let mut encoder = GzEncoder::new(
             File::create(&backup_path).map_err(|e| {
-                AllSourceError::StorageError(format!("Failed to create backup file: {}", e))
+                AllSourceError::StorageError(format!("Failed to create backup file: {e}"))
             })?,
             self.config.compression_level,
         );
 
         encoder
             .write_all(json_data.as_bytes())
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to write backup: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to write backup: {e}")))?;
 
         encoder.finish().map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to finish compression: {}", e))
+            AllSourceError::StorageError(format!("Failed to finish compression: {e}"))
         })?;
 
         let size_bytes = fs::metadata(&backup_path)
@@ -154,12 +154,12 @@ impl BackupManager {
 
         // Decompress backup
         let file = File::open(&backup_path)
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to open backup: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to open backup: {e}")))?;
 
         let mut decoder = GzDecoder::new(file);
         let mut json_data = String::new();
         decoder.read_to_string(&mut json_data).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to decompress backup: {}", e))
+            AllSourceError::StorageError(format!("Failed to decompress backup: {e}"))
         })?;
 
         // Deserialize events
@@ -276,13 +276,13 @@ impl BackupManager {
     fn get_backup_path(&self, backup_id: &str) -> PathBuf {
         self.config
             .backup_dir
-            .join(format!("{}.backup.gz", backup_id))
+            .join(format!("{backup_id}.backup.gz"))
     }
 
     fn get_metadata_path(&self, backup_id: &str) -> PathBuf {
         self.config
             .backup_dir
-            .join(format!("{}_metadata.json", backup_id))
+            .join(format!("{backup_id}_metadata.json"))
     }
 
     fn save_metadata(&self, metadata: &BackupMetadata) -> Result<()> {
