@@ -2,7 +2,8 @@
         core control web mcp \
         docker-build docker-test docker-test-quick docker-clean docker-purge \
         docker-core docker-web docker-query docker-mcp docker-control \
-        quality-gates quality-rust quality-go quality-elixir
+        quality-gates quality-rust quality-go quality-elixir \
+        validate-workflows validate-workflows-quick
 
 # =============================================================================
 # General Commands
@@ -27,6 +28,10 @@ help:
 	@echo "  make quality-rust   - Run Rust quality gates only"
 	@echo "  make quality-go     - Run Go quality gates only"
 	@echo "  make quality-elixir - Run Elixir quality gates only"
+	@echo ""
+	@echo "Workflow Validation:"
+	@echo "  make validate-workflows       - Validate GitHub Actions with act"
+	@echo "  make validate-workflows-quick - Quick syntax check (actionlint only)"
 	@echo ""
 	@echo "Individual Services:"
 	@echo "  make core         - Run Rust event store only"
@@ -255,3 +260,15 @@ logs:
 
 ps:
 	docker compose ps
+
+# =============================================================================
+# Workflow Validation Commands
+# =============================================================================
+
+validate-workflows:
+	@echo "🔍 Validating GitHub Actions workflows with act..."
+	./scripts/validate-workflows.sh
+
+validate-workflows-quick:
+	@echo "🔍 Quick workflow syntax validation (actionlint only)..."
+	./scripts/validate-workflows.sh --quick

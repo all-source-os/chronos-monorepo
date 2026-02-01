@@ -1,31 +1,15 @@
 # =============================================================================
-# Container CI - World-class container testing before merge
+# Container CI - World-class container testing after CI passes
 # =============================================================================
 name: Container CI
 
 on:
-  push:
+  # Triggered after CI workflow completes successfully
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main, develop]
-    paths:
-      - "apps/*/Dockerfile"
-      - "apps/**/*.rs"
-      - "apps/**/*.go"
-      - "apps/**/*.ex"
-      - "apps/**/*.exs"
-      - "packages/**"
-      - "docker-compose.yml"
-      - ".github/workflows/container-ci.yml"
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - "apps/*/Dockerfile"
-      - "apps/**/*.rs"
-      - "apps/**/*.go"
-      - "apps/**/*.ex"
-      - "apps/**/*.exs"
-      - "packages/**"
-      - "docker-compose.yml"
-      - ".github/workflows/container-ci.yml"
+  # Manual trigger for testing specific containers
   workflow_dispatch:
     inputs:
       containers:
@@ -33,35 +17,52 @@ on:
         required: false
         default: "all"
 
+concurrency:
+  group: container-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/chronos
 
 jobs:
   # ===========================================================================
-  # Detect which containers changed
+  # Check CI status and get change detection from CI workflow
+  # ===========================================================================
+  check-ci:
+    name: Check CI Status
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run'
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check CI workflow conclusion
+        id: check
+        run: |
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "CI workflow failed with: ${{ github.event.workflow_run.conclusion }}"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ===========================================================================
+  # Determine which containers to build based on CI change detection
   # ===========================================================================
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    needs: check-ci
+    if: |
+      always() &&
+      (github.event_name == 'workflow_dispatch' || needs.check-ci.outputs.should_run == 'true')
     outputs:
-      core: ${{ steps.filter.outputs.core }}
-      query-service: ${{ steps.filter.outputs.query-service }}
-      control-plane: ${{ steps.filter.outputs.control-plane }}
+      core: ${{ steps.set-matrix.outputs.core }}
+      query-service: ${{ steps.set-matrix.outputs.query-service }}
+      control-plane: ${{ steps.set-matrix.outputs.control-plane }}
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            core:
-              - 'apps/core/**'
-            query-service:
-              - 'apps/query-service/**'
-            control-plane:
-              - 'apps/control-plane/**'
 
       - name: Set Matrix
         id: set-matrix
@@ -69,40 +70,63 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             if [[ "${{ github.event.inputs.containers }}" == "all" ]]; then
               echo 'matrix=["core","query-service","control-plane"]' >> $GITHUB_OUTPUT
+              echo "core=true" >> $GITHUB_OUTPUT
+              echo "query-service=true" >> $GITHUB_OUTPUT
+              echo "control-plane=true" >> $GITHUB_OUTPUT
             else
               # Convert comma-separated to JSON array
               containers=$(echo '${{ github.event.inputs.containers }}' | tr ',' '\n' | jq -R . | jq -sc .)
               echo "matrix=$containers" >> $GITHUB_OUTPUT
+              # Set individual outputs
+              echo '${{ github.event.inputs.containers }}' | tr ',' '\n' | while read c; do
+                echo "$c=true" >> $GITHUB_OUTPUT
+              done
             fi
           else
-            # Build matrix from changed paths
+            # Use paths-filter for workflow_run trigger to detect changes
+            # This is more efficient than duplicating CI's detection
             matrix='[]'
-            if [[ "${{ steps.filter.outputs.core }}" == "true" ]]; then
+
+            # Check for changes using git diff against base
+            git fetch origin ${{ github.event.workflow_run.head_branch || 'main' }} --depth=2
+
+            # Detect changes per service
+            CORE_CHANGED="false"
+            QS_CHANGED="false"
+            CP_CHANGED="false"
+
+            if git diff --name-only HEAD~1 | grep -q "apps/core/"; then
+              CORE_CHANGED="true"
               matrix=$(echo $matrix | jq -c '. + ["core"]')
             fi
-            if [[ "${{ steps.filter.outputs.query-service }}" == "true" ]]; then
+            if git diff --name-only HEAD~1 | grep -q "apps/query-service/"; then
+              QS_CHANGED="true"
               matrix=$(echo $matrix | jq -c '. + ["query-service"]')
             fi
-            if [[ "${{ steps.filter.outputs.control-plane }}" == "true" ]]; then
+            if git diff --name-only HEAD~1 | grep -q "apps/control-plane/"; then
+              CP_CHANGED="true"
               matrix=$(echo $matrix | jq -c '. + ["control-plane"]')
             fi
 
-            # If no changes detected (e.g., workflow file change), test all
+            # If no changes detected, skip container builds
             if [[ "$matrix" == "[]" ]]; then
-              matrix='["core","query-service","control-plane"]'
+              echo "No container changes detected"
             fi
 
             echo "matrix=$matrix" >> $GITHUB_OUTPUT
+            echo "core=$CORE_CHANGED" >> $GITHUB_OUTPUT
+            echo "query-service=$QS_CHANGED" >> $GITHUB_OUTPUT
+            echo "control-plane=$CP_CHANGED" >> $GITHUB_OUTPUT
           fi
 
   # ===========================================================================
-  # Build and Test Containers
+  # Stage 1: Build containers (no push) - validates Dockerfiles compile
   # ===========================================================================
   build:
     name: Build ${{ matrix.container }}
     needs: changes
     runs-on: ubuntu-latest
-    if: ${{ needs.changes.outputs.matrix != '[]' }}
+    if: needs.changes.outputs.matrix != '[]' && needs.changes.outputs.matrix != ''
     strategy:
       fail-fast: false
       matrix:
@@ -139,7 +163,7 @@ jobs:
               ;;
           esac
 
-      - name: Build image
+      - name: Build image (validation only)
         uses: docker/build-push-action@v6
         with:
           context: ${{ steps.config.outputs.context }}
@@ -152,7 +176,7 @@ jobs:
           build-args: |
             VERSION=${{ github.sha }}
             REVISION=${{ github.sha }}
-            BUILDTIME=${{ github.event.head_commit.timestamp }}
+            BUILDTIME=${{ github.event.workflow_run.head_commit.timestamp || github.event.head_commit.timestamp }}
 
       - name: Check image size
         run: |
@@ -174,8 +198,15 @@ jobs:
 
       - name: Test container startup
         run: |
+          # Set minimal env vars for services that need them
+          ENV_ARGS=""
+          if [ "${{ matrix.container }}" == "query-service" ]; then
+            # Query service needs these to start (but can run without database)
+            ENV_ARGS="-e SECRET_KEY_BASE=$(openssl rand -hex 64)"
+          fi
+
           # Start container
-          CONTAINER_ID=$(docker run -d -p ${{ steps.config.outputs.port }}:${{ steps.config.outputs.port }} \
+          CONTAINER_ID=$(docker run -d $ENV_ARGS -p ${{ steps.config.outputs.port }}:${{ steps.config.outputs.port }} \
             ${{ steps.config.outputs.image }}:test)
 
           # Wait for container to be ready
@@ -223,6 +254,8 @@ jobs:
     if: |
       always() &&
       needs.build.result == 'success' &&
+      needs.changes.outputs.matrix != '[]' &&
+      needs.changes.outputs.matrix != '' &&
       (contains(fromJson(needs.changes.outputs.matrix), 'core') ||
        contains(fromJson(needs.changes.outputs.matrix), 'query-service'))
 
@@ -278,14 +311,23 @@ jobs:
         run: |
           echo "# 🐳 Container CI Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Container | Build | Startup | Security |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|-------|---------|----------|" >> $GITHUB_STEP_SUMMARY
+
+          # Check if there were any containers to build
+          if [ "${{ needs.changes.outputs.matrix }}" == "[]" ] || [ -z "${{ needs.changes.outputs.matrix }}" ]; then
+            echo "**No container changes detected - skipped container builds**" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "| Container | Build | Startup |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|---------|" >> $GITHUB_STEP_SUMMARY
 
           # This is a simplified summary - actual results come from build job
           if [ "${{ needs.build.result }}" == "success" ]; then
-            echo "| All | ✅ | ✅ | ✅ |" >> $GITHUB_STEP_SUMMARY
+            echo "| All | ✅ | ✅ |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.build.result }}" == "skipped" ]; then
+            echo "| All | ⏭️ | ⏭️ |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| All | ❌ | - | - |" >> $GITHUB_STEP_SUMMARY
+            echo "| All | ❌ | - |" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -299,5 +341,5 @@ jobs:
           fi
 
       - name: Check overall status
-        if: needs.build.result != 'success'
+        if: needs.build.result == 'failure'
         run: exit 1

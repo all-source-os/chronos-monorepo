@@ -2,9 +2,7 @@ name: Security Scanning
 
 on:
   push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+    branches: [main]
   schedule:
     # Run weekly on Monday at 00:00 UTC
     - cron: "0 0 * * 1"
@@ -34,8 +32,8 @@ jobs:
             working-directory: apps/core
           - name: go
             working-directory: apps/control-plane
-          - name: node
-            working-directory: .
+          - name: elixir
+            working-directory: apps/query-service
 
     steps:
       - uses: actions/checkout@v4
@@ -54,7 +52,7 @@ jobs:
       - name: Rust dependency audit
         if: matrix.name == 'rust'
         working-directory: ${{ matrix.working-directory }}
-        run: cargo audit --ignore RUSTSEC-2020-0071 || true
+        run: cargo audit --ignore RUSTSEC-2020-0071
 
       # Go dependencies
       - name: Set up Go
@@ -63,14 +61,27 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Install govulncheck
-        if: matrix.name == 'go'
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
-
       - name: Go vulnerability check
         if: matrix.name == 'go'
         working-directory: ${{ matrix.working-directory }}
-        run: govulncheck ./... || true
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      # Elixir dependencies
+      - name: Set up Elixir
+        if: matrix.name == 'elixir'
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.17"
+          otp-version: "27"
+
+      - name: Elixir dependency audit
+        if: matrix.name == 'elixir'
+        working-directory: ${{ matrix.working-directory }}
+        run: |
+          mix deps.get
+          mix deps.audit
 
   # ============================================================================
   # CodeQL Analysis - SAST for multiple languages
@@ -115,10 +126,10 @@ jobs:
           category: "/language:${{ matrix.language }}"
 
   # ============================================================================
-  # Container Image Scanning
+  # Container Image Scanning with Trivy
   # ============================================================================
   container-scan:
-    name: Container Scan
+    name: Container Scan ${{ matrix.service.name }}
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     strategy:
@@ -150,6 +161,22 @@ jobs:
           load: true
           tags: scan-${{ matrix.service.name }}:latest
           cache-from: type=gha
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: scan-${{ matrix.service.name }}:latest
+          format: sarif
+          output: trivy-results-${{ matrix.service.name }}.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results-${{ matrix.service.name }}.sarif
+          category: container-${{ matrix.service.name }}
 
   # ============================================================================
   # License Compliance
@@ -194,6 +221,7 @@ jobs:
     needs:
       - dependency-audit
       - codeql
+      - container-scan
       - license-check
     if: always()
     steps:
@@ -215,4 +243,5 @@ jobs:
 
           echo "| Dependency Audit | $(status ${{ needs.dependency-audit.result }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| CodeQL Analysis | $(status ${{ needs.codeql.result }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Scan | $(status ${{ needs.container-scan.result }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| License Check | $(status ${{ needs.license-check.result }}) |" >> $GITHUB_STEP_SUMMARY

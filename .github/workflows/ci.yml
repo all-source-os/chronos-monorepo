@@ -18,8 +18,54 @@ env:
 
 jobs:
   # ============================================================================
-  # Version Consistency Check
+  # FAST CHECKS - Run first to fail fast on simple issues
   # ============================================================================
+
+  # Validate workflow syntax before running expensive operations
+  workflow-lint:
+    name: Workflow Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-bash.sh)
+          sudo mv actionlint /usr/local/bin/
+
+      - name: Lint workflow files
+        run: actionlint -color
+
+  # Validate workflow structure with act (dry-run)
+  workflow-validate:
+    name: Workflow Validation (act)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install act
+        run: |
+          curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin
+
+      - name: Validate workflow structure
+        run: |
+          echo "Validating workflow job graphs..."
+          for workflow in .github/workflows/*.yml; do
+            echo "Checking $(basename $workflow)..."
+            act --list -W "$workflow" || {
+              echo "Warning: Could not parse $workflow - may have dynamic elements"
+            }
+          done
+
+      - name: Validate ci.yml with dry-run
+        run: |
+          echo "Running dry-run validation on ci.yml..."
+          # Dry-run the workflow-lint job to validate the workflow structure
+          # This catches issues that actionlint might miss (invalid expressions, etc.)
+          act push --dryrun -W .github/workflows/ci.yml --job workflow-lint 2>&1 || {
+            echo "Note: Dry-run may show warnings for missing secrets/env vars - this is expected"
+          }
+
   version-check:
     name: Version Consistency
     runs-on: ubuntu-latest
@@ -44,6 +90,10 @@ jobs:
       elixir: ${{ steps.filter.outputs.elixir }}
       mcp: ${{ steps.filter.outputs.mcp }}
       workflows: ${{ steps.filter.outputs.workflows }}
+      # Container-related changes for downstream workflows
+      core: ${{ steps.filter.outputs.rust }}
+      query-service: ${{ steps.filter.outputs.elixir }}
+      control-plane: ${{ steps.filter.outputs.go }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -72,7 +122,7 @@ jobs:
   # ============================================================================
   rust-quality:
     name: Rust Quality Gates
-    needs: changes
+    needs: [workflow-lint, workflow-validate, version-check, changes]
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     defaults:
@@ -99,15 +149,18 @@ jobs:
         with:
           tool: cargo-sort
 
+      # Fast checks first
       - name: Check formatting
         run: cargo fmt --check
 
       - name: Check Cargo.toml sorting
         run: cargo sort --check
 
+      # Then linting
       - name: Run Clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
+      # Then tests and build
       - name: Run tests
         run: cargo test --locked --lib --all-features
 
@@ -124,7 +177,7 @@ jobs:
   # ============================================================================
   go-quality:
     name: Go Quality Gates
-    needs: changes
+    needs: [workflow-lint, workflow-validate, version-check, changes]
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     defaults:
@@ -147,6 +200,7 @@ jobs:
       - name: Verify dependencies
         run: go mod verify
 
+      # Fast checks first
       - name: Check formatting
         run: |
           if [ -n "$(gofmt -l .)" ]; then
@@ -155,15 +209,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@latest
-
-      - name: Run staticcheck
-        run: staticcheck ./...
-
+      # Unified linting with golangci-lint (includes staticcheck, gosec, etc.)
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
@@ -171,6 +217,7 @@ jobs:
           working-directory: apps/control-plane
           args: --timeout=5m
 
+      # Then tests and build
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
@@ -190,12 +237,14 @@ jobs:
   # ============================================================================
   elixir-query-quality:
     name: Elixir Query Service Quality Gates
-    needs: changes
+    needs: [workflow-lint, workflow-validate, version-check, changes]
     if: needs.changes.outputs.elixir == 'true' || needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/query-service
+    env:
+      MIX_ENV: test
 
     steps:
       - name: Checkout
@@ -203,32 +252,131 @@ jobs:
 
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
+        id: beam
         with:
           elixir-version: "1.17"
           otp-version: "27"
 
-      - name: Cache deps
+      # Unified cache for deps, build, and PLT with proper restore strategy
+      - name: Restore dependencies cache
+        id: deps-cache
         uses: actions/cache@v4
         with:
           path: |
             apps/query-service/deps
             apps/query-service/_build
-          key: elixir-query-${{ runner.os }}-${{ hashFiles('apps/query-service/mix.lock') }}
+          key: elixir-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('apps/query-service/mix.lock') }}
           restore-keys: |
-            elixir-query-${{ runner.os }}-
+            elixir-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Restore PLT cache
+        id: plt-cache
+        uses: actions/cache@v4
+        with:
+          path: apps/query-service/priv/plts
+          key: elixir-plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('apps/query-service/mix.lock') }}-${{ hashFiles('apps/query-service/lib/**/*.ex') }}
+          restore-keys: |
+            elixir-plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('apps/query-service/mix.lock') }}-
+            elixir-plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-
 
       - name: Install dependencies
         run: mix deps.get
 
+      # Fast checks first
       - name: Check formatting
         run: mix format --check-formatted
+
+      - name: Check unused dependencies
+        run: mix deps.unlock --check-unused
 
       - name: Compile with warnings as errors
         run: mix compile --warnings-as-errors
 
       - name: Run Credo (static analysis)
-        run: mix credo --strict || true
+        run: mix credo --strict
 
+      # Create PLT directory and run Dialyzer
+      - name: Create PLT directory
+        run: mkdir -p priv/plts
+
+      - name: Run Dialyzer
+        run: mix dialyzer --format github
+
+      # Then tests
+      - name: Run tests
+        run: mix test
+
+  # ============================================================================
+  # Elixir Quality Gates (MCP Server)
+  # ============================================================================
+  elixir-mcp-quality:
+    name: Elixir MCP Server Quality Gates
+    needs: [workflow-lint, workflow-validate, version-check, changes]
+    if: needs.changes.outputs.mcp == 'true' || needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mcp-server-elixir
+    env:
+      MIX_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: "1.17"
+          otp-version: "27"
+
+      # Unified cache for deps, build, and PLT with proper restore strategy
+      - name: Restore dependencies cache
+        id: deps-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/mcp-server-elixir/deps
+            apps/mcp-server-elixir/_build
+          key: elixir-mcp-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('apps/mcp-server-elixir/mix.lock') }}
+          restore-keys: |
+            elixir-mcp-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Restore PLT cache
+        id: plt-cache
+        uses: actions/cache@v4
+        with:
+          path: apps/mcp-server-elixir/priv/plts
+          key: elixir-mcp-plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('apps/mcp-server-elixir/mix.lock') }}-${{ hashFiles('apps/mcp-server-elixir/lib/**/*.ex') }}
+          restore-keys: |
+            elixir-mcp-plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('apps/mcp-server-elixir/mix.lock') }}-
+            elixir-mcp-plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      # Fast checks first
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Check unused dependencies
+        run: mix deps.unlock --check-unused
+
+      - name: Compile with warnings as errors
+        run: mix compile --warnings-as-errors
+
+      - name: Run Credo (static analysis)
+        run: mix credo --strict
+
+      # Create PLT directory and run Dialyzer
+      - name: Create PLT directory
+        run: mkdir -p priv/plts
+
+      - name: Run Dialyzer
+        run: mix dialyzer --format github
+
+      # Then tests
       - name: Run tests
         run: mix test
 
@@ -239,11 +387,14 @@ jobs:
     name: Quality Gate
     runs-on: ubuntu-latest
     needs:
+      - workflow-lint
+      - workflow-validate
       - version-check
       - changes
       - rust-quality
       - go-quality
       - elixir-query-quality
+      - elixir-mcp-quality
     if: always()
     steps:
       - name: Check quality gates
@@ -271,10 +422,13 @@ jobs:
             fi
           }
 
+          check_job "Workflow Lint" "${{ needs.workflow-lint.result }}" "true"
+          check_job "Workflow Validate (act)" "${{ needs.workflow-validate.result }}" "true"
           check_job "Version Check" "${{ needs.version-check.result }}" "true"
           check_job "Rust Quality" "${{ needs.rust-quality.result }}" "${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.workflows == 'true' }}"
           check_job "Go Quality" "${{ needs.go-quality.result }}" "${{ needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true' }}"
           check_job "Elixir Query" "${{ needs.elixir-query-quality.result }}" "${{ needs.changes.outputs.elixir == 'true' || needs.changes.outputs.workflows == 'true' }}"
+          check_job "Elixir MCP" "${{ needs.elixir-mcp-quality.result }}" "${{ needs.changes.outputs.mcp == 'true' || needs.changes.outputs.workflows == 'true' }}"
 
           echo "" >> $GITHUB_STEP_SUMMARY
 

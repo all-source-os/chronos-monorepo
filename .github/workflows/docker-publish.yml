@@ -1,11 +1,12 @@
 name: Docker Build & Publish
 
 on:
-  push:
+  # Triggered automatically after Container CI workflow completes
+  workflow_run:
+    workflows: ["Container CI"]
+    types: [completed]
     branches: [main]
-    tags: ["v*"]
-  pull_request:
-    branches: [main]
+  # Manual trigger for force builds
   workflow_dispatch:
     inputs:
       force_build:
@@ -13,32 +14,94 @@ on:
         required: false
         default: "false"
         type: boolean
+  # Tag pushes for releases
+  push:
+    tags: ["v*"]
 
 concurrency:
   group: docker-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/chronos
+  # Registry configuration
+  GHCR_REGISTRY: ghcr.io
+  DOCKERHUB_REGISTRY: docker.io
+  IMAGE_PREFIX: chronos
 
 jobs:
   # ============================================================================
-  # Wait for CI to pass (quality gates)
+  # Check Container CI status (for workflow_run trigger)
   # ============================================================================
-  wait-for-ci:
-    name: Wait for CI
+  check-container-ci:
+    name: Check Container CI Status
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.force_build != 'true'
+    if: github.event_name == 'workflow_run'
+    outputs:
+      should_continue: ${{ steps.check.outputs.should_continue }}
     steps:
-      - name: Wait for CI workflow
-        uses: lewagon/wait-on-check-action@v1.3.4
-        with:
-          ref: ${{ github.ref }}
-          check-name: "Quality Gate"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
-          allowed-conclusions: success,skipped
+      - name: Check Container CI workflow conclusion
+        id: check
+        run: |
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "Container CI workflow failed with: ${{ github.event.workflow_run.conclusion }}"
+            echo "should_continue=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "should_continue=true" >> $GITHUB_OUTPUT
+
+  # ============================================================================
+  # Unified Push Conditions - Single source of truth for all registries
+  # ============================================================================
+  push-conditions:
+    name: Evaluate Push Conditions
+    runs-on: ubuntu-latest
+    needs: check-container-ci
+    if: |
+      always() &&
+      (github.event_name != 'workflow_run' || needs.check-container-ci.outputs.should_continue == 'true')
+    outputs:
+      # Unified condition: push to registries on main branch or version tags
+      should_push: ${{ steps.conditions.outputs.should_push }}
+      # Individual registry flags (both use same condition)
+      push_to_ghcr: ${{ steps.conditions.outputs.push_to_ghcr }}
+      push_to_dockerhub: ${{ steps.conditions.outputs.push_to_dockerhub }}
+      # Image tag info
+      is_release: ${{ steps.conditions.outputs.is_release }}
+      version_tag: ${{ steps.conditions.outputs.version_tag }}
+    steps:
+      - name: Determine push conditions
+        id: conditions
+        run: |
+          # Unified push condition: main branch OR version tags
+          # This same logic applies to ALL registries for consistency
+          IS_MAIN_BRANCH="${{ github.ref == 'refs/heads/main' }}"
+          IS_VERSION_TAG="${{ startsWith(github.ref, 'refs/tags/v') }}"
+
+          if [ "$IS_MAIN_BRANCH" == "true" ] || [ "$IS_VERSION_TAG" == "true" ]; then
+            SHOULD_PUSH="true"
+          else
+            SHOULD_PUSH="false"
+          fi
+
+          # Both registries use the same push condition
+          echo "should_push=$SHOULD_PUSH" >> $GITHUB_OUTPUT
+          echo "push_to_ghcr=$SHOULD_PUSH" >> $GITHUB_OUTPUT
+          echo "push_to_dockerhub=$SHOULD_PUSH" >> $GITHUB_OUTPUT
+          echo "is_release=$IS_VERSION_TAG" >> $GITHUB_OUTPUT
+
+          # Extract version from tag if present
+          if [ "$IS_VERSION_TAG" == "true" ]; then
+            VERSION_TAG="${GITHUB_REF#refs/tags/}"
+            echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+          else
+            echo "version_tag=" >> $GITHUB_OUTPUT
+          fi
+
+          # Log for debugging
+          echo "Push conditions evaluated:"
+          echo "  - Is main branch: $IS_MAIN_BRANCH"
+          echo "  - Is version tag: $IS_VERSION_TAG"
+          echo "  - Should push: $SHOULD_PUSH"
 
   # ============================================================================
   # Change Detection
@@ -46,12 +109,12 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
-    needs: wait-for-ci
-    if: always() && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped')
+    needs: push-conditions
     outputs:
       core: ${{ steps.filter.outputs.core }}
       control-plane: ${{ steps.filter.outputs.control-plane }}
       query-service: ${{ steps.filter.outputs.query-service }}
+      mcp-server: ${{ steps.filter.outputs.mcp-server }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +129,8 @@ jobs:
               - 'apps/control-plane/**'
             query-service:
               - 'apps/query-service/**'
+            mcp-server:
+              - 'apps/mcp-server-elixir/**'
 
       - name: Build matrix
         id: matrix
@@ -78,8 +143,8 @@ jobs:
             local context=$2
             local changed=$3
 
-            # Build if changed, on main branch push, or force build
-            if [ "$changed" == "true" ] || [ "${{ github.event_name }}" == "push" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
+            # Build if changed, on tag push, or force build
+            if [ "$changed" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
               if [ "$FIRST" != "true" ]; then
                 MATRIX="$MATRIX,"
               fi
@@ -99,12 +164,78 @@ jobs:
           echo "Matrix: $MATRIX"
 
   # ============================================================================
-  # Build and Push Docker Images
+  # Stage 1: Build all images (no push) - validates all Dockerfiles compile
   # ============================================================================
   build:
     name: Build ${{ matrix.name }}
-    needs: changes
+    needs: [push-conditions, changes]
     if: needs.changes.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJson(needs.changes.outputs.matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:master
+            network=host
+
+      - name: Extract metadata (for build validation)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.GHCR_REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build image (validation only)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDTIME=${{ github.event.repository.updated_at }}
+            VERSION=${{ github.ref_name }}
+            REVISION=${{ github.sha }}
+
+      - name: Report build success
+        run: |
+          echo "### Build Successful: ${{ matrix.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "Image validated for platforms: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Stage 2: Push to all registries (only after all builds succeed)
+  # Uses unified push conditions from push-conditions job
+  # ============================================================================
+  push:
+    name: Push ${{ matrix.name }}
+    needs: [push-conditions, changes, build]
+    if: |
+      needs.changes.outputs.matrix != '{"include":[]}' &&
+      needs.push-conditions.outputs.should_push == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -130,37 +261,90 @@ jobs:
             image=moby/buildkit:master
             network=host
 
-      - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
+      # Login to GHCR (uses unified push condition)
+      - name: Log in to GitHub Container Registry
+        if: needs.push-conditions.outputs.push_to_ghcr == 'true'
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
+      # Login to DockerHub (uses same unified push condition)
+      - name: Log in to DockerHub
+        if: needs.push-conditions.outputs.push_to_dockerhub == 'true' && vars.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKERHUB_REGISTRY }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Check DockerHub availability
+        id: dockerhub-check
+        run: |
+          if [ -n "${{ vars.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "DockerHub credentials not configured, skipping DockerHub push"
+          fi
+
+      - name: Extract metadata for GHCR
+        id: meta-ghcr
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
+          images: |
+            ${{ env.GHCR_REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
           tags: |
             type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Extract metadata for DockerHub
+        id: meta-dockerhub
+        if: steps.dockerhub-check.outputs.available == 'true'
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.DOCKERHUB_REGISTRY }}/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Combine tags for multi-registry push
+        id: combined-tags
+        run: |
+          GHCR_TAGS="${{ steps.meta-ghcr.outputs.tags }}"
+          DOCKERHUB_TAGS="${{ steps.meta-dockerhub.outputs.tags }}"
+
+          if [ "${{ steps.dockerhub-check.outputs.available }}" == "true" ] && [ -n "$DOCKERHUB_TAGS" ]; then
+            # Combine tags from both registries
+            COMBINED_TAGS=$(printf "%s\n%s" "$GHCR_TAGS" "$DOCKERHUB_TAGS")
+          else
+            COMBINED_TAGS="$GHCR_TAGS"
+          fi
+
+          # Use delimiter for multi-line output
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMBINED_TAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Build and push to all registries
         id: build
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+          tags: ${{ steps.combined-tags.outputs.tags }}
+          labels: ${{ steps.meta-ghcr.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
@@ -170,11 +354,10 @@ jobs:
             VERSION=${{ github.ref_name }}
             REVISION=${{ github.sha }}
 
-      - name: Generate artifact attestation
-        if: github.event_name != 'pull_request'
+      - name: Generate artifact attestation for GHCR
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
+          subject-name: ${{ env.GHCR_REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
@@ -184,30 +367,81 @@ jobs:
   summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: build
+    needs: [push-conditions, changes, build, push]
     if: always()
     steps:
       - name: Generate summary
         run: |
-          echo "## 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker Build & Publish Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
 
+          # Push conditions info
+          echo "### Push Conditions" >> $GITHUB_STEP_SUMMARY
+          echo "| Condition | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Should Push | ${{ needs.push-conditions.outputs.should_push }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Push to GHCR | ${{ needs.push-conditions.outputs.push_to_ghcr }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Push to DockerHub | ${{ needs.push-conditions.outputs.push_to_dockerhub }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Is Release | ${{ needs.push-conditions.outputs.is_release }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Stage Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          # Report build stage status
           if [ "${{ needs.build.result }}" == "success" ]; then
-            echo "| All Services | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+            echo "| Build (all images) | Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.build.result }}" == "skipped" ]; then
+            echo "| Build | Skipped (no changes) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Build | Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Report push stage status
+          if [ "${{ needs.push.result }}" == "success" ]; then
+            echo "| Push (all registries) | Published |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Published Images" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
+
+            # GHCR images
+            echo "**GitHub Container Registry (ghcr.io)**" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-core" >> $GITHUB_STEP_SUMMARY
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-control-plane" >> $GITHUB_STEP_SUMMARY
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-query-service" >> $GITHUB_STEP_SUMMARY
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-mcp-server" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ needs.changes.outputs.core }}" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]; then
+              echo "ghcr.io/${{ github.repository_owner }}/chronos-core" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ "${{ needs.changes.outputs.control-plane }}" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]; then
+              echo "ghcr.io/${{ github.repository_owner }}/chronos-control-plane" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ "${{ needs.changes.outputs.query-service }}" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]; then
+              echo "ghcr.io/${{ github.repository_owner }}/chronos-query-service" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ "${{ needs.changes.outputs.mcp-server }}" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]; then
+              echo "ghcr.io/${{ github.repository_owner }}/chronos-mcp-server" >> $GITHUB_STEP_SUMMARY
+            fi
             echo '```' >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ needs.build.result }}" == "skipped" ]; then
-            echo "| Build | ⏭️ Skipped (no changes) |" >> $GITHUB_STEP_SUMMARY
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**DockerHub** (if configured)" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "docker.io/<username>/chronos-*" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+
+          elif [ "${{ needs.push.result }}" == "skipped" ]; then
+            echo "| Push | Skipped (push conditions not met) |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Build | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Push | Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Fail the summary if build failed (push won't run anyway)
+          if [ "${{ needs.build.result }}" == "failure" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Build stage failed - no images were pushed**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Fail if push failed
+          if [ "${{ needs.push.result }}" == "failure" ]; then
             exit 1
           fi

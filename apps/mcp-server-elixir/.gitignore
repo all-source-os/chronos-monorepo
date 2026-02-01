@@ -28,8 +28,8 @@ erl_crash.dump
 # Elixir Language Server
 .elixir_ls/
 
-# Dialyzer
-.plt
+# Dialyzer PLT files
+/priv/plts/
 *.plt
 
 # Release files
