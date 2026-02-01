@@ -260,7 +260,7 @@ jobs:
       # Unified cache for deps, build, and PLT with proper restore strategy
       - name: Restore dependencies cache
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             apps/query-service/deps
@@ -271,7 +271,7 @@ jobs:
 
       - name: Restore PLT cache
         id: plt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/query-service/priv/plts
           key: elixir-plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('apps/query-service/mix.lock') }}-${{ hashFiles('apps/query-service/lib/**/*.ex') }}
@@ -334,7 +334,7 @@ jobs:
       # Unified cache for deps, build, and PLT with proper restore strategy
       - name: Restore dependencies cache
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             apps/mcp-server-elixir/deps
@@ -345,7 +345,7 @@ jobs:
 
       - name: Restore PLT cache
         id: plt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/mcp-server-elixir/priv/plts
           key: elixir-mcp-plt-${{ runner.os }}-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('apps/mcp-server-elixir/mix.lock') }}-${{ hashFiles('apps/mcp-server-elixir/lib/**/*.ex') }}
