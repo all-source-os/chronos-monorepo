@@ -8,6 +8,7 @@ pub mod projection;
 pub mod replay;
 pub mod schema;
 pub mod tenant_service;
+pub mod vector_search;
 
 // Re-exports for convenience
 pub use analytics::AnalyticsEngine;
@@ -22,3 +23,7 @@ pub use schema::{
     SchemaRegistryConfig, ValidateEventRequest, ValidateEventResponse,
 };
 pub use tenant_service::{Tenant, TenantManager, TenantQuotas, TenantUsage};
+pub use vector_search::{
+    BatchIndexResult, IndexEventRequest, IndexStats, SemanticSearchRequest,
+    SemanticSearchResponse, SemanticSearchResultItem, VectorSearchConfig, VectorSearchService,
+};

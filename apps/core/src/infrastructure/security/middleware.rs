@@ -9,6 +9,14 @@ use axum::{
 };
 use std::sync::Arc;
 
+/// Paths that bypass authentication
+pub const AUTH_SKIP_PATHS: &[&str] = &[
+    "/health",
+    "/metrics",
+    "/api/v1/auth/register",
+    "/api/v1/auth/login",
+];
+
 /// Authentication state shared across requests
 #[derive(Clone)]
 pub struct AuthState {
@@ -82,6 +90,12 @@ pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, AuthError> {
+    // Skip authentication for public paths
+    let path = request.uri().path();
+    if AUTH_SKIP_PATHS.iter().any(|skip_path| path == *skip_path) {
+        return Ok(next.run(request).await);
+    }
+
     let headers = request.headers();
 
     // Extract and validate token (JWT or API key)
@@ -223,6 +237,12 @@ pub async fn rate_limit_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, RateLimitError> {
+    // Skip rate limiting for public paths
+    let path = request.uri().path();
+    if AUTH_SKIP_PATHS.iter().any(|skip_path| path == *skip_path) {
+        return Ok(next.run(request).await);
+    }
+
     // Extract auth context from request
     let auth_ctx = request
         .extensions()
@@ -948,5 +968,18 @@ mod tests {
         let state = RateLimitState { rate_limiter };
         let cloned = state.clone();
         assert!(Arc::ptr_eq(&state.rate_limiter, &cloned.rate_limiter));
+    }
+
+    #[test]
+    fn test_auth_skip_paths_contains_expected() {
+        // Verify public paths are configured for auth/rate-limit skipping
+        assert!(AUTH_SKIP_PATHS.contains(&"/health"));
+        assert!(AUTH_SKIP_PATHS.contains(&"/metrics"));
+        assert!(AUTH_SKIP_PATHS.contains(&"/api/v1/auth/register"));
+        assert!(AUTH_SKIP_PATHS.contains(&"/api/v1/auth/login"));
+
+        // Verify protected paths are NOT in skip list
+        assert!(!AUTH_SKIP_PATHS.contains(&"/api/v1/events"));
+        assert!(!AUTH_SKIP_PATHS.contains(&"/api/v1/auth/me"));
     }
 }

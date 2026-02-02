@@ -42,10 +42,11 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
-  # Configure Rust Core backend URLs
+  # Configure Rust Core backend URLs and authentication
   config :query_service_ex,
     rust_core_url: System.get_env("RUST_CORE_URL") || "http://localhost:3900",
-    core_ws_url: System.get_env("CORE_WS_URL") || "ws://localhost:3900"
+    core_ws_url: System.get_env("CORE_WS_URL") || "ws://localhost:3900",
+    core_api_key: System.get_env("CORE_API_KEY")
 
   # Google OAuth configuration - optional, OAuth will fail if not configured
   if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do

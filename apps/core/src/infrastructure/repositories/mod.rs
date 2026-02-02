@@ -1,6 +1,7 @@
 pub mod in_memory_audit_repository;
 pub mod in_memory_event_stream_repository;
 pub mod in_memory_tenant_repository;
+pub mod in_memory_vector_search_repository;
 
 #[cfg(feature = "postgres")]
 pub mod postgres_event_stream_repository;
@@ -17,6 +18,7 @@ pub mod rocksdb_event_stream_repository;
 pub use in_memory_audit_repository::InMemoryAuditRepository;
 pub use in_memory_event_stream_repository::InMemoryEventStreamRepository;
 pub use in_memory_tenant_repository::InMemoryTenantRepository;
+pub use in_memory_vector_search_repository::InMemoryVectorSearchRepository;
 
 #[cfg(feature = "postgres")]
 pub use postgres_event_stream_repository::PostgresEventStreamRepository;

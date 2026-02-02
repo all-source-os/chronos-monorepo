@@ -62,7 +62,7 @@ pub struct QueryEventsResponse {
 }
 
 /// DTO for a single event in responses
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EventDto {
     pub id: Uuid,
     pub event_type: String,

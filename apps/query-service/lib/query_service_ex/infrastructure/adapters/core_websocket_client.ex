@@ -96,12 +96,21 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
           @default_max_reconnect_attempts
         )
 
+    # Build extra headers for authentication
+    extra_headers =
+      case Application.get_env(:query_service_ex, :core_api_key) do
+        nil -> []
+        "" -> []
+        api_key -> [{"Authorization", api_key}]
+      end
+
     state = %{
       url: url,
       backoff_ms: initial_backoff,
       initial_backoff_ms: initial_backoff,
       max_backoff_ms: max_backoff,
       max_reconnect_attempts: max_attempts,
+      extra_headers: extra_headers,
       connected: false,
       reconnect_attempts: 0,
       total_reconnects: 0,
@@ -113,7 +122,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
 
     Logger.info("[CoreWebSocketClient] Connecting to #{url}")
 
-    case WebSockex.start_link(url, __MODULE__, state, name: name) do
+    case WebSockex.start_link(url, __MODULE__, state, name: name, extra_headers: extra_headers) do
       {:ok, pid} ->
         {:ok, pid}
 
@@ -150,7 +159,12 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
 
     Process.sleep(backoff)
 
-    case WebSockex.start_link(url, __MODULE__, %{state | reconnect_attempts: attempt}, name: name) do
+    extra_headers = Map.get(state, :extra_headers, [])
+
+    case WebSockex.start_link(url, __MODULE__, %{state | reconnect_attempts: attempt},
+           name: name,
+           extra_headers: extra_headers
+         ) do
       {:ok, _pid} ->
         Logger.info("[CoreWebSocketClient] Connected after #{attempt} retries")
 

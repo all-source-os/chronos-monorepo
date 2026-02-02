@@ -91,10 +91,11 @@ config :query_service_ex, QueryServiceExWeb.Endpoint,
   http: [port: 3902],
   server: true
 
-# Configure Rust Core backend URLs
+# Configure Rust Core backend URLs and authentication
 config :query_service_ex,
   rust_core_url: System.get_env("RUST_CORE_URL") || "http://localhost:3900",
-  core_ws_url: System.get_env("CORE_WS_URL") || "ws://localhost:3900"
+  core_ws_url: System.get_env("CORE_WS_URL") || "ws://localhost:3900",
+  core_api_key: System.get_env("CORE_API_KEY")
 
 # Configure Tesla HTTP client
 config :tesla,

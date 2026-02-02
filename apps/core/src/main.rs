@@ -38,6 +38,14 @@ async fn main() -> Result<()> {
     tracing::info!("✅ Tenant manager initialized (default tenant created)");
     tracing::info!("✅ Rate limiter initialized (professional tier defaults)");
 
+    // Register bootstrap API key if configured
+    if let Ok(bootstrap_key) = std::env::var("ALLSOURCE_BOOTSTRAP_API_KEY") {
+        if !bootstrap_key.is_empty() {
+            auth_manager.register_bootstrap_api_key(&bootstrap_key, "default");
+            tracing::info!("✅ Bootstrap API key configured");
+        }
+    }
+
     // Start API server (v1.0 with auth & rate limiting)
     let config = ServerConfig::default();
     let addr = format!("{}:{}", config.host, config.port);

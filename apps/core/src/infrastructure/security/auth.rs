@@ -400,6 +400,29 @@ impl AuthManager {
             .map(|entry| entry.value().clone())
             .collect()
     }
+
+    /// Register a bootstrap API key with a specific key value
+    ///
+    /// This is used on startup to create a pre-configured API key from
+    /// the ALLSOURCE_BOOTSTRAP_API_KEY environment variable.
+    pub fn register_bootstrap_api_key(&self, key: &str, tenant_id: &str) -> ApiKey {
+        let key_hash = hash_api_key(key);
+
+        let api_key = ApiKey {
+            id: Uuid::new_v4(),
+            name: "bootstrap".to_string(),
+            tenant_id: tenant_id.to_string(),
+            role: Role::Admin,
+            key_hash,
+            created_at: Utc::now(),
+            expires_at: None, // Bootstrap key never expires
+            active: true,
+            last_used: None,
+        };
+
+        self.api_keys.insert(api_key.id, api_key.clone());
+        api_key
+    }
 }
 
 impl Default for AuthManager {

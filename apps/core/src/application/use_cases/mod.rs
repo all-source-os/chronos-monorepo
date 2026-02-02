@@ -3,6 +3,7 @@ pub mod manage_projection;
 pub mod manage_schema;
 pub mod manage_tenant;
 pub mod query_events;
+pub mod semantic_search;
 
 pub use ingest_event::{IngestEventUseCase, IngestEventsBatchUseCase};
 pub use manage_projection::{
@@ -19,3 +20,8 @@ pub use manage_tenant::{
     UpdateTenantUseCase,
 };
 pub use query_events::QueryEventsUseCase;
+pub use semantic_search::{
+    BatchIndexResponse, IndexEventEmbeddingRequest, IndexEventEmbeddingUseCase,
+    SemanticSearchResultDto, SemanticSearchUseCase, SemanticSearchUseCaseRequest,
+    SemanticSearchUseCaseResponse,
+};

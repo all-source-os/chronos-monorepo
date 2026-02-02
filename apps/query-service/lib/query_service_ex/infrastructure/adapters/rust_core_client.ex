@@ -10,6 +10,11 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   Uses Tesla for HTTP client with connection pooling via Hackney.
 
+  ## Authentication
+
+  The client authenticates to Core using the `CORE_API_KEY` environment variable.
+  This key is sent as an Authorization header with all requests.
+
   ## Tenant Isolation
 
   All data operations require a `tenant_id` parameter to ensure strict
@@ -17,31 +22,40 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   are automatically filtered by tenant_id.
   """
 
-  use Tesla
-
   alias QueryServiceEx.Domain.Entities.Query
 
   @default_base_url "http://localhost:3900"
   @default_timeout 30_000
 
-  plug(
-    Tesla.Middleware.BaseUrl,
-    Application.get_env(:query_service_ex, :rust_core_url, @default_base_url)
-  )
+  @doc false
+  def client do
+    base_url = Application.get_env(:query_service_ex, :rust_core_url, @default_base_url)
 
-  plug(Tesla.Middleware.JSON)
-  plug(Tesla.Middleware.Timeout, timeout: @default_timeout)
+    middleware = [
+      {Tesla.Middleware.BaseUrl, base_url},
+      Tesla.Middleware.JSON,
+      {Tesla.Middleware.Timeout, timeout: @default_timeout},
+      {Tesla.Middleware.Retry,
+       delay: 100,
+       max_retries: 3,
+       max_delay: 2_000,
+       should_retry: fn
+         {:ok, %{status: status}} when status in [408, 429, 500, 502, 503, 504] -> true
+         {:ok, _} -> false
+         {:error, _} -> true
+       end}
+    ]
 
-  plug(Tesla.Middleware.Retry,
-    delay: 100,
-    max_retries: 3,
-    max_delay: 2_000,
-    should_retry: fn
-      {:ok, %{status: status}} when status in [408, 429, 500, 502, 503, 504] -> true
-      {:ok, _} -> false
-      {:error, _} -> true
-    end
-  )
+    # Add Authorization header if CORE_API_KEY is configured
+    middleware =
+      case Application.get_env(:query_service_ex, :core_api_key) do
+        nil -> middleware
+        "" -> middleware
+        api_key -> [{Tesla.Middleware.Headers, [{"authorization", api_key}]} | middleware]
+      end
+
+    Tesla.client(middleware)
+  end
 
   ## Event Management
 
@@ -68,7 +82,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   def create_event(tenant_id, event) when is_binary(tenant_id) and is_map(event) do
     event_with_tenant = Map.put(event, :tenant_id, tenant_id)
 
-    case post("/api/events", event_with_tenant) do
+    case Tesla.post(client(), "/api/events", event_with_tenant) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -83,7 +97,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   # Deprecated: Use create_event/2 with tenant_id for proper isolation
   @doc false
   def create_event(event) when is_map(event) do
-    case post("/api/events", event) do
+    case Tesla.post(client(), "/api/events", event) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -109,7 +123,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   def create_event_batch(tenant_id, events) when is_binary(tenant_id) and is_list(events) do
     events_with_tenant = Enum.map(events, &Map.put(&1, :tenant_id, tenant_id))
 
-    case post("/api/events/batch", %{events: events_with_tenant}) do
+    case Tesla.post(client(), "/api/events/batch", %{events: events_with_tenant}) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -124,7 +138,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   # Deprecated: Use create_event_batch/2 with tenant_id for proper isolation
   @doc false
   def create_event_batch(events) when is_list(events) do
-    case post("/api/events/batch", %{events: events}) do
+    case Tesla.post(client(), "/api/events/batch", %{events: events}) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -160,7 +174,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   def query_events(tenant_id, params) when is_binary(tenant_id) and is_map(params) do
     params_with_tenant = Map.put(params, :tenant_id, tenant_id)
 
-    case get("/api/events", query: params_with_tenant) do
+    case Tesla.get(client(), "/api/events", query: params_with_tenant) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -181,7 +195,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc false
   def query_events(params) when is_map(params) do
-    case get("/api/events", query: params) do
+    case Tesla.get(client(), "/api/events", query: params) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -219,7 +233,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "List all projections"
   def list_projections do
-    case get("/api/projections") do
+    case Tesla.get(client(), "/api/projections") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -233,7 +247,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Get a specific projection by ID"
   def get_projection(id) do
-    case get("/api/projections/#{id}") do
+    case Tesla.get(client(), "/api/projections/#{id}") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -250,7 +264,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Create a new projection"
   def create_projection(projection) when is_map(projection) do
-    case post("/api/projections", projection) do
+    case Tesla.post(client(), "/api/projections", projection) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -266,7 +280,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "List all schemas"
   def list_schemas do
-    case get("/api/schemas") do
+    case Tesla.get(client(), "/api/schemas") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -287,7 +301,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
         "/api/schemas/#{event_type}"
       end
 
-    case get(path) do
+    case Tesla.get(client(), path) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -304,7 +318,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Register a new schema"
   def register_schema(schema) when is_map(schema) do
-    case post("/api/schemas", schema) do
+    case Tesla.post(client(), "/api/schemas", schema) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -327,7 +341,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
         "/api/snapshots"
       end
 
-    case get(path) do
+    case Tesla.get(client(), path) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -341,7 +355,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Create a snapshot"
   def create_snapshot(entity_id, snapshot_type) do
-    case post("/api/snapshots", %{entity_id: entity_id, snapshot_type: snapshot_type}) do
+    case Tesla.post(client(), "/api/snapshots", %{entity_id: entity_id, snapshot_type: snapshot_type}) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -368,7 +382,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     * `{:error, reason}` - Error details
   """
   def get_projection_state(projection_name, entity_id) do
-    case get("/api/v1/projections/#{projection_name}/#{entity_id}/state") do
+    case Tesla.get(client(), "/api/v1/projections/#{projection_name}/#{entity_id}/state") do
       {:ok, %Tesla.Env{status: 200, body: %{"found" => true, "state" => state}}} ->
         {:ok, state}
 
@@ -399,7 +413,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     * `{:error, reason}` - Error details
   """
   def save_projection_state(projection_name, entity_id, state) when is_map(state) do
-    case put("/api/v1/projections/#{projection_name}/#{entity_id}/state", %{state: state}) do
+    case Tesla.put(client(), "/api/v1/projections/#{projection_name}/#{entity_id}/state", %{state: state}) do
       {:ok, %Tesla.Env{status: 200, body: %{"saved" => true}}} ->
         :ok
 
@@ -423,7 +437,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     * `{:error, reason}` - Error details
   """
   def bulk_get_projection_states(projection_name, entity_ids) when is_list(entity_ids) do
-    case post("/api/v1/projections/#{projection_name}/bulk", %{entity_ids: entity_ids}) do
+    case Tesla.post(client(), "/api/v1/projections/#{projection_name}/bulk", %{entity_ids: entity_ids}) do
       {:ok, %Tesla.Env{status: 200, body: %{"states" => states}}} ->
         {:ok, states}
 
@@ -463,7 +477,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Get system metrics"
   def get_metrics do
-    case get("/api/metrics") do
+    case Tesla.get(client(), "/api/metrics") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -477,7 +491,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Check health status"
   def health_check do
-    case get("/health") do
+    case Tesla.get(client(), "/health") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
