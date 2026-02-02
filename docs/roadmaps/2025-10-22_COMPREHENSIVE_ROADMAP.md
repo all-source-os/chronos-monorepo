@@ -1,8 +1,9 @@
 ---
 title: "AllSource Event Store - Comprehensive Roadmap"
-status: CURRENT
+status: ARCHIVED
 last_updated: 2026-02-02
 category: roadmap
+superseded_by: "2026-02-02_CONSOLIDATED_ROADMAP.md"
 ---
 
 # AllSource Event Store - Comprehensive Roadmap
