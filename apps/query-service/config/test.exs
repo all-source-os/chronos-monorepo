@@ -30,6 +30,11 @@ config :query_service_ex, event_pipeline_enabled: false
 # Print only warnings and errors during test
 config :logger, level: :warning
 
+# Use simple console format for tests (override config.exs metadata)
+config :logger, :console,
+  format: "[$level] $message\n",
+  metadata: []
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 

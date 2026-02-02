@@ -6,10 +6,14 @@ config :mcp_server_elixir,
   control_url: System.get_env("ALLSOURCE_CONTROL_URL", "http://localhost:3901")
 
 # Logger configuration
-config :logger,
-  level: :info,
+config :logger, level: :info
+
+config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
 # Tesla configuration (suppress deprecated builder warning)
 config :tesla, disable_deprecated_builder_warning: true
+
+# Import environment specific config
+import_config "#{config_env()}.exs"
