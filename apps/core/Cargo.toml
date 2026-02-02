@@ -53,7 +53,7 @@ flate2 = "1.0"
 futures = "0.3"
 http = "1.0"
 jsonschema = "0.26"
-jsonwebtoken = "9.3"
+jsonwebtoken = "10.3"
 lz4 = "1.28"
 parking_lot = "0.12"
 parquet = { version = "53.4", features = ["arrow", "async"] }
