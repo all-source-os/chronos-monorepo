@@ -19,12 +19,8 @@ ignore = [
     # tokio-tar PAX header parsing - no fix available, used by datafusion/arrow
     # https://rustsec.org/advisories/RUSTSEC-2025-0111
     "RUSTSEC-2025-0111",
-]
 
-[warnings]
-# Warnings to ignore
-ignore = [
-    # rustls-pemfile unmaintained - used by testcontainers, not critical
+    # rustls-pemfile unmaintained - used by testcontainers, not critical (warning)
     # https://rustsec.org/advisories/RUSTSEC-2025-0134
     "RUSTSEC-2025-0134",
 ]

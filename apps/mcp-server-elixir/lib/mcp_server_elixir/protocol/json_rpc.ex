@@ -24,13 +24,11 @@ defmodule McpServerElixir.Protocol.JsonRpc do
 
   defp validate_request(%{"jsonrpc" => "2.0"} = request) do
     # Validate required fields
-    cond do
-      not Map.has_key?(request, "method") ->
-        {:error, "Missing 'method' field"}
-
+    if Map.has_key?(request, "method") do
       # Request (has id) or notification (no id)
-      true ->
-        {:ok, normalize_request(request)}
+      {:ok, normalize_request(request)}
+    else
+      {:error, "Missing 'method' field"}
     end
   end
 

@@ -55,7 +55,7 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
     # Find the list of items to encode
     items = find_tabular_items(data)
 
-    if items != nil and length(items) > 0 do
+    if is_list(items) and items != [] do
       encode_items_as_toon(items)
     else
       {:error, :not_tabular}
@@ -74,7 +74,7 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
   defp find_tabular_items(data) when is_map(data) do
     # Find the first list value that looks tabular
     Enum.find_value(data, fn
-      {_key, value} when is_list(value) and length(value) > 0 ->
+      {_key, [_ | _] = value} ->
         if uniform_list?(value), do: value, else: nil
 
       _ ->
@@ -84,22 +84,13 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
 
   defp find_tabular_items(_), do: nil
 
-  defp encode_items_as_toon(items) when is_list(items) and length(items) > 0 do
-    first_item = List.first(items)
-
+  defp encode_items_as_toon([first_item | _] = items) do
     case first_item do
       item when is_map(item) ->
         keys = Map.keys(item) |> Enum.sort()
         header = "[" <> Enum.join(keys, "|") <> "]"
 
-        rows =
-          Enum.map(items, fn item ->
-            Enum.map(keys, fn key ->
-              value = Map.get(item, key, "")
-              encode_value(value)
-            end)
-            |> Enum.join("|")
-          end)
+        rows = Enum.map(items, fn item -> encode_row(item, keys) end)
 
         {:ok, Enum.join([header | rows], "\n")}
 
@@ -108,7 +99,15 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
     end
   end
 
+  defp encode_items_as_toon([]), do: {:error, :empty_list}
   defp encode_items_as_toon(_), do: {:error, :empty_list}
+
+  defp encode_row(item, keys) do
+    Enum.map_join(keys, "|", fn key ->
+      value = Map.get(item, key, "")
+      encode_value(value)
+    end)
+  end
 
   defp encode_value(nil), do: ""
   defp encode_value(value) when is_binary(value), do: escape_toon_value(value)
@@ -147,22 +146,22 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
   def detect_tabular_structure(_), do: {:mixed, nil}
 
   # Check for "events" array with uniform structure
-  defp has_uniform_events?(%{"events" => events}) when is_list(events) and length(events) > 0 do
+  defp has_uniform_events?(%{"events" => [_ | _] = events}) do
     uniform_event_list?(events)
   end
 
-  defp has_uniform_events?(%{events: events}) when is_list(events) and length(events) > 0 do
+  defp has_uniform_events?(%{events: [_ | _] = events}) do
     uniform_event_list?(events)
   end
 
   defp has_uniform_events?(_), do: false
 
   # Check for "items" array with uniform structure
-  defp has_uniform_items?(%{"items" => items}) when is_list(items) and length(items) > 0 do
+  defp has_uniform_items?(%{"items" => [_ | _] = items}) do
     uniform_list?(items)
   end
 
-  defp has_uniform_items?(%{items: items}) when is_list(items) and length(items) > 0 do
+  defp has_uniform_items?(%{items: [_ | _] = items}) do
     uniform_list?(items)
   end
 
@@ -171,7 +170,7 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
   # Check for comparison arrays (entity comparisons, etc.)
   defp has_uniform_comparisons?(data) when is_map(data) do
     Enum.any?(data, fn
-      {_key, value} when is_list(value) and length(value) > 0 ->
+      {_key, [_ | _] = value} ->
         uniform_list?(value)
 
       _ ->
@@ -182,8 +181,7 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
   defp has_uniform_comparisons?(_), do: false
 
   # Check if event list has uniform structure
-  defp uniform_event_list?(events) when length(events) > 0 do
-    first_event = List.first(events)
+  defp uniform_event_list?([first_event | _] = events) do
     first_keys = extract_keys(first_event) |> Enum.sort()
 
     Enum.all?(events, fn event ->
@@ -195,9 +193,7 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
   defp uniform_event_list?(_), do: false
 
   # Check if list has uniform structure
-  defp uniform_list?(items) when length(items) > 0 do
-    first_item = List.first(items)
-
+  defp uniform_list?([first_item | _] = items) do
     case first_item do
       item when is_map(item) ->
         first_keys = extract_keys(item) |> Enum.sort()

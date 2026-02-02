@@ -8,7 +8,7 @@ defmodule McpServerElixir.Protocol.McpTools do
 
   require Logger
 
-  alias McpServerElixir.Infrastructure.{CoreClient, ControlPlaneClient}
+  alias McpServerElixir.Infrastructure.{ControlPlaneClient, CoreClient}
   alias McpServerElixir.Protocol.ToonEncoder
 
   @doc """
@@ -30,6 +30,23 @@ defmodule McpServerElixir.Protocol.McpTools do
     ]
   end
 
+  @tool_handlers %{
+    "query_events" => :handle_query_events,
+    "reconstruct_state" => :handle_reconstruct_state,
+    "get_snapshot" => :handle_get_snapshot,
+    "analyze_changes" => :handle_analyze_changes,
+    "find_patterns" => :handle_find_patterns,
+    "compare_entities" => :handle_compare_entities,
+    "event_timeline" => :handle_event_timeline,
+    "explain_entity" => :handle_explain_entity,
+    "ingest_event" => :handle_ingest_event
+  }
+
+  @stateless_tool_handlers %{
+    "get_stats" => :handle_get_stats,
+    "get_cluster_status" => :handle_get_cluster_status
+  }
+
   @doc """
   Call a tool by name with arguments.
 
@@ -42,19 +59,19 @@ defmodule McpServerElixir.Protocol.McpTools do
     format = Map.get(args, "format", nil)
     args_without_format = Map.delete(args, "format")
 
-    case tool_name do
-      "query_events" -> handle_query_events(args_without_format, state, format)
-      "reconstruct_state" -> handle_reconstruct_state(args_without_format, state, format)
-      "get_snapshot" -> handle_get_snapshot(args_without_format, state, format)
-      "analyze_changes" -> handle_analyze_changes(args_without_format, state, format)
-      "find_patterns" -> handle_find_patterns(args_without_format, state, format)
-      "compare_entities" -> handle_compare_entities(args_without_format, state, format)
-      "event_timeline" -> handle_event_timeline(args_without_format, state, format)
-      "explain_entity" -> handle_explain_entity(args_without_format, state, format)
-      "ingest_event" -> handle_ingest_event(args_without_format, state, format)
-      "get_stats" -> handle_get_stats(state, format)
-      "get_cluster_status" -> handle_get_cluster_status(state, format)
-      _ -> {:error, "Unknown tool: #{tool_name}"}
+    dispatch_tool(tool_name, args_without_format, state, format)
+  end
+
+  defp dispatch_tool(tool_name, args, state, format) do
+    cond do
+      handler = Map.get(@tool_handlers, tool_name) ->
+        apply(__MODULE__, handler, [args, state, format])
+
+      handler = Map.get(@stateless_tool_handlers, tool_name) ->
+        apply(__MODULE__, handler, [state, format])
+
+      true ->
+        {:error, "Unknown tool: #{tool_name}"}
     end
   end
 
@@ -273,7 +290,8 @@ defmodule McpServerElixir.Protocol.McpTools do
   # Tool Handlers
   # ============================================================================
 
-  defp handle_query_events(args, state, format) do
+  @doc false
+  def handle_query_events(args, state, format) do
     params = Map.take(args, ["entity_id", "event_type", "as_of", "since", "until", "limit"])
 
     case CoreClient.query_events(state.core_client, params) do
@@ -298,7 +316,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     end
   end
 
-  defp handle_reconstruct_state(args, state, format) do
+  @doc false
+  def handle_reconstruct_state(args, state, format) do
     entity_id = Map.fetch!(args, "entity_id")
     as_of = Map.get(args, "as_of")
 
@@ -334,7 +353,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     end
   end
 
-  defp handle_get_snapshot(args, state, format) do
+  @doc false
+  def handle_get_snapshot(args, state, format) do
     entity_id = Map.fetch!(args, "entity_id")
 
     case CoreClient.get_snapshot(state.core_client, entity_id) do
@@ -358,7 +378,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     end
   end
 
-  defp handle_analyze_changes(args, state, format) do
+  @doc false
+  def handle_analyze_changes(args, state, format) do
     entity_id = Map.fetch!(args, "entity_id")
     from_time = Map.fetch!(args, "from_time")
     to_time = Map.get(args, "to_time")
@@ -406,7 +427,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     end
   end
 
-  defp handle_find_patterns(args, state, format) do
+  @doc false
+  def handle_find_patterns(args, state, format) do
     params = Map.take(args, ["entity_id", "event_type", "since"])
 
     case CoreClient.query_events(state.core_client, params) do
@@ -441,7 +463,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     end
   end
 
-  defp handle_compare_entities(args, state, format) do
+  @doc false
+  def handle_compare_entities(args, state, format) do
     entity_ids = Map.fetch!(args, "entity_ids")
     timeframe = Map.get(args, "timeframe")
 
@@ -491,7 +514,8 @@ defmodule McpServerElixir.Protocol.McpTools do
      }}
   end
 
-  defp handle_event_timeline(args, state, format) do
+  @doc false
+  def handle_event_timeline(args, state, format) do
     entity_id = Map.fetch!(args, "entity_id")
     params = Map.take(args, ["since", "until"])
     params = Map.put(params, "entity_id", entity_id)
@@ -543,7 +567,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     end
   end
 
-  defp handle_explain_entity(args, state, format) do
+  @doc false
+  def handle_explain_entity(args, state, format) do
     entity_id = Map.fetch!(args, "entity_id")
 
     # Get current state
@@ -603,7 +628,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     end
   end
 
-  defp handle_ingest_event(args, state, format) do
+  @doc false
+  def handle_ingest_event(args, state, format) do
     event_data = %{
       "event_type" => Map.fetch!(args, "event_type"),
       "entity_id" => Map.fetch!(args, "entity_id"),
@@ -641,7 +667,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     end
   end
 
-  defp handle_get_stats(state, format) do
+  @doc false
+  def handle_get_stats(state, format) do
     case CoreClient.get_stats(state.core_client) do
       {:ok, stats} ->
         summary = "📊 AllSource Statistics\n\n"
@@ -663,7 +690,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     end
   end
 
-  defp handle_get_cluster_status(state, format) do
+  @doc false
+  def handle_get_cluster_status(state, format) do
     case ControlPlaneClient.get_cluster_status(state.control_client) do
       {:ok, status} ->
         summary = "🎯 Cluster Status\n\n"

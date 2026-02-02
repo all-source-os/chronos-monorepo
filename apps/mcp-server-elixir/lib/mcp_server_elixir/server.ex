@@ -9,8 +9,8 @@ defmodule McpServerElixir.Server do
   use GenServer
   require Logger
 
+  alias McpServerElixir.Infrastructure.{ControlPlaneClient, CoreClient}
   alias McpServerElixir.Protocol.{JsonRpc, McpTools}
-  alias McpServerElixir.Infrastructure.{CoreClient, ControlPlaneClient}
 
   @server_info %{
     name: "allsource-mcp-elixir",
@@ -89,7 +89,7 @@ defmodule McpServerElixir.Server do
 
           {:error, reason} ->
             Logger.warning("Failed to parse JSON-RPC request: #{inspect(reason)}")
-            send_error(nil, -32700, "Parse error", nil)
+            send_error(nil, -32_700, "Parse error", nil)
         end
     end
   end
@@ -141,7 +141,7 @@ defmodule McpServerElixir.Server do
         send_response(response)
 
       {:error, reason} ->
-        send_error(id, -32603, "Internal error", reason)
+        send_error(id, -32_603, "Internal error", reason)
     end
 
     {:noreply, state}
@@ -154,13 +154,13 @@ defmodule McpServerElixir.Server do
 
   defp process_request(%{method: method, id: id}, state) do
     Logger.warning("Unknown method: #{method}")
-    send_error(id, -32601, "Method not found", nil)
+    send_error(id, -32_601, "Method not found", nil)
     {:noreply, state}
   end
 
   defp process_request(request, state) do
     Logger.warning("Invalid request format: #{inspect(request)}")
-    send_error(nil, -32600, "Invalid Request", nil)
+    send_error(nil, -32_600, "Invalid Request", nil)
     {:noreply, state}
   end
 
