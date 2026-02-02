@@ -52,19 +52,20 @@ jobs:
       - name: Rust dependency audit
         if: matrix.name == 'rust'
         working-directory: ${{ matrix.working-directory }}
-        run: cargo audit --ignore RUSTSEC-2020-0071
+        run: cargo audit
 
       # Go dependencies
       - name: Set up Go
         if: matrix.name == 'go'
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
 
       - name: Go vulnerability check
         if: matrix.name == 'go'
         working-directory: ${{ matrix.working-directory }}
         run: |
+          go mod tidy
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
@@ -108,7 +109,7 @@ jobs:
         if: matrix.language == 'go'
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
           cache-dependency-path: apps/control-plane/go.sum
 
       - name: Build Go
@@ -190,7 +191,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
 
       - name: Install go-licenses
         run: go install github.com/google/go-licenses@latest
@@ -227,13 +228,8 @@ jobs:
     steps:
       - name: Generate summary
         run: |
-          echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-
           status() {
-            case $1 in
+            case "$1" in
               success) echo "✅ Passed" ;;
               failure) echo "❌ Failed" ;;
               skipped) echo "⏭️ Skipped" ;;
@@ -241,7 +237,13 @@ jobs:
             esac
           }
 
-          echo "| Dependency Audit | $(status ${{ needs.dependency-audit.result }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "| CodeQL Analysis | $(status ${{ needs.codeql.result }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Container Scan | $(status ${{ needs.container-scan.result }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "| License Check | $(status ${{ needs.license-check.result }}) |" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 🔒 Security Scan Summary"
+            echo ""
+            echo "| Check | Status |"
+            echo "|-------|--------|"
+            echo "| Dependency Audit | $(status "${{ needs.dependency-audit.result }}") |"
+            echo "| CodeQL Analysis | $(status "${{ needs.codeql.result }}") |"
+            echo "| Container Scan | $(status "${{ needs.container-scan.result }}") |"
+            echo "| License Check | $(status "${{ needs.license-check.result }}") |"
+          } >> "$GITHUB_STEP_SUMMARY"

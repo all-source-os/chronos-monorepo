@@ -3,7 +3,7 @@
 # Chronos Control Plane - Production-Optimized Multi-Stage Dockerfile
 # =============================================================================
 
-ARG GO_VERSION=1.22
+ARG GO_VERSION=1.24
 ARG ALPINE_VERSION=3.20
 
 # =============================================================================

@@ -1,0 +1,10 @@
+# cargo-audit configuration
+# https://github.com/rustsec/rustsec/tree/main/cargo-audit
+
+[advisories]
+# Advisories to ignore (with justification)
+ignore = [
+    # chrono uses an old version of time crate - low risk, no patch available yet
+    # https://rustsec.org/advisories/RUSTSEC-2020-0071
+    "RUSTSEC-2020-0071",
+]

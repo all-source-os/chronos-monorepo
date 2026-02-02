@@ -30,8 +30,6 @@ jobs:
 
       - name: Lint workflow files
         uses: rhysd/actionlint@v1.7.7
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   # Validate workflow structure with act (dry-run)
   workflow-validate:
@@ -188,7 +186,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
           cache-dependency-path: apps/control-plane/go.sum
 
       - name: Download dependencies
