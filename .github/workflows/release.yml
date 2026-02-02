@@ -55,8 +55,8 @@ jobs:
             fi
           fi
 
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "Release version: $VERSION (prerelease: $IS_PRERELEASE)"
 
       - name: Validate semver
@@ -287,7 +287,7 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
 
           if [ -n "$PREV_TAG" ]; then
-            CHANGES=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
+            CHANGES=$(git log --pretty=format:"- %s (%h)" "$PREV_TAG..HEAD")
           else
             CHANGES=$(git log --pretty=format:"- %s (%h)" HEAD~20..HEAD)
           fi
@@ -309,14 +309,16 @@ jobs:
 
       - name: Generate release summary
         run: |
-          echo "## 🚀 Release v${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/${{ github.repository_owner }}/chronos-core:${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/${{ github.repository_owner }}/chronos-control-plane:${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/${{ github.repository_owner }}/chronos-query-service:${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Binary Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "See the release page for downloadable binaries." >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 🚀 Release v${{ needs.validate.outputs.version }}"
+            echo ""
+            echo "### Docker Images"
+            echo '```'
+            echo "ghcr.io/${{ github.repository_owner }}/chronos-core:${{ needs.validate.outputs.version }}"
+            echo "ghcr.io/${{ github.repository_owner }}/chronos-control-plane:${{ needs.validate.outputs.version }}"
+            echo "ghcr.io/${{ github.repository_owner }}/chronos-query-service:${{ needs.validate.outputs.version }}"
+            echo '```'
+            echo ""
+            echo "### Binary Artifacts"
+            echo "See the release page for downloadable binaries."
+          } >> "$GITHUB_STEP_SUMMARY"

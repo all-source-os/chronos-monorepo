@@ -41,9 +41,9 @@ jobs:
         run: |
           if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
             echo "CI workflow failed with: ${{ github.event.workflow_run.conclusion }}"
-            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
           else
-            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
 
   # ===========================================================================
@@ -69,17 +69,17 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             if [[ "${{ github.event.inputs.containers }}" == "all" ]]; then
-              echo 'matrix=["core","query-service","control-plane"]' >> $GITHUB_OUTPUT
-              echo "core=true" >> $GITHUB_OUTPUT
-              echo "query-service=true" >> $GITHUB_OUTPUT
-              echo "control-plane=true" >> $GITHUB_OUTPUT
+              echo 'matrix=["core","query-service","control-plane"]' >> "$GITHUB_OUTPUT"
+              echo "core=true" >> "$GITHUB_OUTPUT"
+              echo "query-service=true" >> "$GITHUB_OUTPUT"
+              echo "control-plane=true" >> "$GITHUB_OUTPUT"
             else
               # Convert comma-separated to JSON array
               containers=$(echo '${{ github.event.inputs.containers }}' | tr ',' '\n' | jq -R . | jq -sc .)
-              echo "matrix=$containers" >> $GITHUB_OUTPUT
+              echo "matrix=$containers" >> "$GITHUB_OUTPUT"
               # Set individual outputs
-              echo '${{ github.event.inputs.containers }}' | tr ',' '\n' | while read c; do
-                echo "$c=true" >> $GITHUB_OUTPUT
+              echo '${{ github.event.inputs.containers }}' | tr ',' '\n' | while read -r c; do
+                echo "$c=true" >> "$GITHUB_OUTPUT"
               done
             fi
           else
@@ -88,7 +88,7 @@ jobs:
             matrix='[]'
 
             # Check for changes using git diff against base
-            git fetch origin ${{ github.event.workflow_run.head_branch || 'main' }} --depth=2
+            git fetch origin "${{ github.event.workflow_run.head_branch || 'main' }}" --depth=2
 
             # Detect changes per service
             CORE_CHANGED="false"
@@ -97,15 +97,15 @@ jobs:
 
             if git diff --name-only HEAD~1 | grep -q "apps/core/"; then
               CORE_CHANGED="true"
-              matrix=$(echo $matrix | jq -c '. + ["core"]')
+              matrix=$(echo "$matrix" | jq -c '. + ["core"]')
             fi
             if git diff --name-only HEAD~1 | grep -q "apps/query-service/"; then
               QS_CHANGED="true"
-              matrix=$(echo $matrix | jq -c '. + ["query-service"]')
+              matrix=$(echo "$matrix" | jq -c '. + ["query-service"]')
             fi
             if git diff --name-only HEAD~1 | grep -q "apps/control-plane/"; then
               CP_CHANGED="true"
-              matrix=$(echo $matrix | jq -c '. + ["control-plane"]')
+              matrix=$(echo "$matrix" | jq -c '. + ["control-plane"]')
             fi
 
             # If no changes detected, skip container builds
@@ -113,10 +113,10 @@ jobs:
               echo "No container changes detected"
             fi
 
-            echo "matrix=$matrix" >> $GITHUB_OUTPUT
-            echo "core=$CORE_CHANGED" >> $GITHUB_OUTPUT
-            echo "query-service=$QS_CHANGED" >> $GITHUB_OUTPUT
-            echo "control-plane=$CP_CHANGED" >> $GITHUB_OUTPUT
+            echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+            echo "core=$CORE_CHANGED" >> "$GITHUB_OUTPUT"
+            echo "query-service=$QS_CHANGED" >> "$GITHUB_OUTPUT"
+            echo "control-plane=$CP_CHANGED" >> "$GITHUB_OUTPUT"
           fi
 
   # ===========================================================================
@@ -144,22 +144,22 @@ jobs:
         run: |
           case "${{ matrix.container }}" in
             core)
-              echo "context=apps/core" >> $GITHUB_OUTPUT
-              echo "dockerfile=apps/core/Dockerfile" >> $GITHUB_OUTPUT
-              echo "image=chronos-core" >> $GITHUB_OUTPUT
-              echo "port=3900" >> $GITHUB_OUTPUT
+              echo "context=apps/core" >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/core/Dockerfile" >> "$GITHUB_OUTPUT"
+              echo "image=chronos-core" >> "$GITHUB_OUTPUT"
+              echo "port=3900" >> "$GITHUB_OUTPUT"
               ;;
             query-service)
-              echo "context=apps/query-service" >> $GITHUB_OUTPUT
-              echo "dockerfile=apps/query-service/Dockerfile" >> $GITHUB_OUTPUT
-              echo "image=chronos-query-service" >> $GITHUB_OUTPUT
-              echo "port=4000" >> $GITHUB_OUTPUT
+              echo "context=apps/query-service" >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/query-service/Dockerfile" >> "$GITHUB_OUTPUT"
+              echo "image=chronos-query-service" >> "$GITHUB_OUTPUT"
+              echo "port=4000" >> "$GITHUB_OUTPUT"
               ;;
             control-plane)
-              echo "context=apps/control-plane" >> $GITHUB_OUTPUT
-              echo "dockerfile=apps/control-plane/Dockerfile" >> $GITHUB_OUTPUT
-              echo "image=chronos-control-plane" >> $GITHUB_OUTPUT
-              echo "port=8080" >> $GITHUB_OUTPUT
+              echo "context=apps/control-plane" >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/control-plane/Dockerfile" >> "$GITHUB_OUTPUT"
+              echo "image=chronos-control-plane" >> "$GITHUB_OUTPUT"
+              echo "port=8080" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
@@ -181,7 +181,7 @@ jobs:
       - name: Check image size
         run: |
           SIZE=$(docker images --format "{{.Size}}" ${{ steps.config.outputs.image }}:test)
-          echo "### 📦 Image Size: $SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Image Size: $SIZE" >> "$GITHUB_STEP_SUMMARY"
 
           # Convert to MB for comparison
           SIZE_MB=$(docker images --format "{{.Size}}" ${{ steps.config.outputs.image }}:test | \
@@ -193,7 +193,7 @@ jobs:
             }')
 
           if (( $(echo "$SIZE_MB > 500" | bc -l) )); then
-            echo "⚠️ Warning: Image size ($SIZE) exceeds 500MB threshold" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Warning: Image size ($SIZE) exceeds 500MB threshold" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Test container startup
@@ -218,7 +218,7 @@ jobs:
 
             if [ "$STATUS" = "exited" ]; then
               EXIT_CODE=$(docker inspect --format='{{.State.ExitCode}}' $CONTAINER_ID)
-              echo "❌ Container exited with code $EXIT_CODE" >> $GITHUB_STEP_SUMMARY
+              echo "❌ Container exited with code $EXIT_CODE" >> "$GITHUB_STEP_SUMMARY"
               docker logs $CONTAINER_ID
               docker rm -f $CONTAINER_ID
               exit 1
@@ -229,7 +229,7 @@ jobs:
 
             if [ "$HEALTH" = "healthy" ] || [ "$HEALTH" = "no-healthcheck" ]; then
               if [ "$STATUS" = "running" ]; then
-                echo "✅ Container started successfully in ${WAITED}s" >> $GITHUB_STEP_SUMMARY
+                echo "✅ Container started successfully in ${WAITED}s" >> "$GITHUB_STEP_SUMMARY"
                 docker rm -f $CONTAINER_ID
                 exit 0
               fi
@@ -239,7 +239,7 @@ jobs:
             WAITED=$((WAITED + 1))
           done
 
-          echo "❌ Container failed to start within ${MAX_WAIT}s" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Container failed to start within ${MAX_WAIT}s" >> "$GITHUB_STEP_SUMMARY"
           docker logs $CONTAINER_ID
           docker rm -f $CONTAINER_ID
           exit 1
@@ -274,7 +274,7 @@ jobs:
           # Wait for core to be healthy
           timeout 60 bash -c 'until docker compose exec -T core wget --spider -q http://localhost:3900/health; do sleep 2; done'
 
-          echo "✅ Core service is healthy" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Core service is healthy" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run integration tests
         run: |
@@ -287,9 +287,9 @@ jobs:
             -d '{"stream_id":"test-stream","event_type":"TestEvent","data":{"message":"hello"}}')
 
           if echo "$RESPONSE" | jq -e '.event_id' > /dev/null; then
-            echo "✅ Event creation test passed" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Event creation test passed" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "❌ Event creation test failed" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Event creation test failed" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
@@ -309,35 +309,35 @@ jobs:
     steps:
       - name: Generate Summary
         run: |
-          echo "# 🐳 Container CI Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# 🐳 Container CI Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # Check if there were any containers to build
           if [ "${{ needs.changes.outputs.matrix }}" == "[]" ] || [ -z "${{ needs.changes.outputs.matrix }}" ]; then
-            echo "**No container changes detected - skipped container builds**" >> $GITHUB_STEP_SUMMARY
+            echo "**No container changes detected - skipped container builds**" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
-          echo "| Container | Build | Startup |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|-------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Container | Build | Startup |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|-------|---------|" >> "$GITHUB_STEP_SUMMARY"
 
           # This is a simplified summary - actual results come from build job
           if [ "${{ needs.build.result }}" == "success" ]; then
-            echo "| All | ✅ | ✅ |" >> $GITHUB_STEP_SUMMARY
+            echo "| All | ✅ | ✅ |" >> "$GITHUB_STEP_SUMMARY"
           elif [ "${{ needs.build.result }}" == "skipped" ]; then
-            echo "| All | ⏭️ | ⏭️ |" >> $GITHUB_STEP_SUMMARY
+            echo "| All | ⏭️ | ⏭️ |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| All | ❌ | - |" >> $GITHUB_STEP_SUMMARY
+            echo "| All | ❌ | - |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "" >> "$GITHUB_STEP_SUMMARY"
 
           if [ "${{ needs.integration.result }}" == "success" ]; then
-            echo "**Integration Tests:** ✅ Passed" >> $GITHUB_STEP_SUMMARY
+            echo "**Integration Tests:** ✅ Passed" >> "$GITHUB_STEP_SUMMARY"
           elif [ "${{ needs.integration.result }}" == "skipped" ]; then
-            echo "**Integration Tests:** ⏭️ Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "**Integration Tests:** ⏭️ Skipped" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "**Integration Tests:** ❌ Failed" >> $GITHUB_STEP_SUMMARY
+            echo "**Integration Tests:** ❌ Failed" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Check overall status

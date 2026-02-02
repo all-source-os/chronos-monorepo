@@ -7,4 +7,24 @@ ignore = [
     # chrono uses an old version of time crate - low risk, no patch available yet
     # https://rustsec.org/advisories/RUSTSEC-2020-0071
     "RUSTSEC-2020-0071",
+
+    # protobuf 2.28.0 via prometheus - upgrade blocked by prometheus dependency
+    # https://rustsec.org/advisories/RUSTSEC-2024-0437
+    "RUSTSEC-2024-0437",
+
+    # rsa timing sidechannel - no fix available, used by sqlx-mysql
+    # https://rustsec.org/advisories/RUSTSEC-2023-0071
+    "RUSTSEC-2023-0071",
+
+    # tokio-tar PAX header parsing - no fix available, used by datafusion/arrow
+    # https://rustsec.org/advisories/RUSTSEC-2025-0111
+    "RUSTSEC-2025-0111",
+]
+
+[warnings]
+# Warnings to ignore
+ignore = [
+    # rustls-pemfile unmaintained - used by testcontainers, not critical
+    # https://rustsec.org/advisories/RUSTSEC-2025-0134
+    "RUSTSEC-2025-0134",
 ]

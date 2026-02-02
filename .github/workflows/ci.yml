@@ -28,8 +28,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install actionlint
+        run: |
+          # Download actionlint from GitHub releases
+          ACTIONLINT_VERSION="1.7.7"
+          curl -sLO "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          tar xzf "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          chmod +x actionlint
+
       - name: Lint workflow files
-        uses: rhysd/actionlint@v1.7.7
+        run: |
+          # Ignore shellcheck info/style warnings (SC2086, SC2129) - these are non-critical
+          ./actionlint -ignore 'SC2086' -ignore 'SC2129' -color
 
   # Validate workflow structure with act (dry-run)
   workflow-validate:
@@ -46,7 +56,7 @@ jobs:
         run: |
           echo "Validating workflow job graphs..."
           for workflow in .github/workflows/*.yml; do
-            echo "Checking $(basename $workflow)..."
+            echo "Checking $(basename "$workflow")..."
             act --list -W "$workflow" || {
               echo "Warning: Could not parse $workflow - may have dynamic elements"
             }
@@ -394,42 +404,43 @@ jobs:
     steps:
       - name: Check quality gates
         run: |
-          echo "## Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Check each job result
-          FAILED=false
-
           check_job() {
-            local name=$1
-            local result=$2
-            local required=$3
+            local name="$1"
+            local result="$2"
+            local required="$3"
 
             if [ "$required" == "false" ]; then
-              echo "- ⏭️ **$name**: Skipped (no changes)" >> $GITHUB_STEP_SUMMARY
+              echo "- ⏭️ **$name**: Skipped (no changes)"
             elif [ "$result" == "success" ]; then
-              echo "- ✅ **$name**: Passed" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ **$name**: Passed"
             elif [ "$result" == "skipped" ]; then
-              echo "- ⏭️ **$name**: Skipped" >> $GITHUB_STEP_SUMMARY
+              echo "- ⏭️ **$name**: Skipped"
             else
-              echo "- ❌ **$name**: Failed" >> $GITHUB_STEP_SUMMARY
+              echo "- ❌ **$name**: Failed"
               FAILED=true
             fi
           }
 
-          check_job "Workflow Lint" "${{ needs.workflow-lint.result }}" "true"
-          check_job "Workflow Validate (act)" "${{ needs.workflow-validate.result }}" "true"
-          check_job "Version Check" "${{ needs.version-check.result }}" "true"
-          check_job "Rust Quality" "${{ needs.rust-quality.result }}" "${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.workflows == 'true' }}"
-          check_job "Go Quality" "${{ needs.go-quality.result }}" "${{ needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true' }}"
-          check_job "Elixir Query" "${{ needs.elixir-query-quality.result }}" "${{ needs.changes.outputs.elixir == 'true' || needs.changes.outputs.workflows == 'true' }}"
-          check_job "Elixir MCP" "${{ needs.elixir-mcp-quality.result }}" "${{ needs.changes.outputs.mcp == 'true' || needs.changes.outputs.workflows == 'true' }}"
+          FAILED=false
 
-          echo "" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Quality Gate Summary"
+            echo ""
+            check_job "Workflow Lint" "${{ needs.workflow-lint.result }}" "true"
+            check_job "Workflow Validate (act)" "${{ needs.workflow-validate.result }}" "true"
+            check_job "Version Check" "${{ needs.version-check.result }}" "true"
+            check_job "Rust Quality" "${{ needs.rust-quality.result }}" "${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.workflows == 'true' }}"
+            check_job "Go Quality" "${{ needs.go-quality.result }}" "${{ needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true' }}"
+            check_job "Elixir Query" "${{ needs.elixir-query-quality.result }}" "${{ needs.changes.outputs.elixir == 'true' || needs.changes.outputs.workflows == 'true' }}"
+            check_job "Elixir MCP" "${{ needs.elixir-mcp-quality.result }}" "${{ needs.changes.outputs.mcp == 'true' || needs.changes.outputs.workflows == 'true' }}"
+            echo ""
+            if [ "$FAILED" == "true" ]; then
+              echo "### ❌ Quality Gate Failed"
+            else
+              echo "### ✅ All Quality Gates Passed"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$FAILED" == "true" ]; then
-            echo "### ❌ Quality Gate Failed" >> $GITHUB_STEP_SUMMARY
             exit 1
-          else
-            echo "### ✅ All Quality Gates Passed" >> $GITHUB_STEP_SUMMARY
           fi

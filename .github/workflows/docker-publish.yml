@@ -223,8 +223,8 @@ jobs:
 
       - name: Report build success
         run: |
-          echo "### Build Successful: ${{ matrix.name }}" >> $GITHUB_STEP_SUMMARY
-          echo "Image validated for platforms: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Successful: ${{ matrix.name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Image validated for platforms: linux/amd64, linux/arm64" >> "$GITHUB_STEP_SUMMARY"
 
   # ============================================================================
   # Stage 2: Push to all registries (only after all builds succeed)
@@ -372,72 +372,72 @@ jobs:
     steps:
       - name: Generate summary
         run: |
-          echo "## Docker Build & Publish Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker Build & Publish Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # Push conditions info
-          echo "### Push Conditions" >> $GITHUB_STEP_SUMMARY
-          echo "| Condition | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Should Push | ${{ needs.push-conditions.outputs.should_push }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Push to GHCR | ${{ needs.push-conditions.outputs.push_to_ghcr }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Push to DockerHub | ${{ needs.push-conditions.outputs.push_to_dockerhub }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Is Release | ${{ needs.push-conditions.outputs.is_release }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Push Conditions" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Condition | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Should Push | ${{ needs.push-conditions.outputs.should_push }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Push to GHCR | ${{ needs.push-conditions.outputs.push_to_ghcr }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Push to DockerHub | ${{ needs.push-conditions.outputs.push_to_dockerhub }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Is Release | ${{ needs.push-conditions.outputs.is_release }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "### Stage Results" >> $GITHUB_STEP_SUMMARY
-          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "### Stage Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Stage | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
 
           # Report build stage status
           if [ "${{ needs.build.result }}" == "success" ]; then
-            echo "| Build (all images) | Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Build (all images) | Passed |" >> "$GITHUB_STEP_SUMMARY"
           elif [ "${{ needs.build.result }}" == "skipped" ]; then
-            echo "| Build | Skipped (no changes) |" >> $GITHUB_STEP_SUMMARY
+            echo "| Build | Skipped (no changes) |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| Build | Failed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Build | Failed |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           # Report push stage status
           if [ "${{ needs.push.result }}" == "success" ]; then
-            echo "| Push (all registries) | Published |" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Published Images" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Push (all registries) | Published |" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Published Images" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
 
             # GHCR images
-            echo "**GitHub Container Registry (ghcr.io)**" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "**GitHub Container Registry (ghcr.io)**" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
             if [ "${{ needs.changes.outputs.core }}" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]; then
-              echo "ghcr.io/${{ github.repository_owner }}/chronos-core" >> $GITHUB_STEP_SUMMARY
+              echo "ghcr.io/${{ github.repository_owner }}/chronos-core" >> "$GITHUB_STEP_SUMMARY"
             fi
             if [ "${{ needs.changes.outputs.control-plane }}" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]; then
-              echo "ghcr.io/${{ github.repository_owner }}/chronos-control-plane" >> $GITHUB_STEP_SUMMARY
+              echo "ghcr.io/${{ github.repository_owner }}/chronos-control-plane" >> "$GITHUB_STEP_SUMMARY"
             fi
             if [ "${{ needs.changes.outputs.query-service }}" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]; then
-              echo "ghcr.io/${{ github.repository_owner }}/chronos-query-service" >> $GITHUB_STEP_SUMMARY
+              echo "ghcr.io/${{ github.repository_owner }}/chronos-query-service" >> "$GITHUB_STEP_SUMMARY"
             fi
             if [ "${{ needs.changes.outputs.mcp-server }}" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]; then
-              echo "ghcr.io/${{ github.repository_owner }}/chronos-mcp-server" >> $GITHUB_STEP_SUMMARY
+              echo "ghcr.io/${{ github.repository_owner }}/chronos-mcp-server" >> "$GITHUB_STEP_SUMMARY"
             fi
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
 
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**DockerHub** (if configured)" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "docker.io/<username>/chronos-*" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**DockerHub** (if configured)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "docker.io/<username>/chronos-*" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
 
           elif [ "${{ needs.push.result }}" == "skipped" ]; then
-            echo "| Push | Skipped (push conditions not met) |" >> $GITHUB_STEP_SUMMARY
+            echo "| Push | Skipped (push conditions not met) |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| Push | Failed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Push | Failed |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           # Fail the summary if build failed (push won't run anyway)
           if [ "${{ needs.build.result }}" == "failure" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Build stage failed - no images were pushed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Build stage failed - no images were pushed**" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
