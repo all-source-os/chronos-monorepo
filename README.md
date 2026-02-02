@@ -7,9 +7,9 @@ version: "0.7.3"
 
 # AllSource Event Store - Chronos Monorepo
 
-[![CI](https://github.com/allsource/chronos-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/allsource/chronos-monorepo/actions/workflows/ci.yml)
-[![Container CI](https://github.com/allsource/chronos-monorepo/actions/workflows/container-ci.yml/badge.svg)](https://github.com/allsource/chronos-monorepo/actions/workflows/container-ci.yml)
-[![Docker Build & Publish](https://github.com/allsource/chronos-monorepo/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/allsource/chronos-monorepo/actions/workflows/docker-publish.yml)
+[![CI](https://github.com/all-source-os/chronos-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/ci.yml)
+[![Container CI](https://github.com/all-source-os/chronos-monorepo/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/container-ci.yml)
+[![Docker Build & Publish](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml)
 [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core)
 [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
 [![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.7.3-green.svg)](apps/core/)
@@ -38,7 +38,7 @@ High-performance event sourcing platform with distributed architecture and AI-na
 
 ## Docker Images
 
-[![Docker Build & Publish](https://github.com/allsource/chronos-monorepo/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/allsource/chronos-monorepo/actions/workflows/docker-publish.yml)
+[![Docker Build & Publish](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml)
 
 Production-optimized containers with minimal footprint:
 
@@ -220,7 +220,7 @@ allsource-core = "0.7"  # Pin to minor version for stability
 
 ```bash
 # Clone the repository
-git clone https://github.com/allsource/chronos-monorepo.git
+git clone https://github.com/all-source-os/chronos-monorepo.git
 cd chronos-monorepo
 
 # Run Rust tests
@@ -394,7 +394,7 @@ We follow a TDD approach for all refactoring:
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/allsource/chronos-monorepo/issues)
+- **Issues**: [GitHub Issues](https://github.com/all-source-os/chronos-monorepo/issues)
 - **Documentation**: [Documentation Hub](docs/README.md)
 - **Maintainers**: @allsource-team
 
