@@ -7,6 +7,9 @@ version: "0.7.3"
 
 # AllSource Event Store - Chronos Monorepo
 
+[![CI](https://github.com/allsource/chronos-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/allsource/chronos-monorepo/actions/workflows/ci.yml)
+[![Container CI](https://github.com/allsource/chronos-monorepo/actions/workflows/container-ci.yml/badge.svg)](https://github.com/allsource/chronos-monorepo/actions/workflows/container-ci.yml)
+[![Docker Build & Publish](https://github.com/allsource/chronos-monorepo/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/allsource/chronos-monorepo/actions/workflows/docker-publish.yml)
 [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core)
 [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
 [![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.7.3-green.svg)](apps/core/)
@@ -35,6 +38,8 @@ High-performance event sourcing platform with distributed architecture and AI-na
 
 ## Docker Images
 
+[![Docker Build & Publish](https://github.com/allsource/chronos-monorepo/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/allsource/chronos-monorepo/actions/workflows/docker-publish.yml)
+
 Production-optimized containers with minimal footprint:
 
 | Service | Image | Size | Base |
@@ -42,8 +47,9 @@ Production-optimized containers with minimal footprint:
 | **Core** | `ghcr.io/allsource/chronos-core` | **15.7 MB** | Distroless |
 | **Control Plane** | `ghcr.io/allsource/chronos-control-plane` | **27.9 MB** | Distroless |
 | **Query Service** | `ghcr.io/allsource/chronos-query-service` | **35.1 MB** | Alpine |
+| **MCP Server** | `ghcr.io/allsource/chronos-mcp-server` | **~40 MB** | Alpine |
 
-**Total production footprint: ~79 MB** (excluding database)
+**Total production footprint: ~119 MB** (excluding database)
 
 ```bash
 # Quick Start
@@ -53,6 +59,7 @@ docker compose up -d
 docker pull ghcr.io/allsource/chronos-core:latest
 docker pull ghcr.io/allsource/chronos-control-plane:latest
 docker pull ghcr.io/allsource/chronos-query-service:latest
+docker pull ghcr.io/allsource/chronos-mcp-server:latest
 ```
 
 **Full guide**: [Docker Documentation](docs/deployment/DOCKER.md)
