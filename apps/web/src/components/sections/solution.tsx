@@ -1,7 +1,7 @@
 "use client";
 
 import { FlickeringGrid, Ripple, Safari, Section, cn } from "@allsource/ui";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 const features = [
   {

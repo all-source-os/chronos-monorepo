@@ -3,7 +3,7 @@
 import { eventStoreClient } from "@/lib/event-store/client";
 import type { AnalyticsQuery } from "@/lib/event-store/types";
 import { Button } from "@allsource/ui";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import {
   Activity,
   ArrowRight,

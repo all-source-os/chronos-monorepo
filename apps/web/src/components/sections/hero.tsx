@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 import { HeroVideoDialog, Icons, buttonVariants, cn } from "@allsource/ui";
 import Link from "next/link";

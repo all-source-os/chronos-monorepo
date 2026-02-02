@@ -2,7 +2,7 @@
 
 import { BorderBeam, cn } from "@allsource/ui";
 import * as Accordion from "@radix-ui/react-accordion";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView } from "motion/react";
 import type React from "react";
 import { type ReactNode, forwardRef, useEffect, useRef, useState } from "react";
 

@@ -9,7 +9,7 @@ import { QueryDemo } from "@/components/demo/query-demo";
 import { SecurityDemo } from "@/components/demo/security-demo";
 import { TimeTravelDemo } from "@/components/demo/time-travel-demo";
 import { BlurFade, DotPattern, Ripple } from "@allsource/ui";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import {
   BarChart3,
   Clock,

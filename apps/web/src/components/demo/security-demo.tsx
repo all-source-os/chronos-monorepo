@@ -3,7 +3,7 @@
 import { eventStoreClient } from "@/lib/event-store/client";
 import type { Tenant } from "@/lib/event-store/types";
 import { Button } from "@allsource/ui";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
   AlertTriangle,

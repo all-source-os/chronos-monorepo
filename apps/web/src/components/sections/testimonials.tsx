@@ -1,7 +1,7 @@
 "use client";
 
 import { Marquee, Section, cn } from "@allsource/ui";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Star } from "lucide-react";
 import Image from "next/image";
 

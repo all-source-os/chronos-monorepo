@@ -3,7 +3,7 @@
 import { siteConfig } from "@/lib/config";
 import useWindowSize from "@/lib/hooks/use-window-size";
 import { Label, Section, Switch, buttonVariants, cn } from "@allsource/ui";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";

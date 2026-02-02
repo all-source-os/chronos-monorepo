@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, type Variants, motion, useInView } from "framer-motion";
+import { AnimatePresence, type Variants, motion, useInView } from "motion/react";
 import { useRef } from "react";
 
 type MarginType = `${number}${"px" | "%"}`;
