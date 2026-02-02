@@ -82,7 +82,6 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
     end)
   end
 
-
   defp encode_items_as_toon([first_item | _] = items) do
     case first_item do
       item when is_map(item) ->
@@ -176,7 +175,6 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
         false
     end)
   end
-
 
   # Check if event list has uniform structure
   defp uniform_event_list?([first_event | _] = events) do

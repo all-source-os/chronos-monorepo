@@ -57,13 +57,13 @@ jsonwebtoken = "9.3"
 lz4 = "1.28"
 parking_lot = "0.12"
 parquet = { version = "53.4", features = ["arrow", "async"] }
-prometheus = "0.13"
-rand = "0.8"
-rocksdb = { version = "0.22", optional = true }
+prometheus = "0.14"
+rand = "0.9"
+rocksdb = { version = "0.24", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
-simd-json = "0.14"
+simd-json = "0.17"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json", "chrono", "uuid"], optional = true }
 thiserror = "2.0"
 tokio = { version = "1.48", features = ["full"] }
