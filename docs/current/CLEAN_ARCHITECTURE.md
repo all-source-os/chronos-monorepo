@@ -1,11 +1,14 @@
-# Clean Architecture Guide
-
-**Status**: ✅ CURRENT
-**Last Updated**: 2025-10-22
-**Version**: 1.0
-**Related**: [SOLID Principles](./SOLID_PRINCIPLES.md), [Performance Guide](./PERFORMANCE.md)
-
 ---
+title: "Clean Architecture Guide"
+status: CURRENT
+last_updated: 2026-02-02
+version: "1.0"
+related:
+  - "./SOLID_PRINCIPLES.md"
+  - "./PERFORMANCE.md"
+---
+
+# Clean Architecture Guide
 
 ## Overview
 

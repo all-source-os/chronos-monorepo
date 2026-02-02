@@ -1,3 +1,10 @@
+---
+title: "Branch Protection Settings"
+status: CURRENT
+last_updated: 2026-02-02
+category: guide
+---
+
 # Branch Protection Settings
 
 **Date**: February 2026

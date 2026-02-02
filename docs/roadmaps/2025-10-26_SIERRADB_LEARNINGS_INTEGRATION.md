@@ -1,3 +1,11 @@
+---
+title: "SierraDB Learnings - Integration Summary"
+status: ARCHIVED
+last_updated: 2025-10-26
+category: roadmap
+superseded_by: "2025-10-22_COMPREHENSIVE_ROADMAP.md"
+---
+
 # SierraDB Learnings - Integration Summary
 
 **Date**: 2025-10-26

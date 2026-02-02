@@ -1,198 +1,207 @@
-# AllSource Documentation Index
+---
+title: "Chronos Documentation"
+status: CURRENT
+last_updated: 2026-02-02
+---
 
-**Last Updated**: 2025-11-04
-**Repository**: chronos-monorepo
+# Chronos Documentation Hub
+
+Welcome to the Chronos documentation. This hub provides comprehensive guides, architecture documentation, and operational resources for the Chronos event sourcing platform.
 
 ---
 
-## 📖 Documentation Structure
+## Quick Navigation
 
-This repository uses a structured documentation approach with:
-- **Timestamps** for versioning
-- **Clear deprecation** markers
-- **Organized by type** (architecture, guides, operations, etc.)
-- **Service-specific docs** in service directories
-
----
-
-## 📂 Directory Organization
-
-### Root Documentation (`/docs`)
-```
-docs/
-├── current/          # Active, current documentation
-├── archive/          # Historical/deprecated docs (timestamped)
-├── guides/           # How-to guides and tutorials
-│   └── mcp-server/  # MCP server specific guides
-├── architecture/     # Architecture Decision Records (ADRs)
-├── operations/       # Operational guides (deployment, monitoring)
-├── roadmaps/         # Product roadmaps and planning
-└── testing/          # Test plans and coverage reports
-```
-
-### App-Specific Documentation (Minimal)
-Each app maintains minimal docs in its root:
-```
-apps/[app]/
-├── README.md         # App overview and quick start (REQUIRED)
-└── docs/            # Optional: app-specific detailed docs
-    ├── CHANGELOG.md  # Version history
-    ├── FEATURES.md   # Feature showcase
-    ├── SECURITY.md   # Security documentation
-    └── api/         # API documentation
-```
-
-**Rule**: Keep app-level docs minimal. Most documentation belongs in central `docs/`.
+| | Link | Description |
+|---|------|-------------|
+| 🚀 | [Quick Start](./guides/QUICK_START.md) | Get up and running in minutes |
+| 📖 | [Architecture](./current/CLEAN_ARCHITECTURE.md) | Clean architecture principles |
+| ⚡ | [Performance](./current/PERFORMANCE.md) | Optimization strategies |
+| 🔒 | [Security](./current/TENANT_ARCHITECTURE.md) | Multi-tenant security model |
+| 🛠️ | [Quality Gates](./current/QUALITY_GATES.md) | CI/CD quality standards |
+| 🗺️ | [Roadmap](./roadmaps/) | Future plans and progress |
 
 ---
 
-## 📋 Current Documentation
+## What's New
 
-### Architecture & Design
-- [Clean Architecture Guide](./current/CLEAN_ARCHITECTURE.md) - ⏰ 2025-10-22
-- [SOLID Principles Guide](./current/SOLID_PRINCIPLES.md) - ⏰ 2025-10-22
-- [Performance Optimization Guide](./current/PERFORMANCE.md) - ⏰ 2025-10-22
-- [Architecture Optimization](./current/ARCHITECTURE_OPTIMIZATION.md) - ⏰ 2025-11-04
-- [Event Store Features](./current/EVENT_STORE_FEATURES.md) - ⏰ 2025-11-04
+**February 2026**
+- Updated documentation hub with modern navigation
+- Consolidated quality gates documentation
 
-### Roadmaps & Planning
-- [Comprehensive Roadmap](./roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md) - v1.0 → v2.0
-- [Query Service Roadmap](./roadmaps/query-service-roadmap.md) - ⏰ 2025-11-04
-- [MCP v2 Enhancements](./roadmaps/mcp-v2-enhancements.md) - ⏰ 2025-10-24
-- [Phase 1.5 Progress](./roadmaps/2025-10-22_PHASE_1.5_PROGRESS.md) - Clean Architecture refactoring
-- [Phase 1.5 TDD Results](./roadmaps/2025-10-22_PHASE_1.5_TDD_RESULTS.md) - Implementation results
+**November 2025**
+- Added multi-tenant architecture security documentation
+- Quality gates implementation and enforcement
+- Critical bug fixes documented
+
+**October 2025**
+- Clean Architecture refactoring complete (Phase 1.5)
+- Performance optimization guide published
+- Query Service roadmap established
+
+---
+
+## Status Legend
+
+| Marker | Status | Meaning |
+|--------|--------|---------|
+| ✅ | CURRENT | Active, up-to-date documentation |
+| ⚠️ | NEEDS_REVIEW | May be outdated, review before use |
+| 📦 | ARCHIVED | Historical reference, superseded by newer docs |
+
+---
+
+## Documentation by Audience
+
+### Getting Started
+
+For new users looking to understand and run Chronos.
+
+| Document | Description | Status |
+|----------|-------------|--------|
+| [Quick Start](./guides/QUICK_START.md) | Installation and first run | ✅ |
+| [Demo Walkthrough](./guides/DEMO.md) | Hands-on demonstration | ✅ |
+| [MCP Server Setup](./guides/mcp-server/CLAUDE_DESKTOP_SETUP.md) | Claude Desktop integration | ✅ |
+
+---
+
+### Core Concepts
+
+For understanding the system architecture and design decisions.
+
+| Document | Description | Status |
+|----------|-------------|--------|
+| [Clean Architecture](./current/CLEAN_ARCHITECTURE.md) | Layered architecture guide | ✅ |
+| [SOLID Principles](./current/SOLID_PRINCIPLES.md) | Design principles applied | ✅ |
+| [Tenant Architecture](./current/TENANT_ARCHITECTURE.md) | Multi-tenancy and isolation | ✅ |
+| [Event Store Features](./current/EVENT_STORE_FEATURES.md) | Core event sourcing capabilities | ✅ |
+| [Architecture Optimization](./current/ARCHITECTURE_OPTIMIZATION.md) | System-level optimizations | ✅ |
+
+---
 
 ### Guides
-- [Quick Start](./guides/QUICK_START.md) - Quick start guide
-- [Demo](./guides/DEMO.md) - Demo walkthrough
-- [MCP Server Setup](./guides/mcp-server/CLAUDE_DESKTOP_SETUP.md) - Claude Desktop integration
-- [MCP Demo Script](./guides/mcp-server/DEMO_SCRIPT.md) - MCP demo walkthrough
-- [MCP Quick Reference](./guides/mcp-server/QUICK_REFERENCE.md) - MCP tool reference
 
-### Testing
-- [Control Plane Coverage Plan](./testing/control-plane-coverage-plan.md) - ⏰ 2025-11-04
+How-to documentation for common tasks.
 
----
-
-## 📦 App-Specific Documentation
-
-### Rust Core (`apps/core`)
-- [README](../apps/core/README.md) - Core overview and quick start
-- [Changelog](../apps/core/docs/CHANGELOG.md) - Version history
-- [Features](../apps/core/docs/FEATURES.md) - Comprehensive feature showcase
-- [Security](../apps/core/docs/SECURITY.md) - Security documentation
-
-### Go Control Plane (`apps/control-plane`)
-- [README](../apps/control-plane/README.md) - Control plane overview
-
-### Elixir Query Service (`apps/query-service`)
-- [README](../apps/query-service/README.md) - Query service overview
-- [Roadmap](./roadmaps/query-service-roadmap.md) - Development roadmap (centralized)
-
-### MCP Server (`apps/mcp-server`)
-- [README](../apps/mcp-server/README.md) - MCP server overview
-- [Setup Guide](./guides/mcp-server/CLAUDE_DESKTOP_SETUP.md) - Integration guide
-- [Demo Script](./guides/mcp-server/DEMO_SCRIPT.md) - Demo walkthrough
-- [Quick Reference](./guides/mcp-server/QUICK_REFERENCE.md) - Tool reference
-
-### Web App (`apps/web`)
-- [README](../apps/web/README.md) - Web app overview
+| Document | Description | Status |
+|----------|-------------|--------|
+| [Quality Gates Setup](./guides/QUALITY_GATES_SETUP.md) | Configure CI/CD quality checks | ✅ |
+| [Branch Protection](./guides/BRANCH_PROTECTION.md) | Git workflow protection | ✅ |
+| [MCP Demo Script](./guides/mcp-server/DEMO_SCRIPT.md) | MCP demonstration walkthrough | ✅ |
+| [MCP Quick Reference](./guides/mcp-server/QUICK_REFERENCE.md) | MCP tool reference card | ✅ |
 
 ---
 
-## 🗄️ Archived Documentation
+### API Reference
 
-Historical documentation is kept in `/docs/archive/` with timestamps:
+Developer documentation for service integration.
 
-### v1.0 Documentation (October 2025)
-- [2025-10-21_V1_COMPLETE.md](./archive/2025-10-21_V1_COMPLETE.md) - ⚠️ DEPRECATED
-- [2025-10-21_FINAL_ASSESSMENT.md](./archive/2025-10-21_FINAL_ASSESSMENT.md) - ⚠️ DEPRECATED
-- [2025-10-21_HONEST_V1_STATUS.md](./archive/2025-10-21_HONEST_V1_STATUS.md) - ⚠️ DEPRECATED
-- [2025-10-21_V1_STATUS.md](./archive/2025-10-21_V1_STATUS.md) - ⚠️ DEPRECATED
-- [2025-10-20_V1_ROADMAP.md](./archive/2025-10-20_V1_ROADMAP.md) - ⚠️ SUPERSEDED by Comprehensive Roadmap
-
-### Pre-v1.0 Documentation
-- [2025-10-20_METRICS_IMPLEMENTATION.md](./archive/2025-10-20_METRICS_IMPLEMENTATION.md) - ⚠️ DEPRECATED
-- [2025-10-20_PROMETHEUS_METRICS.md](./archive/2025-10-20_PROMETHEUS_METRICS.md) - ⚠️ DEPRECATED
-- [2025-10-21_PERFORMANCE_REPORT.md](./archive/2025-10-21_PERFORMANCE_REPORT.md) - ⚠️ SUPERSEDED by PERFORMANCE.md
+| Service | README | Details |
+|---------|--------|---------|
+| Rust Core | [apps/core](../apps/core/README.md) | Event sourcing engine |
+| Control Plane | [apps/control-plane](../apps/control-plane/README.md) | Cluster management (Go) |
+| Query Service | [apps/query-service](../apps/query-service/README.md) | Read-side queries (Elixir) |
+| MCP Server | [apps/mcp-server](../apps/mcp-server/README.md) | Model Context Protocol |
+| Web App | [apps/web](../apps/web/README.md) | Web interface |
 
 ---
 
-## 🏷️ Documentation Conventions
+### Operations
 
-### Timestamps
-All timestamped documentation uses format: `YYYY-MM-DD_FILENAME.md`
+For DevOps and platform engineers.
 
-Example: `2025-10-22_PHASE_1.5_RESULTS.md`
+| Document | Description | Status |
+|----------|-------------|--------|
+| [Quality Gates](./current/QUALITY_GATES.md) | CI/CD enforcement standards | ✅ |
+| [Performance Guide](./current/PERFORMANCE.md) | Optimization and tuning | ✅ |
+| [Docker Images](./docker-images.md) | Container configuration | ✅ |
+| [Test Coverage Plan](./testing/control-plane-coverage-plan.md) | Control plane testing | ✅ |
 
-### Status Markers
-- ✅ **CURRENT** - Active, up-to-date documentation
-- ⚠️ **DEPRECATED** - No longer accurate, kept for history
-- 🔄 **SUPERSEDED** - Replaced by newer document (link provided)
-- 📝 **DRAFT** - Work in progress
+---
 
-### Linking
-Always use relative paths:
-```markdown
-[Architecture Guide](./current/CLEAN_ARCHITECTURE.md)
-[Service Docs](../services/core/docs/README.md)
+## Roadmaps & Planning
+
+| Document | Description | Status |
+|----------|-------------|--------|
+| [Comprehensive Roadmap](./roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md) | v1.0 to v2.0 vision | ✅ |
+| [Query Service Roadmap](./roadmaps/query-service-roadmap.md) | Query service evolution | ✅ |
+| [MCP v2 Enhancements](./roadmaps/mcp-v2-enhancements.md) | MCP protocol improvements | ✅ |
+| [Vector Embedding Design](./roadmaps/FUTURE_VECTOR_EMBEDDING_DESIGN.md) | Future AI/ML integration | ✅ |
+| [LanceDB Comparison](./roadmaps/CHRONOS_VS_LANCEDB_COMPARISON.md) | Technology comparison | ✅ |
+
+---
+
+## Archive Index
+
+Historical documentation preserved for reference. Each archived document notes what superseded it.
+
+### Supersession Reference
+
+| Archived Document | Superseded By | Date |
+|-------------------|---------------|------|
+| `archive/2025-10-22_CLEAN_ARCHITECTURE_FULL.md` | [current/CLEAN_ARCHITECTURE.md](./current/CLEAN_ARCHITECTURE.md) | 2025-10-22 |
+| `archive/2025-10-22_SOLID_PRINCIPLES_FULL.md` | [current/SOLID_PRINCIPLES.md](./current/SOLID_PRINCIPLES.md) | 2025-10-22 |
+| `archive/2025-10-22_PERFORMANCE_FULL.md` | [current/PERFORMANCE.md](./current/PERFORMANCE.md) | 2025-10-22 |
+| `archive/2025-11-04/ARCHITECTURE_OPTIMIZATION_v1.md` | [current/ARCHITECTURE_OPTIMIZATION.md](./current/ARCHITECTURE_OPTIMIZATION.md) | 2025-11-04 |
+| `archive/2025-11-04/QUERY_SERVICE_ROADMAP_v1.md` | [roadmaps/query-service-roadmap.md](./roadmaps/query-service-roadmap.md) | 2025-11-04 |
+| `archive/2025-10-21_ROADMAP.md` | [roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md](./roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md) | 2025-10-22 |
+
+### Archive Directories
+
+| Directory | Contents |
+|-----------|----------|
+| [archive/apps-core-phases/](./archive/apps-core-phases/) | Core app refactoring phases (Phase 1-5) |
+| [archive/2025-11-04/](./archive/2025-11-04/) | November 2025 refactoring documentation |
+| [archive/2025-11-03-marketing/](./archive/2025-11-03-marketing/) | Marketing materials drafts |
+| [archive/2024-11-03/](./archive/2024-11-03/) | Migration documentation |
+
+---
+
+## Directory Structure
+
+```
+docs/
+├── current/           # ✅ Active documentation
+├── archive/           # 📦 Historical documents
+├── guides/            # How-to guides
+│   └── mcp-server/   # MCP-specific guides
+├── roadmaps/          # Planning and vision
+├── operations/        # Operational guides
+├── testing/           # Test plans and coverage
+├── marketing/         # Marketing materials
+└── x402/              # X402 protocol documentation
 ```
 
 ---
 
-## 🔍 Finding Documentation
+## Documentation Conventions
 
-### By Topic
-- **Architecture**: `/docs/architecture/` or `/docs/current/`
-- **How-To**: `/docs/guides/`
-- **Roadmaps**: `/docs/roadmaps/`
-- **Historical**: `/docs/archive/`
+### File Naming
+- Timestamped: `YYYY-MM-DD_FILENAME.md`
+- Current: Descriptive name without timestamp
 
-### By Service
-- **Rust Core**: `/services/core/docs/`
-- **Go Control Plane**: `/services/control-plane/docs/`
+### Status Markers
+All documents should include a status in their frontmatter or header:
+- `status: CURRENT` - Actively maintained
+- `status: NEEDS_REVIEW` - May need updates
+- `status: ARCHIVED` - Historical only
 
-### By Date
-All timestamped files are prefixed with `YYYY-MM-DD_`
-
----
-
-## 📝 Contributing Documentation
-
-### Creating New Documentation
-1. Determine type (guide, architecture, operations)
-2. Place in appropriate directory
-3. Add timestamp if appropriate
-4. Update this INDEX.md
-5. Add status marker (CURRENT, DRAFT, etc.)
-
-### Deprecating Documentation
-1. Move to `/docs/archive/` with timestamp prefix
-2. Add deprecation marker to title
-3. Update INDEX.md
-4. Add link to replacement document if applicable
-
-### Updating Documentation
-1. Update the document
-2. Update "Last Updated" timestamp in document
-3. If major changes, consider creating new timestamped version
+### Linking
+Use relative paths for internal links:
+```markdown
+[Architecture Guide](./current/CLEAN_ARCHITECTURE.md)
+[Core README](../apps/core/README.md)
+```
 
 ---
 
-## 🔗 External Resources
+## Contributing
 
-- [GitHub Repository](https://github.com/allsource/chronos-monorepo)
-- [Issue Tracker](https://github.com/allsource/chronos-monorepo/issues)
-- [Wiki](https://github.com/allsource/chronos-monorepo/wiki)
-
----
-
-## 📧 Documentation Maintainers
-
-For questions or suggestions about documentation:
-- Create an issue with `[docs]` prefix
-- Tag @allsource-team
+1. **Creating**: Place new docs in the appropriate directory and update this index
+2. **Updating**: Update the `last_updated` date in frontmatter
+3. **Archiving**: Move to `archive/` with timestamp, update supersession reference above
+4. **Questions**: Create an issue with `[docs]` prefix
 
 ---
 
-**Navigation**: [Home](../README.md) | [Architecture](./current/) | [Guides](./guides/) | [Roadmaps](./roadmaps/) | [Archive](./archive/)
+**Navigation**: [Repository Home](../README.md) | [Current Docs](./current/) | [Guides](./guides/) | [Roadmaps](./roadmaps/) | [Archive](./archive/)

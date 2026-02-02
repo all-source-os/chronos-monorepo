@@ -1,3 +1,11 @@
+---
+title: "Chronos x402 Hackathon - Battle Plan"
+status: CURRENT
+last_updated: 2026-02-02
+category: project
+project: x402-hackathon
+---
+
 # 🎯 Chronos x402 Hackathon - Battle Plan
 
 **Your complete strategy and reference guide for winning the hackathon**

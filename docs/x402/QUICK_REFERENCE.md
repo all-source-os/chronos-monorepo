@@ -1,3 +1,11 @@
+---
+title: "Chronos x402 - Quick Reference Card"
+status: CURRENT
+last_updated: 2026-02-02
+category: project
+project: x402-hackathon
+---
+
 # 🚀 Chronos x402 - Quick Reference Card
 
 **Print this and keep it visible during the hackathon!**

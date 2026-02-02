@@ -1,3 +1,10 @@
+---
+title: "Clojure to Elixir Migration Verification"
+status: CURRENT
+last_updated: 2026-02-02
+category: reference
+---
+
 # Clojure → Elixir Migration Verification
 
 ## Port Assignments

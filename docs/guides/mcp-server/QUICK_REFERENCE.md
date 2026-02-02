@@ -1,3 +1,10 @@
+---
+title: "AllSource MCP Tools - Quick Reference Card"
+status: CURRENT
+last_updated: 2026-02-02
+category: guide
+---
+
 # AllSource MCP Tools - Quick Reference Card
 
 > Print this and keep it handy during your demo!

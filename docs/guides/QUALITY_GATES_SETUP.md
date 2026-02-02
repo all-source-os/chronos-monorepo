@@ -1,7 +1,16 @@
-# Quality Gates Setup Complete ✅
+---
+title: "Quality Gates Setup Complete"
+status: CURRENT
+last_updated: 2026-02-02
+category: guide
+---
 
-**Date**: November 30, 2025  
-**Status**: ✅ ACTIVE
+# Quality Gates Setup Complete
+
+**Date**: November 30, 2025
+**Status**: ACTIVE
+
+> **Note**: This is a setup summary document. For the comprehensive quality gates reference with detailed configuration, troubleshooting, and best practices, see [Quality Gates](../current/QUALITY_GATES.md).
 
 This document summarizes the quality gates setup for AllSource Core.
 

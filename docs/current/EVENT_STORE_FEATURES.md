@@ -1,3 +1,14 @@
+---
+title: "AllSource Event Store - Comprehensive Features and Capabilities"
+status: CURRENT
+last_updated: 2026-02-02
+version: "1.0"
+related:
+  - "./CLEAN_ARCHITECTURE.md"
+  - "./PERFORMANCE.md"
+  - "./TENANT_ARCHITECTURE.md"
+---
+
 # AllSource Event Store - Comprehensive Features and Capabilities
 
 ## Executive Summary

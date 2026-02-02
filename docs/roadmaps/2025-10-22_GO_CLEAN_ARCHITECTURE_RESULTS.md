@@ -1,3 +1,11 @@
+---
+title: "Go Control Plane - Clean Architecture Refactoring Results"
+status: ARCHIVED
+last_updated: 2025-10-22
+category: roadmap
+superseded_by: "2025-10-22_GO_MIGRATION_COMPLETE.md"
+---
+
 # Go Control Plane - Clean Architecture Refactoring Results
 
 **Date**: 2025-10-22

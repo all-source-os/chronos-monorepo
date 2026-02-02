@@ -1,3 +1,11 @@
+---
+title: "AllSource MCP Server v2.0 - Enhancement Summary"
+status: ARCHIVED
+last_updated: 2025-10-24
+category: roadmap
+superseded_by: "2025-10-22_COMPREHENSIVE_ROADMAP.md"
+---
+
 # AllSource MCP Server v2.0 - Enhancement Summary
 
 **Date**: 2025-10-24

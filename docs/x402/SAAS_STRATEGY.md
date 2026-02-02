@@ -1,3 +1,11 @@
+---
+title: "Chronos Paywall - SaaS Strategy & Brainstorming"
+status: CURRENT
+last_updated: 2026-02-02
+category: project
+project: x402-hackathon
+---
+
 # Chronos Paywall - SaaS Strategy & Brainstorming
 
 **Document Type:** Strategic Planning & Ideas

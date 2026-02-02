@@ -1,3 +1,10 @@
+---
+title: "Chronos Docker Images"
+status: CURRENT
+last_updated: 2026-02-02
+category: operations
+---
+
 # Chronos Docker Images
 
 This document describes the official Docker images for the Chronos event store platform.

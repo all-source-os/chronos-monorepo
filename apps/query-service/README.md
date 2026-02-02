@@ -1,3 +1,12 @@
+---
+title: "Elixir Query Service"
+status: CURRENT
+last_updated: 2026-02-02
+category: service
+port: 3902
+technology: Elixir
+---
+
 # Chronos Query Service (Elixir)
 
 **AI-Native Event Processing & Projections on the BEAM**

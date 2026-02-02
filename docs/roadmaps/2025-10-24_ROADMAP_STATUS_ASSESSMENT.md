@@ -1,3 +1,11 @@
+---
+title: "AllSource Event Store - Roadmap Status Assessment"
+status: ARCHIVED
+last_updated: 2025-10-24
+category: roadmap
+superseded_by: "2025-10-22_COMPREHENSIVE_ROADMAP.md"
+---
+
 # AllSource Event Store - Roadmap Status Assessment
 
 **Date**: 2025-10-24

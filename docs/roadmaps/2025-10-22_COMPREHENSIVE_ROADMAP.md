@@ -1,6 +1,13 @@
+---
+title: "AllSource Event Store - Comprehensive Roadmap"
+status: CURRENT
+last_updated: 2026-02-02
+category: roadmap
+---
+
 # AllSource Event Store - Comprehensive Roadmap
 
-**Last Updated**: 2025-10-29
+**Last Updated**: 2026-02-02
 **Version**: 1.0 → 2.0
 **Vision**: A high-performance, AI-native event store combining Rust, Go, and Clojure
 **Influenced By**:

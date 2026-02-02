@@ -1,3 +1,10 @@
+---
+title: "Claude Desktop Integration - AllSource MCP Server (Elixir)"
+status: CURRENT
+last_updated: 2026-02-02
+category: guide
+---
+
 # Claude Desktop Integration - AllSource MCP Server (Elixir)
 
 > **TOON Format**: This MCP server uses TOON format by default for responses, which uses ~50% fewer tokens than JSON. This reduces LLM API costs significantly.

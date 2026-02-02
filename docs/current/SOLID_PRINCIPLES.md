@@ -1,11 +1,13 @@
-# SOLID Principles Guide
-
-**Status**: ✅ CURRENT
-**Last Updated**: 2025-10-22
-**Version**: 1.0
-**Related**: [Clean Architecture](./CLEAN_ARCHITECTURE.md)
-
 ---
+title: "SOLID Principles Guide"
+status: CURRENT
+last_updated: 2026-02-02
+version: "1.0"
+related:
+  - "./CLEAN_ARCHITECTURE.md"
+---
+
+# SOLID Principles Guide
 
 ## Overview
 

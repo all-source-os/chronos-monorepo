@@ -1,3 +1,12 @@
+---
+title: "Go Control Plane"
+status: CURRENT
+last_updated: 2026-02-02
+category: service
+port: 3901
+technology: Go
+---
+
 # AllSource Control Plane v1.0
 
 > Enterprise-grade orchestration and management layer for AllSource event store

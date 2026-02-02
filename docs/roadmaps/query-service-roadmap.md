@@ -1,3 +1,10 @@
+---
+title: "Query Service Roadmap"
+status: CURRENT
+last_updated: 2026-02-02
+category: roadmap
+---
+
 # Query Service Roadmap
 
 **Date**: November 4, 2025

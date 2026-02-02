@@ -1,8 +1,15 @@
+---
+title: "AllSource Event Store - Chronos Monorepo"
+status: CURRENT
+last_updated: 2026-02-02
+version: "0.7.3"
+---
+
 # AllSource Event Store - Chronos Monorepo
 
 [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core)
 [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
-[![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.2.0-green.svg)](apps/core/)
+[![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.7.3-green.svg)](apps/core/)
 [![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v1.0-blue.svg)](apps/control-plane/)
 [![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-Phase%201%20Complete-purple.svg)](apps/query-service/)
 [![MCP Server](https://img.shields.io/badge/MCP%20Server-Active-orange.svg)](apps/mcp-server-elixir/)
@@ -27,9 +34,9 @@ High-performance event sourcing platform with distributed architecture and AI-na
 
 ## Project Status
 
-### ✅ Current State (November 2025)
+### ✅ Current State (February 2026)
 
-**Rust Core (v0.1.0)**
+**Rust Core (v0.7.3)**
 - Event store with 469K events/sec throughput
 - Schema registry with JSON Schema validation
 - Event replay engine for point-in-time rebuilds
@@ -105,16 +112,16 @@ tooling/
 
 ### Rust Core (`apps/core`)
 
-**Version**: v0.2.0 · [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core) · [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
+**Version**: v0.7.3 · [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core) · [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
 
 ```bash
 # Add to your Cargo.toml (pin to minor version)
-cargo add allsource-core@0.2
+cargo add allsource-core@0.7
 ```
 
 ```toml
 [dependencies]
-allsource-core = "0.2"  # Pin to minor version for stability
+allsource-core = "0.7"  # Pin to minor version for stability
 ```
 
 **Features**: Schema registry, event replay, stream processing pipelines (6 operators)
@@ -170,9 +177,9 @@ allsource-core = "0.2"  # Pin to minor version for stability
 ## Development
 
 ### Prerequisites
-- **Rust**: 1.78+
-- **Go**: 1.21+
-- **Elixir**: 1.19+ (with Erlang/OTP 27+)
+- **Rust**: 1.92+
+- **Go**: 1.24+
+- **Elixir**: 1.17+ (with Erlang/OTP 27+)
 - **Bun**: 1.1+ (for TypeScript/web apps)
 
 ### Quick Start
@@ -312,7 +319,7 @@ docs/
 - [Rust Core](apps/core/README.md) · [Changelog](apps/core/docs/CHANGELOG.md) · [Features](apps/core/docs/FEATURES.md)
 - [Go Control Plane](apps/control-plane/README.md)
 - [Elixir Query Service](apps/query-service/README.md) · [Roadmap](docs/roadmaps/query-service-roadmap.md)
-- [MCP Server](apps/mcp-server/README.md) · [Setup Guide](docs/guides/mcp-server/CLAUDE_DESKTOP_SETUP.md)
+- [MCP Server](apps/mcp-server-elixir/README.md) · [Setup Guide](docs/guides/mcp-server/CLAUDE_DESKTOP_SETUP.md)
 - [Web Demo](apps/web/README.md)
 
 ---
@@ -331,8 +338,8 @@ We follow a TDD approach for all refactoring:
 
 ## Roadmap
 
-**Current Focus (November 2025):**
-- ✅ Rust Core v0.1.0 with schema registry, replay engine, stream processing
+**Current Focus (February 2026):**
+- ✅ Rust Core v0.7.3 with schema registry, replay engine, stream processing
 - ✅ Go Control Plane v1.0 with enterprise features
 - ✅ Elixir Query Service Phase 1 complete (242 tests passing)
 - 📋 Query Service Phase 2 (3-4 weeks): WebSocket integration, Broadway refinement
@@ -359,5 +366,5 @@ We follow a TDD approach for all refactoring:
 
 ---
 
-**Last Updated**: November 4, 2025
-**Versions**: Rust Core v0.1.0 · Go Control Plane v1.0 · Elixir Query Service Phase 1 Complete
+**Last Updated**: February 2, 2026
+**Versions**: Rust Core v0.7.3 · Go Control Plane v1.0 · Elixir Query Service Phase 1 Complete

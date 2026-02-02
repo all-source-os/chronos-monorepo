@@ -1,3 +1,10 @@
+---
+title: "Social Media Marketing Materials"
+status: CURRENT
+last_updated: 2026-02-02
+category: marketing
+---
+
 # Social Media Marketing Materials
 
 ## 📁 What's in This Folder

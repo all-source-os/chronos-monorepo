@@ -1,3 +1,11 @@
+---
+title: "Go Control Plane - Migration to Clean Architecture Complete"
+status: ARCHIVED
+last_updated: 2025-10-22
+category: roadmap
+superseded_by: "2025-10-24_ROADMAP_STATUS_ASSESSMENT.md"
+---
+
 # Go Control Plane - Migration to Clean Architecture Complete
 
 **Date**: 2025-10-22

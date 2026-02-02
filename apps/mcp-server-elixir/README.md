@@ -1,3 +1,12 @@
+---
+title: "MCP Server"
+status: CURRENT
+last_updated: 2026-02-02
+category: service
+port: 4000
+technology: Elixir
+---
+
 # AllSource MCP Server (Elixir)
 
 > AI-Native Temporal Event Store Interface via Model Context Protocol

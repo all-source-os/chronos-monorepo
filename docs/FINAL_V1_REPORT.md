@@ -1,3 +1,10 @@
+---
+title: "AllSource v1.0 - Final Completion Report"
+status: CURRENT
+last_updated: 2026-02-02
+category: reference
+---
+
 # AllSource v1.0 - Final Completion Report
 
 **Date**: 2025-10-21

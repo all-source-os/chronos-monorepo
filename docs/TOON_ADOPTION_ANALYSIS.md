@@ -1,3 +1,10 @@
+---
+title: "TOON Adoption Analysis"
+status: CURRENT
+last_updated: 2026-02-02
+category: reference
+---
+
 # TOON Adoption Analysis
 
 ## Overview

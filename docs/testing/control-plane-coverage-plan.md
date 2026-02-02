@@ -1,3 +1,10 @@
+---
+title: "Go Control Plane - Test Coverage Improvement Plan"
+status: CURRENT
+last_updated: 2026-02-02
+category: testing
+---
+
 # Go Control Plane - Test Coverage Improvement Plan
 
 ## 📊 Current Status (Overall: 23.1%)

@@ -1,3 +1,11 @@
+---
+title: "Chronos x402 Hackathon Project"
+status: CURRENT
+last_updated: 2026-02-02
+category: project
+project: x402-hackathon
+---
+
 # 🏆 Chronos x402 Hackathon Project
 
 > Event-sourced payment infrastructure for x402 on Solana - showcasing Chronos event store

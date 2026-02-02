@@ -1,3 +1,10 @@
+---
+title: "Editor Configuration Recommendations"
+status: CURRENT
+last_updated: 2026-02-02
+category: reference
+---
+
 # Editor Configuration Insights from Doom Emacs Config
 
 ## What We Can Learn

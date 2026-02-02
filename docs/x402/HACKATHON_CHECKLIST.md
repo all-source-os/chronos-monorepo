@@ -1,3 +1,11 @@
+---
+title: "Chronos x402 Hackathon - Project Checklist"
+status: CURRENT
+last_updated: 2026-02-02
+category: project
+project: x402-hackathon
+---
+
 # 🏆 Chronos x402 Hackathon - Project Checklist
 
 **Project:** Chronos x402 SDK - Solana Payment Infrastructure

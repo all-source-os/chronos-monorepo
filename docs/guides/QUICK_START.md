@@ -1,3 +1,10 @@
+---
+title: "AllSource - Quick Start Guide"
+status: CURRENT
+last_updated: 2026-02-02
+category: guide
+---
+
 # AllSource - Quick Start Guide
 
 ## ⚡ Using as a Library

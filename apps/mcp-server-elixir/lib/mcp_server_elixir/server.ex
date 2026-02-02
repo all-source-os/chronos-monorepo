@@ -152,15 +152,15 @@ defmodule McpServerElixir.Server do
     {:noreply, state}
   end
 
-  defp process_request(%{method: method, id: id}, state) do
+  defp process_request(%{method: method, id: id}, state) when is_binary(method) do
     Logger.warning("Unknown method: #{method}")
     send_error(id, -32_601, "Method not found", nil)
     {:noreply, state}
   end
 
-  defp process_request(request, state) do
-    Logger.warning("Invalid request format: #{inspect(request)}")
-    send_error(nil, -32_600, "Invalid Request", nil)
+  defp process_request(%{method: method}, state) when is_binary(method) do
+    # Unknown notification (no id = no response needed)
+    Logger.debug("Ignoring unknown notification: #{method}")
     {:noreply, state}
   end
 

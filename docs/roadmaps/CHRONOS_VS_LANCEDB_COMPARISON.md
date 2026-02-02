@@ -1,3 +1,10 @@
+---
+title: "Chronos vs LanceDB: Strategic Comparison & Synergies"
+status: CURRENT
+last_updated: 2026-02-02
+category: roadmap
+---
+
 # Chronos vs LanceDB: Strategic Comparison & Synergies
 
 **Status**: ✅ CURRENT (ANALYSIS)

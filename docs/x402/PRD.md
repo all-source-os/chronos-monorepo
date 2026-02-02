@@ -1,3 +1,11 @@
+---
+title: "Product Requirements Document: Chronos Paywall"
+status: CURRENT
+last_updated: 2026-02-02
+category: project
+project: x402-hackathon
+---
+
 # Product Requirements Document: Chronos Paywall
 
 **Product:** Chronos Paywall - x402 Micropayments for Content Creators

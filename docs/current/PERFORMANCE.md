@@ -1,11 +1,13 @@
-# Performance Optimization Guide
-
-**Status**: ✅ CURRENT
-**Last Updated**: 2025-10-22
-**Version**: 1.0
-**Related**: [Clean Architecture](./CLEAN_ARCHITECTURE.md)
-
 ---
+title: "Performance Optimization Guide"
+status: CURRENT
+last_updated: 2026-02-02
+version: "1.0"
+related:
+  - "./CLEAN_ARCHITECTURE.md"
+---
+
+# Performance Optimization Guide
 
 ## Current Performance
 

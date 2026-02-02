@@ -1,3 +1,10 @@
+---
+title: "Technical Design Document: Vector Embedding Support"
+status: CURRENT
+last_updated: 2026-02-02
+category: roadmap
+---
+
 # Technical Design Document: Vector Embedding Support
 
 **Status**: ⏳ FUTURE ROADMAP (RESEARCH PHASE)

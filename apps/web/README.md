@@ -1,3 +1,12 @@
+---
+title: "Web Demo"
+status: CURRENT
+last_updated: 2026-02-02
+category: service
+port: 3000
+technology: TypeScript
+---
+
 # AllSource Event Store - Web Demo
 
 > A comprehensive, interactive demo showcasing all features of the AllSource Event Store.

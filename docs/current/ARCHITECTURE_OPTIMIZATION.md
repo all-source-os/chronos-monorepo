@@ -1,14 +1,17 @@
+---
+title: "Architecture Optimization Plan"
+status: CURRENT
+last_updated: 2026-02-02
+version: "2.0"
+related:
+  - "../archive/2025-11-04/ARCHITECTURE_OPTIMIZATION_v1.md"
+---
+
 # Architecture Optimization Plan
 
-**Date**: November 4, 2025
-**Status**: ✅ CURRENT
-**Version**: 2.0 (Corrected)
-
-> **📋 Document Status**: This is the current, authoritative architecture optimization plan.
-> **⚠️ Supersedes**: [ARCHITECTURE_OPTIMIZATION_v1.md](../archive/2025-11-04/ARCHITECTURE_OPTIMIZATION_v1.md)
+> **Note**: This is the current, authoritative architecture optimization plan.
+> **Supersedes**: [ARCHITECTURE_OPTIMIZATION_v1.md](../archive/2025-11-04/ARCHITECTURE_OPTIMIZATION_v1.md)
 > **Key Change**: Corrected to reflect **zero PostgreSQL dependency** (was incorrectly assuming 1 instance)
-
----
 
 ## Executive Summary
 
@@ -425,9 +428,3 @@ The architecture review revealed that:
 
 **Recommendation**: Approve optimized plan and begin Week 1 with Core Projection API.
 
----
-
-**Document Version**: 2.0 (Corrected)
-**Status**: ✅ CURRENT
-**Last Updated**: November 4, 2025
-**Supersedes**: v1.0 (archived)

@@ -1,3 +1,10 @@
+---
+title: "Documentation Organization"
+status: CURRENT
+last_updated: 2026-02-02
+category: operations
+---
+
 # Documentation Organization - October 22, 2025
 
 **Status**: ✅ COMPLETE

@@ -1,3 +1,12 @@
+---
+title: "Rust Core"
+status: CURRENT
+last_updated: 2026-02-02
+category: service
+port: 3900
+technology: Rust
+---
+
 # AllSource Core - High-Performance Event Store
 
 > AI-native event store built in Rust with columnar storage, schema validation, event replay, and stream processing
@@ -19,7 +28,7 @@ AllSource is a high-performance event store designed for modern event-sourcing a
 
 The Rust core provides blazing-fast event ingestion (469K events/sec) and sub-microsecond queries, while the Go control plane handles cluster coordination and operational tasks.
 
-**Current Version**: v0.7.1 · [crates.io](https://crates.io/crates/allsource-core) · [docs.rs](https://docs.rs/allsource-core)
+**Current Version**: v0.7.3 · [crates.io](https://crates.io/crates/allsource-core) · [docs.rs](https://docs.rs/allsource-core)
 
 ## Installation
 
@@ -1039,6 +1048,6 @@ MIT License - see LICENSE file for details
 
 Built with 🦀 Rust | Clean Architecture | Made for Production
 
-Version 0.7.1 | 469K events/sec | 470+ tests passing | Security & Cloud-Native
+Version 0.7.3 | 469K events/sec | 470+ tests passing | Security & Cloud-Native
 
 </div>

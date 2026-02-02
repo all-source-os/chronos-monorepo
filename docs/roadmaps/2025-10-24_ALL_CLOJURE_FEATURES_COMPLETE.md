@@ -1,3 +1,11 @@
+---
+title: "AllSource Clojure Query Service - ALL FEATURES COMPLETE"
+status: ARCHIVED
+last_updated: 2025-10-24
+category: roadmap
+superseded_by: "2025-10-24_ROADMAP_STATUS_ASSESSMENT.md"
+---
+
 # AllSource Clojure Query Service - ALL FEATURES COMPLETE
 
 **Date**: 2025-10-24

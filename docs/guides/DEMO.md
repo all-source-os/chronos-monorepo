@@ -1,3 +1,10 @@
+---
+title: "AllSource - Presentation Demo Guide"
+status: CURRENT
+last_updated: 2026-02-02
+category: guide
+---
+
 # AllSource - Presentation Demo Guide
 
 ## 🎯 Pre-Presentation Checklist

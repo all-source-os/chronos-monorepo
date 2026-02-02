@@ -1,12 +1,19 @@
+---
+title: "Quality Gates - AllSource Core"
+status: CURRENT
+last_updated: 2026-02-02
+version: "1.0"
+related:
+  - "./CLEAN_ARCHITECTURE.md"
+  - "../guides/CONTRIBUTING.md"
+  - "./CRITICAL_BUGS_FIXED.md"
+---
+
 # Quality Gates - AllSource Core
 
-**Date**: November 30, 2025  
-**Status**: ✅ ACTIVE  
 **MSRV**: Rust 1.70.0
 
 This document describes the quality gates enforced for AllSource Core to maintain code quality, consistency, and reliability.
-
----
 
 ## Overview
 
@@ -615,8 +622,3 @@ make check
 - [Architecture Guide](CLEAN_ARCHITECTURE.md)
 - [Core README](../../apps/core/README.md)
 
----
-
-**Document Status**: ✅ CURRENT  
-**Version**: 1.0  
-**Last Updated**: November 30, 2025

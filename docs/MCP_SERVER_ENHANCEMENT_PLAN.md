@@ -1,3 +1,10 @@
+---
+title: "AllSource MCP Server Enhancement Plan"
+status: CURRENT
+last_updated: 2026-02-02
+category: reference
+---
+
 # AllSource MCP Server Enhancement Plan
 
 **Date**: 2025-10-24

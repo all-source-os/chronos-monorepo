@@ -1,3 +1,10 @@
+---
+title: "AllSource v1.0 - Test Coverage Report"
+status: CURRENT
+last_updated: 2026-02-02
+category: testing
+---
+
 # AllSource v1.0 - Test Coverage Report
 
 **Date**: 2025-10-21

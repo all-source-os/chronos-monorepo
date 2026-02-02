@@ -1,3 +1,11 @@
+---
+title: "AllSource Clojure Query Service - Phase 2 v1.3 Complete"
+status: ARCHIVED
+last_updated: 2025-10-24
+category: roadmap
+superseded_by: "2025-10-24_ALL_CLOJURE_FEATURES_COMPLETE.md"
+---
+
 # AllSource Clojure Query Service - Phase 2 v1.3 Complete
 
 **Date**: 2025-10-24

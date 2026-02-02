@@ -1,3 +1,10 @@
+---
+title: "LanceDB Technical Analysis: Key Findings for Chronos"
+status: CURRENT
+last_updated: 2026-02-02
+category: roadmap
+---
+
 # LanceDB Technical Analysis: Key Findings for Chronos
 
 **Document Type**: Executive Summary

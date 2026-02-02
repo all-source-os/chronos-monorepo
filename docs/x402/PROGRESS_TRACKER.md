@@ -1,3 +1,11 @@
+---
+title: "Chronos x402 Hackathon - Live Progress Tracker"
+status: CURRENT
+last_updated: 2026-02-02
+category: project
+project: x402-hackathon
+---
+
 # 📊 Chronos x402 Hackathon - Live Progress Tracker
 
 **Update this file as you complete tasks. Use it to stay on track!**

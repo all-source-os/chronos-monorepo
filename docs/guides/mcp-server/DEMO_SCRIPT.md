@@ -1,3 +1,10 @@
+---
+title: "AllSource MCP Demo Script for Presentations"
+status: CURRENT
+last_updated: 2026-02-02
+category: guide
+---
+
 # AllSource MCP Demo Script for Presentations
 
 ## 🎯 Pre-Demo Checklist (5 minutes before)
