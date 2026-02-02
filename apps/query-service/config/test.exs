@@ -27,13 +27,41 @@ config :query_service_ex, core_ws_enabled: false
 # Disable EventPipeline during tests (Core may not be running)
 config :query_service_ex, event_pipeline_enabled: false
 
-# Print only warnings and errors during test
-config :logger, level: :warning
+# Allow all log levels during test (tests use capture_log and set level dynamically)
+config :logger, level: :debug
 
-# Use simple console format for tests (override config.exs metadata)
+# Use console format with all metadata for tests (tests rely on metadata being present)
 config :logger, :console,
-  format: "[$level] $message\n",
-  metadata: []
+  format: "[$level] $metadata$message\n",
+  metadata: [
+    # Telemetry test metadata
+    :method,
+    :path,
+    :status,
+    :duration_ms,
+    :event_id,
+    :event_type,
+    :entity_id,
+    :projection_name,
+    :projection_count,
+    :url,
+    :reason,
+    :circuit,
+    :from_state,
+    :failure_count,
+    :check,
+    :timeout_ms,
+    :error_type,
+    :correlation_id,
+    :request_id,
+    :error,
+    :attempts,
+    :attempt,
+    :backoff_ms,
+    :last_error,
+    :message_type,
+    :message_size_bytes
+  ]
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
