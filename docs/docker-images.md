@@ -9,6 +9,23 @@ category: operations
 
 This document describes the official Docker images for the Chronos event store platform.
 
+## Authentication
+
+GitHub Container Registry requires authentication to pull images:
+
+```bash
+# Create a Personal Access Token (PAT) with read:packages scope at:
+# https://github.com/settings/tokens/new?scopes=read:packages
+
+# Login to GHCR
+echo $GITHUB_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+
+# Or use GitHub CLI (recommended)
+gh auth token | docker login ghcr.io -u $(gh api user -q .login) --password-stdin
+```
+
+> **Note**: If the packages are made public, authentication is not required for pulling.
+
 ## Available Images
 
 All images are published to GitHub Container Registry (GHCR):

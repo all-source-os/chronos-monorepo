@@ -4,9 +4,15 @@
 pub mod api;
 pub mod api_v1;
 pub mod auth_api;
+pub mod handlers;
 pub mod tenant_api;
 pub mod websocket;
 
 // Public API re-exports
 pub use api::serve;
 pub use websocket::{EventFilters, WebSocketManager, WebSocketStats};
+
+// Handler state re-exports for convenience
+pub use handlers::{
+    ArticleHandlerState, CreatorHandlerState, ForkHandlerState, PaymentHandlerState,
+};

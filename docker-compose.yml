@@ -26,12 +26,12 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   # CORE - High-Performance Event Store (Rust)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Image: ghcr.io/allsource/chronos-core:latest
+  # Image: ghcr.io/all-source-os/chronos-core:latest
   # Size:  15.7 MB (distroless base)
   # Perf:  469K events/sec write throughput
   # ═══════════════════════════════════════════════════════════════════════════
   core:
-    image: ghcr.io/allsource/chronos-core:${CHRONOS_VERSION:-latest}
+    image: ghcr.io/all-source-os/chronos-core:${CHRONOS_VERSION:-latest}
     build:
       context: ./apps/core
       target: runtime-alpine  # Use alpine for Docker healthcheck support
@@ -58,12 +58,12 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   # CONTROL PLANE - Auth & Orchestration (Go)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Image: ghcr.io/allsource/chronos-control-plane:latest
+  # Image: ghcr.io/all-source-os/chronos-control-plane:latest
   # Size:  27.9 MB (distroless base)
   # Auth:  JWT + RBAC (4 roles, 7 permissions)
   # ═══════════════════════════════════════════════════════════════════════════
   control-plane:
-    image: ghcr.io/allsource/chronos-control-plane:${CHRONOS_VERSION:-latest}
+    image: ghcr.io/all-source-os/chronos-control-plane:${CHRONOS_VERSION:-latest}
     build:
       context: ./apps/control-plane
     container_name: chronos-control-plane
@@ -85,12 +85,12 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   # QUERY SERVICE - API & Real-time Subscriptions (Elixir)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Image: ghcr.io/allsource/chronos-query-service:latest
+  # Image: ghcr.io/all-source-os/chronos-query-service:latest
   # Size:  35.1 MB (Alpine + ERTS)
   # API:   REST, GraphQL, WebSocket subscriptions
   # ═══════════════════════════════════════════════════════════════════════════
   query-service:
-    image: ghcr.io/allsource/chronos-query-service:${CHRONOS_VERSION:-latest}
+    image: ghcr.io/all-source-os/chronos-query-service:${CHRONOS_VERSION:-latest}
     build:
       context: ./apps/query-service
     container_name: chronos-query-service

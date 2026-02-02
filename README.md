@@ -44,25 +44,29 @@ Production-optimized containers with minimal footprint:
 
 | Service | Image | Size | Base |
 |---------|-------|:----:|------|
-| **Core** | `ghcr.io/allsource/chronos-core` | **15.7 MB** | Distroless |
-| **Control Plane** | `ghcr.io/allsource/chronos-control-plane` | **27.9 MB** | Distroless |
-| **Query Service** | `ghcr.io/allsource/chronos-query-service` | **35.1 MB** | Alpine |
-| **MCP Server** | `ghcr.io/allsource/chronos-mcp-server` | **~40 MB** | Alpine |
+| **Core** | `ghcr.io/all-source-os/chronos-core` | **15.7 MB** | Distroless |
+| **Control Plane** | `ghcr.io/all-source-os/chronos-control-plane` | **27.9 MB** | Distroless |
+| **Query Service** | `ghcr.io/all-source-os/chronos-query-service` | **35.1 MB** | Alpine |
+| **MCP Server** | `ghcr.io/all-source-os/chronos-mcp-server` | **~40 MB** | Alpine |
 
 **Total production footprint: ~119 MB** (excluding database)
 
 ```bash
-# Quick Start
+# Quick Start with Docker Compose (builds locally)
 docker compose up -d
 
-# Or pull individually
-docker pull ghcr.io/allsource/chronos-core:latest
-docker pull ghcr.io/allsource/chronos-control-plane:latest
-docker pull ghcr.io/allsource/chronos-query-service:latest
-docker pull ghcr.io/allsource/chronos-mcp-server:latest
+# Or pull from GitHub Container Registry
+# First, authenticate with GHCR (required for private packages):
+echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+
+# Then pull images
+docker pull ghcr.io/all-source-os/chronos-core:latest
+docker pull ghcr.io/all-source-os/chronos-control-plane:latest
+docker pull ghcr.io/all-source-os/chronos-query-service:latest
+docker pull ghcr.io/all-source-os/chronos-mcp-server:latest
 ```
 
-**Full guide**: [Docker Documentation](docs/deployment/DOCKER.md)
+**Full guide**: [Docker Documentation](docs/docker-images.md)
 
 ---
 

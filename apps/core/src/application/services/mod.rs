@@ -3,6 +3,9 @@
 
 pub mod analytics;
 pub mod audit_logger;
+pub mod creator_coordinator;
+pub mod event_coordinator;
+pub mod payment_coordinator;
 pub mod pipeline;
 pub mod projection;
 pub mod replay;
@@ -13,6 +16,11 @@ pub mod vector_search;
 // Re-exports for convenience
 pub use analytics::AnalyticsEngine;
 pub use audit_logger::{AuditLogger, RequestContext};
+pub use creator_coordinator::{ArticlePerformance, CreatorCoordinator, CreatorDashboard};
+pub use event_coordinator::{
+    BatchIngestResult, EntityHistory, EntitySnapshot, EventCoordinator,
+};
+pub use payment_coordinator::{PaymentCoordinator, PurchaseResult};
 pub use pipeline::{Pipeline, PipelineConfig, PipelineManager, PipelineOperator, PipelineStats};
 pub use projection::{
     EntitySnapshotProjection, EventCounterProjection, Projection, ProjectionManager,
