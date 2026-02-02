@@ -1,75 +1,179 @@
-# Chronos Monorepo - Docker Compose
-# Local development and testing configuration
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                     CHRONOS - Event Sourcing Platform                      ║
+# ║                         Local Development Stack                            ║
+# ╠═══════════════════════════════════════════════════════════════════════════╣
+# ║  Quick Start:                                                              ║
+# ║    docker compose up -d           # Start core services                    ║
+# ║    docker compose --profile full up -d  # Start with Redis                 ║
+# ║    docker compose --profile monitoring up -d  # Start with Prometheus      ║
+# ║    docker compose logs -f         # Follow logs                            ║
+# ║    docker compose down            # Stop all services                      ║
+# ║    docker compose down -v         # Stop and remove volumes                ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
 #
-# Usage:
-#   docker compose up -d              # Start all services
-#   docker compose up core            # Start only core
-#   docker compose logs -f            # Follow logs
-#   docker compose down               # Stop and remove
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │  SERVICE            │  PORT   │  IMAGE SIZE  │  DESCRIPTION                 │
+# ├─────────────────────┼─────────┼──────────────┼──────────────────────────────┤
+# │  core               │  3900   │   15.7 MB    │  Rust event store engine     │
+# │  control-plane      │  8080   │   27.9 MB    │  Go auth & orchestration     │
+# │  query-service      │  3902   │   35.1 MB    │  Elixir API & real-time      │
+# │  postgres           │  5432   │   ~80 MB     │  PostgreSQL database         │
+# └─────────────────────┴─────────┴──────────────┴──────────────────────────────┘
+#
+# Total production footprint: ~79 MB (excluding database)
 
 services:
-  # =============================================================================
-  # Rust Core - Event Store Engine
-  # =============================================================================
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CORE - High-Performance Event Store (Rust)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Image: ghcr.io/allsource/chronos-core:latest
+  # Size:  15.7 MB (distroless base)
+  # Perf:  469K events/sec write throughput
+  # ═══════════════════════════════════════════════════════════════════════════
   core:
+    image: ghcr.io/allsource/chronos-core:${CHRONOS_VERSION:-latest}
     build:
       context: ./apps/core
-      dockerfile: Dockerfile
+      target: runtime-alpine  # Use alpine for Docker healthcheck support
     container_name: chronos-core
     ports:
-      - "3900:3900"   # HTTP API
-      - "3901:3901"   # WebSocket
+      - "3900:3900"
     environment:
-      - RUST_LOG=allsource_core=info,tower_http=info
-      - ALLSOURCE_HOST=0.0.0.0
-      - ALLSOURCE_PORT=3900
+      RUST_LOG: allsource_core=info,tower_http=info
+      ALLSOURCE_HOST: 0.0.0.0
+      ALLSOURCE_PORT: 3900
+      ALLSOURCE_DATA_DIR: /app/data
     volumes:
       - core-data:/app/data
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3900/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3900/health"]
       interval: 30s
-      timeout: 3s
+      timeout: 5s
       retries: 3
       start_period: 10s
     restart: unless-stopped
     networks:
       - chronos
 
-  # =============================================================================
-  # Elixir Query Service - CQRS Read Model
-  # =============================================================================
-  query-service:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CONTROL PLANE - Auth & Orchestration (Go)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Image: ghcr.io/allsource/chronos-control-plane:latest
+  # Size:  27.9 MB (distroless base)
+  # Auth:  JWT + RBAC (4 roles, 7 permissions)
+  # ═══════════════════════════════════════════════════════════════════════════
+  control-plane:
+    image: ghcr.io/allsource/chronos-control-plane:${CHRONOS_VERSION:-latest}
     build:
-      context: ./apps/query-service
-      dockerfile: Dockerfile
-    container_name: chronos-query-service
+      context: ./apps/control-plane
+    container_name: chronos-control-plane
     ports:
-      - "3902:3902"
+      - "8080:8080"
     environment:
-      - MIX_ENV=prod
-      - PORT=3902
-      - SECRET_KEY_BASE=${SECRET_KEY_BASE:-changeme_in_production_with_64_chars_minimum_for_security}
-      - CORE_URL=http://core:3900
-      - CORE_WS_URL=ws://core:3901
-      - PHX_HOST=localhost
+      GIN_MODE: release
+      PORT: 8080
+      CORE_URL: http://core:3900
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production-minimum-32-chars}
     depends_on:
       core:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3902/api/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+    # Note: Distroless has no shell for healthcheck - use orchestrator probes in production
     restart: unless-stopped
     networks:
       - chronos
 
-  # =============================================================================
-  # Prometheus - Metrics Collection
-  # =============================================================================
+  # ═══════════════════════════════════════════════════════════════════════════
+  # QUERY SERVICE - API & Real-time Subscriptions (Elixir)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Image: ghcr.io/allsource/chronos-query-service:latest
+  # Size:  35.1 MB (Alpine + ERTS)
+  # API:   REST, GraphQL, WebSocket subscriptions
+  # ═══════════════════════════════════════════════════════════════════════════
+  query-service:
+    image: ghcr.io/allsource/chronos-query-service:${CHRONOS_VERSION:-latest}
+    build:
+      context: ./apps/query-service
+    container_name: chronos-query-service
+    ports:
+      - "3902:3902"
+    environment:
+      DATABASE_URL: ecto://postgres:postgres@postgres:5432/chronos
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev-secret-key-base-must-be-at-least-64-characters-long-for-security}
+      PORT: 3902
+      PHX_HOST: localhost
+      RUST_CORE_URL: http://core:3900
+      CORE_WS_URL: ws://core:3900
+      POOL_SIZE: 10
+      # OAuth (optional)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bin/query_service_ex", "rpc", "IO.puts(:ok)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - chronos
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # POSTGRESQL - Query Service Database
+  # ═══════════════════════════════════════════════════════════════════════════
+  postgres:
+    image: postgres:16-alpine
+    container_name: chronos-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chronos
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - chronos
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # REDIS - Caching & Sessions (Optional)
+  # ═══════════════════════════════════════════════════════════════════════════
+  redis:
+    image: redis:7-alpine
+    container_name: chronos-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - chronos
+    profiles:
+      - full
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PROMETHEUS - Metrics Collection
+  # ═══════════════════════════════════════════════════════════════════════════
   prometheus:
-    image: prom/prometheus:v2.47.2
+    image: prom/prometheus:v2.51.0
     container_name: chronos-prometheus
     ports:
       - "9090:9090"
@@ -80,24 +184,25 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
     restart: unless-stopped
     networks:
       - chronos
     profiles:
       - monitoring
 
-  # =============================================================================
-  # Grafana - Metrics Dashboard
-  # =============================================================================
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GRAFANA - Metrics Dashboard
+  # ═══════════════════════════════════════════════════════════════════════════
   grafana:
-    image: grafana/grafana:10.2.2
+    image: grafana/grafana:10.4.0
     container_name: chronos-grafana
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
@@ -109,14 +214,25 @@ services:
     profiles:
       - monitoring
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# VOLUMES
+# ═══════════════════════════════════════════════════════════════════════════════
 volumes:
   core-data:
-    driver: local
+    name: chronos-core-data
+  postgres-data:
+    name: chronos-postgres-data
+  redis-data:
+    name: chronos-redis-data
   prometheus-data:
-    driver: local
+    name: chronos-prometheus-data
   grafana-data:
-    driver: local
+    name: chronos-grafana-data
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════════
 networks:
   chronos:
+    name: chronos-network
     driver: bridge

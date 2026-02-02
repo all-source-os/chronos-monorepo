@@ -2,10 +2,19 @@
 # =============================================================================
 # Chronos Query Service - Production-Optimized Multi-Stage Dockerfile
 # =============================================================================
+#
+# Optimizations applied:
+# - Runtime uses plain alpine instead of elixir image (~180MB -> ~8MB base)
+# - Elixir release includes ERTS, no full Elixir installation needed at runtime
+# - Migrations included for Ecto release tasks
+# - Healthcheck uses release RPC instead of wget (removes wget dependency)
+# - Combined RUN commands to reduce layers
+# =============================================================================
 
 ARG ELIXIR_VERSION=1.17
 ARG OTP_VERSION=27
-ARG ALPINE_VERSION=3.20
+# Must match Alpine version in elixir:${ELIXIR_VERSION}-otp-${OTP_VERSION}-alpine for OpenSSL compatibility
+ARG ALPINE_VERSION=3.22
 
 # =============================================================================
 # Stage 1: Build
@@ -15,14 +24,12 @@ FROM elixir:${ELIXIR_VERSION}-otp-${OTP_VERSION}-alpine AS build
 ARG VERSION=dev
 ARG REVISION=unknown
 
-# Install build dependencies
-RUN apk add --no-cache build-base git
+# Install build dependencies and hex/rebar in single layer
+RUN apk add --no-cache build-base git && \
+    mix local.hex --force && \
+    mix local.rebar --force
 
 WORKDIR /app
-
-# Install hex and rebar
-RUN mix local.hex --force && \
-    mix local.rebar --force
 
 # Set build environment
 ENV MIX_ENV=prod \
@@ -35,21 +42,23 @@ COPY mix.exs mix.lock ./
 RUN mix deps.get --only prod && \
     mix deps.compile
 
-# Copy source code
+# Copy source code and priv directory (includes migrations)
 COPY lib ./lib
 COPY config ./config
-
-# Create priv directory if it doesn't exist (optional for Phoenix)
-RUN mkdir -p priv
+COPY priv ./priv
 
 # Compile and build release
 RUN mix compile && \
     mix release
 
 # =============================================================================
-# Stage 2: Runtime (use same base as build for library compatibility)
+# Stage 2: Runtime
 # =============================================================================
-FROM elixir:${ELIXIR_VERSION}-otp-${OTP_VERSION}-alpine AS runtime
+# Use plain alpine - Elixir releases are self-contained with ERTS included.
+# This reduces image size from ~180MB (elixir-alpine) to ~8MB (alpine base).
+# The release at _build/prod/rel/query_service_ex includes everything needed.
+# =============================================================================
+FROM alpine:${ALPINE_VERSION} AS runtime
 
 ARG VERSION=dev
 ARG REVISION=unknown
@@ -65,14 +74,15 @@ LABEL org.opencontainers.image.title="Chronos Query Service" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo"
 
-# Install minimal runtime dependencies
-RUN apk add --no-cache \
-    tini \
-    wget && \
-    rm -rf /var/cache/apk/* /tmp/*
-
-# Create non-root user
-RUN addgroup -g 1000 -S app && \
+# Install minimal runtime dependencies and create non-root user in single layer
+# - tini: proper signal handling and zombie reaping
+# - libstdc++: required by ERTS for C++ standard library
+# - libgcc: required by ERTS for GCC runtime
+# - ncurses-libs: required by ERTS for terminal handling
+# - libcrypto3: required by ERTS crypto module (OpenSSL)
+RUN apk add --no-cache tini libstdc++ libgcc ncurses-libs libcrypto3 && \
+    rm -rf /var/cache/apk/* /tmp/* && \
+    addgroup -g 1000 -S app && \
     adduser -u 1000 -S app -G app -h /app -s /sbin/nologin
 
 WORKDIR /app
@@ -82,8 +92,8 @@ COPY --from=build --chown=app:app /app/_build/prod/rel/query_service_ex ./
 
 USER app
 
-# Expose port
-EXPOSE 4000
+# Expose port - matches prod.exs and runtime.exs default of 3902
+EXPOSE 3902
 
 # Environment configuration
 # Required environment variables (must be provided at runtime):
@@ -95,7 +105,7 @@ EXPOSE 4000
 #   GITHUB_CLIENT_SECRET- GitHub OAuth client secret
 #
 # Optional environment variables:
-#   PORT                - HTTP port (default: 4000)
+#   PORT                - HTTP port (default: 3902)
 #   POOL_SIZE           - Database pool size (default: 10)
 #   PHX_HOST            - Hostname for URLs (default: localhost)
 #   RUST_CORE_URL       - Rust Core service URL (default: http://localhost:3900)
@@ -105,13 +115,14 @@ EXPOSE 4000
 #   LEMON_SQUEEZY_WEBHOOK_SECRET- LemonSqueezy webhook secret
 ENV HOME=/app \
     MIX_ENV=prod \
-    PORT=4000 \
+    PORT=3902 \
     ERL_FLAGS="+sbwt very_short +sbwtdcpu very_short +sbwtdio very_short" \
     MALLOC_ARENA_MAX=2
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:4000/api/health || exit 1
+# Health check using release RPC - no wget needed
+# This calls the release's built-in RPC mechanism to verify the VM is responsive
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD bin/query_service_ex rpc "IO.puts(:ok)" | grep -q "ok" || exit 1
 
 # Use tini for proper signal handling
 ENTRYPOINT ["/sbin/tini", "-g", "--"]

@@ -23,12 +23,39 @@ High-performance event sourcing platform with distributed architecture and AI-na
 | Category | Links |
 |----------|-------|
 | **Documentation** | [📋 Docs Hub](docs/README.md) · [Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [SOLID Principles](docs/current/SOLID_PRINCIPLES.md) · [Performance](docs/current/PERFORMANCE.md) |
+| **Deployment** | [🐳 Docker Guide](docs/deployment/DOCKER.md) · [Helm Chart](deploy/helm/chronos/) · [Kubernetes](deploy/k8s/) · [Cloud Run](deploy/cloudrun/) |
 | **Bug Fixes** | [✅ Critical Bugs Fixed](docs/current/CRITICAL_BUGS_FIXED.md) · AllFrame Integration Unblocked (Nov 30, 2025) |
 | **Quality** | [✅ Quality Gates](docs/current/QUALITY_GATES.md) · [Setup Guide](docs/guides/QUALITY_GATES_SETUP.md) · `make check` before commit |
 | **Query Service** | [Roadmap](docs/roadmaps/query-service-roadmap.md) · [Implementation Guide](docs/current/QUERY_SERVICE_IMPLEMENTATION_GUIDE.md) · [Architecture Optimization](docs/current/ARCHITECTURE_OPTIMIZATION.md) |
 | **Roadmaps** | [Comprehensive Roadmap](docs/roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md) · [Phase 1.5 Progress](docs/roadmaps/2025-10-22_PHASE_1.5_PROGRESS.md) · [TDD Results](docs/roadmaps/2025-10-22_PHASE_1.5_TDD_RESULTS.md) |
 | **Guides** | [Quick Start](docs/guides/QUICK_START.md) · [Demo](docs/guides/DEMO.md) |
 | **Services** | [Rust Core](apps/core/README.md) · [Go Control Plane](apps/control-plane/README.md) · [Query Service](apps/query-service/README.md) · [MCP Server (Elixir)](apps/mcp-server-elixir/README.md) · [Web](apps/web/README.md) |
+
+---
+
+## Docker Images
+
+Production-optimized containers with minimal footprint:
+
+| Service | Image | Size | Base |
+|---------|-------|:----:|------|
+| **Core** | `ghcr.io/allsource/chronos-core` | **15.7 MB** | Distroless |
+| **Control Plane** | `ghcr.io/allsource/chronos-control-plane` | **27.9 MB** | Distroless |
+| **Query Service** | `ghcr.io/allsource/chronos-query-service` | **35.1 MB** | Alpine |
+
+**Total production footprint: ~79 MB** (excluding database)
+
+```bash
+# Quick Start
+docker compose up -d
+
+# Or pull individually
+docker pull ghcr.io/allsource/chronos-core:latest
+docker pull ghcr.io/allsource/chronos-control-plane:latest
+docker pull ghcr.io/allsource/chronos-query-service:latest
+```
+
+**Full guide**: [Docker Documentation](docs/deployment/DOCKER.md)
 
 ---
 

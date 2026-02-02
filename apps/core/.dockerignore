@@ -21,6 +21,11 @@ target/
 *.profdata
 coverage/
 
+# Not needed for production binary (stubs created in Dockerfile)
+benches/
+examples/
+tests/
+
 # Environment files
 .env*
 !.env.example
