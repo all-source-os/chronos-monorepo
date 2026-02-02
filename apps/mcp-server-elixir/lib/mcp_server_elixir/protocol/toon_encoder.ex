@@ -82,7 +82,6 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
     end)
   end
 
-  defp find_tabular_items(_), do: nil
 
   defp encode_items_as_toon([first_item | _] = items) do
     case first_item do
@@ -178,7 +177,6 @@ defmodule McpServerElixir.Protocol.ToonEncoder do
     end)
   end
 
-  defp has_uniform_comparisons?(_), do: false
 
   # Check if event list has uniform structure
   defp uniform_event_list?([first_event | _] = events) do
