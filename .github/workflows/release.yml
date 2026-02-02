@@ -244,8 +244,9 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
+          mkdir -p ../../dist
           go build -ldflags="-s -w -X main.version=${{ needs.validate.outputs.version }}" \
-            -o ../dist/${{ matrix.artifact }} .
+            -o ../../dist/${{ matrix.artifact }} .
 
       - name: Create tarball
         run: |
