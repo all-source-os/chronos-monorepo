@@ -12,6 +12,12 @@ defmodule McpServerElixir.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      # PubSub for local event broadcasting from WebSocket
+      {Phoenix.PubSub, name: McpServerElixir.PubSub},
+
+      # WebSocket client for real-time events from Core
+      {McpServerElixir.Infrastructure.CoreWebSocketClient, []},
+
       # Start the MCP server process
       {McpServerElixir.Server, []}
     ]

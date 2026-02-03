@@ -38,6 +38,12 @@ defmodule McpServerElixir.MixProject do
       {:hackney, "~> 1.20"},
       {:jason, "~> 1.4"},
 
+      # WebSocket Client
+      {:websockex, "~> 0.4"},
+
+      # PubSub for local event broadcasting
+      {:phoenix_pubsub, "~> 2.1"},
+
       # JSON Schema validation (optional, for input validation)
       {:ex_json_schema, "~> 0.9", optional: true},
 
