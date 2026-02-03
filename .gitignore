@@ -76,3 +76,11 @@ tasks
 .claude/statsig/
 .claude/credentialCache/
 .mcp.json
+
+# bv (beads viewer) local config and caches
+.bv/
+
+# Elixir (prevent accidental root-level artifacts)
+/_build/
+/deps/
+/mix.lock

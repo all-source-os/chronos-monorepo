@@ -46,8 +46,12 @@ defmodule McpServerElixir.Infrastructure.CoreWebSocketClientTest do
 
   describe "event broadcasting" do
     setup do
-      # Start PubSub for testing
-      start_supervised!({Phoenix.PubSub, name: McpServerElixir.PubSub})
+      # Start PubSub for testing if not already running
+      case Process.whereis(McpServerElixir.PubSub) do
+        nil -> start_supervised!({Phoenix.PubSub, name: McpServerElixir.PubSub})
+        _pid -> :ok
+      end
+
       :ok
     end
 

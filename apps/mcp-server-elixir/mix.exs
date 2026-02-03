@@ -44,6 +44,9 @@ defmodule McpServerElixir.MixProject do
       # PubSub for local event broadcasting
       {:phoenix_pubsub, "~> 2.1"},
 
+      # Broadway for high-throughput event processing
+      {:broadway, "~> 1.1"},
+
       # JSON Schema validation (optional, for input validation)
       {:ex_json_schema, "~> 0.9", optional: true},
 

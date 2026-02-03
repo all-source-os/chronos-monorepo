@@ -121,12 +121,16 @@ jobs:
 
   # ===========================================================================
   # Stage 1: Build containers (no push) - validates Dockerfiles compile
+  # Skip on main branch since Docker Publish will handle the build there
   # ===========================================================================
   build:
     name: Build ${{ matrix.container }}
     needs: changes
     runs-on: ubuntu-latest
-    if: needs.changes.outputs.matrix != '[]' && needs.changes.outputs.matrix != ''
+    if: |
+      needs.changes.outputs.matrix != '[]' &&
+      needs.changes.outputs.matrix != '' &&
+      github.event.workflow_run.head_branch != 'main'
     strategy:
       fail-fast: false
       matrix:
@@ -196,6 +200,19 @@ jobs:
             echo "⚠️ Warning: Image size ($SIZE) exceeds 500MB threshold" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Export image for integration tests
+        if: matrix.container == 'core' || matrix.container == 'query-service'
+        run: |
+          docker save ${{ steps.config.outputs.image }}:test | gzip > ${{ matrix.container }}-image.tar.gz
+
+      - name: Upload image artifact
+        if: matrix.container == 'core' || matrix.container == 'query-service'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.container }}-image
+          path: ${{ matrix.container }}-image.tar.gz
+          retention-days: 1
+
       - name: Test container startup
         run: |
           # Set minimal env vars for services that need them
@@ -246,6 +263,7 @@ jobs:
 
   # ===========================================================================
   # Docker Compose Integration Test
+  # Skip on main branch since Docker Publish will handle the full validation there
   # ===========================================================================
   integration:
     name: Integration Test
@@ -253,6 +271,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       always() &&
+      github.event.workflow_run.head_branch != 'main' &&
       needs.build.result == 'success' &&
       needs.changes.outputs.matrix != '[]' &&
       needs.changes.outputs.matrix != '' &&
@@ -263,9 +282,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build all services
+      - name: Download core image
+        uses: actions/download-artifact@v4
+        with:
+          name: core-image
+          path: /tmp/images
+
+      - name: Download query-service image
+        if: contains(fromJson(needs.changes.outputs.matrix), 'query-service')
+        uses: actions/download-artifact@v4
+        with:
+          name: query-service-image
+          path: /tmp/images
+
+      - name: Load images from artifacts
         run: |
-          docker compose build core query-service
+          # Load core image and tag for docker-compose
+          gunzip -c /tmp/images/core-image.tar.gz | docker load
+          docker tag chronos-core:test ghcr.io/all-source-os/chronos-core:latest
+
+          # Load query-service if it was built
+          if [ -f /tmp/images/query-service-image.tar.gz ]; then
+            gunzip -c /tmp/images/query-service-image.tar.gz | docker load
+            docker tag chronos-query-service:test ghcr.io/all-source-os/chronos-query-service:latest
+          fi
+
+          echo "### 📦 Loaded images from build job:" >> "$GITHUB_STEP_SUMMARY"
+          docker images | grep -E "chronos-(core|query-service)" >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Start services
         run: |
@@ -311,6 +354,14 @@ jobs:
         run: |
           echo "# 🐳 Container CI Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Check if we're on main branch (skipping for Docker Publish)
+          if [ "${{ github.event.workflow_run.head_branch }}" == "main" ]; then
+            echo "**Main branch detected - container validation deferred to Docker Publish workflow**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "This avoids redundant builds since Docker Publish will build and push the same images." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
 
           # Check if there were any containers to build
           if [ "${{ needs.changes.outputs.matrix }}" == "[]" ] || [ -z "${{ needs.changes.outputs.matrix }}" ]; then

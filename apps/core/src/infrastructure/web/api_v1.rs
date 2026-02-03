@@ -188,11 +188,19 @@ pub async fn serve_v1(
         )
         .route(
             "/api/v1/projections/{name}/{entity_id}/state",
+            post(super::api::save_projection_state),
+        )
+        .route(
+            "/api/v1/projections/{name}/{entity_id}/state",
             put(super::api::save_projection_state),
         )
         .route(
             "/api/v1/projections/{name}/bulk",
             post(super::api::bulk_get_projection_states),
+        )
+        .route(
+            "/api/v1/projections/{name}/bulk/save",
+            post(super::api::bulk_save_projection_states),
         )
         .with_state(app_state)
         .layer(middleware::from_fn_with_state(auth_state, auth_middleware))

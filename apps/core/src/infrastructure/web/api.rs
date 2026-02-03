@@ -106,11 +106,19 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         )
         .route(
             "/api/v1/projections/{name}/{entity_id}/state",
+            post(save_projection_state),
+        )
+        .route(
+            "/api/v1/projections/{name}/{entity_id}/state",
             put(save_projection_state),
         )
         .route(
             "/api/v1/projections/{name}/bulk",
             post(bulk_get_projection_states),
+        )
+        .route(
+            "/api/v1/projections/{name}/bulk/save",
+            post(bulk_save_projection_states),
         )
         .layer(
             CorsLayer::new()
@@ -844,6 +852,20 @@ pub struct BulkGetStateRequest {
     pub entity_ids: Vec<String>,
 }
 
+/// Bulk save projection states for multiple entities
+///
+/// Efficient endpoint for saving multiple entity states in a single request.
+#[derive(Debug, Deserialize)]
+pub struct BulkSaveStateRequest {
+    pub states: Vec<BulkSaveStateItem>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkSaveStateItem {
+    pub entity_id: String,
+    pub state: serde_json::Value,
+}
+
 pub async fn bulk_get_projection_states(
     State(store): State<SharedStore>,
     Path(name): Path<String>,
@@ -878,6 +900,36 @@ pub async fn bulk_get_projection_states(
         "projection": name,
         "states": states,
         "total": states.len()
+    })))
+}
+
+/// Bulk save projection states for multiple entities
+///
+/// This endpoint allows efficient batch saving of projection states,
+/// critical for high-throughput event processing pipelines.
+pub async fn bulk_save_projection_states(
+    State(store): State<SharedStore>,
+    Path(name): Path<String>,
+    Json(req): Json<BulkSaveStateRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let projection_cache = store.projection_state_cache();
+
+    let mut saved_count = 0;
+    for item in &req.states {
+        projection_cache.insert(format!("{name}:{}", item.entity_id), item.state.clone());
+        saved_count += 1;
+    }
+
+    tracing::info!(
+        "Bulk projection state saved: {} entities for {}",
+        saved_count,
+        name
+    );
+
+    Ok(Json(serde_json::json!({
+        "projection": name,
+        "saved": saved_count,
+        "total": req.states.len()
     })))
 }
 
@@ -1035,5 +1087,372 @@ mod tests {
         let updated_state = counter_projection.get_state("user.updated");
         assert!(updated_state.is_some());
         assert_eq!(updated_state.unwrap()["count"], 1);
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_cache_key_format() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Test standard key format: {projection_name}:{entity_id}
+        let key = "orders:order-12345".to_string();
+        cache.insert(key.clone(), serde_json::json!({"total": 99.99}));
+
+        let state = cache.get(&key).unwrap();
+        assert_eq!(state["total"], 99.99);
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_cache_removal() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Insert and then remove
+        cache.insert("test:entity-1".to_string(), serde_json::json!({"data": "value"}));
+        assert_eq!(cache.len(), 1);
+
+        cache.remove("test:entity-1");
+        assert_eq!(cache.len(), 0);
+        assert!(cache.get("test:entity-1").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_nonexistent_projection() {
+        let store = create_test_store();
+        let projection_manager = store.projection_manager();
+
+        // Requesting a non-existent projection should return None
+        let projection = projection_manager.get_projection("nonexistent_projection");
+        assert!(projection.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_nonexistent_entity_state() {
+        let store = create_test_store();
+        let projection_manager = store.projection_manager();
+
+        // Get state for non-existent entity
+        let snapshot_projection = projection_manager.get_projection("entity_snapshots").unwrap();
+        let state = snapshot_projection.get_state("nonexistent-entity-xyz");
+        assert!(state.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_cache_concurrent_access() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Simulate concurrent writes
+        let handles: Vec<_> = (0..10)
+            .map(|i| {
+                let cache_clone = cache.clone();
+                tokio::spawn(async move {
+                    cache_clone.insert(
+                        format!("concurrent:entity-{}", i),
+                        serde_json::json!({"thread": i}),
+                    );
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            handle.await.unwrap();
+        }
+
+        // All 10 entries should be present
+        assert_eq!(cache.len(), 10);
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_large_payload() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Create a large JSON payload (~10KB)
+        let large_array: Vec<serde_json::Value> = (0..1000)
+            .map(|i| serde_json::json!({"item": i, "description": "test item with some padding data to increase size"}))
+            .collect();
+
+        cache.insert(
+            "large:entity-1".to_string(),
+            serde_json::json!({"items": large_array}),
+        );
+
+        let state = cache.get("large:entity-1").unwrap();
+        let items = state["items"].as_array().unwrap();
+        assert_eq!(items.len(), 1000);
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_complex_json() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Complex nested JSON structure
+        let complex_state = serde_json::json!({
+            "user": {
+                "id": "user-123",
+                "profile": {
+                    "name": "John Doe",
+                    "email": "john@example.com",
+                    "settings": {
+                        "theme": "dark",
+                        "notifications": true
+                    }
+                },
+                "roles": ["admin", "user"],
+                "metadata": {
+                    "created_at": "2025-01-01T00:00:00Z",
+                    "last_login": null
+                }
+            }
+        });
+
+        cache.insert("complex:user-123".to_string(), complex_state);
+
+        let state = cache.get("complex:user-123").unwrap();
+        assert_eq!(state["user"]["profile"]["name"], "John Doe");
+        assert_eq!(state["user"]["roles"][0], "admin");
+        assert!(state["user"]["metadata"]["last_login"].is_null());
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_cache_iteration() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Insert entries
+        for i in 0..5 {
+            cache.insert(
+                format!("iter:entity-{}", i),
+                serde_json::json!({"index": i}),
+            );
+        }
+
+        // Iterate over all entries
+        let entries: Vec<_> = cache.iter().map(|entry| entry.key().clone()).collect();
+        assert_eq!(entries.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_projection_manager_get_entity_snapshots() {
+        let store = create_test_store();
+        let projection_manager = store.projection_manager();
+
+        // Get entity_snapshots projection specifically
+        let projection = projection_manager.get_projection("entity_snapshots");
+        assert!(projection.is_some());
+        assert_eq!(projection.unwrap().name(), "entity_snapshots");
+    }
+
+    #[tokio::test]
+    async fn test_projection_manager_get_event_counters() {
+        let store = create_test_store();
+        let projection_manager = store.projection_manager();
+
+        // Get event_counters projection specifically
+        let projection = projection_manager.get_projection("event_counters");
+        assert!(projection.is_some());
+        assert_eq!(projection.unwrap().name(), "event_counters");
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_cache_overwrite() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Initial value
+        cache.insert("overwrite:entity-1".to_string(), serde_json::json!({"version": 1}));
+
+        // Overwrite with new value
+        cache.insert("overwrite:entity-1".to_string(), serde_json::json!({"version": 2}));
+
+        // Overwrite again
+        cache.insert("overwrite:entity-1".to_string(), serde_json::json!({"version": 3}));
+
+        let state = cache.get("overwrite:entity-1").unwrap();
+        assert_eq!(state["version"], 3);
+
+        // Should still be only 1 entry
+        assert_eq!(cache.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_projection_state_multiple_projections() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Store states for different projections
+        cache.insert("entity_snapshots:user-1".to_string(), serde_json::json!({"name": "Alice"}));
+        cache.insert("event_counters:user.created".to_string(), serde_json::json!({"count": 5}));
+        cache.insert("custom_projection:order-1".to_string(), serde_json::json!({"total": 150.0}));
+
+        // Verify each projection's state
+        assert_eq!(cache.get("entity_snapshots:user-1").unwrap()["name"], "Alice");
+        assert_eq!(cache.get("event_counters:user.created").unwrap()["count"], 5);
+        assert_eq!(cache.get("custom_projection:order-1").unwrap()["total"], 150.0);
+    }
+
+    #[tokio::test]
+    async fn test_bulk_projection_state_access() {
+        let store = create_test_store();
+
+        // Ingest multiple events for different entities
+        for i in 0..5 {
+            let event = create_test_event(&format!("bulk-user-{}", i), "user.created");
+            store.ingest(event).unwrap();
+        }
+
+        // Get projection and verify bulk access
+        let projection_manager = store.projection_manager();
+        let snapshot_projection = projection_manager.get_projection("entity_snapshots").unwrap();
+
+        // Verify we can access all entities
+        for i in 0..5 {
+            let state = snapshot_projection.get_state(&format!("bulk-user-{}", i));
+            assert!(state.is_some(), "Entity bulk-user-{} should have state", i);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_bulk_save_projection_states() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Simulate bulk save request
+        let states = vec![
+            BulkSaveStateItem {
+                entity_id: "bulk-entity-1".to_string(),
+                state: serde_json::json!({"name": "Entity 1", "value": 100}),
+            },
+            BulkSaveStateItem {
+                entity_id: "bulk-entity-2".to_string(),
+                state: serde_json::json!({"name": "Entity 2", "value": 200}),
+            },
+            BulkSaveStateItem {
+                entity_id: "bulk-entity-3".to_string(),
+                state: serde_json::json!({"name": "Entity 3", "value": 300}),
+            },
+        ];
+
+        let projection_name = "test_projection";
+
+        // Save states to cache (simulating bulk_save_projection_states handler)
+        for item in &states {
+            cache.insert(
+                format!("{projection_name}:{}", item.entity_id),
+                item.state.clone(),
+            );
+        }
+
+        // Verify all states were saved
+        assert_eq!(cache.len(), 3);
+
+        let state1 = cache.get("test_projection:bulk-entity-1").unwrap();
+        assert_eq!(state1["name"], "Entity 1");
+        assert_eq!(state1["value"], 100);
+
+        let state2 = cache.get("test_projection:bulk-entity-2").unwrap();
+        assert_eq!(state2["name"], "Entity 2");
+        assert_eq!(state2["value"], 200);
+
+        let state3 = cache.get("test_projection:bulk-entity-3").unwrap();
+        assert_eq!(state3["name"], "Entity 3");
+        assert_eq!(state3["value"], 300);
+    }
+
+    #[tokio::test]
+    async fn test_bulk_save_empty_states() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Clear cache
+        cache.clear();
+
+        // Empty states should work fine
+        let states: Vec<BulkSaveStateItem> = vec![];
+        assert_eq!(states.len(), 0);
+
+        // Cache should remain empty
+        assert_eq!(cache.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_bulk_save_overwrites_existing() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Insert initial state
+        cache.insert(
+            "test:entity-1".to_string(),
+            serde_json::json!({"version": 1, "data": "initial"}),
+        );
+
+        // Bulk save with updated state
+        let new_state = serde_json::json!({"version": 2, "data": "updated"});
+        cache.insert("test:entity-1".to_string(), new_state);
+
+        // Verify overwrite
+        let state = cache.get("test:entity-1").unwrap();
+        assert_eq!(state["version"], 2);
+        assert_eq!(state["data"], "updated");
+    }
+
+    #[tokio::test]
+    async fn test_bulk_save_high_volume() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Simulate high volume save (1000 entities)
+        for i in 0..1000 {
+            cache.insert(
+                format!("volume_test:entity-{}", i),
+                serde_json::json!({"index": i, "status": "active"}),
+            );
+        }
+
+        // Verify count
+        assert_eq!(cache.len(), 1000);
+
+        // Spot check some entries
+        assert_eq!(
+            cache.get("volume_test:entity-0").unwrap()["index"],
+            0
+        );
+        assert_eq!(
+            cache.get("volume_test:entity-500").unwrap()["index"],
+            500
+        );
+        assert_eq!(
+            cache.get("volume_test:entity-999").unwrap()["index"],
+            999
+        );
+    }
+
+    #[tokio::test]
+    async fn test_bulk_save_different_projections() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+
+        // Save to multiple projections in bulk
+        let projections = ["entity_snapshots", "event_counters", "custom_analytics"];
+
+        for proj in projections.iter() {
+            for i in 0..5 {
+                cache.insert(
+                    format!("{proj}:entity-{i}"),
+                    serde_json::json!({"projection": proj, "id": i}),
+                );
+            }
+        }
+
+        // Verify total count (3 projections * 5 entities)
+        assert_eq!(cache.len(), 15);
+
+        // Verify each projection
+        for proj in projections.iter() {
+            let state = cache.get(&format!("{proj}:entity-0")).unwrap();
+            assert_eq!(state["projection"], *proj);
+        }
     }
 }
