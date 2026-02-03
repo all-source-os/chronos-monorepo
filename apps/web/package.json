@@ -47,7 +47,7 @@
     "@allsource/typescript-config": "workspace:*",
     "@biomejs/biome": "^1.9.4",
     "@tailwindcss/typography": "^0.5.16",
-    "@types/node": "^20.19.30",
+    "@types/node": "^25.2.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "postcss": "^8.5.6",
