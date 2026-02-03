@@ -10,6 +10,7 @@ pub mod lock_free;
 pub mod performance;
 #[cfg(test)]
 mod performance_test;
+pub mod simd_filter;
 pub mod simd_json;
 pub mod snapshot;
 pub mod storage;
@@ -32,11 +33,18 @@ pub use lock_free::{
     LockFreeEventQueue, LockFreeMetrics, MetricsSnapshot, ShardedEventQueue, ShardedQueueStats,
 };
 pub use performance::{BatchWriter, MemoryPool, PerformanceMetrics};
+pub use simd_filter::{
+    filter_events_simd, filter_events_simd_indices, FilterPredicate, SimdEventFilter,
+    SimdFilterStats,
+};
 pub use simd_json::{BatchEventParser, SimdJsonError, SimdJsonParser, SimdJsonStats, ZeroCopyJson};
 pub use snapshot::{
     CreateSnapshotRequest, CreateSnapshotResponse, ListSnapshotsRequest, ListSnapshotsResponse,
     Snapshot, SnapshotConfig, SnapshotInfo, SnapshotManager, SnapshotType,
 };
-pub use storage::ParquetStorage;
+pub use storage::{
+    BatchWriteResult, BatchWriteStats, ParquetStorage, ParquetStorageConfig, DEFAULT_BATCH_SIZE,
+    DEFAULT_FLUSH_TIMEOUT_MS,
+};
 pub use storage_integrity::{IntegrityCheckResult, StorageIntegrity};
 pub use wal::{WALConfig, WriteAheadLog};

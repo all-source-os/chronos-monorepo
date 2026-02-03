@@ -108,12 +108,10 @@ impl UpdateArticleUseCase {
         // Update URL if provided
         if let Some(url) = request.url {
             // Check for duplicate URL (if different from current)
-            if article.url() != url {
-                if self.repository.url_exists(&url).await? {
-                    return Err(crate::error::AllSourceError::ValidationError(
-                        "Another article with this URL already exists".to_string(),
-                    ));
-                }
+            if article.url() != url && self.repository.url_exists(&url).await? {
+                return Err(crate::error::AllSourceError::ValidationError(
+                    "Another article with this URL already exists".to_string(),
+                ));
             }
             article.update_url(url)?;
         }

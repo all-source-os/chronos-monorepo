@@ -10,6 +10,7 @@
 use crate::domain::entities::{AuditAction, AuditEvent, AuditOutcome};
 use crate::error::Result;
 use chrono::{DateTime, Duration, Timelike, Utc};
+use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -163,9 +164,9 @@ struct TenantProfile {
 pub struct AnomalyDetector {
     config: Arc<RwLock<AnomalyDetectionConfig>>,
 
-    // Behavior profiles
-    user_profiles: Arc<RwLock<HashMap<String, UserProfile>>>,
-    tenant_profiles: Arc<RwLock<HashMap<String, TenantProfile>>>,
+    // Behavior profiles - using DashMap for lock-free concurrent access
+    user_profiles: Arc<DashMap<String, UserProfile>>,
+    tenant_profiles: Arc<DashMap<String, TenantProfile>>,
 
     // Recent events for pattern analysis
     recent_events: Arc<RwLock<Vec<AuditEvent>>>,
@@ -176,8 +177,8 @@ impl AnomalyDetector {
     pub fn new(config: AnomalyDetectionConfig) -> Self {
         Self {
             config: Arc::new(RwLock::new(config)),
-            user_profiles: Arc::new(RwLock::new(HashMap::new())),
-            tenant_profiles: Arc::new(RwLock::new(HashMap::new())),
+            user_profiles: Arc::new(DashMap::new()),
+            tenant_profiles: Arc::new(DashMap::new()),
             recent_events: Arc::new(RwLock::new(Vec::new())),
         }
     }
@@ -317,9 +318,9 @@ impl AnomalyDetector {
             _ => return Ok(()),
         };
 
-        let mut profiles = self.user_profiles.write();
-        let profile = profiles
-            .entry(format!("{}-{user_id}", event.tenant_id().as_str()))
+        let profile_key = format!("{}-{user_id}", event.tenant_id().as_str());
+        let mut profile = self.user_profiles
+            .entry(profile_key)
             .or_insert_with(|| {
                 UserProfile::new(user_id.clone(), event.tenant_id().as_str().to_string())
             });
@@ -396,10 +397,10 @@ impl AnomalyDetector {
         user_id: &str,
         event: &AuditEvent,
     ) -> Result<Option<(f64, Vec<String>)>> {
-        let profiles = self.user_profiles.read();
         let profile_key = format!("{}-{user_id}", event.tenant_id().as_str());
 
-        if let Some(profile) = profiles.get(&profile_key) {
+        if let Some(profile_ref) = self.user_profiles.get(&profile_key) {
+            let profile = profile_ref.value();
             if profile.event_count < self.config.read().min_baseline_events {
                 return Ok(None); // Not enough data for baseline
             }
@@ -498,10 +499,10 @@ impl AnomalyDetector {
             .count();
 
         // Check user profile for baseline
-        let profiles = self.user_profiles.read();
         let profile_key = format!("{}-{user_id}", event.tenant_id().as_str());
 
-        if let Some(profile) = profiles.get(&profile_key) {
+        if let Some(profile_ref) = self.user_profiles.get(&profile_key) {
+            let profile = profile_ref.value();
             if profile.event_count >= self.config.read().min_baseline_events {
                 // If current query rate is 5x normal, flag as anomalous
                 if recent_queries as f64 > profile.avg_actions_per_hour * 5.0 {
@@ -568,11 +569,10 @@ impl AnomalyDetector {
 
     /// Get statistics about detection
     pub fn get_stats(&self) -> DetectionStats {
-        let profiles = self.user_profiles.read();
         let recent = self.recent_events.read();
 
         DetectionStats {
-            user_profiles_count: profiles.len(),
+            user_profiles_count: self.user_profiles.len(),
             recent_events_count: recent.len(),
             config: self.config.read().clone(),
         }

@@ -3,3 +3,4 @@
 pub mod metrics;
 
 pub use metrics::MetricsRegistry;
+pub use metrics::{PartitionImbalanceAlert, PartitionMetrics, PartitionStats};

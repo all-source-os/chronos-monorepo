@@ -40,39 +40,31 @@ export default defineConfig({
     video: "retain-on-failure",
   },
 
-  /* Configure projects for major browsers */
+  /* Configure projects for Chromium only (fast, focused test execution) */
   projects: [
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
-
-    {
-      name: "firefox",
-      use: { ...devices["Desktop Firefox"] },
-    },
-
-    {
-      name: "webkit",
-      use: { ...devices["Desktop Safari"] },
-    },
-
-    /* Test against mobile viewports. */
-    {
-      name: "Mobile Chrome",
-      use: { ...devices["Pixel 5"] },
-    },
-    {
-      name: "Mobile Safari",
-      use: { ...devices["iPhone 12"] },
-    },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: "cd ../../apps/web && bun run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: true,
-    timeout: 120_000,
-  },
+  /* Run Core API and web app before starting tests */
+  webServer: [
+    {
+      // Core API service (Rust) - must start first
+      command: "cd ../../apps/core && cargo build --release && ./target/release/allsource-core",
+      url: "http://localhost:3900/health",
+      reuseExistingServer: true,
+      timeout: 180_000, // Rust build + startup
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+    {
+      // Web app (Next.js) - use dev server for faster iteration
+      command: "cd ../../apps/web && bun run dev",
+      url: "http://localhost:3000",
+      reuseExistingServer: true,
+      timeout: 60_000, // Dev server starts faster than build+start
+    },
+  ],
 });

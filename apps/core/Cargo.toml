@@ -29,6 +29,8 @@ path = "src/bin/allsource-admin.rs"
 default = []
 postgres = ["sqlx"]
 rocksdb-storage = ["rocksdb"]
+vector-search = ["fastembed", "instant-distance"]
+keyword-search = ["tantivy"]
 
 [dependencies]
 # Note: arrow/parquet versions must be compatible with datafusion
@@ -74,6 +76,13 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.19", features = ["v4", "serde"] }
+
+# Vector search dependencies (optional)
+fastembed = { version = "4", optional = true }
+instant-distance = { version = "0.6", optional = true }
+
+# Keyword search dependencies (optional)
+tantivy = { version = "0.22", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"

@@ -26,17 +26,44 @@ const (
 	CoreServiceURL = "http://localhost:3900"
 )
 
+// Connection pooling configuration for HTTP connections to Rust Core.
+// These settings optimize connection reuse and reduce connection overhead.
+const (
+	// MaxIdleConns is the maximum number of idle connections across all hosts.
+	MaxIdleConns = 100
+	// MaxIdleConnsPerHost is the maximum number of idle connections per host.
+	MaxIdleConnsPerHost = 100
+	// IdleConnTimeout is the duration an idle connection remains open.
+	IdleConnTimeout = 90 * time.Second
+)
+
+// NewPooledHTTPClient creates an http.Client with connection pooling configured.
+func NewPooledHTTPClient() *http.Client {
+	transport := &http.Transport{
+		MaxIdleConns:        MaxIdleConns,
+		MaxIdleConnsPerHost: MaxIdleConnsPerHost,
+		IdleConnTimeout:     IdleConnTimeout,
+	}
+	return &http.Client{
+		Transport: transport,
+	}
+}
+
 // ControlPlane is the main control plane service that manages the event store cluster.
 type ControlPlane struct {
-	client    *resty.Client
-	router    *gin.Engine
-	metrics   *ControlPlaneMetrics
-	container *internal.Container
+	client       *resty.Client
+	router       *gin.Engine
+	metrics      *ControlPlaneMetrics
+	cacheMetrics *CacheMetrics
+	cache        *ResponseCache
+	container    *internal.Container
 }
 
 // NewControlPlane creates a new control plane instance with default configuration.
 func NewControlPlane() *ControlPlane {
-	client := resty.New().
+	// Create resty client with pooled HTTP transport for connection reuse
+	httpClient := NewPooledHTTPClient()
+	client := resty.NewWithClient(httpClient).
 		SetTimeout(5 * time.Second).
 		SetBaseURL(CoreServiceURL)
 
@@ -44,6 +71,10 @@ func NewControlPlane() *ControlPlane {
 
 	// Initialize metrics
 	metrics := NewMetrics()
+	cacheMetrics := NewCacheMetrics()
+
+	// Initialize response cache
+	cache := NewResponseCache(cacheMetrics)
 
 	// Enable CORS
 	router.Use(func(c *gin.Context) {
@@ -63,10 +94,12 @@ func NewControlPlane() *ControlPlane {
 	container := internal.NewContainer()
 
 	cp := &ControlPlane{
-		client:    client,
-		router:    router,
-		metrics:   metrics,
-		container: container,
+		client:       client,
+		router:       router,
+		metrics:      metrics,
+		cacheMetrics: cacheMetrics,
+		cache:        cache,
+		container:    container,
 	}
 
 	// Add Prometheus middleware
@@ -121,7 +154,7 @@ func (cp *ControlPlane) coreHealthHandler(c *gin.Context) {
 		return
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(resp.Body(), &result); err != nil {
 		cp.metrics.CoreHealthCheckTotal.WithLabelValues("error").Inc()
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -136,15 +169,21 @@ func (cp *ControlPlane) coreHealthHandler(c *gin.Context) {
 }
 
 func (cp *ControlPlane) clusterStatusHandler(c *gin.Context) {
+	// Check cache first
+	if cached := cp.cache.Get(CacheKeyClusterStatus); cached != nil {
+		c.JSON(http.StatusOK, cached.Data)
+		return
+	}
+
 	// Get core stats
 	resp, err := cp.client.R().Get("/api/v1/stats")
 
-	var coreStats map[string]interface{}
+	var coreStats map[string]any
 	if err == nil {
 		_ = json.Unmarshal(resp.Body(), &coreStats) //nolint:errcheck // best effort parsing
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"cluster_id": "allsource-demo",
 		"nodes": []gin.H{
 			{
@@ -158,10 +197,21 @@ func (cp *ControlPlane) clusterStatusHandler(c *gin.Context) {
 		"total_nodes":   1,
 		"healthy_nodes": 1,
 		"timestamp":     time.Now().UTC(),
-	})
+	}
+
+	// Cache the response
+	cp.cache.Set(CacheKeyClusterStatus, response, ClusterStatusCacheTTL)
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (cp *ControlPlane) metricsHandler(c *gin.Context) {
+	// Check cache first
+	if cached := cp.cache.Get(CacheKeyMetrics); cached != nil {
+		c.JSON(http.StatusOK, cached.Data)
+		return
+	}
+
 	// Aggregate metrics from core
 	resp, err := cp.client.R().Get("/api/v1/stats")
 
@@ -172,10 +222,10 @@ func (cp *ControlPlane) metricsHandler(c *gin.Context) {
 		return
 	}
 
-	var stats map[string]interface{}
+	var stats map[string]any
 	_ = json.Unmarshal(resp.Body(), &stats) //nolint:errcheck // best effort parsing
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"metrics": gin.H{
 			"event_store": stats,
 			"control_plane": gin.H{
@@ -184,12 +234,20 @@ func (cp *ControlPlane) metricsHandler(c *gin.Context) {
 			},
 		},
 		"timestamp": time.Now().UTC(),
-	})
+	}
+
+	// Cache the response
+	cp.cache.Set(CacheKeyMetrics, response, MetricsCacheTTL)
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (cp *ControlPlane) snapshotHandler(c *gin.Context) {
 	// Track snapshot operation
 	cp.metrics.SnapshotOperationsTotal.Inc()
+
+	// Invalidate cache on state change
+	cp.cache.InvalidateAll()
 
 	// Simulate snapshot creation
 	snapshotID := fmt.Sprintf("snapshot-%d", time.Now().Unix())
@@ -215,6 +273,9 @@ func (cp *ControlPlane) replayHandler(c *gin.Context) {
 
 	// Track replay operation
 	cp.metrics.ReplayOperationsTotal.Inc()
+
+	// Invalidate cache on state change
+	cp.cache.InvalidateAll()
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "replay_initiated",

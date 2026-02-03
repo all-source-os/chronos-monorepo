@@ -1,8 +1,7 @@
 use crate::domain::entities::Event;
 use axum::extract::ws::{Message, WebSocket};
+use dashmap::DashMap;
 use futures::{sink::SinkExt, stream::StreamExt};
-use parking_lot::RwLock;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use uuid::Uuid;
@@ -12,8 +11,8 @@ pub struct WebSocketManager {
     /// Broadcast channel for sending events to all connected clients
     event_tx: broadcast::Sender<Arc<Event>>,
 
-    /// Connected clients by ID
-    clients: Arc<RwLock<HashMap<Uuid, ClientInfo>>>,
+    /// Connected clients by ID - using DashMap for lock-free concurrent access
+    clients: Arc<DashMap<Uuid, ClientInfo>>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,7 +33,7 @@ impl WebSocketManager {
 
         Self {
             event_tx,
-            clients: Arc::new(RwLock::new(HashMap::new())),
+            clients: Arc::new(DashMap::new()),
         }
     }
 
@@ -56,7 +55,7 @@ impl WebSocketManager {
         let (mut sender, mut receiver) = socket.split();
 
         // Register client
-        self.clients.write().insert(
+        self.clients.insert(
             client_id,
             ClientInfo {
                 id: client_id,
@@ -69,13 +68,10 @@ impl WebSocketManager {
         let send_task = tokio::spawn(async move {
             while let Ok(event) = event_rx.recv().await {
                 // Get client filters
-                let filters = {
-                    let clients_lock = clients.read();
-                    clients_lock
-                        .get(&client_id)
-                        .map(|c| c.filters.clone())
-                        .unwrap_or_default()
-                };
+                let filters = clients
+                    .get(&client_id)
+                    .map(|entry| entry.value().filters.clone())
+                    .unwrap_or_default();
 
                 // Apply filters
                 if let Some(ref entity_id) = filters.entity_id {
@@ -113,7 +109,7 @@ impl WebSocketManager {
                     // Parse filter commands (text is Utf8Bytes in axum 0.8+)
                     if let Ok(filters) = serde_json::from_str::<EventFilters>(text.as_str()) {
                         tracing::info!("Setting filters for client {}: {:?}", client_id, filters);
-                        if let Some(client) = clients.write().get_mut(&client_id) {
+                        if let Some(mut client) = clients.get_mut(&client_id) {
                             client.filters = filters;
                         }
                     }
@@ -132,15 +128,14 @@ impl WebSocketManager {
         }
 
         // Clean up client
-        self.clients.write().remove(&client_id);
+        self.clients.remove(&client_id);
         tracing::info!("🔌 WebSocket client disconnected: {}", client_id);
     }
 
     /// Get statistics about connected clients
     pub fn stats(&self) -> WebSocketStats {
-        let clients = self.clients.read();
         WebSocketStats {
-            connected_clients: clients.len(),
+            connected_clients: self.clients.len(),
             total_capacity: self.event_tx.receiver_count(),
         }
     }

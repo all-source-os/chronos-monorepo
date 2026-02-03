@@ -7,7 +7,7 @@
 /// - HashiCorp Vault
 /// - Local HSM via PKCS#11
 use crate::error::{AllSourceError, Result};
-use parking_lot::RwLock;
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -143,7 +143,7 @@ pub trait KmsClient: Send + Sync {
 
 /// Local KMS implementation (for testing/development)
 pub struct LocalKms {
-    keys: Arc<RwLock<HashMap<String, StoredKey>>>,
+    keys: Arc<DashMap<String, StoredKey>>,
     config: KmsConfig,
 }
 
@@ -155,7 +155,7 @@ struct StoredKey {
 impl LocalKms {
     pub fn new(config: KmsConfig) -> Self {
         Self {
-            keys: Arc::new(RwLock::new(HashMap::new())),
+            keys: Arc::new(DashMap::new()),
             config,
         }
     }
@@ -211,25 +211,23 @@ impl KmsClient for LocalKms {
             key_material,
         };
 
-        self.keys.write().insert(key_id, stored_key);
+        self.keys.insert(key_id, stored_key);
 
         Ok(metadata)
     }
 
     async fn get_key(&self, key_id: &str) -> Result<KeyMetadata> {
         self.keys
-            .read()
             .get(key_id)
-            .map(|k| k.metadata.clone())
+            .map(|entry| entry.value().metadata.clone())
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))
     }
 
     async fn list_keys(&self) -> Result<Vec<KeyMetadata>> {
         Ok(self
             .keys
-            .read()
-            .values()
-            .map(|k| k.metadata.clone())
+            .iter()
+            .map(|entry| entry.value().metadata.clone())
             .collect())
     }
 
@@ -237,8 +235,7 @@ impl KmsClient for LocalKms {
         use aes_gcm::aead::Aead;
         use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
-        let keys = self.keys.read();
-        let stored_key = keys
+        let stored_key = self.keys
             .get(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
@@ -280,8 +277,7 @@ impl KmsClient for LocalKms {
             ));
         }
 
-        let keys = self.keys.read();
-        let stored_key = keys
+        let stored_key = self.keys
             .get(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
@@ -298,8 +294,7 @@ impl KmsClient for LocalKms {
     }
 
     async fn rotate_key(&self, key_id: &str) -> Result<KeyMetadata> {
-        let mut keys = self.keys.write();
-        let stored_key = keys
+        let mut stored_key = self.keys
             .get_mut(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
@@ -320,8 +315,7 @@ impl KmsClient for LocalKms {
     }
 
     async fn disable_key(&self, key_id: &str) -> Result<()> {
-        let mut keys = self.keys.write();
-        let stored_key = keys
+        let mut stored_key = self.keys
             .get_mut(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
@@ -330,8 +324,7 @@ impl KmsClient for LocalKms {
     }
 
     async fn enable_key(&self, key_id: &str) -> Result<()> {
-        let mut keys = self.keys.write();
-        let stored_key = keys
+        let mut stored_key = self.keys
             .get_mut(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 

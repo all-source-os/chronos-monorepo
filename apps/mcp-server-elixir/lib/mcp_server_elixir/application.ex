@@ -18,6 +18,9 @@ defmodule McpServerElixir.Application do
       # WebSocket client for real-time events from Core
       {McpServerElixir.Infrastructure.CoreWebSocketClient, []},
 
+      # Conversation context manager for multi-turn queries
+      {McpServerElixir.Context.ConversationContext, []},
+
       # Start the MCP server process
       {McpServerElixir.Server, []}
     ]

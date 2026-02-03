@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // testLoggerSetup creates a temporary logger for testing and returns cleanup function
@@ -325,4 +327,394 @@ func TestAuditLogger_Concurrency(t *testing.T) {
 	if len(lines) != expectedLines {
 		t.Errorf("Expected %d log lines, got %d", expectedLines, len(lines))
 	}
+}
+
+// testAsyncLoggerSetup creates a temporary async logger for testing
+func testAsyncLoggerSetup(t *testing.T) (logger *AuditLogger, tmpfileName string) {
+	t.Helper()
+	tmpfile, err := os.CreateTemp("", "audit-async-test-*.log")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpfileName = tmpfile.Name()
+	_ = tmpfile.Close() //nolint:errcheck // test cleanup
+
+	t.Cleanup(func() {
+		_ = os.Remove(tmpfileName) //nolint:errcheck // test cleanup
+	})
+
+	logger, err = NewAsyncAuditLogger(tmpfileName)
+	if err != nil {
+		t.Fatalf("Failed to create async audit logger: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = logger.Close() //nolint:errcheck // test cleanup
+	})
+
+	return logger, tmpfileName
+}
+
+func TestAsyncAuditLogger_Log(t *testing.T) {
+	logger, tmpfileName := testAsyncLoggerSetup(t)
+
+	// Create a test event
+	event := AuditEvent{
+		EventType:  "async_test_event",
+		UserID:     "user-123",
+		Username:   "testuser",
+		TenantID:   "tenant-456",
+		Action:     "test_action",
+		Resource:   "test_resource",
+		Method:     "GET",
+		Path:       "/test/path",
+		StatusCode: 200,
+		Duration:   123.45,
+	}
+
+	// Log the event
+	err := logger.Log(event)
+	if err != nil {
+		t.Fatalf("Failed to log event: %v", err)
+	}
+
+	// Close logger to flush all events
+	_ = logger.Close() //nolint:errcheck // test cleanup
+
+	// Read the log file
+	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
+	if err != nil {
+		t.Fatalf("Failed to read log file: %v", err)
+	}
+
+	// Verify the event was logged
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) != 1 {
+		t.Errorf("Expected 1 log line, got %d", len(lines))
+	}
+
+	// Parse the logged event
+	var logged AuditEvent
+	err = json.Unmarshal([]byte(lines[0]), &logged)
+	if err != nil {
+		t.Fatalf("Failed to parse logged event: %v", err)
+	}
+
+	if logged.EventType != event.EventType {
+		t.Errorf("EventType mismatch: expected %s, got %s", event.EventType, logged.EventType)
+	}
+}
+
+func TestAsyncAuditLogger_HighVolume(t *testing.T) {
+	logger, tmpfileName := testAsyncLoggerSetup(t)
+
+	// Log many events quickly
+	numEvents := 1000
+	for i := 0; i < numEvents; i++ {
+		event := AuditEvent{
+			EventType: "high_volume_test",
+			UserID:    "user-123",
+			Action:    "test",
+		}
+		_ = logger.Log(event) //nolint:errcheck // high volume test
+	}
+
+	// Close to flush all events
+	_ = logger.Close() //nolint:errcheck // test cleanup
+
+	// Read and verify
+	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
+	if err != nil {
+		t.Fatalf("Failed to read log file: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) != numEvents {
+		t.Errorf("Expected %d log lines, got %d", numEvents, len(lines))
+	}
+}
+
+func TestAsyncAuditLogger_ConcurrentWrites(t *testing.T) {
+	logger, tmpfileName := testAsyncLoggerSetup(t)
+
+	// Log events concurrently from multiple goroutines
+	numGoroutines := 50
+	eventsPerGoroutine := 100
+	var wg sync.WaitGroup
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < eventsPerGoroutine; j++ {
+				event := AuditEvent{
+					EventType: "concurrent_async_test",
+					UserID:    "user-123",
+					Action:    "test",
+				}
+				_ = logger.Log(event) //nolint:errcheck // concurrent test
+			}
+		}()
+	}
+
+	wg.Wait()
+	_ = logger.Close() //nolint:errcheck // test cleanup
+
+	// Verify all events were logged
+	content, err := os.ReadFile(tmpfileName) //nolint:gosec // test file path
+	if err != nil {
+		t.Fatalf("Failed to read log file: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	expectedLines := numGoroutines * eventsPerGoroutine
+	if len(lines) != expectedLines {
+		t.Errorf("Expected %d log lines, got %d", expectedLines, len(lines))
+	}
+}
+
+func TestAsyncAuditLogger_Disabled(t *testing.T) {
+	// Create logger with empty path (disabled)
+	logger, err := NewAsyncAuditLogger("")
+	if err != nil {
+		t.Fatalf("Failed to create disabled logger: %v", err)
+	}
+
+	if logger.enabled {
+		t.Error("Logger should be disabled when path is empty")
+	}
+
+	if logger.asyncEnabled {
+		t.Error("Async should be disabled when path is empty")
+	}
+
+	// Logging should succeed but do nothing
+	event := AuditEvent{
+		EventType: "test",
+		UserID:    "user-123",
+	}
+
+	err = logger.Log(event)
+	if err != nil {
+		t.Errorf("Logging to disabled logger should not error: %v", err)
+	}
+}
+
+// Benchmark sync vs async audit logging
+
+func BenchmarkAuditLogger_Sync(b *testing.B) {
+	tmpfile, err := os.CreateTemp("", "audit-bench-sync-*.log")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpfileName := tmpfile.Name()
+	_ = tmpfile.Close()                           //nolint:errcheck // benchmark cleanup
+	defer func() { _ = os.Remove(tmpfileName) }() //nolint:errcheck // benchmark cleanup
+
+	logger, err := NewAuditLogger(tmpfileName)
+	if err != nil {
+		b.Fatalf("Failed to create audit logger: %v", err)
+	}
+	defer func() { _ = logger.Close() }() //nolint:errcheck // benchmark cleanup
+
+	event := AuditEvent{
+		EventType:  "benchmark_event",
+		UserID:     "user-123",
+		Username:   "testuser",
+		TenantID:   "tenant-456",
+		Action:     "read",
+		Resource:   "article",
+		Method:     "GET",
+		Path:       "/api/v1/articles/123",
+		StatusCode: 200,
+		Duration:   10.5,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = logger.Log(event) //nolint:errcheck // benchmark
+	}
+}
+
+func BenchmarkAuditLogger_Async(b *testing.B) {
+	tmpfile, err := os.CreateTemp("", "audit-bench-async-*.log")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpfileName := tmpfile.Name()
+	_ = tmpfile.Close()                           //nolint:errcheck // benchmark cleanup
+	defer func() { _ = os.Remove(tmpfileName) }() //nolint:errcheck // benchmark cleanup
+
+	logger, err := NewAsyncAuditLogger(tmpfileName)
+	if err != nil {
+		b.Fatalf("Failed to create async audit logger: %v", err)
+	}
+	defer func() { _ = logger.Close() }() //nolint:errcheck // benchmark cleanup
+
+	event := AuditEvent{
+		EventType:  "benchmark_event",
+		UserID:     "user-123",
+		Username:   "testuser",
+		TenantID:   "tenant-456",
+		Action:     "read",
+		Resource:   "article",
+		Method:     "GET",
+		Path:       "/api/v1/articles/123",
+		StatusCode: 200,
+		Duration:   10.5,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = logger.Log(event) //nolint:errcheck // benchmark
+	}
+}
+
+func BenchmarkAuditLogger_Async_Parallel(b *testing.B) {
+	tmpfile, err := os.CreateTemp("", "audit-bench-async-parallel-*.log")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpfileName := tmpfile.Name()
+	_ = tmpfile.Close()                           //nolint:errcheck // benchmark cleanup
+	defer func() { _ = os.Remove(tmpfileName) }() //nolint:errcheck // benchmark cleanup
+
+	logger, err := NewAsyncAuditLogger(tmpfileName)
+	if err != nil {
+		b.Fatalf("Failed to create async audit logger: %v", err)
+	}
+	defer func() { _ = logger.Close() }() //nolint:errcheck // benchmark cleanup
+
+	event := AuditEvent{
+		EventType:  "benchmark_event",
+		UserID:     "user-123",
+		Username:   "testuser",
+		TenantID:   "tenant-456",
+		Action:     "read",
+		Resource:   "article",
+		Method:     "GET",
+		Path:       "/api/v1/articles/123",
+		StatusCode: 200,
+		Duration:   10.5,
+	}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = logger.Log(event) //nolint:errcheck // benchmark
+		}
+	})
+}
+
+// BenchmarkAuditLogger_LatencyComparison compares sync vs async latency in a realistic scenario
+func BenchmarkAuditLogger_LatencyComparison(b *testing.B) {
+	b.Run("Sync_SingleEvent", func(b *testing.B) {
+		tmpfile, _ := os.CreateTemp("", "audit-latency-sync-*.log") //nolint:errcheck // benchmark
+		tmpfileName := tmpfile.Name()
+		_ = tmpfile.Close()                           //nolint:errcheck // benchmark
+		defer func() { _ = os.Remove(tmpfileName) }() //nolint:errcheck // benchmark
+
+		logger, _ := NewAuditLogger(tmpfileName) //nolint:errcheck // benchmark
+		defer func() { _ = logger.Close() }()    //nolint:errcheck // benchmark
+
+		event := AuditEvent{EventType: "test", UserID: "user-123", Action: "read"}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			start := time.Now()
+			_ = logger.Log(event) //nolint:errcheck // benchmark
+			_ = time.Since(start) // Measure latency (would be recorded in real profiling)
+		}
+	})
+
+	b.Run("Async_SingleEvent", func(b *testing.B) {
+		tmpfile, _ := os.CreateTemp("", "audit-latency-async-*.log") //nolint:errcheck // benchmark
+		tmpfileName := tmpfile.Name()
+		_ = tmpfile.Close()                           //nolint:errcheck // benchmark
+		defer func() { _ = os.Remove(tmpfileName) }() //nolint:errcheck // benchmark
+
+		logger, _ := NewAsyncAuditLogger(tmpfileName) //nolint:errcheck // benchmark
+		defer func() { _ = logger.Close() }()         //nolint:errcheck // benchmark
+
+		event := AuditEvent{EventType: "test", UserID: "user-123", Action: "read"}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			start := time.Now()
+			_ = logger.Log(event) //nolint:errcheck // benchmark
+			_ = time.Since(start) // Measure latency (would be recorded in real profiling)
+		}
+	})
+}
+
+// BenchmarkAuditLogger_CallerLatency measures the actual time the caller spends blocked
+// This is the key metric - async should have much lower caller latency
+func BenchmarkAuditLogger_CallerLatency(b *testing.B) {
+	b.Run("Sync_CallerBlocked", func(b *testing.B) {
+		tmpfile, _ := os.CreateTemp("", "audit-caller-sync-*.log") //nolint:errcheck // benchmark
+		tmpfileName := tmpfile.Name()
+		_ = tmpfile.Close()                           //nolint:errcheck // benchmark
+		defer func() { _ = os.Remove(tmpfileName) }() //nolint:errcheck // benchmark
+
+		logger, _ := NewAuditLogger(tmpfileName) //nolint:errcheck // benchmark
+		defer func() { _ = logger.Close() }()    //nolint:errcheck // benchmark
+
+		event := AuditEvent{
+			EventType:  "benchmark_event",
+			UserID:     "user-123",
+			Username:   "testuser",
+			TenantID:   "tenant-456",
+			Action:     "read",
+			Resource:   "article",
+			Method:     "GET",
+			Path:       "/api/v1/articles/123",
+			StatusCode: 200,
+			Duration:   10.5,
+			IPAddress:  "192.168.1.1",
+			UserAgent:  "Mozilla/5.0",
+		}
+
+		var totalLatency time.Duration
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			start := time.Now()
+			_ = logger.Log(event) //nolint:errcheck // benchmark
+			totalLatency += time.Since(start)
+		}
+		b.ReportMetric(float64(totalLatency.Nanoseconds())/float64(b.N), "ns/call")
+	})
+
+	b.Run("Async_CallerUnblocked", func(b *testing.B) {
+		tmpfile, _ := os.CreateTemp("", "audit-caller-async-*.log") //nolint:errcheck // benchmark
+		tmpfileName := tmpfile.Name()
+		_ = tmpfile.Close()                           //nolint:errcheck // benchmark
+		defer func() { _ = os.Remove(tmpfileName) }() //nolint:errcheck // benchmark
+
+		logger, _ := NewAsyncAuditLogger(tmpfileName) //nolint:errcheck // benchmark
+		defer func() { _ = logger.Close() }()         //nolint:errcheck // benchmark
+
+		event := AuditEvent{
+			EventType:  "benchmark_event",
+			UserID:     "user-123",
+			Username:   "testuser",
+			TenantID:   "tenant-456",
+			Action:     "read",
+			Resource:   "article",
+			Method:     "GET",
+			Path:       "/api/v1/articles/123",
+			StatusCode: 200,
+			Duration:   10.5,
+			IPAddress:  "192.168.1.1",
+			UserAgent:  "Mozilla/5.0",
+		}
+
+		var totalLatency time.Duration
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			start := time.Now()
+			_ = logger.Log(event) //nolint:errcheck // benchmark
+			totalLatency += time.Since(start)
+		}
+		b.ReportMetric(float64(totalLatency.Nanoseconds())/float64(b.N), "ns/call")
+	})
 }

@@ -1,26 +1,28 @@
 //! Service Container implementation
 //!
 //! Holds all repository instances and provides factory methods for use cases.
+//!
+//! Note: Stateless use cases (unit structs with no constructor) are not included
+//! in the container - they should be used directly via their static methods.
 
 use crate::application::use_cases::{
-    // Creator use cases
+    // Creator use cases (with state)
     RegisterCreatorUseCase, UpdateCreatorUseCase,
-    // Article use cases
-    CreateArticleUseCase, UpdateArticleUseCase, PublishArticleUseCase, ArchiveArticleUseCase,
-    DeleteArticleUseCase, RestoreArticleUseCase, RecordArticlePurchaseUseCase,
-    // Payment use cases
+    // Article use cases (with state)
+    CreateArticleUseCase, UpdateArticleUseCase,
+    // Payment use cases (with state)
     InitiatePaymentUseCase, ConfirmTransactionUseCase, RefundTransactionUseCase,
-    // Access use cases
+    // Access use cases (with state)
     GrantFreeAccessUseCase, ValidateTokenUseCase, RevokeAccessUseCase, CheckAccessUseCase,
-    ExtendAccessUseCase, CleanupExpiredTokensUseCase,
-    // Fork use cases
+    CleanupExpiredTokensUseCase,
+    // Fork use cases (with state)
     CreateForkUseCase, UpdateForkUseCase, MergeForkUseCase, DiscardForkUseCase,
     GetForkUseCase, AppendForkEventUseCase, QueryForkEventsUseCase, BranchForkUseCase,
     CleanupExpiredForksUseCase,
 };
 use crate::domain::repositories::{
-    AccessTokenRepository, ArticleRepository, CreatorRepository, ForkRepository,
-    TransactionRepository,
+    AccessTokenRepository, ArticleRepository, CreatorRepository, EventStreamRepository,
+    ForkRepository, TransactionRepository,
 };
 use std::sync::Arc;
 
@@ -36,6 +38,18 @@ use std::sync::Arc;
 /// 2. **Factory Methods**: Use cases are created on-demand with their dependencies injected
 /// 3. **Thread Safety**: All repositories are wrapped in `Arc` for concurrent access
 /// 4. **Testability**: Repositories can be swapped with mocks via the builder
+///
+/// # Stateless Use Cases
+///
+/// Some use cases are stateless (unit structs with static methods). These are NOT included
+/// in the container and should be used directly:
+/// - `PublishArticleUseCase::execute(article)`
+/// - `ArchiveArticleUseCase::execute(article)`
+/// - `DeleteArticleUseCase::execute(article)`
+/// - `RestoreArticleUseCase::execute(article)`
+/// - `RecordArticlePurchaseUseCase::execute(article, amount)`
+/// - `ExtendAccessUseCase::execute(token, days)`
+/// - And others...
 ///
 /// # Example
 ///
@@ -56,6 +70,8 @@ pub struct ServiceContainer {
     transaction_repository: Arc<dyn TransactionRepository>,
     access_token_repository: Arc<dyn AccessTokenRepository>,
     fork_repository: Arc<dyn ForkRepository>,
+    // Core event sourcing repository
+    event_stream_repository: Arc<dyn EventStreamRepository>,
 }
 
 impl ServiceContainer {
@@ -68,6 +84,7 @@ impl ServiceContainer {
         transaction_repository: Arc<dyn TransactionRepository>,
         access_token_repository: Arc<dyn AccessTokenRepository>,
         fork_repository: Arc<dyn ForkRepository>,
+        event_stream_repository: Arc<dyn EventStreamRepository>,
     ) -> Self {
         Self {
             creator_repository,
@@ -75,6 +92,7 @@ impl ServiceContainer {
             transaction_repository,
             access_token_repository,
             fork_repository,
+            event_stream_repository,
         }
     }
 
@@ -107,6 +125,11 @@ impl ServiceContainer {
         self.fork_repository.clone()
     }
 
+    /// Returns the event stream repository instance.
+    pub fn event_stream_repository(&self) -> Arc<dyn EventStreamRepository> {
+        self.event_stream_repository.clone()
+    }
+
     // =========================================================================
     // Creator Use Case Factories
     // =========================================================================
@@ -127,10 +150,7 @@ impl ServiceContainer {
 
     /// Creates a new `CreateArticleUseCase` with injected dependencies.
     pub fn create_article_use_case(&self) -> CreateArticleUseCase {
-        CreateArticleUseCase::new(
-            self.article_repository.clone(),
-            self.creator_repository.clone(),
-        )
+        CreateArticleUseCase::new(self.article_repository.clone())
     }
 
     /// Creates a new `UpdateArticleUseCase` with injected dependencies.
@@ -138,30 +158,9 @@ impl ServiceContainer {
         UpdateArticleUseCase::new(self.article_repository.clone())
     }
 
-    /// Creates a new `PublishArticleUseCase` with injected dependencies.
-    pub fn publish_article_use_case(&self) -> PublishArticleUseCase {
-        PublishArticleUseCase::new(self.article_repository.clone())
-    }
-
-    /// Creates a new `ArchiveArticleUseCase` with injected dependencies.
-    pub fn archive_article_use_case(&self) -> ArchiveArticleUseCase {
-        ArchiveArticleUseCase::new(self.article_repository.clone())
-    }
-
-    /// Creates a new `DeleteArticleUseCase` with injected dependencies.
-    pub fn delete_article_use_case(&self) -> DeleteArticleUseCase {
-        DeleteArticleUseCase::new(self.article_repository.clone())
-    }
-
-    /// Creates a new `RestoreArticleUseCase` with injected dependencies.
-    pub fn restore_article_use_case(&self) -> RestoreArticleUseCase {
-        RestoreArticleUseCase::new(self.article_repository.clone())
-    }
-
-    /// Creates a new `RecordArticlePurchaseUseCase` with injected dependencies.
-    pub fn record_article_purchase_use_case(&self) -> RecordArticlePurchaseUseCase {
-        RecordArticlePurchaseUseCase::new(self.article_repository.clone())
-    }
+    // Note: PublishArticleUseCase, ArchiveArticleUseCase, DeleteArticleUseCase,
+    // RestoreArticleUseCase, and RecordArticlePurchaseUseCase are stateless.
+    // Use them directly: e.g., PublishArticleUseCase::execute(article)
 
     // =========================================================================
     // Payment Use Case Factories
@@ -194,6 +193,9 @@ impl ServiceContainer {
         )
     }
 
+    // Note: FailTransactionUseCase, DisputeTransactionUseCase, ResolveDisputeUseCase,
+    // and ListTransactionsUseCase are stateless. Use them directly.
+
     // =========================================================================
     // Access Token Use Case Factories
     // =========================================================================
@@ -203,7 +205,6 @@ impl ServiceContainer {
         GrantFreeAccessUseCase::new(
             self.access_token_repository.clone(),
             self.article_repository.clone(),
-            self.creator_repository.clone(),
         )
     }
 
@@ -222,15 +223,13 @@ impl ServiceContainer {
         CheckAccessUseCase::new(self.access_token_repository.clone())
     }
 
-    /// Creates a new `ExtendAccessUseCase` with injected dependencies.
-    pub fn extend_access_use_case(&self) -> ExtendAccessUseCase {
-        ExtendAccessUseCase::new(self.access_token_repository.clone())
-    }
-
     /// Creates a new `CleanupExpiredTokensUseCase` with injected dependencies.
     pub fn cleanup_expired_tokens_use_case(&self) -> CleanupExpiredTokensUseCase {
         CleanupExpiredTokensUseCase::new(self.access_token_repository.clone())
     }
+
+    // Note: ExtendAccessUseCase, RecordAccessUseCase, and ListAccessTokensUseCase
+    // are stateless. Use them directly.
 
     // =========================================================================
     // Fork Use Case Factories
@@ -280,6 +279,8 @@ impl ServiceContainer {
     pub fn cleanup_expired_forks_use_case(&self) -> CleanupExpiredForksUseCase {
         CleanupExpiredForksUseCase::new(self.fork_repository.clone())
     }
+
+    // Note: ListForksUseCase is stateless. Use it directly.
 }
 
 impl std::fmt::Debug for ServiceContainer {
@@ -290,6 +291,7 @@ impl std::fmt::Debug for ServiceContainer {
             .field("transaction_repository", &"Arc<dyn TransactionRepository>")
             .field("access_token_repository", &"Arc<dyn AccessTokenRepository>")
             .field("fork_repository", &"Arc<dyn ForkRepository>")
+            .field("event_stream_repository", &"Arc<dyn EventStreamRepository>")
             .finish()
     }
 }

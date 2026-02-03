@@ -19,8 +19,10 @@ mod tests {
         arena_pool::{arena_stats, get_arena, reset_stats as reset_arena_stats},
         batch_processor::{BatchProcessor, BatchProcessorConfig},
         lock_free::{LockFreeEventQueue, LockFreeMetrics, ShardedEventQueue},
+        simd_filter::{FilterPredicate, SimdEventFilter},
         simd_json::SimdJsonParser,
     };
+    use chrono::Utc;
     use serde_json::json;
     use std::sync::Arc;
     use std::time::{Duration, Instant};
@@ -389,6 +391,242 @@ mod tests {
         assert!(
             events_per_sec > 50_000.0,
             "Sustained throughput too low: {:.0} events/sec (expected >50K in debug)",
+            events_per_sec
+        );
+    }
+
+    /// Test SIMD event filtering throughput
+    /// Validates 2-3x improvement over scalar filtering for timestamp predicates
+    #[test]
+    fn test_simd_filter_throughput() {
+        let event_count = 50_000;
+
+        // Create events with spread timestamps
+        let events: Vec<Event> = (0..event_count)
+            .map(|i| {
+                Event::reconstruct_from_strings(
+                    uuid::Uuid::new_v4(),
+                    format!("event.type.{}", i % 10),
+                    format!("entity-{}", i % 1000),
+                    format!("tenant-{}", i % 5),
+                    json!({"index": i}),
+                    Utc::now() - chrono::Duration::hours(event_count as i64 - i as i64),
+                    None,
+                    1,
+                )
+            })
+            .collect();
+
+        let filter = SimdEventFilter::new();
+        let threshold = Utc::now() - chrono::Duration::hours((event_count / 2) as i64);
+
+        // Warm up
+        for _ in 0..10 {
+            let _ = filter.filter_events(&events, &FilterPredicate::TimestampAfter(threshold));
+        }
+
+        filter.reset_stats();
+
+        // SIMD filter benchmark
+        let iterations = 100;
+        let simd_start = Instant::now();
+        for _ in 0..iterations {
+            let _ = filter.filter_events(&events, &FilterPredicate::TimestampAfter(threshold));
+        }
+        let simd_duration = simd_start.elapsed();
+
+        // Scalar comparison benchmark
+        let scalar_start = Instant::now();
+        for _ in 0..iterations {
+            let _: Vec<_> = events
+                .iter()
+                .filter(|e| e.timestamp() > threshold)
+                .cloned()
+                .collect();
+        }
+        let scalar_duration = scalar_start.elapsed();
+
+        let simd_events_per_sec =
+            (event_count * iterations) as f64 / simd_duration.as_secs_f64();
+        let scalar_events_per_sec =
+            (event_count * iterations) as f64 / scalar_duration.as_secs_f64();
+        let speedup = scalar_duration.as_secs_f64() / simd_duration.as_secs_f64();
+
+        println!("\n=== SIMD Event Filtering Performance ===");
+        println!("Events: {}", event_count);
+        println!("Iterations: {}", iterations);
+        println!("SIMD duration: {:?}", simd_duration);
+        println!("Scalar duration: {:?}", scalar_duration);
+        println!("SIMD events/sec: {:.0}", simd_events_per_sec);
+        println!("Scalar events/sec: {:.0}", scalar_events_per_sec);
+        println!("Speedup: {:.2}x", speedup);
+        println!(
+            "SIMD utilization: {:.1}%",
+            filter.stats().simd_utilization() * 100.0
+        );
+        println!("SIMD available: {}", filter.is_simd_available());
+
+        // Target: At least 1M events/sec in filtering
+        assert!(
+            simd_events_per_sec > 1_000_000.0,
+            "SIMD filtering too slow: {:.0} events/sec (expected >1M)",
+            simd_events_per_sec
+        );
+    }
+
+    /// Test SIMD filter with range predicate
+    #[test]
+    fn test_simd_filter_range_throughput() {
+        let event_count = 50_000;
+
+        let events: Vec<Event> = (0..event_count)
+            .map(|i| {
+                Event::reconstruct_from_strings(
+                    uuid::Uuid::new_v4(),
+                    format!("order.{}", if i % 2 == 0 { "created" } else { "updated" }),
+                    format!("entity-{}", i % 1000),
+                    format!("tenant-{}", i % 5),
+                    json!({"index": i}),
+                    Utc::now() - chrono::Duration::hours(event_count as i64 - i as i64),
+                    None,
+                    1,
+                )
+            })
+            .collect();
+
+        let filter = SimdEventFilter::new();
+        let start_ts = Utc::now() - chrono::Duration::hours((event_count * 3 / 4) as i64);
+        let end_ts = Utc::now() - chrono::Duration::hours((event_count / 4) as i64);
+
+        // Benchmark range filtering
+        let iterations = 100;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            let _ = filter.filter_events(
+                &events,
+                &FilterPredicate::TimestampBetween(start_ts, end_ts),
+            );
+        }
+        let duration = start.elapsed();
+
+        let events_per_sec = (event_count * iterations) as f64 / duration.as_secs_f64();
+
+        println!("\n=== SIMD Range Filtering Performance ===");
+        println!("Events: {}", event_count);
+        println!("Iterations: {}", iterations);
+        println!("Duration: {:?}", duration);
+        println!("Events/sec: {:.0}", events_per_sec);
+
+        assert!(
+            events_per_sec > 1_000_000.0,
+            "Range filtering too slow: {:.0} events/sec (expected >1M)",
+            events_per_sec
+        );
+    }
+
+    /// Test SIMD filter with string prefix predicate
+    #[test]
+    fn test_simd_filter_prefix_throughput() {
+        let event_count = 50_000;
+
+        let events: Vec<Event> = (0..event_count)
+            .map(|i| {
+                let event_type = match i % 3 {
+                    0 => "order.created",
+                    1 => "order.updated",
+                    _ => "user.login",
+                };
+                Event::reconstruct_from_strings(
+                    uuid::Uuid::new_v4(),
+                    event_type.to_string(),
+                    format!("entity-{}", i % 1000),
+                    format!("tenant-{}", i % 5),
+                    json!({"index": i}),
+                    Utc::now() - chrono::Duration::hours(i as i64),
+                    None,
+                    1,
+                )
+            })
+            .collect();
+
+        let filter = SimdEventFilter::new();
+
+        // Benchmark prefix filtering
+        let iterations = 100;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            let _ = filter.filter_events(
+                &events,
+                &FilterPredicate::EventTypePrefix("order".to_string()),
+            );
+        }
+        let duration = start.elapsed();
+
+        let events_per_sec = (event_count * iterations) as f64 / duration.as_secs_f64();
+
+        println!("\n=== SIMD Prefix Filtering Performance ===");
+        println!("Events: {}", event_count);
+        println!("Iterations: {}", iterations);
+        println!("Duration: {:?}", duration);
+        println!("Events/sec: {:.0}", events_per_sec);
+
+        // Prefix filtering is slightly slower due to string operations
+        assert!(
+            events_per_sec > 500_000.0,
+            "Prefix filtering too slow: {:.0} events/sec (expected >500K)",
+            events_per_sec
+        );
+    }
+
+    /// Test combined predicate performance
+    #[test]
+    fn test_simd_filter_combined_throughput() {
+        let event_count = 50_000;
+
+        let events: Vec<Event> = (0..event_count)
+            .map(|i| {
+                Event::reconstruct_from_strings(
+                    uuid::Uuid::new_v4(),
+                    format!("event.type.{}", i % 10),
+                    format!("entity-{}", i % 1000),
+                    format!("tenant-{}", i % 5),
+                    json!({"index": i}),
+                    Utc::now() - chrono::Duration::hours(event_count as i64 - i as i64),
+                    None,
+                    1,
+                )
+            })
+            .collect();
+
+        let filter = SimdEventFilter::new();
+        let threshold = Utc::now() - chrono::Duration::hours((event_count / 2) as i64);
+
+        // Combined predicate: timestamp AND tenant
+        let predicate = FilterPredicate::And(vec![
+            FilterPredicate::TimestampAfter(threshold),
+            FilterPredicate::TenantId("tenant-0".to_string()),
+        ]);
+
+        // Benchmark combined filtering
+        let iterations = 100;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            let _ = filter.filter_events(&events, &predicate);
+        }
+        let duration = start.elapsed();
+
+        let events_per_sec = (event_count * iterations) as f64 / duration.as_secs_f64();
+
+        println!("\n=== SIMD Combined Filtering Performance ===");
+        println!("Events: {}", event_count);
+        println!("Iterations: {}", iterations);
+        println!("Duration: {:?}", duration);
+        println!("Events/sec: {:.0}", events_per_sec);
+
+        // Combined predicates are slower due to multiple passes
+        assert!(
+            events_per_sec > 200_000.0,
+            "Combined filtering too slow: {:.0} events/sec (expected >200K)",
             events_per_sec
         );
     }

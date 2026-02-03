@@ -21,7 +21,10 @@
           "outputFolder": "playwright-report"
         }
       ],
-      ["list", null],
+      [
+        "list",
+        null
+      ],
       [
         "json",
         {
@@ -46,63 +49,9 @@
         "name": "chromium",
         "testDir": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests",
         "testIgnore": [],
-        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
-        "timeout": 30000
-      },
-      {
-        "outputDir": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results",
-        "repeatEach": 1,
-        "retries": 0,
-        "metadata": {
-          "actualWorkers": 6
-        },
-        "id": "firefox",
-        "name": "firefox",
-        "testDir": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests",
-        "testIgnore": [],
-        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
-        "timeout": 30000
-      },
-      {
-        "outputDir": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results",
-        "repeatEach": 1,
-        "retries": 0,
-        "metadata": {
-          "actualWorkers": 6
-        },
-        "id": "webkit",
-        "name": "webkit",
-        "testDir": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests",
-        "testIgnore": [],
-        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
-        "timeout": 30000
-      },
-      {
-        "outputDir": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results",
-        "repeatEach": 1,
-        "retries": 0,
-        "metadata": {
-          "actualWorkers": 6
-        },
-        "id": "Mobile Chrome",
-        "name": "Mobile Chrome",
-        "testDir": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests",
-        "testIgnore": [],
-        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
-        "timeout": 30000
-      },
-      {
-        "outputDir": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results",
-        "repeatEach": 1,
-        "retries": 0,
-        "metadata": {
-          "actualWorkers": 6
-        },
-        "id": "Mobile Safari",
-        "name": "Mobile Safari",
-        "testDir": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests",
-        "testIgnore": [],
-        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
         "timeout": 30000
       }
     ],
@@ -111,860 +60,1310 @@
     "updateSourceMethod": "patch",
     "version": "1.56.1",
     "workers": 6,
-    "webServer": {
-      "command": "cd ../../apps/web && bun run dev",
-      "url": "http://localhost:3000",
-      "reuseExistingServer": true,
-      "timeout": 120000
-    }
+    "webServer": null
   },
   "suites": [
     {
-      "title": "demo/metrics-demo.spec.ts",
-      "file": "demo/metrics-demo.spec.ts",
+      "title": "ui-components/ui-components.spec.ts",
+      "file": "ui-components/ui-components.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Metrics Demo",
-          "file": "demo/metrics-demo.spec.ts",
-          "line": 3,
+          "title": "UI Components",
+          "file": "ui-components/ui-components.spec.ts",
+          "line": 14,
           "column": 6,
-          "specs": [
+          "specs": [],
+          "suites": [
             {
-              "title": "should display metrics demo UI elements",
-              "ok": false,
-              "tags": [],
-              "tests": [
+              "title": "Page Structure",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 20,
+              "column": 8,
+              "specs": [
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "should load the UI test page successfully",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 9179,
-                      "error": {
-                        "message": "Error: locator.isVisible: Error: strict mode violation: getByRole('heading', { name: /System Metrics/i }) resolved to 2 elements:\n    1) <h2 class=\"text-3xl font-bold mb-2 flex items-center gap-3\">…</h2> aka getByRole('heading', { name: 'System Metrics' }).first()\n    2) <h2 class=\"text-2xl font-bold text-white\">System Metrics</h2> aka getByRole('heading', { name: 'System Metrics' }).nth(1)\n\nCall log:\n\u001b[2m    - checking visibility of getByRole('heading', { name: /System Metrics/i })\u001b[22m\n",
-                        "stack": "Error: locator.isVisible: Error: strict mode violation: getByRole('heading', { name: /System Metrics/i }) resolved to 2 elements:\n    1) <h2 class=\"text-3xl font-bold mb-2 flex items-center gap-3\">…</h2> aka getByRole('heading', { name: 'System Metrics' }).first()\n    2) <h2 class=\"text-2xl font-bold text-white\">System Metrics</h2> aka getByRole('heading', { name: 'System Metrics' }).nth(1)\n\nCall log:\n\u001b[2m    - checking visibility of getByRole('heading', { name: /System Metrics/i })\u001b[22m\n\n    at DemoPage.isVisible (/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts:66:20)\n    at DemoPage.isSystemMetricsTitleVisible (/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/DemoPage.ts:205:17)\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:12:41",
-                        "location": {
-                          "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts",
-                          "column": 20,
-                          "line": 66
-                        },
-                        "snippet": "\u001b[90m   at \u001b[39m../page-objects/BasePage.ts:66\n\n  64 |    */\n  65 |   async isVisible(locator: Locator): Promise<boolean> {\n> 66 |     return locator.isVisible();\n     |                    ^\n  67 |   }\n  68 |\n  69 |   /**"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts",
-                            "column": 20,
-                            "line": 66
-                          },
-                          "message": "Error: locator.isVisible: Error: strict mode violation: getByRole('heading', { name: /System Metrics/i }) resolved to 2 elements:\n    1) <h2 class=\"text-3xl font-bold mb-2 flex items-center gap-3\">…</h2> aka getByRole('heading', { name: 'System Metrics' }).first()\n    2) <h2 class=\"text-2xl font-bold text-white\">System Metrics</h2> aka getByRole('heading', { name: 'System Metrics' }).nth(1)\n\nCall log:\n\u001b[2m    - checking visibility of getByRole('heading', { name: /System Metrics/i })\u001b[22m\n\n\n   at ../page-objects/BasePage.ts:66\n\n  64 |    */\n  65 |   async isVisible(locator: Locator): Promise<boolean> {\n> 66 |     return locator.isVisible();\n     |                    ^\n  67 |   }\n  68 |\n  69 |   /**\n    at DemoPage.isVisible (/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts:66:20)\n    at DemoPage.isSystemMetricsTitleVisible (/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/DemoPage.ts:205:17)\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:12:41"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:17.820Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": [
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
                         {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--f8cc2-ay-metrics-demo-UI-elements-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--f8cc2-ay-metrics-demo-UI-elements-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--f8cc2-ay-metrics-demo-UI-elements-chromium/error-context.md"
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 3578,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:45.112Z",
+                          "annotations": [],
+                          "attachments": []
                         }
                       ],
-                      "errorLocation": {
-                        "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts",
-                        "column": 20,
-                        "line": 66
-                      }
+                      "status": "expected"
                     }
                   ],
-                  "status": "unexpected"
+                  "id": "65585ec0c444e09d7e71-d00bf64ea99beac9edb8",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 21,
+                  "column": 5
+                },
+                {
+                  "title": "should display page heading",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 3572,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:45.122Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-69dc4407038f3bf7f77b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 28,
+                  "column": 5
+                },
+                {
+                  "title": "should have proper layout container",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 3606,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:45.159Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-455b4c7733b0cffc4cb0",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 33,
+                  "column": 5
+                },
+                {
+                  "title": "should display section headings for all component types",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 3581,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:45.170Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-a0b4228c295e752cea40",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 38,
+                  "column": 5
                 }
-              ],
-              "id": "f2dcb90fbbf047a9de75-c32cf77c6c9b21780b9b",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 10,
-              "column": 3
+              ]
             },
             {
-              "title": "should display all metric cards",
-              "ok": false,
-              "tags": [],
-              "tests": [
+              "title": "Button Variants",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 53,
+              "column": 8,
+              "specs": [
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "should display default button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 1,
-                      "parallelIndex": 1,
-                      "status": "failed",
-                      "duration": 14743,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Ingestion Rate/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Ingestion Rate/i)\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Ingestion Rate/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Ingestion Rate/i)\u001b[22m\n\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:24:53",
-                        "location": {
-                          "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                          "column": 53,
-                          "line": 24
-                        },
-                        "snippet": "  22 |\n  23 |     // Check for all metric labels\n> 24 |     await expect(page.getByText(/Ingestion Rate/i)).toBeVisible();\n     |                                                     ^\n  25 |     await expect(page.getByText(/Query Latency/i)).toBeVisible();\n  26 |     await expect(page.getByText(/Active Connections/i)).toBeVisible();\n  27 |     await expect(page.getByText(/Storage Used/i)).toBeVisible();"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                            "column": 53,
-                            "line": 24
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Ingestion Rate/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Ingestion Rate/i)\u001b[22m\n\n\n  22 |\n  23 |     // Check for all metric labels\n> 24 |     await expect(page.getByText(/Ingestion Rate/i)).toBeVisible();\n     |                                                     ^\n  25 |     await expect(page.getByText(/Query Latency/i)).toBeVisible();\n  26 |     await expect(page.getByText(/Active Connections/i)).toBeVisible();\n  27 |     await expect(page.getByText(/Storage Used/i)).toBeVisible();\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:24:53"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:17.819Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": [
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
                         {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--50da9-ld-display-all-metric-cards-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--50da9-ld-display-all-metric-cards-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--50da9-ld-display-all-metric-cards-chromium/error-context.md"
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 3566,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:45.108Z",
+                          "annotations": [],
+                          "attachments": []
                         }
                       ],
-                      "errorLocation": {
-                        "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                        "column": 53,
-                        "line": 24
-                      }
+                      "status": "expected"
                     }
                   ],
-                  "status": "unexpected"
+                  "id": "65585ec0c444e09d7e71-75703856bcd66829acb5",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 54,
+                  "column": 5
+                },
+                {
+                  "title": "should display destructive button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 3597,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:45.121Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-780d75882e445bf1097d",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 59,
+                  "column": 5
+                },
+                {
+                  "title": "should display outline button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 1671,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:48.938Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-0aba0eb40078426e134b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 64,
+                  "column": 5
+                },
+                {
+                  "title": "should display secondary button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1683,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:48.932Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-19df6612eeee876a6cde",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 69,
+                  "column": 5
+                },
+                {
+                  "title": "should display ghost button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 1673,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:48.938Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-6d4bb9254b55ae0d84c8",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 74,
+                  "column": 5
+                },
+                {
+                  "title": "should render all 5 button variants",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 1668,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:48.942Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-15090ff17ebc655f1c82",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 79,
+                  "column": 5
                 }
-              ],
-              "id": "f2dcb90fbbf047a9de75-7e419402950e8f8ef998",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 19,
-              "column": 3
+              ]
             },
             {
-              "title": "should display metric values",
-              "ok": false,
-              "tags": [],
-              "tests": [
+              "title": "Button Sizes",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 94,
+              "column": 8,
+              "specs": [
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "should have buttons with consistent sizing",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 2,
-                      "parallelIndex": 2,
-                      "status": "failed",
-                      "duration": 9846,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m5\u001b[39m\nReceived:    \u001b[31m4\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m5\u001b[39m\nReceived:    \u001b[31m4\u001b[39m\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:42:19",
-                        "location": {
-                          "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                          "column": 19,
-                          "line": 42
-                        },
-                        "snippet": "  40 |     const count = await metricValues.count();\n  41 |\n> 42 |     expect(count).toBeGreaterThanOrEqual(5);\n     |                   ^\n  43 |   });\n  44 |\n  45 |   test(\"should refresh metrics when clicking refresh button\", async ({ demoPage, page }) => {"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                            "column": 19,
-                            "line": 42
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m5\u001b[39m\nReceived:    \u001b[31m4\u001b[39m\n\n  40 |     const count = await metricValues.count();\n  41 |\n> 42 |     expect(count).toBeGreaterThanOrEqual(5);\n     |                   ^\n  43 |   });\n  44 |\n  45 |   test(\"should refresh metrics when clicking refresh button\", async ({ demoPage, page }) => {\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:42:19"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:17.821Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": [
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
                         {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics-Demo-should-display-metric-values-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics-Demo-should-display-metric-values-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics-Demo-should-display-metric-values-chromium/error-context.md"
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 1698,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:48.955Z",
+                          "annotations": [],
+                          "attachments": []
                         }
                       ],
-                      "errorLocation": {
-                        "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                        "column": 19,
-                        "line": 42
-                      }
+                      "status": "expected"
                     }
                   ],
-                  "status": "unexpected"
+                  "id": "65585ec0c444e09d7e71-9ee3e07496bfdc2a60a6",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 97,
+                  "column": 5
+                },
+                {
+                  "title": "should have minimum clickable area for accessibility",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 1777,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:48.957Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-4a1cd56843a728ab6f7b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 115,
+                  "column": 5
                 }
-              ],
-              "id": "f2dcb90fbbf047a9de75-fa0d2e9ff8832a90d000",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 34,
-              "column": 3
+              ]
             },
             {
-              "title": "should refresh metrics when clicking refresh button",
-              "ok": false,
-              "tags": [],
-              "tests": [
+              "title": "Badge Variants",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 136,
+              "column": 8,
+              "specs": [
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "should display default badge variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 3,
-                      "parallelIndex": 3,
-                      "status": "failed",
-                      "duration": 12063,
-                      "error": {
-                        "message": "Error: locator.isVisible: Error: strict mode violation: getByRole('heading', { name: /System Metrics/i }) resolved to 2 elements:\n    1) <h2 class=\"text-3xl font-bold mb-2 flex items-center gap-3\">…</h2> aka getByRole('heading', { name: 'System Metrics' }).first()\n    2) <h2 class=\"text-2xl font-bold text-white\">System Metrics</h2> aka getByRole('heading', { name: 'System Metrics' }).nth(1)\n\nCall log:\n\u001b[2m    - checking visibility of getByRole('heading', { name: /System Metrics/i })\u001b[22m\n",
-                        "stack": "Error: locator.isVisible: Error: strict mode violation: getByRole('heading', { name: /System Metrics/i }) resolved to 2 elements:\n    1) <h2 class=\"text-3xl font-bold mb-2 flex items-center gap-3\">…</h2> aka getByRole('heading', { name: 'System Metrics' }).first()\n    2) <h2 class=\"text-2xl font-bold text-white\">System Metrics</h2> aka getByRole('heading', { name: 'System Metrics' }).nth(1)\n\nCall log:\n\u001b[2m    - checking visibility of getByRole('heading', { name: /System Metrics/i })\u001b[22m\n\n    at DemoPage.isVisible (/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts:66:20)\n    at DemoPage.isSystemMetricsTitleVisible (/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/DemoPage.ts:205:17)\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:56:41",
-                        "location": {
-                          "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts",
-                          "column": 20,
-                          "line": 66
-                        },
-                        "snippet": "\u001b[90m   at \u001b[39m../page-objects/BasePage.ts:66\n\n  64 |    */\n  65 |   async isVisible(locator: Locator): Promise<boolean> {\n> 66 |     return locator.isVisible();\n     |                    ^\n  67 |   }\n  68 |\n  69 |   /**"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts",
-                            "column": 20,
-                            "line": 66
-                          },
-                          "message": "Error: locator.isVisible: Error: strict mode violation: getByRole('heading', { name: /System Metrics/i }) resolved to 2 elements:\n    1) <h2 class=\"text-3xl font-bold mb-2 flex items-center gap-3\">…</h2> aka getByRole('heading', { name: 'System Metrics' }).first()\n    2) <h2 class=\"text-2xl font-bold text-white\">System Metrics</h2> aka getByRole('heading', { name: 'System Metrics' }).nth(1)\n\nCall log:\n\u001b[2m    - checking visibility of getByRole('heading', { name: /System Metrics/i })\u001b[22m\n\n\n   at ../page-objects/BasePage.ts:66\n\n  64 |    */\n  65 |   async isVisible(locator: Locator): Promise<boolean> {\n> 66 |     return locator.isVisible();\n     |                    ^\n  67 |   }\n  68 |\n  69 |   /**\n    at DemoPage.isVisible (/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts:66:20)\n    at DemoPage.isSystemMetricsTitleVisible (/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/DemoPage.ts:205:17)\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:56:41"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:17.817Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": [
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
                         {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--30b3c-hen-clicking-refresh-button-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--30b3c-hen-clicking-refresh-button-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--30b3c-hen-clicking-refresh-button-chromium/error-context.md"
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 1448,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:50.625Z",
+                          "annotations": [],
+                          "attachments": []
                         }
                       ],
-                      "errorLocation": {
-                        "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/page-objects/BasePage.ts",
-                        "column": 20,
-                        "line": 66
-                      }
+                      "status": "expected"
                     }
                   ],
-                  "status": "unexpected"
+                  "id": "65585ec0c444e09d7e71-804714bc70bd0bea7fd4",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 137,
+                  "column": 5
+                },
+                {
+                  "title": "should display secondary badge variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1445,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:50.626Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-55bbb335e42289ccf553",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 144,
+                  "column": 5
+                },
+                {
+                  "title": "should display destructive badge variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 1437,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:50.629Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-44d32a596acfeac42e71",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 150,
+                  "column": 5
+                },
+                {
+                  "title": "should display outline badge variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 1454,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:50.626Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-9ba418554ce293122f2e",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 156,
+                  "column": 5
+                },
+                {
+                  "title": "should render all 4 badge variants",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 1423,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:50.665Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-b56c9c92398c24e21186",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 162,
+                  "column": 5
                 }
-              ],
-              "id": "f2dcb90fbbf047a9de75-c46e394952b4c440e519",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 45,
-              "column": 3
+              ]
             },
             {
-              "title": "should show loading state when refreshing",
-              "ok": true,
-              "tags": [],
-              "tests": [
+              "title": "Card Components",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 174,
+              "column": 8,
+              "specs": [
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "should display card component",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 4,
-                      "parallelIndex": 4,
-                      "status": "passed",
-                      "duration": 9483,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:17.819Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": []
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 1398,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:50.744Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
                     }
                   ],
-                  "status": "expected"
+                  "id": "65585ec0c444e09d7e71-ebf9417903b5b381586e",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 175,
+                  "column": 5
+                },
+                {
+                  "title": "should display card title",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 1356,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:52.076Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-a5d215f31aa18af81ce2",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 179,
+                  "column": 5
+                },
+                {
+                  "title": "should display card content",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 1371,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:52.084Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-bff91b0020b986788b9e",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 184,
+                  "column": 5
+                },
+                {
+                  "title": "should have proper card structure with header and content",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1363,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:52.089Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-c2f112ce4137e13b094b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 191,
+                  "column": 5
                 }
-              ],
-              "id": "f2dcb90fbbf047a9de75-94a7df970aa92925f0be",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 60,
-              "column": 3
+              ]
             },
             {
-              "title": "should display metric icons",
-              "ok": false,
-              "tags": [],
-              "tests": [
+              "title": "Interactive States - Click",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 202,
+              "column": 8,
+              "specs": [
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "should be able to click default button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 5,
-                      "parallelIndex": 5,
-                      "status": "failed",
-                      "duration": 9848,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m5\u001b[39m\nReceived:    \u001b[31m1\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m5\u001b[39m\nReceived:    \u001b[31m1\u001b[39m\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:86:23",
-                        "location": {
-                          "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                          "column": 23,
-                          "line": 86
-                        },
-                        "snippet": "  84 |     const iconCount = await icons.count();\n  85 |\n> 86 |     expect(iconCount).toBeGreaterThanOrEqual(5);\n     |                       ^\n  87 |   });\n  88 |\n  89 |   test(\"should display last updated timestamp\", async ({ page }) => {"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                            "column": 23,
-                            "line": 86
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m5\u001b[39m\nReceived:    \u001b[31m1\u001b[39m\n\n  84 |     const iconCount = await icons.count();\n  85 |\n> 86 |     expect(iconCount).toBeGreaterThanOrEqual(5);\n     |                       ^\n  87 |   });\n  88 |\n  89 |   test(\"should display last updated timestamp\", async ({ page }) => {\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:86:23"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:17.818Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": [
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
                         {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics-Demo-should-display-metric-icons-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics-Demo-should-display-metric-icons-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics-Demo-should-display-metric-icons-chromium/error-context.md"
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 1400,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:52.095Z",
+                          "annotations": [],
+                          "attachments": []
                         }
                       ],
-                      "errorLocation": {
-                        "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                        "column": 23,
-                        "line": 86
-                      }
+                      "status": "expected"
                     }
                   ],
-                  "status": "unexpected"
+                  "id": "65585ec0c444e09d7e71-824528dd8665b8b56b38",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 203,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click destructive button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 1442,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:52.096Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-9edabb6468a14ff928e1",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 211,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click outline button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 1398,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:52.153Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-4fef9763f1700a49ed28",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 218,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click secondary button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 1578,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:53.453Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-6ee1a8f973a896b45e87",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 225,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click ghost button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1558,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:53.463Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-3834197f145b03313b05",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 232,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click all button variants sequentially",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 1713,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:53.465Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-cd067840057f21377073",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 239,
+                  "column": 5
                 }
-              ],
-              "id": "f2dcb90fbbf047a9de75-a53ef27e011324844ce1",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 78,
-              "column": 3
+              ]
             },
             {
-              "title": "should display last updated timestamp",
-              "ok": false,
-              "tags": [],
-              "tests": [
+              "title": "Interactive States - Hover",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 258,
+              "column": 8,
+              "specs": [
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "should show hover state on default button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 6,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 11960,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Last updated:/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Last updated:/i)\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Last updated:/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Last updated:/i)\u001b[22m\n\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:95:29",
-                        "location": {
-                          "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                          "column": 29,
-                          "line": 95
-                        },
-                        "snippet": "  93 |     // Look for timestamp text\n  94 |     const timestamp = page.getByText(/Last updated:/i);\n> 95 |     await expect(timestamp).toBeVisible();\n     |                             ^\n  96 |   });\n  97 |\n  98 |   test(\"should have colored metric cards with proper contrast\", async ({ page }) => {"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                            "column": 29,
-                            "line": 95
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Last updated:/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Last updated:/i)\u001b[22m\n\n\n  93 |     // Look for timestamp text\n  94 |     const timestamp = page.getByText(/Last updated:/i);\n> 95 |     await expect(timestamp).toBeVisible();\n     |                             ^\n  96 |   });\n  97 |\n  98 |   test(\"should have colored metric cards with proper contrast\", async ({ page }) => {\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:95:29"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:28.105Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": [
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
                         {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--ed48d-play-last-updated-timestamp-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--ed48d-play-last-updated-timestamp-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--ed48d-play-last-updated-timestamp-chromium/error-context.md"
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 1571,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:53.505Z",
+                          "annotations": [],
+                          "attachments": []
                         }
                       ],
-                      "errorLocation": {
-                        "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                        "column": 29,
-                        "line": 95
-                      }
+                      "status": "expected"
                     }
                   ],
-                  "status": "unexpected"
+                  "id": "65585ec0c444e09d7e71-d94723b336ae30f2000b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 259,
+                  "column": 5
+                },
+                {
+                  "title": "should show hover state on destructive button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 1513,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:53.548Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-05a1c0a41a26c5822cfa",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 266,
+                  "column": 5
+                },
+                {
+                  "title": "should show hover state on outline button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 1555,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:53.563Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-a7deb8226494837aed17",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 272,
+                  "column": 5
+                },
+                {
+                  "title": "should show hover state on secondary button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1541,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:55.030Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-aa74482463754f2642ca",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 278,
+                  "column": 5
+                },
+                {
+                  "title": "should show hover state on ghost button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 1549,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:55.045Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-ff562e5a4d7e1a206755",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 284,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to hover all button variants",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 1662,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:55.072Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-4454961e7e8f6ffea556",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 290,
+                  "column": 5
                 }
-              ],
-              "id": "f2dcb90fbbf047a9de75-029fd3c6bd09fbda42b2",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 89,
-              "column": 3
+              ]
             },
             {
-              "title": "should have colored metric cards with proper contrast",
-              "ok": false,
-              "tags": [],
-              "tests": [
+              "title": "Accessibility",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 307,
+              "column": 8,
+              "specs": [
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "buttons should have proper role",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 4,
-                      "parallelIndex": 4,
-                      "status": "failed",
-                      "duration": 5084,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m5\u001b[39m\nReceived:    \u001b[31m2\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m5\u001b[39m\nReceived:    \u001b[31m2\u001b[39m\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:106:19",
-                        "location": {
-                          "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                          "column": 19,
-                          "line": 106
-                        },
-                        "snippet": "  104 |     const count = await metricCards.count();\n  105 |\n> 106 |     expect(count).toBeGreaterThanOrEqual(5);\n      |                   ^\n  107 |   });\n  108 |\n  109 |   test(\"should animate metric value changes\", async ({ page }) => {"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                            "column": 19,
-                            "line": 106
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m5\u001b[39m\nReceived:    \u001b[31m2\u001b[39m\n\n  104 |     const count = await metricCards.count();\n  105 |\n> 106 |     expect(count).toBeGreaterThanOrEqual(5);\n      |                   ^\n  107 |   });\n  108 |\n  109 |   test(\"should animate metric value changes\", async ({ page }) => {\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:106:19"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:27.485Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": [
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
                         {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--783d0--cards-with-proper-contrast-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--783d0--cards-with-proper-contrast-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--783d0--cards-with-proper-contrast-chromium/error-context.md"
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 1518,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:55.087Z",
+                          "annotations": [],
+                          "attachments": []
                         }
                       ],
-                      "errorLocation": {
-                        "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                        "column": 19,
-                        "line": 106
-                      }
+                      "status": "expected"
                     }
                   ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "f2dcb90fbbf047a9de75-9ef556ce545029563feb",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 98,
-              "column": 3
-            },
-            {
-              "title": "should animate metric value changes",
-              "ok": true,
-              "tags": [],
-              "tests": [
+                  "id": "65585ec0c444e09d7e71-2a0e94338f828106cee8",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 308,
+                  "column": 5
+                },
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "buttons should be keyboard focusable",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 7,
-                      "parallelIndex": 2,
-                      "status": "passed",
-                      "duration": 9086,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:28.915Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "f2dcb90fbbf047a9de75-ddbb67d5306b7902c05a",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 109,
-              "column": 3
-            },
-            {
-              "title": "should display ingestion rate metric",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 8,
-                      "parallelIndex": 5,
-                      "status": "failed",
-                      "duration": 12398,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Ingestion Rate/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Ingestion Rate/i)\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Ingestion Rate/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Ingestion Rate/i)\u001b[22m\n\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:133:53",
-                        "location": {
-                          "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                          "column": 53,
-                          "line": 133
-                        },
-                        "snippet": "  131 |\n  132 |     // Check for ingestion rate label and value\n> 133 |     await expect(page.getByText(/Ingestion Rate/i)).toBeVisible();\n      |                                                     ^\n  134 |\n  135 |     // Should have /s suffix for rate\n  136 |     const rateValue = page.locator('p:has-text(\"/s\")').first();"
-                      },
-                      "errors": [
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
                         {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                            "column": 53,
-                            "line": 133
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Ingestion Rate/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Ingestion Rate/i)\u001b[22m\n\n\n  131 |\n  132 |     // Check for ingestion rate label and value\n> 133 |     await expect(page.getByText(/Ingestion Rate/i)).toBeVisible();\n      |                                                     ^\n  134 |\n  135 |     // Should have /s suffix for rate\n  136 |     const rateValue = page.locator('p:has-text(\"/s\")').first();\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:133:53"
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 1453,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:55.129Z",
+                          "annotations": [],
+                          "attachments": []
                         }
                       ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:28.990Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--77c01-splay-ingestion-rate-metric-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--77c01-splay-ingestion-rate-metric-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--77c01-splay-ingestion-rate-metric-chromium/error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                        "column": 53,
-                        "line": 133
-                      }
+                      "status": "expected"
                     }
                   ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "f2dcb90fbbf047a9de75-81bad6af5bddff530cb6",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 129,
-              "column": 3
-            },
-            {
-              "title": "should display query latency in milliseconds",
-              "ok": true,
-              "tags": [],
-              "tests": [
+                  "id": "65585ec0c444e09d7e71-d9757dfe078c8aff93ee",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 323,
+                  "column": 5
+                },
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
+                  "title": "page should have proper heading hierarchy",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
                     {
-                      "workerIndex": 9,
-                      "parallelIndex": 3,
-                      "status": "passed",
-                      "duration": 8170,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:32.465Z",
+                      "timeout": 30000,
                       "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "f2dcb90fbbf047a9de75-54fdc4a674265b5dae3d",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 140,
-              "column": 3
-            },
-            {
-              "title": "should display storage in GB",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 10,
-                      "parallelIndex": 4,
-                      "status": "failed",
-                      "duration": 12626,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Storage Used/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Storage Used/i)\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Storage Used/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Storage Used/i)\u001b[22m\n\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:155:51",
-                        "location": {
-                          "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                          "column": 51,
-                          "line": 155
-                        },
-                        "snippet": "  153 |\n  154 |     // Check for storage metric\n> 155 |     await expect(page.getByText(/Storage Used/i)).toBeVisible();\n      |                                                   ^\n  156 |\n  157 |     // Should have GB suffix\n  158 |     const storageValue = page.locator('p:has-text(\"GB\")').first();"
-                      },
-                      "errors": [
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
                         {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                            "column": 51,
-                            "line": 155
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText(/Storage Used/i)\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText(/Storage Used/i)\u001b[22m\n\n\n  153 |\n  154 |     // Check for storage metric\n> 155 |     await expect(page.getByText(/Storage Used/i)).toBeVisible();\n      |                                                   ^\n  156 |\n  157 |     // Should have GB suffix\n  158 |     const storageValue = page.locator('p:has-text(\"GB\")').first();\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:155:51"
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 1440,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-03T23:46:55.189Z",
+                          "annotations": [],
+                          "attachments": []
                         }
                       ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:34.216Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics-Demo-should-display-storage-in-GB-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics-Demo-should-display-storage-in-GB-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics-Demo-should-display-storage-in-GB-chromium/error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                        "column": 51,
-                        "line": 155
-                      }
+                      "status": "expected"
                     }
                   ],
-                  "status": "unexpected"
+                  "id": "65585ec0c444e09d7e71-d333cfb313ce27b39463",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 329,
+                  "column": 5
                 }
-              ],
-              "id": "f2dcb90fbbf047a9de75-af5771115c6b44ede251",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 151,
-              "column": 3
-            },
-            {
-              "title": "should have hover effects on metric cards",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 11,
-                      "parallelIndex": 1,
-                      "status": "timedOut",
-                      "duration": 30117,
-                      "error": {
-                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
-                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
-                      },
-                      "errors": [
-                        {
-                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
-                        },
-                        {
-                          "location": {
-                            "file": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts",
-                            "column": 21,
-                            "line": 172
-                          },
-                          "message": "Error: locator.hover: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.grid.grid-cols-1.md\\\\:grid-cols-2.lg\\\\:grid-cols-3').locator('> div').first()\u001b[22m\n\n\n  170 |\n  171 |     // Hover over card\n> 172 |     await firstCard.hover();\n      |                     ^\n  173 |\n  174 |     // Card should remain visible\n  175 |     await expect(firstCard).toBeVisible();\n    at /Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/tests/demo/metrics-demo.spec.ts:172:21"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-11-03T00:21:34.229Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--ff87c-ver-effects-on-metric-cards-chromium/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--ff87c-ver-effects-on-metric-cards-chromium/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/demo-metrics-demo-Metrics--ff87c-ver-effects-on-metric-cards-chromium/error-context.md"
-                        }
-                      ]
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "f2dcb90fbbf047a9de75-e7a24334d9ef693f43de",
-              "file": "demo/metrics-demo.spec.ts",
-              "line": 162,
-              "column": 3
+              ]
             }
           ]
         }
@@ -973,11 +1372,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-11-03T00:21:16.700Z",
-    "duration": 48079.755,
-    "expected": 3,
+    "startTime": "2026-02-03T23:46:36.477Z",
+    "duration": 20336.307999999997,
+    "expected": 36,
     "skipped": 0,
-    "unexpected": 10,
+    "unexpected": 0,
     "flaky": 0
   }
 }

@@ -30,7 +30,7 @@
 /// // Find node for partition
 /// let node_id = registry.node_for_partition(15);
 /// ```
-use parking_lot::RwLock;
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -55,8 +55,8 @@ pub struct NodeRegistry {
     /// Total number of partitions (fixed)
     partition_count: u32,
 
-    /// Registered nodes
-    nodes: Arc<RwLock<HashMap<u32, Node>>>,
+    /// Registered nodes - using DashMap for lock-free concurrent access
+    nodes: Arc<DashMap<u32, Node>>,
 }
 
 impl NodeRegistry {
@@ -67,7 +67,7 @@ impl NodeRegistry {
     pub fn new(partition_count: u32) -> Self {
         Self {
             partition_count,
-            nodes: Arc::new(RwLock::new(HashMap::new())),
+            nodes: Arc::new(DashMap::new()),
         }
     }
 
@@ -75,52 +75,47 @@ impl NodeRegistry {
     ///
     /// Automatically rebalances partitions across healthy nodes.
     pub fn register_node(&self, mut node: Node) {
-        let mut nodes = self.nodes.write();
-
         // Clear assigned partitions (will be recalculated)
         node.assigned_partitions.clear();
 
-        nodes.insert(node.id, node);
+        self.nodes.insert(node.id, node);
 
         // Rebalance partitions
-        self.rebalance_partitions_locked(&mut nodes);
+        self.rebalance_partitions();
     }
 
     /// Unregister a node from the cluster
     ///
     /// Triggers automatic rebalancing to remaining nodes.
     pub fn unregister_node(&self, node_id: u32) {
-        let mut nodes = self.nodes.write();
-        nodes.remove(&node_id);
-        self.rebalance_partitions_locked(&mut nodes);
+        self.nodes.remove(&node_id);
+        self.rebalance_partitions();
     }
 
     /// Mark node as healthy or unhealthy
     ///
     /// Unhealthy nodes are excluded from partition assignment.
     pub fn set_node_health(&self, node_id: u32, healthy: bool) {
-        let mut nodes = self.nodes.write();
-
-        if let Some(node) = nodes.get_mut(&node_id) {
+        if let Some(mut node) = self.nodes.get_mut(&node_id) {
             node.healthy = healthy;
-            self.rebalance_partitions_locked(&mut nodes);
         }
+        self.rebalance_partitions();
     }
 
     /// Rebalance partitions across healthy nodes
     ///
     /// Uses round-robin distribution for even load balancing.
-    fn rebalance_partitions_locked(&self, nodes: &mut HashMap<u32, Node>) {
+    fn rebalance_partitions(&self) {
         // Clear existing assignments
-        for node in nodes.values_mut() {
-            node.assigned_partitions.clear();
+        for mut entry in self.nodes.iter_mut() {
+            entry.value_mut().assigned_partitions.clear();
         }
 
         // Get healthy nodes sorted by ID for deterministic assignment
-        let mut healthy_nodes: Vec<u32> = nodes
+        let mut healthy_nodes: Vec<u32> = self.nodes
             .iter()
-            .filter(|(_, n)| n.healthy)
-            .map(|(id, _)| *id)
+            .filter(|entry| entry.value().healthy)
+            .map(|entry| *entry.key())
             .collect();
 
         healthy_nodes.sort();
@@ -134,7 +129,7 @@ impl NodeRegistry {
             let node_idx = (partition_id as usize) % healthy_nodes.len();
             let node_id = healthy_nodes[node_idx];
 
-            if let Some(node) = nodes.get_mut(&node_id) {
+            if let Some(mut node) = self.nodes.get_mut(&node_id) {
                 node.assigned_partitions.push(partition_id);
             }
         }
@@ -144,42 +139,37 @@ impl NodeRegistry {
     ///
     /// Returns None if no healthy node is assigned to the partition.
     pub fn node_for_partition(&self, partition_id: u32) -> Option<u32> {
-        let nodes = self.nodes.read();
-
-        nodes
-            .values()
-            .find(|n| n.healthy && n.assigned_partitions.contains(&partition_id))
-            .map(|n| n.id)
+        self.nodes
+            .iter()
+            .find(|entry| entry.value().healthy && entry.value().assigned_partitions.contains(&partition_id))
+            .map(|entry| entry.value().id)
     }
 
     /// Get node by ID
     pub fn get_node(&self, node_id: u32) -> Option<Node> {
-        self.nodes.read().get(&node_id).cloned()
+        self.nodes.get(&node_id).map(|entry| entry.value().clone())
     }
 
     /// Get all nodes
     pub fn all_nodes(&self) -> Vec<Node> {
-        self.nodes.read().values().cloned().collect()
+        self.nodes.iter().map(|entry| entry.value().clone()).collect()
     }
 
     /// Get healthy nodes
     pub fn healthy_nodes(&self) -> Vec<Node> {
         self.nodes
-            .read()
-            .values()
-            .filter(|n| n.healthy)
-            .cloned()
+            .iter()
+            .filter(|entry| entry.value().healthy)
+            .map(|entry| entry.value().clone())
             .collect()
     }
 
     /// Get partition distribution statistics
     pub fn partition_distribution(&self) -> HashMap<u32, Vec<u32>> {
-        let nodes = self.nodes.read();
-
-        nodes
+        self.nodes
             .iter()
-            .filter(|(_, n)| n.healthy)
-            .map(|(id, n)| (*id, n.assigned_partitions.clone()))
+            .filter(|entry| entry.value().healthy)
+            .map(|entry| (*entry.key(), entry.value().assigned_partitions.clone()))
             .collect()
     }
 
@@ -187,12 +177,10 @@ impl NodeRegistry {
     ///
     /// Returns true if all partitions have at least one healthy node assigned.
     pub fn is_cluster_healthy(&self) -> bool {
-        let nodes = self.nodes.read();
-
         for partition_id in 0..self.partition_count {
-            let has_node = nodes
-                .values()
-                .any(|n| n.healthy && n.assigned_partitions.contains(&partition_id));
+            let has_node = self.nodes
+                .iter()
+                .any(|entry| entry.value().healthy && entry.value().assigned_partitions.contains(&partition_id));
 
             if !has_node {
                 return false;
@@ -204,12 +192,12 @@ impl NodeRegistry {
 
     /// Get node count
     pub fn node_count(&self) -> usize {
-        self.nodes.read().len()
+        self.nodes.len()
     }
 
     /// Get healthy node count
     pub fn healthy_node_count(&self) -> usize {
-        self.nodes.read().values().filter(|n| n.healthy).count()
+        self.nodes.iter().filter(|entry| entry.value().healthy).count()
     }
 }
 

@@ -13,6 +13,8 @@ export class DemoPage extends BasePage {
   private readonly projectionsCard: Locator;
   private readonly securityCard: Locator;
   private readonly timeTravelCard: Locator;
+  private readonly analyticsCard: Locator;
+  private readonly pipelinesCard: Locator;
 
   // Hero section elements
   private readonly heroTitle: Locator;
@@ -55,6 +57,8 @@ export class DemoPage extends BasePage {
     this.projectionsCard = page.getByRole("button", { name: /Projections/ });
     this.securityCard = page.getByRole("button", { name: /Enterprise Security/ });
     this.timeTravelCard = page.getByRole("button", { name: /Time Travel/ });
+    this.analyticsCard = page.getByRole("button", { name: /Event Analytics/ });
+    this.pipelinesCard = page.getByRole("button", { name: /Event Pipelines/ });
 
     // Hero section
     this.heroTitle = page.getByRole("heading", { name: /AllSource Event Store/ });
@@ -131,6 +135,16 @@ export class DemoPage extends BasePage {
 
   async clickTimeTravelCard(): Promise<void> {
     await this.timeTravelCard.click();
+    await this.page.waitForTimeout(500);
+  }
+
+  async clickAnalyticsCard(): Promise<void> {
+    await this.analyticsCard.click();
+    await this.page.waitForTimeout(500);
+  }
+
+  async clickPipelinesCard(): Promise<void> {
+    await this.pipelinesCard.click();
     await this.page.waitForTimeout(500);
   }
 
@@ -253,6 +267,12 @@ export class DemoPage extends BasePage {
         break;
       case "timetravel":
         card = this.timeTravelCard;
+        break;
+      case "analytics":
+        card = this.analyticsCard;
+        break;
+      case "pipelines":
+        card = this.pipelinesCard;
         break;
       default:
         return false;

@@ -11,9 +11,9 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose, Engine as _};
+use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Encryption configuration
@@ -78,8 +78,8 @@ struct DataEncryptionKey {
 pub struct FieldEncryption {
     config: Arc<RwLock<EncryptionConfig>>,
 
-    // Data encryption keys (DEKs)
-    deks: Arc<RwLock<HashMap<String, DataEncryptionKey>>>,
+    // Data encryption keys (DEKs) - using DashMap for lock-free concurrent access
+    deks: Arc<DashMap<String, DataEncryptionKey>>,
 
     // Active key for encryption
     active_key_id: Arc<RwLock<Option<String>>>,
@@ -90,7 +90,7 @@ impl FieldEncryption {
     pub fn new(config: EncryptionConfig) -> Result<Self> {
         let manager = Self {
             config: Arc::new(RwLock::new(config)),
-            deks: Arc::new(RwLock::new(HashMap::new())),
+            deks: Arc::new(DashMap::new()),
             active_key_id: Arc::new(RwLock::new(None)),
         };
 
@@ -114,10 +114,10 @@ impl FieldEncryption {
             .ok_or_else(|| AllSourceError::ValidationError("No active encryption key".to_string()))?
             .clone();
 
-        let deks = self.deks.read();
-        let dek = deks.get(&key_id).ok_or_else(|| {
+        let dek_ref = self.deks.get(&key_id).ok_or_else(|| {
             AllSourceError::ValidationError("Encryption key not found".to_string())
         })?;
+        let dek = dek_ref.value();
 
         // Use AES-256-GCM
         let cipher = Aes256Gcm::new_from_slice(&dek.key_bytes)
@@ -151,13 +151,13 @@ impl FieldEncryption {
             ));
         }
 
-        let deks = self.deks.read();
-        let dek = deks.get(&encrypted.key_id).ok_or_else(|| {
+        let dek_ref = self.deks.get(&encrypted.key_id).ok_or_else(|| {
             AllSourceError::ValidationError(format!(
                 "Encryption key {} not found",
                 encrypted.key_id
             ))
         })?;
+        let dek = dek_ref.value();
 
         // Decode base64
         let ciphertext = general_purpose::STANDARD
@@ -186,7 +186,6 @@ impl FieldEncryption {
 
     /// Rotate encryption keys
     pub fn rotate_keys(&self) -> Result<()> {
-        let mut deks = self.deks.write();
         let mut active_key_id = self.active_key_id.write();
 
         // Generate new key
@@ -194,7 +193,7 @@ impl FieldEncryption {
         let mut key_bytes = vec![0u8; 32]; // 256 bits for AES-256
         aes_gcm::aead::rand_core::RngCore::fill_bytes(&mut OsRng, &mut key_bytes);
 
-        let version = deks.len() as u32 + 1;
+        let version = self.deks.len() as u32 + 1;
 
         let new_key = DataEncryptionKey {
             key_id: key_id.clone(),
@@ -205,12 +204,12 @@ impl FieldEncryption {
         };
 
         // Deactivate old keys
-        for key in deks.values_mut() {
-            key.active = false;
+        for mut entry in self.deks.iter_mut() {
+            entry.value_mut().active = false;
         }
 
         // Add new key
-        deks.insert(key_id.clone(), new_key);
+        self.deks.insert(key_id.clone(), new_key);
         *active_key_id = Some(key_id);
 
         Ok(())
@@ -218,15 +217,15 @@ impl FieldEncryption {
 
     /// Get encryption statistics
     pub fn get_stats(&self) -> EncryptionStats {
-        let deks = self.deks.read();
         let active_key_id = self.active_key_id.read();
 
         EncryptionStats {
             enabled: self.config.read().enabled,
-            total_keys: deks.len(),
-            active_key_version: deks
-                .get(active_key_id.as_ref().unwrap_or(&String::new()))
-                .map(|k| k.version)
+            total_keys: self.deks.len(),
+            active_key_version: active_key_id
+                .as_ref()
+                .and_then(|id| self.deks.get(id))
+                .map(|entry| entry.value().version)
                 .unwrap_or(0),
             algorithm: self.config.read().algorithm.clone(),
         }

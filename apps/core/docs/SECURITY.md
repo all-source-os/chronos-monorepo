@@ -999,8 +999,109 @@ AllSource Core security architecture supports:
 
 ---
 
+## Local Development Mode
+
+For local development and testing, AllSource Core supports a development mode that bypasses authentication and rate limiting. This allows developers to quickly iterate without needing to set up a full authentication flow.
+
+### Enabling Development Mode
+
+Set the `ALLSOURCE_DEV_MODE` environment variable:
+
+```bash
+# Enable development mode
+export ALLSOURCE_DEV_MODE=true
+
+# Or using inline
+ALLSOURCE_DEV_MODE=true cargo run
+```
+
+### What Development Mode Does
+
+When enabled, development mode:
+
+1. **Bypasses Authentication**: All requests are automatically authenticated with a dev user context:
+   - User ID: `dev-user`
+   - Tenant ID: `dev-tenant`
+   - Role: `Admin` (full permissions)
+
+2. **Disables Rate Limiting**: Rate limits are not enforced, allowing unlimited requests.
+
+3. **Logs a Warning**: On startup, a warning is logged to remind you that security is disabled:
+   ```
+   ⚠️  ALLSOURCE_DEV_MODE is enabled - authentication and rate limiting are DISABLED
+   ⚠️  This should NEVER be used in production!
+   ```
+
+### When to Use Development Mode
+
+| Use Case | Recommended |
+|----------|-------------|
+| Local development | ✅ Yes |
+| Unit/integration testing | ✅ Yes |
+| CI/CD testing | ⚠️ With caution |
+| Staging environment | ❌ No |
+| Production environment | ❌ NEVER |
+
+### Alternative: Bootstrap API Key
+
+If you need authentication but want a quick setup, use the bootstrap API key instead of development mode:
+
+```bash
+# Start the server normally (no dev mode)
+cargo run
+
+# Authenticate using bootstrap key
+curl -H "Authorization: ask_bootstrap_key_for_development" \
+  http://localhost:8080/api/v1/events
+```
+
+The bootstrap API key provides authenticated access while maintaining the full security stack.
+
+### Security Comparison
+
+| Feature | Dev Mode | Bootstrap Key | Full Auth |
+|---------|----------|---------------|-----------|
+| Authentication | Bypassed | Validated | Validated |
+| Rate Limiting | Disabled | Enforced | Enforced |
+| Audit Logging | Enabled | Enabled | Enabled |
+| Tenant Isolation | `dev-tenant` | Bootstrap tenant | Per-user tenant |
+| Permissions | Admin | Admin | Per-role |
+| Production Safe | ❌ No | ⚠️ No | ✅ Yes |
+
+### Best Practices
+
+```bash
+# ✅ DO: Use dev mode only locally
+ALLSOURCE_DEV_MODE=true cargo run --bin allsource-core
+
+# ✅ DO: Keep it out of CI environment variables
+# (Unless specifically for development/test workflows)
+
+# ✅ DO: Use proper auth in staging
+export JWT_SECRET="production-secret-here"
+cargo run --release
+
+# ❌ DON'T: Commit .env files with dev mode enabled
+# ❌ DON'T: Deploy to any shared environment with dev mode
+# ❌ DON'T: Use dev mode when testing security features
+```
+
+### Verifying Development Mode Status
+
+Check if development mode is enabled via the `/health` endpoint:
+
+```bash
+curl http://localhost:8080/health
+# Response includes dev_mode: true/false
+```
+
+Or check the server logs on startup for the warning message.
+
+---
+
 ## Security Checklist for Production
 
+- [ ] **Ensure `ALLSOURCE_DEV_MODE` is NOT set**
 - [ ] Change all default secrets and keys
 - [ ] Enable HTTPS with valid TLS certificates
 - [ ] Configure rate limiting for all tenants
@@ -1028,6 +1129,6 @@ AllSource Core security architecture supports:
 
 ---
 
-**Last Updated**: 2025-10-29
-**Version**: 1.0.0
+**Last Updated**: 2026-02-03
+**Version**: 1.1.0
 **Maintained By**: AllSource Core Security Team

@@ -88,7 +88,7 @@ impl ArticleRepository for InMemoryArticleRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -107,7 +107,7 @@ impl ArticleRepository for InMemoryArticleRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -126,7 +126,7 @@ impl ArticleRepository for InMemoryArticleRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -145,7 +145,7 @@ impl ArticleRepository for InMemoryArticleRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -233,13 +233,13 @@ impl ArticleRepository for InMemoryArticleRepository {
         let order = query.order_by.unwrap_or_default();
         match order {
             ArticleOrderBy::CreatedAtDesc => {
-                result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+                result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
             }
             ArticleOrderBy::CreatedAtAsc => {
-                result.sort_by(|a, b| a.created_at().cmp(&b.created_at()));
+                result.sort_by_key(|a| a.created_at());
             }
             ArticleOrderBy::PublishedAtDesc => {
-                result.sort_by(|a, b| b.published_at().cmp(&a.published_at()));
+                result.sort_by_key(|b| std::cmp::Reverse(b.published_at()));
             }
             ArticleOrderBy::RevenueDesc => {
                 result.sort_by(|a, b| {
@@ -256,10 +256,10 @@ impl ArticleRepository for InMemoryArticleRepository {
                 });
             }
             ArticleOrderBy::PriceDesc => {
-                result.sort_by(|a, b| b.price_cents().cmp(&a.price_cents()));
+                result.sort_by_key(|b| std::cmp::Reverse(b.price_cents()));
             }
             ArticleOrderBy::PriceAsc => {
-                result.sort_by(|a, b| a.price_cents().cmp(&b.price_cents()));
+                result.sort_by_key(|a| a.price_cents());
             }
             ArticleOrderBy::TitleAsc => {
                 result.sort_by(|a, b| a.title().cmp(b.title()));
@@ -310,7 +310,7 @@ impl ArticleRepository for InMemoryArticleRepository {
             .collect();
 
         // Sort by published_at descending
-        result.sort_by(|a, b| b.published_at().cmp(&a.published_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.published_at()));
 
         Ok(result.into_iter().take(limit).collect())
     }

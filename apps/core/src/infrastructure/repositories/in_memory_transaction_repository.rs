@@ -105,7 +105,7 @@ impl TransactionRepository for InMemoryTransactionRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -124,7 +124,7 @@ impl TransactionRepository for InMemoryTransactionRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -143,7 +143,7 @@ impl TransactionRepository for InMemoryTransactionRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -162,7 +162,7 @@ impl TransactionRepository for InMemoryTransactionRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -251,7 +251,7 @@ impl TransactionRepository for InMemoryTransactionRepository {
         }
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at().cmp(&a.created_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
 
         // Apply pagination
         let offset = query.offset.unwrap_or(0);

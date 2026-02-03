@@ -42,11 +42,11 @@
 //! let use_case = container.register_creator_use_case();
 //! ```
 
-mod container;
 mod builder;
+mod container;
 
+pub use builder::{ContainerBuilder, ContainerBuilderError};
 pub use container::ServiceContainer;
-pub use builder::ContainerBuilder;
 
 #[cfg(test)]
 mod tests;

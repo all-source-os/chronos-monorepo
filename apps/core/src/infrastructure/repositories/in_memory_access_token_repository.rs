@@ -138,7 +138,7 @@ impl AccessTokenRepository for InMemoryAccessTokenRepository {
             .collect();
 
         // Sort by issued_at descending (newest first)
-        result.sort_by(|a, b| b.issued_at().cmp(&a.issued_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.issued_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -157,7 +157,7 @@ impl AccessTokenRepository for InMemoryAccessTokenRepository {
             .collect();
 
         // Sort by issued_at descending (newest first)
-        result.sort_by(|a, b| b.issued_at().cmp(&a.issued_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.issued_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -176,7 +176,7 @@ impl AccessTokenRepository for InMemoryAccessTokenRepository {
             .collect();
 
         // Sort by issued_at descending (newest first)
-        result.sort_by(|a, b| b.issued_at().cmp(&a.issued_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.issued_at()));
 
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
@@ -313,7 +313,7 @@ impl AccessTokenRepository for InMemoryAccessTokenRepository {
         }
 
         // Sort by issued_at descending (newest first)
-        result.sort_by(|a, b| b.issued_at().cmp(&a.issued_at()));
+        result.sort_by_key(|b| std::cmp::Reverse(b.issued_at()));
 
         // Apply pagination
         let offset = query.offset.unwrap_or(0);

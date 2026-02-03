@@ -1,5 +1,5 @@
 use crate::error::AllSourceError;
-use crate::infrastructure::security::auth::{AuthManager, Claims, Permission};
+use crate::infrastructure::security::auth::{AuthManager, Claims, Permission, Role};
 use crate::infrastructure::security::rate_limit::RateLimiter;
 use axum::{
     extract::{Request, State},
@@ -7,7 +7,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 /// Paths that bypass authentication
 pub const AUTH_SKIP_PATHS: &[&str] = &[
@@ -16,6 +16,41 @@ pub const AUTH_SKIP_PATHS: &[&str] = &[
     "/api/v1/auth/register",
     "/api/v1/auth/login",
 ];
+
+/// Check if development mode is enabled via environment variable.
+/// When enabled, authentication and rate limiting are bypassed for local development.
+///
+/// Set `ALLSOURCE_DEV_MODE=true` or `ALLSOURCE_DEV_MODE=1` to enable.
+///
+/// **WARNING**: Never enable this in production environments!
+static DEV_MODE_ENABLED: LazyLock<bool> = LazyLock::new(|| {
+    let enabled = std::env::var("ALLSOURCE_DEV_MODE")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+    if enabled {
+        tracing::warn!("⚠️  ALLSOURCE_DEV_MODE is enabled - authentication and rate limiting are DISABLED");
+        tracing::warn!("⚠️  This should NEVER be used in production!");
+    }
+    enabled
+});
+
+/// Check if dev mode is enabled
+#[inline]
+pub fn is_dev_mode() -> bool {
+    *DEV_MODE_ENABLED
+}
+
+/// Create a development-mode AuthContext with admin privileges
+fn dev_mode_auth_context() -> AuthContext {
+    AuthContext {
+        claims: Claims::new(
+            "dev-user".to_string(),
+            "dev-tenant".to_string(),
+            Role::Admin,
+            chrono::Duration::hours(24),
+        ),
+    }
+}
 
 /// Authentication state shared across requests
 #[derive(Clone)]
@@ -92,7 +127,13 @@ pub async fn auth_middleware(
 ) -> Result<Response, AuthError> {
     // Skip authentication for public paths
     let path = request.uri().path();
-    if AUTH_SKIP_PATHS.iter().any(|skip_path| path == *skip_path) {
+    if AUTH_SKIP_PATHS.contains(&path) {
+        return Ok(next.run(request).await);
+    }
+
+    // Dev mode: bypass authentication entirely
+    if is_dev_mode() {
+        request.extensions_mut().insert(dev_mode_auth_context());
         return Ok(next.run(request).await);
     }
 
@@ -239,7 +280,12 @@ pub async fn rate_limit_middleware(
 ) -> Result<Response, RateLimitError> {
     // Skip rate limiting for public paths
     let path = request.uri().path();
-    if AUTH_SKIP_PATHS.iter().any(|skip_path| path == *skip_path) {
+    if AUTH_SKIP_PATHS.contains(&path) {
+        return Ok(next.run(request).await);
+    }
+
+    // Dev mode: bypass rate limiting entirely
+    if is_dev_mode() {
         return Ok(next.run(request).await);
     }
 
@@ -981,5 +1027,28 @@ mod tests {
         // Verify protected paths are NOT in skip list
         assert!(!AUTH_SKIP_PATHS.contains(&"/api/v1/events"));
         assert!(!AUTH_SKIP_PATHS.contains(&"/api/v1/auth/me"));
+    }
+
+    #[test]
+    fn test_dev_mode_auth_context() {
+        let ctx = dev_mode_auth_context();
+
+        // Dev user should have admin privileges
+        assert_eq!(ctx.tenant_id(), "dev-tenant");
+        assert_eq!(ctx.user_id(), "dev-user");
+        assert!(ctx.require_permission(Permission::Admin).is_ok());
+        assert!(ctx.require_permission(Permission::Read).is_ok());
+        assert!(ctx.require_permission(Permission::Write).is_ok());
+    }
+
+    #[test]
+    fn test_dev_mode_disabled_by_default() {
+        // Dev mode should be disabled by default (env var not set in tests)
+        // Note: This test may fail if ALLSOURCE_DEV_MODE is set in the test environment
+        // In a clean environment, dev mode is disabled
+        let env_value = std::env::var("ALLSOURCE_DEV_MODE").unwrap_or_default();
+        if env_value.is_empty() {
+            assert!(!is_dev_mode());
+        }
     }
 }

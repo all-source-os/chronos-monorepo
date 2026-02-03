@@ -274,7 +274,7 @@ fn generate_raw_token(article_id: &ArticleId, wallet: &WalletAddress) -> String 
     let mut hasher = Sha256::new();
     hasher.update(article_id.to_string().as_bytes());
     hasher.update(wallet.to_string().as_bytes());
-    hasher.update(&random_bytes);
+    hasher.update(random_bytes);
     hasher.update(chrono::Utc::now().to_rfc3339().as_bytes());
     format!("{:x}", hasher.finalize())
 }

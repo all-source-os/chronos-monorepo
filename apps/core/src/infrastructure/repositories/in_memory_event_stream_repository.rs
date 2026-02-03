@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use parking_lot::RwLock;
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -10,7 +10,7 @@ use crate::error::Result;
 
 /// In-memory implementation of EventStreamRepository
 ///
-/// Uses thread-safe RwLock for concurrent access.
+/// Uses thread-safe DashMap for lock-free concurrent access.
 /// Suitable for:
 /// - Development and testing
 /// - Single-node deployments
@@ -22,27 +22,27 @@ use crate::error::Result;
 /// - Optimistic Locking: Version conflicts detected in append
 ///
 /// # Thread Safety
-/// - Uses parking_lot::RwLock for better performance
-/// - Multiple readers, single writer
-/// - No poisoning on panic (parking_lot feature)
+/// - Uses DashMap for lock-free concurrent access
+/// - Multiple readers, multiple writers
+/// - Better performance under high concurrency
 #[derive(Clone)]
 pub struct InMemoryEventStreamRepository {
-    /// Streams indexed by entity ID
-    streams: Arc<RwLock<HashMap<String, EventStream>>>,
+    /// Streams indexed by entity ID - using DashMap for lock-free concurrent access
+    streams: Arc<DashMap<String, EventStream>>,
 }
 
 impl InMemoryEventStreamRepository {
     /// Create a new in-memory repository
     pub fn new() -> Self {
         Self {
-            streams: Arc::new(RwLock::new(HashMap::new())),
+            streams: Arc::new(DashMap::new()),
         }
     }
 
     /// Clear all streams (for testing)
     #[cfg(test)]
     pub fn clear(&self) {
-        self.streams.write().clear();
+        self.streams.clear();
     }
 }
 
@@ -57,27 +57,12 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
     async fn get_or_create_stream(&self, stream_id: &EntityId) -> Result<EventStream> {
         let key = stream_id.as_str().to_string();
 
-        // Try to get existing stream
-        {
-            let streams = self.streams.read();
-            if let Some(stream) = streams.get(&key) {
-                return Ok(stream.clone());
-            }
-        }
+        // Try to get existing stream or create new one using DashMap's entry API
+        let stream = self.streams.entry(key).or_insert_with(|| {
+            EventStream::new(stream_id.clone())
+        });
 
-        // Create new stream if not exists
-        let new_stream = EventStream::new(stream_id.clone());
-
-        {
-            let mut streams = self.streams.write();
-            // Double-check after acquiring write lock (race condition)
-            if let Some(stream) = streams.get(&key) {
-                return Ok(stream.clone());
-            }
-            streams.insert(key, new_stream.clone());
-        }
-
-        Ok(new_stream)
+        Ok(stream.clone())
     }
 
     async fn append_to_stream(&self, stream: &mut EventStream, event: Event) -> Result<u64> {
@@ -86,36 +71,32 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
 
         // Persist the updated stream
         let key = stream.stream_id().as_str().to_string();
-        let mut streams = self.streams.write();
-        streams.insert(key, stream.clone());
+        self.streams.insert(key, stream.clone());
 
         Ok(version)
     }
 
     async fn save_stream(&self, stream: &EventStream) -> Result<()> {
         let key = stream.stream_id().as_str().to_string();
-        let mut streams = self.streams.write();
-        streams.insert(key, stream.clone());
+        self.streams.insert(key, stream.clone());
         Ok(())
     }
 
     async fn load_stream(&self, stream_id: &EntityId) -> Result<Option<EventStream>> {
         let key = stream_id.as_str().to_string();
-        let streams = self.streams.read();
-        Ok(streams.get(&key).cloned())
+        Ok(self.streams.get(&key).map(|entry| entry.value().clone()))
     }
 
     async fn get_streams_by_partition(
         &self,
         partition_key: &PartitionKey,
     ) -> Result<Vec<EventStream>> {
-        let streams = self.streams.read();
         let target_partition = partition_key.partition_id();
 
-        let matching_streams: Vec<EventStream> = streams
-            .values()
-            .filter(|stream| stream.partition_key().partition_id() == target_partition)
-            .cloned()
+        let matching_streams: Vec<EventStream> = self.streams
+            .iter()
+            .filter(|entry| entry.value().partition_key().partition_id() == target_partition)
+            .map(|entry| entry.value().clone())
             .collect();
 
         Ok(matching_streams)
@@ -123,33 +104,29 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
 
     async fn get_watermark(&self, stream_id: &EntityId) -> Result<u64> {
         let key = stream_id.as_str().to_string();
-        let streams = self.streams.read();
-        match streams.get(&key) {
-            Some(s) => Ok(s.watermark()),
+        match self.streams.get(&key) {
+            Some(entry) => Ok(entry.value().watermark()),
             None => Ok(0),
         }
     }
 
     async fn verify_gapless(&self, stream_id: &EntityId) -> Result<bool> {
         let key = stream_id.as_str().to_string();
-        let streams = self.streams.read();
-        match streams.get(&key) {
-            Some(s) => Ok(s.is_gapless()),
+        match self.streams.get(&key) {
+            Some(entry) => Ok(entry.value().is_gapless()),
             None => Ok(true), // Empty stream is gapless
         }
     }
 
     async fn count_streams(&self) -> Result<usize> {
-        let streams = self.streams.read();
-        Ok(streams.len())
+        Ok(self.streams.len())
     }
 
     async fn partition_stats(&self) -> Result<Vec<(u32, usize)>> {
-        let streams = self.streams.read();
         let mut stats: HashMap<u32, usize> = HashMap::new();
 
-        for stream in streams.values() {
-            let partition_id = stream.partition_key().partition_id();
+        for entry in self.streams.iter() {
+            let partition_id = entry.value().partition_key().partition_id();
             *stats.entry(partition_id).or_insert(0) += 1;
         }
 
@@ -160,14 +137,12 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
     }
 
     async fn get_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<Vec<EventStream>> {
-        let streams = self.streams.read();
-
         let mut result = Vec::new();
-        for stream in streams.values() {
+        for entry in self.streams.iter() {
             // Check if stream belongs to this tenant
-            if let Some(stream_tenant) = stream.tenant_id() {
+            if let Some(stream_tenant) = entry.value().tenant_id() {
                 if stream_tenant == tenant_id {
-                    result.push(stream.clone());
+                    result.push(entry.value().clone());
                 }
             }
         }
@@ -176,11 +151,9 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
     }
 
     async fn count_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<usize> {
-        let streams = self.streams.read();
-
-        let count = streams
-            .values()
-            .filter(|stream| stream.tenant_id().map(|t| t == tenant_id).unwrap_or(false))
+        let count = self.streams
+            .iter()
+            .filter(|entry| entry.value().tenant_id().map(|t| t == tenant_id).unwrap_or(false))
             .count();
 
         Ok(count)

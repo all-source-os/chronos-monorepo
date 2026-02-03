@@ -1,7 +1,12 @@
 use prometheus::{
-    Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry,
+    Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Opts,
+    Registry,
 };
+use serde::Serialize;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// Centralized metrics registry for AllSource
 pub struct MetricsRegistry {
@@ -892,5 +897,775 @@ mod tests {
 
         metrics.http_requests_in_flight.dec();
         assert_eq!(metrics.http_requests_in_flight.get(), 0);
+    }
+}
+
+// =============================================================================
+// Partition Metrics (SierraDB pattern)
+// =============================================================================
+
+/// Per-partition statistics for detecting hot partitions and skew
+///
+/// SierraDB uses 32 fixed partitions for single-node, 1024+ for clusters.
+/// This struct tracks metrics per partition to detect imbalances.
+#[derive(Debug)]
+pub struct PartitionStats {
+    /// Partition ID (0 to partition_count-1)
+    pub partition_id: u32,
+
+    /// Total events written to this partition
+    pub event_count: u64,
+
+    /// Total write latency sum (nanoseconds) for calculating average
+    pub total_latency_ns: u64,
+
+    /// Number of writes for calculating average latency
+    pub write_count: u64,
+
+    /// Minimum write latency (nanoseconds)
+    pub min_latency_ns: u64,
+
+    /// Maximum write latency (nanoseconds)
+    pub max_latency_ns: u64,
+
+    /// Total error count for this partition
+    pub error_count: u64,
+}
+
+impl PartitionStats {
+    fn new(partition_id: u32) -> Self {
+        Self {
+            partition_id,
+            event_count: 0,
+            total_latency_ns: 0,
+            write_count: 0,
+            min_latency_ns: u64::MAX,
+            max_latency_ns: 0,
+            error_count: 0,
+        }
+    }
+
+    /// Calculate average write latency
+    pub fn avg_latency(&self) -> Option<Duration> {
+        if self.write_count == 0 {
+            None
+        } else {
+            Some(Duration::from_nanos(self.total_latency_ns / self.write_count))
+        }
+    }
+}
+
+/// Alert generated when partition imbalance is detected
+#[derive(Debug, Clone, Serialize)]
+pub struct PartitionImbalanceAlert {
+    /// Partition ID that is imbalanced
+    pub partition_id: u32,
+
+    /// Event count for this partition
+    pub event_count: u64,
+
+    /// Average event count across all partitions
+    pub average_count: f64,
+
+    /// Ratio compared to average (>2.0 triggers alert)
+    pub ratio_to_average: f64,
+
+    /// Alert message
+    pub message: String,
+
+    /// Timestamp when alert was generated
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+/// Internal structure for tracking partition metrics atomically
+struct PartitionMetricsEntry {
+    event_count: AtomicU64,
+    total_latency_ns: AtomicU64,
+    write_count: AtomicU64,
+    min_latency_ns: AtomicU64,
+    max_latency_ns: AtomicU64,
+    error_count: AtomicU64,
+}
+
+impl PartitionMetricsEntry {
+    fn new() -> Self {
+        Self {
+            event_count: AtomicU64::new(0),
+            total_latency_ns: AtomicU64::new(0),
+            write_count: AtomicU64::new(0),
+            min_latency_ns: AtomicU64::new(u64::MAX),
+            max_latency_ns: AtomicU64::new(0),
+            error_count: AtomicU64::new(0),
+        }
+    }
+}
+
+/// Partition monitoring for detecting hot partitions and skew (SierraDB pattern)
+///
+/// # Design Pattern
+/// Uses atomic operations for lock-free metric updates per partition.
+/// Tracks event counts, write latencies, and error rates per partition.
+///
+/// # SierraDB Context
+/// SierraDB uses fixed partitions (32 for single-node, 1024+ for clusters).
+/// Detecting hot partitions is critical for:
+/// - Load balancing decisions
+/// - Identifying skewed hash functions
+/// - Capacity planning
+/// - Performance troubleshooting
+///
+/// # Imbalance Detection
+/// A partition is considered imbalanced if it has >2x the average load.
+/// This threshold is based on SierraDB's experience with production workloads.
+///
+/// # Example
+/// ```ignore
+/// let partition_metrics = PartitionMetrics::new(32);
+///
+/// // Record write to partition 5
+/// let start = Instant::now();
+/// // ... write operation ...
+/// partition_metrics.record_write(5, start.elapsed());
+///
+/// // Check for imbalances
+/// let alerts = partition_metrics.detect_partition_imbalance();
+/// for alert in alerts {
+///     tracing::warn!("Partition imbalance: {}", alert.message);
+/// }
+/// ```
+pub struct PartitionMetrics {
+    /// Number of partitions
+    partition_count: u32,
+
+    /// Per-partition metrics
+    partitions: Vec<PartitionMetricsEntry>,
+
+    /// Prometheus metrics for per-partition event counts
+    partition_events_total: IntGaugeVec,
+
+    /// Prometheus metrics for per-partition write latency histogram
+    partition_write_latency: HistogramVec,
+
+    /// Prometheus metrics for per-partition error counts
+    partition_errors_total: IntCounterVec,
+
+    /// Prometheus registry (for registration)
+    registry: Registry,
+
+    /// Timestamp when metrics collection started
+    started_at: Instant,
+}
+
+impl PartitionMetrics {
+    /// Create a new partition metrics tracker
+    ///
+    /// # Arguments
+    /// * `partition_count` - Number of partitions (default: 32 for single-node)
+    pub fn new(partition_count: u32) -> Self {
+        let registry = Registry::new();
+
+        // Per-partition event count gauge
+        let partition_events_total = IntGaugeVec::new(
+            Opts::new(
+                "allsource_partition_events_total",
+                "Total events per partition",
+            ),
+            &["partition_id"],
+        )
+        .expect("Failed to create partition_events_total metric");
+
+        // Per-partition write latency histogram
+        let partition_write_latency = HistogramVec::new(
+            HistogramOpts::new(
+                "allsource_partition_write_latency_seconds",
+                "Write latency per partition in seconds",
+            )
+            .buckets(vec![
+                0.0001, 0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0,
+            ]),
+            &["partition_id"],
+        )
+        .expect("Failed to create partition_write_latency metric");
+
+        // Per-partition error counter
+        let partition_errors_total = IntCounterVec::new(
+            Opts::new(
+                "allsource_partition_errors_total",
+                "Total errors per partition",
+            ),
+            &["partition_id"],
+        )
+        .expect("Failed to create partition_errors_total metric");
+
+        // Register metrics
+        registry
+            .register(Box::new(partition_events_total.clone()))
+            .expect("Failed to register partition_events_total");
+        registry
+            .register(Box::new(partition_write_latency.clone()))
+            .expect("Failed to register partition_write_latency");
+        registry
+            .register(Box::new(partition_errors_total.clone()))
+            .expect("Failed to register partition_errors_total");
+
+        // Initialize per-partition atomic counters
+        let partitions = (0..partition_count)
+            .map(|_| PartitionMetricsEntry::new())
+            .collect();
+
+        Self {
+            partition_count,
+            partitions,
+            partition_events_total,
+            partition_write_latency,
+            partition_errors_total,
+            registry,
+            started_at: Instant::now(),
+        }
+    }
+
+    /// Create partition metrics with default partition count (32)
+    pub fn with_default_partitions() -> Self {
+        Self::new(32)
+    }
+
+    /// Record a successful write to a partition
+    ///
+    /// # Arguments
+    /// * `partition_id` - The partition ID (0 to partition_count-1)
+    /// * `latency` - The write latency
+    #[inline]
+    pub fn record_write(&self, partition_id: u32, latency: Duration) {
+        if partition_id >= self.partition_count {
+            return;
+        }
+
+        let entry = &self.partitions[partition_id as usize];
+        let latency_ns = latency.as_nanos() as u64;
+
+        // Update atomic counters
+        entry.event_count.fetch_add(1, Ordering::Relaxed);
+        entry.write_count.fetch_add(1, Ordering::Relaxed);
+        entry.total_latency_ns.fetch_add(latency_ns, Ordering::Relaxed);
+
+        // Update min latency (compare-and-swap loop)
+        let mut current_min = entry.min_latency_ns.load(Ordering::Relaxed);
+        while latency_ns < current_min {
+            match entry.min_latency_ns.compare_exchange_weak(
+                current_min,
+                latency_ns,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => current_min = actual,
+            }
+        }
+
+        // Update max latency (compare-and-swap loop)
+        let mut current_max = entry.max_latency_ns.load(Ordering::Relaxed);
+        while latency_ns > current_max {
+            match entry.max_latency_ns.compare_exchange_weak(
+                current_max,
+                latency_ns,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => current_max = actual,
+            }
+        }
+
+        // Update Prometheus metrics
+        let partition_id_str = partition_id.to_string();
+        self.partition_events_total
+            .with_label_values(&[&partition_id_str])
+            .set(entry.event_count.load(Ordering::Relaxed) as i64);
+        self.partition_write_latency
+            .with_label_values(&[&partition_id_str])
+            .observe(latency.as_secs_f64());
+    }
+
+    /// Record an error for a partition
+    ///
+    /// # Arguments
+    /// * `partition_id` - The partition ID (0 to partition_count-1)
+    #[inline]
+    pub fn record_error(&self, partition_id: u32) {
+        if partition_id >= self.partition_count {
+            return;
+        }
+
+        let entry = &self.partitions[partition_id as usize];
+        entry.error_count.fetch_add(1, Ordering::Relaxed);
+
+        // Update Prometheus metrics
+        let partition_id_str = partition_id.to_string();
+        self.partition_errors_total
+            .with_label_values(&[&partition_id_str])
+            .inc();
+    }
+
+    /// Record a batch write to a partition
+    ///
+    /// # Arguments
+    /// * `partition_id` - The partition ID (0 to partition_count-1)
+    /// * `count` - Number of events in the batch
+    /// * `latency` - Total latency for the batch write
+    #[inline]
+    pub fn record_batch_write(&self, partition_id: u32, count: u64, latency: Duration) {
+        if partition_id >= self.partition_count {
+            return;
+        }
+
+        let entry = &self.partitions[partition_id as usize];
+        let latency_ns = latency.as_nanos() as u64;
+
+        // Update atomic counters
+        entry.event_count.fetch_add(count, Ordering::Relaxed);
+        entry.write_count.fetch_add(1, Ordering::Relaxed);
+        entry.total_latency_ns.fetch_add(latency_ns, Ordering::Relaxed);
+
+        // Update min/max latency using per-event average
+        let per_event_latency_ns = latency_ns / count.max(1);
+
+        // Update min latency
+        let mut current_min = entry.min_latency_ns.load(Ordering::Relaxed);
+        while per_event_latency_ns < current_min {
+            match entry.min_latency_ns.compare_exchange_weak(
+                current_min,
+                per_event_latency_ns,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => current_min = actual,
+            }
+        }
+
+        // Update max latency
+        let mut current_max = entry.max_latency_ns.load(Ordering::Relaxed);
+        while per_event_latency_ns > current_max {
+            match entry.max_latency_ns.compare_exchange_weak(
+                current_max,
+                per_event_latency_ns,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => current_max = actual,
+            }
+        }
+
+        // Update Prometheus metrics
+        let partition_id_str = partition_id.to_string();
+        self.partition_events_total
+            .with_label_values(&[&partition_id_str])
+            .set(entry.event_count.load(Ordering::Relaxed) as i64);
+        self.partition_write_latency
+            .with_label_values(&[&partition_id_str])
+            .observe(latency.as_secs_f64());
+    }
+
+    /// Get statistics for a specific partition
+    pub fn get_partition_stats(&self, partition_id: u32) -> Option<PartitionStats> {
+        if partition_id >= self.partition_count {
+            return None;
+        }
+
+        let entry = &self.partitions[partition_id as usize];
+
+        Some(PartitionStats {
+            partition_id,
+            event_count: entry.event_count.load(Ordering::Relaxed),
+            total_latency_ns: entry.total_latency_ns.load(Ordering::Relaxed),
+            write_count: entry.write_count.load(Ordering::Relaxed),
+            min_latency_ns: entry.min_latency_ns.load(Ordering::Relaxed),
+            max_latency_ns: entry.max_latency_ns.load(Ordering::Relaxed),
+            error_count: entry.error_count.load(Ordering::Relaxed),
+        })
+    }
+
+    /// Get statistics for all partitions
+    pub fn get_all_partition_stats(&self) -> Vec<PartitionStats> {
+        (0..self.partition_count)
+            .filter_map(|id| self.get_partition_stats(id))
+            .collect()
+    }
+
+    /// Detect partition imbalance (hot partitions)
+    ///
+    /// Returns alerts for any partition with >2x average event count.
+    /// This is the SierraDB pattern for detecting skew and hot partitions.
+    ///
+    /// # Returns
+    /// Vector of alerts for imbalanced partitions
+    pub fn detect_partition_imbalance(&self) -> Vec<PartitionImbalanceAlert> {
+        let mut alerts = Vec::new();
+        let stats = self.get_all_partition_stats();
+
+        // Calculate total and average event count
+        let total_events: u64 = stats.iter().map(|s| s.event_count).sum();
+        let active_partitions = stats.iter().filter(|s| s.event_count > 0).count();
+
+        if active_partitions == 0 {
+            return alerts;
+        }
+
+        let average_count = total_events as f64 / active_partitions as f64;
+        let imbalance_threshold = 2.0; // SierraDB threshold: 2x average
+
+        for stat in stats {
+            if stat.event_count == 0 {
+                continue;
+            }
+
+            let ratio = stat.event_count as f64 / average_count;
+
+            if ratio > imbalance_threshold {
+                alerts.push(PartitionImbalanceAlert {
+                    partition_id: stat.partition_id,
+                    event_count: stat.event_count,
+                    average_count,
+                    ratio_to_average: ratio,
+                    message: format!(
+                        "Partition {} has {:.1}x average load ({} events vs {:.0} avg)",
+                        stat.partition_id, ratio, stat.event_count, average_count
+                    ),
+                    timestamp: chrono::Utc::now(),
+                });
+            }
+        }
+
+        alerts
+    }
+
+    /// Get partition count
+    pub fn partition_count(&self) -> u32 {
+        self.partition_count
+    }
+
+    /// Get total events across all partitions
+    pub fn total_events(&self) -> u64 {
+        self.partitions
+            .iter()
+            .map(|e| e.event_count.load(Ordering::Relaxed))
+            .sum()
+    }
+
+    /// Get total errors across all partitions
+    pub fn total_errors(&self) -> u64 {
+        self.partitions
+            .iter()
+            .map(|e| e.error_count.load(Ordering::Relaxed))
+            .sum()
+    }
+
+    /// Get uptime since metrics collection started
+    pub fn uptime(&self) -> Duration {
+        self.started_at.elapsed()
+    }
+
+    /// Get the Prometheus registry for this partition metrics
+    pub fn registry(&self) -> &Registry {
+        &self.registry
+    }
+
+    /// Encode metrics in Prometheus text format
+    pub fn encode(&self) -> Result<String, Box<dyn std::error::Error>> {
+        use prometheus::Encoder;
+        let encoder = prometheus::TextEncoder::new();
+        let metric_families = self.registry.gather();
+        let mut buffer = Vec::new();
+        encoder.encode(&metric_families, &mut buffer)?;
+        Ok(String::from_utf8(buffer)?)
+    }
+
+    /// Get partition distribution as a map
+    pub fn get_distribution(&self) -> HashMap<u32, u64> {
+        self.partitions
+            .iter()
+            .enumerate()
+            .map(|(id, entry)| (id as u32, entry.event_count.load(Ordering::Relaxed)))
+            .collect()
+    }
+
+    /// Reset all partition metrics
+    pub fn reset(&self) {
+        for entry in &self.partitions {
+            entry.event_count.store(0, Ordering::Relaxed);
+            entry.total_latency_ns.store(0, Ordering::Relaxed);
+            entry.write_count.store(0, Ordering::Relaxed);
+            entry.min_latency_ns.store(u64::MAX, Ordering::Relaxed);
+            entry.max_latency_ns.store(0, Ordering::Relaxed);
+            entry.error_count.store(0, Ordering::Relaxed);
+        }
+    }
+}
+
+impl Default for PartitionMetrics {
+    fn default() -> Self {
+        Self::with_default_partitions()
+    }
+}
+
+#[cfg(test)]
+mod partition_tests {
+    use super::*;
+    use std::thread;
+
+    #[test]
+    fn test_partition_metrics_creation() {
+        let metrics = PartitionMetrics::new(32);
+        assert_eq!(metrics.partition_count(), 32);
+        assert_eq!(metrics.total_events(), 0);
+        assert_eq!(metrics.total_errors(), 0);
+    }
+
+    #[test]
+    fn test_partition_metrics_default() {
+        let metrics = PartitionMetrics::default();
+        assert_eq!(metrics.partition_count(), 32);
+    }
+
+    #[test]
+    fn test_record_write() {
+        let metrics = PartitionMetrics::new(32);
+
+        metrics.record_write(0, Duration::from_micros(100));
+        metrics.record_write(0, Duration::from_micros(200));
+        metrics.record_write(1, Duration::from_micros(150));
+
+        let stats0 = metrics.get_partition_stats(0).unwrap();
+        assert_eq!(stats0.event_count, 2);
+        assert_eq!(stats0.write_count, 2);
+
+        let stats1 = metrics.get_partition_stats(1).unwrap();
+        assert_eq!(stats1.event_count, 1);
+    }
+
+    #[test]
+    fn test_record_batch_write() {
+        let metrics = PartitionMetrics::new(32);
+
+        metrics.record_batch_write(5, 100, Duration::from_millis(10));
+
+        let stats = metrics.get_partition_stats(5).unwrap();
+        assert_eq!(stats.event_count, 100);
+        assert_eq!(stats.write_count, 1);
+    }
+
+    #[test]
+    fn test_record_error() {
+        let metrics = PartitionMetrics::new(32);
+
+        metrics.record_error(3);
+        metrics.record_error(3);
+        metrics.record_error(5);
+
+        let stats3 = metrics.get_partition_stats(3).unwrap();
+        assert_eq!(stats3.error_count, 2);
+
+        let stats5 = metrics.get_partition_stats(5).unwrap();
+        assert_eq!(stats5.error_count, 1);
+
+        assert_eq!(metrics.total_errors(), 3);
+    }
+
+    #[test]
+    fn test_invalid_partition_id() {
+        let metrics = PartitionMetrics::new(32);
+
+        // Should not panic, just ignore invalid partition IDs
+        metrics.record_write(100, Duration::from_micros(100));
+        metrics.record_error(100);
+
+        assert!(metrics.get_partition_stats(100).is_none());
+    }
+
+    #[test]
+    fn test_latency_tracking() {
+        let metrics = PartitionMetrics::new(32);
+
+        metrics.record_write(0, Duration::from_micros(100));
+        metrics.record_write(0, Duration::from_micros(200));
+        metrics.record_write(0, Duration::from_micros(300));
+
+        let stats = metrics.get_partition_stats(0).unwrap();
+        assert_eq!(stats.min_latency_ns, 100_000); // 100 microseconds in nanoseconds
+        assert_eq!(stats.max_latency_ns, 300_000); // 300 microseconds in nanoseconds
+
+        let avg = stats.avg_latency().unwrap();
+        assert_eq!(avg, Duration::from_nanos(200_000)); // Average: 200 microseconds
+    }
+
+    #[test]
+    fn test_detect_partition_imbalance_no_imbalance() {
+        let metrics = PartitionMetrics::new(4);
+
+        // Distribute events evenly
+        for i in 0..4 {
+            for _ in 0..100 {
+                metrics.record_write(i, Duration::from_micros(100));
+            }
+        }
+
+        let alerts = metrics.detect_partition_imbalance();
+        assert!(alerts.is_empty(), "No alerts expected for balanced partitions");
+    }
+
+    #[test]
+    fn test_detect_partition_imbalance_hot_partition() {
+        let metrics = PartitionMetrics::new(4);
+
+        // Partition 0 gets 500 events, others get 100 each
+        // Average = (500 + 100 + 100 + 100) / 4 = 200
+        // Partition 0 ratio = 500/200 = 2.5x (>2x threshold)
+        for _ in 0..500 {
+            metrics.record_write(0, Duration::from_micros(100));
+        }
+        for i in 1..4 {
+            for _ in 0..100 {
+                metrics.record_write(i, Duration::from_micros(100));
+            }
+        }
+
+        let alerts = metrics.detect_partition_imbalance();
+        assert_eq!(alerts.len(), 1, "Expected one alert for hot partition");
+        assert_eq!(alerts[0].partition_id, 0);
+        assert!(alerts[0].ratio_to_average > 2.0);
+    }
+
+    #[test]
+    fn test_detect_partition_imbalance_empty() {
+        let metrics = PartitionMetrics::new(4);
+
+        let alerts = metrics.detect_partition_imbalance();
+        assert!(alerts.is_empty(), "No alerts expected for empty metrics");
+    }
+
+    #[test]
+    fn test_get_all_partition_stats() {
+        let metrics = PartitionMetrics::new(4);
+
+        metrics.record_write(0, Duration::from_micros(100));
+        metrics.record_write(2, Duration::from_micros(200));
+
+        let all_stats = metrics.get_all_partition_stats();
+        assert_eq!(all_stats.len(), 4);
+        assert_eq!(all_stats[0].event_count, 1);
+        assert_eq!(all_stats[1].event_count, 0);
+        assert_eq!(all_stats[2].event_count, 1);
+        assert_eq!(all_stats[3].event_count, 0);
+    }
+
+    #[test]
+    fn test_prometheus_encoding() {
+        let metrics = PartitionMetrics::new(4);
+
+        metrics.record_write(0, Duration::from_micros(100));
+        metrics.record_write(1, Duration::from_micros(200));
+        metrics.record_error(0);
+
+        let encoded = metrics.encode().unwrap();
+
+        assert!(encoded.contains("allsource_partition_events_total"));
+        assert!(encoded.contains("allsource_partition_write_latency"));
+        assert!(encoded.contains("allsource_partition_errors_total"));
+    }
+
+    #[test]
+    fn test_reset() {
+        let metrics = PartitionMetrics::new(4);
+
+        metrics.record_write(0, Duration::from_micros(100));
+        metrics.record_error(1);
+
+        assert_eq!(metrics.total_events(), 1);
+        assert_eq!(metrics.total_errors(), 1);
+
+        metrics.reset();
+
+        assert_eq!(metrics.total_events(), 0);
+        assert_eq!(metrics.total_errors(), 0);
+    }
+
+    #[test]
+    fn test_concurrent_writes() {
+        let metrics = Arc::new(PartitionMetrics::new(32));
+        let mut handles = vec![];
+
+        // Spawn 8 threads, each writing 1000 events to random partitions
+        for _ in 0..8 {
+            let metrics_clone = metrics.clone();
+            let handle = thread::spawn(move || {
+                for i in 0..1000 {
+                    let partition_id = (i % 32) as u32;
+                    metrics_clone.record_write(partition_id, Duration::from_micros(100));
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        assert_eq!(metrics.total_events(), 8000);
+    }
+
+    #[test]
+    fn test_get_distribution() {
+        let metrics = PartitionMetrics::new(4);
+
+        metrics.record_write(0, Duration::from_micros(100));
+        metrics.record_write(0, Duration::from_micros(100));
+        metrics.record_write(2, Duration::from_micros(100));
+
+        let distribution = metrics.get_distribution();
+
+        assert_eq!(distribution.get(&0), Some(&2));
+        assert_eq!(distribution.get(&1), Some(&0));
+        assert_eq!(distribution.get(&2), Some(&1));
+        assert_eq!(distribution.get(&3), Some(&0));
+    }
+
+    #[test]
+    fn test_partition_stats_avg_latency_none() {
+        let stats = PartitionStats::new(0);
+        assert!(stats.avg_latency().is_none());
+    }
+
+    #[test]
+    fn test_alert_message_format() {
+        let metrics = PartitionMetrics::new(4);
+
+        // Create imbalanced scenario
+        for _ in 0..1000 {
+            metrics.record_write(0, Duration::from_micros(100));
+        }
+        for i in 1..4 {
+            for _ in 0..100 {
+                metrics.record_write(i, Duration::from_micros(100));
+            }
+        }
+
+        let alerts = metrics.detect_partition_imbalance();
+        assert!(!alerts.is_empty());
+
+        let alert = &alerts[0];
+        assert!(alert.message.contains("Partition 0"));
+        assert!(alert.message.contains("average load"));
+    }
+
+    #[test]
+    fn test_uptime() {
+        let metrics = PartitionMetrics::new(4);
+
+        // Sleep a bit to ensure non-zero uptime
+        thread::sleep(Duration::from_millis(10));
+
+        let uptime = metrics.uptime();
+        assert!(uptime.as_millis() >= 10);
     }
 }

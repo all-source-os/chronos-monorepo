@@ -340,7 +340,7 @@ impl QueryForkEventsUseCase {
 
         let event_dtos = events
             .into_iter()
-            .map(|e| crate::application::dto::EventDto::from(e))
+            .map(crate::application::dto::EventDto::from)
             .collect();
 
         Ok(QueryForkEventsResponse {

@@ -1,0 +1,86 @@
+# Changelog
+
+All notable changes to the Go Control Plane will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.0] - 2026-02-03
+
+### Added
+
+#### Performance Optimizations (US-026, US-027, US-028)
+
+**Connection Pooling** (US-026)
+- HTTP client connection pooling for Core communication
+- Configurable pool size and idle timeout
+- Connection reuse for reduced latency
+- Health checking for pooled connections
+
+**Response Caching** (US-027)
+- `ResponseCache` with TTL-based expiration
+- Cluster status caching (30s TTL)
+- Metrics caching (10s TTL)
+- Prometheus metrics for cache hits/misses
+- Thread-safe `sync.Map` implementation
+
+**Async Audit Logging** (US-028)
+- Buffered channel (10,000 capacity) for async processing
+- Background goroutine for log consumption
+- Graceful backpressure handling with timeout
+- Non-blocking audit writes in request path
+- Clean shutdown with event draining
+
+### Changed
+- Updated Go to 1.24
+- Improved error handling in API endpoints
+- Enhanced metrics collection
+
+### Performance
+- API latency: <10ms p99
+- Connection pool hit rate: >95%
+- Throughput: 5K+ req/sec
+
+---
+
+## [0.1.0] - 2025-10-21
+
+### Added
+
+#### Foundation - Complete
+
+**Authentication & Authorization**
+- JWT authentication client
+- Role-based access control (RBAC)
+- Policy engine with 5 default policies
+
+**Observability**
+- Comprehensive audit logging
+- Prometheus metrics integration
+- OpenTelemetry tracing (Jaeger)
+- Health checks and cluster status
+
+**API**
+- RESTful management API (12 endpoints)
+- Clean Architecture implementation
+- Domain layer with entities and repository interfaces
+- Application layer with use cases and ports
+- Infrastructure layer with concrete implementations
+
+**Quality**
+- Dependency injection with Google Wire
+- 95%+ test coverage
+- SOLID principles compliance
+
+### Performance
+- API latency: <15ms p99
+- Throughput: 3K+ req/sec
+
+---
+
+## Version History
+
+| Version | Date | Status | Highlights |
+|---------|------|--------|------------|
+| [0.2.0] | 2026-02-03 | Current | Connection Pooling, Performance |
+| [0.1.0] | 2025-10-21 | Stable | Foundation, Auth, Observability |

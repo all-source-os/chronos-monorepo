@@ -9,9 +9,9 @@
 use crate::error::Result;
 use crate::infrastructure::security::rate_limit::RateLimitResult;
 use chrono::{DateTime, Duration, Timelike, Utc};
+use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Adaptive rate limiting configuration
@@ -112,8 +112,8 @@ pub struct SystemLoad {
 pub struct AdaptiveRateLimiter {
     config: Arc<RwLock<AdaptiveRateLimitConfig>>,
 
-    // Tenant profiles
-    profiles: Arc<RwLock<HashMap<String, TenantUsageProfile>>>,
+    // Tenant profiles - using DashMap for lock-free concurrent access
+    profiles: Arc<DashMap<String, TenantUsageProfile>>,
 
     // Recent requests for pattern analysis
     recent_requests: Arc<RwLock<Vec<RequestRecord>>>,
@@ -135,7 +135,7 @@ impl AdaptiveRateLimiter {
     pub fn new(config: AdaptiveRateLimitConfig) -> Self {
         Self {
             config: Arc::new(RwLock::new(config)),
-            profiles: Arc::new(RwLock::new(HashMap::new())),
+            profiles: Arc::new(DashMap::new()),
             recent_requests: Arc::new(RwLock::new(Vec::new())),
             load_history: Arc::new(RwLock::new(Vec::new())),
         }
@@ -155,8 +155,7 @@ impl AdaptiveRateLimiter {
         }
 
         // Get or create profile
-        let mut profiles = self.profiles.write();
-        let profile = profiles.entry(tenant_id.to_string()).or_insert_with(|| {
+        let mut profile = self.profiles.entry(tenant_id.to_string()).or_insert_with(|| {
             TenantUsageProfile::new(tenant_id.to_string(), config.max_rate_limit)
         });
 
@@ -204,9 +203,10 @@ impl AdaptiveRateLimiter {
             return Ok(());
         }
 
-        let mut profiles = self.profiles.write();
+        for mut entry in self.profiles.iter_mut() {
+            let tenant_id = entry.key().clone();
+            let profile = entry.value_mut();
 
-        for (tenant_id, profile) in profiles.iter_mut() {
             if profile.data_points < 100 {
                 continue; // Not enough data
             }
@@ -292,8 +292,8 @@ impl AdaptiveRateLimiter {
             return Ok(0);
         }
 
-        let profiles = self.profiles.read();
-        if let Some(profile) = profiles.get(tenant_id) {
+        if let Some(profile_ref) = self.profiles.get(tenant_id) {
+            let profile = profile_ref.value();
             if profile.data_points < 1000 {
                 return Ok(profile.current_limit);
             }
@@ -342,8 +342,8 @@ impl AdaptiveRateLimiter {
 
     /// Get statistics for a tenant
     pub fn get_tenant_stats(&self, tenant_id: &str) -> Option<AdaptiveLimitStats> {
-        let profiles = self.profiles.read();
-        profiles.get(tenant_id).map(|profile| {
+        self.profiles.get(tenant_id).map(|profile_ref| {
+            let profile = profile_ref.value();
             let recent = self.recent_requests.read();
             let cutoff = Utc::now() - Duration::hours(1);
             let requests_last_hour = recent
@@ -365,11 +365,10 @@ impl AdaptiveRateLimiter {
 
     /// Get overall statistics
     pub fn get_stats(&self) -> AdaptiveRateLimiterStats {
-        let profiles = self.profiles.read();
         let recent = self.recent_requests.read();
 
         AdaptiveRateLimiterStats {
-            total_tenants: profiles.len(),
+            total_tenants: self.profiles.len(),
             total_requests: recent.len(),
             config: self.config.read().clone(),
         }
@@ -452,12 +451,11 @@ mod tests {
 
         // Create profile with sufficient data
         {
-            let mut profiles = limiter.profiles.write();
             let mut profile = TenantUsageProfile::new("tenant1".to_string(), 100);
             profile.data_points = 1500;
             profile.avg_requests_per_hour = 90.0; // High utilization
             profile.current_limit = 100;
-            profiles.insert("tenant1".to_string(), profile);
+            limiter.profiles.insert("tenant1".to_string(), profile);
         }
 
         // Update limits
@@ -474,11 +472,10 @@ mod tests {
 
         // Create profile
         {
-            let mut profiles = limiter.profiles.write();
             let mut profile = TenantUsageProfile::new("tenant1".to_string(), 100);
             profile.data_points = 1000;
             profile.current_limit = 100;
-            profiles.insert("tenant1".to_string(), profile);
+            limiter.profiles.insert("tenant1".to_string(), profile);
         }
 
         // Record high system load
@@ -521,12 +518,11 @@ mod tests {
 
         // Create profile that would exceed max
         {
-            let mut profiles = limiter.profiles.write();
             let mut profile = TenantUsageProfile::new("tenant1".to_string(), 100);
             profile.data_points = 1500;
             profile.avg_requests_per_hour = 180.0; // Very high
             profile.current_limit = 190;
-            profiles.insert("tenant1".to_string(), profile);
+            limiter.profiles.insert("tenant1".to_string(), profile);
         }
 
         limiter.update_adaptive_limits().unwrap();

@@ -112,4 +112,67 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
         {:error, reason}
     end
   end
+
+  @doc """
+  Perform semantic (vector) search on events.
+
+  Uses embeddings to find semantically similar events based on natural language queries.
+
+  ## Parameters
+    - `query` - Natural language search query
+    - `limit` - Maximum number of results (default: 100)
+    - `threshold` - Minimum similarity threshold 0.0-1.0 (default: 0.7)
+  """
+  def semantic_search(_client, params) when is_map(params) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/search/semantic", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Perform hybrid search combining semantic and keyword search.
+
+  Uses both vector similarity (semantic) and BM25 (keyword) scoring with
+  Reciprocal Rank Fusion (RRF) for optimal results.
+
+  ## Parameters
+    - `semantic_query` - Natural language query for semantic search (optional)
+    - `keywords` - Keywords for BM25 search (optional)
+    - `filters` - Object with optional filters:
+      - `event_type` - Filter by event type
+      - `entity_id` - Filter by entity ID
+      - `time_from` - Filter events after this ISO timestamp
+      - `time_to` - Filter events before this ISO timestamp
+    - `limit` - Maximum number of results (default: 100)
+  """
+  def hybrid_search(_client, params) when is_map(params) do
+    # Build the request body, filtering out nil values
+    body =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case post("/api/v1/search/hybrid", body) do
+      {:ok, %Tesla.Env{status: 200, body: response_body}} ->
+        {:ok, response_body}
+
+      {:ok, %Tesla.Env{status: status, body: response_body}} ->
+        {:error, "HTTP #{status}: #{inspect(response_body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 end

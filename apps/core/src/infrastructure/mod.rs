@@ -7,11 +7,15 @@
 // - security/ (Authentication, authorization, rate limiting)
 // - config/ (Configuration loading)
 // - observability/ (Metrics, tracing)
+// - search/ (Vector search engine with HNSW indexing)
+// - di/ (Dependency injection container)
 
 pub mod cluster;
 pub mod config;
+pub mod di;
 pub mod observability;
 pub mod persistence;
 pub mod repositories;
+pub mod search;
 pub mod security;
 pub mod web;

@@ -409,7 +409,7 @@ impl CompactionManager {
 
     /// Write a batch of events to a new Parquet file
     fn write_batch(&self, events: &[Event]) -> Result<PathBuf> {
-        let mut storage = ParquetStorage::new(&self.storage_dir)?;
+        let storage = ParquetStorage::new(&self.storage_dir)?;
 
         // Generate filename with timestamp
         let filename = format!(

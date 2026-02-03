@@ -307,7 +307,7 @@ impl EventStore {
 
         // Persist to Parquet storage if enabled (v0.2)
         if let Some(ref storage) = self.storage {
-            let mut storage = storage.write();
+            let storage = storage.read();
             storage.append_event(event.clone())?;
         }
 
@@ -391,7 +391,7 @@ impl EventStore {
     /// Manually flush any pending events to persistent storage
     pub fn flush_storage(&self) -> Result<()> {
         if let Some(ref storage) = self.storage {
-            let mut storage = storage.write();
+            let storage = storage.read();
             storage.flush()?;
             tracing::info!("✅ Flushed events to persistent storage");
         }

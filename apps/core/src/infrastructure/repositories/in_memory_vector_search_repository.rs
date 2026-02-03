@@ -153,10 +153,10 @@ impl InMemoryVectorSearchRepository {
                 DistanceMetric::Cosine | DistanceMetric::DotProduct => {
                     query
                         .min_similarity
-                        .map_or(true, |min| score.value() >= min)
+                        .is_none_or(|min| score.value() >= min)
                 }
                 DistanceMetric::Euclidean => {
-                    query.max_distance.map_or(true, |max| score.value() <= max)
+                    query.max_distance.is_none_or(|max| score.value() <= max)
                 }
             };
 

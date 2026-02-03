@@ -2,6 +2,7 @@ use crate::domain::entities::Event;
 use crate::error::{AllSourceError, Result};
 use crate::infrastructure::observability::metrics::MetricsRegistry;
 use chrono::{DateTime, Duration, Utc};
+use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -689,7 +690,8 @@ impl Pipeline {
 
 /// Manages multiple pipelines
 pub struct PipelineManager {
-    pipelines: Arc<RwLock<HashMap<Uuid, Arc<Pipeline>>>>,
+    // Using DashMap for lock-free concurrent access
+    pipelines: Arc<DashMap<Uuid, Arc<Pipeline>>>,
     metrics: Arc<MetricsRegistry>,
 }
 
@@ -700,7 +702,7 @@ impl PipelineManager {
 
     pub fn with_metrics(metrics: Arc<MetricsRegistry>) -> Self {
         Self {
-            pipelines: Arc::new(RwLock::new(HashMap::new())),
+            pipelines: Arc::new(DashMap::new()),
             metrics,
         }
     }
@@ -710,9 +712,9 @@ impl PipelineManager {
         let id = config.id;
         let name = config.name.clone();
         let pipeline = Arc::new(Pipeline::new(config));
-        self.pipelines.write().insert(id, pipeline);
+        self.pipelines.insert(id, pipeline);
 
-        let count = self.pipelines.read().len();
+        let count = self.pipelines.len();
         self.metrics.pipelines_registered_total.set(count as i64);
 
         tracing::info!("📊 Registered pipeline: {} ({})", name, id);
@@ -721,17 +723,18 @@ impl PipelineManager {
 
     /// Get a pipeline by ID
     pub fn get(&self, id: Uuid) -> Option<Arc<Pipeline>> {
-        self.pipelines.read().get(&id).cloned()
+        self.pipelines.get(&id).map(|entry| entry.value().clone())
     }
 
     /// Process event through all matching pipelines
     pub fn process_event(&self, event: &Event) -> Vec<(Uuid, JsonValue)> {
         let timer = self.metrics.pipeline_duration_seconds.start_timer();
 
-        let pipelines = self.pipelines.read();
         let mut results = Vec::new();
 
-        for (id, pipeline) in pipelines.iter() {
+        for entry in self.pipelines.iter() {
+            let id = entry.key();
+            let pipeline = entry.value();
             let pipeline_name = &pipeline.config().name;
             let pipeline_id = id.to_string();
 
@@ -768,18 +771,17 @@ impl PipelineManager {
     /// List all pipelines
     pub fn list(&self) -> Vec<PipelineConfig> {
         self.pipelines
-            .read()
-            .values()
-            .map(|p| p.config().clone())
+            .iter()
+            .map(|entry| entry.value().config().clone())
             .collect()
     }
 
     /// Remove a pipeline
     pub fn remove(&self, id: Uuid) -> bool {
-        let removed = self.pipelines.write().remove(&id).is_some();
+        let removed = self.pipelines.remove(&id).is_some();
 
         if removed {
-            let count = self.pipelines.read().len();
+            let count = self.pipelines.len();
             self.metrics.pipelines_registered_total.set(count as i64);
         }
 
@@ -788,7 +790,7 @@ impl PipelineManager {
 
     /// Get statistics for all pipelines
     pub fn all_stats(&self) -> Vec<PipelineStats> {
-        self.pipelines.read().values().map(|p| p.stats()).collect()
+        self.pipelines.iter().map(|entry| entry.value().stats()).collect()
     }
 }
 

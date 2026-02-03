@@ -1,5 +1,6 @@
 use crate::application::services::tenant_service::TenantManager;
 /// v1.0 API router with authentication and multi-tenancy
+use crate::infrastructure::di::ServiceContainer;
 use crate::infrastructure::security::auth::AuthManager;
 use crate::infrastructure::security::middleware::{
     auth_middleware, rate_limit_middleware, AuthState, RateLimitState,
@@ -23,6 +24,8 @@ pub struct AppState {
     pub store: Arc<EventStore>,
     pub auth_manager: Arc<AuthManager>,
     pub tenant_manager: Arc<TenantManager>,
+    /// Service container for paywall domain use cases (Creator, Article, Payment, etc.)
+    pub service_container: ServiceContainer,
 }
 
 // Enable extracting Arc<EventStore> from AppState
@@ -38,12 +41,14 @@ pub async fn serve_v1(
     auth_manager: Arc<AuthManager>,
     tenant_manager: Arc<TenantManager>,
     rate_limiter: Arc<RateLimiter>,
+    service_container: ServiceContainer,
     addr: &str,
 ) -> anyhow::Result<()> {
     let app_state = AppState {
         store,
         auth_manager: auth_manager.clone(),
         tenant_manager,
+        service_container,
     };
 
     let auth_state = AuthState {
@@ -203,11 +208,13 @@ pub async fn serve_v1(
             post(super::api::bulk_save_projection_states),
         )
         .with_state(app_state)
-        .layer(middleware::from_fn_with_state(auth_state, auth_middleware))
+        // IMPORTANT: Middleware layers execute from bottom to top in Tower/Axum
+        // Rate limit MUST come before auth so auth runs first and populates AuthContext
         .layer(middleware::from_fn_with_state(
             rate_limit_state,
             rate_limit_middleware,
         ))
+        .layer(middleware::from_fn_with_state(auth_state, auth_middleware))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)

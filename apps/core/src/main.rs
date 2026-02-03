@@ -2,6 +2,7 @@ use allsource_core::{
     api_v1,
     auth::AuthManager,
     config::ServerConfig,
+    infrastructure::di::ContainerBuilder,
     rate_limit::{RateLimitConfig, RateLimiter},
     store::EventStore,
     tenant::TenantManager,
@@ -33,10 +34,16 @@ async fn main() -> Result<()> {
     let tenant_manager = Arc::new(TenantManager::new());
     let rate_limiter = Arc::new(RateLimiter::new(RateLimitConfig::professional()));
 
+    // Initialize DI container for paywall domain
+    let service_container = ContainerBuilder::new()
+        .with_in_memory_repositories()
+        .build();
+
     tracing::info!("✅ Event store initialized");
     tracing::info!("✅ Authentication manager initialized");
     tracing::info!("✅ Tenant manager initialized (default tenant created)");
     tracing::info!("✅ Rate limiter initialized (professional tier defaults)");
+    tracing::info!("✅ Service container initialized (in-memory repositories)");
 
     // Register bootstrap API key if configured
     if let Ok(bootstrap_key) = std::env::var("ALLSOURCE_BOOTSTRAP_API_KEY") {
@@ -53,7 +60,7 @@ async fn main() -> Result<()> {
     tracing::info!("📝 API Documentation: /health for health check");
     tracing::info!("🔒 Features: Auth, Multi-tenancy, Rate Limiting");
 
-    api_v1::serve_v1(store, auth_manager, tenant_manager, rate_limiter, &addr).await?;
+    api_v1::serve_v1(store, auth_manager, tenant_manager, rate_limiter, service_container, &addr).await?;
 
     Ok(())
 }

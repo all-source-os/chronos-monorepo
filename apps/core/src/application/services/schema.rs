@@ -1,5 +1,6 @@
 use crate::error::{AllSourceError, Result};
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -142,15 +143,15 @@ impl Default for SchemaRegistryConfig {
 
 /// Central registry for managing event schemas
 pub struct SchemaRegistry {
-    /// Schemas organized by subject and version
+    /// Schemas organized by subject and version - using DashMap for lock-free concurrent access
     /// Key: subject -> version -> Schema
-    schemas: Arc<RwLock<HashMap<String, HashMap<u32, Schema>>>>,
+    schemas: Arc<DashMap<String, HashMap<u32, Schema>>>,
 
     /// Latest version for each subject
-    latest_versions: Arc<RwLock<HashMap<String, u32>>>,
+    latest_versions: Arc<DashMap<String, u32>>,
 
     /// Compatibility mode for each subject
-    compatibility_modes: Arc<RwLock<HashMap<String, CompatibilityMode>>>,
+    compatibility_modes: Arc<DashMap<String, CompatibilityMode>>,
 
     /// Configuration
     config: SchemaRegistryConfig,
@@ -162,9 +163,9 @@ pub struct SchemaRegistry {
 impl SchemaRegistry {
     pub fn new(config: SchemaRegistryConfig) -> Self {
         Self {
-            schemas: Arc::new(RwLock::new(HashMap::new())),
-            latest_versions: Arc::new(RwLock::new(HashMap::new())),
-            compatibility_modes: Arc::new(RwLock::new(HashMap::new())),
+            schemas: Arc::new(DashMap::new()),
+            latest_versions: Arc::new(DashMap::new()),
+            compatibility_modes: Arc::new(DashMap::new()),
             config,
             stats: Arc::new(RwLock::new(SchemaRegistryStats {
                 total_schemas: 0,
@@ -183,28 +184,24 @@ impl SchemaRegistry {
         description: Option<String>,
         tags: Option<Vec<String>>,
     ) -> Result<RegisterSchemaResponse> {
-        let mut schemas = self.schemas.write();
-        let mut latest_versions = self.latest_versions.write();
-
-        // Get or create subject entry
-        let subject_schemas = schemas.entry(subject.clone()).or_default();
-
         // Determine next version
-        let next_version = latest_versions.get(&subject).map(|v| v + 1).unwrap_or(1);
+        let next_version = self.latest_versions.get(&subject).map(|v| *v + 1).unwrap_or(1);
 
         // Check compatibility with previous version if it exists
         if next_version > 1 {
             let prev_version = next_version - 1;
-            if let Some(prev_schema) = subject_schemas.get(&prev_version) {
-                let compatibility = self.get_compatibility_mode(&subject);
-                let check_result =
-                    self.check_compatibility(&prev_schema.schema, &schema, compatibility)?;
+            if let Some(subject_schemas) = self.schemas.get(&subject) {
+                if let Some(prev_schema) = subject_schemas.get(&prev_version) {
+                    let compatibility = self.get_compatibility_mode(&subject);
+                    let check_result =
+                        self.check_compatibility(&prev_schema.schema, &schema, compatibility)?;
 
-                if !check_result.compatible {
-                    return Err(AllSourceError::ValidationError(format!(
-                        "Schema compatibility check failed: {}",
-                        check_result.issues.join(", ")
-                    )));
+                    if !check_result.compatible {
+                        return Err(AllSourceError::ValidationError(format!(
+                            "Schema compatibility check failed: {}",
+                            check_result.issues.join(", ")
+                        )));
+                    }
                 }
             }
         }
@@ -217,8 +214,9 @@ impl SchemaRegistry {
         let schema_id = new_schema.id;
         let created_at = new_schema.created_at;
 
-        subject_schemas.insert(next_version, new_schema);
-        latest_versions.insert(subject.clone(), next_version);
+        // Get or create subject entry and insert the schema
+        self.schemas.entry(subject.clone()).or_default().insert(next_version, new_schema);
+        self.latest_versions.insert(subject.clone(), next_version);
 
         // Update stats
         let mut stats = self.stats.write();
@@ -244,17 +242,14 @@ impl SchemaRegistry {
 
     /// Get a schema by subject and version (or latest if no version specified)
     pub fn get_schema(&self, subject: &str, version: Option<u32>) -> Result<Schema> {
-        let schemas = self.schemas.read();
-
-        let subject_schemas = schemas.get(subject).ok_or_else(|| {
+        let subject_schemas = self.schemas.get(subject).ok_or_else(|| {
             AllSourceError::ValidationError(format!("Subject not found: {subject}"))
         })?;
 
         let version = match version {
             Some(v) => v,
             None => {
-                let latest_versions = self.latest_versions.read();
-                *latest_versions.get(subject).ok_or_else(|| {
+                *self.latest_versions.get(subject).ok_or_else(|| {
                     AllSourceError::ValidationError(format!("No versions for subject: {subject}"))
                 })?
             }
@@ -270,9 +265,7 @@ impl SchemaRegistry {
 
     /// List all versions of a schema subject
     pub fn list_versions(&self, subject: &str) -> Result<Vec<u32>> {
-        let schemas = self.schemas.read();
-
-        let subject_schemas = schemas.get(subject).ok_or_else(|| {
+        let subject_schemas = self.schemas.get(subject).ok_or_else(|| {
             AllSourceError::ValidationError(format!("Subject not found: {subject}"))
         })?;
 
@@ -284,8 +277,7 @@ impl SchemaRegistry {
 
     /// List all schema subjects
     pub fn list_subjects(&self) -> Vec<String> {
-        let schemas = self.schemas.read();
-        schemas.keys().cloned().collect()
+        self.schemas.iter().map(|entry| entry.key().clone()).collect()
     }
 
     /// Validate a payload against a schema
@@ -471,24 +463,20 @@ impl SchemaRegistry {
 
     /// Set compatibility mode for a subject
     pub fn set_compatibility_mode(&self, subject: String, mode: CompatibilityMode) {
-        let mut modes = self.compatibility_modes.write();
-        modes.insert(subject, mode);
+        self.compatibility_modes.insert(subject, mode);
     }
 
     /// Get compatibility mode for a subject (or default)
     pub fn get_compatibility_mode(&self, subject: &str) -> CompatibilityMode {
-        let modes = self.compatibility_modes.read();
-        modes
+        self.compatibility_modes
             .get(subject)
-            .copied()
+            .map(|entry| *entry.value())
             .unwrap_or(self.config.default_compatibility)
     }
 
     /// Delete a specific schema version
     pub fn delete_schema(&self, subject: &str, version: u32) -> Result<bool> {
-        let mut schemas = self.schemas.write();
-
-        if let Some(subject_schemas) = schemas.get_mut(subject) {
+        if let Some(mut subject_schemas) = self.schemas.get_mut(subject) {
             if subject_schemas.remove(&version).is_some() {
                 tracing::info!("🗑️  Deleted schema v{} for subject '{}'", version, subject);
 

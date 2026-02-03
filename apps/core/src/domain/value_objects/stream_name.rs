@@ -108,11 +108,7 @@ impl StreamName {
     /// assert_eq!(stream.entity_id(), None);
     /// ```
     pub fn entity_id(&self) -> Option<&str> {
-        if self.0.contains(':') {
-            self.0.splitn(2, ':').nth(1)
-        } else {
-            None
-        }
+        self.0.split_once(':').map(|x| x.1)
     }
 
     /// Check if this stream is for a specific entity type

@@ -50,8 +50,9 @@ func NewControlPlaneV1() (*ControlPlaneV1, error) {
 		return nil, fmt.Errorf("failed to initialize audit logger: %w", err)
 	}
 
-	// Initialize HTTP client with auth token support
-	client := resty.New().
+	// Initialize HTTP client with auth token support and connection pooling
+	httpClient := NewPooledHTTPClient()
+	client := resty.NewWithClient(httpClient).
 		SetTimeout(10 * time.Second).
 		SetBaseURL(CoreServiceURL)
 

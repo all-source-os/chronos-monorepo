@@ -98,17 +98,16 @@ impl UpdateCreatorUseCase {
             let wallet_address = WalletAddress::new(wallet)?;
 
             // Check for duplicate wallet (if different from current)
-            if creator.wallet_address() != &wallet_address {
-                if self
+            if creator.wallet_address() != &wallet_address
+                && self
                     .repository
                     .find_by_wallet(&wallet_address)
                     .await?
                     .is_some()
-                {
-                    return Err(crate::error::AllSourceError::ValidationError(
-                        "Wallet address is already registered to another creator".to_string(),
-                    ));
-                }
+            {
+                return Err(crate::error::AllSourceError::ValidationError(
+                    "Wallet address is already registered to another creator".to_string(),
+                ));
             }
 
             creator.update_wallet_address(wallet_address);
