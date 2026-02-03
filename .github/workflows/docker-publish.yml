@@ -376,7 +376,7 @@ jobs:
 
           # Generate DockerHub tags (same pattern as GHCR)
           # Branch tag
-          if [ "${{ github.ref_type }}" == "branch" ]; then
+          if [[ "${{ github.ref_type }}" = "branch" ]]; then
             TAG="${DOCKERHUB_IMAGE}:${{ github.ref_name }}"
             docker buildx imagetools create -t "$TAG" "$AMD64_IMAGE" "$ARM64_IMAGE"
           fi

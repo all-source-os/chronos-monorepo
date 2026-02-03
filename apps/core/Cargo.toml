@@ -1,6 +1,6 @@
 [package]
 name = "allsource-core"
-version = "0.7.4"
+version = "0.8.0"
 edition = "2021"
 rust-version = "1.92"
 authors = ["AllSource Team"]
@@ -34,6 +34,8 @@ keyword-search = ["tantivy"]
 
 [dependencies]
 # Note: arrow/parquet versions must be compatible with datafusion
+# Security: bytes 1.11.1+ required for RUSTSEC-2026-0007
+bytes = "1.11.1"
 aes-gcm = "0.10"
 anyhow = "1.0"
 argon2 = "0.5"
