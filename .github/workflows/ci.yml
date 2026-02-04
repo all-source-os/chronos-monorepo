@@ -38,8 +38,11 @@ jobs:
 
       - name: Lint workflow files
         run: |
-          # Ignore shellcheck info/style warnings (SC2086, SC2129) - these are non-critical
-          ./actionlint -ignore 'SC2086' -ignore 'SC2129' -color
+          # Ignore shellcheck warnings that are false positives for GitHub Actions:
+          # SC2086: Word splitting - often intentional with GHA outputs
+          # SC2129: Multiple echo redirects - style preference
+          # SC2193: Comparison can never be equal - false positive for GHA template syntax
+          ./actionlint -ignore 'SC2086' -ignore 'SC2129' -ignore 'SC2193' -color
 
   # Validate workflow structure with act (dry-run)
   workflow-validate:
