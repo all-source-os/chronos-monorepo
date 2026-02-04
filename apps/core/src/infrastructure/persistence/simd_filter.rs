@@ -1,3 +1,8 @@
+// Clippy lints allowed for SIMD code patterns:
+// - needless_range_loop: Index loops are intentional for SIMD processing patterns
+// - collapsible_if: Nested ifs are clearer for SIMD fast-path/verification logic
+#![allow(clippy::needless_range_loop, clippy::collapsible_if)]
+
 //! SIMD-optimized event filtering for high-throughput event processing
 //!
 //! This module provides SIMD-accelerated filtering for common predicates:
@@ -483,9 +488,9 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for event in events.iter().skip(processed) {
-            if event.timestamp() > threshold {
-                result.push(event.clone());
+        for i in processed..events.len() {
+            if events[i].timestamp() > threshold {
+                result.push(events[i].clone());
             }
         }
 
@@ -575,9 +580,9 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for event in events.iter().skip(processed) {
-            if event.timestamp() < threshold {
-                result.push(event.clone());
+        for i in processed..events.len() {
+            if events[i].timestamp() < threshold {
+                result.push(events[i].clone());
             }
         }
 
@@ -682,10 +687,10 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for event in events.iter().skip(processed) {
-            let ts = event.timestamp();
+        for i in processed..events.len() {
+            let ts = events[i].timestamp();
             if ts >= start && ts <= end {
-                result.push(event.clone());
+                result.push(events[i].clone());
             }
         }
 
@@ -772,8 +777,8 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for (i, event) in events.iter().enumerate().skip(processed) {
-            if event.timestamp() > threshold {
+        for i in processed..events.len() {
+            if events[i].timestamp() > threshold {
                 result.push(i);
             }
         }
@@ -861,8 +866,8 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for (i, event) in events.iter().enumerate().skip(processed) {
-            if event.timestamp() < threshold {
+        for i in processed..events.len() {
+            if events[i].timestamp() < threshold {
                 result.push(i);
             }
         }
@@ -962,8 +967,8 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for (i, event) in events.iter().enumerate().skip(processed) {
-            let ts = event.timestamp();
+        for i in processed..events.len() {
+            let ts = events[i].timestamp();
             if ts >= start && ts <= end {
                 result.push(i);
             }
@@ -1176,10 +1181,10 @@ impl SimdEventFilter {
                             IMM8,
                         );
 
-                        if (cmp_result >= prefix_len as i32 || cmp_result == 16)
-                            && s.starts_with(prefix)
-                        {
-                            result.push(idx);
+                        if cmp_result >= prefix_len as i32 || cmp_result == 16 {
+                            if s.starts_with(prefix) {
+                                result.push(idx);
+                            }
                         }
                     }
                 }
