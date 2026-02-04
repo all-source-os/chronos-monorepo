@@ -4,7 +4,6 @@
 //! and that use cases can be created and used.
 
 use super::{ContainerBuilder, ServiceContainer};
-use crate::domain::repositories::EventStreamRepository;
 use crate::domain::value_objects::EntityId;
 use std::sync::Arc;
 

@@ -483,9 +483,9 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for i in processed..events.len() {
-            if events[i].timestamp() > threshold {
-                result.push(events[i].clone());
+        for event in events.iter().skip(processed) {
+            if event.timestamp() > threshold {
+                result.push(event.clone());
             }
         }
 
@@ -575,9 +575,9 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for i in processed..events.len() {
-            if events[i].timestamp() < threshold {
-                result.push(events[i].clone());
+        for event in events.iter().skip(processed) {
+            if event.timestamp() < threshold {
+                result.push(event.clone());
             }
         }
 
@@ -682,10 +682,10 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for i in processed..events.len() {
-            let ts = events[i].timestamp();
+        for event in events.iter().skip(processed) {
+            let ts = event.timestamp();
             if ts >= start && ts <= end {
-                result.push(events[i].clone());
+                result.push(event.clone());
             }
         }
 
@@ -772,8 +772,8 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for i in processed..events.len() {
-            if events[i].timestamp() > threshold {
+        for (i, event) in events.iter().enumerate().skip(processed) {
+            if event.timestamp() > threshold {
                 result.push(i);
             }
         }
@@ -861,8 +861,8 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for i in processed..events.len() {
-            if events[i].timestamp() < threshold {
+        for (i, event) in events.iter().enumerate().skip(processed) {
+            if event.timestamp() < threshold {
                 result.push(i);
             }
         }
@@ -962,8 +962,8 @@ impl SimdEventFilter {
             (timestamps.len() / 2) * 2
         };
 
-        for i in processed..events.len() {
-            let ts = events[i].timestamp();
+        for (i, event) in events.iter().enumerate().skip(processed) {
+            let ts = event.timestamp();
             if ts >= start && ts <= end {
                 result.push(i);
             }
@@ -1176,10 +1176,10 @@ impl SimdEventFilter {
                             IMM8,
                         );
 
-                        if cmp_result >= prefix_len as i32 || cmp_result == 16 {
-                            if s.starts_with(prefix) {
-                                result.push(idx);
-                            }
+                        if (cmp_result >= prefix_len as i32 || cmp_result == 16)
+                            && s.starts_with(prefix)
+                        {
+                            result.push(idx);
                         }
                     }
                 }

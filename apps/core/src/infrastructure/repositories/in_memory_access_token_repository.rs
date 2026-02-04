@@ -382,7 +382,7 @@ mod tests {
             test_creator_id(),
             test_wallet(),
             test_transaction_id(),
-            format!("{}{}", VALID_TOKEN_HASH[..60].to_string(), hash_suffix),
+            format!("{}{}", &VALID_TOKEN_HASH[..60], hash_suffix),
         )
         .unwrap()
     }
@@ -391,7 +391,7 @@ mod tests {
     async fn test_save_and_find_by_id() {
         let repo = InMemoryAccessTokenRepository::new();
         let token = create_test_token("test");
-        let token_id = token.id().clone();
+        let token_id = *token.id();
 
         repo.save(&token).await.unwrap();
 
@@ -531,11 +531,7 @@ mod tests {
                 test_creator_id(),
                 wallet.clone(),
                 test_transaction_id(),
-                format!(
-                    "{}{}",
-                    VALID_TOKEN_HASH[..60].to_string(),
-                    format!("{:04}", i)
-                ),
+                format!("{}{:04}", &VALID_TOKEN_HASH[..60], i),
             )
             .unwrap();
             repo.save(&token).await.unwrap();
@@ -557,11 +553,7 @@ mod tests {
                 test_creator_id(),
                 test_wallet_n(i),
                 test_transaction_id(),
-                format!(
-                    "{}{}",
-                    VALID_TOKEN_HASH[..60].to_string(),
-                    format!("{:04}", i)
-                ),
+                format!("{}{:04}", &VALID_TOKEN_HASH[..60], i),
             )
             .unwrap();
             repo.save(&token).await.unwrap();
@@ -583,11 +575,7 @@ mod tests {
                 creator_id,
                 test_wallet_n(i),
                 test_transaction_id(),
-                format!(
-                    "{}{}",
-                    VALID_TOKEN_HASH[..60].to_string(),
-                    format!("{:04}", i)
-                ),
+                format!("{}{:04}", &VALID_TOKEN_HASH[..60], i),
             )
             .unwrap();
             repo.save(&token).await.unwrap();
@@ -609,7 +597,7 @@ mod tests {
             VALID_TOKEN_HASH.to_string(),
         )
         .unwrap();
-        let token_id = token.id().clone();
+        let token_id = *token.id();
         repo.save(&token).await.unwrap();
 
         let revoked = repo.revoke(&token_id, "Test revocation").await.unwrap();
@@ -637,11 +625,7 @@ mod tests {
                 test_creator_id(),
                 test_wallet(),
                 transaction_id,
-                format!(
-                    "{}{}",
-                    VALID_TOKEN_HASH[..60].to_string(),
-                    format!("{:04}", i)
-                ),
+                format!("{}{:04}", &VALID_TOKEN_HASH[..60], i),
             )
             .unwrap();
             repo.save(&token).await.unwrap();
@@ -694,7 +678,7 @@ mod tests {
             test_creator_id(),
             test_wallet(),
             test_transaction_id(),
-            format!("{}val1", VALID_TOKEN_HASH[..60].to_string()),
+            format!("{}val1", &VALID_TOKEN_HASH[..60]),
         )
         .unwrap();
         repo.save(&valid).await.unwrap();
@@ -706,7 +690,7 @@ mod tests {
             test_creator_id(),
             test_wallet_2(),
             test_transaction_id(),
-            format!("{}rev1", VALID_TOKEN_HASH[..60].to_string()),
+            format!("{}rev1", &VALID_TOKEN_HASH[..60]),
         )
         .unwrap();
         revoked.revoke("Test").unwrap();
@@ -728,7 +712,7 @@ mod tests {
             test_creator_id(),
             test_wallet(),
             test_transaction_id(),
-            format!("{}paid", VALID_TOKEN_HASH[..60].to_string()),
+            format!("{}paid", &VALID_TOKEN_HASH[..60]),
         )
         .unwrap();
         repo.save(&paid).await.unwrap();
@@ -739,7 +723,7 @@ mod tests {
             test_article_id(),
             test_creator_id(),
             test_wallet_2(),
-            format!("{}free", VALID_TOKEN_HASH[..60].to_string()),
+            format!("{}free", &VALID_TOKEN_HASH[..60]),
             7,
         )
         .unwrap();
@@ -762,11 +746,7 @@ mod tests {
                 test_creator_id(),
                 test_wallet_n(i),
                 test_transaction_id(),
-                format!(
-                    "{}{}",
-                    VALID_TOKEN_HASH[..60].to_string(),
-                    format!("{:04}", i)
-                ),
+                format!("{}{:04}", &VALID_TOKEN_HASH[..60], i),
             )
             .unwrap();
             repo.save(&token).await.unwrap();
@@ -789,7 +769,7 @@ mod tests {
             test_creator_id(),
             test_wallet(),
             test_transaction_id(),
-            format!("{}val1", VALID_TOKEN_HASH[..60].to_string()),
+            format!("{}val1", &VALID_TOKEN_HASH[..60]),
         )
         .unwrap();
         repo.save(&valid).await.unwrap();
@@ -801,7 +781,7 @@ mod tests {
             test_creator_id(),
             test_wallet_2(),
             test_transaction_id(),
-            format!("{}rev1", VALID_TOKEN_HASH[..60].to_string()),
+            format!("{}rev1", &VALID_TOKEN_HASH[..60]),
         )
         .unwrap();
         revoked.revoke("Test").unwrap();

@@ -303,7 +303,7 @@ impl TransactionRepository for InMemoryTransactionRepository {
             })
             .collect();
 
-        data_points.sort_by(|a, b| a.period_start.cmp(&b.period_start));
+        data_points.sort_by_key(|a| a.period_start);
 
         Ok(data_points)
     }
@@ -419,7 +419,7 @@ mod tests {
     async fn test_save_and_find_by_id() {
         let repo = InMemoryTransactionRepository::new();
         let transaction = create_test_transaction("test");
-        let tx_id = transaction.id().clone();
+        let tx_id = *transaction.id();
 
         repo.save(&transaction).await.unwrap();
 
@@ -496,7 +496,7 @@ mod tests {
                 Money::usd_cents(100),
                 7,
                 Blockchain::Solana,
-                format!("{}{}", &VALID_SIGNATURE[..80], format!("{:08}", i)),
+                format!("{}{:08}", &VALID_SIGNATURE[..80], i),
             )
             .unwrap();
             repo.save(&tx).await.unwrap();
@@ -520,7 +520,7 @@ mod tests {
                 Money::usd_cents(100),
                 7,
                 Blockchain::Solana,
-                format!("{}{}", &VALID_SIGNATURE[..80], format!("{:08}", i)),
+                format!("{}{:08}", &VALID_SIGNATURE[..80], i),
             )
             .unwrap();
             repo.save(&tx).await.unwrap();
@@ -544,7 +544,7 @@ mod tests {
                 Money::usd_cents(100),
                 7,
                 Blockchain::Solana,
-                format!("{}{}", &VALID_SIGNATURE[..80], format!("{:08}", i)),
+                format!("{}{:08}", &VALID_SIGNATURE[..80], i),
             )
             .unwrap();
             repo.save(&tx).await.unwrap();
@@ -605,7 +605,7 @@ mod tests {
                 Money::usd_cents(100), // $1.00
                 7,                     // 7% fee
                 Blockchain::Solana,
-                format!("{}{}", &VALID_SIGNATURE[..80], format!("{:08}", i)),
+                format!("{}{:08}", &VALID_SIGNATURE[..80], i),
             )
             .unwrap();
             tx.confirm().unwrap();
@@ -632,7 +632,7 @@ mod tests {
                 Money::usd_cents(100), // $1.00
                 7,
                 Blockchain::Solana,
-                format!("{}{}", &VALID_SIGNATURE[..80], format!("{:08}", i)),
+                format!("{}{:08}", &VALID_SIGNATURE[..80], i),
             )
             .unwrap();
             tx.confirm().unwrap();
@@ -734,7 +734,7 @@ mod tests {
                 Money::usd_cents(100),
                 7,
                 Blockchain::Solana,
-                format!("{}{}", &VALID_SIGNATURE[..80], format!("{:08}", i)),
+                format!("{}{:08}", &VALID_SIGNATURE[..80], i),
             )
             .unwrap();
             repo.save(&tx).await.unwrap();
@@ -761,7 +761,7 @@ mod tests {
                 Money::usd_cents(100),
                 7,
                 Blockchain::Solana,
-                format!("{}{}", &VALID_SIGNATURE[..80], format!("{:08}", i)),
+                format!("{}{:08}", &VALID_SIGNATURE[..80], i),
             )
             .unwrap();
             tx.confirm().unwrap();

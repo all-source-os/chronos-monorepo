@@ -947,13 +947,9 @@ impl PartitionStats {
 
     /// Calculate average write latency
     pub fn avg_latency(&self) -> Option<Duration> {
-        if self.write_count == 0 {
-            None
-        } else {
-            Some(Duration::from_nanos(
-                self.total_latency_ns / self.write_count,
-            ))
-        }
+        self.total_latency_ns
+            .checked_div(self.write_count)
+            .map(Duration::from_nanos)
     }
 }
 

@@ -262,7 +262,7 @@ mod tests {
     async fn test_find_by_id() {
         let repo = InMemoryCreatorRepository::new();
         let creator = create_test_creator("test@example.com");
-        let creator_id = creator.id().clone();
+        let creator_id = *creator.id();
 
         repo.create(creator).await.unwrap();
 
@@ -361,7 +361,7 @@ mod tests {
     async fn test_delete() {
         let repo = InMemoryCreatorRepository::new();
         let creator = create_test_creator("test@example.com");
-        let creator_id = creator.id().clone();
+        let creator_id = *creator.id();
 
         repo.create(creator).await.unwrap();
         assert_eq!(repo.len(), 1);

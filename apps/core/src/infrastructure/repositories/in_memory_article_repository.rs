@@ -253,7 +253,7 @@ impl ArticleRepository for InMemoryArticleRepository {
                 });
             }
             ArticleOrderBy::PurchasesDesc => {
-                result.sort_by(|a, b| b.stats().total_purchases.cmp(&a.stats().total_purchases));
+                result.sort_by_key(|a| std::cmp::Reverse(a.stats().total_purchases));
             }
             ArticleOrderBy::PriceDesc => {
                 result.sort_by_key(|b| std::cmp::Reverse(b.price_cents()));
