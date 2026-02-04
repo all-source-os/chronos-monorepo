@@ -291,29 +291,29 @@ interface Tenant {
 
 ## 5. Test Plan - Coverage Mapping
 
-### Current Test Coverage (53 tests in 5 files)
+### Current Test Coverage (135 tests in 5 files)
 
 | Test File | Tests | Coverage Area |
 |-----------|-------|---------------|
-| `demo-ui.spec.ts` | 12 | Hero section, feature cards, navigation between sections |
-| `event-ingestion.spec.ts` | 8 | Event generation, UI elements, stats display |
-| `metrics-demo.spec.ts` | 14 | Metric cards, refresh, loading states, timestamps |
-| `query-demo.spec.ts` | 9 | Query execution, parameters, results display |
-| `components.spec.ts` | 10 | UI component test page (buttons, badges, cards) |
+| `demo-page.spec.ts` | 20 | Hero section, feature cards, navigation between sections, responsive layout, accessibility |
+| `event-ingestion.spec.ts` | 30 | Event generation (e-commerce, IoT), batch operations, event stream, stats display, Core API integration |
+| `metrics.spec.ts` | 22 | Metric cards, refresh, auto-refresh, loading states, timestamps, historical snapshots |
+| `query.spec.ts` | 27 | Query execution (by entity, by type, time range, advanced), parameters, results display, Core API integration |
+| `ui-components.spec.ts` | 36 | Button variants and sizes, badge variants, card components, interactive states (click, hover), accessibility |
 
 ### Test Coverage by Section
 
 | Section | Status | Tests | Notes |
 |---------|--------|-------|-------|
-| Hero/Navigation | ✅ Covered | 12 | `demo-ui.spec.ts` |
-| Event Ingestion | ✅ Covered | 8 | `event-ingestion.spec.ts` |
-| Query Engine | ✅ Covered | 9 | `query-demo.spec.ts` |
-| System Metrics | ✅ Covered | 14 | `metrics-demo.spec.ts` |
-| Projections | ⚠️ Partial | 1 | Navigation only (in demo-ui.spec.ts) |
-| Security | ⚠️ Partial | 1 | Navigation only (in demo-ui.spec.ts) |
-| Time Travel | ⚠️ Partial | 1 | Navigation only (in demo-ui.spec.ts) |
-| Analytics | ❌ Not covered | 0 | No dedicated tests |
-| Pipelines | ❌ Not covered | 0 | No dedicated tests |
+| Hero/Navigation | ✅ Covered | 20 | `demo-page.spec.ts` |
+| Event Ingestion | ✅ Covered | 30 | `event-ingestion.spec.ts` |
+| Query Engine | ✅ Covered | 27 | `query.spec.ts` |
+| System Metrics | ✅ Covered | 22 | `metrics.spec.ts` |
+| Projections | ⚠️ Partial | 1 | Navigation only (in demo-page.spec.ts) |
+| Security | ⚠️ Partial | 1 | Navigation only (in demo-page.spec.ts) |
+| Time Travel | ⚠️ Partial | 1 | Navigation only (in demo-page.spec.ts) |
+| Analytics | ⚠️ Partial | 1 | Navigation only (in demo-page.spec.ts) |
+| Pipelines | ⚠️ Partial | 1 | Navigation only (in demo-page.spec.ts) |
 
 ### Recommended Additional Tests
 

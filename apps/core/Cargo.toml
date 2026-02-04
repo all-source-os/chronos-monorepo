@@ -12,6 +12,7 @@ documentation = "https://docs.rs/allsource-core"
 keywords = ["event-sourcing", "event-store", "cqrs", "arrow", "parquet"]
 categories = ["database", "data-structures", "asynchronous"]
 readme = "README.md"
+exclude = [".fastembed_cache/", "target/", "*.db", "data/"]
 
 [lib]
 name = "allsource_core"
