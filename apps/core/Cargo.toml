@@ -34,9 +34,6 @@ vector-search = ["fastembed", "instant-distance"]
 keyword-search = ["tantivy"]
 
 [dependencies]
-# Note: arrow/parquet versions must be compatible with datafusion
-# Security: bytes 1.11.1+ required for RUSTSEC-2026-0007
-bytes = "1.11.1"
 aes-gcm = "0.10"
 anyhow = "1.0"
 argon2 = "0.5"
@@ -47,6 +44,9 @@ axum = { version = "0.8", features = ["json", "ws"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
 base64 = "0.22"
 bumpalo = { version = "3.16", features = ["collections"] }
+# Note: arrow/parquet versions must be compatible with datafusion
+# Security: bytes 1.11.1+ required for RUSTSEC-2026-0007
+bytes = "1.11.1"
 chrono = { version = "0.4", features = ["serde"] }
 crc32fast = "1.4"
 crossbeam = "0.8"
@@ -54,9 +54,13 @@ crossbeam-queue = "0.3"
 dashmap = "6.1"
 # Note: datafusion 51+ requires Rust 1.88+, pinned to 44.x for Rust 1.85 compatibility
 datafusion = "44.0"
+
+# Vector search dependencies (optional)
+fastembed = { version = "4", optional = true }
 flate2 = "1.0"
 futures = "0.3"
 http = "1.0"
+instant-distance = { version = "0.6", optional = true }
 jsonschema = "0.40"
 jsonwebtoken = "9.3"
 lz4 = "1.28"
@@ -70,6 +74,9 @@ serde_json = "1.0"
 sha2 = "0.10"
 simd-json = "0.17"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json", "chrono", "uuid"], optional = true }
+
+# Keyword search dependencies (optional)
+tantivy = { version = "0.22", optional = true }
 thiserror = "2.0"
 tokio = { version = "1.48", features = ["full"] }
 tokio-stream = "0.1"
@@ -79,13 +86,6 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.19", features = ["v4", "serde"] }
-
-# Vector search dependencies (optional)
-fastembed = { version = "4", optional = true }
-instant-distance = { version = "0.6", optional = true }
-
-# Keyword search dependencies (optional)
-tantivy = { version = "0.22", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"

@@ -798,8 +798,7 @@ defmodule McpServerElixir.Protocol.McpTools do
             properties: %{
               "event_type" => %{
                 type: "string",
-                description:
-                  "Filter by exact event type (e.g., \"user.created\", \"order.placed\")"
+                description: "Filter by exact event type (e.g., \"user.created\", \"order.placed\")"
               },
               "entity_id" => %{
                 type: "string",
@@ -2856,8 +2855,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         query_patterns: [
           %{
             pattern: "Data retention compliance",
-            approach:
-              "query_events(entity_id: 'X') → verify all events exist for retention period"
+            approach: "query_events(entity_id: 'X') → verify all events exist for retention period"
           },
           %{
             pattern: "Prove state at audit date",

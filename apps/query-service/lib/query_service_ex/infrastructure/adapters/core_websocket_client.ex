@@ -73,43 +73,53 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
   end
 
   defp do_start_link(opts) do
-    url = opts[:url] || Application.get_env(:query_service_ex, :core_ws_url, @default_url)
-    name = opts[:name] || __MODULE__
+    config = build_config(opts)
+    extra_headers = build_auth_headers()
+    state = build_initial_state(config, extra_headers)
 
-    initial_backoff =
-      opts[:initial_backoff_ms] ||
-        Application.get_env(
-          :query_service_ex,
-          :core_ws_initial_backoff_ms,
-          @default_initial_backoff_ms
-        )
+    Logger.info("[CoreWebSocketClient] Connecting to #{config.url}")
 
-    max_backoff =
-      opts[:max_backoff_ms] ||
-        Application.get_env(:query_service_ex, :core_ws_max_backoff_ms, @default_max_backoff_ms)
+    attempt_connection(config.url, config.name, extra_headers, state)
+  end
 
-    max_attempts =
-      opts[:max_reconnect_attempts] ||
-        Application.get_env(
-          :query_service_ex,
-          :core_ws_max_reconnect_attempts,
-          @default_max_reconnect_attempts
-        )
+  defp build_config(opts) do
+    %{
+      url: opts[:url] || Application.get_env(:query_service_ex, :core_ws_url, @default_url),
+      name: opts[:name] || __MODULE__,
+      initial_backoff:
+        opts[:initial_backoff_ms] ||
+          Application.get_env(
+            :query_service_ex,
+            :core_ws_initial_backoff_ms,
+            @default_initial_backoff_ms
+          ),
+      max_backoff:
+        opts[:max_backoff_ms] ||
+          Application.get_env(:query_service_ex, :core_ws_max_backoff_ms, @default_max_backoff_ms),
+      max_attempts:
+        opts[:max_reconnect_attempts] ||
+          Application.get_env(
+            :query_service_ex,
+            :core_ws_max_reconnect_attempts,
+            @default_max_reconnect_attempts
+          )
+    }
+  end
 
-    # Build extra headers for authentication
-    extra_headers =
-      case Application.get_env(:query_service_ex, :core_api_key) do
-        nil -> []
-        "" -> []
-        api_key -> [{"Authorization", api_key}]
-      end
+  defp build_auth_headers do
+    case Application.get_env(:query_service_ex, :core_api_key) do
+      key when key in [nil, ""] -> []
+      api_key -> [{"Authorization", api_key}]
+    end
+  end
 
-    state = %{
-      url: url,
-      backoff_ms: initial_backoff,
-      initial_backoff_ms: initial_backoff,
-      max_backoff_ms: max_backoff,
-      max_reconnect_attempts: max_attempts,
+  defp build_initial_state(config, extra_headers) do
+    %{
+      url: config.url,
+      backoff_ms: config.initial_backoff,
+      initial_backoff_ms: config.initial_backoff,
+      max_backoff_ms: config.max_backoff,
+      max_reconnect_attempts: config.max_attempts,
       extra_headers: extra_headers,
       connected: false,
       reconnect_attempts: 0,
@@ -119,9 +129,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
       last_error: nil,
       started_at: DateTime.utc_now()
     }
+  end
 
-    Logger.info("[CoreWebSocketClient] Connecting to #{url}")
-
+  defp attempt_connection(url, name, extra_headers, state) do
     case WebSockex.start_link(url, __MODULE__, state, name: name, extra_headers: extra_headers) do
       {:ok, pid} ->
         {:ok, pid}
