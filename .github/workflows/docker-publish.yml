@@ -138,7 +138,7 @@ jobs:
       - name: Build matrix
         id: matrix
         run: |
-# Build matrix with service x architecture combinations
+          # Build matrix with service x architecture combinations
           # Each service is built on both amd64 and arm64 native runners
           MATRIX='{"include":['
           SERVICES_MATRIX='{"include":['
@@ -276,7 +276,7 @@ jobs:
 
       - name: Report build success
         run: |
-echo "### Build Successful: ${{ matrix.name }} (${{ matrix.arch }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Build Successful: ${{ matrix.name }} (${{ matrix.arch }})" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ needs.push-conditions.outputs.should_push }}" == "true" ]; then
             echo "Image pushed with digest: ${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
           else
@@ -370,7 +370,7 @@ echo "### Build Successful: ${{ matrix.name }} (${{ matrix.arch }})" >> "$GITHUB
       - name: Create and push multi-arch manifest to DockerHub
         if: steps.dockerhub-check.outputs.available == 'true'
         run: |
-DOCKERHUB_IMAGE="${{ env.DOCKERHUB_REGISTRY }}/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}"
+          DOCKERHUB_IMAGE="${{ env.DOCKERHUB_REGISTRY }}/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}"
           AMD64_IMAGE="${DOCKERHUB_IMAGE}:amd64-${{ github.sha }}"
           ARM64_IMAGE="${DOCKERHUB_IMAGE}:arm64-${{ github.sha }}"
 
@@ -422,7 +422,7 @@ DOCKERHUB_IMAGE="${{ env.DOCKERHUB_REGISTRY }}/${{ vars.DOCKERHUB_USERNAME }}/${
     steps:
       - name: Generate summary
         run: |
-echo "## Docker Build & Publish Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Docker Build & Publish Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # Push conditions info
