@@ -54,8 +54,10 @@ pub trait AccessTokenRepository: Send + Sync {
     ///
     /// # Returns
     /// `Some(AccessToken)` if found, `None` otherwise
-    async fn find_by_transaction(&self, transaction_id: &TransactionId)
-        -> Result<Option<AccessToken>>;
+    async fn find_by_transaction(
+        &self,
+        transaction_id: &TransactionId,
+    ) -> Result<Option<AccessToken>>;
 
     /// Find access tokens by article and reader wallet
     ///
@@ -289,9 +291,7 @@ mod tests {
 
     #[test]
     fn test_access_token_query_builder() {
-        let query = AccessTokenQuery::new()
-            .valid_only()
-            .with_pagination(10, 0);
+        let query = AccessTokenQuery::new().valid_only().with_pagination(10, 0);
 
         assert!(query.valid_only);
         assert!(!query.revoked_only);
@@ -303,9 +303,7 @@ mod tests {
     fn test_access_token_query_for_article() {
         let article_id = ArticleId::new("test-article".to_string()).unwrap();
 
-        let query = AccessTokenQuery::new()
-            .for_article(article_id)
-            .valid_only();
+        let query = AccessTokenQuery::new().for_article(article_id).valid_only();
 
         assert!(query.article_id.is_some());
         assert!(query.valid_only);
@@ -326,9 +324,7 @@ mod tests {
 
     #[test]
     fn test_revoked_only_clears_valid_only() {
-        let query = AccessTokenQuery::new()
-            .valid_only()
-            .revoked_only();
+        let query = AccessTokenQuery::new().valid_only().revoked_only();
 
         assert!(query.revoked_only);
         assert!(!query.valid_only);

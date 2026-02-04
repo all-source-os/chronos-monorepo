@@ -35,9 +35,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
 # Create minimal stubs for optional targets (referenced in Cargo.toml but not needed for main binary)
-RUN mkdir -p benches examples tests/stress_tests && \
+RUN mkdir -p benches tests/stress_tests && \
     echo 'fn main() {}' > benches/performance_benchmarks.rs && \
-    echo 'fn main() {}' > examples/advanced_security_demo.rs && \
     echo 'fn main() {}' > tests/stress_tests/seven_day_stress.rs && \
     cargo chef prepare --recipe-path recipe.json
 
@@ -59,9 +58,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
 # Create minimal stubs and build in single layer for cache efficiency
-RUN mkdir -p benches examples tests/stress_tests && \
+RUN mkdir -p benches tests/stress_tests && \
     echo 'fn main() {}' > benches/performance_benchmarks.rs && \
-    echo 'fn main() {}' > examples/advanced_security_demo.rs && \
     echo 'fn main() {}' > tests/stress_tests/seven_day_stress.rs && \
     CARGO_BUILD_JOBS=4 cargo build --release --bin allsource-core && \
     strip /app/target/release/allsource-core

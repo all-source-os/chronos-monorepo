@@ -9,9 +9,7 @@ use crate::application::dto::{
     RefundTransactionResponse, TransactionDto,
 };
 use crate::application::services::PaymentCoordinator;
-use crate::application::use_cases::{
-    ListTransactionsUseCase, RefundTransactionUseCase,
-};
+use crate::application::use_cases::{ListTransactionsUseCase, RefundTransactionUseCase};
 use crate::domain::entities::AccessToken;
 use crate::domain::repositories::{
     AccessTokenRepository, ArticleRepository, CreatorRepository, TransactionRepository,
@@ -213,13 +211,22 @@ pub async fn list_transactions_handler(
     // Build query based on parameters
     let transactions = if let Some(article_id_str) = params.article_id {
         let article_id = ArticleId::new(article_id_str)?;
-        state.transaction_repo.find_by_article(&article_id, limit, offset).await?
+        state
+            .transaction_repo
+            .find_by_article(&article_id, limit, offset)
+            .await?
     } else if let Some(creator_id_str) = params.creator_id {
         let creator_id = crate::domain::value_objects::CreatorId::parse(&creator_id_str)?;
-        state.transaction_repo.find_by_creator(&creator_id, limit, offset).await?
+        state
+            .transaction_repo
+            .find_by_creator(&creator_id, limit, offset)
+            .await?
     } else if let Some(wallet_str) = params.reader_wallet {
         let wallet = WalletAddress::new(wallet_str)?;
-        state.transaction_repo.find_by_reader(&wallet, limit, offset).await?
+        state
+            .transaction_repo
+            .find_by_reader(&wallet, limit, offset)
+            .await?
     } else {
         // Default: return recent transactions
         use crate::domain::repositories::TransactionQuery;
@@ -356,10 +363,16 @@ pub async fn list_access_tokens_handler(
 
     let tokens = if let Some(article_id_str) = params.article_id {
         let article_id = ArticleId::new(article_id_str)?;
-        state.access_token_repo.find_by_article(&article_id, limit, offset).await?
+        state
+            .access_token_repo
+            .find_by_article(&article_id, limit, offset)
+            .await?
     } else if let Some(wallet_str) = params.wallet_address {
         let wallet = WalletAddress::new(wallet_str)?;
-        state.access_token_repo.find_by_reader(&wallet, limit, offset).await?
+        state
+            .access_token_repo
+            .find_by_reader(&wallet, limit, offset)
+            .await?
     } else {
         // Default: use query with pagination
         use crate::domain::repositories::AccessTokenQuery;
@@ -385,9 +398,8 @@ pub async fn get_access_token_handler(
     State(state): State<PaymentHandlerState>,
     Path(token_id): Path<String>,
 ) -> Result<Json<AccessTokenDto>> {
-    let id = uuid::Uuid::parse_str(&token_id).map_err(|_| {
-        crate::error::AllSourceError::InvalidInput("Invalid token ID".to_string())
-    })?;
+    let id = uuid::Uuid::parse_str(&token_id)
+        .map_err(|_| crate::error::AllSourceError::InvalidInput("Invalid token ID".to_string()))?;
 
     let token = state
         .access_token_repo
@@ -415,13 +427,15 @@ pub async fn revoke_access_handler(
     Path(token_id): Path<String>,
     Json(request): Json<RevokeAccessHandlerRequest>,
 ) -> Result<Json<serde_json::Value>> {
-    let id = uuid::Uuid::parse_str(&token_id).map_err(|_| {
-        crate::error::AllSourceError::InvalidInput("Invalid token ID".to_string())
-    })?;
+    let id = uuid::Uuid::parse_str(&token_id)
+        .map_err(|_| crate::error::AllSourceError::InvalidInput("Invalid token ID".to_string()))?;
 
     let revoked = state
         .access_token_repo
-        .revoke(&crate::domain::entities::AccessTokenId::from_uuid(id), &request.reason)
+        .revoke(
+            &crate::domain::entities::AccessTokenId::from_uuid(id),
+            &request.reason,
+        )
         .await?;
 
     tracing::info!(
@@ -447,10 +461,7 @@ pub async fn cleanup_expired_tokens_handler(
         .delete_expired(chrono::Utc::now())
         .await?;
 
-    tracing::info!(
-        tokens_cleaned = count,
-        "Expired tokens cleaned up"
-    );
+    tracing::info!(tokens_cleaned = count, "Expired tokens cleaned up");
 
     Ok(Json(serde_json::json!({
         "tokens_cleaned": count

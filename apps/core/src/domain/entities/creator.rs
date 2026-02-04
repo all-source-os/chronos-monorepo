@@ -650,10 +650,7 @@ mod tests {
 
         assert_eq!(creator.settings().default_price_cents, 100);
         assert!(!creator.settings().show_reading_time);
-        assert_eq!(
-            creator.settings().brand_color,
-            Some("#FF0000".to_string())
-        );
+        assert_eq!(creator.settings().brand_color, Some("#FF0000".to_string()));
     }
 
     #[test]

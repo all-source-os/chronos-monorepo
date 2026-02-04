@@ -1,15 +1,15 @@
 ---
-title: "Web Demo"
+title: "Web App"
 status: CURRENT
-last_updated: 2026-02-02
+last_updated: 2026-02-04
 category: service
 port: 3000
 technology: TypeScript
 ---
 
-# AllSource Event Store - Web Demo
+# AllSource Event Store - Web App
 
-> A comprehensive, interactive demo showcasing all features of the AllSource Event Store.
+> The web application for AllSource Event Store.
 
 ## Quick Start
 
@@ -21,48 +21,7 @@ bun install
 bun run dev
 ```
 
-Visit **http://localhost:3000/demo** to explore the interactive demo.
-
-## Features Demonstrated
-
-### 1. Event Management
-- ✅ Single and batch event ingestion
-- ✅ Event querying by entity ID and event type
-- ✅ Real-world scenarios: E-commerce and IoT events
-- ✅ Event metadata and versioning
-
-### 2. Queries & Streaming
-- ✅ Query by entity ID (aggregate history)
-- ✅ Query by event type
-- ✅ Time-range queries
-- ✅ As-of queries (time-travel)
-- ✅ Real-time WebSocket streaming
-
-### 3. Projections
-- ✅ 5 types: EntitySnapshot, EventCounter, TimeSeries, Funnel, Custom
-- ✅ Lifecycle management (Created → Running → Paused)
-- ✅ Statistics and monitoring
-
-### 4. Schema Management
-- ✅ JSON Schema registration with versioning
-- ✅ 4 Compatibility modes: None, Backward, Forward, Full
-- ✅ Event validation
-
-### 5. Analytics
-- ✅ Frequency analysis (time-bucketed)
-- ✅ Event correlation detection
-- ✅ Statistical summaries
-
-### 6. Security & Multi-tenancy
-- ✅ Multi-tenant isolation
-- ✅ RBAC with 4 roles
-- ✅ JWT authentication & API keys
-- ✅ Rate limiting & encryption
-
-### 7. Monitoring & Metrics
-- ✅ Real-time metrics visualization
-- ✅ 18+ metric types
-- ✅ Health checks
+Visit **http://localhost:3000** to access the app.
 
 ## Project Structure
 
@@ -70,30 +29,17 @@ Visit **http://localhost:3000/demo** to explore the interactive demo.
 apps/web/
 ├── src/
 │   ├── app/
-│   │   ├── demo/page.tsx         # Main comprehensive demo
-│   │   ├── ui-test/page.tsx      # UI component testing
-│   │   └── page.tsx              # Homepage
+│   │   ├── (auth)/            # Authentication routes
+│   │   ├── (marketing)/       # Marketing pages
+│   │   ├── ui-test/page.tsx   # UI component testing
+│   │   └── page.tsx           # Homepage
 │   │
 │   └── lib/event-store/
-│       ├── types.ts              # TypeScript types
-│       ├── client.ts             # API client
-│       └── demo-data.ts          # Sample data generators
+│       ├── types.ts           # TypeScript types
+│       └── client.ts          # API client
 │
 └── package.json
 ```
-
-## Demo Sections
-
-| Section | Features |
-|---------|----------|
-| **Overview** | Feature highlights, performance metrics (469K events/sec) |
-| **Event Management** | E-commerce & IoT event generation, querying |
-| **Queries & Streaming** | Entity queries, time-travel, WebSocket setup |
-| **Projections** | Creating & monitoring materialized views |
-| **Schema Management** | JSON Schema registration, versioning |
-| **Analytics** | Frequency analysis, correlations, statistics |
-| **Security** | Multi-tenancy, RBAC, authentication |
-| **Monitoring** | Real-time metrics dashboard |
 
 ## API Integration
 
@@ -148,10 +94,3 @@ bun run type-check   # TypeScript check
 bun run lint         # Lint code
 bun run format       # Format code
 ```
-
-## Performance Highlights
-
-- **469K events/sec** - High-throughput ingestion
-- **<100ms latency** - Fast query response times
-- **60-80% compression** - Efficient storage
-- **1000s of connections** - Scalable WebSocket streaming

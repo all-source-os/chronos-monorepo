@@ -63,7 +63,10 @@ impl EventId {
     /// ```
     pub fn parse(value: &str) -> Result<Self> {
         let uuid = Uuid::parse_str(value).map_err(|e| {
-            crate::error::AllSourceError::InvalidInput(format!("Invalid event ID '{}': {}", value, e))
+            crate::error::AllSourceError::InvalidInput(format!(
+                "Invalid event ID '{}': {}",
+                value, e
+            ))
         })?;
         Ok(Self(uuid))
     }
@@ -181,7 +184,10 @@ mod tests {
     fn test_display_trait() {
         let uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
         let event_id = EventId::from_uuid(uuid);
-        assert_eq!(format!("{}", event_id), "550e8400-e29b-41d4-a716-446655440000");
+        assert_eq!(
+            format!("{}", event_id),
+            "550e8400-e29b-41d4-a716-446655440000"
+        );
     }
 
     #[test]
@@ -209,7 +215,9 @@ mod tests {
 
     #[test]
     fn test_try_from_string() {
-        let event_id: Result<EventId> = "550e8400-e29b-41d4-a716-446655440000".to_string().try_into();
+        let event_id: Result<EventId> = "550e8400-e29b-41d4-a716-446655440000"
+            .to_string()
+            .try_into();
         assert!(event_id.is_ok());
 
         let invalid: Result<EventId> = String::new().try_into();

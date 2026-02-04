@@ -124,7 +124,12 @@ impl VectorSearchQuery {
 #[async_trait]
 pub trait VectorSearchRepository: Send + Sync {
     /// Store a vector embedding for an event
-    async fn store(&self, event_id: Uuid, embedding: &EmbeddingVector, tenant_id: &str) -> Result<()>;
+    async fn store(
+        &self,
+        event_id: Uuid,
+        embedding: &EmbeddingVector,
+        tenant_id: &str,
+    ) -> Result<()>;
 
     /// Store a vector embedding with source text
     async fn store_with_text(
@@ -171,7 +176,12 @@ pub trait VectorSearchReader: Send + Sync {
 /// Write-only vector search repository (for ingestion optimization)
 #[async_trait]
 pub trait VectorSearchWriter: Send + Sync {
-    async fn store(&self, event_id: Uuid, embedding: &EmbeddingVector, tenant_id: &str) -> Result<()>;
+    async fn store(
+        &self,
+        event_id: Uuid,
+        embedding: &EmbeddingVector,
+        tenant_id: &str,
+    ) -> Result<()>;
     async fn store_batch(&self, entries: &[(Uuid, EmbeddingVector, String)]) -> Result<()>;
     async fn delete(&self, event_id: Uuid) -> Result<bool>;
 }
@@ -195,8 +205,8 @@ mod tests {
     fn test_vector_entry_with_source_text() {
         let event_id = Uuid::new_v4();
         let embedding = EmbeddingVector::new(vec![0.1, 0.2, 0.3]).unwrap();
-        let entry = VectorEntry::new(event_id, embedding)
-            .with_source_text("test content".to_string());
+        let entry =
+            VectorEntry::new(event_id, embedding).with_source_text("test content".to_string());
 
         assert_eq!(entry.source_text, Some("test content".to_string()));
     }

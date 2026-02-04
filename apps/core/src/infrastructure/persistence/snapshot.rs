@@ -194,9 +194,16 @@ impl SnapshotManager {
         stats.snapshots_pruned += pruned as u64;
         stats.total_snapshots = self.snapshots.iter().map(|entry| entry.value().len()).sum();
         stats.total_entities = self.snapshots.len();
-        stats.total_size_bytes = self.snapshots
+        stats.total_size_bytes = self
+            .snapshots
             .iter()
-            .map(|entry| entry.value().iter().map(|s| s.metadata.size_bytes).sum::<usize>())
+            .map(|entry| {
+                entry
+                    .value()
+                    .iter()
+                    .map(|s| s.metadata.size_bytes)
+                    .sum::<usize>()
+            })
             .sum();
 
         tracing::info!(
@@ -224,7 +231,8 @@ impl SnapshotManager {
     /// Get the best snapshot to use for reconstruction as of a specific time
     pub fn get_snapshot_as_of(&self, entity_id: &str, as_of: DateTime<Utc>) -> Option<Snapshot> {
         self.snapshots.get(entity_id).and_then(|entry| {
-            entry.value()
+            entry
+                .value()
                 .iter()
                 .filter(|s| s.as_of <= as_of)
                 .max_by_key(|s| s.as_of)
@@ -234,7 +242,10 @@ impl SnapshotManager {
 
     /// Get all snapshots for an entity
     pub fn get_all_snapshots(&self, entity_id: &str) -> Vec<Snapshot> {
-        self.snapshots.get(entity_id).map(|entry| entry.value().clone()).unwrap_or_default()
+        self.snapshots
+            .get(entity_id)
+            .map(|entry| entry.value().clone())
+            .unwrap_or_default()
     }
 
     /// Check if a new snapshot should be created for an entity
@@ -275,7 +286,11 @@ impl SnapshotManager {
 
     /// Delete all snapshots for an entity
     pub fn delete_snapshots(&self, entity_id: &str) -> Result<usize> {
-        let removed = self.snapshots.remove(entity_id).map(|(_, v)| v.len()).unwrap_or(0);
+        let removed = self
+            .snapshots
+            .remove(entity_id)
+            .map(|(_, v)| v.len())
+            .unwrap_or(0);
 
         // Update stats
         let mut stats = self.stats.write();
@@ -329,7 +344,10 @@ impl SnapshotManager {
 
     /// List all entities with snapshots
     pub fn list_entities(&self) -> Vec<String> {
-        self.snapshots.iter().map(|entry| entry.key().clone()).collect()
+        self.snapshots
+            .iter()
+            .map(|entry| entry.key().clone())
+            .collect()
     }
 }
 

@@ -235,7 +235,8 @@ impl KmsClient for LocalKms {
         use aes_gcm::aead::Aead;
         use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
-        let stored_key = self.keys
+        let stored_key = self
+            .keys
             .get(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
@@ -277,7 +278,8 @@ impl KmsClient for LocalKms {
             ));
         }
 
-        let stored_key = self.keys
+        let stored_key = self
+            .keys
             .get(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
@@ -294,7 +296,8 @@ impl KmsClient for LocalKms {
     }
 
     async fn rotate_key(&self, key_id: &str) -> Result<KeyMetadata> {
-        let mut stored_key = self.keys
+        let mut stored_key = self
+            .keys
             .get_mut(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
@@ -315,7 +318,8 @@ impl KmsClient for LocalKms {
     }
 
     async fn disable_key(&self, key_id: &str) -> Result<()> {
-        let mut stored_key = self.keys
+        let mut stored_key = self
+            .keys
             .get_mut(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 
@@ -324,7 +328,8 @@ impl KmsClient for LocalKms {
     }
 
     async fn enable_key(&self, key_id: &str) -> Result<()> {
-        let mut stored_key = self.keys
+        let mut stored_key = self
+            .keys
             .get_mut(key_id)
             .ok_or_else(|| AllSourceError::ValidationError(format!("Key {key_id} not found")))?;
 

@@ -372,15 +372,6 @@ allsource-core/
 
 ## 🎓 Getting Started
 
-### Quick Start
-```bash
-# Run the comprehensive security demo
-./run-demo.sh
-
-# Or manually:
-cargo run --example advanced_security_demo
-```
-
 ### Integration Example
 ```rust
 use allsource_core::{

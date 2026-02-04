@@ -58,9 +58,10 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
         let key = stream_id.as_str().to_string();
 
         // Try to get existing stream or create new one using DashMap's entry API
-        let stream = self.streams.entry(key).or_insert_with(|| {
-            EventStream::new(stream_id.clone())
-        });
+        let stream = self
+            .streams
+            .entry(key)
+            .or_insert_with(|| EventStream::new(stream_id.clone()));
 
         Ok(stream.clone())
     }
@@ -93,7 +94,8 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
     ) -> Result<Vec<EventStream>> {
         let target_partition = partition_key.partition_id();
 
-        let matching_streams: Vec<EventStream> = self.streams
+        let matching_streams: Vec<EventStream> = self
+            .streams
             .iter()
             .filter(|entry| entry.value().partition_key().partition_id() == target_partition)
             .map(|entry| entry.value().clone())
@@ -151,9 +153,16 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
     }
 
     async fn count_streams_by_tenant(&self, tenant_id: &TenantId) -> Result<usize> {
-        let count = self.streams
+        let count = self
+            .streams
             .iter()
-            .filter(|entry| entry.value().tenant_id().map(|t| t == tenant_id).unwrap_or(false))
+            .filter(|entry| {
+                entry
+                    .value()
+                    .tenant_id()
+                    .map(|t| t == tenant_id)
+                    .unwrap_or(false)
+            })
             .count();
 
         Ok(count)

@@ -248,10 +248,22 @@ mod tests {
 
     #[test]
     fn test_fork_status_conversion() {
-        assert_eq!(ForkStatusDto::from(ForkStatus::Active), ForkStatusDto::Active);
-        assert_eq!(ForkStatusDto::from(ForkStatus::Merged), ForkStatusDto::Merged);
-        assert_eq!(ForkStatusDto::from(ForkStatus::Discarded), ForkStatusDto::Discarded);
-        assert_eq!(ForkStatusDto::from(ForkStatus::Expired), ForkStatusDto::Expired);
+        assert_eq!(
+            ForkStatusDto::from(ForkStatus::Active),
+            ForkStatusDto::Active
+        );
+        assert_eq!(
+            ForkStatusDto::from(ForkStatus::Merged),
+            ForkStatusDto::Merged
+        );
+        assert_eq!(
+            ForkStatusDto::from(ForkStatus::Discarded),
+            ForkStatusDto::Discarded
+        );
+        assert_eq!(
+            ForkStatusDto::from(ForkStatus::Expired),
+            ForkStatusDto::Expired
+        );
     }
 
     #[test]

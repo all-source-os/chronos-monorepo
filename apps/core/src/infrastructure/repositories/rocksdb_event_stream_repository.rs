@@ -10,8 +10,6 @@ use crate::error::{AllSourceError, Result};
 use async_trait::async_trait;
 #[cfg(feature = "rocksdb-storage")]
 use chrono::{DateTime, Utc};
-#[cfg(feature = "rocksdb-storage")]
-use serde::de::Error as DeError;
 /// RocksDB-backed Event Stream Repository
 ///
 /// Embedded high-performance storage implementing SierraDB patterns:
@@ -40,6 +38,8 @@ use serde::de::Error as DeError;
 
 #[cfg(feature = "rocksdb-storage")]
 use rocksdb::{ColumnFamilyDescriptor, IteratorMode, Options, WriteBatch, DB};
+#[cfg(feature = "rocksdb-storage")]
+use serde::de::Error as DeError;
 #[cfg(feature = "rocksdb-storage")]
 use std::path::Path;
 #[cfg(feature = "rocksdb-storage")]

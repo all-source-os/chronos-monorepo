@@ -38,9 +38,9 @@ impl SemanticSearchUseCase {
         request: SemanticSearchUseCaseRequest,
     ) -> Result<SemanticSearchUseCaseResponse> {
         // Validate query
-        let embedding = request
-            .query_embedding
-            .ok_or_else(|| AllSourceError::InvalidInput("query_embedding is required".to_string()))?;
+        let embedding = request.query_embedding.ok_or_else(|| {
+            AllSourceError::InvalidInput("query_embedding is required".to_string())
+        })?;
 
         if embedding.is_empty() {
             return Err(AllSourceError::InvalidInput(
@@ -560,7 +560,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(VectorSearchRepository::count(&*vector_repo, None).await.unwrap(), 1);
+        assert_eq!(
+            VectorSearchRepository::count(&*vector_repo, None)
+                .await
+                .unwrap(),
+            1
+        );
     }
 
     #[tokio::test]

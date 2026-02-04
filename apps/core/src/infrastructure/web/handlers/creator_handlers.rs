@@ -2,15 +2,13 @@
 // Clean Architecture: Infrastructure Layer (HTTP) -> Application Layer (Coordinator/Use Cases)
 
 use crate::application::dto::{
-    CreatorDto, ListCreatorsResponse, RegisterCreatorRequest,
-    RegisterCreatorResponse, UpdateCreatorRequest, UpdateCreatorResponse,
-    UpgradeCreatorTierRequest,
+    CreatorDto, ListCreatorsResponse, RegisterCreatorRequest, RegisterCreatorResponse,
+    UpdateCreatorRequest, UpdateCreatorResponse, UpgradeCreatorTierRequest,
 };
 use crate::application::services::CreatorCoordinator;
 use crate::application::use_cases::{
-    DeactivateCreatorUseCase, ListCreatorsUseCase, ReactivateCreatorUseCase,
-    SuspendCreatorUseCase, UpdateCreatorUseCase, UpgradeCreatorTierUseCase,
-    VerifyCreatorEmailUseCase,
+    DeactivateCreatorUseCase, ListCreatorsUseCase, ReactivateCreatorUseCase, SuspendCreatorUseCase,
+    UpdateCreatorUseCase, UpgradeCreatorTierUseCase, VerifyCreatorEmailUseCase,
 };
 use crate::domain::repositories::CreatorRepository;
 use crate::domain::value_objects::CreatorId;
@@ -72,7 +70,10 @@ pub async fn list_creators_handler<R: CreatorRepository + 'static>(
 
     let creators = if let Some(tenant_id) = params.tenant_id {
         let tenant = crate::domain::value_objects::TenantId::new(tenant_id)?;
-        state.creator_repo.find_by_tenant(&tenant, limit, offset).await?
+        state
+            .creator_repo
+            .find_by_tenant(&tenant, limit, offset)
+            .await?
     } else {
         state.creator_repo.find_active(limit, offset).await?
     };
@@ -91,16 +92,13 @@ pub async fn get_creator_handler<R: CreatorRepository + 'static>(
     State(state): State<CreatorHandlerState<R>>,
     Path(creator_id): Path<String>,
 ) -> Result<Json<CreatorDto>> {
-    let id = CreatorId::parse(&creator_id)
-        .map_err(|_| crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string()))?;
+    let id = CreatorId::parse(&creator_id).map_err(|_| {
+        crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string())
+    })?;
 
-    let creator = state
-        .creator_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
-        })?;
+    let creator = state.creator_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
+    })?;
 
     Ok(Json(CreatorDto::from(&creator)))
 }
@@ -113,16 +111,13 @@ pub async fn update_creator_handler<R: CreatorRepository + 'static>(
     Path(creator_id): Path<String>,
     Json(request): Json<UpdateCreatorRequest>,
 ) -> Result<Json<UpdateCreatorResponse>> {
-    let id = CreatorId::parse(&creator_id)
-        .map_err(|_| crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string()))?;
+    let id = CreatorId::parse(&creator_id).map_err(|_| {
+        crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string())
+    })?;
 
-    let creator = state
-        .creator_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
-        })?;
+    let creator = state.creator_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
+    })?;
 
     let use_case = UpdateCreatorUseCase::new(state.creator_repo.clone());
     let response = use_case.execute(creator, request).await?;
@@ -143,16 +138,13 @@ pub async fn upgrade_creator_tier_handler<R: CreatorRepository + 'static>(
     Path(creator_id): Path<String>,
     Json(request): Json<UpgradeCreatorTierRequest>,
 ) -> Result<Json<UpdateCreatorResponse>> {
-    let id = CreatorId::parse(&creator_id)
-        .map_err(|_| crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string()))?;
+    let id = CreatorId::parse(&creator_id).map_err(|_| {
+        crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string())
+    })?;
 
-    let creator = state
-        .creator_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
-        })?;
+    let creator = state.creator_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
+    })?;
 
     let dto = UpgradeCreatorTierUseCase::execute(creator, request.tier)?;
 
@@ -179,16 +171,13 @@ pub async fn verify_creator_email_handler<R: CreatorRepository + 'static>(
     State(state): State<CreatorHandlerState<R>>,
     Path(creator_id): Path<String>,
 ) -> Result<Json<UpdateCreatorResponse>> {
-    let id = CreatorId::parse(&creator_id)
-        .map_err(|_| crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string()))?;
+    let id = CreatorId::parse(&creator_id).map_err(|_| {
+        crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string())
+    })?;
 
-    let creator = state
-        .creator_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
-        })?;
+    let creator = state.creator_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
+    })?;
 
     let dto = VerifyCreatorEmailUseCase::execute(creator)?;
 
@@ -207,16 +196,13 @@ pub async fn suspend_creator_handler<R: CreatorRepository + 'static>(
     State(state): State<CreatorHandlerState<R>>,
     Path(creator_id): Path<String>,
 ) -> Result<Json<UpdateCreatorResponse>> {
-    let id = CreatorId::parse(&creator_id)
-        .map_err(|_| crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string()))?;
+    let id = CreatorId::parse(&creator_id).map_err(|_| {
+        crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string())
+    })?;
 
-    let creator = state
-        .creator_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
-        })?;
+    let creator = state.creator_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
+    })?;
 
     let dto = SuspendCreatorUseCase::execute(creator)?;
 
@@ -235,16 +221,13 @@ pub async fn reactivate_creator_handler<R: CreatorRepository + 'static>(
     State(state): State<CreatorHandlerState<R>>,
     Path(creator_id): Path<String>,
 ) -> Result<Json<UpdateCreatorResponse>> {
-    let id = CreatorId::parse(&creator_id)
-        .map_err(|_| crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string()))?;
+    let id = CreatorId::parse(&creator_id).map_err(|_| {
+        crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string())
+    })?;
 
-    let creator = state
-        .creator_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
-        })?;
+    let creator = state.creator_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
+    })?;
 
     let dto = ReactivateCreatorUseCase::execute(creator)?;
 
@@ -263,16 +246,13 @@ pub async fn deactivate_creator_handler<R: CreatorRepository + 'static>(
     State(state): State<CreatorHandlerState<R>>,
     Path(creator_id): Path<String>,
 ) -> Result<Json<UpdateCreatorResponse>> {
-    let id = CreatorId::parse(&creator_id)
-        .map_err(|_| crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string()))?;
+    let id = CreatorId::parse(&creator_id).map_err(|_| {
+        crate::error::AllSourceError::InvalidInput("Invalid creator ID".to_string())
+    })?;
 
-    let creator = state
-        .creator_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
-        })?;
+    let creator = state.creator_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Creator not found: {creator_id}"))
+    })?;
 
     let dto = DeactivateCreatorUseCase::execute(creator)?;
 

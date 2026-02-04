@@ -135,7 +135,10 @@ impl ParquetStorage {
     }
 
     /// Create a new ParquetStorage with custom configuration
-    pub fn with_config(storage_dir: impl AsRef<Path>, config: ParquetStorageConfig) -> Result<Self> {
+    pub fn with_config(
+        storage_dir: impl AsRef<Path>,
+        config: ParquetStorageConfig,
+    ) -> Result<Self> {
         let storage_dir = storage_dir.as_ref().to_path_buf();
 
         // Create storage directory if it doesn't exist
@@ -227,7 +230,8 @@ impl ParquetStorage {
                     true
                 } else {
                     // Take up to available_space events
-                    let to_add: Vec<Event> = remaining_events.by_ref().take(available_space).collect();
+                    let to_add: Vec<Event> =
+                        remaining_events.by_ref().take(available_space).collect();
                     batch.extend(to_add);
                     batch.len() >= self.config.batch_size
                 }
@@ -318,7 +322,11 @@ impl ParquetStorage {
         self.batches_written.fetch_add(1, Ordering::Relaxed);
         self.events_written
             .fetch_add(batch_count as u64, Ordering::Relaxed);
-        if let Some(size) = file_metadata.row_groups.first().map(|rg| rg.total_byte_size) {
+        if let Some(size) = file_metadata
+            .row_groups
+            .first()
+            .map(|rg| rg.total_byte_size)
+        {
             self.bytes_written.fetch_add(size as u64, Ordering::Relaxed);
         }
         self.total_write_time_ns
@@ -350,10 +358,7 @@ impl ParquetStorage {
         };
 
         if batch_size > 0 {
-            tracing::info!(
-                "Shutdown: flushing partial batch of {} events",
-                batch_size
-            );
+            tracing::info!("Shutdown: flushing partial batch of {} events", batch_size);
             self.flush()?;
         }
 

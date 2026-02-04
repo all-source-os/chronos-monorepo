@@ -234,9 +234,9 @@ impl VectorSearchService {
         let start_time = std::time::Instant::now();
 
         // Parse and validate query embedding
-        let query_embedding = request
-            .query_embedding
-            .ok_or_else(|| AllSourceError::InvalidInput("query_embedding is required".to_string()))?;
+        let query_embedding = request.query_embedding.ok_or_else(|| {
+            AllSourceError::InvalidInput("query_embedding is required".to_string())
+        })?;
 
         let query_vector = EmbeddingVector::new(query_embedding)?;
 

@@ -1,7 +1,9 @@
 use crate::application::dto::{
     EventDto, IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse,
 };
-use crate::application::use_cases::{IngestEventUseCase, IngestEventsBatchUseCase, QueryEventsUseCase};
+use crate::application::use_cases::{
+    IngestEventUseCase, IngestEventsBatchUseCase, QueryEventsUseCase,
+};
 use crate::domain::repositories::EventRepository;
 use crate::error::Result;
 use std::sync::Arc;

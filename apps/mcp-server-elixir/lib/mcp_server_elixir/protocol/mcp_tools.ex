@@ -196,7 +196,10 @@ defmodule McpServerElixir.Protocol.McpTools do
       inputSchema: %{
         type: "object",
         properties: %{
-          "entity_id" => %{type: "string", description: "Filter by entity ID (e.g., \"user-123\")"},
+          "entity_id" => %{
+            type: "string",
+            description: "Filter by entity ID (e.g., \"user-123\")"
+          },
           "event_type" => %{
             type: "string",
             description: "Filter by event type (e.g., \"user.created\")"
@@ -339,7 +342,10 @@ defmodule McpServerElixir.Protocol.McpTools do
         properties: %{
           "entity_id" => %{type: "string", description: "The entity to analyze"},
           "from_time" => %{type: "string", description: "Start timestamp (ISO format)"},
-          "to_time" => %{type: "string", description: "End timestamp (ISO format, defaults to now)"}
+          "to_time" => %{
+            type: "string",
+            description: "End timestamp (ISO format, defaults to now)"
+          }
         },
         required: ["entity_id", "from_time"]
       }
@@ -792,7 +798,8 @@ defmodule McpServerElixir.Protocol.McpTools do
             properties: %{
               "event_type" => %{
                 type: "string",
-                description: "Filter by exact event type (e.g., \"user.created\", \"order.placed\")"
+                description:
+                  "Filter by exact event type (e.g., \"user.created\", \"order.placed\")"
               },
               "entity_id" => %{
                 type: "string",
@@ -867,7 +874,13 @@ defmodule McpServerElixir.Protocol.McpTools do
         properties: %{
           "use_case" => %{
             type: "string",
-            enum: ["audit_trail", "user_analytics", "debugging", "compliance", "performance_analysis"],
+            enum: [
+              "audit_trail",
+              "user_analytics",
+              "debugging",
+              "compliance",
+              "performance_analysis"
+            ],
             description:
               "The use case you're trying to solve: audit_trail (who did what when), user_analytics (behavior patterns), debugging (incident investigation), compliance (regulatory evidence), performance_analysis (system optimization)"
           },
@@ -1737,7 +1750,9 @@ defmodule McpServerElixir.Protocol.McpTools do
       "limit" => limit
     }
 
-    params = if semantic_query, do: Map.put(params, "semantic_query", semantic_query), else: params
+    params =
+      if semantic_query, do: Map.put(params, "semantic_query", semantic_query), else: params
+
     params = if keywords, do: Map.put(params, "keywords", keywords), else: params
 
     # Add filters if present
@@ -2046,6 +2061,7 @@ defmodule McpServerElixir.Protocol.McpTools do
 
   defp format_sample_stats(stats) do
     type_count = map_size(stats.event_type_distribution)
+
     top_types =
       stats.event_type_distribution
       |> Enum.sort_by(fn {_k, v} -> -v end)
@@ -2910,8 +2926,7 @@ defmodule McpServerElixir.Protocol.McpTools do
           },
           %{
             pattern: "Query performance baseline",
-            approach:
-              "query_events with increasing limits → measure response time scaling"
+            approach: "query_events with increasing limits → measure response time scaling"
           }
         ],
         performance_tips: [

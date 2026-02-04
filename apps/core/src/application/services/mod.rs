@@ -17,9 +17,7 @@ pub mod vector_search;
 pub use analytics::AnalyticsEngine;
 pub use audit_logger::{AuditLogger, RequestContext};
 pub use creator_coordinator::{ArticlePerformance, CreatorCoordinator, CreatorDashboard};
-pub use event_coordinator::{
-    BatchIngestResult, EntityHistory, EntitySnapshot, EventCoordinator,
-};
+pub use event_coordinator::{BatchIngestResult, EntityHistory, EntitySnapshot, EventCoordinator};
 pub use payment_coordinator::{PaymentCoordinator, PurchaseResult};
 pub use pipeline::{Pipeline, PipelineConfig, PipelineManager, PipelineOperator, PipelineStats};
 pub use projection::{
@@ -32,6 +30,6 @@ pub use schema::{
 };
 pub use tenant_service::{Tenant, TenantManager, TenantQuotas, TenantUsage};
 pub use vector_search::{
-    BatchIndexResult, IndexEventRequest, IndexStats, SemanticSearchRequest,
-    SemanticSearchResponse, SemanticSearchResultItem, VectorSearchConfig, VectorSearchService,
+    BatchIndexResult, IndexEventRequest, IndexStats, SemanticSearchRequest, SemanticSearchResponse,
+    SemanticSearchResultItem, VectorSearchConfig, VectorSearchService,
 };

@@ -271,11 +271,7 @@ pub enum DistanceMetric {
 
 impl DistanceMetric {
     /// Calculate similarity/distance between two vectors
-    pub fn calculate(
-        &self,
-        a: &EmbeddingVector,
-        b: &EmbeddingVector,
-    ) -> Result<SimilarityScore> {
+    pub fn calculate(&self, a: &EmbeddingVector, b: &EmbeddingVector) -> Result<SimilarityScore> {
         let value = match self {
             DistanceMetric::Cosine => a.cosine_similarity(b)?,
             DistanceMetric::Euclidean => a.euclidean_distance(b)?,

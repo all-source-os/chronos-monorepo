@@ -58,7 +58,11 @@ pub trait ForkRepository: Send + Sync {
     ///
     /// # Returns
     /// `Some(Fork)` if found, `None` otherwise
-    async fn find_by_name(&self, tenant_id: &TenantId, name: &str) -> Result<Option<EventStoreFork>>;
+    async fn find_by_name(
+        &self,
+        tenant_id: &TenantId,
+        name: &str,
+    ) -> Result<Option<EventStoreFork>>;
 
     /// Find forks by tenant
     ///
@@ -125,7 +129,11 @@ pub trait ForkRepository: Send + Sync {
     ///
     /// # Returns
     /// Vector of expired forks
-    async fn find_expired(&self, before: DateTime<Utc>, limit: usize) -> Result<Vec<EventStoreFork>>;
+    async fn find_expired(
+        &self,
+        before: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<EventStoreFork>>;
 
     /// Find forks created by a specific agent
     ///

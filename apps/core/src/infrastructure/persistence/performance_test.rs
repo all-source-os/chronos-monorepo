@@ -446,8 +446,7 @@ mod tests {
         }
         let scalar_duration = scalar_start.elapsed();
 
-        let simd_events_per_sec =
-            (event_count * iterations) as f64 / simd_duration.as_secs_f64();
+        let simd_events_per_sec = (event_count * iterations) as f64 / simd_duration.as_secs_f64();
         let scalar_events_per_sec =
             (event_count * iterations) as f64 / scalar_duration.as_secs_f64();
         let speedup = scalar_duration.as_secs_f64() / simd_duration.as_secs_f64();

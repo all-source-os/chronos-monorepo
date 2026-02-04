@@ -950,7 +950,9 @@ impl PartitionStats {
         if self.write_count == 0 {
             None
         } else {
-            Some(Duration::from_nanos(self.total_latency_ns / self.write_count))
+            Some(Duration::from_nanos(
+                self.total_latency_ns / self.write_count,
+            ))
         }
     }
 }
@@ -1146,7 +1148,9 @@ impl PartitionMetrics {
         // Update atomic counters
         entry.event_count.fetch_add(1, Ordering::Relaxed);
         entry.write_count.fetch_add(1, Ordering::Relaxed);
-        entry.total_latency_ns.fetch_add(latency_ns, Ordering::Relaxed);
+        entry
+            .total_latency_ns
+            .fetch_add(latency_ns, Ordering::Relaxed);
 
         // Update min latency (compare-and-swap loop)
         let mut current_min = entry.min_latency_ns.load(Ordering::Relaxed);
@@ -1224,7 +1228,9 @@ impl PartitionMetrics {
         // Update atomic counters
         entry.event_count.fetch_add(count, Ordering::Relaxed);
         entry.write_count.fetch_add(1, Ordering::Relaxed);
-        entry.total_latency_ns.fetch_add(latency_ns, Ordering::Relaxed);
+        entry
+            .total_latency_ns
+            .fetch_add(latency_ns, Ordering::Relaxed);
 
         // Update min/max latency using per-event average
         let per_event_latency_ns = latency_ns / count.max(1);
@@ -1511,7 +1517,10 @@ mod partition_tests {
         }
 
         let alerts = metrics.detect_partition_imbalance();
-        assert!(alerts.is_empty(), "No alerts expected for balanced partitions");
+        assert!(
+            alerts.is_empty(),
+            "No alerts expected for balanced partitions"
+        );
     }
 
     #[test]

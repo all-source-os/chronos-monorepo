@@ -60,7 +60,15 @@ async fn main() -> Result<()> {
     tracing::info!("📝 API Documentation: /health for health check");
     tracing::info!("🔒 Features: Auth, Multi-tenancy, Rate Limiting");
 
-    api_v1::serve_v1(store, auth_manager, tenant_manager, rate_limiter, service_container, &addr).await?;
+    api_v1::serve_v1(
+        store,
+        auth_manager,
+        tenant_manager,
+        rate_limiter,
+        service_container,
+        &addr,
+    )
+    .await?;
 
     Ok(())
 }

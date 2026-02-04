@@ -28,7 +28,9 @@ static DEV_MODE_ENABLED: LazyLock<bool> = LazyLock::new(|| {
         .map(|v| v == "true" || v == "1")
         .unwrap_or(false);
     if enabled {
-        tracing::warn!("⚠️  ALLSOURCE_DEV_MODE is enabled - authentication and rate limiting are DISABLED");
+        tracing::warn!(
+            "⚠️  ALLSOURCE_DEV_MODE is enabled - authentication and rate limiting are DISABLED"
+        );
         tracing::warn!("⚠️  This should NEVER be used in production!");
     }
     enabled

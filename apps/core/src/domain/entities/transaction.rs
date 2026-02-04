@@ -524,7 +524,8 @@ mod tests {
         // Must confirm first
         transaction.confirm().unwrap();
 
-        let result = transaction.refund("refund_tx_sig_12345678901234567890123456789012345678901234");
+        let result =
+            transaction.refund("refund_tx_sig_12345678901234567890123456789012345678901234");
         assert!(result.is_ok());
         assert_eq!(transaction.status(), TransactionStatus::Refunded);
         assert!(transaction.refunded_at().is_some());

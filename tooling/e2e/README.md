@@ -20,7 +20,6 @@ tooling/e2e/
 │
 ├── page-objects/             # Page Object Models
 │   ├── BasePage.ts          # Base class with common functionality
-│   ├── DemoPage.ts          # Demo page interactions
 │   ├── UITestPage.ts        # UI test page interactions
 │   └── index.ts             # Exports
 │

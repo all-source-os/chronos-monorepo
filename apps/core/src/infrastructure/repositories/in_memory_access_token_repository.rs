@@ -85,7 +85,10 @@ impl AccessTokenRepository for InMemoryAccessTokenRepository {
 
     async fn find_by_hash(&self, token_hash: &str) -> Result<Option<AccessToken>> {
         let tokens = self.tokens.read().unwrap();
-        Ok(tokens.values().find(|t| t.token_hash() == token_hash).cloned())
+        Ok(tokens
+            .values()
+            .find(|t| t.token_hash() == token_hash)
+            .cloned())
     }
 
     async fn find_by_transaction(
@@ -327,7 +330,9 @@ impl AccessTokenRepository for InMemoryAccessTokenRepository {
 mod tests {
     use super::*;
     use crate::domain::entities::AccessMethod;
-    use crate::domain::value_objects::{ArticleId, CreatorId, TenantId, TransactionId, WalletAddress};
+    use crate::domain::value_objects::{
+        ArticleId, CreatorId, TenantId, TransactionId, WalletAddress,
+    };
 
     const VALID_WALLETS: [&str; 8] = [
         "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
@@ -339,7 +344,8 @@ mod tests {
         "66666666666666666666666666666666",
         "77777777777777777777777777777777",
     ];
-    const VALID_TOKEN_HASH: &str = "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd";
+    const VALID_TOKEN_HASH: &str =
+        "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd";
 
     fn test_tenant_id() -> TenantId {
         TenantId::new("test-tenant".to_string()).unwrap()
@@ -478,10 +484,16 @@ mod tests {
         .unwrap();
         repo.save(&token).await.unwrap();
 
-        let found = repo.find_by_article_and_wallet(&article_id, &wallet).await.unwrap();
+        let found = repo
+            .find_by_article_and_wallet(&article_id, &wallet)
+            .await
+            .unwrap();
         assert_eq!(found.len(), 1);
 
-        let not_found = repo.find_by_article_and_wallet(&article_id, &test_wallet_2()).await.unwrap();
+        let not_found = repo
+            .find_by_article_and_wallet(&article_id, &test_wallet_2())
+            .await
+            .unwrap();
         assert!(not_found.is_empty());
     }
 
@@ -519,7 +531,11 @@ mod tests {
                 test_creator_id(),
                 wallet.clone(),
                 test_transaction_id(),
-                format!("{}{}", VALID_TOKEN_HASH[..60].to_string(), format!("{:04}", i)),
+                format!(
+                    "{}{}",
+                    VALID_TOKEN_HASH[..60].to_string(),
+                    format!("{:04}", i)
+                ),
             )
             .unwrap();
             repo.save(&token).await.unwrap();
@@ -541,7 +557,11 @@ mod tests {
                 test_creator_id(),
                 test_wallet_n(i),
                 test_transaction_id(),
-                format!("{}{}", VALID_TOKEN_HASH[..60].to_string(), format!("{:04}", i)),
+                format!(
+                    "{}{}",
+                    VALID_TOKEN_HASH[..60].to_string(),
+                    format!("{:04}", i)
+                ),
             )
             .unwrap();
             repo.save(&token).await.unwrap();
@@ -563,7 +583,11 @@ mod tests {
                 creator_id,
                 test_wallet_n(i),
                 test_transaction_id(),
-                format!("{}{}", VALID_TOKEN_HASH[..60].to_string(), format!("{:04}", i)),
+                format!(
+                    "{}{}",
+                    VALID_TOKEN_HASH[..60].to_string(),
+                    format!("{:04}", i)
+                ),
             )
             .unwrap();
             repo.save(&token).await.unwrap();
@@ -613,13 +637,20 @@ mod tests {
                 test_creator_id(),
                 test_wallet(),
                 transaction_id,
-                format!("{}{}", VALID_TOKEN_HASH[..60].to_string(), format!("{:04}", i)),
+                format!(
+                    "{}{}",
+                    VALID_TOKEN_HASH[..60].to_string(),
+                    format!("{:04}", i)
+                ),
             )
             .unwrap();
             repo.save(&token).await.unwrap();
         }
 
-        let count = repo.revoke_by_transaction(&transaction_id, "Refund").await.unwrap();
+        let count = repo
+            .revoke_by_transaction(&transaction_id, "Refund")
+            .await
+            .unwrap();
         assert_eq!(count, 3);
 
         // Verify all are revoked
@@ -731,7 +762,11 @@ mod tests {
                 test_creator_id(),
                 test_wallet_n(i),
                 test_transaction_id(),
-                format!("{}{}", VALID_TOKEN_HASH[..60].to_string(), format!("{:04}", i)),
+                format!(
+                    "{}{}",
+                    VALID_TOKEN_HASH[..60].to_string(),
+                    format!("{:04}", i)
+                ),
             )
             .unwrap();
             repo.save(&token).await.unwrap();

@@ -174,11 +174,7 @@ impl CreatorRepository for InMemoryCreatorRepository {
         }
 
         if let Some(ref name_pattern) = query.name_contains {
-            result.retain(|c| {
-                c.name()
-                    .map(|n| n.contains(name_pattern))
-                    .unwrap_or(false)
-            });
+            result.retain(|c| c.name().map(|n| n.contains(name_pattern)).unwrap_or(false));
         }
 
         if let Some(date) = query.created_after {
@@ -238,13 +234,7 @@ mod tests {
     }
 
     fn create_test_creator(email: &str) -> Creator {
-        Creator::new(
-            test_tenant_id(),
-            email.to_string(),
-            test_wallet(),
-            None,
-        )
-        .unwrap()
+        Creator::new(test_tenant_id(), email.to_string(), test_wallet(), None).unwrap()
     }
 
     #[tokio::test]
@@ -336,7 +326,10 @@ mod tests {
         .unwrap();
         repo.create(other_creator).await.unwrap();
 
-        let creators = repo.find_by_tenant(&test_tenant_id(), 100, 0).await.unwrap();
+        let creators = repo
+            .find_by_tenant(&test_tenant_id(), 100, 0)
+            .await
+            .unwrap();
         assert_eq!(creators.len(), 3);
     }
 
@@ -497,8 +490,14 @@ mod tests {
         repo.create(pending).await.unwrap();
 
         assert_eq!(repo.count().await.unwrap(), 2);
-        assert_eq!(repo.count_by_status(CreatorStatus::Active).await.unwrap(), 1);
-        assert_eq!(repo.count_by_status(CreatorStatus::Pending).await.unwrap(), 1);
+        assert_eq!(
+            repo.count_by_status(CreatorStatus::Active).await.unwrap(),
+            1
+        );
+        assert_eq!(
+            repo.count_by_status(CreatorStatus::Pending).await.unwrap(),
+            1
+        );
     }
 
     #[tokio::test]

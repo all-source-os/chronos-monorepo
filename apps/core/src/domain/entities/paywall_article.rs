@@ -370,13 +370,11 @@ impl PaywallArticle {
     pub fn update_reading_analytics(&mut self, duration_seconds: u64, scroll_depth: u8) {
         // Simple moving average approximation
         let total = self.stats.total_purchases.max(1);
-        self.stats.avg_read_duration_seconds = ((self.stats.avg_read_duration_seconds
-            * (total - 1))
-            + duration_seconds)
-            / total;
-        self.stats.avg_scroll_depth =
-            (((self.stats.avg_scroll_depth as u64 * (total - 1)) + scroll_depth as u64) / total)
-                as u8;
+        self.stats.avg_read_duration_seconds =
+            ((self.stats.avg_read_duration_seconds * (total - 1)) + duration_seconds) / total;
+        self.stats.avg_scroll_depth = (((self.stats.avg_scroll_depth as u64 * (total - 1))
+            + scroll_depth as u64)
+            / total) as u8;
         self.updated_at = Utc::now();
     }
 

@@ -12,7 +12,10 @@ use tantivy::{
     collector::TopDocs,
     doc,
     query::QueryParser,
-    schema::{Field, Schema, STORED, TEXT, STRING, IndexRecordOption, TextFieldIndexing, TextOptions, Value},
+    schema::{
+        Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, STORED, STRING,
+        TEXT,
+    },
     Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument,
 };
 
@@ -199,16 +202,18 @@ impl KeywordSearchEngine {
         let index = Index::create_in_ram(schema);
 
         // Create writer
-        let writer = index
-            .writer(config.writer_heap_size)
-            .map_err(|e| AllSourceError::InternalError(format!("Failed to create index writer: {}", e)))?;
+        let writer = index.writer(config.writer_heap_size).map_err(|e| {
+            AllSourceError::InternalError(format!("Failed to create index writer: {}", e))
+        })?;
 
         // Create reader with automatic reload
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()
-            .map_err(|e| AllSourceError::InternalError(format!("Failed to create index reader: {}", e)))?;
+            .map_err(|e| {
+                AllSourceError::InternalError(format!("Failed to create index reader: {}", e))
+            })?;
 
         Ok(Self {
             config,
@@ -223,26 +228,33 @@ impl KeywordSearchEngine {
 
     /// Create a new KeywordSearchEngine with a directory-backed index
     #[cfg(feature = "keyword-search")]
-    pub fn with_directory(path: impl AsRef<std::path::Path>, config: KeywordSearchEngineConfig) -> Result<Self> {
+    pub fn with_directory(
+        path: impl AsRef<std::path::Path>,
+        config: KeywordSearchEngineConfig,
+    ) -> Result<Self> {
         let (schema, schema_fields) = build_schema();
         let path_ref = path.as_ref();
 
         // Create or open directory-backed index
         let index = Index::create_in_dir(path_ref, schema)
             .or_else(|_| Index::open_in_dir(path_ref))
-            .map_err(|e| AllSourceError::InternalError(format!("Failed to create/open index: {}", e)))?;
+            .map_err(|e| {
+                AllSourceError::InternalError(format!("Failed to create/open index: {}", e))
+            })?;
 
         // Create writer
-        let writer = index
-            .writer(config.writer_heap_size)
-            .map_err(|e| AllSourceError::InternalError(format!("Failed to create index writer: {}", e)))?;
+        let writer = index.writer(config.writer_heap_size).map_err(|e| {
+            AllSourceError::InternalError(format!("Failed to create index writer: {}", e))
+        })?;
 
         // Create reader
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()
-            .map_err(|e| AllSourceError::InternalError(format!("Failed to create index reader: {}", e)))?;
+            .map_err(|e| {
+                AllSourceError::InternalError(format!("Failed to create index reader: {}", e))
+            })?;
 
         Ok(Self {
             config,
@@ -304,7 +316,8 @@ impl KeywordSearchEngine {
         }
         doc.add_text(self.schema_fields.payload, &payload_text);
 
-        writer.add_document(doc)
+        writer
+            .add_document(doc)
             .map_err(|e| AllSourceError::InternalError(format!("Failed to add document: {}", e)))?;
 
         // Update tenant counts
@@ -321,11 +334,13 @@ impl KeywordSearchEngine {
 
         // Auto-commit if configured
         if self.config.auto_commit {
-            writer.commit()
+            writer
+                .commit()
                 .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {}", e)))?;
             // Reload reader to see changes immediately
-            self.reader.reload()
-                .map_err(|e| AllSourceError::InternalError(format!("Failed to reload reader: {}", e)))?;
+            self.reader.reload().map_err(|e| {
+                AllSourceError::InternalError(format!("Failed to reload reader: {}", e))
+            })?;
         }
 
         Ok(())
@@ -341,7 +356,8 @@ impl KeywordSearchEngine {
         _payload: &serde_json::Value,
     ) -> Result<()> {
         Err(AllSourceError::InternalError(
-            "Keyword search feature not enabled. Enable 'keyword-search' feature in Cargo.toml".to_string(),
+            "Keyword search feature not enabled. Enable 'keyword-search' feature in Cargo.toml"
+                .to_string(),
         ))
     }
 
@@ -349,11 +365,13 @@ impl KeywordSearchEngine {
     #[cfg(feature = "keyword-search")]
     pub fn commit(&self) -> Result<()> {
         let mut writer = self.writer.write();
-        writer.commit()
+        writer
+            .commit()
             .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {}", e)))?;
         // Reload the reader to see the committed changes immediately
-        self.reader.reload()
-            .map_err(|e| AllSourceError::InternalError(format!("Failed to reload reader: {}", e)))?;
+        self.reader.reload().map_err(|e| {
+            AllSourceError::InternalError(format!("Failed to reload reader: {}", e))
+        })?;
         Ok(())
     }
 
@@ -414,33 +432,41 @@ impl KeywordSearchEngine {
         }
 
         let query_parser = QueryParser::for_index(&self.index, all_fields);
-        let parsed_query = query_parser.parse_query(&query_str)
+        let parsed_query = query_parser
+            .parse_query(&query_str)
             .map_err(|e| AllSourceError::InvalidInput(format!("Invalid query: {}", e)))?;
 
         // Execute search with BM25 scoring
-        let top_docs = searcher.search(&parsed_query, &TopDocs::with_limit(query.limit))
+        let top_docs = searcher
+            .search(&parsed_query, &TopDocs::with_limit(query.limit))
             .map_err(|e| AllSourceError::InternalError(format!("Search failed: {}", e)))?;
 
         // Collect results
         let mut results = Vec::with_capacity(top_docs.len());
         for (score, doc_address) in top_docs {
-            let doc: TantivyDocument = searcher.doc(doc_address)
-                .map_err(|e| AllSourceError::InternalError(format!("Failed to retrieve document: {}", e)))?;
+            let doc: TantivyDocument = searcher.doc(doc_address).map_err(|e| {
+                AllSourceError::InternalError(format!("Failed to retrieve document: {}", e))
+            })?;
 
             // Extract fields from document
-            let event_id_str = doc.get_first(self.schema_fields.event_id)
+            let event_id_str = doc
+                .get_first(self.schema_fields.event_id)
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| AllSourceError::InternalError("Missing event_id in document".to_string()))?;
+                .ok_or_else(|| {
+                    AllSourceError::InternalError("Missing event_id in document".to_string())
+                })?;
 
             let event_id = Uuid::parse_str(event_id_str)
                 .map_err(|e| AllSourceError::InternalError(format!("Invalid event_id: {}", e)))?;
 
-            let event_type = doc.get_first(self.schema_fields.event_type)
+            let event_type = doc
+                .get_first(self.schema_fields.event_type)
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
-            let entity_id = doc.get_first(self.schema_fields.entity_id)
+            let entity_id = doc
+                .get_first(self.schema_fields.entity_id)
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
@@ -459,7 +485,8 @@ impl KeywordSearchEngine {
     #[cfg(not(feature = "keyword-search"))]
     pub fn search_keywords(&self, _query: &KeywordQuery) -> Result<Vec<KeywordSearchResult>> {
         Err(AllSourceError::InternalError(
-            "Keyword search feature not enabled. Enable 'keyword-search' feature in Cargo.toml".to_string(),
+            "Keyword search feature not enabled. Enable 'keyword-search' feature in Cargo.toml"
+                .to_string(),
         ))
     }
 
@@ -479,10 +506,12 @@ impl KeywordSearchEngine {
         }
 
         if self.config.auto_commit {
-            writer.commit()
+            writer
+                .commit()
                 .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {}", e)))?;
-            self.reader.reload()
-                .map_err(|e| AllSourceError::InternalError(format!("Failed to reload reader: {}", e)))?;
+            self.reader.reload().map_err(|e| {
+                AllSourceError::InternalError(format!("Failed to reload reader: {}", e))
+            })?;
         }
 
         Ok(())
@@ -516,10 +545,12 @@ impl KeywordSearchEngine {
         }
 
         if self.config.auto_commit {
-            writer.commit()
+            writer
+                .commit()
                 .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {}", e)))?;
-            self.reader.reload()
-                .map_err(|e| AllSourceError::InternalError(format!("Failed to reload reader: {}", e)))?;
+            self.reader.reload().map_err(|e| {
+                AllSourceError::InternalError(format!("Failed to reload reader: {}", e))
+            })?;
         }
 
         Ok(count)
@@ -544,7 +575,11 @@ impl KeywordSearchEngine {
     /// Get engine statistics
     pub fn stats(&self) -> (u64, u64, u64) {
         let stats = self.stats.read();
-        (stats.total_indexed, stats.total_searches, stats.total_deleted)
+        (
+            stats.total_indexed,
+            stats.total_searches,
+            stats.total_deleted,
+        )
     }
 
     /// Extract searchable text from a JSON payload
@@ -825,11 +860,23 @@ mod integration_tests {
         let id2 = Uuid::new_v4();
 
         engine
-            .index_event(id1, "tenant-1", "Event", None, &json!({"content": "shared data"}))
+            .index_event(
+                id1,
+                "tenant-1",
+                "Event",
+                None,
+                &json!({"content": "shared data"}),
+            )
             .unwrap();
 
         engine
-            .index_event(id2, "tenant-2", "Event", None, &json!({"content": "shared data"}))
+            .index_event(
+                id2,
+                "tenant-2",
+                "Event",
+                None,
+                &json!({"content": "shared data"}),
+            )
             .unwrap();
 
         let query = KeywordQuery::new("shared").with_tenant("tenant-1");
@@ -1014,14 +1061,12 @@ mod integration_tests {
             .unwrap();
 
         // Search only in event_type field
-        let query = KeywordQuery::new("TestEvent")
-            .with_fields(vec!["event_type".to_string()]);
+        let query = KeywordQuery::new("TestEvent").with_fields(vec!["event_type".to_string()]);
         let results = engine.search_keywords(&query).unwrap();
         assert_eq!(results.len(), 1);
 
         // Search in payload field for something that's only in event_type - should not match
-        let query = KeywordQuery::new("TestEvent")
-            .with_fields(vec!["payload".to_string()]);
+        let query = KeywordQuery::new("TestEvent").with_fields(vec!["payload".to_string()]);
         let results = engine.search_keywords(&query).unwrap();
         assert_eq!(results.len(), 0);
     }

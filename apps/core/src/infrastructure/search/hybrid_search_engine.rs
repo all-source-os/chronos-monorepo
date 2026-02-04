@@ -536,7 +536,11 @@ impl HybridSearchEngine {
 
         // Convert to sorted vector
         let mut results: Vec<HybridSearchResult> = combined_scores.into_values().collect();
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Apply metadata filters
         self.apply_filters(&mut results, &query.filters);
@@ -695,7 +699,15 @@ impl HybridSearchEngine {
 /// Extract source text from a payload for the vector search engine
 #[cfg(feature = "vector-search")]
 fn extract_source_text(payload: &serde_json::Value) -> Option<String> {
-    let priority_fields = ["content", "text", "body", "message", "description", "title", "name"];
+    let priority_fields = [
+        "content",
+        "text",
+        "body",
+        "message",
+        "description",
+        "title",
+        "name",
+    ];
 
     if let serde_json::Value::Object(map) = payload {
         for field in priority_fields {
@@ -908,9 +920,7 @@ mod tests {
 #[cfg(all(feature = "vector-search", feature = "keyword-search"))]
 mod integration_tests {
     use super::*;
-    use crate::infrastructure::search::{
-        KeywordSearchEngineConfig, VectorSearchEngineConfig,
-    };
+    use crate::infrastructure::search::{KeywordSearchEngineConfig, VectorSearchEngineConfig};
 
     fn create_test_engines() -> (Arc<VectorSearchEngine>, Arc<KeywordSearchEngine>) {
         let vector_engine = Arc::new(

@@ -112,7 +112,8 @@ impl NodeRegistry {
         }
 
         // Get healthy nodes sorted by ID for deterministic assignment
-        let mut healthy_nodes: Vec<u32> = self.nodes
+        let mut healthy_nodes: Vec<u32> = self
+            .nodes
             .iter()
             .filter(|entry| entry.value().healthy)
             .map(|entry| *entry.key())
@@ -141,7 +142,9 @@ impl NodeRegistry {
     pub fn node_for_partition(&self, partition_id: u32) -> Option<u32> {
         self.nodes
             .iter()
-            .find(|entry| entry.value().healthy && entry.value().assigned_partitions.contains(&partition_id))
+            .find(|entry| {
+                entry.value().healthy && entry.value().assigned_partitions.contains(&partition_id)
+            })
             .map(|entry| entry.value().id)
     }
 
@@ -152,7 +155,10 @@ impl NodeRegistry {
 
     /// Get all nodes
     pub fn all_nodes(&self) -> Vec<Node> {
-        self.nodes.iter().map(|entry| entry.value().clone()).collect()
+        self.nodes
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 
     /// Get healthy nodes
@@ -178,9 +184,9 @@ impl NodeRegistry {
     /// Returns true if all partitions have at least one healthy node assigned.
     pub fn is_cluster_healthy(&self) -> bool {
         for partition_id in 0..self.partition_count {
-            let has_node = self.nodes
-                .iter()
-                .any(|entry| entry.value().healthy && entry.value().assigned_partitions.contains(&partition_id));
+            let has_node = self.nodes.iter().any(|entry| {
+                entry.value().healthy && entry.value().assigned_partitions.contains(&partition_id)
+            });
 
             if !has_node {
                 return false;
@@ -197,7 +203,10 @@ impl NodeRegistry {
 
     /// Get healthy node count
     pub fn healthy_node_count(&self) -> usize {
-        self.nodes.iter().filter(|entry| entry.value().healthy).count()
+        self.nodes
+            .iter()
+            .filter(|entry| entry.value().healthy)
+            .count()
     }
 }
 

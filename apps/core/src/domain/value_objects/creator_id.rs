@@ -215,8 +215,9 @@ mod tests {
 
     #[test]
     fn test_try_from_string() {
-        let creator_id: Result<CreatorId> =
-            "550e8400-e29b-41d4-a716-446655440000".to_string().try_into();
+        let creator_id: Result<CreatorId> = "550e8400-e29b-41d4-a716-446655440000"
+            .to_string()
+            .try_into();
         assert!(creator_id.is_ok());
 
         let invalid: Result<CreatorId> = String::new().try_into();

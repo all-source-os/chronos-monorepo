@@ -597,9 +597,7 @@ mod tests {
 
     #[test]
     fn test_fork_filter_active_only() {
-        let filter = ForkFilter::new()
-            .by_tenant("tenant-1")
-            .active_only();
+        let filter = ForkFilter::new().by_tenant("tenant-1").active_only();
 
         assert_eq!(filter.status, Some(ForkStatusDto::Active));
         assert_eq!(filter.include_expired, Some(false));

@@ -7,13 +7,13 @@
 //! - Configurable similarity thresholds
 
 #[cfg(feature = "vector-search")]
-use fastembed::{EmbeddingModel, TextEmbedding, InitOptions};
+use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 #[cfg(feature = "vector-search")]
 use instant_distance::{Builder, HnswMap, Search};
 
+use crate::domain::value_objects::DistanceMetric;
 #[cfg(not(feature = "vector-search"))]
 use crate::domain::value_objects::EmbeddingVector;
-use crate::domain::value_objects::DistanceMetric;
 use crate::error::{AllSourceError, Result};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -195,10 +195,11 @@ impl VectorSearchEngine {
     pub fn with_config(config: VectorSearchEngineConfig) -> Result<Self> {
         // Initialize the embedding model
         let model = TextEmbedding::try_new(
-            InitOptions::new(EmbeddingModel::AllMiniLML6V2)
-                .with_show_download_progress(false)
+            InitOptions::new(EmbeddingModel::AllMiniLML6V2).with_show_download_progress(false),
         )
-        .map_err(|e| AllSourceError::InternalError(format!("Failed to load embedding model: {}", e)))?;
+        .map_err(|e| {
+            AllSourceError::InternalError(format!("Failed to load embedding model: {}", e))
+        })?;
 
         Ok(Self {
             config,
@@ -228,7 +229,6 @@ impl VectorSearchEngine {
         })
     }
 
-
     /// Get the engine configuration
     pub fn config(&self) -> &VectorSearchEngineConfig {
         &self.config
@@ -237,10 +237,9 @@ impl VectorSearchEngine {
     /// Generate embedding from text using fastembed
     #[cfg(feature = "vector-search")]
     pub fn embed_text(&self, text: &str) -> Result<Vec<f32>> {
-        let embeddings = self
-            .embedding_model
-            .embed(vec![text], None)
-            .map_err(|e| AllSourceError::InternalError(format!("Embedding generation failed: {}", e)))?;
+        let embeddings = self.embedding_model.embed(vec![text], None).map_err(|e| {
+            AllSourceError::InternalError(format!("Embedding generation failed: {}", e))
+        })?;
 
         let embedding = embeddings
             .into_iter()
@@ -258,7 +257,8 @@ impl VectorSearchEngine {
     #[cfg(not(feature = "vector-search"))]
     pub fn embed_text(&self, _text: &str) -> Result<Vec<f32>> {
         Err(AllSourceError::InternalError(
-            "Vector search feature not enabled. Enable 'vector-search' feature in Cargo.toml".to_string(),
+            "Vector search feature not enabled. Enable 'vector-search' feature in Cargo.toml"
+                .to_string(),
         ))
     }
 
@@ -286,7 +286,16 @@ impl VectorSearchEngine {
             }
             serde_json::Value::Object(map) => {
                 // Priority fields that typically contain meaningful text
-                let priority_fields = ["content", "text", "body", "message", "description", "title", "name", "summary"];
+                let priority_fields = [
+                    "content",
+                    "text",
+                    "body",
+                    "message",
+                    "description",
+                    "title",
+                    "name",
+                    "summary",
+                ];
 
                 for field in priority_fields {
                     if let Some(serde_json::Value::String(s)) = map.get(field) {
@@ -604,10 +613,7 @@ impl VectorSearchEngine {
     /// Get the number of indexed vectors
     pub fn count(&self, tenant_id: Option<&str>) -> usize {
         if let Some(tid) = tenant_id {
-            self.tenant_index
-                .read()
-                .get(tid)
-                .map_or(0, |ids| ids.len())
+            self.tenant_index.read().get(tid).map_or(0, |ids| ids.len())
         } else {
             self.vectors.read().len()
         }
@@ -753,20 +759,35 @@ mod tests {
         let embedding3 = vec![0.0, 1.0, 0.0]; // Orthogonal
 
         engine
-            .index_event(id1, "tenant-1", embedding1.clone(), Some("first".to_string()))
+            .index_event(
+                id1,
+                "tenant-1",
+                embedding1.clone(),
+                Some("first".to_string()),
+            )
             .await
             .unwrap();
         engine
-            .index_event(id2, "tenant-1", embedding2.clone(), Some("second".to_string()))
+            .index_event(
+                id2,
+                "tenant-1",
+                embedding2.clone(),
+                Some("second".to_string()),
+            )
             .await
             .unwrap();
         engine
-            .index_event(id3, "tenant-1", embedding3.clone(), Some("third".to_string()))
+            .index_event(
+                id3,
+                "tenant-1",
+                embedding3.clone(),
+                Some("third".to_string()),
+            )
             .await
             .unwrap();
 
-        let query = SimilarityQuery::new(vec![1.0, 0.0, 0.0], 2)
-            .with_tenant("tenant-1".to_string());
+        let query =
+            SimilarityQuery::new(vec![1.0, 0.0, 0.0], 2).with_tenant("tenant-1".to_string());
 
         let results = engine.search_similar(&query).unwrap();
 
@@ -819,8 +840,8 @@ mod tests {
             .await
             .unwrap();
 
-        let query = SimilarityQuery::new(vec![1.0, 0.0, 0.0], 10)
-            .with_tenant("tenant-1".to_string());
+        let query =
+            SimilarityQuery::new(vec![1.0, 0.0, 0.0], 10).with_tenant("tenant-1".to_string());
 
         let results = engine.search_similar(&query).unwrap();
 
@@ -852,7 +873,12 @@ mod tests {
         for i in 0..5 {
             let tenant = if i < 3 { "tenant-1" } else { "tenant-2" };
             engine
-                .index_event(Uuid::new_v4(), tenant, create_test_embedding(3, i as f32), None)
+                .index_event(
+                    Uuid::new_v4(),
+                    tenant,
+                    create_test_embedding(3, i as f32),
+                    None,
+                )
                 .await
                 .unwrap();
         }
@@ -873,13 +899,18 @@ mod tests {
 
         for i in 0..3 {
             engine
-                .index_event(Uuid::new_v4(), "tenant-1", create_test_embedding(3, i as f32), None)
+                .index_event(
+                    Uuid::new_v4(),
+                    "tenant-1",
+                    create_test_embedding(3, i as f32),
+                    None,
+                )
                 .await
                 .unwrap();
         }
 
-        let query = SimilarityQuery::new(vec![1.0, 0.0, 0.0], 2)
-            .with_tenant("tenant-1".to_string());
+        let query =
+            SimilarityQuery::new(vec![1.0, 0.0, 0.0], 2).with_tenant("tenant-1".to_string());
         engine.search_similar(&query).unwrap();
         engine.search_similar(&query).unwrap();
 

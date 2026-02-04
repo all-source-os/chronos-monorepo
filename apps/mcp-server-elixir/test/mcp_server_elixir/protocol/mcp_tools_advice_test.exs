@@ -43,7 +43,15 @@ defmodule McpServerElixir.Protocol.McpToolsAdviceTest do
 
     test "use_case has correct enum values", %{tool: tool} do
       schema = tool.inputSchema
-      expected_enum = ["audit_trail", "user_analytics", "debugging", "compliance", "performance_analysis"]
+
+      expected_enum = [
+        "audit_trail",
+        "user_analytics",
+        "debugging",
+        "compliance",
+        "performance_analysis"
+      ]
+
       assert schema.properties["use_case"].enum == expected_enum
     end
 

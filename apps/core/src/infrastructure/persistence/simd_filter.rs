@@ -166,7 +166,9 @@ impl SimdEventFilter {
         self.stats
             .events_matched
             .fetch_add(results.len() as u64, Ordering::Relaxed);
-        self.stats.filter_time_ns.fetch_add(duration, Ordering::Relaxed);
+        self.stats
+            .filter_time_ns
+            .fetch_add(duration, Ordering::Relaxed);
 
         results
     }
@@ -174,7 +176,11 @@ impl SimdEventFilter {
     /// Filter events and return indices of matching events
     ///
     /// More efficient when you need indices rather than cloned events.
-    pub fn filter_events_indices(&self, events: &[Event], predicate: &FilterPredicate) -> Vec<usize> {
+    pub fn filter_events_indices(
+        &self,
+        events: &[Event],
+        predicate: &FilterPredicate,
+    ) -> Vec<usize> {
         let start = Instant::now();
         let results = self.filter_events_indices_internal(events, predicate);
         let duration = start.elapsed().as_nanos() as u64;
@@ -185,7 +191,9 @@ impl SimdEventFilter {
         self.stats
             .events_matched
             .fetch_add(results.len() as u64, Ordering::Relaxed);
-        self.stats.filter_time_ns.fetch_add(duration, Ordering::Relaxed);
+        self.stats
+            .filter_time_ns
+            .fetch_add(duration, Ordering::Relaxed);
 
         results
     }
@@ -204,13 +212,11 @@ impl SimdEventFilter {
             FilterPredicate::EntityIdPrefix(prefix) => {
                 self.filter_string_prefix(events, prefix, |e| e.entity_id_str())
             }
-            FilterPredicate::TenantId(tenant) => {
-                events
-                    .iter()
-                    .filter(|e| e.tenant_id_str() == tenant)
-                    .cloned()
-                    .collect()
-            }
+            FilterPredicate::TenantId(tenant) => events
+                .iter()
+                .filter(|e| e.tenant_id_str() == tenant)
+                .cloned()
+                .collect(),
             FilterPredicate::And(predicates) => {
                 let mut result: Vec<Event> = events.to_vec();
                 for pred in predicates {
@@ -240,7 +246,9 @@ impl SimdEventFilter {
     ) -> Vec<usize> {
         match predicate {
             FilterPredicate::TimestampAfter(ts) => self.filter_timestamp_after_indices(events, *ts),
-            FilterPredicate::TimestampBefore(ts) => self.filter_timestamp_before_indices(events, *ts),
+            FilterPredicate::TimestampBefore(ts) => {
+                self.filter_timestamp_before_indices(events, *ts)
+            }
             FilterPredicate::TimestampBetween(start, end) => {
                 self.filter_timestamp_between_indices(events, *start, *end)
             }
@@ -263,10 +271,10 @@ impl SimdEventFilter {
                 let mut current_indices: Vec<usize> =
                     self.filter_events_indices_internal(events, &predicates[0]);
                 for pred in predicates.iter().skip(1) {
-                    let pred_indices: std::collections::HashSet<usize> =
-                        self.filter_events_indices_internal(events, pred)
-                            .into_iter()
-                            .collect();
+                    let pred_indices: std::collections::HashSet<usize> = self
+                        .filter_events_indices_internal(events, pred)
+                        .into_iter()
+                        .collect();
                     current_indices.retain(|i| pred_indices.contains(i));
                 }
                 current_indices
@@ -398,13 +406,20 @@ impl SimdEventFilter {
 
     /// SIMD-optimized timestamp after filtering
     #[cfg(target_arch = "x86_64")]
-    fn filter_timestamp_after_simd(&self, events: &[Event], threshold: DateTime<Utc>) -> Vec<Event> {
+    fn filter_timestamp_after_simd(
+        &self,
+        events: &[Event],
+        threshold: DateTime<Utc>,
+    ) -> Vec<Event> {
         use std::arch::x86_64::*;
 
         let threshold_ts = threshold.timestamp_millis();
 
         // Convert timestamps to array for SIMD processing
-        let timestamps: Vec<i64> = events.iter().map(|e| e.timestamp().timestamp_millis()).collect();
+        let timestamps: Vec<i64> = events
+            .iter()
+            .map(|e| e.timestamp().timestamp_millis())
+            .collect();
 
         let mut result = Vec::with_capacity(events.len() / 2);
 
@@ -478,7 +493,11 @@ impl SimdEventFilter {
     }
 
     #[cfg(not(target_arch = "x86_64"))]
-    fn filter_timestamp_after_simd(&self, events: &[Event], threshold: DateTime<Utc>) -> Vec<Event> {
+    fn filter_timestamp_after_simd(
+        &self,
+        events: &[Event],
+        threshold: DateTime<Utc>,
+    ) -> Vec<Event> {
         // Scalar fallback for non-x86_64
         events
             .iter()
@@ -489,11 +508,18 @@ impl SimdEventFilter {
 
     /// SIMD-optimized timestamp before filtering
     #[cfg(target_arch = "x86_64")]
-    fn filter_timestamp_before_simd(&self, events: &[Event], threshold: DateTime<Utc>) -> Vec<Event> {
+    fn filter_timestamp_before_simd(
+        &self,
+        events: &[Event],
+        threshold: DateTime<Utc>,
+    ) -> Vec<Event> {
         use std::arch::x86_64::*;
 
         let threshold_ts = threshold.timestamp_millis();
-        let timestamps: Vec<i64> = events.iter().map(|e| e.timestamp().timestamp_millis()).collect();
+        let timestamps: Vec<i64> = events
+            .iter()
+            .map(|e| e.timestamp().timestamp_millis())
+            .collect();
 
         let mut result = Vec::with_capacity(events.len() / 2);
         let chunks = timestamps.len() / 4;
@@ -559,7 +585,11 @@ impl SimdEventFilter {
     }
 
     #[cfg(not(target_arch = "x86_64"))]
-    fn filter_timestamp_before_simd(&self, events: &[Event], threshold: DateTime<Utc>) -> Vec<Event> {
+    fn filter_timestamp_before_simd(
+        &self,
+        events: &[Event],
+        threshold: DateTime<Utc>,
+    ) -> Vec<Event> {
         events
             .iter()
             .filter(|e| e.timestamp() < threshold)
@@ -579,7 +609,10 @@ impl SimdEventFilter {
 
         let start_ts = start.timestamp_millis();
         let end_ts = end.timestamp_millis();
-        let timestamps: Vec<i64> = events.iter().map(|e| e.timestamp().timestamp_millis()).collect();
+        let timestamps: Vec<i64> = events
+            .iter()
+            .map(|e| e.timestamp().timestamp_millis())
+            .collect();
 
         let mut result = Vec::with_capacity(events.len() / 2);
         let chunks = timestamps.len() / 4;
@@ -683,7 +716,10 @@ impl SimdEventFilter {
         use std::arch::x86_64::*;
 
         let threshold_ts = threshold.timestamp_millis();
-        let timestamps: Vec<i64> = events.iter().map(|e| e.timestamp().timestamp_millis()).collect();
+        let timestamps: Vec<i64> = events
+            .iter()
+            .map(|e| e.timestamp().timestamp_millis())
+            .collect();
 
         let mut result = Vec::with_capacity(events.len() / 2);
         let chunks = timestamps.len() / 4;
@@ -769,7 +805,10 @@ impl SimdEventFilter {
         use std::arch::x86_64::*;
 
         let threshold_ts = threshold.timestamp_millis();
-        let timestamps: Vec<i64> = events.iter().map(|e| e.timestamp().timestamp_millis()).collect();
+        let timestamps: Vec<i64> = events
+            .iter()
+            .map(|e| e.timestamp().timestamp_millis())
+            .collect();
 
         let mut result = Vec::with_capacity(events.len() / 2);
         let chunks = timestamps.len() / 4;
@@ -857,7 +896,10 @@ impl SimdEventFilter {
 
         let start_ts = start.timestamp_millis();
         let end_ts = end.timestamp_millis();
-        let timestamps: Vec<i64> = events.iter().map(|e| e.timestamp().timestamp_millis()).collect();
+        let timestamps: Vec<i64> = events
+            .iter()
+            .map(|e| e.timestamp().timestamp_millis())
+            .collect();
 
         let mut result = Vec::with_capacity(events.len() / 2);
         let chunks = timestamps.len() / 4;
@@ -1023,7 +1065,12 @@ impl SimdEventFilter {
 
     /// SIMD string prefix matching using SSE4.2 pcmpestri
     #[cfg(target_arch = "x86_64")]
-    fn filter_string_prefix_simd<F>(&self, events: &[Event], prefix: &str, extractor: F) -> Vec<Event>
+    fn filter_string_prefix_simd<F>(
+        &self,
+        events: &[Event],
+        prefix: &str,
+        extractor: F,
+    ) -> Vec<Event>
     where
         F: Fn(&Event) -> &str,
     {
@@ -1288,7 +1335,8 @@ mod tests {
         let events = create_test_events(100);
         let filter = SimdEventFilter::new();
 
-        let result = filter.filter_events(&events, &FilterPredicate::TenantId("tenant-a".to_string()));
+        let result =
+            filter.filter_events(&events, &FilterPredicate::TenantId("tenant-a".to_string()));
 
         for event in &result {
             assert_eq!(event.tenant_id_str(), "tenant-a");
@@ -1341,10 +1389,8 @@ mod tests {
         let events = create_test_events(50);
         let filter = SimdEventFilter::new();
 
-        let indices = filter.filter_events_indices(
-            &events,
-            &FilterPredicate::TenantId("tenant-a".to_string()),
-        );
+        let indices = filter
+            .filter_events_indices(&events, &FilterPredicate::TenantId("tenant-a".to_string()));
 
         // Verify indices are correct
         for &idx in &indices {
@@ -1361,7 +1407,8 @@ mod tests {
     fn test_convenience_function() {
         let events = create_test_events(50);
 
-        let result = filter_events_simd(&events, &FilterPredicate::TenantId("tenant-a".to_string()));
+        let result =
+            filter_events_simd(&events, &FilterPredicate::TenantId("tenant-a".to_string()));
 
         assert_eq!(result.len(), 25);
     }
@@ -1409,7 +1456,8 @@ mod tests {
         let events: Vec<Event> = vec![];
         let filter = SimdEventFilter::new();
 
-        let result = filter.filter_events(&events, &FilterPredicate::TenantId("tenant-a".to_string()));
+        let result =
+            filter.filter_events(&events, &FilterPredicate::TenantId("tenant-a".to_string()));
 
         assert!(result.is_empty());
     }
@@ -1448,7 +1496,10 @@ mod tests {
 
         let events_per_sec = (10_000 * 100) as f64 / duration.as_secs_f64();
         println!("Throughput: {:.0} events/sec", events_per_sec);
-        println!("SIMD utilization: {:.1}%", filter.stats().simd_utilization() * 100.0);
+        println!(
+            "SIMD utilization: {:.1}%",
+            filter.stats().simd_utilization() * 100.0
+        );
 
         // Should be able to process at least 1M events/sec
         assert!(events_per_sec > 1_000_000.0);

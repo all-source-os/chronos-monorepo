@@ -1108,7 +1108,10 @@ mod tests {
         let cache = store.projection_state_cache();
 
         // Insert and then remove
-        cache.insert("test:entity-1".to_string(), serde_json::json!({"data": "value"}));
+        cache.insert(
+            "test:entity-1".to_string(),
+            serde_json::json!({"data": "value"}),
+        );
         assert_eq!(cache.len(), 1);
 
         cache.remove("test:entity-1");
@@ -1132,7 +1135,9 @@ mod tests {
         let projection_manager = store.projection_manager();
 
         // Get state for non-existent entity
-        let snapshot_projection = projection_manager.get_projection("entity_snapshots").unwrap();
+        let snapshot_projection = projection_manager
+            .get_projection("entity_snapshots")
+            .unwrap();
         let state = snapshot_projection.get_state("nonexistent-entity-xyz");
         assert!(state.is_none());
     }
@@ -1262,13 +1267,22 @@ mod tests {
         let cache = store.projection_state_cache();
 
         // Initial value
-        cache.insert("overwrite:entity-1".to_string(), serde_json::json!({"version": 1}));
+        cache.insert(
+            "overwrite:entity-1".to_string(),
+            serde_json::json!({"version": 1}),
+        );
 
         // Overwrite with new value
-        cache.insert("overwrite:entity-1".to_string(), serde_json::json!({"version": 2}));
+        cache.insert(
+            "overwrite:entity-1".to_string(),
+            serde_json::json!({"version": 2}),
+        );
 
         // Overwrite again
-        cache.insert("overwrite:entity-1".to_string(), serde_json::json!({"version": 3}));
+        cache.insert(
+            "overwrite:entity-1".to_string(),
+            serde_json::json!({"version": 3}),
+        );
 
         let state = cache.get("overwrite:entity-1").unwrap();
         assert_eq!(state["version"], 3);
@@ -1283,14 +1297,32 @@ mod tests {
         let cache = store.projection_state_cache();
 
         // Store states for different projections
-        cache.insert("entity_snapshots:user-1".to_string(), serde_json::json!({"name": "Alice"}));
-        cache.insert("event_counters:user.created".to_string(), serde_json::json!({"count": 5}));
-        cache.insert("custom_projection:order-1".to_string(), serde_json::json!({"total": 150.0}));
+        cache.insert(
+            "entity_snapshots:user-1".to_string(),
+            serde_json::json!({"name": "Alice"}),
+        );
+        cache.insert(
+            "event_counters:user.created".to_string(),
+            serde_json::json!({"count": 5}),
+        );
+        cache.insert(
+            "custom_projection:order-1".to_string(),
+            serde_json::json!({"total": 150.0}),
+        );
 
         // Verify each projection's state
-        assert_eq!(cache.get("entity_snapshots:user-1").unwrap()["name"], "Alice");
-        assert_eq!(cache.get("event_counters:user.created").unwrap()["count"], 5);
-        assert_eq!(cache.get("custom_projection:order-1").unwrap()["total"], 150.0);
+        assert_eq!(
+            cache.get("entity_snapshots:user-1").unwrap()["name"],
+            "Alice"
+        );
+        assert_eq!(
+            cache.get("event_counters:user.created").unwrap()["count"],
+            5
+        );
+        assert_eq!(
+            cache.get("custom_projection:order-1").unwrap()["total"],
+            150.0
+        );
     }
 
     #[tokio::test]
@@ -1305,7 +1337,9 @@ mod tests {
 
         // Get projection and verify bulk access
         let projection_manager = store.projection_manager();
-        let snapshot_projection = projection_manager.get_projection("entity_snapshots").unwrap();
+        let snapshot_projection = projection_manager
+            .get_projection("entity_snapshots")
+            .unwrap();
 
         // Verify we can access all entities
         for i in 0..5 {
@@ -1415,18 +1449,9 @@ mod tests {
         assert_eq!(cache.len(), 1000);
 
         // Spot check some entries
-        assert_eq!(
-            cache.get("volume_test:entity-0").unwrap()["index"],
-            0
-        );
-        assert_eq!(
-            cache.get("volume_test:entity-500").unwrap()["index"],
-            500
-        );
-        assert_eq!(
-            cache.get("volume_test:entity-999").unwrap()["index"],
-            999
-        );
+        assert_eq!(cache.get("volume_test:entity-0").unwrap()["index"], 0);
+        assert_eq!(cache.get("volume_test:entity-500").unwrap()["index"], 500);
+        assert_eq!(cache.get("volume_test:entity-999").unwrap()["index"], 999);
     }
 
     #[tokio::test]

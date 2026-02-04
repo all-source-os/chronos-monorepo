@@ -106,7 +106,11 @@ impl InMemoryVectorSearchRepository {
     /// Get repository statistics
     pub fn stats(&self) -> (usize, u64, u64) {
         let stats = self.stats.read();
-        (stats.total_vectors, stats.total_searches, stats.total_stores)
+        (
+            stats.total_vectors,
+            stats.total_searches,
+            stats.total_stores,
+        )
     }
 
     /// Validate that the embedding dimensions match the stored dimensions
@@ -151,9 +155,7 @@ impl InMemoryVectorSearchRepository {
             // Apply threshold filtering
             let passes_threshold = match metric {
                 DistanceMetric::Cosine | DistanceMetric::DotProduct => {
-                    query
-                        .min_similarity
-                        .is_none_or(|min| score.value() >= min)
+                    query.min_similarity.is_none_or(|min| score.value() >= min)
                 }
                 DistanceMetric::Euclidean => {
                     query.max_distance.is_none_or(|max| score.value() <= max)
@@ -432,10 +434,7 @@ impl VectorSearchRepository for InMemoryVectorSearchRepository {
 
     async fn count(&self, tenant_id: Option<&str>) -> Result<usize> {
         if let Some(tid) = tenant_id {
-            Ok(self
-                .tenant_index
-                .get(tid)
-                .map_or(0, |ids| ids.len()))
+            Ok(self.tenant_index.get(tid).map_or(0, |ids| ids.len()))
         } else {
             Ok(self.vectors.len())
         }
@@ -512,9 +511,13 @@ mod tests {
         let event_id = Uuid::new_v4();
         let embedding = create_test_embedding(384, 1.0);
 
-        VectorSearchRepository::store(&repo, event_id, &embedding, "tenant-1").await.unwrap();
+        VectorSearchRepository::store(&repo, event_id, &embedding, "tenant-1")
+            .await
+            .unwrap();
 
-        let retrieved = VectorSearchRepository::get_by_event_id(&repo, event_id).await.unwrap();
+        let retrieved = VectorSearchRepository::get_by_event_id(&repo, event_id)
+            .await
+            .unwrap();
         assert!(retrieved.is_some());
 
         let entry = retrieved.unwrap();
@@ -528,11 +531,20 @@ mod tests {
         let event_id = Uuid::new_v4();
         let embedding = create_test_embedding(384, 1.0);
 
-        VectorSearchRepository::store_with_text(&repo, event_id, &embedding, "tenant-1", "test content")
-            .await
-            .unwrap();
+        VectorSearchRepository::store_with_text(
+            &repo,
+            event_id,
+            &embedding,
+            "tenant-1",
+            "test content",
+        )
+        .await
+        .unwrap();
 
-        let retrieved = VectorSearchRepository::get_by_event_id(&repo, event_id).await.unwrap().unwrap();
+        let retrieved = VectorSearchRepository::get_by_event_id(&repo, event_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(retrieved.source_text, Some("test content".to_string()));
     }
 
@@ -545,7 +557,9 @@ mod tests {
         let embedding1 = create_test_embedding(384, 1.0);
         let embedding2 = create_test_embedding(768, 2.0); // Different dimensions
 
-        VectorSearchRepository::store(&repo, event_id1, &embedding1, "tenant-1").await.unwrap();
+        VectorSearchRepository::store(&repo, event_id1, &embedding1, "tenant-1")
+            .await
+            .unwrap();
 
         // Second store with different dimensions should fail
         let result = VectorSearchRepository::store(&repo, event_id2, &embedding2, "tenant-1").await;
@@ -568,9 +582,15 @@ mod tests {
         let id2 = Uuid::new_v4();
         let id3 = Uuid::new_v4();
 
-        VectorSearchRepository::store(&repo, id1, &embedding1, "tenant-1").await.unwrap();
-        VectorSearchRepository::store(&repo, id2, &embedding2, "tenant-1").await.unwrap();
-        VectorSearchRepository::store(&repo, id3, &embedding3, "tenant-1").await.unwrap();
+        VectorSearchRepository::store(&repo, id1, &embedding1, "tenant-1")
+            .await
+            .unwrap();
+        VectorSearchRepository::store(&repo, id2, &embedding2, "tenant-1")
+            .await
+            .unwrap();
+        VectorSearchRepository::store(&repo, id3, &embedding3, "tenant-1")
+            .await
+            .unwrap();
 
         // Search for similar to embedding1
         let query_vec = EmbeddingVector::new(vec![1.0, 0.0, 0.0]).unwrap();
@@ -596,8 +616,12 @@ mod tests {
         let id1 = Uuid::new_v4();
         let id2 = Uuid::new_v4();
 
-        VectorSearchRepository::store(&repo, id1, &embedding1, "tenant-1").await.unwrap();
-        VectorSearchRepository::store(&repo, id2, &embedding2, "tenant-1").await.unwrap();
+        VectorSearchRepository::store(&repo, id1, &embedding1, "tenant-1")
+            .await
+            .unwrap();
+        VectorSearchRepository::store(&repo, id2, &embedding2, "tenant-1")
+            .await
+            .unwrap();
 
         let query_vec = EmbeddingVector::new(vec![1.0, 0.0, 0.0]).unwrap();
         let query = VectorSearchQuery::new(query_vec, 10)
@@ -620,8 +644,12 @@ mod tests {
         let id1 = Uuid::new_v4();
         let id2 = Uuid::new_v4();
 
-        VectorSearchRepository::store(&repo, id1, &embedding, "tenant-1").await.unwrap();
-        VectorSearchRepository::store(&repo, id2, &embedding, "tenant-2").await.unwrap();
+        VectorSearchRepository::store(&repo, id1, &embedding, "tenant-1")
+            .await
+            .unwrap();
+        VectorSearchRepository::store(&repo, id2, &embedding, "tenant-2")
+            .await
+            .unwrap();
 
         let query_vec = EmbeddingVector::new(vec![1.0, 0.0, 0.0]).unwrap();
         let query = VectorSearchQuery::new(query_vec, 10).with_tenant("tenant-1".to_string());
@@ -639,14 +667,20 @@ mod tests {
         let embedding = create_test_embedding(384, 1.0);
         let event_id = Uuid::new_v4();
 
-        VectorSearchRepository::store(&repo, event_id, &embedding, "tenant-1").await.unwrap();
+        VectorSearchRepository::store(&repo, event_id, &embedding, "tenant-1")
+            .await
+            .unwrap();
         assert_eq!(VectorSearchRepository::count(&repo, None).await.unwrap(), 1);
 
-        let deleted = VectorSearchRepository::delete(&repo, event_id).await.unwrap();
+        let deleted = VectorSearchRepository::delete(&repo, event_id)
+            .await
+            .unwrap();
         assert!(deleted);
         assert_eq!(VectorSearchRepository::count(&repo, None).await.unwrap(), 0);
 
-        let retrieved = VectorSearchRepository::get_by_event_id(&repo, event_id).await.unwrap();
+        let retrieved = VectorSearchRepository::get_by_event_id(&repo, event_id)
+            .await
+            .unwrap();
         assert!(retrieved.is_none());
     }
 
@@ -658,17 +692,41 @@ mod tests {
 
         for i in 0..5 {
             let tenant = if i < 3 { "tenant-1" } else { "tenant-2" };
-            VectorSearchRepository::store(&repo, Uuid::new_v4(), &embedding, tenant).await.unwrap();
+            VectorSearchRepository::store(&repo, Uuid::new_v4(), &embedding, tenant)
+                .await
+                .unwrap();
         }
 
-        assert_eq!(VectorSearchRepository::count(&repo, Some("tenant-1")).await.unwrap(), 3);
-        assert_eq!(VectorSearchRepository::count(&repo, Some("tenant-2")).await.unwrap(), 2);
+        assert_eq!(
+            VectorSearchRepository::count(&repo, Some("tenant-1"))
+                .await
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            VectorSearchRepository::count(&repo, Some("tenant-2"))
+                .await
+                .unwrap(),
+            2
+        );
 
-        let deleted = VectorSearchRepository::delete_by_tenant(&repo, "tenant-1").await.unwrap();
+        let deleted = VectorSearchRepository::delete_by_tenant(&repo, "tenant-1")
+            .await
+            .unwrap();
         assert_eq!(deleted, 3);
 
-        assert_eq!(VectorSearchRepository::count(&repo, Some("tenant-1")).await.unwrap(), 0);
-        assert_eq!(VectorSearchRepository::count(&repo, Some("tenant-2")).await.unwrap(), 2);
+        assert_eq!(
+            VectorSearchRepository::count(&repo, Some("tenant-1"))
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            VectorSearchRepository::count(&repo, Some("tenant-2"))
+                .await
+                .unwrap(),
+            2
+        );
     }
 
     #[tokio::test]
@@ -682,10 +740,18 @@ mod tests {
             })
             .collect();
 
-        VectorSearchRepository::store_batch(&repo, &entries).await.unwrap();
+        VectorSearchRepository::store_batch(&repo, &entries)
+            .await
+            .unwrap();
 
-        assert_eq!(VectorSearchRepository::count(&repo, None).await.unwrap(), 100);
-        assert_eq!(VectorSearchRepository::dimensions(&repo).await.unwrap(), Some(384));
+        assert_eq!(
+            VectorSearchRepository::count(&repo, None).await.unwrap(),
+            100
+        );
+        assert_eq!(
+            VectorSearchRepository::dimensions(&repo).await.unwrap(),
+            Some(384)
+        );
     }
 
     #[tokio::test]
@@ -700,9 +766,15 @@ mod tests {
         let id2 = Uuid::new_v4();
         let id3 = Uuid::new_v4();
 
-        VectorSearchRepository::store(&repo, id1, &embedding1, "tenant-1").await.unwrap();
-        VectorSearchRepository::store(&repo, id2, &embedding2, "tenant-1").await.unwrap();
-        VectorSearchRepository::store(&repo, id3, &embedding3, "tenant-1").await.unwrap();
+        VectorSearchRepository::store(&repo, id1, &embedding1, "tenant-1")
+            .await
+            .unwrap();
+        VectorSearchRepository::store(&repo, id2, &embedding2, "tenant-1")
+            .await
+            .unwrap();
+        VectorSearchRepository::store(&repo, id3, &embedding3, "tenant-1")
+            .await
+            .unwrap();
 
         let query_vec = EmbeddingVector::new(vec![0.0, 0.0]).unwrap();
         let query = VectorSearchQuery::new(query_vec, 3)

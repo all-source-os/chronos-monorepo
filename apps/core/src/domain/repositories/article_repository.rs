@@ -324,9 +324,7 @@ mod tests {
 
     #[test]
     fn test_article_query_builder() {
-        let query = ArticleQuery::new()
-            .active_only()
-            .with_pagination(10, 0);
+        let query = ArticleQuery::new().active_only().with_pagination(10, 0);
 
         assert_eq!(query.status, Some(ArticleStatus::Active));
         assert_eq!(query.limit, Some(10));

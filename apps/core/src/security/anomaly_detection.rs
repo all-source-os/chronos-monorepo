@@ -319,11 +319,9 @@ impl AnomalyDetector {
         };
 
         let profile_key = format!("{}-{user_id}", event.tenant_id().as_str());
-        let mut profile = self.user_profiles
-            .entry(profile_key)
-            .or_insert_with(|| {
-                UserProfile::new(user_id.clone(), event.tenant_id().as_str().to_string())
-            });
+        let mut profile = self.user_profiles.entry(profile_key).or_insert_with(|| {
+            UserProfile::new(user_id.clone(), event.tenant_id().as_str().to_string())
+        });
 
         // Update activity patterns
         let hour = event.timestamp().hour();

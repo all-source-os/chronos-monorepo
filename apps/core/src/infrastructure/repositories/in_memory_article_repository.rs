@@ -190,7 +190,11 @@ impl ArticleRepository for InMemoryArticleRepository {
         }
 
         if let Some(ref title_pattern) = query.title_contains {
-            result.retain(|a| a.title().to_lowercase().contains(&title_pattern.to_lowercase()));
+            result.retain(|a| {
+                a.title()
+                    .to_lowercase()
+                    .contains(&title_pattern.to_lowercase())
+            });
         }
 
         if let Some(ref url_pattern) = query.url_contains {
@@ -249,11 +253,7 @@ impl ArticleRepository for InMemoryArticleRepository {
                 });
             }
             ArticleOrderBy::PurchasesDesc => {
-                result.sort_by(|a, b| {
-                    b.stats()
-                        .total_purchases
-                        .cmp(&a.stats().total_purchases)
-                });
+                result.sort_by(|a, b| b.stats().total_purchases.cmp(&a.stats().total_purchases));
             }
             ArticleOrderBy::PriceDesc => {
                 result.sort_by_key(|b| std::cmp::Reverse(b.price_cents()));
@@ -388,8 +388,11 @@ mod tests {
 
         // Create articles for creator1
         for i in 0..3 {
-            let article =
-                create_test_article(&format!("article-{}", i), &format!("Article {}", i), creator1);
+            let article = create_test_article(
+                &format!("article-{}", i),
+                &format!("Article {}", i),
+                creator1,
+            );
             repo.save(&article).await.unwrap();
         }
 
@@ -407,12 +410,18 @@ mod tests {
         let creator_id = test_creator_id();
 
         for i in 0..3 {
-            let article =
-                create_test_article(&format!("article-{}", i), &format!("Article {}", i), creator_id);
+            let article = create_test_article(
+                &format!("article-{}", i),
+                &format!("Article {}", i),
+                creator_id,
+            );
             repo.save(&article).await.unwrap();
         }
 
-        let articles = repo.find_by_tenant(&test_tenant_id(), 100, 0).await.unwrap();
+        let articles = repo
+            .find_by_tenant(&test_tenant_id(), 100, 0)
+            .await
+            .unwrap();
         assert_eq!(articles.len(), 3);
     }
 
@@ -430,7 +439,10 @@ mod tests {
         archived.archive();
         repo.save(&archived).await.unwrap();
 
-        let active_articles = repo.find_active_by_creator(&creator_id, 100, 0).await.unwrap();
+        let active_articles = repo
+            .find_active_by_creator(&creator_id, 100, 0)
+            .await
+            .unwrap();
         assert_eq!(active_articles.len(), 1);
         assert_eq!(active_articles[0].title(), "Active Article");
     }
@@ -456,10 +468,16 @@ mod tests {
         .unwrap();
         repo.save(&draft).await.unwrap();
 
-        let actives = repo.find_by_status(ArticleStatus::Active, 100, 0).await.unwrap();
+        let actives = repo
+            .find_by_status(ArticleStatus::Active, 100, 0)
+            .await
+            .unwrap();
         assert_eq!(actives.len(), 1);
 
-        let drafts = repo.find_by_status(ArticleStatus::Draft, 100, 0).await.unwrap();
+        let drafts = repo
+            .find_by_status(ArticleStatus::Draft, 100, 0)
+            .await
+            .unwrap();
         assert_eq!(drafts.len(), 1);
     }
 
@@ -651,8 +669,11 @@ mod tests {
 
         // Create articles for creator1
         for i in 0..3 {
-            let article =
-                create_test_article(&format!("article1-{}", i), &format!("Article1 {}", i), creator1);
+            let article = create_test_article(
+                &format!("article1-{}", i),
+                &format!("Article1 {}", i),
+                creator1,
+            );
             repo.save(&article).await.unwrap();
         }
 
@@ -663,7 +684,10 @@ mod tests {
         assert_eq!(repo.count().await.unwrap(), 4);
         assert_eq!(repo.count_by_creator(&creator1).await.unwrap(), 3);
         assert_eq!(repo.count_by_creator(&creator2).await.unwrap(), 1);
-        assert_eq!(repo.count_by_status(ArticleStatus::Active).await.unwrap(), 4);
+        assert_eq!(
+            repo.count_by_status(ArticleStatus::Active).await.unwrap(),
+            4
+        );
     }
 
     #[tokio::test]
@@ -672,8 +696,11 @@ mod tests {
         let creator_id = test_creator_id();
 
         for i in 0..3 {
-            let article =
-                create_test_article(&format!("article-{}", i), &format!("Article {}", i), creator_id);
+            let article = create_test_article(
+                &format!("article-{}", i),
+                &format!("Article {}", i),
+                creator_id,
+            );
             repo.save(&article).await.unwrap();
         }
 

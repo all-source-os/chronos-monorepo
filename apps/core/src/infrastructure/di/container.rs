@@ -6,19 +6,32 @@
 //! in the container - they should be used directly via their static methods.
 
 use crate::application::use_cases::{
-    // Creator use cases (with state)
-    RegisterCreatorUseCase, UpdateCreatorUseCase,
-    // Article use cases (with state)
-    CreateArticleUseCase, UpdateArticleUseCase,
-    // Payment use cases (with state)
-    InitiatePaymentUseCase, ConfirmTransactionUseCase, RefundTransactionUseCase,
-    // Access use cases (with state)
-    GrantFreeAccessUseCase, ValidateTokenUseCase, RevokeAccessUseCase, CheckAccessUseCase,
-    CleanupExpiredTokensUseCase,
-    // Fork use cases (with state)
-    CreateForkUseCase, UpdateForkUseCase, MergeForkUseCase, DiscardForkUseCase,
-    GetForkUseCase, AppendForkEventUseCase, QueryForkEventsUseCase, BranchForkUseCase,
+    AppendForkEventUseCase,
+    BranchForkUseCase,
+    CheckAccessUseCase,
     CleanupExpiredForksUseCase,
+    CleanupExpiredTokensUseCase,
+    ConfirmTransactionUseCase,
+    // Article use cases (with state)
+    CreateArticleUseCase,
+    // Fork use cases (with state)
+    CreateForkUseCase,
+    DiscardForkUseCase,
+    GetForkUseCase,
+    // Access use cases (with state)
+    GrantFreeAccessUseCase,
+    // Payment use cases (with state)
+    InitiatePaymentUseCase,
+    MergeForkUseCase,
+    QueryForkEventsUseCase,
+    RefundTransactionUseCase,
+    // Creator use cases (with state)
+    RegisterCreatorUseCase,
+    RevokeAccessUseCase,
+    UpdateArticleUseCase,
+    UpdateCreatorUseCase,
+    UpdateForkUseCase,
+    ValidateTokenUseCase,
 };
 use crate::domain::repositories::{
     AccessTokenRepository, ArticleRepository, CreatorRepository, EventStreamRepository,

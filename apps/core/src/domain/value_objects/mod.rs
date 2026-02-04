@@ -11,7 +11,6 @@
 /// - Can be freely copied/cloned
 ///
 /// Examples: TenantId, EventType, EntityId, PartitionKey, EventId, Version, Money, etc.
-
 // Core event sourcing value objects
 pub mod embedding_vector;
 pub mod entity_id;

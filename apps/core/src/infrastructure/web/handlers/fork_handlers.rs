@@ -80,7 +80,9 @@ where
 
     let request = ListForksRequest {
         tenant_id: params.tenant_id,
-        status: params.status.and_then(|s| serde_json::from_str(&format!("\"{s}\"")).ok()),
+        status: params
+            .status
+            .and_then(|s| serde_json::from_str(&format!("\"{s}\"")).ok()),
         created_by_agent: params.created_by_agent,
         limit: params.limit,
         offset: params.offset,

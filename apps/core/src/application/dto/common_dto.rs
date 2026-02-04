@@ -306,10 +306,7 @@ impl ErrorResponse {
 
     /// Create a not found error response
     pub fn not_found(entity: impl Into<String>) -> Self {
-        Self::new(
-            ErrorCode::NotFound,
-            format!("{} not found", entity.into()),
-        )
+        Self::new(ErrorCode::NotFound, format!("{} not found", entity.into()))
     }
 
     /// Create a conflict error response
@@ -560,8 +557,10 @@ mod tests {
 
     #[test]
     fn test_error_response_serialization() {
-        let error = ErrorResponse::validation_error("Invalid email format")
-            .with_field_errors(vec![FieldError::new("email", "must be a valid email address")]);
+        let error =
+            ErrorResponse::validation_error("Invalid email format").with_field_errors(vec![
+                FieldError::new("email", "must be a valid email address"),
+            ]);
 
         let json = serde_json::to_string(&error).unwrap();
         assert!(json.contains("VALIDATION_ERROR"));
@@ -591,10 +590,7 @@ mod tests {
     fn test_batch_response() {
         let results = vec![
             BatchItemResult::success(0, "item1"),
-            BatchItemResult::failure(
-                1,
-                ErrorResponse::validation_error("Invalid"),
-            ),
+            BatchItemResult::failure(1, ErrorResponse::validation_error("Invalid")),
             BatchItemResult::success(2, "item3"),
         ];
 

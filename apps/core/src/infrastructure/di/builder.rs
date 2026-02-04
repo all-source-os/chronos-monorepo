@@ -65,19 +65,13 @@ impl ContainerBuilder {
     }
 
     /// Set a custom creator repository.
-    pub fn with_creator_repository(
-        mut self,
-        repository: Arc<dyn CreatorRepository>,
-    ) -> Self {
+    pub fn with_creator_repository(mut self, repository: Arc<dyn CreatorRepository>) -> Self {
         self.creator_repository = Some(repository);
         self
     }
 
     /// Set a custom article repository.
-    pub fn with_article_repository(
-        mut self,
-        repository: Arc<dyn ArticleRepository>,
-    ) -> Self {
+    pub fn with_article_repository(mut self, repository: Arc<dyn ArticleRepository>) -> Self {
         self.article_repository = Some(repository);
         self
     }
@@ -101,10 +95,7 @@ impl ContainerBuilder {
     }
 
     /// Set a custom fork repository.
-    pub fn with_fork_repository(
-        mut self,
-        repository: Arc<dyn ForkRepository>,
-    ) -> Self {
+    pub fn with_fork_repository(mut self, repository: Arc<dyn ForkRepository>) -> Self {
         self.fork_repository = Some(repository);
         self
     }
@@ -148,17 +139,27 @@ impl ContainerBuilder {
     pub fn try_build(self) -> Result<ServiceContainer, ContainerBuilderError> {
         Ok(ServiceContainer::new(
             self.creator_repository
-                .ok_or(ContainerBuilderError::MissingRepository("CreatorRepository"))?,
+                .ok_or(ContainerBuilderError::MissingRepository(
+                    "CreatorRepository",
+                ))?,
             self.article_repository
-                .ok_or(ContainerBuilderError::MissingRepository("ArticleRepository"))?,
+                .ok_or(ContainerBuilderError::MissingRepository(
+                    "ArticleRepository",
+                ))?,
             self.transaction_repository
-                .ok_or(ContainerBuilderError::MissingRepository("TransactionRepository"))?,
+                .ok_or(ContainerBuilderError::MissingRepository(
+                    "TransactionRepository",
+                ))?,
             self.access_token_repository
-                .ok_or(ContainerBuilderError::MissingRepository("AccessTokenRepository"))?,
+                .ok_or(ContainerBuilderError::MissingRepository(
+                    "AccessTokenRepository",
+                ))?,
             self.fork_repository
                 .ok_or(ContainerBuilderError::MissingRepository("ForkRepository"))?,
             self.event_stream_repository
-                .ok_or(ContainerBuilderError::MissingRepository("EventStreamRepository"))?,
+                .ok_or(ContainerBuilderError::MissingRepository(
+                    "EventStreamRepository",
+                ))?,
         ))
     }
 }

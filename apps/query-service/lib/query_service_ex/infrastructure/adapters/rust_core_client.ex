@@ -355,7 +355,10 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Create a snapshot"
   def create_snapshot(entity_id, snapshot_type) do
-    case Tesla.post(client(), "/api/snapshots", %{entity_id: entity_id, snapshot_type: snapshot_type}) do
+    case Tesla.post(client(), "/api/snapshots", %{
+           entity_id: entity_id,
+           snapshot_type: snapshot_type
+         }) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -413,7 +416,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     * `{:error, reason}` - Error details
   """
   def save_projection_state(projection_name, entity_id, state) when is_map(state) do
-    case Tesla.put(client(), "/api/v1/projections/#{projection_name}/#{entity_id}/state", %{state: state}) do
+    case Tesla.put(client(), "/api/v1/projections/#{projection_name}/#{entity_id}/state", %{
+           state: state
+         }) do
       {:ok, %Tesla.Env{status: 200, body: %{"saved" => true}}} ->
         :ok
 
@@ -437,7 +442,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     * `{:error, reason}` - Error details
   """
   def bulk_get_projection_states(projection_name, entity_ids) when is_list(entity_ids) do
-    case Tesla.post(client(), "/api/v1/projections/#{projection_name}/bulk", %{entity_ids: entity_ids}) do
+    case Tesla.post(client(), "/api/v1/projections/#{projection_name}/bulk", %{
+           entity_ids: entity_ids
+         }) do
       {:ok, %Tesla.Env{status: 200, body: %{"states" => states}}} ->
         {:ok, states}
 

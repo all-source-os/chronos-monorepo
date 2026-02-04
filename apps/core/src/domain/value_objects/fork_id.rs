@@ -165,7 +165,10 @@ mod tests {
     #[test]
     fn test_display() {
         let fork_id = ForkId::parse("550e8400-e29b-41d4-a716-446655440000").unwrap();
-        assert_eq!(format!("{}", fork_id), "550e8400-e29b-41d4-a716-446655440000");
+        assert_eq!(
+            format!("{}", fork_id),
+            "550e8400-e29b-41d4-a716-446655440000"
+        );
     }
 
     #[test]
@@ -184,7 +187,9 @@ mod tests {
 
     #[test]
     fn test_try_from_string() {
-        let fork_id: Result<ForkId> = "550e8400-e29b-41d4-a716-446655440000".to_string().try_into();
+        let fork_id: Result<ForkId> = "550e8400-e29b-41d4-a716-446655440000"
+            .to_string()
+            .try_into();
         assert!(fork_id.is_ok());
     }
 

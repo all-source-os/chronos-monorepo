@@ -155,9 +155,12 @@ impl AdaptiveRateLimiter {
         }
 
         // Get or create profile
-        let mut profile = self.profiles.entry(tenant_id.to_string()).or_insert_with(|| {
-            TenantUsageProfile::new(tenant_id.to_string(), config.max_rate_limit)
-        });
+        let mut profile = self
+            .profiles
+            .entry(tenant_id.to_string())
+            .or_insert_with(|| {
+                TenantUsageProfile::new(tenant_id.to_string(), config.max_rate_limit)
+            });
 
         // Record request
         self.record_request(tenant_id, true, 1.0);

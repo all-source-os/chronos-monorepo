@@ -790,7 +790,10 @@ impl PipelineManager {
 
     /// Get statistics for all pipelines
     pub fn all_stats(&self) -> Vec<PipelineStats> {
-        self.pipelines.iter().map(|entry| entry.value().stats()).collect()
+        self.pipelines
+            .iter()
+            .map(|entry| entry.value().stats())
+            .collect()
     }
 }
 

@@ -185,7 +185,11 @@ impl SchemaRegistry {
         tags: Option<Vec<String>>,
     ) -> Result<RegisterSchemaResponse> {
         // Determine next version
-        let next_version = self.latest_versions.get(&subject).map(|v| *v + 1).unwrap_or(1);
+        let next_version = self
+            .latest_versions
+            .get(&subject)
+            .map(|v| *v + 1)
+            .unwrap_or(1);
 
         // Check compatibility with previous version if it exists
         if next_version > 1 {
@@ -215,7 +219,10 @@ impl SchemaRegistry {
         let created_at = new_schema.created_at;
 
         // Get or create subject entry and insert the schema
-        self.schemas.entry(subject.clone()).or_default().insert(next_version, new_schema);
+        self.schemas
+            .entry(subject.clone())
+            .or_default()
+            .insert(next_version, new_schema);
         self.latest_versions.insert(subject.clone(), next_version);
 
         // Update stats
@@ -248,11 +255,9 @@ impl SchemaRegistry {
 
         let version = match version {
             Some(v) => v,
-            None => {
-                *self.latest_versions.get(subject).ok_or_else(|| {
-                    AllSourceError::ValidationError(format!("No versions for subject: {subject}"))
-                })?
-            }
+            None => *self.latest_versions.get(subject).ok_or_else(|| {
+                AllSourceError::ValidationError(format!("No versions for subject: {subject}"))
+            })?,
         };
 
         subject_schemas.get(&version).cloned().ok_or_else(|| {
@@ -277,7 +282,10 @@ impl SchemaRegistry {
 
     /// List all schema subjects
     pub fn list_subjects(&self) -> Vec<String> {
-        self.schemas.iter().map(|entry| entry.key().clone()).collect()
+        self.schemas
+            .iter()
+            .map(|entry| entry.key().clone())
+            .collect()
     }
 
     /// Validate a payload against a schema

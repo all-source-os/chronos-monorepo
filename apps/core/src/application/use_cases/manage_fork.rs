@@ -37,7 +37,11 @@ impl CreateForkUseCase {
         let tenant_id = TenantId::new(request.tenant_id)?;
 
         // Check for duplicate name
-        if self.repository.name_exists(&tenant_id, &request.name).await? {
+        if self
+            .repository
+            .name_exists(&tenant_id, &request.name)
+            .await?
+        {
             return Err(crate::error::AllSourceError::ValidationError(format!(
                 "Fork name '{}' already exists in tenant",
                 request.name
@@ -154,11 +158,9 @@ impl UpdateForkUseCase {
         request: UpdateForkRequest,
     ) -> Result<UpdateForkResponse> {
         let id = ForkId::parse(fork_id)?;
-        let mut fork = self
-            .repository
-            .find_by_id(&id)
-            .await?
-            .ok_or_else(|| crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", fork_id)))?;
+        let mut fork = self.repository.find_by_id(&id).await?.ok_or_else(|| {
+            crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", fork_id))
+        })?;
 
         if let Some(description) = request.description {
             fork.set_description(description);
@@ -193,15 +195,17 @@ impl AppendForkEventUseCase {
         Self { repository }
     }
 
-    pub async fn execute(&self, request: AppendForkEventRequest) -> Result<AppendForkEventResponse> {
+    pub async fn execute(
+        &self,
+        request: AppendForkEventRequest,
+    ) -> Result<AppendForkEventResponse> {
         let fork_id = ForkId::parse(&request.fork_id)?;
-        let mut fork = self
-            .repository
-            .find_by_id(&fork_id)
-            .await?
-            .ok_or_else(|| {
-                crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", request.fork_id))
-            })?;
+        let mut fork = self.repository.find_by_id(&fork_id).await?.ok_or_else(|| {
+            crate::error::AllSourceError::EntityNotFound(format!(
+                "Fork '{}' not found",
+                request.fork_id
+            ))
+        })?;
 
         // Create event using the fork's tenant
         let event = Event::from_strings(
@@ -241,13 +245,12 @@ impl MergeForkUseCase {
 
     pub async fn execute(&self, request: MergeForkRequest) -> Result<MergeForkResponse> {
         let fork_id = ForkId::parse(&request.fork_id)?;
-        let mut fork = self
-            .repository
-            .find_by_id(&fork_id)
-            .await?
-            .ok_or_else(|| {
-                crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", request.fork_id))
-            })?;
+        let mut fork = self.repository.find_by_id(&fork_id).await?.ok_or_else(|| {
+            crate::error::AllSourceError::EntityNotFound(format!(
+                "Fork '{}' not found",
+                request.fork_id
+            ))
+        })?;
 
         let events_count = fork.event_count();
 
@@ -261,7 +264,11 @@ impl MergeForkUseCase {
 
         Ok(MergeForkResponse {
             fork: ForkDto::from(&fork),
-            events_committed: if request.commit_events { events_count } else { 0 },
+            events_committed: if request.commit_events {
+                events_count
+            } else {
+                0
+            },
         })
     }
 }
@@ -280,13 +287,12 @@ impl DiscardForkUseCase {
 
     pub async fn execute(&self, request: DiscardForkRequest) -> Result<DiscardForkResponse> {
         let fork_id = ForkId::parse(&request.fork_id)?;
-        let mut fork = self
-            .repository
-            .find_by_id(&fork_id)
-            .await?
-            .ok_or_else(|| {
-                crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", request.fork_id))
-            })?;
+        let mut fork = self.repository.find_by_id(&fork_id).await?.ok_or_else(|| {
+            crate::error::AllSourceError::EntityNotFound(format!(
+                "Fork '{}' not found",
+                request.fork_id
+            ))
+        })?;
 
         fork.discard()?;
         self.repository.save(&fork).await?;
@@ -309,15 +315,17 @@ impl QueryForkEventsUseCase {
         Self { repository }
     }
 
-    pub async fn execute(&self, request: QueryForkEventsRequest) -> Result<QueryForkEventsResponse> {
+    pub async fn execute(
+        &self,
+        request: QueryForkEventsRequest,
+    ) -> Result<QueryForkEventsResponse> {
         let fork_id = ForkId::parse(&request.fork_id)?;
-        let fork = self
-            .repository
-            .find_by_id(&fork_id)
-            .await?
-            .ok_or_else(|| {
-                crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", request.fork_id))
-            })?;
+        let fork = self.repository.find_by_id(&fork_id).await?.ok_or_else(|| {
+            crate::error::AllSourceError::EntityNotFound(format!(
+                "Fork '{}' not found",
+                request.fork_id
+            ))
+        })?;
 
         let mut events: Vec<_> = fork.all_events();
 
@@ -408,11 +416,9 @@ impl GetForkUseCase {
 
     pub async fn execute(&self, fork_id: &str) -> Result<ForkDto> {
         let id = ForkId::parse(fork_id)?;
-        let fork = self
-            .repository
-            .find_by_id(&id)
-            .await?
-            .ok_or_else(|| crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", fork_id)))?;
+        let fork = self.repository.find_by_id(&id).await?.ok_or_else(|| {
+            crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", fork_id))
+        })?;
 
         Ok(ForkDto::from(&fork))
     }
@@ -495,7 +501,11 @@ mod tests {
             Ok(forks.iter().find(|f| f.id() == id).cloned())
         }
 
-        async fn find_by_name(&self, tenant_id: &TenantId, name: &str) -> Result<Option<EventStoreFork>> {
+        async fn find_by_name(
+            &self,
+            tenant_id: &TenantId,
+            name: &str,
+        ) -> Result<Option<EventStoreFork>> {
             let forks = self.forks.lock().unwrap();
             Ok(forks
                 .iter()
@@ -533,11 +543,7 @@ mod tests {
             _offset: usize,
         ) -> Result<Vec<EventStoreFork>> {
             let forks = self.forks.lock().unwrap();
-            Ok(forks
-                .iter()
-                .filter(|f| f.is_active())
-                .cloned()
-                .collect())
+            Ok(forks.iter().filter(|f| f.is_active()).cloned().collect())
         }
 
         async fn find_by_status(
@@ -554,7 +560,11 @@ mod tests {
                 .collect())
         }
 
-        async fn find_expired(&self, before: DateTime<Utc>, _limit: usize) -> Result<Vec<EventStoreFork>> {
+        async fn find_expired(
+            &self,
+            before: DateTime<Utc>,
+            _limit: usize,
+        ) -> Result<Vec<EventStoreFork>> {
             let forks = self.forks.lock().unwrap();
             Ok(forks
                 .iter()
@@ -648,7 +658,10 @@ mod tests {
 
         let response = response.unwrap();
         assert_eq!(response.fork.name, "test-fork");
-        assert_eq!(response.fork.created_by_agent, Some("agent-123".to_string()));
+        assert_eq!(
+            response.fork.created_by_agent,
+            Some("agent-123".to_string())
+        );
     }
 
     #[tokio::test]
@@ -735,7 +748,10 @@ mod tests {
         assert!(response.is_ok());
 
         let response = response.unwrap();
-        assert_eq!(response.fork.status, crate::application::dto::ForkStatusDto::Discarded);
+        assert_eq!(
+            response.fork.status,
+            crate::application::dto::ForkStatusDto::Discarded
+        );
     }
 
     #[tokio::test]

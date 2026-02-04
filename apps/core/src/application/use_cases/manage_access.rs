@@ -155,7 +155,9 @@ impl ValidateTokenUseCase {
             .repository
             .find_by_hash(&token_hash)
             .await?
-            .ok_or_else(|| crate::error::AllSourceError::EntityNotFound("Token not found".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AllSourceError::EntityNotFound("Token not found".to_string())
+            })?;
 
         // Verify token grants access to this article and wallet
         if !token.grants_access_to(&article_id, &wallet) {
@@ -194,7 +196,9 @@ impl RevokeAccessUseCase {
             .repository
             .find_by_id(&token_id)
             .await?
-            .ok_or_else(|| crate::error::AllSourceError::EntityNotFound("Token not found".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AllSourceError::EntityNotFound("Token not found".to_string())
+            })?;
 
         // Revoke token
         token.revoke(&request.reason)?;

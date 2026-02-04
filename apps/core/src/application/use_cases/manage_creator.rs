@@ -28,7 +28,10 @@ impl RegisterCreatorUseCase {
         Self { repository }
     }
 
-    pub async fn execute(&self, request: RegisterCreatorRequest) -> Result<RegisterCreatorResponse> {
+    pub async fn execute(
+        &self,
+        request: RegisterCreatorRequest,
+    ) -> Result<RegisterCreatorResponse> {
         // Check for duplicate email
         if self.repository.email_exists(&request.email).await? {
             return Err(crate::error::AllSourceError::ValidationError(
@@ -290,10 +293,7 @@ mod tests {
             Ok(0)
         }
 
-        async fn delete(
-            &self,
-            _id: &crate::domain::value_objects::CreatorId,
-        ) -> Result<bool> {
+        async fn delete(&self, _id: &crate::domain::value_objects::CreatorId) -> Result<bool> {
             Ok(false)
         }
 
@@ -395,7 +395,10 @@ mod tests {
 
         // Suspend
         let suspended = SuspendCreatorUseCase::execute(creator).unwrap();
-        assert_eq!(suspended.status, crate::application::dto::CreatorStatusDto::Suspended);
+        assert_eq!(
+            suspended.status,
+            crate::application::dto::CreatorStatusDto::Suspended
+        );
 
         // Reactivate (need to get the entity back - in real code this comes from repo)
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
@@ -406,7 +409,10 @@ mod tests {
         creator.suspend();
 
         let reactivated = ReactivateCreatorUseCase::execute(creator).unwrap();
-        assert_eq!(reactivated.status, crate::application::dto::CreatorStatusDto::Active);
+        assert_eq!(
+            reactivated.status,
+            crate::application::dto::CreatorStatusDto::Active
+        );
     }
 
     #[test]

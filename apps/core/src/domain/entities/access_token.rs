@@ -405,7 +405,8 @@ mod tests {
     use super::*;
 
     const VALID_WALLET: &str = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
-    const VALID_TOKEN_HASH: &str = "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd";
+    const VALID_TOKEN_HASH: &str =
+        "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd";
 
     fn test_tenant_id() -> TenantId {
         TenantId::new("test-tenant".to_string()).unwrap()

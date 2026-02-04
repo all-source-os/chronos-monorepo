@@ -1,5 +1,7 @@
 use crate::domain::entities::{Transaction, TransactionStatus};
-use crate::domain::repositories::{RevenueDataPoint, RevenueGranularity, TransactionQuery, TransactionRepository};
+use crate::domain::repositories::{
+    RevenueDataPoint, RevenueGranularity, TransactionQuery, TransactionRepository,
+};
 use crate::domain::value_objects::{ArticleId, CreatorId, TransactionId, WalletAddress};
 use crate::error::Result;
 use async_trait::async_trait;
@@ -285,7 +287,9 @@ impl TransactionRepository for InMemoryTransactionRepository {
 
         for tx in relevant {
             let period_start = Self::truncate_to_period(tx.created_at(), granularity);
-            let entry = periods.entry(period_start).or_insert((0, 0, HashSet::new()));
+            let entry = periods
+                .entry(period_start)
+                .or_insert((0, 0, HashSet::new()));
             entry.0 += tx.creator_amount_cents(); // revenue
             entry.1 += 1; // transaction count
             entry.2.insert(tx.reader_wallet().to_string()); // unique readers
@@ -573,10 +577,16 @@ mod tests {
         confirmed.confirm().unwrap();
         repo.save(&confirmed).await.unwrap();
 
-        let pending_txs = repo.find_by_status(TransactionStatus::Pending, 100, 0).await.unwrap();
+        let pending_txs = repo
+            .find_by_status(TransactionStatus::Pending, 100, 0)
+            .await
+            .unwrap();
         assert_eq!(pending_txs.len(), 1);
 
-        let confirmed_txs = repo.find_by_status(TransactionStatus::Confirmed, 100, 0).await.unwrap();
+        let confirmed_txs = repo
+            .find_by_status(TransactionStatus::Confirmed, 100, 0)
+            .await
+            .unwrap();
         assert_eq!(confirmed_txs.len(), 1);
     }
 
@@ -795,8 +805,18 @@ mod tests {
         repo.save(&confirmed).await.unwrap();
 
         assert_eq!(repo.count().await.unwrap(), 2);
-        assert_eq!(repo.count_by_status(TransactionStatus::Pending).await.unwrap(), 1);
-        assert_eq!(repo.count_by_status(TransactionStatus::Confirmed).await.unwrap(), 1);
+        assert_eq!(
+            repo.count_by_status(TransactionStatus::Pending)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            repo.count_by_status(TransactionStatus::Confirmed)
+                .await
+                .unwrap(),
+            1
+        );
     }
 
     #[tokio::test]
@@ -818,17 +838,20 @@ mod tests {
         let dt = Utc::now();
 
         // Test hourly truncation
-        let hourly = InMemoryTransactionRepository::truncate_to_period(dt, RevenueGranularity::Hourly);
+        let hourly =
+            InMemoryTransactionRepository::truncate_to_period(dt, RevenueGranularity::Hourly);
         assert_eq!(hourly.minute(), 0);
         assert_eq!(hourly.second(), 0);
 
         // Test daily truncation
-        let daily = InMemoryTransactionRepository::truncate_to_period(dt, RevenueGranularity::Daily);
+        let daily =
+            InMemoryTransactionRepository::truncate_to_period(dt, RevenueGranularity::Daily);
         assert_eq!(daily.hour(), 0);
         assert_eq!(daily.minute(), 0);
 
         // Test monthly truncation
-        let monthly = InMemoryTransactionRepository::truncate_to_period(dt, RevenueGranularity::Monthly);
+        let monthly =
+            InMemoryTransactionRepository::truncate_to_period(dt, RevenueGranularity::Monthly);
         assert_eq!(monthly.day(), 1);
         assert_eq!(monthly.hour(), 0);
     }

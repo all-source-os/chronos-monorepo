@@ -354,7 +354,10 @@ impl EventStoreFork {
 
     /// Get all events in the fork
     pub fn all_events(&self) -> Vec<&Event> {
-        self.events.values().flat_map(|events| events.iter()).collect()
+        self.events
+            .values()
+            .flat_map(|events| events.iter())
+            .collect()
     }
 
     /// Get entity IDs that have events in this fork
@@ -658,7 +661,8 @@ mod tests {
 
         assert_eq!(fork.isolation_level(), ForkIsolationLevel::ReadParent);
 
-        fork.set_isolation_level(ForkIsolationLevel::Complete).unwrap();
+        fork.set_isolation_level(ForkIsolationLevel::Complete)
+            .unwrap();
 
         assert_eq!(fork.isolation_level(), ForkIsolationLevel::Complete);
     }

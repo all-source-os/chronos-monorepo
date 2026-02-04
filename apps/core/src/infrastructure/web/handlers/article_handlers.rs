@@ -82,16 +82,28 @@ where
 
     let articles = if let Some(creator_id_str) = params.creator_id {
         let creator_id = CreatorId::parse(&creator_id_str)?;
-        state.article_repo.find_by_creator(&creator_id, limit, offset).await?
+        state
+            .article_repo
+            .find_by_creator(&creator_id, limit, offset)
+            .await?
     } else if let Some(tenant_id_str) = params.tenant_id {
         let tenant_id = TenantId::new(tenant_id_str)?;
-        state.article_repo.find_by_tenant(&tenant_id, limit, offset).await?
+        state
+            .article_repo
+            .find_by_tenant(&tenant_id, limit, offset)
+            .await?
     } else if let Some(status_str) = params.status {
         let status = parse_article_status(&status_str)?;
-        state.article_repo.find_by_status(status, limit, offset).await?
+        state
+            .article_repo
+            .find_by_status(status, limit, offset)
+            .await?
     } else {
         // Default: return active articles
-        state.article_repo.find_by_status(ArticleStatus::Active, limit, offset).await?
+        state
+            .article_repo
+            .find_by_status(ArticleStatus::Active, limit, offset)
+            .await?
     };
 
     let response = ListArticlesUseCase::execute(articles);
@@ -126,13 +138,9 @@ where
 {
     let id = ArticleId::new(article_id.clone())?;
 
-    let article = state
-        .article_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
-        })?;
+    let article = state.article_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
+    })?;
 
     Ok(Json(ArticleDto::from(&article)))
 }
@@ -151,13 +159,9 @@ where
 {
     let id = ArticleId::new(article_id.clone())?;
 
-    let article = state
-        .article_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
-        })?;
+    let article = state.article_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
+    })?;
 
     let use_case = UpdateArticleUseCase::new(state.article_repo.clone());
     let response = use_case.execute(article, request).await?;
@@ -183,13 +187,9 @@ where
 {
     let id = ArticleId::new(article_id.clone())?;
 
-    let article = state
-        .article_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
-        })?;
+    let article = state.article_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
+    })?;
 
     let dto = PublishArticleUseCase::execute(article)?;
 
@@ -214,13 +214,9 @@ where
 {
     let id = ArticleId::new(article_id.clone())?;
 
-    let article = state
-        .article_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
-        })?;
+    let article = state.article_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
+    })?;
 
     let dto = ArchiveArticleUseCase::execute(article)?;
 
@@ -245,13 +241,9 @@ where
 {
     let id = ArticleId::new(article_id.clone())?;
 
-    let article = state
-        .article_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
-        })?;
+    let article = state.article_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
+    })?;
 
     let dto = RestoreArticleUseCase::execute(article)?;
 
@@ -276,13 +268,9 @@ where
 {
     let id = ArticleId::new(article_id.clone())?;
 
-    let article = state
-        .article_repo
-        .find_by_id(&id)
-        .await?
-        .ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
-        })?;
+    let article = state.article_repo.find_by_id(&id).await?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Article not found: {article_id}"))
+    })?;
 
     let _dto = DeleteArticleUseCase::execute(article)?;
 
@@ -313,7 +301,10 @@ where
     let limit = params.limit.unwrap_or(100);
     let offset = params.offset.unwrap_or(0);
 
-    let articles = state.article_repo.find_by_creator(&creator, limit, offset).await?;
+    let articles = state
+        .article_repo
+        .find_by_creator(&creator, limit, offset)
+        .await?;
 
     let response = ListArticlesUseCase::execute(articles);
 
@@ -341,7 +332,8 @@ mod tests {
 
     #[test]
     fn test_list_articles_params_with_values() {
-        let json = r#"{"tenant_id": "test", "creator_id": "creator-1", "status": "active", "limit": 10}"#;
+        let json =
+            r#"{"tenant_id": "test", "creator_id": "creator-1", "status": "active", "limit": 10}"#;
         let params: ListArticlesParams = serde_json::from_str(json).unwrap();
         assert_eq!(params.tenant_id, Some("test".to_string()));
         assert_eq!(params.creator_id, Some("creator-1".to_string()));
@@ -351,11 +343,26 @@ mod tests {
 
     #[test]
     fn test_parse_article_status() {
-        assert!(matches!(parse_article_status("draft"), Ok(ArticleStatus::Draft)));
-        assert!(matches!(parse_article_status("active"), Ok(ArticleStatus::Active)));
-        assert!(matches!(parse_article_status("archived"), Ok(ArticleStatus::Archived)));
-        assert!(matches!(parse_article_status("deleted"), Ok(ArticleStatus::Deleted)));
-        assert!(matches!(parse_article_status("ACTIVE"), Ok(ArticleStatus::Active)));
+        assert!(matches!(
+            parse_article_status("draft"),
+            Ok(ArticleStatus::Draft)
+        ));
+        assert!(matches!(
+            parse_article_status("active"),
+            Ok(ArticleStatus::Active)
+        ));
+        assert!(matches!(
+            parse_article_status("archived"),
+            Ok(ArticleStatus::Archived)
+        ));
+        assert!(matches!(
+            parse_article_status("deleted"),
+            Ok(ArticleStatus::Deleted)
+        ));
+        assert!(matches!(
+            parse_article_status("ACTIVE"),
+            Ok(ArticleStatus::Active)
+        ));
         assert!(parse_article_status("invalid").is_err());
     }
 }

@@ -85,7 +85,11 @@ impl ForkRepository for InMemoryForkRepository {
         Ok(forks.get(&id.as_str()).cloned())
     }
 
-    async fn find_by_name(&self, tenant_id: &TenantId, name: &str) -> Result<Option<EventStoreFork>> {
+    async fn find_by_name(
+        &self,
+        tenant_id: &TenantId,
+        name: &str,
+    ) -> Result<Option<EventStoreFork>> {
         let forks = self.forks.read().unwrap();
         Ok(forks
             .values()
@@ -154,7 +158,11 @@ impl ForkRepository for InMemoryForkRepository {
             .collect())
     }
 
-    async fn find_expired(&self, before: DateTime<Utc>, limit: usize) -> Result<Vec<EventStoreFork>> {
+    async fn find_expired(
+        &self,
+        before: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<EventStoreFork>> {
         let forks = self.forks.read().unwrap();
         Ok(forks
             .values()
@@ -186,7 +194,10 @@ impl ForkRepository for InMemoryForkRepository {
 
     async fn count_by_tenant(&self, tenant_id: &TenantId) -> Result<usize> {
         let forks = self.forks.read().unwrap();
-        Ok(forks.values().filter(|f| f.tenant_id() == tenant_id).count())
+        Ok(forks
+            .values()
+            .filter(|f| f.tenant_id() == tenant_id)
+            .count())
     }
 
     async fn count_by_status(&self, status: ForkStatus) -> Result<usize> {
@@ -341,10 +352,16 @@ mod tests {
 
         repo.create(fork).await.unwrap();
 
-        let found = repo.find_by_name(&test_tenant_id(), "my-unique-fork").await.unwrap();
+        let found = repo
+            .find_by_name(&test_tenant_id(), "my-unique-fork")
+            .await
+            .unwrap();
         assert!(found.is_some());
 
-        let not_found = repo.find_by_name(&test_tenant_id(), "non-existent").await.unwrap();
+        let not_found = repo
+            .find_by_name(&test_tenant_id(), "non-existent")
+            .await
+            .unwrap();
         assert!(not_found.is_none());
     }
 
@@ -363,7 +380,10 @@ mod tests {
         let other_fork = EventStoreFork::new(other_tenant, "other-fork".to_string(), 0).unwrap();
         repo.create(other_fork).await.unwrap();
 
-        let forks = repo.find_by_tenant(&test_tenant_id(), 100, 0).await.unwrap();
+        let forks = repo
+            .find_by_tenant(&test_tenant_id(), 100, 0)
+            .await
+            .unwrap();
         assert_eq!(forks.len(), 3);
     }
 
