@@ -124,7 +124,7 @@ jobs:
             REVISION=${{ github.sha }}
 
       - name: Generate attestation
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service.name }}
           subject-digest: ${{ steps.build.outputs.digest }}

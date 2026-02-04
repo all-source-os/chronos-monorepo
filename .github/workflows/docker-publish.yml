@@ -398,7 +398,7 @@ jobs:
           fi
 
       - name: Generate artifact attestation for GHCR
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-name: ${{ env.GHCR_REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
           subject-digest: ${{ steps.digest.outputs.digest }}
