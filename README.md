@@ -1,8 +1,8 @@
 ---
 title: "AllSource Event Store - Chronos Monorepo"
 status: CURRENT
-last_updated: 2026-02-02
-version: "0.7.3"
+last_updated: 2026-02-04
+version: "0.8.0"
 ---
 
 # AllSource Event Store - Chronos Monorepo
@@ -12,8 +12,8 @@ version: "0.7.3"
 [![Docker Build & Publish](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml)
 [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core)
 [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
-[![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.7.3-green.svg)](apps/core/)
-[![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v1.0-blue.svg)](apps/control-plane/)
+[![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.8.0-green.svg)](apps/core/)
+[![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v0.2.0-blue.svg)](apps/control-plane/)
 [![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-Phase%201%20Complete-purple.svg)](apps/query-service/)
 [![MCP Server](https://img.shields.io/badge/MCP%20Server-Active-orange.svg)](apps/mcp-server-elixir/)
 
@@ -74,7 +74,7 @@ docker pull ghcr.io/all-source-os/chronos-mcp-server:latest
 
 ### ✅ Current State (February 2026)
 
-**Rust Core (v0.7.3)**
+**Rust Core (v0.8.0)**
 - Event store with 469K events/sec throughput
 - Schema registry with JSON Schema validation
 - Event replay engine for point-in-time rebuilds
@@ -150,16 +150,16 @@ tooling/
 
 ### Rust Core (`apps/core`)
 
-**Version**: v0.7.3 · [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core) · [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
+**Version**: v0.8.0 · [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core) · [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
 
 ```bash
 # Add to your Cargo.toml (pin to minor version)
-cargo add allsource-core@0.7
+cargo add allsource-core@0.8
 ```
 
 ```toml
 [dependencies]
-allsource-core = "0.7"  # Pin to minor version for stability
+allsource-core = "0.8"  # Pin to minor version for stability
 ```
 
 **Features**: Schema registry, event replay, stream processing pipelines (6 operators)
@@ -168,7 +168,7 @@ allsource-core = "0.7"  # Pin to minor version for stability
 
 ### Go Control Plane (`apps/control-plane`)
 
-**Version**: v1.0
+**Version**: v0.2.0
 **Features**: JWT auth, RBAC (4 roles, 7 permissions), policy enforcement, audit logging, OpenTelemetry tracing
 **Documentation**: [Control Plane README](apps/control-plane/README.md)
 
@@ -377,7 +377,7 @@ We follow a TDD approach for all refactoring:
 ## Roadmap
 
 **Current Focus (February 2026):**
-- ✅ Rust Core v0.7.3 with schema registry, replay engine, stream processing
+- ✅ Rust Core v0.8.0 with schema registry, replay engine, stream processing
 - ✅ Go Control Plane v1.0 with enterprise features
 - ✅ Elixir Query Service Phase 1 complete (242 tests passing)
 - 📋 Query Service Phase 2 (3-4 weeks): WebSocket integration, Broadway refinement
@@ -404,5 +404,5 @@ We follow a TDD approach for all refactoring:
 
 ---
 
-**Last Updated**: February 2, 2026
-**Versions**: Rust Core v0.7.3 · Go Control Plane v1.0 · Elixir Query Service Phase 1 Complete
+**Last Updated**: February 4, 2026
+**Versions**: Rust Core v0.8.0 · Go Control Plane v0.2.0 · Query Service v0.2.0 · MCP Server v0.2.0
