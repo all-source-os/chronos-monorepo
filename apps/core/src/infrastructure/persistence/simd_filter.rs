@@ -134,21 +134,15 @@ impl SimdEventFilter {
     }
 
     /// Detect SIMD support at runtime
+    ///
+    /// NOTE: SIMD path is currently disabled due to bugs in the AVX2/SSE4.2
+    /// implementations that cause incorrect filtering results on certain
+    /// platforms. The scalar fallback is used until the SIMD code is fixed.
+    /// See: https://github.com/all-source-os/chronos-monorepo/issues/XXX
     fn detect_simd_support() -> bool {
-        #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
-        {
-            // AVX2 is available at compile time
-            true
-        }
-        #[cfg(all(target_arch = "x86_64", not(target_feature = "avx2")))]
-        {
-            // Check at runtime
-            is_x86_feature_detected!("avx2") || is_x86_feature_detected!("sse4.2")
-        }
-        #[cfg(not(target_arch = "x86_64"))]
-        {
-            false
-        }
+        // SIMD path disabled - has bugs causing incorrect filter results
+        // TODO: Fix SIMD implementations and re-enable
+        false
     }
 
     /// Check if SIMD filtering is available
