@@ -138,7 +138,7 @@ impl SimdEventFilter {
     /// NOTE: SIMD path is currently disabled due to bugs in the AVX2/SSE4.2
     /// implementations that cause incorrect filtering results on certain
     /// platforms. The scalar fallback is used until the SIMD code is fixed.
-    /// See: https://github.com/all-source-os/chronos-monorepo/issues/XXX
+    /// See: <https://github.com/all-source-os/chronos-monorepo/issues/XXX>
     fn detect_simd_support() -> bool {
         // SIMD path disabled - has bugs causing incorrect filter results
         // TODO: Fix SIMD implementations and re-enable
