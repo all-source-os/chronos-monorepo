@@ -87,6 +87,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.19", features = ["v4", "serde"] }
 
+# Security: time 0.3.47+ required for RUSTSEC-2026-0009
+time = "0.3.47"
+
 [dev-dependencies]
 criterion = "0.5"
 ctrlc = "3.4"

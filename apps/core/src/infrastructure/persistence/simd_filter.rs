@@ -134,14 +134,13 @@ impl SimdEventFilter {
     }
 
     /// Detect SIMD support at runtime
-    ///
-    /// NOTE: SIMD path is currently disabled due to bugs in the AVX2/SSE4.2
-    /// implementations that cause incorrect filtering results on certain
-    /// platforms. The scalar fallback is used until the SIMD code is fixed.
-    /// See: <https://github.com/all-source-os/chronos-monorepo/issues/XXX>
+    #[cfg(target_arch = "x86_64")]
     fn detect_simd_support() -> bool {
-        // SIMD path disabled - has bugs causing incorrect filter results
-        // TODO: Fix SIMD implementations and re-enable
+        is_x86_feature_detected!("avx2") || is_x86_feature_detected!("sse4.2")
+    }
+
+    #[cfg(not(target_arch = "x86_64"))]
+    fn detect_simd_support() -> bool {
         false
     }
 
@@ -478,8 +477,12 @@ impl SimdEventFilter {
         // Handle remainder that doesn't fit in SIMD lanes
         let processed = if is_x86_feature_detected!("avx2") {
             chunks * 4
+        } else if is_x86_feature_detected!("sse4.2") {
+            // SSE4.2 already handles the last odd element in its block
+            timestamps.len()
         } else {
-            (timestamps.len() / 2) * 2
+            // Neither SIMD available, process all
+            0
         };
 
         for i in processed..events.len() {
@@ -570,8 +573,12 @@ impl SimdEventFilter {
 
         let processed = if is_x86_feature_detected!("avx2") {
             chunks * 4
+        } else if is_x86_feature_detected!("sse4.2") {
+            // SSE4.2 already handles the last odd element in its block
+            timestamps.len()
         } else {
-            (timestamps.len() / 2) * 2
+            // Neither SIMD available, process all
+            0
         };
 
         for i in processed..events.len() {
@@ -677,8 +684,12 @@ impl SimdEventFilter {
 
         let processed = if is_x86_feature_detected!("avx2") {
             chunks * 4
+        } else if is_x86_feature_detected!("sse4.2") {
+            // SSE4.2 already handles the last odd element in its block
+            timestamps.len()
         } else {
-            (timestamps.len() / 2) * 2
+            // Neither SIMD available, process all
+            0
         };
 
         for i in processed..events.len() {
@@ -767,8 +778,12 @@ impl SimdEventFilter {
 
         let processed = if is_x86_feature_detected!("avx2") {
             chunks * 4
+        } else if is_x86_feature_detected!("sse4.2") {
+            // SSE4.2 already handles the last odd element in its block
+            timestamps.len()
         } else {
-            (timestamps.len() / 2) * 2
+            // Neither SIMD available, process all
+            0
         };
 
         for i in processed..events.len() {
@@ -856,8 +871,12 @@ impl SimdEventFilter {
 
         let processed = if is_x86_feature_detected!("avx2") {
             chunks * 4
+        } else if is_x86_feature_detected!("sse4.2") {
+            // SSE4.2 already handles the last odd element in its block
+            timestamps.len()
         } else {
-            (timestamps.len() / 2) * 2
+            // Neither SIMD available, process all
+            0
         };
 
         for i in processed..events.len() {
@@ -957,8 +976,12 @@ impl SimdEventFilter {
 
         let processed = if is_x86_feature_detected!("avx2") {
             chunks * 4
+        } else if is_x86_feature_detected!("sse4.2") {
+            // SSE4.2 already handles the last odd element in its block
+            timestamps.len()
         } else {
-            (timestamps.len() / 2) * 2
+            // Neither SIMD available, process all
+            0
         };
 
         for i in processed..events.len() {

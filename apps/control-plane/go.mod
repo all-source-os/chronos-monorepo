@@ -1,6 +1,6 @@
 module github.com/allsource/control-plane
 
-go 1.24
+go 1.24.13
 
 require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible

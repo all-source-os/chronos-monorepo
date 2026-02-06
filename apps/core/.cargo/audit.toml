@@ -23,4 +23,20 @@ ignore = [
     # rustls-pemfile unmaintained - used by testcontainers, not critical (warning)
     # https://rustsec.org/advisories/RUSTSEC-2025-0134
     "RUSTSEC-2025-0134",
+
+    # instant unmaintained - used by tantivy via measure_time, no alternative available
+    # https://rustsec.org/advisories/RUSTSEC-2024-0384
+    "RUSTSEC-2024-0384",
+
+    # number_prefix unmaintained - used by fastembed via indicatif, warning only
+    # https://rustsec.org/advisories/RUSTSEC-2025-0119
+    "RUSTSEC-2025-0119",
+
+    # paste unmaintained - used widely by tokenizers/parquet/datafusion, warning only
+    # https://rustsec.org/advisories/RUSTSEC-2024-0436
+    "RUSTSEC-2024-0436",
+
+    # lru unsound - used by tantivy, low risk in our usage pattern (read-only iteration)
+    # https://rustsec.org/advisories/RUSTSEC-2026-0002
+    "RUSTSEC-2026-0002",
 ]
