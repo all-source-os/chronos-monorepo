@@ -14,7 +14,7 @@
 ARG ELIXIR_VERSION=1.17
 ARG OTP_VERSION=27
 # Must match Alpine version in elixir:${ELIXIR_VERSION}-otp-${OTP_VERSION}-alpine for OpenSSL compatibility
-ARG ALPINE_VERSION=3.22
+ARG ALPINE_VERSION=3.23
 
 # =============================================================================
 # Stage 1: Build

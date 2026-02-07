@@ -5,7 +5,7 @@
 
 ARG ELIXIR_VERSION=1.17
 ARG OTP_VERSION=27
-ARG ALPINE_VERSION=3.20
+ARG ALPINE_VERSION=3.23
 
 # =============================================================================
 # Stage 1: Build

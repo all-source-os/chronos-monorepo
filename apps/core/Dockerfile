@@ -9,7 +9,7 @@
 # =============================================================================
 
 ARG RUST_VERSION=1.92
-ARG ALPINE_VERSION=3.21
+ARG ALPINE_VERSION=3.23
 
 # =============================================================================
 # Stage 1: Chef - Prepare cargo-chef for dependency caching
