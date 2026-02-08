@@ -1,23 +1,21 @@
-// Clippy lints allowed for SIMD code patterns:
-// - needless_range_loop: Index loops are intentional for SIMD processing patterns
-// - collapsible_if: Nested ifs are clearer for SIMD fast-path/verification logic
-#![allow(clippy::needless_range_loop, clippy::collapsible_if)]
-
-//! SIMD-optimized event filtering for high-throughput event processing
+//! High-throughput event filtering with optional SIMD acceleration
 //!
-//! This module provides SIMD-accelerated filtering for common predicates:
+//! This module provides optimized filtering for common predicates:
 //! - Timestamp range comparisons (before, after, between)
 //! - String prefix matching
 //! - Batch filtering operations
 //!
-//! # Performance Characteristics
-//! - 2-3x improvement for filtering large event batches
-//! - Uses AVX2/SSE4.2 on x86_64 platforms
-//! - Graceful fallback for non-SIMD platforms
+//! # Architecture
 //!
-//! # Feature Gate
-//! SIMD intrinsics are only available on x86_64 with the `target_feature` enabled.
-//! The module automatically falls back to scalar implementations on other platforms.
+//! The filter uses a strategy-based approach:
+//! - **Timestamp filtering**: Uses optimized scalar iterators (LLVM auto-vectorizes well)
+//! - **String prefix matching**: Uses SSE4.2 on x86_64 when available, scalar fallback otherwise
+//!
+//! # Performance Characteristics
+//!
+//! - Efficient iterator-based filtering with minimal allocations
+//! - Statistics tracking for observability
+//! - Automatic platform detection for SIMD features
 
 use crate::domain::entities::Event;
 use chrono::{DateTime, Utc};
@@ -291,216 +289,11 @@ impl SimdEventFilter {
         }
     }
 
-    /// Filter events by timestamp (after) with SIMD optimization
+    /// Filter events by timestamp (after threshold).
+    ///
+    /// Uses optimized scalar iteration - LLVM auto-vectorizes this well.
     fn filter_timestamp_after(&self, events: &[Event], threshold: DateTime<Utc>) -> Vec<Event> {
-        if self.simd_available && events.len() >= 8 {
-            self.stats.simd_operations.fetch_add(1, Ordering::Relaxed);
-            self.filter_timestamp_after_simd(events, threshold)
-        } else {
-            self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
-            events
-                .iter()
-                .filter(|e| e.timestamp() > threshold)
-                .cloned()
-                .collect()
-        }
-    }
-
-    /// Filter events by timestamp (before) with SIMD optimization
-    fn filter_timestamp_before(&self, events: &[Event], threshold: DateTime<Utc>) -> Vec<Event> {
-        if self.simd_available && events.len() >= 8 {
-            self.stats.simd_operations.fetch_add(1, Ordering::Relaxed);
-            self.filter_timestamp_before_simd(events, threshold)
-        } else {
-            self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
-            events
-                .iter()
-                .filter(|e| e.timestamp() < threshold)
-                .cloned()
-                .collect()
-        }
-    }
-
-    /// Filter events by timestamp range with SIMD optimization
-    fn filter_timestamp_between(
-        &self,
-        events: &[Event],
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-    ) -> Vec<Event> {
-        if self.simd_available && events.len() >= 8 {
-            self.stats.simd_operations.fetch_add(1, Ordering::Relaxed);
-            self.filter_timestamp_between_simd(events, start, end)
-        } else {
-            self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
-            events
-                .iter()
-                .filter(|e| e.timestamp() >= start && e.timestamp() <= end)
-                .cloned()
-                .collect()
-        }
-    }
-
-    /// Filter events by timestamp (after) returning indices
-    fn filter_timestamp_after_indices(
-        &self,
-        events: &[Event],
-        threshold: DateTime<Utc>,
-    ) -> Vec<usize> {
-        if self.simd_available && events.len() >= 8 {
-            self.stats.simd_operations.fetch_add(1, Ordering::Relaxed);
-            self.filter_timestamp_after_indices_simd(events, threshold)
-        } else {
-            self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
-            events
-                .iter()
-                .enumerate()
-                .filter(|(_, e)| e.timestamp() > threshold)
-                .map(|(i, _)| i)
-                .collect()
-        }
-    }
-
-    /// Filter events by timestamp (before) returning indices
-    fn filter_timestamp_before_indices(
-        &self,
-        events: &[Event],
-        threshold: DateTime<Utc>,
-    ) -> Vec<usize> {
-        if self.simd_available && events.len() >= 8 {
-            self.stats.simd_operations.fetch_add(1, Ordering::Relaxed);
-            self.filter_timestamp_before_indices_simd(events, threshold)
-        } else {
-            self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
-            events
-                .iter()
-                .enumerate()
-                .filter(|(_, e)| e.timestamp() < threshold)
-                .map(|(i, _)| i)
-                .collect()
-        }
-    }
-
-    /// Filter events by timestamp range returning indices
-    fn filter_timestamp_between_indices(
-        &self,
-        events: &[Event],
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-    ) -> Vec<usize> {
-        if self.simd_available && events.len() >= 8 {
-            self.stats.simd_operations.fetch_add(1, Ordering::Relaxed);
-            self.filter_timestamp_between_indices_simd(events, start, end)
-        } else {
-            self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
-            events
-                .iter()
-                .enumerate()
-                .filter(|(_, e)| e.timestamp() >= start && e.timestamp() <= end)
-                .map(|(i, _)| i)
-                .collect()
-        }
-    }
-
-    /// SIMD-optimized timestamp after filtering
-    #[cfg(target_arch = "x86_64")]
-    fn filter_timestamp_after_simd(
-        &self,
-        events: &[Event],
-        threshold: DateTime<Utc>,
-    ) -> Vec<Event> {
-        use std::arch::x86_64::*;
-
-        let threshold_ts = threshold.timestamp_millis();
-
-        // Convert timestamps to array for SIMD processing
-        let timestamps: Vec<i64> = events
-            .iter()
-            .map(|e| e.timestamp().timestamp_millis())
-            .collect();
-
-        let mut result = Vec::with_capacity(events.len() / 2);
-
-        // Process 4 timestamps at a time with AVX2
-        let chunks = timestamps.len() / 4;
-
-        unsafe {
-            if is_x86_feature_detected!("avx2") {
-                let threshold_vec = _mm256_set1_epi64x(threshold_ts);
-
-                for chunk_idx in 0..chunks {
-                    let base = chunk_idx * 4;
-                    let ts_vec = _mm256_loadu_si256(timestamps[base..].as_ptr() as *const __m256i);
-
-                    // Compare: ts > threshold
-                    let cmp = _mm256_cmpgt_epi64(ts_vec, threshold_vec);
-
-                    // Extract mask
-                    let mask = _mm256_movemask_epi8(cmp);
-
-                    // Check each of the 4 lanes (each 8 bytes)
-                    for i in 0..4 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(events[base + i].clone());
-                        }
-                    }
-                }
-            } else if is_x86_feature_detected!("sse4.2") {
-                // SSE4.2 fallback - process 2 at a time
-                let threshold_vec = _mm_set1_epi64x(threshold_ts);
-                let sse_chunks = timestamps.len() / 2;
-
-                for chunk_idx in 0..sse_chunks {
-                    let base = chunk_idx * 2;
-                    let ts_vec = _mm_loadu_si128(timestamps[base..].as_ptr() as *const __m128i);
-
-                    let cmp = _mm_cmpgt_epi64(ts_vec, threshold_vec);
-                    let mask = _mm_movemask_epi8(cmp);
-
-                    for i in 0..2 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(events[base + i].clone());
-                        }
-                    }
-                }
-
-                // Handle remaining element
-                if timestamps.len() % 2 == 1 {
-                    let idx = timestamps.len() - 1;
-                    if timestamps[idx] > threshold_ts {
-                        result.push(events[idx].clone());
-                    }
-                }
-            }
-        }
-
-        // Handle remainder that doesn't fit in SIMD lanes
-        let processed = if is_x86_feature_detected!("avx2") {
-            chunks * 4
-        } else if is_x86_feature_detected!("sse4.2") {
-            // SSE4.2 already handles the last odd element in its block
-            timestamps.len()
-        } else {
-            // Neither SIMD available, process all
-            0
-        };
-
-        for i in processed..events.len() {
-            if events[i].timestamp() > threshold {
-                result.push(events[i].clone());
-            }
-        }
-
-        result
-    }
-
-    #[cfg(not(target_arch = "x86_64"))]
-    fn filter_timestamp_after_simd(
-        &self,
-        events: &[Event],
-        threshold: DateTime<Utc>,
-    ) -> Vec<Event> {
-        // Scalar fallback for non-x86_64
+        self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
         events
             .iter()
             .filter(|e| e.timestamp() > threshold)
@@ -508,94 +301,9 @@ impl SimdEventFilter {
             .collect()
     }
 
-    /// SIMD-optimized timestamp before filtering
-    #[cfg(target_arch = "x86_64")]
-    fn filter_timestamp_before_simd(
-        &self,
-        events: &[Event],
-        threshold: DateTime<Utc>,
-    ) -> Vec<Event> {
-        use std::arch::x86_64::*;
-
-        let threshold_ts = threshold.timestamp_millis();
-        let timestamps: Vec<i64> = events
-            .iter()
-            .map(|e| e.timestamp().timestamp_millis())
-            .collect();
-
-        let mut result = Vec::with_capacity(events.len() / 2);
-        let chunks = timestamps.len() / 4;
-
-        unsafe {
-            if is_x86_feature_detected!("avx2") {
-                let threshold_vec = _mm256_set1_epi64x(threshold_ts);
-
-                for chunk_idx in 0..chunks {
-                    let base = chunk_idx * 4;
-                    let ts_vec = _mm256_loadu_si256(timestamps[base..].as_ptr() as *const __m256i);
-
-                    // Compare: threshold > ts (equivalent to ts < threshold)
-                    let cmp = _mm256_cmpgt_epi64(threshold_vec, ts_vec);
-                    let mask = _mm256_movemask_epi8(cmp);
-
-                    for i in 0..4 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(events[base + i].clone());
-                        }
-                    }
-                }
-            } else if is_x86_feature_detected!("sse4.2") {
-                let threshold_vec = _mm_set1_epi64x(threshold_ts);
-                let sse_chunks = timestamps.len() / 2;
-
-                for chunk_idx in 0..sse_chunks {
-                    let base = chunk_idx * 2;
-                    let ts_vec = _mm_loadu_si128(timestamps[base..].as_ptr() as *const __m128i);
-
-                    let cmp = _mm_cmpgt_epi64(threshold_vec, ts_vec);
-                    let mask = _mm_movemask_epi8(cmp);
-
-                    for i in 0..2 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(events[base + i].clone());
-                        }
-                    }
-                }
-
-                if timestamps.len() % 2 == 1 {
-                    let idx = timestamps.len() - 1;
-                    if timestamps[idx] < threshold_ts {
-                        result.push(events[idx].clone());
-                    }
-                }
-            }
-        }
-
-        let processed = if is_x86_feature_detected!("avx2") {
-            chunks * 4
-        } else if is_x86_feature_detected!("sse4.2") {
-            // SSE4.2 already handles the last odd element in its block
-            timestamps.len()
-        } else {
-            // Neither SIMD available, process all
-            0
-        };
-
-        for i in processed..events.len() {
-            if events[i].timestamp() < threshold {
-                result.push(events[i].clone());
-            }
-        }
-
-        result
-    }
-
-    #[cfg(not(target_arch = "x86_64"))]
-    fn filter_timestamp_before_simd(
-        &self,
-        events: &[Event],
-        threshold: DateTime<Utc>,
-    ) -> Vec<Event> {
+    /// Filter events by timestamp (before threshold).
+    fn filter_timestamp_before(&self, events: &[Event], threshold: DateTime<Utc>) -> Vec<Event> {
+        self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
         events
             .iter()
             .filter(|e| e.timestamp() < threshold)
@@ -603,409 +311,67 @@ impl SimdEventFilter {
             .collect()
     }
 
-    /// SIMD-optimized timestamp range filtering
-    #[cfg(target_arch = "x86_64")]
-    fn filter_timestamp_between_simd(
+    /// Filter events by timestamp range (inclusive).
+    fn filter_timestamp_between(
         &self,
         events: &[Event],
         start: DateTime<Utc>,
         end: DateTime<Utc>,
     ) -> Vec<Event> {
-        use std::arch::x86_64::*;
-
-        let start_ts = start.timestamp_millis();
-        let end_ts = end.timestamp_millis();
-        let timestamps: Vec<i64> = events
-            .iter()
-            .map(|e| e.timestamp().timestamp_millis())
-            .collect();
-
-        let mut result = Vec::with_capacity(events.len() / 2);
-        let chunks = timestamps.len() / 4;
-
-        unsafe {
-            if is_x86_feature_detected!("avx2") {
-                // For range check: start <= ts && ts <= end
-                // Rewrite as: ts >= start && ts <= end
-                // Which is: !(ts < start) && !(ts > end)
-                let start_vec = _mm256_set1_epi64x(start_ts - 1); // For >= comparison
-                let end_vec = _mm256_set1_epi64x(end_ts);
-
-                for chunk_idx in 0..chunks {
-                    let base = chunk_idx * 4;
-                    let ts_vec = _mm256_loadu_si256(timestamps[base..].as_ptr() as *const __m256i);
-
-                    // ts > (start - 1) is equivalent to ts >= start
-                    let cmp_start = _mm256_cmpgt_epi64(ts_vec, start_vec);
-                    // end >= ts is equivalent to !(ts > end)
-                    let cmp_end = _mm256_cmpgt_epi64(ts_vec, end_vec);
-                    let cmp_end_inv = _mm256_xor_si256(cmp_end, _mm256_set1_epi64x(-1));
-
-                    // Combine: (ts >= start) && (ts <= end)
-                    let combined = _mm256_and_si256(cmp_start, cmp_end_inv);
-                    let mask = _mm256_movemask_epi8(combined);
-
-                    for i in 0..4 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(events[base + i].clone());
-                        }
-                    }
-                }
-            } else if is_x86_feature_detected!("sse4.2") {
-                let start_vec = _mm_set1_epi64x(start_ts - 1);
-                let end_vec = _mm_set1_epi64x(end_ts);
-                let sse_chunks = timestamps.len() / 2;
-
-                for chunk_idx in 0..sse_chunks {
-                    let base = chunk_idx * 2;
-                    let ts_vec = _mm_loadu_si128(timestamps[base..].as_ptr() as *const __m128i);
-
-                    let cmp_start = _mm_cmpgt_epi64(ts_vec, start_vec);
-                    let cmp_end = _mm_cmpgt_epi64(ts_vec, end_vec);
-                    let cmp_end_inv = _mm_xor_si128(cmp_end, _mm_set1_epi64x(-1));
-                    let combined = _mm_and_si128(cmp_start, cmp_end_inv);
-                    let mask = _mm_movemask_epi8(combined);
-
-                    for i in 0..2 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(events[base + i].clone());
-                        }
-                    }
-                }
-
-                if timestamps.len() % 2 == 1 {
-                    let idx = timestamps.len() - 1;
-                    if timestamps[idx] >= start_ts && timestamps[idx] <= end_ts {
-                        result.push(events[idx].clone());
-                    }
-                }
-            }
-        }
-
-        let processed = if is_x86_feature_detected!("avx2") {
-            chunks * 4
-        } else if is_x86_feature_detected!("sse4.2") {
-            // SSE4.2 already handles the last odd element in its block
-            timestamps.len()
-        } else {
-            // Neither SIMD available, process all
-            0
-        };
-
-        for i in processed..events.len() {
-            let ts = events[i].timestamp();
-            if ts >= start && ts <= end {
-                result.push(events[i].clone());
-            }
-        }
-
-        result
-    }
-
-    #[cfg(not(target_arch = "x86_64"))]
-    fn filter_timestamp_between_simd(
-        &self,
-        events: &[Event],
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-    ) -> Vec<Event> {
+        self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
         events
             .iter()
-            .filter(|e| e.timestamp() >= start && e.timestamp() <= end)
+            .filter(|e| {
+                let ts = e.timestamp();
+                ts >= start && ts <= end
+            })
             .cloned()
             .collect()
     }
 
-    /// SIMD-optimized timestamp after filtering (indices)
-    #[cfg(target_arch = "x86_64")]
-    fn filter_timestamp_after_indices_simd(
+    /// Filter events by timestamp (after threshold), returning indices.
+    fn filter_timestamp_after_indices(
         &self,
         events: &[Event],
         threshold: DateTime<Utc>,
     ) -> Vec<usize> {
-        use std::arch::x86_64::*;
-
-        let threshold_ts = threshold.timestamp_millis();
-        let timestamps: Vec<i64> = events
-            .iter()
-            .map(|e| e.timestamp().timestamp_millis())
-            .collect();
-
-        let mut result = Vec::with_capacity(events.len() / 2);
-        let chunks = timestamps.len() / 4;
-
-        unsafe {
-            if is_x86_feature_detected!("avx2") {
-                let threshold_vec = _mm256_set1_epi64x(threshold_ts);
-
-                for chunk_idx in 0..chunks {
-                    let base = chunk_idx * 4;
-                    let ts_vec = _mm256_loadu_si256(timestamps[base..].as_ptr() as *const __m256i);
-                    let cmp = _mm256_cmpgt_epi64(ts_vec, threshold_vec);
-                    let mask = _mm256_movemask_epi8(cmp);
-
-                    for i in 0..4 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(base + i);
-                        }
-                    }
-                }
-            } else if is_x86_feature_detected!("sse4.2") {
-                let threshold_vec = _mm_set1_epi64x(threshold_ts);
-                let sse_chunks = timestamps.len() / 2;
-
-                for chunk_idx in 0..sse_chunks {
-                    let base = chunk_idx * 2;
-                    let ts_vec = _mm_loadu_si128(timestamps[base..].as_ptr() as *const __m128i);
-                    let cmp = _mm_cmpgt_epi64(ts_vec, threshold_vec);
-                    let mask = _mm_movemask_epi8(cmp);
-
-                    for i in 0..2 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(base + i);
-                        }
-                    }
-                }
-
-                if timestamps.len() % 2 == 1 {
-                    let idx = timestamps.len() - 1;
-                    if timestamps[idx] > threshold_ts {
-                        result.push(idx);
-                    }
-                }
-            }
-        }
-
-        let processed = if is_x86_feature_detected!("avx2") {
-            chunks * 4
-        } else if is_x86_feature_detected!("sse4.2") {
-            // SSE4.2 already handles the last odd element in its block
-            timestamps.len()
-        } else {
-            // Neither SIMD available, process all
-            0
-        };
-
-        for i in processed..events.len() {
-            if events[i].timestamp() > threshold {
-                result.push(i);
-            }
-        }
-
-        result
-    }
-
-    #[cfg(not(target_arch = "x86_64"))]
-    fn filter_timestamp_after_indices_simd(
-        &self,
-        events: &[Event],
-        threshold: DateTime<Utc>,
-    ) -> Vec<usize> {
+        self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
         events
             .iter()
             .enumerate()
-            .filter(|(_, e)| e.timestamp() > threshold)
-            .map(|(i, _)| i)
+            .filter_map(|(i, e)| (e.timestamp() > threshold).then_some(i))
             .collect()
     }
 
-    /// SIMD-optimized timestamp before filtering (indices)
-    #[cfg(target_arch = "x86_64")]
-    fn filter_timestamp_before_indices_simd(
+    /// Filter events by timestamp (before threshold), returning indices.
+    fn filter_timestamp_before_indices(
         &self,
         events: &[Event],
         threshold: DateTime<Utc>,
     ) -> Vec<usize> {
-        use std::arch::x86_64::*;
-
-        let threshold_ts = threshold.timestamp_millis();
-        let timestamps: Vec<i64> = events
-            .iter()
-            .map(|e| e.timestamp().timestamp_millis())
-            .collect();
-
-        let mut result = Vec::with_capacity(events.len() / 2);
-        let chunks = timestamps.len() / 4;
-
-        unsafe {
-            if is_x86_feature_detected!("avx2") {
-                let threshold_vec = _mm256_set1_epi64x(threshold_ts);
-
-                for chunk_idx in 0..chunks {
-                    let base = chunk_idx * 4;
-                    let ts_vec = _mm256_loadu_si256(timestamps[base..].as_ptr() as *const __m256i);
-                    let cmp = _mm256_cmpgt_epi64(threshold_vec, ts_vec);
-                    let mask = _mm256_movemask_epi8(cmp);
-
-                    for i in 0..4 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(base + i);
-                        }
-                    }
-                }
-            } else if is_x86_feature_detected!("sse4.2") {
-                let threshold_vec = _mm_set1_epi64x(threshold_ts);
-                let sse_chunks = timestamps.len() / 2;
-
-                for chunk_idx in 0..sse_chunks {
-                    let base = chunk_idx * 2;
-                    let ts_vec = _mm_loadu_si128(timestamps[base..].as_ptr() as *const __m128i);
-                    let cmp = _mm_cmpgt_epi64(threshold_vec, ts_vec);
-                    let mask = _mm_movemask_epi8(cmp);
-
-                    for i in 0..2 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(base + i);
-                        }
-                    }
-                }
-
-                if timestamps.len() % 2 == 1 {
-                    let idx = timestamps.len() - 1;
-                    if timestamps[idx] < threshold_ts {
-                        result.push(idx);
-                    }
-                }
-            }
-        }
-
-        let processed = if is_x86_feature_detected!("avx2") {
-            chunks * 4
-        } else if is_x86_feature_detected!("sse4.2") {
-            // SSE4.2 already handles the last odd element in its block
-            timestamps.len()
-        } else {
-            // Neither SIMD available, process all
-            0
-        };
-
-        for i in processed..events.len() {
-            if events[i].timestamp() < threshold {
-                result.push(i);
-            }
-        }
-
-        result
-    }
-
-    #[cfg(not(target_arch = "x86_64"))]
-    fn filter_timestamp_before_indices_simd(
-        &self,
-        events: &[Event],
-        threshold: DateTime<Utc>,
-    ) -> Vec<usize> {
+        self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
         events
             .iter()
             .enumerate()
-            .filter(|(_, e)| e.timestamp() < threshold)
-            .map(|(i, _)| i)
+            .filter_map(|(i, e)| (e.timestamp() < threshold).then_some(i))
             .collect()
     }
 
-    /// SIMD-optimized timestamp range filtering (indices)
-    #[cfg(target_arch = "x86_64")]
-    fn filter_timestamp_between_indices_simd(
+    /// Filter events by timestamp range (inclusive), returning indices.
+    fn filter_timestamp_between_indices(
         &self,
         events: &[Event],
         start: DateTime<Utc>,
         end: DateTime<Utc>,
     ) -> Vec<usize> {
-        use std::arch::x86_64::*;
-
-        let start_ts = start.timestamp_millis();
-        let end_ts = end.timestamp_millis();
-        let timestamps: Vec<i64> = events
-            .iter()
-            .map(|e| e.timestamp().timestamp_millis())
-            .collect();
-
-        let mut result = Vec::with_capacity(events.len() / 2);
-        let chunks = timestamps.len() / 4;
-
-        unsafe {
-            if is_x86_feature_detected!("avx2") {
-                let start_vec = _mm256_set1_epi64x(start_ts - 1);
-                let end_vec = _mm256_set1_epi64x(end_ts);
-
-                for chunk_idx in 0..chunks {
-                    let base = chunk_idx * 4;
-                    let ts_vec = _mm256_loadu_si256(timestamps[base..].as_ptr() as *const __m256i);
-
-                    let cmp_start = _mm256_cmpgt_epi64(ts_vec, start_vec);
-                    let cmp_end = _mm256_cmpgt_epi64(ts_vec, end_vec);
-                    let cmp_end_inv = _mm256_xor_si256(cmp_end, _mm256_set1_epi64x(-1));
-                    let combined = _mm256_and_si256(cmp_start, cmp_end_inv);
-                    let mask = _mm256_movemask_epi8(combined);
-
-                    for i in 0..4 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(base + i);
-                        }
-                    }
-                }
-            } else if is_x86_feature_detected!("sse4.2") {
-                let start_vec = _mm_set1_epi64x(start_ts - 1);
-                let end_vec = _mm_set1_epi64x(end_ts);
-                let sse_chunks = timestamps.len() / 2;
-
-                for chunk_idx in 0..sse_chunks {
-                    let base = chunk_idx * 2;
-                    let ts_vec = _mm_loadu_si128(timestamps[base..].as_ptr() as *const __m128i);
-
-                    let cmp_start = _mm_cmpgt_epi64(ts_vec, start_vec);
-                    let cmp_end = _mm_cmpgt_epi64(ts_vec, end_vec);
-                    let cmp_end_inv = _mm_xor_si128(cmp_end, _mm_set1_epi64x(-1));
-                    let combined = _mm_and_si128(cmp_start, cmp_end_inv);
-                    let mask = _mm_movemask_epi8(combined);
-
-                    for i in 0..2 {
-                        if (mask >> (i * 8)) & 0xFF == 0xFF {
-                            result.push(base + i);
-                        }
-                    }
-                }
-
-                if timestamps.len() % 2 == 1 {
-                    let idx = timestamps.len() - 1;
-                    if timestamps[idx] >= start_ts && timestamps[idx] <= end_ts {
-                        result.push(idx);
-                    }
-                }
-            }
-        }
-
-        let processed = if is_x86_feature_detected!("avx2") {
-            chunks * 4
-        } else if is_x86_feature_detected!("sse4.2") {
-            // SSE4.2 already handles the last odd element in its block
-            timestamps.len()
-        } else {
-            // Neither SIMD available, process all
-            0
-        };
-
-        for i in processed..events.len() {
-            let ts = events[i].timestamp();
-            if ts >= start && ts <= end {
-                result.push(i);
-            }
-        }
-
-        result
-    }
-
-    #[cfg(not(target_arch = "x86_64"))]
-    fn filter_timestamp_between_indices_simd(
-        &self,
-        events: &[Event],
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-    ) -> Vec<usize> {
+        self.stats.scalar_operations.fetch_add(1, Ordering::Relaxed);
         events
             .iter()
             .enumerate()
-            .filter(|(_, e)| e.timestamp() >= start && e.timestamp() <= end)
-            .map(|(i, _)| i)
+            .filter_map(|(i, e)| {
+                let ts = e.timestamp();
+                (ts >= start && ts <= end).then_some(i)
+            })
             .collect()
     }
 
