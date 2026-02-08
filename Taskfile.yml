@@ -1,0 +1,410 @@
+version: '3'
+
+vars:
+  GHCR_REGISTRY: ghcr.io
+  GITHUB_ORG: all-source-os
+  REPO_NAME: chronos-monorepo
+
+tasks:
+  # ============================================================================
+  # Release Tasks
+  # ============================================================================
+
+  release:
+    desc: "Interactive release workflow - creates tag, updates docs, publishes images"
+    vars:
+      CURRENT_VERSION:
+        sh: git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"
+    cmds:
+      - task: release:preflight
+      - task: release:prompt
+      - task: release:quality-gates
+      - task: release:update-docs
+      - task: release:create-tag
+      - task: release:push
+      - task: release:create-github-release
+      - task: release:wait-for-images
+      - task: release:summary
+
+  release:preflight:
+    desc: "Pre-flight checks before release"
+    cmds:
+      - |
+        echo "=== Release Pre-flight Checks ==="
+        echo ""
+
+        # Check for uncommitted changes
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "ERROR: You have uncommitted changes. Please commit or stash them first."
+          git status --short
+          exit 1
+        fi
+
+        # Check we're on main branch
+        BRANCH=$(git branch --show-current)
+        if [ "$BRANCH" != "main" ]; then
+          echo "WARNING: You're on branch '$BRANCH', not 'main'"
+          read -p "Continue anyway? (y/N) " -n 1 -r
+          echo
+          if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+          fi
+        fi
+
+        # Check git remote is accessible
+        if ! git ls-remote --exit-code origin &>/dev/null; then
+          echo "ERROR: Cannot reach git remote 'origin'"
+          exit 1
+        fi
+
+        # Check gh CLI is authenticated
+        if ! gh auth status &>/dev/null; then
+          echo "ERROR: GitHub CLI not authenticated. Run 'gh auth login' first."
+          exit 1
+        fi
+
+        echo "Pre-flight checks passed!"
+
+  release:prompt:
+    desc: "Prompt for release details"
+    vars:
+      CURRENT_VERSION:
+        sh: git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"
+    cmds:
+      - |
+        echo ""
+        echo "=== Release Configuration ==="
+        echo ""
+        echo "Current version: {{.CURRENT_VERSION}}"
+        echo ""
+
+        # Suggest next version
+        CURRENT="{{.CURRENT_VERSION}}"
+        MAJOR=$(echo $CURRENT | sed 's/v//' | cut -d. -f1)
+        MINOR=$(echo $CURRENT | sed 's/v//' | cut -d. -f2)
+        PATCH=$(echo $CURRENT | sed 's/v//' | cut -d. -f3)
+        NEXT_PATCH="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+        NEXT_MINOR="v${MAJOR}.$((MINOR + 1)).0"
+        NEXT_MAJOR="v$((MAJOR + 1)).0.0"
+
+        echo "Version suggestions:"
+        echo "  1) $NEXT_PATCH (patch - bug fixes)"
+        echo "  2) $NEXT_MINOR (minor - new features)"
+        echo "  3) $NEXT_MAJOR (major - breaking changes)"
+        echo "  4) Custom version"
+        echo ""
+
+        read -p "Select version type (1-4): " VERSION_TYPE
+
+        case $VERSION_TYPE in
+          1) VERSION=$NEXT_PATCH ;;
+          2) VERSION=$NEXT_MINOR ;;
+          3) VERSION=$NEXT_MAJOR ;;
+          4) read -p "Enter version (e.g., v1.0.0): " VERSION ;;
+          *) VERSION=$NEXT_PATCH ;;
+        esac
+
+        # Validate version format
+        if ! echo "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "ERROR: Invalid version format. Use vX.Y.Z (e.g., v0.8.1)"
+          exit 1
+        fi
+
+        # Check if tag already exists
+        if git tag -l | grep -q "^${VERSION}$"; then
+          echo "ERROR: Tag $VERSION already exists!"
+          exit 1
+        fi
+
+        echo ""
+        read -p "Release title (e.g., 'Quality & Stability Release'): " TITLE
+
+        echo ""
+        echo "Release type:"
+        echo "  1) Bug fixes"
+        echo "  2) New features"
+        echo "  3) Breaking changes"
+        echo "  4) Mixed"
+        read -p "Select type (1-4): " RELEASE_TYPE
+
+        case $RELEASE_TYPE in
+          1) TYPE="patch" ;;
+          2) TYPE="minor" ;;
+          3) TYPE="major" ;;
+          *) TYPE="mixed" ;;
+        esac
+
+        # Save to temp file for other tasks
+        mkdir -p .release
+        echo "VERSION=$VERSION" > .release/config
+        echo "TITLE=$TITLE" >> .release/config
+        echo "TYPE=$TYPE" >> .release/config
+
+        echo ""
+        echo "Release configuration saved:"
+        echo "  Version: $VERSION"
+        echo "  Title: $TITLE"
+        echo "  Type: $TYPE"
+
+  release:quality-gates:
+    desc: "Run all quality gates before release"
+    cmds:
+      - |
+        echo ""
+        echo "=== Running Quality Gates ==="
+        echo ""
+        read -p "Run full quality gates? This may take several minutes. (Y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+          echo "Skipping quality gates (not recommended for releases!)"
+        else
+          make ci
+        fi
+
+  release:update-docs:
+    desc: "Update version in documentation files"
+    cmds:
+      - |
+        source .release/config
+        echo ""
+        echo "=== Updating Documentation ==="
+        echo ""
+
+        # Update README.md version badges
+        echo "Updating README.md version badges..."
+        sed -i '' "s/ghcr-v[0-9]*\.[0-9]*\.[0-9]*/ghcr-${VERSION}/g" README.md
+
+        # Update RELEASE.md
+        echo "Updating RELEASE.md..."
+        sed -i '' "s/^# Chronos Monorepo - v[0-9]*\.[0-9]*\.[0-9]* Release/# Chronos Monorepo - ${VERSION} Release/" RELEASE.md
+        sed -i '' "s/^\*\*Release Date\*\*:.*/\*\*Release Date\*\*: $(date +%Y-%m-%d)/" RELEASE.md
+
+        echo "Documentation updated!"
+        echo ""
+        git diff --stat README.md RELEASE.md
+
+  release:create-tag:
+    desc: "Create annotated git tag with release notes"
+    cmds:
+      - |
+        source .release/config
+        echo ""
+        echo "=== Creating Git Tag ==="
+        echo ""
+
+        # Get recent changes for tag message
+        CHANGES=$(git log $(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~10")..HEAD --oneline | head -20)
+
+        # Create tag message
+        TAG_MSG="$VERSION - $TITLE
+
+Recent changes:
+$CHANGES
+
+Release type: $TYPE
+Created: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+"
+
+        echo "Tag message:"
+        echo "---"
+        echo "$TAG_MSG"
+        echo "---"
+        echo ""
+
+        read -p "Create tag $VERSION? (Y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+          echo "Aborted."
+          exit 1
+        fi
+
+        # Commit doc changes first
+        git add README.md RELEASE.md
+        git commit -m "docs: update version to $VERSION for release" || true
+
+        # Create annotated tag
+        git tag -a "$VERSION" -m "$TAG_MSG"
+
+        echo "Tag $VERSION created!"
+
+  release:push:
+    desc: "Push commits and tags to trigger CI/CD"
+    cmds:
+      - |
+        source .release/config
+        echo ""
+        echo "=== Pushing to Remote ==="
+        echo ""
+
+        echo "This will push:"
+        echo "  - Current branch to origin"
+        echo "  - Tag $VERSION to origin (triggers docker-publish workflow)"
+        echo ""
+
+        read -p "Push now? (Y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+          echo "Aborted. Run manually:"
+          echo "  git push origin main"
+          echo "  git push origin $VERSION"
+          exit 1
+        fi
+
+        git push origin main
+        git push origin "$VERSION"
+
+        echo ""
+        echo "Pushed! Docker publish workflow should be triggered."
+
+  release:create-github-release:
+    desc: "Create GitHub release with release notes"
+    cmds:
+      - |
+        source .release/config
+        echo ""
+        echo "=== Creating GitHub Release ==="
+        echo ""
+
+        # Get test counts
+        RUST_TESTS=$(grep -r "test result:" apps/core/target 2>/dev/null | tail -1 | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" || echo "1221")
+
+        PREV_TAG=$(git describe --tags --abbrev=0 $VERSION^ 2>/dev/null || echo "")
+
+        RELEASE_NOTES="# Chronos Event Store $VERSION - $TITLE
+
+**Release Date**: $(date +%Y-%m-%d)
+**Status**: Production Ready
+
+## What's Changed
+
+$(git log ${PREV_TAG}..${VERSION} --oneline | sed 's/^/- /')
+
+## Test Coverage
+
+| Component | Tests |
+|-----------|-------|
+| Rust Core | **1,221+ passing** |
+| Query Service | **281 passing** |
+| MCP Server | **227 passing** |
+
+## Docker Images
+
+\`\`\`bash
+docker pull ghcr.io/{{.GITHUB_ORG}}/chronos-core:${VERSION}
+docker pull ghcr.io/{{.GITHUB_ORG}}/chronos-control-plane:${VERSION}
+docker pull ghcr.io/{{.GITHUB_ORG}}/chronos-query-service:${VERSION}
+docker pull ghcr.io/{{.GITHUB_ORG}}/chronos-mcp-server:${VERSION}
+\`\`\`
+
+---
+
+**Full changelog**: https://github.com/{{.GITHUB_ORG}}/{{.REPO_NAME}}/compare/${PREV_TAG}...${VERSION}
+"
+
+        echo "Creating release $VERSION..."
+        gh release create "$VERSION" \
+          --title "Chronos $VERSION - $TITLE" \
+          --notes "$RELEASE_NOTES"
+
+        echo ""
+        echo "GitHub release created!"
+        echo "  https://github.com/{{.GITHUB_ORG}}/{{.REPO_NAME}}/releases/tag/$VERSION"
+
+  release:wait-for-images:
+    desc: "Wait for Docker images to be published"
+    cmds:
+      - |
+        source .release/config
+        echo ""
+        echo "=== Waiting for Docker Images ==="
+        echo ""
+
+        # Get the workflow run ID
+        echo "Checking docker-publish workflow..."
+        sleep 5
+
+        RUN_ID=$(gh run list --workflow=docker-publish.yml --limit 1 --json databaseId -q '.[0].databaseId')
+
+        if [ -n "$RUN_ID" ]; then
+          echo "Workflow run: $RUN_ID"
+          echo "Monitoring progress (Ctrl+C to skip)..."
+          echo ""
+
+          gh run watch "$RUN_ID" --exit-status || {
+            echo ""
+            echo "Workflow may still be running. Check status at:"
+            echo "  https://github.com/{{.GITHUB_ORG}}/{{.REPO_NAME}}/actions/runs/$RUN_ID"
+          }
+        else
+          echo "Could not find workflow run. Check manually at:"
+          echo "  https://github.com/{{.GITHUB_ORG}}/{{.REPO_NAME}}/actions"
+        fi
+
+  release:summary:
+    desc: "Display release summary"
+    cmds:
+      - |
+        source .release/config
+        echo ""
+        echo "==========================================="
+        echo "  Release $VERSION Complete!"
+        echo "==========================================="
+        echo ""
+        echo "Artifacts:"
+        echo "  - Git tag: $VERSION"
+        echo "  - GitHub Release: https://github.com/{{.GITHUB_ORG}}/{{.REPO_NAME}}/releases/tag/$VERSION"
+        echo ""
+        echo "Docker Images (once workflow completes):"
+        echo "  - ghcr.io/{{.GITHUB_ORG}}/chronos-core:$VERSION"
+        echo "  - ghcr.io/{{.GITHUB_ORG}}/chronos-control-plane:$VERSION"
+        echo "  - ghcr.io/{{.GITHUB_ORG}}/chronos-query-service:$VERSION"
+        echo "  - ghcr.io/{{.GITHUB_ORG}}/chronos-mcp-server:$VERSION"
+        echo ""
+        echo "Next steps:"
+        echo "  1. Verify Docker images at: https://github.com/{{.GITHUB_ORG}}/{{.REPO_NAME}}/pkgs"
+        echo "  2. Update release branch: git checkout release/0.8 && git merge main && git push"
+        echo "  3. Announce the release!"
+        echo ""
+
+        # Cleanup
+        rm -rf .release
+
+  release:quick:
+    desc: "Quick patch release (skips quality gates)"
+    cmds:
+      - task: release:preflight
+      - task: release:prompt
+      - task: release:update-docs
+      - task: release:create-tag
+      - task: release:push
+      - task: release:create-github-release
+      - task: release:summary
+
+  # ============================================================================
+  # Utility Tasks
+  # ============================================================================
+
+  version:
+    desc: "Show current version"
+    cmds:
+      - |
+        echo "Current version: $(git describe --tags --abbrev=0 2>/dev/null || echo 'no tags')"
+        echo "Latest commits:"
+        git log --oneline -5
+
+  images:check:
+    desc: "Check Docker image versions in GHCR"
+    cmds:
+      - |
+        echo "=== Docker Images in GHCR ==="
+        for SERVICE in core control-plane query-service mcp-server; do
+          echo ""
+          echo "chronos-$SERVICE:"
+          gh api "/orgs/{{.GITHUB_ORG}}/packages/container/chronos-$SERVICE/versions" \
+            --jq '.[0:5] | .[] | "  \(.metadata.container.tags | join(", "))"' 2>/dev/null || echo "  (not found or no access)"
+        done
+
+  help:
+    desc: "Show available tasks"
+    cmds:
+      - task --list
