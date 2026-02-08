@@ -53,7 +53,7 @@ crossbeam = "0.8"
 crossbeam-queue = "0.3"
 dashmap = "6.1"
 # Note: datafusion 51+ requires Rust 1.88+, pinned to 44.x for Rust 1.85 compatibility
-datafusion = "44.0"
+datafusion = "46.0"
 
 # Vector search dependencies (optional)
 fastembed = { version = "4", optional = true }
