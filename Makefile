@@ -4,7 +4,8 @@
         docker-core docker-web docker-query docker-mcp docker-control \
         ci quality-gates quality-rust quality-go quality-elixir quality-elixir-full \
         validate-workflows validate-workflows-quick \
-        elixir-test elixir-test-failed elixir-test-watch elixir-test-report
+        elixir-test elixir-test-failed elixir-test-watch elixir-test-report \
+        release release-quick release-preflight version images-check
 
 # Test output directory for failure reports
 TEST_OUTPUT_DIR := .test-reports
@@ -64,6 +65,13 @@ help:
 	@echo "  make docker-query      - Build query-service container"
 	@echo "  make docker-mcp        - Build mcp-server container"
 	@echo "  make docker-control    - Build control-plane container"
+	@echo ""
+	@echo "Release:"
+	@echo "  make release           - Interactive release workflow (full)"
+	@echo "  make release-quick     - Quick release (skip quality gates)"
+	@echo "  make release-preflight - Run pre-flight checks only"
+	@echo "  make version           - Show current version"
+	@echo "  make images-check      - Check Docker image versions in GHCR"
 
 # =============================================================================
 # Development Commands
@@ -419,3 +427,183 @@ elixir-test-watch:
 
 elixir-test-report:
 	@./scripts/elixir-test-report.sh
+
+# =============================================================================
+# Release Commands
+# =============================================================================
+
+# GitHub org and repo for release URLs
+GITHUB_ORG := all-source-os
+REPO_NAME := chronos-monorepo
+GHCR_REGISTRY := ghcr.io
+
+release: release-preflight
+	@echo ""
+	@echo "=== Release Configuration ==="
+	@echo ""
+	@CURRENT=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
+	echo "Current version: $$CURRENT"; \
+	echo ""; \
+	MAJOR=$$(echo $$CURRENT | sed 's/v//' | cut -d. -f1); \
+	MINOR=$$(echo $$CURRENT | sed 's/v//' | cut -d. -f2); \
+	PATCH=$$(echo $$CURRENT | sed 's/v//' | cut -d. -f3); \
+	NEXT_PATCH="v$${MAJOR}.$${MINOR}.$$((PATCH + 1))"; \
+	NEXT_MINOR="v$${MAJOR}.$$((MINOR + 1)).0"; \
+	NEXT_MAJOR="v$$((MAJOR + 1)).0.0"; \
+	echo "Version suggestions:"; \
+	echo "  1) $$NEXT_PATCH (patch - bug fixes)"; \
+	echo "  2) $$NEXT_MINOR (minor - new features)"; \
+	echo "  3) $$NEXT_MAJOR (major - breaking changes)"; \
+	echo "  4) Custom version"; \
+	echo ""; \
+	read -p "Select version type (1-4) [1]: " VERSION_TYPE; \
+	VERSION_TYPE=$${VERSION_TYPE:-1}; \
+	case $$VERSION_TYPE in \
+		1) VERSION=$$NEXT_PATCH ;; \
+		2) VERSION=$$NEXT_MINOR ;; \
+		3) VERSION=$$NEXT_MAJOR ;; \
+		4) read -p "Enter version (e.g., v1.0.0): " VERSION ;; \
+		*) VERSION=$$NEXT_PATCH ;; \
+	esac; \
+	if ! echo "$$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$'; then \
+		echo "ERROR: Invalid version format. Use vX.Y.Z"; \
+		exit 1; \
+	fi; \
+	if git tag -l | grep -q "^$${VERSION}$$"; then \
+		echo "ERROR: Tag $$VERSION already exists!"; \
+		exit 1; \
+	fi; \
+	echo ""; \
+	read -p "Release title (e.g., 'Quality & Stability Release'): " TITLE; \
+	TITLE=$${TITLE:-"Release"}; \
+	echo ""; \
+	read -p "Run quality gates before release? (Y/n): " RUN_QG; \
+	if [ "$$RUN_QG" != "n" ] && [ "$$RUN_QG" != "N" ]; then \
+		$(MAKE) ci || exit 1; \
+	fi; \
+	echo ""; \
+	echo "=== Updating Documentation ==="; \
+	sed -i '' "s/ghcr-v[0-9]*\.[0-9]*\.[0-9]*/ghcr-$${VERSION}/g" README.md; \
+	sed -i '' "s/^# Chronos Monorepo - v[0-9]*\.[0-9]*\.[0-9]* Release/# Chronos Monorepo - $${VERSION} Release/" RELEASE.md; \
+	sed -i '' "s/^\*\*Release Date\*\*:.*/\*\*Release Date\*\*: $$(date +%Y-%m-%d)/" RELEASE.md; \
+	echo "Documentation updated."; \
+	git diff --stat README.md RELEASE.md; \
+	echo ""; \
+	echo "=== Creating Git Tag ==="; \
+	CHANGES=$$(git log $$(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~10")..HEAD --oneline | head -15); \
+	echo "Recent changes:"; \
+	echo "$$CHANGES"; \
+	echo ""; \
+	read -p "Create tag $$VERSION and push? (Y/n): " CONFIRM; \
+	if [ "$$CONFIRM" = "n" ] || [ "$$CONFIRM" = "N" ]; then \
+		echo "Aborted."; \
+		git checkout README.md RELEASE.md; \
+		exit 1; \
+	fi; \
+	git add README.md RELEASE.md; \
+	git commit -m "docs: update version to $$VERSION for release" || true; \
+	git tag -a "$$VERSION" -m "$$VERSION - $$TITLE"; \
+	echo ""; \
+	echo "=== Pushing to Remote ==="; \
+	git push origin main; \
+	git push origin "$$VERSION"; \
+	echo ""; \
+	echo "=== Creating GitHub Release ==="; \
+	PREV_TAG=$$(git describe --tags --abbrev=0 $$VERSION^ 2>/dev/null || echo ""); \
+	gh release create "$$VERSION" \
+		--title "Chronos $$VERSION - $$TITLE" \
+		--notes "# Chronos $$VERSION - $$TITLE\n\n**Release Date**: $$(date +%Y-%m-%d)\n\n## Changes\n\n$$CHANGES\n\n## Docker Images\n\n\`\`\`bash\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-core:$$VERSION\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-control-plane:$$VERSION\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-query-service:$$VERSION\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-mcp-server:$$VERSION\n\`\`\`\n\n---\n\n**Full changelog**: https://github.com/$(GITHUB_ORG)/$(REPO_NAME)/compare/$${PREV_TAG}...$$VERSION"; \
+	echo ""; \
+	echo "=== Waiting for Docker Images ==="; \
+	echo "Checking docker-publish workflow..."; \
+	sleep 5; \
+	RUN_ID=$$(gh run list --workflow=docker-publish.yml --limit 1 --json databaseId -q '.[0].databaseId'); \
+	if [ -n "$$RUN_ID" ]; then \
+		echo "Workflow run: $$RUN_ID"; \
+		echo "Monitor at: https://github.com/$(GITHUB_ORG)/$(REPO_NAME)/actions/runs/$$RUN_ID"; \
+		read -p "Wait for workflow to complete? (y/N): " WAIT; \
+		if [ "$$WAIT" = "y" ] || [ "$$WAIT" = "Y" ]; then \
+			gh run watch "$$RUN_ID" --exit-status || true; \
+		fi; \
+	fi; \
+	echo ""; \
+	echo "========================================="; \
+	echo "  Release $$VERSION Complete!"; \
+	echo "========================================="; \
+	echo ""; \
+	echo "Artifacts:"; \
+	echo "  - Git tag: $$VERSION"; \
+	echo "  - GitHub Release: https://github.com/$(GITHUB_ORG)/$(REPO_NAME)/releases/tag/$$VERSION"; \
+	echo ""; \
+	echo "Docker Images (once workflow completes):"; \
+	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-core:$$VERSION"; \
+	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-control-plane:$$VERSION"; \
+	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-query-service:$$VERSION"; \
+	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-mcp-server:$$VERSION"
+
+release-quick: release-preflight
+	@echo ""
+	@echo "=== Quick Release (skipping quality gates) ==="
+	@CURRENT=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
+	MAJOR=$$(echo $$CURRENT | sed 's/v//' | cut -d. -f1); \
+	MINOR=$$(echo $$CURRENT | sed 's/v//' | cut -d. -f2); \
+	PATCH=$$(echo $$CURRENT | sed 's/v//' | cut -d. -f3); \
+	VERSION="v$${MAJOR}.$${MINOR}.$$((PATCH + 1))"; \
+	echo "Creating patch release: $$VERSION"; \
+	read -p "Release title [Patch Release]: " TITLE; \
+	TITLE=$${TITLE:-"Patch Release"}; \
+	sed -i '' "s/ghcr-v[0-9]*\.[0-9]*\.[0-9]*/ghcr-$${VERSION}/g" README.md; \
+	sed -i '' "s/^# Chronos Monorepo - v[0-9]*\.[0-9]*\.[0-9]* Release/# Chronos Monorepo - $${VERSION} Release/" RELEASE.md; \
+	git add README.md RELEASE.md; \
+	git commit -m "docs: update version to $$VERSION for release" || true; \
+	git tag -a "$$VERSION" -m "$$VERSION - $$TITLE"; \
+	git push origin main; \
+	git push origin "$$VERSION"; \
+	PREV_TAG=$$(git describe --tags --abbrev=0 $$VERSION^ 2>/dev/null || echo ""); \
+	gh release create "$$VERSION" --title "Chronos $$VERSION - $$TITLE" --generate-notes; \
+	echo ""; \
+	echo "Release $$VERSION created!"
+
+release-preflight:
+	@echo "=== Release Pre-flight Checks ==="
+	@echo ""
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "ERROR: You have uncommitted changes:"; \
+		git status --short; \
+		exit 1; \
+	fi
+	@BRANCH=$$(git branch --show-current); \
+	if [ "$$BRANCH" != "main" ]; then \
+		echo "WARNING: You're on branch '$$BRANCH', not 'main'"; \
+		read -p "Continue anyway? (y/N): " REPLY; \
+		if [ "$$REPLY" != "y" ] && [ "$$REPLY" != "Y" ]; then \
+			exit 1; \
+		fi; \
+	fi
+	@if ! git ls-remote --exit-code origin &>/dev/null; then \
+		echo "ERROR: Cannot reach git remote 'origin'"; \
+		exit 1; \
+	fi
+	@if ! gh auth status &>/dev/null; then \
+		echo "ERROR: GitHub CLI not authenticated. Run 'gh auth login'"; \
+		exit 1; \
+	fi
+	@echo "Pre-flight checks passed!"
+
+version:
+	@echo "Current version: $$(git describe --tags --abbrev=0 2>/dev/null || echo 'no tags')"
+	@echo ""
+	@echo "Recent commits:"
+	@git log --oneline -5
+	@echo ""
+	@echo "Tags:"
+	@git tag -l | sort -V | tail -5
+
+images-check:
+	@echo "=== Docker Images in GHCR ==="
+	@for SERVICE in core control-plane query-service mcp-server; do \
+		echo ""; \
+		echo "chronos-$$SERVICE:"; \
+		gh api "/orgs/$(GITHUB_ORG)/packages/container/chronos-$$SERVICE/versions" \
+			--jq '.[0:5] | .[] | "  \(.metadata.container.tags | join(", "))"' 2>/dev/null || echo "  (not found or no access)"; \
+	done
