@@ -38,7 +38,7 @@ aes-gcm = "0.10"
 anyhow = "1.0"
 argon2 = "0.5"
 arrow = { version = "53.4", features = ["ipc", "json"] }
-arrow-flight = "53.4"
+arrow-flight = "54.2"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["json", "ws"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
