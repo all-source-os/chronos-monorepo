@@ -65,7 +65,7 @@ jsonschema = "0.40"
 jsonwebtoken = "9.3"
 lz4 = "1.28"
 parking_lot = "0.12"
-parquet = { version = "53.4", features = ["arrow", "async"] }
+parquet = { version = "54.2", features = ["arrow", "async"] }
 prometheus = "0.14"
 rand = "0.9"
 rocksdb = { version = "0.24", optional = true }
