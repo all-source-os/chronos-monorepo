@@ -339,25 +339,32 @@ defmodule QueryServiceEx.UsageMeter do
   end
 
   defp record_overage_async(tenant_id, usage_type, count) do
-    # Record overage asynchronously to not block the main transaction
-    Task.start(fn ->
-      case HybridPricing.record_overage(tenant_id, usage_type, count) do
-        {:ok, _} ->
-          Logger.debug(
-            "[UsageMeter] Recorded #{count} #{usage_type} overage for tenant #{tenant_id}"
-          )
-
-        {:error, reason} ->
-          Logger.warning(
-            "[UsageMeter] Failed to record overage: #{inspect(reason)}",
-            tenant_id: tenant_id,
-            usage_type: usage_type,
-            count: count
-          )
-      end
-    end)
+    # In test mode, run synchronously to avoid Ecto Sandbox connection issues
+    # In production, run asynchronously to not block the main transaction
+    if Application.get_env(:query_service_ex, :sql_sandbox, false) do
+      do_record_overage(tenant_id, usage_type, count)
+    else
+      Task.start(fn -> do_record_overage(tenant_id, usage_type, count) end)
+    end
 
     :ok
+  end
+
+  defp do_record_overage(tenant_id, usage_type, count) do
+    case HybridPricing.record_overage(tenant_id, usage_type, count) do
+      {:ok, _} ->
+        Logger.debug(
+          "[UsageMeter] Recorded #{count} #{usage_type} overage for tenant #{tenant_id}"
+        )
+
+      {:error, reason} ->
+        Logger.warning(
+          "[UsageMeter] Failed to record overage: #{inspect(reason)}",
+          tenant_id: tenant_id,
+          usage_type: usage_type,
+          count: count
+        )
+    end
   end
 
   defp get_usage_totals(tenant_id, from_date, to_date) do

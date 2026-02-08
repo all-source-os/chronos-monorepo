@@ -2,8 +2,12 @@
         core control web mcp \
         docker-build docker-test docker-test-quick docker-clean docker-purge \
         docker-core docker-web docker-query docker-mcp docker-control \
-        quality-gates quality-rust quality-go quality-elixir \
-        validate-workflows validate-workflows-quick
+        ci quality-gates quality-rust quality-go quality-elixir quality-elixir-full \
+        validate-workflows validate-workflows-quick \
+        elixir-test elixir-test-failed elixir-test-watch elixir-test-report
+
+# Test output directory for failure reports
+TEST_OUTPUT_DIR := .test-reports
 
 # =============================================================================
 # General Commands
@@ -24,10 +28,18 @@ help:
 	@echo "  make check-versions - Check version consistency across services"
 	@echo ""
 	@echo "Quality Gates (CI pipeline locally):"
+	@echo "  make ci             - Full CI pipeline (matches GitHub Actions exactly)"
 	@echo "  make quality-gates  - Run ALL quality checks (Rust + Go + Elixir)"
 	@echo "  make quality-rust   - Run Rust quality gates only"
 	@echo "  make quality-go     - Run Go quality gates only"
-	@echo "  make quality-elixir - Run Elixir quality gates only"
+	@echo "  make quality-elixir - Run Elixir quality gates only (quick)"
+	@echo "  make quality-elixir-full - Full Elixir checks with Dialyzer"
+	@echo ""
+	@echo "Elixir Testing:"
+	@echo "  make elixir-test         - Run all Elixir tests with detailed output"
+	@echo "  make elixir-test-failed  - Re-run only failed tests"
+	@echo "  make elixir-test-watch   - Run tests in watch mode"
+	@echo "  make elixir-test-report  - Generate a markdown test report"
 	@echo ""
 	@echo "Workflow Validation:"
 	@echo "  make validate-workflows       - Validate GitHub Actions with act"
@@ -106,6 +118,14 @@ quality-gates: check-versions quality-rust quality-go quality-elixir
 	@echo ""
 	@echo "✅ All quality gates passed!"
 
+# Full CI pipeline - replicates exact GitHub Actions checks
+ci: check-versions quality-rust quality-go quality-elixir-full
+	@echo ""
+	@echo "=============================================="
+	@echo "✅ Full CI pipeline passed!"
+	@echo "   Safe to push - this matches GitHub Actions"
+	@echo "=============================================="
+
 quality-rust:
 	@echo ""
 	@echo "🦀 Running Rust quality gates..."
@@ -138,12 +158,14 @@ quality-go:
 		gofmt -d .; \
 		exit 1; \
 	fi
-	@echo "→ Running go vet..."
-	cd apps/control-plane && go vet ./...
-	@echo "→ Running staticcheck..."
-	cd apps/control-plane && staticcheck ./...
-	@echo "→ Running golangci-lint..."
-	cd apps/control-plane && golangci-lint run --timeout=5m
+	@echo "→ Running golangci-lint (includes staticcheck, gosec, etc.)..."
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		cd apps/control-plane && golangci-lint run --timeout=5m; \
+	else \
+		echo "⚠ golangci-lint not installed, falling back to go vet"; \
+		echo "  Install with: brew install golangci-lint"; \
+		cd apps/control-plane && go vet ./...; \
+	fi
 	@echo "→ Running tests..."
 	cd apps/control-plane && go test -v -race -covermode=atomic ./...
 	@echo "→ Building binary..."
@@ -163,8 +185,71 @@ quality-elixir:
 	@echo "→ Running Credo..."
 	-cd apps/query-service && mix credo --strict
 	@echo "→ Running tests (testcontainers will start PostgreSQL automatically)..."
-	cd apps/query-service && mix test
+	cd apps/query-service && TESTCONTAINERS_RYUK_DISABLED=true mix test
 	@echo "✅ Elixir quality gates passed!"
+
+# Full Elixir CI checks (includes Dialyzer and MCP server) - matches GitHub Actions exactly
+quality-elixir-full:
+	@echo ""
+	@echo "💧 Running full Elixir CI pipeline..."
+	@echo "====================================="
+	@mkdir -p $(TEST_OUTPUT_DIR)
+	@echo ""
+	@echo "--- Query Service ---"
+	@echo "→ Installing dependencies..."
+	cd apps/query-service && mix deps.get
+	@echo "→ Checking formatting..."
+	cd apps/query-service && mix format --check-formatted
+	@echo "→ Checking unused dependencies..."
+	cd apps/query-service && mix deps.unlock --check-unused
+	@echo "→ Compiling with warnings as errors..."
+	cd apps/query-service && mix compile --warnings-as-errors
+	@echo "→ Running Credo..."
+	cd apps/query-service && mix credo --strict
+	@echo "→ Running Dialyzer..."
+	cd apps/query-service && mkdir -p priv/plts && mix dialyzer
+	@echo "→ Running tests..."
+	@cd apps/query-service && TESTCONTAINERS_RYUK_DISABLED=true mix test 2>&1 | tee $(CURDIR)/$(TEST_OUTPUT_DIR)/query-service-ci.log; \
+		test_result=$${PIPESTATUS[0]}; \
+		if [ $$test_result -ne 0 ]; then \
+			echo ""; \
+			echo "❌ QUERY SERVICE TEST FAILURES:"; \
+			echo "================================"; \
+			grep -E "^\s+[0-9]+\)" $(CURDIR)/$(TEST_OUTPUT_DIR)/query-service-ci.log -A 20 2>/dev/null | head -100 || true; \
+			echo ""; \
+			echo "📋 Full log: $(CURDIR)/$(TEST_OUTPUT_DIR)/query-service-ci.log"; \
+			echo "💡 Re-run failed tests: make elixir-test-failed"; \
+			exit 1; \
+		fi
+	@echo "done (passed successfully)"
+	@echo ""
+	@echo "--- MCP Server ---"
+	@echo "→ Installing dependencies..."
+	cd apps/mcp-server-elixir && mix deps.get
+	@echo "→ Checking formatting..."
+	cd apps/mcp-server-elixir && mix format --check-formatted
+	@echo "→ Checking unused dependencies..."
+	cd apps/mcp-server-elixir && mix deps.unlock --check-unused
+	@echo "→ Compiling with warnings as errors..."
+	cd apps/mcp-server-elixir && mix compile --warnings-as-errors
+	@echo "→ Running Credo..."
+	cd apps/mcp-server-elixir && mix credo --strict
+	@echo "→ Running Dialyzer..."
+	cd apps/mcp-server-elixir && mkdir -p priv/plts && mix dialyzer
+	@echo "→ Running tests..."
+	@cd apps/mcp-server-elixir && mix test 2>&1 | tee $(CURDIR)/$(TEST_OUTPUT_DIR)/mcp-server-ci.log; \
+		test_result=$${PIPESTATUS[0]}; \
+		if [ $$test_result -ne 0 ]; then \
+			echo ""; \
+			echo "❌ MCP SERVER TEST FAILURES:"; \
+			echo "============================"; \
+			grep -E "^\s+[0-9]+\)" $(CURDIR)/$(TEST_OUTPUT_DIR)/mcp-server-ci.log -A 20 2>/dev/null | head -100 || true; \
+			echo ""; \
+			echo "📋 Full log: $(CURDIR)/$(TEST_OUTPUT_DIR)/mcp-server-ci.log"; \
+			echo "💡 Re-run failed tests: make elixir-test-failed"; \
+			exit 1; \
+		fi
+	@echo "✅ Full Elixir CI pipeline passed!"
 
 # =============================================================================
 # Individual Service Commands
@@ -272,3 +357,65 @@ validate-workflows:
 validate-workflows-quick:
 	@echo "🔍 Quick workflow syntax validation (actionlint only)..."
 	./scripts/validate-workflows.sh --quick
+
+# =============================================================================
+# Elixir Testing Commands
+# =============================================================================
+
+elixir-test:
+	@echo ""
+	@echo "🧪 Running Elixir tests with detailed output..."
+	@echo "================================================"
+	@mkdir -p $(TEST_OUTPUT_DIR)
+	@echo "--- Query Service Tests ---"
+	cd apps/query-service && TESTCONTAINERS_RYUK_DISABLED=true \
+		mix test --trace 2>&1 | tee $(CURDIR)/$(TEST_OUTPUT_DIR)/query-service-test.log; \
+		test_result=$$?; \
+		if [ $$test_result -ne 0 ]; then \
+			echo ""; \
+			echo "❌ QUERY SERVICE TEST FAILURES:"; \
+			echo "================================"; \
+			grep -A 50 "^\s*[0-9]*)" $(CURDIR)/$(TEST_OUTPUT_DIR)/query-service-test.log 2>/dev/null || true; \
+			echo ""; \
+			echo "📋 Full log: $(CURDIR)/$(TEST_OUTPUT_DIR)/query-service-test.log"; \
+		fi; \
+		exit $$test_result
+	@echo ""
+	@echo "--- MCP Server Tests ---"
+	cd apps/mcp-server-elixir && mix test --trace 2>&1 | tee $(CURDIR)/$(TEST_OUTPUT_DIR)/mcp-server-test.log; \
+		test_result=$$?; \
+		if [ $$test_result -ne 0 ]; then \
+			echo ""; \
+			echo "❌ MCP SERVER TEST FAILURES:"; \
+			echo "============================"; \
+			grep -A 50 "^\s*[0-9]*)" $(CURDIR)/$(TEST_OUTPUT_DIR)/mcp-server-test.log 2>/dev/null || true; \
+			echo ""; \
+			echo "📋 Full log: $(CURDIR)/$(TEST_OUTPUT_DIR)/mcp-server-test.log"; \
+		fi; \
+		exit $$test_result
+	@echo ""
+	@echo "✅ All Elixir tests passed!"
+	@echo "📋 Test logs saved to $(TEST_OUTPUT_DIR)/"
+
+elixir-test-failed:
+	@echo ""
+	@echo "🔄 Re-running failed Elixir tests..."
+	@echo "====================================="
+	@echo "--- Query Service Failed Tests ---"
+	cd apps/query-service && TESTCONTAINERS_RYUK_DISABLED=true mix test --failed --trace || true
+	@echo ""
+	@echo "--- MCP Server Failed Tests ---"
+	cd apps/mcp-server-elixir && mix test --failed --trace || true
+	@echo ""
+	@echo "💡 Tip: If no tests run, there are no recorded failures."
+	@echo "   Run 'make elixir-test' first to record failures."
+
+elixir-test-watch:
+	@echo ""
+	@echo "👀 Running Elixir tests in watch mode..."
+	@echo "========================================="
+	@echo "Press Ctrl+C to stop"
+	cd apps/query-service && TESTCONTAINERS_RYUK_DISABLED=true mix test.watch
+
+elixir-test-report:
+	@./scripts/elixir-test-report.sh

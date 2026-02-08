@@ -63,6 +63,7 @@ defmodule QueryServiceEx.MixProject do
 
       # Redis for caching
       {:redix, "~> 1.5"},
+      {:castore, "~> 1.0"},
 
       # Event Processing Pipelines
       {:broadway, "~> 1.1"},

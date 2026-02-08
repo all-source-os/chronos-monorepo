@@ -4,7 +4,7 @@ defmodule QueryServiceEx.Application.DSL.QueryDSLTest do
   import QueryServiceEx.Application.DSL.QueryDSL
 
   alias QueryServiceEx.Domain.Entities.Query
-  alias QueryServiceEx.Domain.Entities.Query.{Aggregation, Predicate, SortOrder}
+  alias QueryServiceEx.Domain.Entities.Query.Predicate
 
   describe "from_events/0" do
     test "creates a query from events table" do

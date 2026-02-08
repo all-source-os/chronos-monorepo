@@ -1085,7 +1085,10 @@ impl SimdEventFilter {
             .collect()
     }
 
-    /// SIMD string prefix matching using SSE4.2 pcmpestri
+    /// String prefix matching - uses scalar comparison for correctness
+    /// Note: SSE4.2 pcmpestri string matching is complex and error-prone.
+    /// The scalar starts_with is already highly optimized by LLVM and provides
+    /// reliable correctness. Keeping this as a separate function for API consistency.
     #[cfg(target_arch = "x86_64")]
     fn filter_string_prefix_simd<F>(
         &self,
@@ -1096,65 +1099,16 @@ impl SimdEventFilter {
     where
         F: Fn(&Event) -> &str,
     {
-        use std::arch::x86_64::*;
-
-        let prefix_bytes = prefix.as_bytes();
-        let prefix_len = prefix_bytes.len();
-
-        // Pad prefix to 16 bytes for SSE comparison
-        let mut prefix_padded = [0u8; 16];
-        prefix_padded[..prefix_len].copy_from_slice(prefix_bytes);
-
-        let mut result = Vec::with_capacity(events.len() / 2);
-
-        unsafe {
-            if is_x86_feature_detected!("sse4.2") {
-                let prefix_vec = _mm_loadu_si128(prefix_padded.as_ptr() as *const __m128i);
-
-                for event in events {
-                    let s = extractor(event);
-                    if s.len() >= prefix_len {
-                        let s_bytes = s.as_bytes();
-                        let mut str_padded = [0u8; 16];
-                        let copy_len = std::cmp::min(16, s_bytes.len());
-                        str_padded[..copy_len].copy_from_slice(&s_bytes[..copy_len]);
-
-                        let str_vec = _mm_loadu_si128(str_padded.as_ptr() as *const __m128i);
-
-                        // Compare strings using pcmpestri
-                        // _SIDD_CMP_EQUAL_EACH | _SIDD_NEGATIVE_POLARITY gives us matching
-                        const IMM8: i32 = _SIDD_CMP_EQUAL_EACH | _SIDD_UBYTE_OPS;
-                        let cmp_result = _mm_cmpestri(
-                            prefix_vec,
-                            prefix_len as i32,
-                            str_vec,
-                            copy_len as i32,
-                            IMM8,
-                        );
-
-                        // If result >= prefix_len, all characters matched
-                        if cmp_result >= prefix_len as i32 || cmp_result == 16 {
-                            // Need to verify with actual comparison for edge cases
-                            if s.starts_with(prefix) {
-                                result.push(event.clone());
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Fallback for no SSE4.2
-                for event in events {
-                    if extractor(event).starts_with(prefix) {
-                        result.push(event.clone());
-                    }
-                }
-            }
-        }
-
-        result
+        // Use scalar comparison - it's fast and correct
+        // The overhead of SIMD string comparison isn't worth the complexity
+        events
+            .iter()
+            .filter(|e| extractor(e).starts_with(prefix))
+            .cloned()
+            .collect()
     }
 
-    /// SIMD string prefix matching returning indices
+    /// String prefix matching returning indices - uses scalar comparison for correctness
     #[cfg(target_arch = "x86_64")]
     fn filter_string_prefix_indices_simd<F>(
         &self,
@@ -1165,56 +1119,13 @@ impl SimdEventFilter {
     where
         F: Fn(&Event) -> &str,
     {
-        use std::arch::x86_64::*;
-
-        let prefix_bytes = prefix.as_bytes();
-        let prefix_len = prefix_bytes.len();
-
-        let mut prefix_padded = [0u8; 16];
-        prefix_padded[..prefix_len].copy_from_slice(prefix_bytes);
-
-        let mut result = Vec::with_capacity(events.len() / 2);
-
-        unsafe {
-            if is_x86_feature_detected!("sse4.2") {
-                let prefix_vec = _mm_loadu_si128(prefix_padded.as_ptr() as *const __m128i);
-
-                for (idx, event) in events.iter().enumerate() {
-                    let s = extractor(event);
-                    if s.len() >= prefix_len {
-                        let s_bytes = s.as_bytes();
-                        let mut str_padded = [0u8; 16];
-                        let copy_len = std::cmp::min(16, s_bytes.len());
-                        str_padded[..copy_len].copy_from_slice(&s_bytes[..copy_len]);
-
-                        let str_vec = _mm_loadu_si128(str_padded.as_ptr() as *const __m128i);
-
-                        const IMM8: i32 = _SIDD_CMP_EQUAL_EACH | _SIDD_UBYTE_OPS;
-                        let cmp_result = _mm_cmpestri(
-                            prefix_vec,
-                            prefix_len as i32,
-                            str_vec,
-                            copy_len as i32,
-                            IMM8,
-                        );
-
-                        if cmp_result >= prefix_len as i32 || cmp_result == 16 {
-                            if s.starts_with(prefix) {
-                                result.push(idx);
-                            }
-                        }
-                    }
-                }
-            } else {
-                for (idx, event) in events.iter().enumerate() {
-                    if extractor(event).starts_with(prefix) {
-                        result.push(idx);
-                    }
-                }
-            }
-        }
-
-        result
+        // Use scalar comparison - it's fast and correct
+        events
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| extractor(e).starts_with(prefix))
+            .map(|(i, _)| i)
+            .collect()
     }
 
     /// Get filtering statistics

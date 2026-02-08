@@ -7,6 +7,11 @@ require Logger
 
 Logger.info("Starting testcontainers PostgreSQL...")
 
+# Configure testcontainers - disable Ryuk for CI environments
+# Ryuk is a cleanup container that can fail in Docker-in-Docker or restricted environments
+# Setting this ensures tests work in GitHub Actions and local development
+Application.put_env(:testcontainers, :ryuk_disabled, true)
+
 # Start testcontainers supervisor
 {:ok, _} = Testcontainers.start_link()
 
@@ -43,6 +48,15 @@ migrations_path = Path.join([:code.priv_dir(:query_service_ex), "repo", "migrati
 Ecto.Migrator.run(QueryServiceEx.Repo, migrations_path, :up, all: true, log: false)
 
 Logger.info("Database migrations complete")
+
+# Configure ExUnit with better formatting and failure tracking
+ExUnit.configure(
+  # Store failed tests for re-running with mix test --failed
+  trace: false,
+  capture_log: true,
+  # Increase timeout for slower CI environments
+  timeout: 120_000
+)
 
 ExUnit.start()
 

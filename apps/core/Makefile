@@ -1,14 +1,18 @@
-.PHONY: help lint lint-sort format format-sort test build clean check ci quality-gates install-ci-toolchain
+.PHONY: help lint lint-sort format format-sort test build clean check ci quality-gates quality-gates-docker install-ci-toolchain
 
 # CI Rust toolchain version (must match .github/workflows/ci.yml)
 RUST_CI_VERSION := nightly
+
+# Docker image for replicating CI environment
+CI_DOCKER_IMAGE := rust:1.92
 
 # Default target
 help:
 	@echo "AllSource Core - Development Commands"
 	@echo ""
 	@echo "Quality Gates (run before pushing):"
-	@echo "  make quality-gates - Run exact CI checks with Rust nightly"
+	@echo "  make quality-gates        - Run exact CI checks with Rust nightly"
+	@echo "  make quality-gates-docker - Run tests in Docker (replicates CI x86_64 Linux)"
 	@echo ""
 	@echo "Quick Checks (uses current toolchain):"
 	@echo "  make check         - Run format, lint, sort, and test"
@@ -102,3 +106,27 @@ install-ci-toolchain:
 	@echo "Installing Rust $(RUST_CI_VERSION) toolchain..."
 	@rustup toolchain install $(RUST_CI_VERSION) --component rustfmt clippy
 	@echo "Rust $(RUST_CI_VERSION) installed!"
+
+# Run quality gates in Docker container (replicates GitHub Actions x86_64 Linux environment)
+# This catches SIMD and platform-specific bugs that won't show on macOS ARM
+quality-gates-docker:
+	@echo "Running quality gates in Docker (x86_64 Linux)..."
+	@echo "This replicates the GitHub Actions CI environment"
+	@echo ""
+	docker run --rm --platform linux/amd64 \
+		-v "$$(pwd):/app" \
+		-w /app \
+		$(CI_DOCKER_IMAGE) \
+		sh -c '\
+			echo "[1/5] Installing cargo-sort..." && \
+			cargo install cargo-sort --quiet && \
+			echo "[2/5] Checking formatting..." && \
+			cargo fmt --check && \
+			echo "[3/5] Checking Cargo.toml sorting..." && \
+			cargo sort --check && \
+			echo "[4/5] Running clippy..." && \
+			cargo clippy --all-targets --all-features -- -D warnings && \
+			echo "[5/5] Running tests..." && \
+			cargo test --all-features && \
+			echo "" && \
+			echo "All quality gates passed in Docker!"'

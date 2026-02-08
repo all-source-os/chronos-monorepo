@@ -173,9 +173,14 @@ defmodule QueryServiceExWeb.QueryController do
 
       tenant ->
         # Record usage asynchronously to not block the response
-        Task.start(fn ->
+        # In test mode (sandbox), run synchronously to avoid connection issues
+        if Application.get_env(:query_service_ex, :sql_sandbox, false) do
           UsageMeter.record_queries(tenant.id, count: 1, metadata: metadata)
-        end)
+        else
+          Task.start(fn ->
+            UsageMeter.record_queries(tenant.id, count: 1, metadata: metadata)
+          end)
+        end
     end
   end
 end

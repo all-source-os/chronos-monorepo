@@ -4,6 +4,9 @@ import Config
 # after testcontainers sets up the PostgreSQL database.
 config :query_service_ex, skip_repo_start: true
 
+# Enable SQL sandbox mode for async tasks to share connections
+config :query_service_ex, sql_sandbox: true
+
 # Configure your database for test
 # Note: These settings are placeholder values. The actual connection details
 # will be set by test_helper.exs after testcontainers starts PostgreSQL.

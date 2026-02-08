@@ -41,6 +41,7 @@ lerna-debug.log*
 # Testing
 coverage
 .nyc_output
+.test-reports/
 
 # Turborepo
 .turbo

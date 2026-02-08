@@ -253,6 +253,8 @@ jobs:
         working-directory: apps/query-service
     env:
       MIX_ENV: test
+      # Disable Ryuk container for testcontainers - not needed in ephemeral CI
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - name: Checkout

@@ -7,11 +7,21 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
   @moduletag :mcp_tools_context
 
   setup do
-    # Ensure ConversationContext is running (may already be started by application)
-    case ConversationContext.start_link(name: McpServerElixir.Context.ConversationContext) do
-      {:ok, pid} -> {:ok, pid: pid}
-      {:error, {:already_started, pid}} -> {:ok, pid: pid}
-    end
+    # Ensure ConversationContext is running for tests
+    # Try to find existing process, or start a new one
+    pid =
+      case GenServer.whereis(McpServerElixir.Context.ConversationContext) do
+        nil ->
+          {:ok, started_pid} =
+            ConversationContext.start_link(name: McpServerElixir.Context.ConversationContext)
+
+          started_pid
+
+        existing_pid when is_pid(existing_pid) ->
+          existing_pid
+      end
+
+    {:ok, pid: pid}
   end
 
   describe "list_tools/0" do

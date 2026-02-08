@@ -5,13 +5,13 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
 
   @moduletag :projection_sync
 
-  # Helper to wait for async GenServer operations with exponential backoff
-  # This handles CI timing variability better than fixed sleeps
-  defp wait_for_genserver(max_attempts \\ 10, initial_delay \\ 20) do
-    Enum.each(1..max_attempts, fn attempt ->
-      delay = min(initial_delay * attempt, 200)
-      Process.sleep(delay)
-    end)
+  # Helper to ensure async GenServer cast is processed
+  # Uses a synchronous call to guarantee message ordering (casts are processed before the call returns)
+  defp wait_for_cast_to_process(pid) do
+    # GenServers process messages in order, so a call after a cast
+    # guarantees the cast was processed before the call returns
+    _ = ProjectionSync.get_state(pid)
+    :ok
   end
 
   setup do
@@ -99,8 +99,8 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
       event = %{"payload" => %{"name" => "John", "age" => 30}}
       ProjectionSync.apply_event(pid, event)
 
-      # Give it a moment to process
-      wait_for_genserver()
+      # Ensure cast is processed
+      wait_for_cast_to_process(pid)
 
       state = ProjectionSync.get_state(pid)
       assert state["name"] == "John"
@@ -124,7 +124,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
 
       # Apply event
       ProjectionSync.apply_event(pid, %{"payload" => %{"value" => 1}})
-      wait_for_genserver()
+      wait_for_cast_to_process(pid)
 
       # Now dirty
       assert ProjectionSync.dirty?(pid)
@@ -146,7 +146,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
 
       # Apply event
       ProjectionSync.apply_event(pid, %{"payload" => %{"cached" => true}})
-      wait_for_genserver()
+      wait_for_cast_to_process(pid)
 
       # Check ETS cache directly
       cached = ProjectionSync.get_state_from_cache("cache_test", "entity-cache")
@@ -177,7 +177,7 @@ defmodule QueryServiceEx.Application.Services.ProjectionSyncTest do
       ProjectionSync.apply_event(pid, %{})
       ProjectionSync.apply_event(pid, %{})
       ProjectionSync.apply_event(pid, %{})
-      wait_for_genserver()
+      wait_for_cast_to_process(pid)
 
       state = ProjectionSync.get_state(pid)
       assert state.count == 3
