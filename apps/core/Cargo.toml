@@ -90,7 +90,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.19", features = ["v4", "serde"] }
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.8"
 ctrlc = "3.4"
 tempfile = "3.23"
 testcontainers = "0.23"
