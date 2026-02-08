@@ -80,7 +80,7 @@ defmodule QueryServiceEx.MixProject do
       {:telemetry_poller, "~> 1.1"},
 
       # Structured Logging
-      {:logger_json, "~> 6.0"},
+      {:logger_json, "~> 7.0"},
 
       # OAuth Authentication
       {:ueberauth, "~> 0.10"},
