@@ -44,7 +44,7 @@ Production-optimized containers with minimal footprint:
 
 | Service | Image | Version | Size | Base |
 |---------|-------|:-------:|:----:|------|
-| **Core** | `ghcr.io/all-source-os/chronos-core` | [![v0.8.0](https://img.shields.io/badge/ghcr-v0.8.0-blue?logo=github)](https://github.com/all-source-os/chronos-monorepo/pkgs/container/chronos-core) | **15.7 MB** | Distroless |
+| **Core** | `ghcr.io/all-source-os/chronos-core` | [![v0.8.1](https://img.shields.io/badge/ghcr-v0.8.1-blue?logo=github)](https://github.com/all-source-os/chronos-monorepo/pkgs/container/chronos-core) | **15.7 MB** | Distroless |
 | **Control Plane** | `ghcr.io/all-source-os/chronos-control-plane` | [![v0.2.0](https://img.shields.io/badge/ghcr-v0.2.0-blue?logo=github)](https://github.com/all-source-os/chronos-monorepo/pkgs/container/chronos-control-plane) | **27.9 MB** | Distroless |
 | **Query Service** | `ghcr.io/all-source-os/chronos-query-service` | [![v0.2.0](https://img.shields.io/badge/ghcr-v0.2.0-blue?logo=github)](https://github.com/all-source-os/chronos-monorepo/pkgs/container/chronos-query-service) | **35.1 MB** | Alpine |
 | **MCP Server** | `ghcr.io/all-source-os/chronos-mcp-server` | [![v0.2.0](https://img.shields.io/badge/ghcr-v0.2.0-blue?logo=github)](https://github.com/all-source-os/chronos-monorepo/pkgs/container/chronos-mcp-server) | **~40 MB** | Alpine |

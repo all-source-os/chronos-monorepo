@@ -1,4 +1,4 @@
-# Chronos Monorepo - v0.8.0 Release
+# Chronos Monorepo - v0.8.1 Release
 
 **Release Date**: 2026-02-08
 **Codename**: Clean Architecture
