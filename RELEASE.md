@@ -1,8 +1,8 @@
-# Chronos Monorepo - February 2026 Release
+# Chronos Monorepo - v0.8.0 Release
 
-**Release Date**: 2026-02-03
+**Release Date**: 2026-02-08
 **Codename**: Clean Architecture
-**Status**: READY FOR RELEASE
+**Status**: RELEASED
 
 ---
 
@@ -17,7 +17,8 @@ This release represents a **major milestone** for the Chronos Event Store platfo
 | User Stories Completed | **79/79 (100%)** |
 | Beads Closed | **107/110 (97%)** |
 | New Lines of Code | ~47,000 |
-| Tests Passing | 400+ |
+| Rust Tests Passing | **1,221** |
+| Elixir Tests Passing | **508** (281 Query + 227 MCP) |
 | Performance | 726K events/sec |
 
 ---
@@ -40,6 +41,12 @@ The Rust Core has been completely refactored following Clean Architecture princi
 - **Partition Monitoring**: Hot partition detection, metrics
 - **7-Day Stress Tests**: Production hardening suite
 
+**v0.8.0 Quality Improvements**:
+- **SIMD Filter Refactoring**: Removed buggy SIMD timestamp implementations, replaced with reliable scalar iterators following Rust best practices
+- **Arena Pool Test Fix**: Fixed flaky arena allocation tests
+- **Dependency Updates**: Resolved cargo audit vulnerabilities
+- **1,221 tests passing** with 0 failures
+
 **Performance**:
 - 726K events/sec ingestion (up from 469K in v0.6.0)
 - 11.9μs entity query latency
@@ -56,6 +63,10 @@ Real-time integration with Core via WebSocket and Broadway:
 - **Broadway Pipeline**: Production-ready stream processing
 - **281 tests passing**
 
+**v0.2.0 Quality Improvements**:
+- **Race Condition Fix**: Fixed `ProjectionSync` test flakiness by using synchronous call after async cast for proper GenServer message ordering
+- **Testcontainers Integration**: PostgreSQL containers for reliable integration testing
+
 ### MCP Server v0.2.0
 
 **AI-Native Enhancements**
@@ -67,6 +78,10 @@ Tools designed specifically for AI agent interaction:
 - **Conversation Context**: Multi-turn interaction support
 - **Quick Exploration**: Fast sampling and statistics
 - **Native Search Tools**: Semantic and hybrid search
+
+**v0.2.0 Quality Improvements**:
+- **ConversationContext Fix**: Made test setup robust by checking for existing GenServer process
+- **227 tests passing** with 0 failures
 
 ### Control Plane v0.2.0
 
@@ -141,6 +156,14 @@ Tools designed specifically for AI agent interaction:
 
 ## Infrastructure Improvements
 
+### Developer Experience (NEW)
+
+- **Elixir Test Reporting**: New `make elixir-test` with detailed trace output and failure summaries
+- **Failed Test Re-runs**: `make elixir-test-failed` to quickly iterate on failures
+- **Test Watch Mode**: `make elixir-test-watch` for TDD workflow
+- **Markdown Reports**: `make elixir-test-report` generates test summary reports
+- **Quality Gates**: Enhanced CI failure reporting with log capture
+
 ### GitHub Actions Optimization (100%)
 
 - Native ARM64 runners (no QEMU emulation)
@@ -152,6 +175,7 @@ Tools designed specifically for AI agent interaction:
 
 - Multi-stage builds for all services
 - Published to GitHub Container Registry
+- Version badges in README linking to GHCR packages
 - Optimized image sizes
 - Documentation for all images
 
