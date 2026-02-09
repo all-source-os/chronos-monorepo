@@ -8,8 +8,6 @@ pub mod compaction;
 pub mod index;
 pub mod lock_free;
 pub mod performance;
-#[cfg(test)]
-mod performance_test;
 pub mod simd_filter;
 pub mod simd_json;
 pub mod snapshot;

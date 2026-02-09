@@ -5,7 +5,8 @@
         ci quality-gates quality-rust quality-go quality-elixir quality-elixir-full \
         validate-workflows validate-workflows-quick \
         elixir-test elixir-test-failed elixir-test-watch elixir-test-report \
-        release release-quick release-preflight version images-check
+        release release-quick release-preflight version images-check \
+        perf-bench
 
 # Test output directory for failure reports
 TEST_OUTPUT_DIR := .test-reports
@@ -72,6 +73,9 @@ help:
 	@echo "  make release-preflight - Run pre-flight checks only"
 	@echo "  make version           - Show current version"
 	@echo "  make images-check      - Check Docker image versions in GHCR"
+	@echo ""
+	@echo "Performance:"
+	@echo "  make perf-bench        - Run performance benchmarks (release mode)"
 
 # =============================================================================
 # Development Commands
@@ -107,6 +111,10 @@ demo: install
 test:
 	@echo "🧪 Running tests..."
 	bun test
+
+perf-bench:
+	@echo "Running performance benchmarks (release mode)..."
+	cargo run --release -p chronos-performance
 
 lint:
 	@echo "🔍 Running linters..."
