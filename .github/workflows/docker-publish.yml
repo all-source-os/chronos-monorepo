@@ -161,15 +161,13 @@ jobs:
               SERVICES_MATRIX="$SERVICES_MATRIX{\"name\":\"$name\",\"context\":\"$context\"}"
               SERVICES_FIRST=false
 
-              # Add amd64 build
+              # Add amd64 build only (arm64 disabled until runner issues resolved)
+              # TODO: Re-enable arm64 with runner: ubuntu-24.04-arm when ready
               if [ "$FIRST" != "true" ]; then
                 MATRIX="$MATRIX,"
               fi
               MATRIX="$MATRIX{\"name\":\"$name\",\"context\":\"$context\",\"arch\":\"amd64\",\"runner\":\"ubuntu-latest\",\"platform\":\"linux/amd64\"}"
               FIRST=false
-
-              # Add arm64 build (runner label is ubuntu-24.04-arm, not ubuntu-24.04-arm64)
-              MATRIX="$MATRIX,{\"name\":\"$name\",\"context\":\"$context\",\"arch\":\"arm64\",\"runner\":\"ubuntu-24.04-arm\",\"platform\":\"linux/arm64\"}"
             fi
           }
 
@@ -346,18 +344,19 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Create and push multi-arch manifest to GHCR
+      - name: Create and push manifest to GHCR
         id: manifest-ghcr
         run: |
           GHCR_IMAGE="${{ env.GHCR_REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}"
           AMD64_IMAGE="${GHCR_IMAGE}:amd64-${{ github.sha }}"
-          ARM64_IMAGE="${GHCR_IMAGE}:arm64-${{ github.sha }}"
+          # TODO: Re-enable arm64 when runner issues resolved
+          # ARM64_IMAGE="${GHCR_IMAGE}:arm64-${{ github.sha }}"
 
-          # Process each tag from metadata
+          # Process each tag from metadata (amd64-only for now)
           echo "${{ steps.meta.outputs.tags }}" | while read -r TAG; do
             if [ -n "$TAG" ]; then
               echo "Creating manifest for: $TAG"
-              docker buildx imagetools create -t "$TAG" "$AMD64_IMAGE" "$ARM64_IMAGE"
+              docker buildx imagetools create -t "$TAG" "$AMD64_IMAGE"
             fi
           done
 
@@ -371,34 +370,35 @@ jobs:
           DIGEST=$(docker buildx imagetools inspect "${GHCR_IMAGE}:sha-${GITHUB_SHA::7}" --format '{{json .Manifest.Digest}}' | tr -d '"')
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
-      - name: Create and push multi-arch manifest to DockerHub
+      - name: Create and push manifest to DockerHub
         if: steps.dockerhub-check.outputs.available == 'true'
         run: |
           DOCKERHUB_IMAGE="${{ env.DOCKERHUB_REGISTRY }}/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}"
           AMD64_IMAGE="${DOCKERHUB_IMAGE}:amd64-${{ github.sha }}"
-          ARM64_IMAGE="${DOCKERHUB_IMAGE}:arm64-${{ github.sha }}"
+          # TODO: Re-enable arm64 when runner issues resolved
+          # ARM64_IMAGE="${DOCKERHUB_IMAGE}:arm64-${{ github.sha }}"
 
-          # Generate DockerHub tags (same pattern as GHCR)
+          # Generate DockerHub tags (amd64-only for now)
           # Branch tag
           if [[ "${{ github.ref_type }}" = "branch" ]]; then
             TAG="${DOCKERHUB_IMAGE}:${{ github.ref_name }}"
-            docker buildx imagetools create -t "$TAG" "$AMD64_IMAGE" "$ARM64_IMAGE"
+            docker buildx imagetools create -t "$TAG" "$AMD64_IMAGE"
           fi
 
           # Version tags for releases
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             VERSION="${{ github.ref_name }}"
-            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:${VERSION}" "$AMD64_IMAGE" "$ARM64_IMAGE"
-            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:${VERSION%.*}" "$AMD64_IMAGE" "$ARM64_IMAGE"
-            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:${VERSION%%.*}" "$AMD64_IMAGE" "$ARM64_IMAGE"
+            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:${VERSION}" "$AMD64_IMAGE"
+            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:${VERSION%.*}" "$AMD64_IMAGE"
+            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:${VERSION%%.*}" "$AMD64_IMAGE"
           fi
 
           # SHA tag
-          docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:sha-${GITHUB_SHA::7}" "$AMD64_IMAGE" "$ARM64_IMAGE"
+          docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:sha-${GITHUB_SHA::7}" "$AMD64_IMAGE"
 
           # Latest tag on main
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:latest" "$AMD64_IMAGE" "$ARM64_IMAGE"
+            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:latest" "$AMD64_IMAGE"
           fi
 
       - name: Generate artifact attestation for GHCR
@@ -446,9 +446,9 @@ jobs:
           # Report build stage status (unified build + conditional push)
           if [ "${{ needs.build.result }}" == "success" ]; then
             if [ "${{ needs.push-conditions.outputs.should_push }}" == "true" ]; then
-              echo "| Build + Push (native amd64 + arm64) | Published |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Build + Push (amd64) | Published |" >> "$GITHUB_STEP_SUMMARY"
             else
-              echo "| Build (native amd64 + arm64) | Validated |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Build (amd64) | Validated |" >> "$GITHUB_STEP_SUMMARY"
             fi
           elif [ "${{ needs.build.result }}" == "skipped" ]; then
             echo "| Build | Skipped (no changes) |" >> "$GITHUB_STEP_SUMMARY"
@@ -462,7 +462,7 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "### Published Images" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Multi-arch manifests (linux/amd64 + linux/arm64) built with **native runners** (no QEMU emulation)." >> "$GITHUB_STEP_SUMMARY"
+            echo "Images built for linux/amd64 (arm64 temporarily disabled)." >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
 
             # GHCR images
