@@ -168,8 +168,8 @@ jobs:
               MATRIX="$MATRIX{\"name\":\"$name\",\"context\":\"$context\",\"arch\":\"amd64\",\"runner\":\"ubuntu-latest\",\"platform\":\"linux/amd64\"}"
               FIRST=false
 
-              # Add arm64 build
-              MATRIX="$MATRIX,{\"name\":\"$name\",\"context\":\"$context\",\"arch\":\"arm64\",\"runner\":\"ubuntu-24.04-arm64\",\"platform\":\"linux/arm64\"}"
+              # Add arm64 build (runner label is ubuntu-24.04-arm, not ubuntu-24.04-arm64)
+              MATRIX="$MATRIX,{\"name\":\"$name\",\"context\":\"$context\",\"arch\":\"arm64\",\"runner\":\"ubuntu-24.04-arm\",\"platform\":\"linux/arm64\"}"
             fi
           }
 
