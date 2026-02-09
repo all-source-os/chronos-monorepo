@@ -1,7 +1,7 @@
 ---
 title: "Chronos Documentation"
 status: CURRENT
-last_updated: 2026-02-02
+last_updated: 2026-02-08
 ---
 
 # Chronos Documentation Hub
@@ -85,6 +85,7 @@ How-to documentation for common tasks.
 
 | Document | Description | Status |
 |----------|-------------|--------|
+| [Release Guide](./guides/RELEASE.md) | Create releases with `make release` | ✅ |
 | [Quality Gates Setup](./guides/QUALITY_GATES_SETUP.md) | Configure CI/CD quality checks | ✅ |
 | [Branch Protection](./guides/BRANCH_PROTECTION.md) | Git workflow protection | ✅ |
 | [MCP Demo Script](./guides/mcp-server/DEMO_SCRIPT.md) | MCP demonstration walkthrough | ✅ |
