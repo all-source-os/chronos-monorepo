@@ -110,6 +110,8 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     needs: push-conditions
+    # Always run to evaluate changes, regardless of skipped upstream jobs
+    if: always() && needs.push-conditions.result == 'success'
     outputs:
       core: ${{ steps.filter.outputs.core }}
       control-plane: ${{ steps.filter.outputs.control-plane }}
@@ -191,7 +193,7 @@ jobs:
   build:
     name: Build ${{ matrix.name }} (${{ matrix.arch }})
     needs: [push-conditions, changes]
-    if: needs.changes.outputs.matrix != '{"include":[]}'
+    if: always() && needs.changes.result == 'success' && needs.changes.outputs.matrix != '{"include":[]}'
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -290,6 +292,8 @@ jobs:
     name: Create Manifest ${{ matrix.name }}
     needs: [push-conditions, changes, build]
     if: |
+      always() &&
+      needs.build.result == 'success' &&
       needs.changes.outputs.services_matrix != '{"include":[]}' &&
       needs.push-conditions.outputs.should_push == 'true'
     runs-on: ubuntu-latest
