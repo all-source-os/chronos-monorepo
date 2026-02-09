@@ -9,7 +9,7 @@ version: "0.8.0"
 
 [![CI](https://github.com/all-source-os/chronos-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/ci.yml)
 [![Container CI](https://github.com/all-source-os/chronos-monorepo/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/container-ci.yml)
-[![Docker Build & Publish](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml)
+[![Docker Build](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-build.yml)
 [![crates.io](https://img.shields.io/crates/v/allsource-core.svg)](https://crates.io/crates/allsource-core)
 [![docs.rs](https://docs.rs/allsource-core/badge.svg)](https://docs.rs/allsource-core)
 [![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.8.0-green.svg)](apps/core/)
@@ -38,7 +38,7 @@ High-performance event sourcing platform with distributed architecture and AI-na
 
 ## Docker Images
 
-[![Docker Build & Publish](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-publish.yml)
+[![Docker Build](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-build.yml)
 
 Production-optimized containers with minimal footprint:
 
