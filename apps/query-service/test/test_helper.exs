@@ -2,8 +2,15 @@
 #
 # Tests use testcontainers to automatically start a PostgreSQL database.
 # No external database is required - testcontainers handles everything.
+#
+# Integration tests (tagged with :integration) require Core to be running.
+# Run with: mix test --only integration
+# Run all: mix test --include integration
 
 require Logger
+
+# Start :inets for integration tests that use httpc
+Application.ensure_all_started(:inets)
 
 Logger.info("Starting testcontainers PostgreSQL...")
 
@@ -55,7 +62,10 @@ ExUnit.configure(
   trace: false,
   capture_log: true,
   # Increase timeout for slower CI environments
-  timeout: 120_000
+  timeout: 120_000,
+  # Exclude integration tests by default (require Core to be running)
+  # Run with: mix test --include integration
+  exclude: [:integration]
 )
 
 ExUnit.start()

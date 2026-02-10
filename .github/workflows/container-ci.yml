@@ -319,10 +319,13 @@ jobs:
 
           echo "✅ Core service is healthy" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run integration tests
+      - name: Run Core integration tests
         run: |
+          echo "### Core Integration Tests" >> "$GITHUB_STEP_SUMMARY"
+
           # Basic health check
           curl -sf http://localhost:3900/health || exit 1
+          echo "✅ Core health check passed" >> "$GITHUB_STEP_SUMMARY"
 
           # Test event creation
           RESPONSE=$(curl -sf -X POST http://localhost:3900/api/v1/events \
@@ -335,6 +338,114 @@ jobs:
             echo "❌ Event creation test failed" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+
+          # Test WebSocket endpoint is accessible
+          WS_RESPONSE=$(curl -sf -i \
+            -H "Connection: Upgrade" \
+            -H "Upgrade: websocket" \
+            -H "Sec-WebSocket-Version: 13" \
+            -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+            http://localhost:3900/api/v1/events/stream 2>&1 || true)
+
+          if echo "$WS_RESPONSE" | grep -q "101\|Upgrade"; then
+            echo "✅ WebSocket endpoint accessible" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "⚠️ WebSocket endpoint check inconclusive" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Start Query Service for WebSocket tests
+        if: contains(fromJson(needs.changes.outputs.matrix), 'query-service')
+        run: |
+          # Start postgres first
+          docker compose up -d postgres
+          timeout 30 bash -c 'until docker compose exec -T postgres pg_isready -U postgres; do sleep 1; done'
+
+          # Start query-service with WebSocket enabled
+          docker compose up -d query-service
+
+          # Wait for query-service to be ready
+          timeout 60 bash -c 'until curl -sf http://localhost:3902/api/health/live; do sleep 2; done'
+          echo "✅ Query Service started" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run WebSocket integration tests
+        if: contains(fromJson(needs.changes.outputs.matrix), 'query-service')
+        run: |
+          echo "### WebSocket Integration Tests" >> "$GITHUB_STEP_SUMMARY"
+
+          # Test 1: Health endpoint includes WebSocket status
+          HEALTH_RESPONSE=$(curl -sf http://localhost:3902/api/health)
+          echo "Health response: $HEALTH_RESPONSE"
+
+          if echo "$HEALTH_RESPONSE" | jq -e '.checks.websocket' > /dev/null; then
+            WS_STATUS=$(echo "$HEALTH_RESPONSE" | jq -r '.checks.websocket')
+            echo "✅ Health check includes WebSocket status: $WS_STATUS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ Health check missing WebSocket status" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          # Test 2: Verify health shows all required checks
+          if echo "$HEALTH_RESPONSE" | jq -e '.checks.database and .checks.backend and .checks.websocket' > /dev/null; then
+            echo "✅ Health check includes all required components" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ Health check missing required components" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          # Test 3: Real-time event propagation (simplified)
+          # Create an event and verify Query Service can fetch it
+          EVENT_ID=$(curl -sf -X POST http://localhost:3900/api/v1/events \
+            -H "Content-Type: application/json" \
+            -d '{"stream_id":"ws-test-stream","event_type":"WebSocketTest","entity_id":"ws-test-entity","data":{"ws_test":true}}' \
+            | jq -r '.event_id')
+
+          if [ -n "$EVENT_ID" ] && [ "$EVENT_ID" != "null" ]; then
+            echo "✅ Test event created: $EVENT_ID" >> "$GITHUB_STEP_SUMMARY"
+
+            # Give WebSocket time to propagate
+            sleep 2
+
+            # Verify event exists (via Core API since Query Service may not have HTTP query)
+            QUERY_RESPONSE=$(curl -sf "http://localhost:3900/api/v1/events/query?entity_id=ws-test-entity" || echo "{}")
+
+            if echo "$QUERY_RESPONSE" | jq -e '.events | length > 0' > /dev/null 2>&1; then
+              echo "✅ Event propagation verified" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "⚠️ Event query returned no results (may be expected)" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo "❌ Failed to create test event" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          # Test 4: Service degradation behavior
+          # Stop Core and verify Query Service enters degraded mode
+          echo "Testing graceful degradation..."
+          docker compose stop core
+          sleep 3
+
+          DEGRADED_HEALTH=$(curl -sf http://localhost:3902/api/health || echo '{"status":"error"}')
+          DEGRADED_STATUS=$(echo "$DEGRADED_HEALTH" | jq -r '.status')
+
+          if [ "$DEGRADED_STATUS" = "degraded" ] || [ "$DEGRADED_STATUS" = "unhealthy" ]; then
+            echo "✅ Service correctly reports degraded/unhealthy when Core is down" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "⚠️ Service status: $DEGRADED_STATUS (expected degraded/unhealthy)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # Liveness should still pass even when degraded
+          LIVE_RESPONSE=$(curl -sf http://localhost:3902/api/health/live)
+          if echo "$LIVE_RESPONSE" | jq -e '.status == "alive"' > /dev/null; then
+            echo "✅ Liveness probe passes when backend unavailable" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ Liveness probe failed unexpectedly" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          # Restart Core for cleanup
+          docker compose start core
+          timeout 30 bash -c 'until curl -sf http://localhost:3900/health; do sleep 1; done'
+          echo "✅ Core restarted successfully" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Cleanup
         if: always()

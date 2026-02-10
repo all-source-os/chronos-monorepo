@@ -28,6 +28,34 @@ defmodule QueryServiceExWeb.HealthControllerTest do
       assert Map.has_key?(response, "version")
     end
 
+    test "includes websocket check in health response" do
+      conn =
+        :get
+        |> conn("/api/health")
+        |> Router.call(@opts)
+
+      response = Jason.decode!(conn.resp_body)
+
+      # WebSocket check should always be present
+      assert Map.has_key?(response["checks"], "websocket")
+      assert response["checks"]["websocket"] in ["healthy", "degraded", "unhealthy", "timeout"]
+    end
+
+    test "includes all required dependency checks" do
+      conn =
+        :get
+        |> conn("/api/health")
+        |> Router.call(@opts)
+
+      response = Jason.decode!(conn.resp_body)
+      checks = response["checks"]
+
+      # All three checks should be present
+      assert Map.has_key?(checks, "database")
+      assert Map.has_key?(checks, "backend")
+      assert Map.has_key?(checks, "websocket")
+    end
+
     test "includes timestamp in ISO8601 format" do
       conn =
         :get

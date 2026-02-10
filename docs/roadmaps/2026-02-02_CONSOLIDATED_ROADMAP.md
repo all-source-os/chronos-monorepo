@@ -1,7 +1,7 @@
 ---
 title: "AllSource Event Store - Consolidated Roadmap"
 status: CURRENT
-last_updated: 2026-02-03
+last_updated: 2026-02-10
 category: roadmap
 supersedes:
   - "2025-10-22_COMPREHENSIVE_ROADMAP.md"
@@ -35,6 +35,8 @@ This document consolidates all roadmaps and their current completion status as o
 | MCP Server v2.0 Phase 1 | ✅ COMPLETE | 100% | 13 tools |
 | MCP Server AI-Native | ✅ COMPLETE | 100% | 4 AI-native enhancements |
 | Native Search | ✅ COMPLETE | 100% | Vector + BM25 + Hybrid |
+| Query Service Phase 3 | ⏳ PLANNED | 0% | Q2-Q3 2026 |
+| MCP Server v2.0 Phase 2 | ⏳ PLANNED | 0% | Q2-Q3 2026 (13→55 tools) |
 | Phase 3 (v1.8-v2.0) Enterprise | ⏳ PLANNED | 0% | 2027 |
 
 ---
@@ -412,28 +414,105 @@ This document consolidates all roadmaps and their current completion status as o
 
 ### FUTURE - Query Service Phase 3 (Q2-Q3 2026)
 
-#### 3.1 Distributed Mode (2-3 weeks)
+#### 3.1 Phoenix Channels WebSocket (1-2 weeks)
+Expose WebSocket endpoint for external clients (currently only internal WS client to Core exists).
+
+- [ ] Phoenix.Socket and Channel implementation
+- [ ] `/ws` endpoint on port 3902
+- [ ] EventChannel for `events:all`, `events:{entity_id}`, `events:type:{type}`
+- [ ] ProjectionChannel for real-time projection state updates
+- [ ] JWT authentication for WebSocket connections
+- [ ] Presence tracking for connected clients
+- [ ] Update API_REFERENCE.md to reflect actual implementation
+
+**Why**: API docs currently describe `/ws` endpoint that doesn't exist. Clients need real-time streaming without polling.
+
+#### 3.2 Distributed Mode (2-3 weeks)
 - [ ] libcluster for multi-node
 - [ ] Distributed registry
 - [ ] Consistent hashing
 
-#### 3.2 Advanced Analytics (2-3 weeks)
+#### 3.3 Advanced Analytics (2-3 weeks)
 - [ ] Leverage Core's `/api/v1/analytics/*` endpoints
 - [ ] Time-window aggregations
 - [ ] Statistical functions
 
-#### 3.3 Message Queue Integration (2-3 weeks)
+#### 3.4 Message Queue Integration (2-3 weeks)
 - [ ] Kafka integration
 - [ ] RabbitMQ integration
 
-#### 3.4 Monitoring & Observability (1-2 weeks)
+#### 3.5 Monitoring & Observability (1-2 weeks)
 - [ ] Prometheus exporter
 - [ ] Grafana dashboards
 - [ ] APM integration
 
-#### 3.5 API Documentation (1 week)
+#### 3.6 API Documentation (1 week)
 - [ ] OpenAPI spec
 - [ ] Swagger UI
+
+---
+
+### FUTURE - MCP Server v2.0 Phase 2 (Q2-Q3 2026)
+
+Expand from 13 tools to 55+ tools for comprehensive AI-native event store interaction.
+
+#### Tool Categories to Add
+
+**Event Management (8 tools)**
+- [ ] `delete_events` - Soft delete with audit trail
+- [ ] `archive_events` - Move to cold storage
+- [ ] `restore_events` - Restore from archive
+- [ ] `export_events` - Export to JSON/CSV/Parquet
+- [ ] `import_events` - Bulk import from files
+- [ ] `clone_entity` - Deep copy entity with events
+- [ ] `merge_entities` - Combine event streams
+- [ ] `split_entity` - Partition event stream
+
+**Schema & Validation (6 tools)**
+- [ ] `register_schema` - Register event type schema
+- [ ] `validate_schema` - Check schema compatibility
+- [ ] `migrate_schema` - Version migration
+- [ ] `list_schemas` - List all registered schemas
+- [ ] `infer_schema` - Auto-generate from events
+- [ ] `schema_diff` - Compare schema versions
+
+**Advanced Analytics (8 tools)**
+- [ ] `cohort_analysis` - User cohort retention
+- [ ] `correlation_analysis` - Event correlations
+- [ ] `forecast_events` - Predictive analytics
+- [ ] `segment_analysis` - Customer segmentation
+- [ ] `path_analysis` - User journey mapping
+- [ ] `attribution_analysis` - Multi-touch attribution
+- [ ] `churn_prediction` - Churn risk scoring
+- [ ] `ltv_calculation` - Lifetime value estimation
+
+**Operational Tools (10 tools)**
+- [ ] `compact_storage` - Trigger compaction
+- [ ] `storage_stats` - Disk usage analytics
+- [ ] `partition_info` - Partition health
+- [ ] `wal_status` - WAL statistics
+- [ ] `backup_create` - Create backup
+- [ ] `backup_restore` - Restore from backup
+- [ ] `backup_list` - List available backups
+- [ ] `health_deep` - Deep health check
+- [ ] `performance_report` - Performance metrics
+- [ ] `audit_log` - Query audit trail
+
+**Multi-Tenancy (6 tools)**
+- [ ] `tenant_create` - Provision tenant
+- [ ] `tenant_update` - Update settings
+- [ ] `tenant_usage` - Usage statistics
+- [ ] `tenant_quotas` - Quota management
+- [ ] `tenant_suspend` - Suspend tenant
+- [ ] `tenant_export` - Export tenant data
+
+**Developer Experience (4 tools)**
+- [ ] `generate_client` - SDK code generation
+- [ ] `mock_events` - Generate test data
+- [ ] `debug_query` - Query explain plan
+- [ ] `benchmark_query` - Query performance test
+
+**Total**: 13 existing + 42 new = 55 tools
 
 ---
 
@@ -459,10 +538,11 @@ This document consolidates all roadmaps and their current completion status as o
 
 All planned Q1 2026 roadmap items are complete. Future work includes:
 
-| Epic | Timeline | Priority |
-|------|----------|----------|
-| Query Service Phase 3 | Q2-Q3 2026 | LOW |
-| Redis Protocol (Optional) | Q2 2026 | LOW |
+| Epic | Timeline | Priority | Key Features |
+|------|----------|----------|--------------|
+| Query Service Phase 3 | Q2-Q3 2026 | MEDIUM | Phoenix Channels `/ws`, Distributed Mode |
+| MCP Server v2.0 Phase 2 | Q2-Q3 2026 | MEDIUM | 13→55 tools expansion |
+| Redis Protocol (Optional) | Q2 2026 | LOW | RESP3 compatibility |
 
 ### Future (2027)
 
@@ -486,5 +566,5 @@ All planned Q1 2026 roadmap items are complete. Future work includes:
 ---
 
 **Document Status**: CURRENT
-**Last Updated**: 2026-02-03
+**Last Updated**: 2026-02-10
 **Next Review**: Q2 2026 (Query Service Phase 3)

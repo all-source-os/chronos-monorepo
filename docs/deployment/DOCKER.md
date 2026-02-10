@@ -110,7 +110,8 @@ See [`docker-compose.yml`](../../docker-compose.yml) in the repository root.
 | `PORT` | `3902` | HTTP port |
 | `POOL_SIZE` | `10` | Database connection pool size |
 | `RUST_CORE_URL` | `http://localhost:3900` | Core service URL |
-| `CORE_WS_URL` | `ws://localhost:3900` | Core WebSocket URL |
+| `CORE_WS_URL` | `ws://localhost:3900` | Core WebSocket URL ([see guide](../guides/WEBSOCKET_CONFIGURATION.md)) |
+| `CORE_WS_ENABLED` | `true` | Enable real-time WebSocket client |
 | `PHX_HOST` | `localhost` | Hostname for URL generation |
 
 #### OAuth (Query Service)
@@ -269,6 +270,7 @@ Ensure Alpine version matches the build image (3.22+) for OpenSSL compatibility.
 
 ## Next Steps
 
+- [WebSocket Configuration](../guides/WEBSOCKET_CONFIGURATION.md) - Real-time event streaming setup
 - [Kubernetes Deployment](../k8s/) - Production Kubernetes manifests
 - [Helm Chart](../../deploy/helm/chronos/) - Helm chart for easy deployment
 - [Cloud Run](../../deploy/cloudrun/) - Google Cloud Run configurations

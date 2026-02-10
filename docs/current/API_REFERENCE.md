@@ -921,13 +921,15 @@ curl http://localhost:3902/api/projections/user_stats/user-456
 
 ---
 
-### WebSocket
+### WebSocket (PLANNED - Query Service Phase 3)
 
-#### /ws
+> **Note**: This endpoint is not yet implemented. Currently, the Query Service only has an internal WebSocket *client* to Core for real-time event ingestion. External clients must use the REST API. See [Query Service Phase 3 roadmap](../roadmaps/2026-02-02_CONSOLIDATED_ROADMAP.md#future---query-service-phase-3-q2-q3-2026) for implementation timeline.
+
+#### /ws (Planned)
 WebSocket endpoint for real-time event streaming.
 
 ```bash
-# Connect via WebSocket
+# Connect via WebSocket (when implemented)
 wscat -c ws://localhost:3902/ws
 ```
 
@@ -945,6 +947,8 @@ wscat -c ws://localhost:3902/ws
 ```json
 {"type": "subscribe", "topic": "events:type:user.created"}
 ```
+
+**Current Alternative**: For real-time needs, connect directly to Core's WebSocket at `ws://localhost:3900/api/v1/events/stream`.
 
 ---
 

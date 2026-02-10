@@ -406,6 +406,82 @@ go run main.go
 
 ## Elixir Query Service (Port 3902)
 
+### WebSocket Connection Issues
+
+**Symptoms:**
+- `⚠️ WebSocket config needed` warning on startup
+- No real-time event updates
+- `core_websocket: disconnected` in health check
+
+**Diagnostic Commands:**
+```bash
+# Check health endpoint for WebSocket status
+curl http://localhost:3902/api/health | jq '.components.core_websocket'
+
+# Verify CORE_WS_URL is set
+docker exec chronos-query-service printenv | grep CORE_WS
+
+# Test WebSocket endpoint on Core
+curl -i -N \
+  -H "Connection: Upgrade" \
+  -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: test" \
+  http://localhost:3900/api/v1/events/stream
+```
+
+**Solutions:**
+
+**WebSocket URL not configured:**
+```bash
+# Set the environment variable (use ws:// not http://)
+export CORE_WS_URL=ws://chronos-core:3900
+
+# Docker Compose
+environment:
+  CORE_WS_URL: ws://core:3900
+```
+
+**Wrong protocol prefix:**
+```bash
+# Wrong - will fail
+CORE_WS_URL=http://chronos-core:3900
+
+# Correct
+CORE_WS_URL=ws://chronos-core:3900
+
+# Production with TLS
+CORE_WS_URL=wss://chronos-core.example.com:443
+```
+
+**Wrong port in Kubernetes:**
+```bash
+# Docker Compose uses port 3900
+CORE_WS_URL=ws://core:3900
+
+# Kubernetes uses port 3901
+CORE_WS_URL=ws://chronos-core:3901
+```
+
+**Core service unreachable:**
+```bash
+# Ensure Core is running first
+curl http://chronos-core:3900/health
+
+# Check network connectivity
+docker exec chronos-query-service ping chronos-core
+```
+
+**Disable WebSocket (use HTTP polling):**
+```bash
+# If you don't need real-time, disable WebSocket
+export CORE_WS_ENABLED=false
+```
+
+See the full [WebSocket Configuration Guide](./WEBSOCKET_CONFIGURATION.md) for detailed setup instructions.
+
+---
+
 ### Dependency Compilation Errors
 
 **Symptoms:**

@@ -85,6 +85,7 @@ How-to documentation for common tasks.
 
 | Document | Description | Status |
 |----------|-------------|--------|
+| [WebSocket Configuration](./guides/WEBSOCKET_CONFIGURATION.md) | Real-time event streaming setup | ✅ |
 | [Release Guide](./guides/RELEASE.md) | Create releases with `make release` | ✅ |
 | [Quality Gates Setup](./guides/QUALITY_GATES_SETUP.md) | Configure CI/CD quality checks | ✅ |
 | [Branch Protection](./guides/BRANCH_PROTECTION.md) | Git workflow protection | ✅ |
@@ -113,9 +114,11 @@ For DevOps and platform engineers.
 
 | Document | Description | Status |
 |----------|-------------|--------|
+| [Docker Deployment](./deployment/DOCKER.md) | Container images and configuration | ✅ |
 | [Quality Gates](./current/QUALITY_GATES.md) | CI/CD enforcement standards | ✅ |
 | [Performance Guide](./current/PERFORMANCE.md) | Optimization and tuning | ✅ |
 | [Docker Images](./docker-images.md) | Container configuration | ✅ |
+| [Troubleshooting](./guides/TROUBLESHOOTING.md) | Common issues and solutions | ✅ |
 | [Test Coverage Plan](./testing/control-plane-coverage-plan.md) | Control plane testing | ✅ |
 
 ---
