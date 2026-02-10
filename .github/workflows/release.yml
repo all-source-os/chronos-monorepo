@@ -184,10 +184,11 @@ jobs:
       - name: Package binary
         run: |
           mkdir -p dist
+          # Workspace builds use root target directory
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp apps/core/target/${{ matrix.target }}/release/allsource-core.exe dist/${{ matrix.artifact }}.exe
+            cp target/${{ matrix.target }}/release/allsource-core.exe dist/${{ matrix.artifact }}.exe
           else
-            cp apps/core/target/${{ matrix.target }}/release/allsource-core dist/${{ matrix.artifact }}
+            cp target/${{ matrix.target }}/release/allsource-core dist/${{ matrix.artifact }}
             chmod +x dist/${{ matrix.artifact }}
           fi
 
