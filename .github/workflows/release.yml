@@ -106,7 +106,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service.context }}
-          platforms: linux/amd64,linux/arm64
+          # Only amd64 - arm64 via QEMU is too slow for Rust (10-20x slower)
+          # ARM users can build locally or use native ARM runners in separate workflow
+          platforms: linux/amd64
           push: true
           provenance: true
           sbom: true
@@ -117,8 +119,8 @@ jobs:
             org.opencontainers.image.version=${{ needs.validate.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ github.event.repository.updated_at }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service.name }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service.name }}:buildcache,mode=max
           build-args: |
             VERSION=${{ needs.validate.outputs.version }}
             REVISION=${{ github.sha }}
@@ -161,6 +163,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/core -> target"
+          key: ${{ matrix.target }}
 
       - name: Install musl tools
         if: contains(matrix.target, 'musl')
