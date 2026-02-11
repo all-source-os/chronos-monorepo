@@ -1,30 +1,30 @@
 import { BlurFade, Card, CardContent, Section } from "@allsource/ui";
-import { Brain, Shield, Zap } from "lucide-react";
+import { Clock, Database, Lock } from "lucide-react";
 
 const problems = [
   {
-    title: "Data Overload",
+    title: "State Amnesia",
     description:
-      "Businesses struggle to make sense of vast amounts of complex data, missing out on valuable insights that could drive growth and innovation.",
-    icon: Brain,
+      "Traditional databases only store current state. When something goes wrong, you can't see how you got there. No history means no answers, no audit trail, and no ability to replay or debug.",
+    icon: Database,
   },
   {
-    title: "Slow Decision-Making",
+    title: "Temporal Blindness",
     description:
-      "Traditional data processing methods are too slow, causing businesses to lag behind market changes and miss crucial opportunities.",
-    icon: Zap,
+      "Time-based queries are afterthoughts. Want to know what your data looked like last Tuesday at 3pm? Good luck. Most systems weren't built for time-travel, and retrofitting is painful.",
+    icon: Clock,
   },
   {
-    title: "Data Security Concerns",
+    title: "AI Integration Gap",
     description:
-      "With increasing cyber threats, businesses worry about the safety of their sensitive information when adopting new technologies.",
-    icon: Shield,
+      "Your data is trapped behind rigid APIs. AI agents can't easily explore, analyze, or manage your event streams. The tools that exist weren't designed for autonomous workflows.",
+    icon: Lock,
   },
 ];
 
 export default function Component() {
   return (
-    <Section title="Problem" subtitle="Manually entering your data is a hassle.">
+    <Section title="The Problem" subtitle="Event data deserves better than database tables">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
         {problems.map((problem) => (
           <BlurFade key={problem.title} delay={0.2} inView>

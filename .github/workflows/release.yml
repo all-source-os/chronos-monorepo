@@ -284,11 +284,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check for artifacts
+        id: check-artifacts
+        run: |
+          # List artifacts for this workflow run
+          ARTIFACT_COUNT=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts --jq '.total_count')
+          echo "artifact_count=$ARTIFACT_COUNT" >> "$GITHUB_OUTPUT"
+          echo "Found $ARTIFACT_COUNT artifacts"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Download all artifacts
+        if: steps.check-artifacts.outputs.artifact_count != '0'
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+        continue-on-error: true
+
+      - name: Ensure artifacts directory exists
+        run: mkdir -p artifacts
 
       - name: Generate changelog
         id: changelog

@@ -1,41 +1,41 @@
 import Features from "@/components/features-horizontal";
 import { Section } from "@allsource/ui";
-import { BarChart3, Brain, FileText, LineChart } from "lucide-react";
+import { Bot, GitBranch, History, Zap } from "lucide-react";
 
 const data = [
   {
     id: 1,
-    title: "AI-Powered Dashboard",
-    content: "Visualize trends and gain insights at a glance.",
+    title: "469K Events/Second",
+    content: "Rust-powered core with lock-free data structures. Ingest at scale without breaking a sweat.",
     image: "/dashboard.png",
-    icon: <BarChart3 className="h-6 w-6 text-primary" />,
+    icon: <Zap className="h-6 w-6 text-primary" />,
   },
   {
     id: 2,
-    title: "Natural Language Processing",
-    content: "Analyze text and extract sentiment effortlessly.",
+    title: "Time-Travel Queries",
+    content: "Query any point in history. Reconstruct past states. Debug with complete temporal context.",
     image: "/dashboard.png",
-    icon: <Brain className="h-6 w-6 text-primary" />,
+    icon: <History className="h-6 w-6 text-primary" />,
   },
   {
     id: 3,
-    title: "Predictive Analytics",
-    content: "Forecast trends and make data-driven decisions.",
+    title: "Stream Processing",
+    content: "Filter, map, reduce, window, branch, enrich. Build real-time pipelines with a fluent API.",
     image: "/dashboard.png",
-    icon: <LineChart className="h-6 w-6 text-primary" />,
+    icon: <GitBranch className="h-6 w-6 text-primary" />,
   },
   {
     id: 4,
-    title: "Automated Reporting",
-    content: "Generate comprehensive reports with one click.",
+    title: "27 MCP Tools",
+    content: "AI-native from day one. Claude Desktop integration for autonomous event management.",
     image: "/dashboard.png",
-    icon: <FileText className="h-6 w-6 text-primary" />,
+    icon: <Bot className="h-6 w-6 text-primary" />,
   },
 ];
 
 export default function Component() {
   return (
-    <Section title="Features" subtitle="User Flows and Navigational Structures">
+    <Section title="Features" subtitle="Built for performance. Designed for intelligence.">
       <Features collapseDelay={5000} linePosition="bottom" data={data} />
     </Section>
   );

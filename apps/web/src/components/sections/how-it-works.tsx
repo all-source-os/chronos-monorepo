@@ -1,29 +1,29 @@
 import Features from "@/components/features-vertical";
 import { Section } from "@allsource/ui";
-import { Sparkles, Upload, Zap } from "lucide-react";
+import { Database, Play, Sparkles } from "lucide-react";
 
 const data = [
   {
     id: 1,
-    title: "1. Upload Your Data",
+    title: "1. Connect Your Sources",
     content:
-      "Simply upload your data to our secure platform. We support various file formats and data types to ensure a seamless integration with your existing systems.",
+      "Point AllSource at your event streams. REST API, WebSocket, or direct SDK integration. Schema validation ensures data quality from the start.",
     image: "/dashboard.png",
-    icon: <Upload className="w-6 h-6 text-primary" />,
+    icon: <Database className="w-6 h-6 text-primary" />,
   },
   {
     id: 2,
-    title: "2. Click Start",
+    title: "2. Build Your Pipelines",
     content:
-      "Our advanced AI algorithms automatically process and analyze your data, extracting valuable insights and patterns that would be difficult to identify manually.",
+      "Define stream processing pipelines with our fluent API. Filter, transform, aggregate, and route events in real-time. No complex infrastructure to manage.",
     image: "/dashboard.png",
-    icon: <Zap className="w-6 h-6 text-primary" />,
+    icon: <Play className="w-6 h-6 text-primary" />,
   },
   {
     id: 3,
-    title: "3. Get Actionable Insights",
+    title: "3. Query Through Time",
     content:
-      "Receive clear, actionable insights and recommendations based on the AI analysis. Use these insights to make data-driven decisions and improve your business strategies.",
+      "Access any point in your event history with sub-microsecond latency. Use our MCP tools to let AI agents analyze patterns, detect anomalies, and automate responses.",
     image: "/dashboard.png",
     icon: <Sparkles className="w-6 h-6 text-primary" />,
   },
@@ -31,7 +31,7 @@ const data = [
 
 export default function Component() {
   return (
-    <Section title="How it works" subtitle="Just 3 steps to get started">
+    <Section title="How It Works" subtitle="From events to intelligence in three steps">
       <Features data={data} />
     </Section>
   );

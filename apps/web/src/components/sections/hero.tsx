@@ -10,16 +10,16 @@ const ease: [number, number, number, number] = [0.16, 1, 0.3, 1];
 function HeroPill() {
   return (
     <motion.a
-      href="/blog/introducing-acme-ai"
+      href="/blog/introducing-allsource"
       className="flex w-auto items-center space-x-2 rounded-full bg-primary/20 px-2 py-1 ring-1 ring-accent whitespace-pre"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, ease }}
     >
       <div className="w-fit rounded-full bg-accent px-2 py-0.5 text-center text-xs font-medium text-primary sm:text-sm">
-        📣 Announcement
+        v0.9.0
       </div>
-      <p className="text-xs font-medium text-primary sm:text-sm">Introducing Acme.ai</p>
+      <p className="text-xs font-medium text-primary sm:text-sm">469K events/sec achieved</p>
       <svg
         width="12"
         height="12"
@@ -40,7 +40,7 @@ function HeroPill() {
 
 function HeroTitles() {
   return (
-    <div className="flex w-full max-w-2xl flex-col space-y-4 overflow-hidden pt-8">
+    <div className="flex w-full max-w-3xl flex-col space-y-4 overflow-hidden pt-8">
       <motion.h1
         className="text-center text-4xl font-medium leading-tight text-foreground sm:text-5xl md:text-6xl"
         initial={{ filter: "blur(10px)", opacity: 0, y: 50 }}
@@ -51,7 +51,7 @@ function HeroTitles() {
           staggerChildren: 0.2,
         }}
       >
-        {["Automate", "your", "workflow", "with AI"].map((text) => (
+        {["Event", "sourcing", "that", "thinks"].map((text) => (
           <motion.span
             key={text}
             className="inline-block px-1 md:px-2 text-balance font-semibold"
@@ -67,7 +67,7 @@ function HeroTitles() {
         ))}
       </motion.h1>
       <motion.p
-        className="mx-auto max-w-xl text-center text-lg leading-7 text-muted-foreground sm:text-xl sm:leading-9 text-balance"
+        className="mx-auto max-w-2xl text-center text-lg leading-7 text-muted-foreground sm:text-xl sm:leading-9 text-balance"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
@@ -76,9 +76,36 @@ function HeroTitles() {
           ease,
         }}
       >
-        No matter what problem you have, our AI can help you solve it.
+        AI-native event store with <span className="text-primary font-semibold">469K events/sec</span> throughput
+        and <span className="text-primary font-semibold">11.9μs</span> query latency.
+        Time-travel your data. Let AI agents manage it.
       </motion.p>
     </div>
+  );
+}
+
+function HeroStats() {
+  const stats = [
+    { value: "469K", label: "events/sec" },
+    { value: "11.9μs", label: "p99 latency" },
+    { value: "27", label: "MCP tools" },
+    { value: "~129MB", label: "footprint" },
+  ];
+
+  return (
+    <motion.div
+      className="mx-auto mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-8"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.7, duration: 0.8, ease }}
+    >
+      {stats.map((stat) => (
+        <div key={stat.label} className="text-center">
+          <div className="text-2xl font-bold text-primary sm:text-3xl">{stat.value}</div>
+          <div className="text-xs text-muted-foreground sm:text-sm">{stat.label}</div>
+        </div>
+      ))}
+    </motion.div>
   );
 }
 
@@ -86,29 +113,39 @@ function HeroCTA() {
   return (
     <>
       <motion.div
-        className="mx-auto mt-6 flex w-full max-w-2xl flex-col items-center justify-center space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0"
+        className="mx-auto mt-8 flex w-full max-w-2xl flex-col items-center justify-center space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8, duration: 0.8, ease }}
+        transition={{ delay: 0.9, duration: 0.8, ease }}
       >
         <Link
           href="/signup"
           className={cn(
             buttonVariants({ variant: "default" }),
-            "w-full sm:w-auto text-background flex gap-2"
+            "w-full sm:w-auto text-background flex gap-2 px-8"
           )}
         >
-          <Icons.logo className="h-6 w-6" />
-          Get started for free
+          <Icons.logo className="h-5 w-5" />
+          Start Building Free
+        </Link>
+        <Link
+          href="https://github.com/allsource/chronos"
+          className={cn(
+            buttonVariants({ variant: "outline" }),
+            "w-full sm:w-auto flex gap-2 px-8"
+          )}
+        >
+          <Icons.github className="h-5 w-5" />
+          View on GitHub
         </Link>
       </motion.div>
       <motion.p
-        className="mt-5 text-sm text-muted-foreground"
+        className="mt-4 text-sm text-muted-foreground"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.0, duration: 0.8 }}
+        transition={{ delay: 1.1, duration: 0.8 }}
       >
-        7 day free trial. No credit card required.
+        Open source · MIT licensed · Self-host or cloud
       </motion.p>
     </>
   );
@@ -120,13 +157,13 @@ function HeroImage() {
       className="relative mx-auto flex w-full items-center justify-center"
       initial={{ opacity: 0, y: 50 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 1.2, duration: 1, ease }}
+      transition={{ delay: 1.3, duration: 1, ease }}
     >
       <HeroVideoDialog
         animationStyle="from-center"
         videoSrc="https://www.youtube.com/embed/qh3NGpYRG3I?si=4rb-zSdDkVK9qxxb"
         thumbnailSrc="/dashboard.png"
-        thumbnailAlt="Hero Video"
+        thumbnailAlt="AllSource Dashboard"
         className="border rounded-lg shadow-lg max-w-screen-lg mt-16"
       />
     </motion.div>
@@ -139,6 +176,7 @@ export default function Hero2() {
       <div className="relative flex w-full flex-col items-center justify-start px-4 pt-32 sm:px-6 sm:pt-24 md:pt-32 lg:px-8">
         <HeroPill />
         <HeroTitles />
+        <HeroStats />
         <HeroCTA />
         <HeroImage />
         <div className="pointer-events-none absolute inset-x-0 -bottom-12 h-1/3 bg-gradient-to-t from-background via-background to-transparent lg:h-1/4" />

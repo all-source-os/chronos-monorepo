@@ -107,6 +107,8 @@ services:
       CORE_WS_URL: ws://core:3900/api/v1/events/stream
       CORE_WS_ENABLED: "true"
       POOL_SIZE: 10
+      # Dev mode bypasses auth for local development - NEVER use in production
+      AUTH_DISABLED: "true"
       # OAuth (optional)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

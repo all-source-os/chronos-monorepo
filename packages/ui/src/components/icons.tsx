@@ -20,8 +20,17 @@ export const Icons = {
       style={style}
       aria-hidden="true"
     >
+      {/* Outer circle - represents time/continuity */}
       <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
+      {/* Event stream flowing through time - three dots connected */}
+      <circle cx="7" cy="12" r="1.5" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+      <circle cx="17" cy="12" r="1.5" fill="currentColor" />
+      {/* Flow lines connecting events */}
+      <path d="M8.5 12h2" strokeWidth="1.5" />
+      <path d="M13.5 12h2" strokeWidth="1.5" />
+      {/* Time arrow at bottom */}
+      <path d="M8 16l4 2 4-2" strokeWidth="1.5" />
     </svg>
   ),
   google: ({ className }: IconProps) => (

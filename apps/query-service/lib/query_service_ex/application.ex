@@ -12,6 +12,9 @@ defmodule QueryServiceEx.Application do
 
   @impl true
   def start(_type, _args) do
+    # Log warning if dev mode is enabled
+    QueryServiceEx.DevMode.maybe_log_warning()
+
     # Attach telemetry handlers for structured logging
     QueryServiceEx.Telemetry.attach_handlers()
 

@@ -1,0 +1,50 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+// Routes that require authentication
+const protectedRoutes = ["/dashboard", "/onboarding"];
+
+// Routes that are public
+const publicRoutes = ["/", "/login", "/signup", "/blog", "/api/auth"];
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Check if the route is protected
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    pathname.startsWith(route)
+  );
+
+  // Check if the route is public auth-related
+  const isAuthRoute = pathname === "/login" || pathname === "/signup";
+
+  // Get the auth token from cookies
+  const token = request.cookies.get("auth_token")?.value;
+
+  // If trying to access protected route without token, redirect to login
+  if (isProtectedRoute && !token) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // If logged in and trying to access login/signup, redirect to dashboard
+  if (isAuthRoute && token) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (e.g. /images)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};

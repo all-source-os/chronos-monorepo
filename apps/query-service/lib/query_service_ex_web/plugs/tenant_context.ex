@@ -6,10 +6,13 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
   in the connection assigns for use by downstream plugs and controllers.
 
   It also validates that the tenant has an active subscription (or is in trial).
+
+  When AUTH_DISABLED=true (dev mode), uses the dev tenant context instead.
   """
 
   import Plug.Conn
   alias QueryServiceEx.Accounts.Guardian
+  alias QueryServiceEx.DevMode
   alias QueryServiceEx.Tenants
   alias QueryServiceEx.Tenants.Tenant
 
@@ -18,6 +21,24 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
   def init(opts), do: opts
 
   def call(conn, _opts) do
+    # Check for dev mode first
+    if DevMode.auth_disabled?() do
+      set_dev_tenant_context(conn)
+    else
+      set_user_tenant_context(conn)
+    end
+  end
+
+  defp set_dev_tenant_context(conn) do
+    dev_tenant = DevMode.dev_tenant()
+
+    conn
+    |> assign(:current_tenant, dev_tenant)
+    |> assign(:tenant_id, dev_tenant.id)
+    |> put_private(:chronos_tenant_id, dev_tenant.id)
+  end
+
+  defp set_user_tenant_context(conn) do
     user = Guardian.Plug.current_resource(conn)
 
     cond do

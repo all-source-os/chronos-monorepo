@@ -4,15 +4,19 @@ defmodule QueryServiceExWeb.AuthController do
 
   Handles OAuth callbacks from Google and GitHub, issues JWT tokens
   for authenticated users, and auto-creates tenant workspaces.
+
+  Also provides a dev-token endpoint for local development when
+  AUTH_DISABLED is set.
   """
 
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
-  plug(Ueberauth)
+  plug(Ueberauth, [] when action not in [:dev_token])
 
   alias QueryServiceEx.Accounts
   alias QueryServiceEx.Accounts.Guardian
+  alias QueryServiceEx.DevMode
   alias QueryServiceExWeb.Schemas.Auth
 
   require Logger
@@ -167,6 +171,79 @@ defmodule QueryServiceExWeb.AuthController do
         conn
         |> put_status(:ok)
         |> json(%{data: %{message: "Successfully logged out"}})
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Dev Token (for local development)
+  # -------------------------------------------------------------------
+
+  operation(:dev_token,
+    summary: "Get development token",
+    description: """
+    Returns a JWT token for local development use.
+
+    **Only available when AUTH_DISABLED=true is set.**
+
+    This endpoint allows tools and scripts to obtain a valid JWT token
+    without going through OAuth, useful for MCP integrations and CLI tools.
+    """,
+    responses: [
+      ok: {"Development token", "application/json", Auth.AuthCallbackResponse},
+      forbidden: {"Dev mode not enabled", "application/json", Auth.OAuthFailureResponse}
+    ]
+  )
+
+  @doc """
+  Issues a development JWT token for local testing.
+
+  GET /api/auth/dev-token
+
+  Only available when AUTH_DISABLED=true is set in the environment.
+  Returns a token that can be used to authenticate API requests.
+  """
+  def dev_token(conn, _params) do
+    if DevMode.auth_disabled?() do
+      dev_user = DevMode.dev_user()
+
+      case Guardian.encode_and_sign(dev_user, %{}, ttl: {24, :hours}) do
+        {:ok, token, _claims} ->
+          Logger.info("[AuthController] Dev token issued",
+            correlation_id: conn.assigns[:correlation_id] || "unknown"
+          )
+
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            data: %{
+              token: token,
+              user: serialize_user(dev_user),
+              tenant: serialize_tenant(dev_user.tenant),
+              warning: "This is a development token. Do not use in production."
+            }
+          })
+
+        {:error, reason} ->
+          Logger.error("[AuthController] Failed to generate dev token: #{inspect(reason)}")
+
+          conn
+          |> put_status(:internal_server_error)
+          |> json(%{
+            error: %{
+              code: "token_generation_failed",
+              message: "Failed to generate development token"
+            }
+          })
+      end
+    else
+      conn
+      |> put_status(:forbidden)
+      |> json(%{
+        error: %{
+          code: "dev_mode_disabled",
+          message: "Development token endpoint is only available when AUTH_DISABLED=true"
+        }
+      })
     end
   end
 

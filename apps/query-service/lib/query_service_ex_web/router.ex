@@ -93,6 +93,9 @@ defmodule QueryServiceExWeb.Router do
   scope "/api/auth", QueryServiceExWeb do
     pipe_through(:api)
 
+    # Dev token endpoint (only works when AUTH_DISABLED=true)
+    get("/dev-token", AuthController, :dev_token)
+
     get("/:provider", AuthController, :request)
     get("/:provider/callback", AuthController, :callback)
   end

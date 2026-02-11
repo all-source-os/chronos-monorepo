@@ -4,14 +4,68 @@ defmodule QueryServiceExWeb.Plugs.AuthPipeline do
 
   This pipeline verifies JWT tokens from the Authorization header
   and loads the associated user resource.
+
+  When AUTH_DISABLED=true is set (development mode), authentication
+  is bypassed and a dev user context is injected instead.
   """
 
-  use Guardian.Plug.Pipeline,
-    otp_app: :query_service_ex,
-    module: QueryServiceEx.Accounts.Guardian,
-    error_handler: QueryServiceExWeb.Plugs.AuthErrorHandler
+  @behaviour Plug
 
-  plug(Guardian.Plug.VerifyHeader, claims: %{"typ" => "access"})
-  plug(Guardian.Plug.EnsureAuthenticated)
-  plug(Guardian.Plug.LoadResource)
+  alias QueryServiceEx.DevMode
+
+  # Guardian module for this app
+  @guardian_module QueryServiceEx.Accounts.Guardian
+  @error_handler QueryServiceExWeb.Plugs.AuthErrorHandler
+
+  def init(opts), do: opts
+
+  def call(conn, _opts) do
+    if DevMode.auth_disabled?() do
+      # Dev mode: bypass authentication entirely
+      bypass_auth(conn)
+    else
+      # Normal mode: run Guardian authentication pipeline
+      run_guardian_pipeline(conn)
+    end
+  end
+
+  # Bypass authentication and inject dev user/tenant context
+  defp bypass_auth(conn) do
+    dev_user = DevMode.dev_user()
+
+    conn
+    |> Plug.Conn.assign(:current_user, dev_user)
+    |> Plug.Conn.put_private(:guardian_default_resource, dev_user)
+    |> Plug.Conn.put_private(:chronos_dev_mode, true)
+  end
+
+  # Run the standard Guardian authentication pipeline
+  defp run_guardian_pipeline(conn) do
+    verify_opts = [
+      module: @guardian_module,
+      error_handler: @error_handler,
+      claims: %{"typ" => "access"}
+    ]
+
+    ensure_opts = [
+      module: @guardian_module,
+      error_handler: @error_handler
+    ]
+
+    load_opts = [
+      module: @guardian_module,
+      error_handler: @error_handler
+    ]
+
+    conn
+    |> Guardian.Plug.VerifyHeader.call(Guardian.Plug.VerifyHeader.init(verify_opts))
+    |> Guardian.Plug.EnsureAuthenticated.call(Guardian.Plug.EnsureAuthenticated.init(ensure_opts))
+    |> maybe_load_resource(load_opts)
+  end
+
+  defp maybe_load_resource(%Plug.Conn{halted: true} = conn, _opts), do: conn
+
+  defp maybe_load_resource(conn, opts) do
+    Guardian.Plug.LoadResource.call(conn, Guardian.Plug.LoadResource.init(opts))
+  end
 end

@@ -39,18 +39,16 @@ export const TestimonialCard = ({
   img,
   role,
   className,
-  ...props // Capture the rest of the props
+  ...props
 }: TestimonialCardProps) => (
   <div
     className={cn(
       "mb-4 flex w-full cursor-pointer break-inside-avoid flex-col items-center justify-between gap-6 rounded-xl p-4",
-      // light styles
       " border border-neutral-200 bg-white",
-      // dark styles
       "dark:bg-black dark:[border:1px_solid_rgba(255,255,255,.1)] dark:[box-shadow:0_-20px_80px_-20px_#ffffff1f_inset]",
       className
     )}
-    {...props} // Spread the rest of the props here
+    {...props}
   >
     <div className="select-none text-sm font-normal text-neutral-700 dark:text-neutral-400">
       {description}
@@ -82,169 +80,158 @@ export const TestimonialCard = ({
 
 const testimonials = [
   {
-    name: "Alex Rivera",
-    role: "CTO at InnovateTech",
+    name: "Marcus Chen",
+    role: "CTO at FinScale",
     img: "https://randomuser.me/api/portraits/men/91.jpg",
     description: (
       <p>
-        The AI-driven analytics from #QuantumInsights have revolutionized our product development
-        cycle.
-        <Highlight>Insights are now more accurate and faster than ever.</Highlight> A game-changer
-        for tech companies.
+        We migrated from Kafka + PostgreSQL to AllSource for our trading audit logs.
+        <Highlight>Query latency dropped from 200ms to under 12 microseconds.</Highlight> The time-travel
+        queries saved our compliance team hundreds of hours.
       </p>
     ),
   },
   {
-    name: "Samantha Lee",
-    role: "Marketing Director at NextGen Solutions",
+    name: "Sarah Mitchell",
+    role: "Head of Engineering at DataFlow",
     img: "https://randomuser.me/api/portraits/women/12.jpg",
     description: (
       <p>
-        Implementing #AIStream&apos;s customer prediction model has drastically improved our
-        targeting strategy.
-        <Highlight>Seeing a 50% increase in conversion rates!</Highlight> Highly recommend their
-        solutions.
+        The MCP Server integration is a game-changer.
+        <Highlight>Our AI agents now autonomously detect anomalies and trigger alerts.</Highlight> What
+        used to require a dedicated team now runs itself.
       </p>
     ),
   },
   {
-    name: "Raj Patel",
-    role: "Founder & CEO at StartUp Grid",
+    name: "Raj Krishnamurthy",
+    role: "Founder at IoTStream",
     img: "https://randomuser.me/api/portraits/men/45.jpg",
     description: (
       <p>
-        As a startup, we need to move fast and stay ahead. #CodeAI&apos;s automated coding assistant
-        helps us do just that.
-        <Highlight>Our development speed has doubled.</Highlight> Essential tool for any startup.
+        Processing 2M sensor events per minute was crushing our infrastructure.
+        <Highlight>AllSource handles it with a 129MB footprint.</Highlight> The Rust core is incredibly
+        efficient.
       </p>
     ),
   },
   {
-    name: "Emily Chen",
-    role: "Product Manager at Digital Wave",
+    name: "Elena Rodriguez",
+    role: "Platform Lead at CloudNative Inc",
     img: "https://randomuser.me/api/portraits/women/83.jpg",
     description: (
       <p>
-        #VoiceGen&apos;s AI-driven voice synthesis has made creating global products a breeze.
-        <Highlight>Localization is now seamless and efficient.</Highlight> A must-have for global
-        product teams.
+        Event sourcing used to mean complexity. AllSource changed that.
+        <Highlight>We went from idea to production in two weeks.</Highlight> The stream processing
+        pipelines are intuitive and powerful.
       </p>
     ),
   },
   {
-    name: "Michael Brown",
-    role: "Data Scientist at FinTech Innovations",
+    name: "David Park",
+    role: "Principal Architect at TechVentures",
     img: "https://randomuser.me/api/portraits/men/1.jpg",
     description: (
       <p>
-        Leveraging #DataCrunch&apos;s AI for our financial models has given us an edge in predictive
-        accuracy.
-        <Highlight>
-          Our investment strategies are now powered by real-time data analytics.
-        </Highlight>{" "}
-        Transformative for the finance industry.
+        The polyglot architecture (Rust, Go, Elixir) worried me at first.
+        <Highlight>Turns out using the right tool for each job actually simplifies operations.</Highlight>{" "}
+        Each service does one thing exceptionally well.
       </p>
     ),
   },
   {
-    name: "Linda Wu",
-    role: "VP of Operations at LogiChain Solutions",
+    name: "Lisa Wang",
+    role: "VP of Data at RetailGiant",
     img: "https://randomuser.me/api/portraits/women/5.jpg",
     description: (
       <p>
-        #LogiTech&apos;s supply chain optimization tools have drastically reduced our operational
-        costs.
-        <Highlight>Efficiency and accuracy in logistics have never been better.</Highlight>{" "}
+        Our inventory system needed complete audit trails for SOX compliance.
+        <Highlight>AllSource gave us immutable event logs with zero schema migration headaches.</Highlight>{" "}
+        Auditors love the time-travel queries.
       </p>
     ),
   },
   {
-    name: "Carlos Gomez",
-    role: "Head of R&D at EcoInnovate",
+    name: "James Morrison",
+    role: "Engineering Manager at HealthTech",
     img: "https://randomuser.me/api/portraits/men/14.jpg",
     description: (
       <p>
-        By integrating #GreenTech&apos;s sustainable energy solutions, we&apos;ve seen a significant
-        reduction in carbon footprint.
-        <Highlight>Leading the way in eco-friendly business practices.</Highlight> Pioneering change
-        in the industry.
+        Patient data requires bulletproof security. AllSource&apos;s RBAC and multi-tenancy
+        <Highlight>passed our security audit with flying colors.</Highlight> The audit logging is
+        comprehensive.
       </p>
     ),
   },
   {
-    name: "Aisha Khan",
-    role: "Chief Marketing Officer at Fashion Forward",
+    name: "Priya Sharma",
+    role: "Staff Engineer at GameStudio",
     img: "https://randomuser.me/api/portraits/women/56.jpg",
     description: (
       <p>
-        #TrendSetter&apos;s market analysis AI has transformed how we approach fashion trends.
-        <Highlight>Our campaigns are now data-driven with higher customer engagement.</Highlight>{" "}
-        Revolutionizing fashion marketing.
+        Game telemetry generates massive event volumes.
+        <Highlight>469K events/sec ingestion means we never drop player data.</Highlight> The analytics
+        team can query any moment in a player&apos;s journey.
       </p>
     ),
   },
   {
-    name: "Tom Chen",
-    role: "Director of IT at HealthTech Solutions",
+    name: "Michael Torres",
+    role: "DevOps Lead at ScaleUp",
     img: "https://randomuser.me/api/portraits/men/18.jpg",
     description: (
       <p>
-        Implementing #MediCareAI in our patient care systems has improved patient outcomes
-        significantly.
-        <Highlight>Technology and healthcare working hand in hand for better health.</Highlight> A
-        milestone in medical technology.
+        Deploying was dead simple - Docker, Helm charts, K8s manifests all provided.
+        <Highlight>Total footprint under 130MB for the entire stack.</Highlight> Resource efficiency we&apos;ve
+        never seen before.
       </p>
     ),
   },
   {
-    name: "Sofia Patel",
-    role: "CEO at EduTech Innovations",
+    name: "Amanda Foster",
+    role: "Data Science Lead at AIFirst",
     img: "https://randomuser.me/api/portraits/women/73.jpg",
     description: (
       <p>
-        #LearnSmart&apos;s AI-driven personalized learning plans have doubled student performance
-        metrics.
-        <Highlight>Education tailored to every learner&apos;s needs.</Highlight> Transforming the
-        educational landscape.
+        The 27 MCP tools transformed how we work with event data.
+        <Highlight>Claude can now query, analyze, and even manage our event streams directly.</Highlight>{" "}
+        True AI-native infrastructure.
       </p>
     ),
   },
   {
-    name: "Jake Morrison",
-    role: "CTO at SecureNet Tech",
+    name: "Kevin O&apos;Brien",
+    role: "CTO at LogisticsAI",
     img: "https://randomuser.me/api/portraits/men/25.jpg",
     description: (
       <p>
-        With #CyberShield&apos;s AI-powered security systems, our data protection levels are
-        unmatched.
-        <Highlight>Ensuring safety and trust in digital spaces.</Highlight> Redefining cybersecurity
-        standards.
+        Supply chain events are complex and time-sensitive.
+        <Highlight>AllSource&apos;s stream processing pipelines handle our branching logic elegantly.</Highlight>{" "}
+        Filter, enrich, route - all in real-time.
       </p>
     ),
   },
   {
-    name: "Nadia Ali",
-    role: "Product Manager at Creative Solutions",
+    name: "Nina Patel",
+    role: "Engineering Director at SaaSCo",
     img: "https://randomuser.me/api/portraits/women/78.jpg",
     description: (
       <p>
-        #DesignPro&apos;s AI has streamlined our creative process, enhancing productivity and
-        innovation.
-        <Highlight>Bringing creativity and technology together.</Highlight> A game-changer for
-        creative industries.
+        Multi-tenancy was a hard requirement. AllSource&apos;s built-in isolation
+        <Highlight>means each customer&apos;s data is completely separated at the infrastructure level.</Highlight>{" "}
+        No custom code needed.
       </p>
     ),
   },
   {
-    name: "Omar Farooq",
-    role: "Founder at Startup Hub",
+    name: "Alex Thompson",
+    role: "Open Source Maintainer",
     img: "https://randomuser.me/api/portraits/men/54.jpg",
     description: (
       <p>
-        #VentureAI&apos;s insights into startup ecosystems have been invaluable for our growth and
-        funding strategies.
-        <Highlight>Empowering startups with data-driven decisions.</Highlight> A catalyst for
-        startup success.
+        Finally, an event store that&apos;s truly open source with MIT licensing.
+        <Highlight>The codebase is clean, well-documented, and easy to contribute to.</Highlight>{" "}
+        Building in public done right.
       </p>
     ),
   },
@@ -252,7 +239,7 @@ const testimonials = [
 
 export default function Testimonials() {
   return (
-    <Section title="Testimonials" subtitle="What our customers are saying" className="max-w-8xl">
+    <Section title="Testimonials" subtitle="Trusted by engineering teams worldwide" className="max-w-8xl">
       <div className="relative mt-6 max-h-screen overflow-hidden">
         <div className="gap-4 md:columns-2 xl:columns-3 2xl:columns-4">
           {Array(Math.ceil(testimonials.length / 3))
@@ -260,7 +247,6 @@ export default function Testimonials() {
             .map((_, i) => (
               <Marquee
                 vertical
-                // biome-ignore lint/suspicious/noArrayIndexKey: Marquee columns use index as key since items are generated dynamically
                 key={`marquee-col-${i}`}
                 className={cn({
                   "[--duration:60s]": i === 1,
