@@ -27,14 +27,27 @@ defmodule QueryServiceExWeb.HealthController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   require Logger
 
   alias QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+  alias QueryServiceExWeb.Schemas.Health
 
   @default_db_timeout_ms 2_000
   @default_backend_timeout_ms 3_000
+
+  tags(["Health"])
+
+  operation(:live,
+    summary: "Liveness probe",
+    description:
+      "Returns 200 OK if the service is running. Used by orchestrators to restart unhealthy instances.",
+    responses: [
+      ok: {"Service is alive", "application/json", Health.LiveResponse}
+    ]
+  )
 
   @doc """
   Liveness probe - checks if the Elixir process is alive.
@@ -52,6 +65,15 @@ defmodule QueryServiceExWeb.HealthController do
     |> put_status(:ok)
     |> json(response)
   end
+
+  operation(:ready,
+    summary: "Readiness probe",
+    description: "Checks if all dependencies are available. Returns 503 if any check fails.",
+    responses: [
+      ok: {"Service is ready", "application/json", Health.ReadyResponse},
+      service_unavailable: {"Service not ready", "application/json", Health.ReadyResponse}
+    ]
+  )
 
   @doc """
   Readiness probe - checks if the service is ready to accept traffic.
@@ -78,6 +100,17 @@ defmodule QueryServiceExWeb.HealthController do
     |> put_status(status_code)
     |> json(response)
   end
+
+  operation(:show,
+    summary: "Combined health check",
+    description:
+      "Comprehensive health check including all dependencies. Returns 503 when unhealthy or degraded.",
+    responses: [
+      ok: {"Service is healthy", "application/json", Health.HealthResponse},
+      service_unavailable:
+        {"Service unhealthy or degraded", "application/json", Health.HealthResponse}
+    ]
+  )
 
   @doc """
   Combined health check endpoint.

@@ -245,7 +245,9 @@ defmodule McpServerElixir.Infrastructure.EventPipeline do
 
   @impl Broadway
   def handle_failed(messages, _context) do
-    Logger.warning("[EventPipeline] #{length(messages)} messages failed")
+    # Log at debug level since failures are tracked via telemetry
+    # In production, monitoring should alert on telemetry metrics, not log spam
+    Logger.debug("[EventPipeline] #{length(messages)} messages failed")
 
     :telemetry.execute(
       [:mcp_server_elixir, :event_pipeline, :messages_failed],

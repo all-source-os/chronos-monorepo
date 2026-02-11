@@ -7,15 +7,35 @@ defmodule QueryServiceExWeb.AuthController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   plug(Ueberauth)
 
   alias QueryServiceEx.Accounts
   alias QueryServiceEx.Accounts.Guardian
+  alias QueryServiceExWeb.Schemas.Auth
 
   require Logger
 
   action_fallback(QueryServiceExWeb.FallbackController)
+
+  tags(["Authentication"])
+
+  operation(:request,
+    summary: "Initiate OAuth flow",
+    description: "Redirects to the OAuth provider for authentication.",
+    parameters: [
+      provider: [
+        in: :path,
+        schema: %OpenApiSpex.Schema{type: :string, enum: ["google", "github"]},
+        required: true,
+        description: "OAuth provider (google or github)"
+      ]
+    ],
+    responses: [
+      found: {"Redirect to OAuth provider", "text/html", nil}
+    ]
+  )
 
   @doc """
   Initiates the OAuth flow by redirecting to the provider.
@@ -26,6 +46,25 @@ defmodule QueryServiceExWeb.AuthController do
     # Ueberauth plug handles the redirect
     conn
   end
+
+  operation(:callback,
+    summary: "OAuth callback",
+    description: "Handles OAuth callback from providers and returns JWT token.",
+    parameters: [
+      provider: [
+        in: :path,
+        schema: %OpenApiSpex.Schema{type: :string, enum: ["google", "github"]},
+        required: true,
+        description: "OAuth provider (google or github)"
+      ]
+    ],
+    responses: [
+      ok: {"Authentication successful", "application/json", Auth.AuthCallbackResponse},
+      unauthorized: {"Authentication failed", "application/json", Auth.OAuthFailureResponse},
+      unprocessable_entity:
+        {"User creation failed", "application/json", Auth.OAuthFailureResponse}
+    ]
+  )
 
   @doc """
   Handles OAuth callback from providers.
@@ -63,6 +102,16 @@ defmodule QueryServiceExWeb.AuthController do
     handle_oauth_callback(conn, auth, :github, &Accounts.find_or_create_from_github/1)
   end
 
+  operation(:me,
+    summary: "Get current user",
+    description: "Returns the current authenticated user's information including tenant.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Current user info", "application/json", Auth.MeResponse},
+      unauthorized: {"Not authenticated", "application/json", Auth.OAuthFailureResponse}
+    ]
+  )
+
   @doc """
   Returns the current authenticated user's information including tenant.
 
@@ -80,6 +129,15 @@ defmodule QueryServiceExWeb.AuthController do
       }
     })
   end
+
+  operation(:logout,
+    summary: "Logout",
+    description: "Logs out the current user by revoking the JWT token.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Logged out", "application/json", Auth.LogoutResponse}
+    ]
+  )
 
   @doc """
   Logs out the current user by revoking the token.

@@ -1,7 +1,7 @@
-interface MarketingLayoutProps {
+interface AuthLayoutProps {
   children: React.ReactNode;
 }
 
-export default async function Layout({ children }: MarketingLayoutProps) {
-  return <main className="flex flex-col items-center justify-center h-screen">{children}</main>;
+export default function AuthLayout({ children }: AuthLayoutProps) {
+  return <>{children}</>;
 }

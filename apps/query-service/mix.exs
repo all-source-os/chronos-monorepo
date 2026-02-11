@@ -4,7 +4,7 @@ defmodule QueryServiceEx.MixProject do
   def project do
     [
       app: :query_service_ex,
-      version: "0.1.0",
+      version: "0.9.0",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -69,15 +69,27 @@ defmodule QueryServiceEx.MixProject do
       {:broadway, "~> 1.1"},
       {:gen_stage, "~> 1.2"},
 
+      # Message Queue Integration
+      {:broadway_kafka, "~> 0.4"},
+      {:broadway_rabbitmq, "~> 0.8"},
+
+      # Distributed Mode / Clustering
+      {:libcluster, "~> 3.3"},
+      {:horde, "~> 0.9"},
+
       # Phoenix for API endpoints
       {:phoenix, "~> 1.7"},
       {:bandit, "~> 1.0"},
       {:cors_plug, "~> 3.0"},
 
+      # OpenAPI/Swagger documentation
+      {:open_api_spex, "~> 3.18"},
+
       # Telemetry & Observability
       {:telemetry, "~> 1.2"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.1"},
+      {:telemetry_metrics_prometheus, "~> 1.1"},
 
       # Structured Logging
       {:logger_json, "~> 6.0"},

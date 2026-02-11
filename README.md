@@ -404,5 +404,40 @@ We follow a TDD approach for all refactoring:
 
 ---
 
-**Last Updated**: February 4, 2026
-**Versions**: Rust Core v0.8.0 · Go Control Plane v0.2.0 · Query Service v0.2.0 · MCP Server v0.2.0
+**Last Updated**: February 10, 2026
+**Monorepo Version**: v0.9.0
+
+---
+
+## Version Management
+
+All services in the monorepo should maintain consistent versioning. Use `make bump-version VERSION=0.9.0` to update all locations.
+
+### Version Reference Table
+
+| Service | File | Field/Key | Current |
+|---------|------|-----------|---------|
+| **Core** | `apps/core/Cargo.toml` | `version` | 0.9.0 |
+| **Control Plane** | `apps/control-plane/main.go` | `"version"` in healthHandler | 0.9.0 |
+| **Control Plane** | `apps/control-plane/main_v1.go` | `Version` const | 0.9.0 |
+| **Control Plane** | `apps/control-plane/tracing.go` | `serviceVersion` const | 0.9.0 |
+| **Query Service** | `apps/query-service/mix.exs` | `version` | 0.9.0 |
+| **MCP Server** | `apps/mcp-server-elixir/mix.exs` | `version` | 0.9.0 |
+| **K8s Core** | `deploy/k8s/core.yaml` | `image` tag | 0.9.0 |
+| **K8s Query** | `deploy/k8s/query-service.yaml` | `image` tag | 0.9.0 |
+
+### Version Commands
+
+```bash
+# Check version consistency
+make check-versions
+
+# Bump all versions (interactive)
+make bump-version
+
+# Set specific version
+make set-version VERSION=0.9.0
+
+# Show current version
+make version
+```

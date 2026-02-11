@@ -380,7 +380,7 @@ defmodule McpServerElixir.Infrastructure.ProjectionSync do
     base_url = Application.get_env(:mcp_server_elixir, :core_url, "http://localhost:3900")
 
     {synced, errors} =
-      Enum.reduce(dirty_keys, {0, 0}, fn {projection_name, entity_id} = key,
+      Enum.reduce(dirty_keys, {0, 0}, fn {projection_name, entity_id} = _key,
                                          {synced_acc, error_acc} ->
         entity_state = ets_get(projection_name, entity_id)
 
@@ -394,14 +394,20 @@ defmodule McpServerElixir.Infrastructure.ProjectionSync do
               {synced_acc + 1, error_acc}
 
             {:ok, %Tesla.Env{status: status, body: response_body}} ->
-              Logger.warning(
-                "[ProjectionSync] Failed to sync #{inspect(key)}: HTTP #{status} - #{inspect(response_body)}"
-              )
+              # Only log once per batch when errors start occurring
+              if error_acc == 0 do
+                Logger.warning(
+                  "[ProjectionSync] Sync errors starting - HTTP #{status}: #{inspect(response_body)}"
+                )
+              end
 
               {synced_acc, error_acc + 1}
 
             {:error, reason} ->
-              Logger.warning("[ProjectionSync] Failed to sync #{inspect(key)}: #{inspect(reason)}")
+              # Only log once per batch when errors start occurring
+              if error_acc == 0 do
+                Logger.warning("[ProjectionSync] Sync errors starting: #{inspect(reason)}")
+              end
 
               {synced_acc, error_acc + 1}
           end

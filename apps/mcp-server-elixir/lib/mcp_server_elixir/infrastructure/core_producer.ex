@@ -280,6 +280,11 @@ defmodule McpServerElixir.Infrastructure.CoreProducer do
           %{cursor: new_cursor}
         )
 
+        # Log when Core becomes available again
+        if not state.core_available do
+          Logger.info("[CoreProducer] Core is now available")
+        end
+
         # Convert events to Broadway messages
         messages = events_to_messages(events)
 
@@ -296,7 +301,10 @@ defmodule McpServerElixir.Infrastructure.CoreProducer do
         {messages, new_state}
 
       {:error, reason} ->
-        Logger.warning("[CoreProducer] Poll failed: #{inspect(reason)}")
+        # Only log when transitioning from available to unavailable
+        if state.core_available do
+          Logger.warning("[CoreProducer] Core became unavailable: #{inspect(reason)}")
+        end
 
         :telemetry.execute(
           [:mcp_server_elixir, :core_producer, :poll_failed],

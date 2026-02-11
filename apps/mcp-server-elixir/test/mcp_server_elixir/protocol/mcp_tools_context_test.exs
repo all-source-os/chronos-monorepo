@@ -8,18 +8,28 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
 
   setup do
     # Ensure ConversationContext is running for tests
-    # Try to find existing process, or start a new one
-    pid =
-      case GenServer.whereis(McpServerElixir.Context.ConversationContext) do
-        nil ->
-          {:ok, started_pid} =
-            ConversationContext.start_link(name: McpServerElixir.Context.ConversationContext)
+    # Stop any existing process first to ensure clean state
+    case GenServer.whereis(McpServerElixir.Context.ConversationContext) do
+      nil ->
+        :ok
 
-          started_pid
+      existing_pid when is_pid(existing_pid) ->
+        if Process.alive?(existing_pid) do
+          GenServer.stop(existing_pid, :normal)
+        end
+    end
 
-        existing_pid when is_pid(existing_pid) ->
-          existing_pid
+    # Small delay to ensure process is fully stopped
+    Process.sleep(10)
+
+    # Start fresh
+    {:ok, pid} = ConversationContext.start_link(name: McpServerElixir.Context.ConversationContext)
+
+    on_exit(fn ->
+      if Process.alive?(pid) do
+        GenServer.stop(pid, :normal)
       end
+    end)
 
     {:ok, pid: pid}
   end
@@ -34,9 +44,9 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
       assert "get_session_context" in tool_names
     end
 
-    test "returns 19 tools total (14 original + 2 exploration + 3 context tools)" do
+    test "returns 27 tools total (14 original + 2 exploration + 3 context + 8 event management tools)" do
       tools = McpTools.list_tools()
-      assert length(tools) == 19
+      assert length(tools) == 27
     end
   end
 

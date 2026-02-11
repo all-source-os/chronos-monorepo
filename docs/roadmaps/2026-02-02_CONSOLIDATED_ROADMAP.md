@@ -36,7 +36,7 @@ This document consolidates all roadmaps and their current completion status as o
 | MCP Server AI-Native | ✅ COMPLETE | 100% | 4 AI-native enhancements |
 | Native Search | ✅ COMPLETE | 100% | Vector + BM25 + Hybrid |
 | Query Service Phase 3 | ⏳ PLANNED | 0% | Q2-Q3 2026 |
-| MCP Server v2.0 Phase 2 | ⏳ PLANNED | 0% | Q2-Q3 2026 (13→55 tools) |
+| MCP Server v2.0 Phase 2 | 🔄 IN PROGRESS | 19% | Event Management DONE (8/42 tools) |
 | Phase 3 (v1.8-v2.0) Enterprise | ⏳ PLANNED | 0% | 2027 |
 
 ---
@@ -356,6 +356,29 @@ This document consolidates all roadmaps and their current completion status as o
 
 ## RECENTLY COMPLETED - All Roadmap Items Done
 
+### MCP Server v0.3.0 Event Management Tools - ✅ COMPLETE (2026-02-10)
+
+**Status**: COMPLETE (8/8 tools implemented, 82 tests)
+
+#### Lifecycle Operations (8 tools)
+- [x] `delete_events` - Soft delete with GDPR/CCPA compliance, audit trail, dry-run preview
+- [x] `archive_events` - Cold storage archival with retention policies
+- [x] `restore_events` - Restore deleted or archived events with audit trail
+- [x] `export_events` - Export to JSON/JSONL/CSV/Parquet with optional compression
+- [x] `import_events` - Bulk import with validation, deduplication, entity ID mapping
+- [x] `clone_entity` - Deep copy entity with events, optional PII sanitization
+- [x] `merge_entities` - Combine event streams with chronological ordering
+- [x] `split_entity` - Partition by event type, time range, or custom criteria
+
+**Technical Details**:
+- 82 comprehensive tests added
+- All 179 protocol tests passing
+- Rich tool descriptions with AI agent guidance
+- Dry-run preview mode for all destructive operations
+- Complete audit trail for compliance
+
+---
+
 ### Production Readiness - ✅ ALL COMPLETE
 
 | Bead ID | User Story | Priority | Status |
@@ -458,15 +481,15 @@ Expand from 13 tools to 55+ tools for comprehensive AI-native event store intera
 
 #### Tool Categories to Add
 
-**Event Management (8 tools)**
-- [ ] `delete_events` - Soft delete with audit trail
-- [ ] `archive_events` - Move to cold storage
-- [ ] `restore_events` - Restore from archive
-- [ ] `export_events` - Export to JSON/CSV/Parquet
-- [ ] `import_events` - Bulk import from files
-- [ ] `clone_entity` - Deep copy entity with events
-- [ ] `merge_entities` - Combine event streams
-- [ ] `split_entity` - Partition event stream
+**Event Management (8 tools)** ✅ COMPLETE (2026-02-10)
+- [x] `delete_events` - Soft delete with audit trail (GDPR/CCPA compliant)
+- [x] `archive_events` - Move to cold storage with retention policies
+- [x] `restore_events` - Restore deleted or archived events
+- [x] `export_events` - Export to JSON/JSONL/CSV/Parquet with compression
+- [x] `import_events` - Bulk import with validation and deduplication
+- [x] `clone_entity` - Deep copy entity with events
+- [x] `merge_entities` - Combine event streams
+- [x] `split_entity` - Partition event stream by criteria
 
 **Schema & Validation (6 tools)**
 - [ ] `register_schema` - Register event type schema
@@ -512,7 +535,7 @@ Expand from 13 tools to 55+ tools for comprehensive AI-native event store intera
 - [ ] `debug_query` - Query explain plan
 - [ ] `benchmark_query` - Query performance test
 
-**Total**: 13 existing + 42 new = 55 tools
+**Total**: 27 existing (13 + 6 AI-Native + 8 Event Management) + 34 remaining = 61 tools
 
 ---
 
@@ -531,8 +554,9 @@ Expand from 13 tools to 55+ tools for comprehensive AI-native event store intera
 | Docker Image Publishing | 7/7 | 100% |
 | Production Readiness Review | 15/15 | 100% |
 | SaaS MVP | 15/15 | 100% |
+| **MCP Event Management Tools** | **8/8** | **100%** |
 
-**Total**: 79/79 user stories completed (100%)
+**Total**: 87/87 user stories completed (100%)
 
 ### Remaining Work
 
@@ -541,7 +565,7 @@ All planned Q1 2026 roadmap items are complete. Future work includes:
 | Epic | Timeline | Priority | Key Features |
 |------|----------|----------|--------------|
 | Query Service Phase 3 | Q2-Q3 2026 | MEDIUM | Phoenix Channels `/ws`, Distributed Mode |
-| MCP Server v2.0 Phase 2 | Q2-Q3 2026 | MEDIUM | 13→55 tools expansion |
+| MCP Server v2.0 Phase 2 | Q2-Q3 2026 | MEDIUM | 27→61 tools (Event Management ✅, 34 remaining) |
 | Redis Protocol (Optional) | Q2 2026 | LOW | RESP3 compatibility |
 
 ### Future (2027)

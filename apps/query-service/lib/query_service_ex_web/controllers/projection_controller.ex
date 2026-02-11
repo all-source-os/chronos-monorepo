@@ -5,10 +5,25 @@ defmodule QueryServiceExWeb.ProjectionController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+  alias QueryServiceExWeb.Schemas.Common
+  alias QueryServiceExWeb.Schemas.Projections
 
   action_fallback(QueryServiceExWeb.FallbackController)
+
+  tags(["Projections"])
+
+  operation(:index,
+    summary: "List projections",
+    description: "List all projections for the authenticated tenant.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Projections list", "application/json", Projections.ProjectionListResponse},
+      bad_request: {"Bad request", "application/json", Common.SimpleError}
+    ]
+  )
 
   @doc """
   List all projections.
@@ -24,6 +39,20 @@ defmodule QueryServiceExWeb.ProjectionController do
         |> json(%{error: to_string(reason)})
     end
   end
+
+  operation(:show,
+    summary: "Get projection",
+    description: "Get a specific projection by name.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      name: [in: :path, type: :string, description: "Projection name", required: true]
+    ],
+    responses: [
+      ok: {"Projection details", "application/json", Projections.ProjectionResponse},
+      not_found: {"Projection not found", "application/json", Common.SimpleError},
+      bad_request: {"Bad request", "application/json", Common.SimpleError}
+    ]
+  )
 
   @doc """
   Get a specific projection by name.
@@ -44,6 +73,19 @@ defmodule QueryServiceExWeb.ProjectionController do
         |> json(%{error: to_string(reason)})
     end
   end
+
+  operation(:create,
+    summary: "Create projection",
+    description: "Create a new projection with the given definition.",
+    security: [%{"bearer_auth" => []}],
+    request_body:
+      {"Projection to create", "application/json", Projections.CreateProjectionRequest,
+       required: true},
+    responses: [
+      created: {"Projection created", "application/json", Projections.ProjectionResponse},
+      unprocessable_entity: {"Validation error", "application/json", Common.SimpleError}
+    ]
+  )
 
   @doc """
   Create a new projection.
@@ -77,6 +119,20 @@ defmodule QueryServiceExWeb.ProjectionController do
     end
   end
 
+  operation(:delete,
+    summary: "Delete projection",
+    description: "Delete a projection by name. (Not yet implemented)",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      name: [in: :path, type: :string, description: "Projection name", required: true]
+    ],
+    responses: [
+      ok: {"Projection deleted", "application/json", Common.SimpleError},
+      not_found: {"Projection not found", "application/json", Common.SimpleError},
+      not_implemented: {"Not implemented", "application/json", Common.SimpleError}
+    ]
+  )
+
   @doc """
   Delete a projection.
   """
@@ -87,6 +143,20 @@ defmodule QueryServiceExWeb.ProjectionController do
     |> json(%{error: "Projection deletion not yet implemented"})
   end
 
+  operation(:get_state,
+    summary: "Get projection state",
+    description: "Get the current state of a projection. (Not yet implemented)",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      name: [in: :path, type: :string, description: "Projection name", required: true]
+    ],
+    responses: [
+      ok: {"Projection state", "application/json", Projections.ProjectionStateResponse},
+      not_found: {"Projection not found", "application/json", Common.SimpleError},
+      not_implemented: {"Not implemented", "application/json", Common.SimpleError}
+    ]
+  )
+
   @doc """
   Get projection state.
   """
@@ -96,6 +166,20 @@ defmodule QueryServiceExWeb.ProjectionController do
     |> put_status(:not_implemented)
     |> json(%{error: "Projection state query not yet implemented"})
   end
+
+  operation(:reset,
+    summary: "Reset projection",
+    description: "Reset a projection to its initial state. (Not yet implemented)",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      name: [in: :path, type: :string, description: "Projection name", required: true]
+    ],
+    responses: [
+      ok: {"Projection reset", "application/json", Projections.ProjectionResponse},
+      not_found: {"Projection not found", "application/json", Common.SimpleError},
+      not_implemented: {"Not implemented", "application/json", Common.SimpleError}
+    ]
+  )
 
   @doc """
   Reset a projection to initial state.

@@ -4,9 +4,17 @@ defmodule QueryServiceExWeb.Endpoint do
 
   Provides RESTful HTTP endpoints for querying events, managing projections,
   and executing queries through the DSL.
+
+  Also exposes WebSocket endpoints for real-time event streaming via Phoenix Channels.
   """
 
   use Phoenix.Endpoint, otp_app: :query_service_ex
+
+  # WebSocket endpoint for real-time event streaming
+  socket("/ws", QueryServiceExWeb.UserSocket,
+    websocket: true,
+    longpoll: false
+  )
 
   # Serve at "/" the static files from "priv/static" directory.
   #

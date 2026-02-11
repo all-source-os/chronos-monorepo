@@ -1,7 +1,7 @@
 ---
 title: "API Reference"
 status: CURRENT
-last_updated: 2026-02-02
+last_updated: 2026-02-10
 category: reference
 related:
   - EVENT_STORE_FEATURES.md
@@ -921,34 +921,152 @@ curl http://localhost:3902/api/projections/user_stats/user-456
 
 ---
 
-### WebSocket (PLANNED - Query Service Phase 3)
+### WebSocket Streaming
 
-> **Note**: This endpoint is not yet implemented. Currently, the Query Service only has an internal WebSocket *client* to Core for real-time event ingestion. External clients must use the REST API. See [Query Service Phase 3 roadmap](../roadmaps/2026-02-02_CONSOLIDATED_ROADMAP.md#future---query-service-phase-3-q2-q3-2026) for implementation timeline.
+The Query Service exposes a WebSocket endpoint at `/ws` for real-time event streaming via Phoenix Channels.
 
-#### /ws (Planned)
-WebSocket endpoint for real-time event streaming.
+#### Connection
+
+Connect via WebSocket with JWT authentication:
+
+```javascript
+import {Socket} from "phoenix"
+
+const socket = new Socket("ws://localhost:3902/ws", {
+  params: {token: "your-jwt-token"}
+});
+
+socket.connect();
+```
 
 ```bash
-# Connect via WebSocket (when implemented)
-wscat -c ws://localhost:3902/ws
+# Connect via wscat (requires token query param)
+wscat -c "ws://localhost:3902/ws?token=your-jwt-token"
 ```
 
-**Subscribe to events:**
-```json
-{"type": "subscribe", "topic": "events:all"}
+#### Event Channels
+
+Subscribe to real-time events via channels:
+
+**All Events** (`events:all`):
+```javascript
+const channel = socket.channel("events:all", {});
+channel.join()
+  .receive("ok", resp => console.log("Joined successfully", resp))
+  .receive("error", resp => console.log("Join failed", resp));
+
+channel.on("new_event", event => {
+  console.log("Received event:", event);
+  // {
+  //   id: "550e8400-e29b-41d4-a716-446655440000",
+  //   entity_id: "user-456",
+  //   event_type: "user.created",
+  //   payload: {...},
+  //   timestamp: "2026-02-02T12:00:00Z"
+  // }
+});
 ```
 
-**Subscribe to entity-specific events:**
-```json
-{"type": "subscribe", "topic": "events:entity:user-456"}
+**Entity-Specific Events** (`events:{entity_id}`):
+```javascript
+const channel = socket.channel("events:user-456", {});
+channel.join();
+
+// Only receives events for entity_id "user-456"
+channel.on("new_event", event => {
+  console.log("User event:", event);
+});
 ```
 
-**Subscribe to event type:**
-```json
-{"type": "subscribe", "topic": "events:type:user.created"}
+**Event Type Subscription** (`events:type:{event_type}`):
+```javascript
+const channel = socket.channel("events:type:order.placed", {});
+channel.join();
+
+// Only receives events with event_type "order.placed"
+channel.on("new_event", event => {
+  console.log("Order placed:", event);
+});
 ```
 
-**Current Alternative**: For real-time needs, connect directly to Core's WebSocket at `ws://localhost:3900/api/v1/events/stream`.
+#### Projection Channels
+
+Subscribe to real-time projection state updates:
+
+```javascript
+const channel = socket.channel("projections:user_stats", {});
+channel.join();
+
+// Receive state updates
+channel.on("state_updated", update => {
+  console.log("State updated:", update);
+  // {
+  //   entity_id: "user-456",
+  //   state: {...},
+  //   version: 42,
+  //   updated_at: "2026-02-02T12:00:00Z"
+  // }
+});
+
+// Receive errors
+channel.on("projection_error", error => {
+  console.log("Projection error:", error);
+  // {
+  //   entity_id: "user-456",
+  //   error: "Failed to process event",
+  //   event_id: "..."
+  // }
+});
+
+// Request current state
+channel.push("get_state", {entity_id: "user-456"})
+  .receive("ok", state => console.log("Current state:", state))
+  .receive("error", err => console.log("Error:", err));
+```
+
+#### Presence Tracking
+
+All channels support Phoenix Presence for tracking connected clients:
+
+```javascript
+import {Presence} from "phoenix"
+
+const presence = new Presence(channel);
+
+presence.onSync(() => {
+  const users = presence.list();
+  console.log("Online users:", users);
+});
+
+presence.onJoin((id, current, newPres) => {
+  console.log("User joined:", id);
+});
+
+presence.onLeave((id, current, leftPres) => {
+  console.log("User left:", id);
+});
+```
+
+#### Channel Topics Summary
+
+| Topic Pattern | Description |
+|--------------|-------------|
+| `events:all` | All events from the event store |
+| `events:{entity_id}` | Events for a specific entity |
+| `events:type:{event_type}` | Events of a specific type |
+| `projections:{name}` | Projection state updates |
+
+#### Authentication
+
+WebSocket connections require a valid JWT token passed as the `token` parameter:
+
+```javascript
+const socket = new Socket("ws://localhost:3902/ws", {
+  params: {token: jwtToken}
+});
+```
+
+Connections without a valid token are rejected.
 
 ---
 

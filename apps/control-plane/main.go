@@ -133,7 +133,7 @@ func (cp *ControlPlane) healthHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "healthy",
 		"service":   "allsource-control-plane",
-		"version":   "0.1.0",
+		"version":   "0.9.0",
 		"timestamp": time.Now().UTC(),
 	})
 }

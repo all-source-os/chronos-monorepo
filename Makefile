@@ -74,6 +74,11 @@ help:
 	@echo "  make version           - Show current version"
 	@echo "  make images-check      - Check Docker image versions in GHCR"
 	@echo ""
+	@echo "Version Management:"
+	@echo "  make bump-version      - Interactive version bump"
+	@echo "  make set-version VERSION=X.Y.Z - Set version across all services"
+	@echo "  make check-versions    - Check version consistency"
+	@echo ""
 	@echo "Performance:"
 	@echo "  make perf-bench        - Run performance benchmarks (release mode)"
 
@@ -615,3 +620,86 @@ images-check:
 		gh api "/orgs/$(GITHUB_ORG)/packages/container/chronos-$$SERVICE/versions" \
 			--jq '.[0:5] | .[] | "  \(.metadata.container.tags | join(", "))"' 2>/dev/null || echo "  (not found or no access)"; \
 	done
+
+# =============================================================================
+# Version Management Commands
+# =============================================================================
+
+# Set version across all services
+# Usage: make set-version VERSION=0.9.0
+set-version:
+ifndef VERSION
+	@echo "ERROR: VERSION is required. Usage: make set-version VERSION=0.9.0"
+	@exit 1
+endif
+	@echo "=== Setting version to $(VERSION) across all services ==="
+	@echo ""
+	@echo "Updating Rust Core (Cargo.toml)..."
+	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' apps/core/Cargo.toml
+	@echo "Updating Go Control Plane (main.go)..."
+	@sed -i '' 's/"version":[[:space:]]*"[0-9]*\.[0-9]*\.[0-9]*"/"version":   "$(VERSION)"/' apps/control-plane/main.go
+	@echo "Updating Go Control Plane (main_v1.go)..."
+	@sed -i '' 's/Version = "[0-9]*\.[0-9]*\.[0-9]*"/Version = "$(VERSION)"/' apps/control-plane/main_v1.go
+	@echo "Updating Go Control Plane (tracing.go)..."
+	@sed -i '' 's/serviceVersion = "[0-9]*\.[0-9]*\.[0-9]*"/serviceVersion = "$(VERSION)"/' apps/control-plane/tracing.go
+	@echo "Updating Query Service (mix.exs)..."
+	@sed -i '' 's/version: "[0-9]*\.[0-9]*\.[0-9]*"/version: "$(VERSION)"/' apps/query-service/mix.exs
+	@echo "Updating MCP Server (mix.exs)..."
+	@sed -i '' 's/version: "[0-9]*\.[0-9]*\.[0-9]*"/version: "$(VERSION)"/' apps/mcp-server-elixir/mix.exs
+	@echo "Updating K8s Core manifest..."
+	@sed -i '' 's|image: chronos/core:[0-9]*\.[0-9]*\.[0-9]*|image: chronos/core:$(VERSION)|' deploy/k8s/core.yaml
+	@echo "Updating K8s Query Service manifest..."
+	@sed -i '' 's|image: chronos/query-service:[0-9]*\.[0-9]*\.[0-9]*|image: chronos/query-service:$(VERSION)|' deploy/k8s/query-service.yaml
+	@echo "Updating README.md version..."
+	@sed -i '' 's/version: "[0-9]*\.[0-9]*\.[0-9]*"/version: "$(VERSION)"/' README.md
+	@sed -i '' 's/\*\*Monorepo Version\*\*: v[0-9]*\.[0-9]*\.[0-9]*/\*\*Monorepo Version\*\*: v$(VERSION)/' README.md
+	@echo ""
+	@echo "=== Version $(VERSION) set across all services ==="
+	@echo ""
+	@echo "Files updated:"
+	@echo "  - apps/core/Cargo.toml"
+	@echo "  - apps/control-plane/main.go"
+	@echo "  - apps/control-plane/main_v1.go"
+	@echo "  - apps/control-plane/tracing.go"
+	@echo "  - apps/query-service/mix.exs"
+	@echo "  - apps/mcp-server-elixir/mix.exs"
+	@echo "  - deploy/k8s/core.yaml"
+	@echo "  - deploy/k8s/query-service.yaml"
+	@echo "  - README.md"
+	@echo ""
+	@echo "Run 'make check-versions' to verify consistency"
+
+# Interactive version bump
+bump-version:
+	@echo "=== Interactive Version Bump ==="
+	@CURRENT=$$(grep 'version = ' apps/core/Cargo.toml | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'); \
+	echo "Current version: $$CURRENT"; \
+	echo ""; \
+	MAJOR=$$(echo $$CURRENT | cut -d. -f1); \
+	MINOR=$$(echo $$CURRENT | cut -d. -f2); \
+	PATCH=$$(echo $$CURRENT | cut -d. -f3); \
+	NEXT_PATCH="$${MAJOR}.$${MINOR}.$$((PATCH + 1))"; \
+	NEXT_MINOR="$${MAJOR}.$$((MINOR + 1)).0"; \
+	NEXT_MAJOR="$$((MAJOR + 1)).0.0"; \
+	echo "Select new version:"; \
+	echo "  1) $$NEXT_PATCH (patch)"; \
+	echo "  2) $$NEXT_MINOR (minor)"; \
+	echo "  3) $$NEXT_MAJOR (major)"; \
+	echo "  4) Custom"; \
+	echo ""; \
+	read -p "Choice [1]: " CHOICE; \
+	CHOICE=$${CHOICE:-1}; \
+	case $$CHOICE in \
+		1) NEW_VERSION=$$NEXT_PATCH ;; \
+		2) NEW_VERSION=$$NEXT_MINOR ;; \
+		3) NEW_VERSION=$$NEXT_MAJOR ;; \
+		4) read -p "Enter version: " NEW_VERSION ;; \
+		*) NEW_VERSION=$$NEXT_PATCH ;; \
+	esac; \
+	echo ""; \
+	read -p "Set version to $$NEW_VERSION? (Y/n): " CONFIRM; \
+	if [ "$$CONFIRM" != "n" ] && [ "$$CONFIRM" != "N" ]; then \
+		$(MAKE) set-version VERSION=$$NEW_VERSION; \
+	else \
+		echo "Aborted."; \
+	fi

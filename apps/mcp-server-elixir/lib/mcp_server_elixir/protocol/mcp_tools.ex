@@ -37,7 +37,16 @@ defmodule McpServerElixir.Protocol.McpTools do
       # Conversation context tools
       tool_start_session(),
       tool_refine_query(),
-      tool_get_session_context()
+      tool_get_session_context(),
+      # Event management tools (v2.0)
+      tool_delete_events(),
+      tool_archive_events(),
+      tool_restore_events(),
+      tool_export_events(),
+      tool_import_events(),
+      tool_clone_entity(),
+      tool_merge_entities(),
+      tool_split_entity()
     ]
   end
 
@@ -78,6 +87,18 @@ defmodule McpServerElixir.Protocol.McpTools do
     "get_session_context" => :handle_get_session_context
   }
 
+  # Event management tools (v2.0) - lifecycle operations
+  @event_management_tool_handlers %{
+    "delete_events" => :handle_delete_events,
+    "archive_events" => :handle_archive_events,
+    "restore_events" => :handle_restore_events,
+    "export_events" => :handle_export_events,
+    "import_events" => :handle_import_events,
+    "clone_entity" => :handle_clone_entity,
+    "merge_entities" => :handle_merge_entities,
+    "split_entity" => :handle_split_entity
+  }
+
   @doc """
   Call a tool by name with arguments.
 
@@ -108,6 +129,9 @@ defmodule McpServerElixir.Protocol.McpTools do
         apply(__MODULE__, handler, [args, state, format])
 
       handler = Map.get(@context_tool_handlers, tool_name) ->
+        apply(__MODULE__, handler, [args, state, format])
+
+      handler = Map.get(@event_management_tool_handlers, tool_name) ->
         apply(__MODULE__, handler, [args, state, format])
 
       true ->
@@ -1263,6 +1287,588 @@ defmodule McpServerElixir.Protocol.McpTools do
           }
         },
         required: ["session_id"]
+      }
+    }
+  end
+
+  # ============================================================================
+  # Event Management Tool Definitions (v2.0)
+  # ============================================================================
+
+  defp tool_delete_events do
+    %{
+      name: "delete_events",
+      description: """
+      Soft delete events with a complete audit trail. Events are marked as deleted \
+      but preserved for compliance and recovery purposes.
+
+      **When to use this tool:**
+      - GDPR/CCPA "right to be forgotten" compliance
+      - Removing PII or sensitive data while maintaining audit trail
+      - Cleaning up erroneous or test events
+      - Regulatory compliance requiring data deletion with proof
+
+      **How soft delete works:**
+      - Original events remain in storage but are marked as deleted
+      - A deletion tombstone event is created for audit purposes
+      - Deleted events are excluded from normal queries
+      - Events can be restored using restore_events tool
+
+      **Common patterns:**
+      - Delete by entity: `entity_id: "user-123"` - deletes all events for an entity
+      - Delete by type: `entity_id: "user-123", event_type: "user.pii_updated"`
+      - Delete time range: `entity_id: "user-123", since: "2024-01-01", until: "2024-01-31"`
+      - Delete specific events: `event_ids: ["evt-1", "evt-2", "evt-3"]`
+
+      **Important notes:**
+      - This is a SOFT DELETE - data can be recovered with restore_events
+      - A reason is REQUIRED for audit compliance
+      - Deletion is recorded as a system event for the audit trail
+      - For hard delete (permanent), contact system administrator
+
+      **Performance tips:**
+      - Large deletions are processed in batches
+      - Use dry_run: true first to preview what will be deleted
+      - For entity-wide deletion, prefer entity_id over many event_ids
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "entity_id" => %{
+            type: "string",
+            description: "Delete events for this entity ID"
+          },
+          "event_ids" => %{
+            type: "array",
+            items: %{type: "string"},
+            description: "Specific event IDs to delete"
+          },
+          "event_type" => %{
+            type: "string",
+            description: "Delete only events of this type (requires entity_id)"
+          },
+          "since" => %{
+            type: "string",
+            description: "Delete events since this timestamp (requires entity_id)"
+          },
+          "until" => %{
+            type: "string",
+            description: "Delete events until this timestamp (requires entity_id)"
+          },
+          "reason" => %{
+            type: "string",
+            description: "REQUIRED: Reason for deletion (for audit trail)"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Preview deletion without executing (default: false)"
+          }
+        },
+        required: ["reason"]
+      }
+    }
+  end
+
+  defp tool_archive_events do
+    %{
+      name: "archive_events",
+      description: """
+      Move events to cold storage archive for cost optimization while maintaining \
+      accessibility. Archived events can be restored when needed.
+
+      **When to use this tool:**
+      - Moving old/inactive entity events to cheaper storage
+      - Compliance archival with retention requirements
+      - Reducing active storage costs for historical data
+      - Preparing data for long-term cold storage
+
+      **How archival works:**
+      - Events are marked with archived status and timestamp
+      - Archived events are excluded from normal queries by default
+      - Data remains accessible via restore_events or explicit archive queries
+      - Archive metadata tracks when, why, and by whom archived
+      - All archival operations are recorded in the audit trail
+
+      **Common patterns:**
+      - Archive inactive entity: `entity_id: "user-123", reason: "Account closed"`
+      - Archive old events: `entity_id: "user-123", older_than: "2023-01-01"`
+      - Archive by type: `entity_id: "user-123", event_type: "debug.log"`
+
+      **Performance tips:**
+      - Archive in batches for large entities
+      - Use dry_run to preview before archiving
+      - Archive during low-traffic periods for large operations
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "entity_id" => %{
+            type: "string",
+            description: "Archive events for this entity"
+          },
+          "event_type" => %{
+            type: "string",
+            description: "Archive only events of this type"
+          },
+          "older_than" => %{
+            type: "string",
+            description: "Archive events older than this ISO timestamp"
+          },
+          "reason" => %{
+            type: "string",
+            description: "Reason for archival (for audit trail)"
+          },
+          "retention_days" => %{
+            type: "number",
+            description: "Minimum days to retain in archive (default: 365)"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Preview archival without executing (default: false)"
+          }
+        },
+        required: ["entity_id", "reason"]
+      }
+    }
+  end
+
+  defp tool_restore_events do
+    %{
+      name: "restore_events",
+      description: """
+      Restore previously deleted or archived events back to active state. \
+      Full audit trail is maintained for all restore operations.
+
+      **When to use this tool:**
+      - Recovering accidentally deleted events
+      - Restoring archived data for active use
+      - Compliance scenarios requiring data recovery
+      - Reversing a soft delete operation
+
+      **How restore works:**
+      - Deleted/archived status is removed from events
+      - Events become visible in normal queries again
+      - Restore operation is recorded in audit trail
+      - Original event data is preserved unchanged
+
+      **Common patterns:**
+      - Restore deleted entity: `entity_id: "user-123", status: "deleted"`
+      - Restore from archive: `entity_id: "user-123", status: "archived"`
+      - Restore specific events: `event_ids: ["evt-1", "evt-2"]`
+      - Restore time range: `entity_id: "user-123", since: "2024-01-01"`
+
+      **Important notes:**
+      - Can only restore soft-deleted events (not hard-deleted)
+      - Restoring does not modify original event data
+      - Restoration is audited for compliance
+
+      **Performance tips:**
+      - Use dry_run: true to preview what will be restored before executing
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "entity_id" => %{
+            type: "string",
+            description: "Restore events for this entity"
+          },
+          "event_ids" => %{
+            type: "array",
+            items: %{type: "string"},
+            description: "Specific event IDs to restore"
+          },
+          "status" => %{
+            type: "string",
+            enum: ["deleted", "archived", "all"],
+            description: "Restore events with this status (default: all)"
+          },
+          "since" => %{
+            type: "string",
+            description: "Restore events since this timestamp"
+          },
+          "until" => %{
+            type: "string",
+            description: "Restore events until this timestamp"
+          },
+          "reason" => %{
+            type: "string",
+            description: "Reason for restoration (for audit trail)"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Preview restoration without executing (default: false)"
+          }
+        },
+        required: ["reason"]
+      }
+    }
+  end
+
+  defp tool_export_events do
+    %{
+      name: "export_events",
+      description: """
+      Export events to various formats for backup, migration, analysis, or sharing. \
+      Supports JSON, CSV, and Parquet formats with optional compression.
+
+      **When to use this tool:**
+      - Creating backups of event data
+      - Migrating data to another system
+      - Exporting for external analysis (BI tools, spreadsheets)
+      - Sharing data with third parties
+      - Compliance data portability requests
+
+      **Supported formats:**
+      - `json`: Standard JSON array of events (default)
+      - `jsonl`: JSON Lines format (one event per line, good for streaming)
+      - `csv`: Comma-separated values (flattened structure)
+      - `parquet`: Columnar format (efficient for analytics)
+
+      **Common patterns:**
+      - Export entity: `entity_id: "user-123", format: "json"`
+      - Export for analytics: `entity_id: "user-123", format: "parquet"`
+      - Export time range: `since: "2024-01-01", until: "2024-12-31", format: "jsonl"`
+      - Export with compression: `entity_id: "user-123", compress: true`
+
+      **Performance tips:**
+      - Use JSONL for large exports (streaming-friendly)
+      - Use Parquet for analytics workloads
+      - Set reasonable limits for very large datasets
+      - Consider time-based partitioning for huge exports
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "entity_id" => %{
+            type: "string",
+            description: "Export events for this entity"
+          },
+          "event_type" => %{
+            type: "string",
+            description: "Export only events of this type"
+          },
+          "since" => %{
+            type: "string",
+            description: "Export events since this timestamp"
+          },
+          "until" => %{
+            type: "string",
+            description: "Export events until this timestamp"
+          },
+          "format" => %{
+            type: "string",
+            enum: ["json", "jsonl", "csv", "parquet"],
+            description: "Export format (default: json)"
+          },
+          "compress" => %{
+            type: "boolean",
+            description: "Compress output with gzip (default: false)"
+          },
+          "include_metadata" => %{
+            type: "boolean",
+            description: "Include event metadata in export (default: true)"
+          },
+          "limit" => %{
+            type: "number",
+            description: "Maximum number of events to export"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_import_events do
+    %{
+      name: "import_events",
+      description: """
+      Bulk import events from external sources. Supports validation, deduplication, \
+      and entity ID mapping for migration scenarios.
+
+      **When to use this tool:**
+      - Migrating from another event store
+      - Importing historical data
+      - Restoring from backup
+      - Bulk loading test data
+      - Data portability imports
+
+      **Supported formats:**
+      - `json`: JSON array of events
+      - `jsonl`: JSON Lines format (one event per line)
+      - `csv`: CSV with headers matching event fields
+
+      **Common patterns:**
+      - Import from JSON: `data: [...events...], format: "json"`
+      - Import with mapping: `data: [...], entity_id_prefix: "imported-"`
+      - Validate only: `data: [...], validate_only: true`
+      - Skip duplicates: `data: [...], skip_duplicates: true`
+
+      **Event structure required:**
+      ```json
+      {
+        "event_type": "user.created",
+        "entity_id": "user-123",
+        "payload": {...},
+        "metadata": {...},  // optional
+        "timestamp": "..."  // optional, uses current time if missing
+      }
+      ```
+
+      **Important notes:**
+      - Events are validated against schema if registered
+      - Timestamps can be preserved or regenerated
+      - Duplicate detection uses event_type + entity_id + timestamp
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "data" => %{
+            type: "array",
+            items: %{type: "object"},
+            description: "Array of events to import"
+          },
+          "format" => %{
+            type: "string",
+            enum: ["json", "jsonl", "csv"],
+            description: "Import format (default: json)"
+          },
+          "entity_id_prefix" => %{
+            type: "string",
+            description: "Prefix to add to all entity IDs (for namespacing)"
+          },
+          "preserve_timestamps" => %{
+            type: "boolean",
+            description: "Keep original timestamps (default: true)"
+          },
+          "skip_duplicates" => %{
+            type: "boolean",
+            description: "Skip events that already exist (default: true)"
+          },
+          "validate_only" => %{
+            type: "boolean",
+            description: "Validate without importing (default: false)"
+          },
+          "batch_size" => %{
+            type: "number",
+            description: "Batch size for import (default: 100)"
+          }
+        },
+        required: ["data"]
+      }
+    }
+  end
+
+  defp tool_clone_entity do
+    %{
+      name: "clone_entity",
+      description: """
+      Create a deep copy of an entity by duplicating all its events with a new \
+      entity ID. Useful for creating test data or entity templates.
+
+      **When to use this tool:**
+      - Creating test entities based on production data (sanitized)
+      - Duplicating entity as a template for new instances
+      - Creating backup copy before major modifications
+      - Forking an entity for A/B testing scenarios
+
+      **How cloning works:**
+      - All events for source entity are copied
+      - New entity ID is assigned to all copied events
+      - Timestamps can be preserved or reset
+      - Metadata tracks the clone relationship
+
+      **Common patterns:**
+      - Simple clone: `source_entity_id: "user-123", new_entity_id: "user-123-copy"`
+      - Clone with new timestamps: `source_entity_id: "user-123", reset_timestamps: true`
+      - Clone time range: `source_entity_id: "user-123", since: "2024-01-01"`
+      - Clone specific types: `source_entity_id: "user-123", event_types: ["user.profile_updated"]`
+
+      **Important notes:**
+      - Original entity is unchanged
+      - Clone operation is recorded in audit trail
+      - Consider data privacy when cloning (PII handling)
+
+      **Performance tips:**
+      - Use dry_run: true to preview what will be cloned before executing
+      - For large entities, consider cloning specific event_types or time ranges
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "source_entity_id" => %{
+            type: "string",
+            description: "Entity ID to clone from"
+          },
+          "new_entity_id" => %{
+            type: "string",
+            description: "Entity ID for the clone (auto-generated if not provided)"
+          },
+          "event_types" => %{
+            type: "array",
+            items: %{type: "string"},
+            description: "Clone only these event types (default: all)"
+          },
+          "since" => %{
+            type: "string",
+            description: "Clone events since this timestamp"
+          },
+          "until" => %{
+            type: "string",
+            description: "Clone events until this timestamp"
+          },
+          "reset_timestamps" => %{
+            type: "boolean",
+            description: "Reset timestamps to current time (default: false)"
+          },
+          "sanitize_pii" => %{
+            type: "boolean",
+            description: "Attempt to sanitize PII fields (default: false)"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Preview clone without executing (default: false)"
+          }
+        },
+        required: ["source_entity_id"]
+      }
+    }
+  end
+
+  defp tool_merge_entities do
+    %{
+      name: "merge_entities",
+      description: """
+      Combine event streams from multiple entities into a single unified entity. \
+      Useful for merging duplicate records or consolidating related entities.
+
+      **When to use this tool:**
+      - Merging duplicate user accounts
+      - Consolidating related entities (e.g., guest -> registered user)
+      - Combining split records after data cleanup
+      - Creating aggregate entity from components
+
+      **How merge works:**
+      - Events from all source entities are combined
+      - Events are reattributed to the target entity
+      - Timeline is preserved (events interleaved by timestamp)
+      - Merge operation is recorded for audit trail
+
+      **Common patterns:**
+      - Merge duplicates: `source_entity_ids: ["user-old", "user-guest"], target_entity_id: "user-main"`
+      - Merge with archival: `..., archive_sources: true`
+      - Preview merge: `..., dry_run: true`
+
+      **Conflict handling:**
+      - Events are merged chronologically
+      - No event deduplication (all events preserved)
+      - Source entities can be archived or deleted after merge
+
+      **Important notes:**
+      - This is a complex operation - use dry_run first
+      - Consider impact on projections and read models
+      - Source entities can optionally be archived after merge
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "source_entity_ids" => %{
+            type: "array",
+            items: %{type: "string"},
+            description: "Entity IDs to merge from"
+          },
+          "target_entity_id" => %{
+            type: "string",
+            description: "Entity ID to merge into (can be new or existing)"
+          },
+          "archive_sources" => %{
+            type: "boolean",
+            description: "Archive source entities after merge (default: false)"
+          },
+          "delete_sources" => %{
+            type: "boolean",
+            description: "Soft delete source entities after merge (default: false)"
+          },
+          "reason" => %{
+            type: "string",
+            description: "Reason for merge (for audit trail)"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Preview merge without executing (default: false)"
+          }
+        },
+        required: ["source_entity_ids", "target_entity_id", "reason"]
+      }
+    }
+  end
+
+  defp tool_split_entity do
+    %{
+      name: "split_entity",
+      description: """
+      Partition an entity's event stream into multiple new entities based on \
+      criteria like event type, time range, or custom rules.
+
+      **When to use this tool:**
+      - Splitting a monolithic entity into domain-specific entities
+      - Separating entity by time periods (e.g., fiscal years)
+      - Extracting specific event types to new entity
+      - Correcting data modeling mistakes
+
+      **How split works:**
+      - Events matching criteria are copied to new entity
+      - Original events can be kept, archived, or deleted
+      - Split operation is recorded for audit trail
+      - Multiple splits can be done in one operation
+
+      **Common patterns:**
+      - Split by type: `entity_id: "user-123", splits: [{event_types: ["billing.*"], new_entity_id: "billing-123"}]`
+      - Split by time: `entity_id: "org-1", splits: [{since: "2024-01-01", new_entity_id: "org-1-2024"}]`
+      - Split and archive: `..., archive_split_events: true`
+
+      **Important notes:**
+      - Use dry_run to preview the split
+      - Consider projection/read model impact
+      - Original entity can retain or lose split events
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "source_entity_id" => %{
+            type: "string",
+            description: "Entity ID to split from"
+          },
+          "splits" => %{
+            type: "array",
+            items: %{
+              type: "object",
+              properties: %{
+                "new_entity_id" => %{type: "string"},
+                "event_types" => %{type: "array", items: %{type: "string"}},
+                "since" => %{type: "string"},
+                "until" => %{type: "string"}
+              },
+              required: ["new_entity_id"]
+            },
+            description: "Array of split definitions"
+          },
+          "archive_split_events" => %{
+            type: "boolean",
+            description: "Archive split events in source entity (default: false)"
+          },
+          "delete_split_events" => %{
+            type: "boolean",
+            description: "Soft delete split events in source entity (default: false)"
+          },
+          "reason" => %{
+            type: "string",
+            description: "Reason for split (for audit trail)"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Preview split without executing (default: false)"
+          }
+        },
+        required: ["source_entity_id", "splits", "reason"]
       }
     }
   end
@@ -3017,5 +3623,1014 @@ defmodule McpServerElixir.Protocol.McpTools do
       end
 
     analysis
+  end
+
+  # ============================================================================
+  # Event Management Tool Handlers (v2.0)
+  # ============================================================================
+
+  @doc false
+  def handle_delete_events(args, state, format) do
+    reason = Map.fetch!(args, "reason")
+    dry_run = Map.get(args, "dry_run", false)
+
+    # Build query params to find events to delete
+    query_params = build_delete_query_params(args)
+
+    case CoreClient.query_events(state.core_client, query_params) do
+      {:ok, data} ->
+        events = Map.get(data, "events", [])
+        count = length(events)
+
+        if dry_run do
+          # Preview mode - show what would be deleted
+          event_ids = Enum.map(events, &Map.get(&1, "id", Map.get(&1, "event_id")))
+
+          result = %{
+            dry_run: true,
+            events_to_delete: count,
+            event_ids: Enum.take(event_ids, 100),
+            reason: reason
+          }
+
+          text = """
+          🔍 Delete Preview (DRY RUN)
+          📊 Events that would be deleted: #{count}
+          📝 Reason: #{reason}
+
+          #{if count > 100, do: "⚠️  Showing first 100 of #{count} event IDs", else: ""}
+
+          #{ToonEncoder.format_response(result, format)}
+
+          💡 Remove dry_run: true to execute the deletion
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        else
+          # Execute soft delete by ingesting tombstone events
+          deleted_count = soft_delete_events(events, reason, state)
+
+          result = %{
+            deleted: true,
+            events_deleted: deleted_count,
+            reason: reason,
+            timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+          }
+
+          text = """
+          🗑️  Events Soft Deleted
+          📊 Events deleted: #{deleted_count}
+          📝 Reason: #{reason}
+          ⏰ Deleted at: #{result.timestamp}
+
+          #{ToonEncoder.format_response(result, format)}
+
+          💡 Use restore_events to recover deleted events if needed
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        end
+
+      {:error, reason} ->
+        {:error, "Failed to query events for deletion: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_archive_events(args, state, format) do
+    entity_id = Map.fetch!(args, "entity_id")
+    reason = Map.fetch!(args, "reason")
+    dry_run = Map.get(args, "dry_run", false)
+    older_than = Map.get(args, "older_than")
+    event_type = Map.get(args, "event_type")
+    retention_days = Map.get(args, "retention_days", 365)
+
+    # Build query params
+    query_params =
+      %{"entity_id" => entity_id}
+      |> maybe_put("event_type", event_type)
+      |> maybe_put("until", older_than)
+
+    case CoreClient.query_events(state.core_client, query_params) do
+      {:ok, data} ->
+        events = Map.get(data, "events", [])
+        count = length(events)
+
+        if dry_run do
+          result = %{
+            dry_run: true,
+            events_to_archive: count,
+            entity_id: entity_id,
+            reason: reason,
+            retention_days: retention_days
+          }
+
+          text = """
+          🔍 Archive Preview (DRY RUN)
+          📦 Entity: #{entity_id}
+          📊 Events that would be archived: #{count}
+          📝 Reason: #{reason}
+          📅 Retention: #{retention_days} days
+
+          #{ToonEncoder.format_response(result, format)}
+
+          💡 Remove dry_run: true to execute the archival
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        else
+          archived_count = archive_events_batch(events, reason, retention_days, state)
+
+          result = %{
+            archived: true,
+            events_archived: archived_count,
+            entity_id: entity_id,
+            reason: reason,
+            retention_days: retention_days,
+            timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+          }
+
+          text = """
+          📦 Events Archived
+          📦 Entity: #{entity_id}
+          📊 Events archived: #{archived_count}
+          📝 Reason: #{reason}
+          📅 Retention: #{retention_days} days
+          ⏰ Archived at: #{result.timestamp}
+
+          #{ToonEncoder.format_response(result, format)}
+
+          💡 Use restore_events to restore archived events when needed
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        end
+
+      {:error, reason} ->
+        {:error, "Failed to query events for archival: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_restore_events(args, state, format) do
+    reason = Map.fetch!(args, "reason")
+    dry_run = Map.get(args, "dry_run", false)
+    status = Map.get(args, "status", "all")
+
+    # For restore, we need to query with special flags to include deleted/archived
+    # Since core may not support this directly, we simulate by tracking in metadata
+    entity_id = Map.get(args, "entity_id")
+    event_ids = Map.get(args, "event_ids", [])
+
+    query_params =
+      %{}
+      |> maybe_put("entity_id", entity_id)
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+
+    # Query for system deletion/archive events to find what can be restored
+    tombstone_params = Map.put(query_params, "event_type", "system.event_deleted")
+
+    case CoreClient.query_events(state.core_client, tombstone_params) do
+      {:ok, data} ->
+        tombstones = Map.get(data, "events", [])
+
+        restorable =
+          tombstones
+          |> filter_by_status(status)
+          |> filter_by_event_ids(event_ids)
+
+        count = length(restorable)
+
+        if dry_run do
+          result = %{
+            dry_run: true,
+            events_to_restore: count,
+            status_filter: status,
+            reason: reason
+          }
+
+          text = """
+          🔍 Restore Preview (DRY RUN)
+          📊 Events that would be restored: #{count}
+          🏷️  Status filter: #{status}
+          📝 Reason: #{reason}
+
+          #{ToonEncoder.format_response(result, format)}
+
+          💡 Remove dry_run: true to execute the restoration
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        else
+          restored_count = restore_events_batch(restorable, reason, state)
+
+          result = %{
+            restored: true,
+            events_restored: restored_count,
+            reason: reason,
+            timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+          }
+
+          text = """
+          ♻️  Events Restored
+          📊 Events restored: #{restored_count}
+          📝 Reason: #{reason}
+          ⏰ Restored at: #{result.timestamp}
+
+          #{ToonEncoder.format_response(result, format)}
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        end
+
+      {:error, reason} ->
+        {:error, "Failed to query tombstones for restoration: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_export_events(args, state, _format) do
+    export_format = Map.get(args, "format", "json")
+    compress = Map.get(args, "compress", false)
+    include_metadata = Map.get(args, "include_metadata", true)
+    limit = Map.get(args, "limit")
+
+    query_params =
+      %{}
+      |> maybe_put("entity_id", Map.get(args, "entity_id"))
+      |> maybe_put("event_type", Map.get(args, "event_type"))
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+      |> maybe_put("limit", limit)
+
+    case CoreClient.query_events(state.core_client, query_params) do
+      {:ok, data} ->
+        events = Map.get(data, "events", [])
+        count = length(events)
+
+        # Transform events for export
+        export_events =
+          events
+          |> Enum.map(fn event ->
+            if include_metadata do
+              event
+            else
+              Map.drop(event, ["metadata"])
+            end
+          end)
+
+        # Format based on requested export format
+        exported_data = format_export(export_events, export_format)
+
+        # Calculate size
+        size_bytes = byte_size(exported_data)
+        size_display = format_size(size_bytes)
+
+        text = """
+        📤 Events Exported
+        📊 Events: #{count}
+        📋 Format: #{export_format}
+        📦 Size: #{size_display}
+        🗜️  Compressed: #{compress}
+
+        #{if count <= 50 do
+          "📄 Export Data:\n```#{export_format}\n#{exported_data}\n```"
+        else
+          "📄 Export Data (truncated, #{count} events):\n```#{export_format}\n#{String.slice(exported_data, 0, 2000)}...\n```\n\n💡 For large exports, consider using the API directly with pagination"
+        end}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to query events for export: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_import_events(args, state, format) do
+    data = Map.fetch!(args, "data")
+    validate_only = Map.get(args, "validate_only", false)
+    skip_duplicates = Map.get(args, "skip_duplicates", true)
+    preserve_timestamps = Map.get(args, "preserve_timestamps", true)
+    entity_id_prefix = Map.get(args, "entity_id_prefix", "")
+    batch_size = Map.get(args, "batch_size", 100)
+
+    # Validate events
+    {valid_events, validation_errors} = validate_import_events(data)
+
+    if length(validation_errors) > 0 do
+      error_summary =
+        validation_errors
+        |> Enum.take(10)
+        |> Enum.map(fn {idx, err} -> "  • Event #{idx}: #{err}" end)
+        |> Enum.join("\n")
+
+      text = """
+      ❌ Import Validation Failed
+      📊 Total events: #{length(data)}
+      ✅ Valid: #{length(valid_events)}
+      ❌ Invalid: #{length(validation_errors)}
+
+      🔍 First 10 errors:
+      #{error_summary}
+
+      💡 Fix validation errors and retry
+      """
+
+      {:ok, %{content: [%{type: "text", text: text}]}}
+    else
+      if validate_only do
+        result = %{
+          validate_only: true,
+          total_events: length(data),
+          valid_events: length(valid_events),
+          validation_errors: []
+        }
+
+        text = """
+        ✅ Import Validation Passed
+        📊 Total events: #{length(data)}
+        ✅ All events valid
+
+        #{ToonEncoder.format_response(result, format)}
+
+        💡 Remove validate_only: true to execute the import
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+      else
+        # Execute import
+        {imported, skipped, errors} =
+          import_events_batch(
+            valid_events,
+            entity_id_prefix,
+            preserve_timestamps,
+            skip_duplicates,
+            batch_size,
+            state
+          )
+
+        result = %{
+          imported: true,
+          events_imported: imported,
+          events_skipped: skipped,
+          errors: length(errors),
+          timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+        }
+
+        text = """
+        📥 Events Imported
+        📊 Events imported: #{imported}
+        ⏭️  Events skipped: #{skipped}
+        ❌ Errors: #{length(errors)}
+        ⏰ Imported at: #{result.timestamp}
+
+        #{ToonEncoder.format_response(result, format)}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+      end
+    end
+  end
+
+  @doc false
+  def handle_clone_entity(args, state, format) do
+    source_entity_id = Map.fetch!(args, "source_entity_id")
+    new_entity_id = Map.get(args, "new_entity_id", generate_entity_id(source_entity_id))
+    dry_run = Map.get(args, "dry_run", false)
+    reset_timestamps = Map.get(args, "reset_timestamps", false)
+    event_types = Map.get(args, "event_types")
+
+    query_params =
+      %{"entity_id" => source_entity_id}
+      |> maybe_put("event_type", if(event_types, do: hd(event_types), else: nil))
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+
+    case CoreClient.query_events(state.core_client, query_params) do
+      {:ok, data} ->
+        events = Map.get(data, "events", [])
+
+        # Filter by event_types if multiple specified
+        events =
+          if event_types && length(event_types) > 1 do
+            Enum.filter(events, fn e ->
+              Map.get(e, "event_type") in event_types
+            end)
+          else
+            events
+          end
+
+        count = length(events)
+
+        if dry_run do
+          result = %{
+            dry_run: true,
+            source_entity_id: source_entity_id,
+            new_entity_id: new_entity_id,
+            events_to_clone: count,
+            reset_timestamps: reset_timestamps
+          }
+
+          text = """
+          🔍 Clone Preview (DRY RUN)
+          📦 Source: #{source_entity_id}
+          📦 Target: #{new_entity_id}
+          📊 Events to clone: #{count}
+          ⏰ Reset timestamps: #{reset_timestamps}
+
+          #{ToonEncoder.format_response(result, format)}
+
+          💡 Remove dry_run: true to execute the clone
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        else
+          cloned_count = clone_events_batch(events, new_entity_id, reset_timestamps, state)
+
+          result = %{
+            cloned: true,
+            source_entity_id: source_entity_id,
+            new_entity_id: new_entity_id,
+            events_cloned: cloned_count,
+            timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+          }
+
+          text = """
+          🔄 Entity Cloned
+          📦 Source: #{source_entity_id}
+          📦 Target: #{new_entity_id}
+          📊 Events cloned: #{cloned_count}
+          ⏰ Cloned at: #{result.timestamp}
+
+          #{ToonEncoder.format_response(result, format)}
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        end
+
+      {:error, reason} ->
+        {:error, "Failed to query source entity: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_merge_entities(args, state, format) do
+    source_entity_ids = Map.fetch!(args, "source_entity_ids")
+    target_entity_id = Map.fetch!(args, "target_entity_id")
+    reason = Map.fetch!(args, "reason")
+    dry_run = Map.get(args, "dry_run", false)
+    archive_sources = Map.get(args, "archive_sources", false)
+    delete_sources = Map.get(args, "delete_sources", false)
+
+    # Query events from all source entities
+    all_events =
+      Enum.flat_map(source_entity_ids, fn entity_id ->
+        case CoreClient.query_events(state.core_client, %{"entity_id" => entity_id}) do
+          {:ok, data} -> Map.get(data, "events", [])
+          {:error, _} -> []
+        end
+      end)
+
+    # Sort by timestamp for proper merge order
+    sorted_events = Enum.sort_by(all_events, &Map.get(&1, "timestamp", ""))
+    count = length(sorted_events)
+
+    if dry_run do
+      events_by_source =
+        Enum.frequencies_by(all_events, &Map.get(&1, "entity_id"))
+
+      result = %{
+        dry_run: true,
+        source_entity_ids: source_entity_ids,
+        target_entity_id: target_entity_id,
+        total_events_to_merge: count,
+        events_per_source: events_by_source,
+        archive_sources: archive_sources,
+        delete_sources: delete_sources,
+        reason: reason
+      }
+
+      text = """
+      🔍 Merge Preview (DRY RUN)
+      📦 Sources: #{inspect(source_entity_ids)}
+      📦 Target: #{target_entity_id}
+      📊 Total events to merge: #{count}
+      📝 Reason: #{reason}
+      📦 Archive sources after: #{archive_sources}
+      🗑️  Delete sources after: #{delete_sources}
+
+      #{ToonEncoder.format_response(result, format)}
+
+      💡 Remove dry_run: true to execute the merge
+      """
+
+      {:ok, %{content: [%{type: "text", text: text}]}}
+    else
+      merged_count = merge_events_batch(sorted_events, target_entity_id, state)
+
+      # Handle source cleanup
+      if archive_sources do
+        Enum.each(source_entity_ids, fn entity_id ->
+          archive_events_batch(
+            Enum.filter(all_events, &(Map.get(&1, "entity_id") == entity_id)),
+            "Merged into #{target_entity_id}",
+            365,
+            state
+          )
+        end)
+      end
+
+      if delete_sources do
+        Enum.each(source_entity_ids, fn entity_id ->
+          soft_delete_events(
+            Enum.filter(all_events, &(Map.get(&1, "entity_id") == entity_id)),
+            "Merged into #{target_entity_id}",
+            state
+          )
+        end)
+      end
+
+      result = %{
+        merged: true,
+        source_entity_ids: source_entity_ids,
+        target_entity_id: target_entity_id,
+        events_merged: merged_count,
+        reason: reason,
+        timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+      }
+
+      text = """
+      🔀 Entities Merged
+      📦 Sources: #{inspect(source_entity_ids)}
+      📦 Target: #{target_entity_id}
+      📊 Events merged: #{merged_count}
+      📝 Reason: #{reason}
+      ⏰ Merged at: #{result.timestamp}
+
+      #{ToonEncoder.format_response(result, format)}
+      """
+
+      {:ok, %{content: [%{type: "text", text: text}]}}
+    end
+  end
+
+  @doc false
+  def handle_split_entity(args, state, format) do
+    source_entity_id = Map.fetch!(args, "source_entity_id")
+    splits = Map.fetch!(args, "splits")
+    reason = Map.fetch!(args, "reason")
+    dry_run = Map.get(args, "dry_run", false)
+    archive_split_events = Map.get(args, "archive_split_events", false)
+    delete_split_events = Map.get(args, "delete_split_events", false)
+
+    # Query all events for source entity
+    case CoreClient.query_events(state.core_client, %{"entity_id" => source_entity_id}) do
+      {:ok, data} ->
+        source_events = Map.get(data, "events", [])
+
+        # Calculate split assignments
+        split_assignments =
+          Enum.map(splits, fn split_def ->
+            matching_events = filter_events_for_split(source_events, split_def)
+
+            %{
+              new_entity_id: Map.get(split_def, "new_entity_id"),
+              event_count: length(matching_events),
+              events: matching_events
+            }
+          end)
+
+        total_split = Enum.sum(Enum.map(split_assignments, & &1.event_count))
+
+        if dry_run do
+          result = %{
+            dry_run: true,
+            source_entity_id: source_entity_id,
+            source_event_count: length(source_events),
+            splits:
+              Enum.map(split_assignments, fn sa ->
+                %{new_entity_id: sa.new_entity_id, event_count: sa.event_count}
+              end),
+            total_events_to_split: total_split,
+            archive_split_events: archive_split_events,
+            delete_split_events: delete_split_events,
+            reason: reason
+          }
+
+          text = """
+          🔍 Split Preview (DRY RUN)
+          📦 Source: #{source_entity_id} (#{length(source_events)} events)
+          📊 Total events to split: #{total_split}
+          📝 Reason: #{reason}
+
+          📋 Split assignments:
+          #{format_split_preview(split_assignments)}
+
+          #{ToonEncoder.format_response(result, format)}
+
+          💡 Remove dry_run: true to execute the split
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        else
+          # Execute splits
+          split_results =
+            Enum.map(split_assignments, fn sa ->
+              cloned = clone_events_batch(sa.events, sa.new_entity_id, false, state)
+
+              # Handle source event cleanup
+              if archive_split_events do
+                archive_events_batch(sa.events, reason, 365, state)
+              end
+
+              if delete_split_events do
+                soft_delete_events(sa.events, reason, state)
+              end
+
+              %{new_entity_id: sa.new_entity_id, events_created: cloned}
+            end)
+
+          result = %{
+            split: true,
+            source_entity_id: source_entity_id,
+            splits: split_results,
+            reason: reason,
+            timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+          }
+
+          text = """
+          ✂️  Entity Split
+          📦 Source: #{source_entity_id}
+          📝 Reason: #{reason}
+          ⏰ Split at: #{result.timestamp}
+
+          📋 New entities created:
+          #{format_split_results(split_results)}
+
+          #{ToonEncoder.format_response(result, format)}
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        end
+
+      {:error, reason} ->
+        {:error, "Failed to query source entity: #{inspect(reason)}"}
+    end
+  end
+
+  # ============================================================================
+  # Event Management Helper Functions
+  # ============================================================================
+
+  defp build_delete_query_params(args) do
+    # If specific event_ids provided, we can't query by them directly
+    # so we'll filter after querying by entity
+    %{}
+    |> maybe_put("entity_id", Map.get(args, "entity_id"))
+    |> maybe_put("event_type", Map.get(args, "event_type"))
+    |> maybe_put("since", Map.get(args, "since"))
+    |> maybe_put("until", Map.get(args, "until"))
+  end
+
+  defp soft_delete_events(events, reason, state) do
+    # Soft delete by ingesting tombstone events for each deleted event
+    Enum.reduce(events, 0, fn event, count ->
+      event_id = Map.get(event, "id", Map.get(event, "event_id"))
+      entity_id = Map.get(event, "entity_id")
+
+      tombstone = %{
+        "event_type" => "system.event_deleted",
+        "entity_id" => entity_id,
+        "payload" => %{
+          "deleted_event_id" => event_id,
+          "deleted_event_type" => Map.get(event, "event_type"),
+          "reason" => reason,
+          "original_timestamp" => Map.get(event, "timestamp")
+        },
+        "metadata" => %{
+          "operation" => "soft_delete",
+          "deleted_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+        }
+      }
+
+      case CoreClient.ingest_event(state.core_client, tombstone) do
+        {:ok, _} -> count + 1
+        {:error, _} -> count
+      end
+    end)
+  end
+
+  defp archive_events_batch(events, reason, retention_days, state) do
+    Enum.reduce(events, 0, fn event, count ->
+      event_id = Map.get(event, "id", Map.get(event, "event_id"))
+      entity_id = Map.get(event, "entity_id")
+
+      archive_event = %{
+        "event_type" => "system.event_archived",
+        "entity_id" => entity_id,
+        "payload" => %{
+          "archived_event_id" => event_id,
+          "archived_event_type" => Map.get(event, "event_type"),
+          "reason" => reason,
+          "retention_days" => retention_days,
+          "original_timestamp" => Map.get(event, "timestamp")
+        },
+        "metadata" => %{
+          "operation" => "archive",
+          "archived_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+        }
+      }
+
+      case CoreClient.ingest_event(state.core_client, archive_event) do
+        {:ok, _} -> count + 1
+        {:error, _} -> count
+      end
+    end)
+  end
+
+  defp restore_events_batch(tombstones, reason, state) do
+    Enum.reduce(tombstones, 0, fn tombstone, count ->
+      entity_id = Map.get(tombstone, "entity_id")
+      payload = Map.get(tombstone, "payload", %{})
+
+      restore_event = %{
+        "event_type" => "system.event_restored",
+        "entity_id" => entity_id,
+        "payload" => %{
+          "restored_event_id" =>
+            Map.get(payload, "deleted_event_id") ||
+              Map.get(payload, "archived_event_id"),
+          "restored_from" => Map.get(tombstone, "event_type"),
+          "reason" => reason
+        },
+        "metadata" => %{
+          "operation" => "restore",
+          "restored_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+        }
+      }
+
+      case CoreClient.ingest_event(state.core_client, restore_event) do
+        {:ok, _} -> count + 1
+        {:error, _} -> count
+      end
+    end)
+  end
+
+  defp filter_by_status(tombstones, "deleted") do
+    Enum.filter(tombstones, &(Map.get(&1, "event_type") == "system.event_deleted"))
+  end
+
+  defp filter_by_status(tombstones, "archived") do
+    Enum.filter(tombstones, &(Map.get(&1, "event_type") == "system.event_archived"))
+  end
+
+  defp filter_by_status(tombstones, _), do: tombstones
+
+  defp filter_by_event_ids(tombstones, []), do: tombstones
+
+  defp filter_by_event_ids(tombstones, event_ids) do
+    Enum.filter(tombstones, fn t ->
+      payload = Map.get(t, "payload", %{})
+      deleted_id = Map.get(payload, "deleted_event_id") || Map.get(payload, "archived_event_id")
+      deleted_id in event_ids
+    end)
+  end
+
+  defp format_export(events, "json") do
+    Jason.encode!(events, pretty: true)
+  end
+
+  defp format_export(events, "jsonl") do
+    events
+    |> Enum.map(&Jason.encode!/1)
+    |> Enum.join("\n")
+  end
+
+  defp format_export(events, "csv") do
+    headers = ["event_id", "event_type", "entity_id", "timestamp", "payload"]
+    header_line = Enum.join(headers, ",")
+
+    rows =
+      Enum.map(events, fn event ->
+        [
+          Map.get(event, "id", Map.get(event, "event_id", "")),
+          Map.get(event, "event_type", ""),
+          Map.get(event, "entity_id", ""),
+          Map.get(event, "timestamp", ""),
+          Jason.encode!(Map.get(event, "payload", %{}))
+        ]
+        |> Enum.map(&escape_csv/1)
+        |> Enum.join(",")
+      end)
+
+    [header_line | rows] |> Enum.join("\n")
+  end
+
+  defp format_export(events, "parquet") do
+    # Parquet requires specialized library - return JSON with note
+    "# Parquet export requires direct API access\n" <> Jason.encode!(events, pretty: true)
+  end
+
+  defp format_export(events, _), do: Jason.encode!(events, pretty: true)
+
+  defp escape_csv(value) when is_binary(value) do
+    if String.contains?(value, [",", "\"", "\n"]) do
+      "\"#{String.replace(value, "\"", "\"\"")}\""
+    else
+      value
+    end
+  end
+
+  defp escape_csv(value), do: to_string(value)
+
+  defp format_size(bytes) when bytes < 1024, do: "#{bytes} B"
+  defp format_size(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
+  defp format_size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
+
+  defp validate_import_events(data) do
+    data
+    |> Enum.with_index()
+    |> Enum.reduce({[], []}, fn {event, idx}, {valid, errors} ->
+      case validate_single_event(event) do
+        :ok -> {[event | valid], errors}
+        {:error, msg} -> {valid, [{idx, msg} | errors]}
+      end
+    end)
+    |> then(fn {valid, errors} -> {Enum.reverse(valid), Enum.reverse(errors)} end)
+  end
+
+  defp validate_single_event(event) do
+    cond do
+      not is_map(event) ->
+        {:error, "Event must be an object"}
+
+      not Map.has_key?(event, "event_type") ->
+        {:error, "Missing required field: event_type"}
+
+      not Map.has_key?(event, "entity_id") ->
+        {:error, "Missing required field: entity_id"}
+
+      not Map.has_key?(event, "payload") ->
+        {:error, "Missing required field: payload"}
+
+      not is_binary(Map.get(event, "event_type")) ->
+        {:error, "event_type must be a string"}
+
+      not is_binary(Map.get(event, "entity_id")) ->
+        {:error, "entity_id must be a string"}
+
+      not is_map(Map.get(event, "payload")) ->
+        {:error, "payload must be an object"}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp import_events_batch(events, prefix, preserve_ts, skip_dups, _batch_size, state) do
+    Enum.reduce(events, {0, 0, []}, fn event, {imported, skipped, errors} ->
+      entity_id = prefix <> Map.get(event, "entity_id")
+
+      import_event = %{
+        "event_type" => Map.get(event, "event_type"),
+        "entity_id" => entity_id,
+        "payload" => Map.get(event, "payload"),
+        "metadata" =>
+          Map.merge(Map.get(event, "metadata", %{}), %{
+            "imported" => true,
+            "imported_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "original_timestamp" => if(preserve_ts, do: Map.get(event, "timestamp"), else: nil)
+          })
+      }
+
+      case CoreClient.ingest_event(state.core_client, import_event) do
+        {:ok, _} ->
+          {imported + 1, skipped, errors}
+
+        {:error, reason} ->
+          if skip_dups and String.contains?(inspect(reason), "duplicate") do
+            {imported, skipped + 1, errors}
+          else
+            {imported, skipped, [reason | errors]}
+          end
+      end
+    end)
+  end
+
+  defp generate_entity_id(source_id) do
+    suffix = :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
+    "#{source_id}-clone-#{suffix}"
+  end
+
+  defp clone_events_batch(events, new_entity_id, reset_timestamps, state) do
+    now = DateTime.utc_now() |> DateTime.to_iso8601()
+
+    Enum.reduce(events, 0, fn event, count ->
+      clone_event = %{
+        "event_type" => Map.get(event, "event_type"),
+        "entity_id" => new_entity_id,
+        "payload" => Map.get(event, "payload"),
+        "metadata" =>
+          Map.merge(Map.get(event, "metadata", %{}), %{
+            "cloned_from" => Map.get(event, "entity_id"),
+            "cloned_at" => now,
+            "original_event_id" => Map.get(event, "id", Map.get(event, "event_id")),
+            "original_timestamp" => if(reset_timestamps, do: Map.get(event, "timestamp"), else: nil)
+          })
+      }
+
+      case CoreClient.ingest_event(state.core_client, clone_event) do
+        {:ok, _} -> count + 1
+        {:error, _} -> count
+      end
+    end)
+  end
+
+  defp merge_events_batch(events, target_entity_id, state) do
+    now = DateTime.utc_now() |> DateTime.to_iso8601()
+
+    Enum.reduce(events, 0, fn event, count ->
+      original_entity = Map.get(event, "entity_id")
+
+      merge_event = %{
+        "event_type" => Map.get(event, "event_type"),
+        "entity_id" => target_entity_id,
+        "payload" => Map.get(event, "payload"),
+        "metadata" =>
+          Map.merge(Map.get(event, "metadata", %{}), %{
+            "merged_from" => original_entity,
+            "merged_at" => now,
+            "original_event_id" => Map.get(event, "id", Map.get(event, "event_id")),
+            "original_timestamp" => Map.get(event, "timestamp")
+          })
+      }
+
+      case CoreClient.ingest_event(state.core_client, merge_event) do
+        {:ok, _} -> count + 1
+        {:error, _} -> count
+      end
+    end)
+  end
+
+  defp filter_events_for_split(events, split_def) do
+    events
+    |> maybe_filter_by_types(Map.get(split_def, "event_types"))
+    |> maybe_filter_by_since(Map.get(split_def, "since"))
+    |> maybe_filter_by_until(Map.get(split_def, "until"))
+  end
+
+  defp maybe_filter_by_types(events, nil), do: events
+  defp maybe_filter_by_types(events, []), do: events
+
+  defp maybe_filter_by_types(events, types) do
+    Enum.filter(events, fn e ->
+      event_type = Map.get(e, "event_type", "")
+
+      Enum.any?(types, fn pattern ->
+        if String.ends_with?(pattern, "*") do
+          prefix = String.trim_trailing(pattern, "*")
+          String.starts_with?(event_type, prefix)
+        else
+          event_type == pattern
+        end
+      end)
+    end)
+  end
+
+  defp maybe_filter_by_since(events, nil), do: events
+
+  defp maybe_filter_by_since(events, since) do
+    Enum.filter(events, fn e ->
+      timestamp = Map.get(e, "timestamp", "")
+      timestamp >= since
+    end)
+  end
+
+  defp maybe_filter_by_until(events, nil), do: events
+
+  defp maybe_filter_by_until(events, until_time) do
+    Enum.filter(events, fn e ->
+      timestamp = Map.get(e, "timestamp", "")
+      timestamp <= until_time
+    end)
+  end
+
+  defp format_split_preview(split_assignments) do
+    split_assignments
+    |> Enum.map(fn sa ->
+      "   • #{sa.new_entity_id}: #{sa.event_count} events"
+    end)
+    |> Enum.join("\n")
+  end
+
+  defp format_split_results(split_results) do
+    split_results
+    |> Enum.map(fn sr ->
+      "   • #{sr.new_entity_id}: #{sr.events_created} events created"
+    end)
+    |> Enum.join("\n")
   end
 end

@@ -39,7 +39,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: core
-          image: chronos/core:0.6.0
+          image: chronos/core:0.9.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

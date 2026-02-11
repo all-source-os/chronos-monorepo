@@ -7,13 +7,28 @@ defmodule QueryServiceExWeb.TenantController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.Tenants
+  alias QueryServiceExWeb.Schemas.Common
+  alias QueryServiceExWeb.Schemas.Tenant
 
   require Logger
 
   action_fallback(QueryServiceExWeb.FallbackController)
+
+  tags(["Tenant"])
+
+  operation(:show,
+    summary: "Get tenant",
+    description: "Returns the current user's tenant workspace information.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Tenant info", "application/json", Tenant.TenantResponse},
+      not_found: {"Tenant not found", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Returns the current user's tenant information.
@@ -36,6 +51,19 @@ defmodule QueryServiceExWeb.TenantController do
         |> json(%{data: serialize_tenant(tenant)})
     end
   end
+
+  operation(:update,
+    summary: "Update tenant",
+    description:
+      "Updates the current user's tenant settings. Only name and settings can be updated.",
+    security: [%{"bearer_auth" => []}],
+    request_body:
+      {"Tenant updates", "application/json", Tenant.UpdateTenantRequest, required: true},
+    responses: [
+      ok: {"Tenant updated", "application/json", Tenant.TenantResponse},
+      unprocessable_entity: {"Validation error", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Updates the current user's tenant settings.
@@ -61,6 +89,15 @@ defmodule QueryServiceExWeb.TenantController do
         |> json(%{error: format_changeset_errors(changeset)})
     end
   end
+
+  operation(:usage,
+    summary: "Get usage statistics",
+    description: "Returns usage statistics (events and queries) for the current billing period.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Usage statistics", "application/json", Tenant.UsageResponse}
+    ]
+  )
 
   @doc """
   Returns usage statistics for the current tenant.

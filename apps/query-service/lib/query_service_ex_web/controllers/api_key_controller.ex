@@ -7,14 +7,28 @@ defmodule QueryServiceExWeb.ApiKeyController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.ApiKeys
   alias QueryServiceEx.ApiKeys.ApiKey
+  alias QueryServiceExWeb.Schemas.ApiKeys, as: ApiKeySchemas
+  alias QueryServiceExWeb.Schemas.Common
 
   require Logger
 
   action_fallback(QueryServiceExWeb.FallbackController)
+
+  tags(["API Keys"])
+
+  operation(:index,
+    summary: "List API keys",
+    description: "List all active API keys for the current tenant.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"API keys list", "application/json", ApiKeySchemas.ApiKeyListResponse}
+    ]
+  )
 
   @doc """
   Lists all active API keys for the current tenant.
@@ -29,6 +43,18 @@ defmodule QueryServiceExWeb.ApiKeyController do
     |> put_status(:ok)
     |> json(%{data: Enum.map(api_keys, &serialize_api_key/1)})
   end
+
+  operation(:create,
+    summary: "Create API key",
+    description: "Create a new API key. The raw key is returned only once - save it immediately.",
+    security: [%{"bearer_auth" => []}],
+    request_body:
+      {"API key to create", "application/json", ApiKeySchemas.CreateApiKeyRequest, required: true},
+    responses: [
+      created: {"API key created", "application/json", ApiKeySchemas.ApiKeyCreatedResponse},
+      unprocessable_entity: {"Validation error", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Creates a new API key.
@@ -64,6 +90,24 @@ defmodule QueryServiceExWeb.ApiKeyController do
     end
   end
 
+  operation(:show,
+    summary: "Get API key",
+    description: "Get a single API key by ID.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      id: [
+        in: :path,
+        schema: %OpenApiSpex.Schema{type: :string, format: :uuid},
+        description: "API key ID",
+        required: true
+      ]
+    ],
+    responses: [
+      ok: {"API key details", "application/json", ApiKeySchemas.ApiKeyResponse},
+      not_found: {"API key not found", "application/json", Common.Error}
+    ]
+  )
+
   @doc """
   Gets a single API key by ID.
 
@@ -84,6 +128,28 @@ defmodule QueryServiceExWeb.ApiKeyController do
         |> json(%{data: serialize_api_key(api_key)})
     end
   end
+
+  operation(:update,
+    summary: "Update API key",
+    description:
+      "Update an API key's metadata. Only name, description, and scopes can be updated.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      id: [
+        in: :path,
+        schema: %OpenApiSpex.Schema{type: :string, format: :uuid},
+        description: "API key ID",
+        required: true
+      ]
+    ],
+    request_body:
+      {"API key updates", "application/json", ApiKeySchemas.UpdateApiKeyRequest, required: true},
+    responses: [
+      ok: {"API key updated", "application/json", ApiKeySchemas.ApiKeyResponse},
+      not_found: {"API key not found", "application/json", Common.Error},
+      unprocessable_entity: {"Validation error", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Updates an API key's metadata.
@@ -117,6 +183,25 @@ defmodule QueryServiceExWeb.ApiKeyController do
         end
     end
   end
+
+  operation(:rotate,
+    summary: "Rotate API key",
+    description: "Rotate an API key - revokes the old one and creates a new one.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      id: [
+        in: :path,
+        schema: %OpenApiSpex.Schema{type: :string, format: :uuid},
+        description: "API key ID",
+        required: true
+      ]
+    ],
+    responses: [
+      ok: {"API key rotated", "application/json", ApiKeySchemas.ApiKeyCreatedResponse},
+      not_found: {"API key not found", "application/json", Common.Error},
+      unprocessable_entity: {"Rotation failed", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Rotates an API key - revokes the old one and creates a new one.
@@ -159,6 +244,25 @@ defmodule QueryServiceExWeb.ApiKeyController do
     end
   end
 
+  operation(:delete,
+    summary: "Revoke API key",
+    description: "Revoke an API key, making it permanently unusable.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      id: [
+        in: :path,
+        schema: %OpenApiSpex.Schema{type: :string, format: :uuid},
+        description: "API key ID",
+        required: true
+      ]
+    ],
+    responses: [
+      ok: {"API key revoked", "application/json", ApiKeySchemas.RevokeResponse},
+      not_found: {"API key not found", "application/json", Common.Error},
+      internal_server_error: {"Revocation failed", "application/json", Common.Error}
+    ]
+  )
+
   @doc """
   Revokes an API key.
 
@@ -184,6 +288,15 @@ defmodule QueryServiceExWeb.ApiKeyController do
         |> json(%{error: %{code: "revoke_failed", message: "Failed to revoke API key"}})
     end
   end
+
+  operation(:scopes,
+    summary: "List available scopes",
+    description: "Returns all available permission scopes for API keys.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Available scopes", "application/json", ApiKeySchemas.ScopesResponse}
+    ]
+  )
 
   @doc """
   Returns available scopes for API keys.

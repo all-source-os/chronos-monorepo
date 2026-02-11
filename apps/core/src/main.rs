@@ -57,7 +57,12 @@ async fn main() -> Result<()> {
     let config = ServerConfig::default();
     let addr = format!("{}:{}", config.host, config.port);
     tracing::info!("🚀 AllSource Core listening on {}", addr);
-    tracing::info!("📝 API Documentation: /health for health check");
+    tracing::info!("📝 API: /health, /api/v1/events, /api/v1/events/query");
+    tracing::info!(
+        "🔌 WebSocket: ws://{}:{}/api/v1/events/stream",
+        config.host,
+        config.port
+    );
     tracing::info!("🔒 Features: Auth, Multi-tenancy, Rate Limiting");
 
     api_v1::serve_v1(

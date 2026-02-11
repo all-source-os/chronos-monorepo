@@ -8,6 +8,7 @@ config :logger, :console,
   format: "[$level] $message\n",
   metadata: []
 
-# Disable WebSocket client in tests
+# Disable external connections in tests
 config :mcp_server_elixir,
-  core_ws_enabled: false
+  core_ws_enabled: false,
+  event_pipeline_enabled: false

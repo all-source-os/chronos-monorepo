@@ -18,7 +18,7 @@ import (
 // Version constants for the control plane.
 const (
 	// Version is the current version of the control plane.
-	Version = "1.0.0"
+	Version = "0.9.0"
 )
 
 // ControlPlaneV1 is the v1.0 control plane with authentication and audit logging.

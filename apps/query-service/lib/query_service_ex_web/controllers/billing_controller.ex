@@ -8,15 +8,33 @@ defmodule QueryServiceExWeb.BillingController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.Billing.HybridPricing
   alias QueryServiceEx.Billing.LemonSqueezy
   alias QueryServiceEx.Tenants
+  alias QueryServiceExWeb.Schemas.Billing
+  alias QueryServiceExWeb.Schemas.Common
 
   require Logger
 
   action_fallback(QueryServiceExWeb.FallbackController)
+
+  tags(["Billing"])
+
+  operation(:checkout,
+    summary: "Create checkout session",
+    description: "Create a LemonSqueezy checkout session for a subscription plan.",
+    security: [%{"bearer_auth" => []}],
+    request_body:
+      {"Checkout request", "application/json", Billing.CheckoutRequest, required: true},
+    responses: [
+      ok: {"Checkout URL", "application/json", Billing.CheckoutResponse},
+      bad_request: {"Missing variant_id", "application/json", Common.Error},
+      unprocessable_entity: {"Checkout failed", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Creates a checkout session for a subscription plan.
@@ -71,6 +89,16 @@ defmodule QueryServiceExWeb.BillingController do
     |> json(%{error: %{code: "missing_variant_id", message: "variant_id is required"}})
   end
 
+  operation(:portal,
+    summary: "Get billing portal",
+    description: "Returns a URL to the LemonSqueezy customer portal for managing subscriptions.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Portal URL", "application/json", Billing.PortalResponse},
+      unprocessable_entity: {"Portal URL generation failed", "application/json", Common.Error}
+    ]
+  )
+
   @doc """
   Returns a URL to the LemonSqueezy customer portal for managing subscriptions.
 
@@ -119,6 +147,15 @@ defmodule QueryServiceExWeb.BillingController do
     end
   end
 
+  operation(:overage,
+    summary: "Get overage usage",
+    description: "Returns the current overage usage and projected charges.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Overage summary", "application/json", Billing.OverageResponse}
+    ]
+  )
+
   @doc """
   Returns the current overage usage and projected charges.
 
@@ -134,6 +171,17 @@ defmodule QueryServiceExWeb.BillingController do
     |> put_status(:ok)
     |> json(%{data: summary})
   end
+
+  operation(:enable_overage,
+    summary: "Enable overage billing",
+    description: "Enable overage billing for the tenant with optional custom rates.",
+    security: [%{"bearer_auth" => []}],
+    request_body: {"Overage options", "application/json", Billing.EnableOverageRequest},
+    responses: [
+      ok: {"Overage enabled", "application/json", Billing.EnableOverageResponse},
+      unprocessable_entity: {"Enable failed", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Enables overage billing for the tenant.
@@ -190,6 +238,16 @@ defmodule QueryServiceExWeb.BillingController do
     end
   end
 
+  operation(:disable_overage,
+    summary: "Disable overage billing",
+    description: "Disable overage billing for the tenant.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Overage disabled", "application/json", Billing.DisableOverageResponse},
+      unprocessable_entity: {"Disable failed", "application/json", Common.Error}
+    ]
+  )
+
   @doc """
   Disables overage billing for the tenant.
 
@@ -217,6 +275,15 @@ defmodule QueryServiceExWeb.BillingController do
         |> json(%{error: %{code: "disable_failed", message: "Failed to disable overage billing"}})
     end
   end
+
+  operation(:projected_charges,
+    summary: "Get projected charges",
+    description: "Returns projected charges for the current billing period.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Projected charges", "application/json", Billing.ProjectedChargesResponse}
+    ]
+  )
 
   @doc """
   Returns projected charges for the current billing period.

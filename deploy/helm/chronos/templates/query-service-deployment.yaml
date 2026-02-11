@@ -45,7 +45,7 @@ spec:
             - name: CORE_URL
               value: "http://{{ include "chronos.core.fullname" . }}:{{ .Values.core.service.httpPort }}"
             - name: CORE_WS_URL
-              value: "ws://{{ include "chronos.core.fullname" . }}:{{ .Values.core.service.wsPort }}"
+              value: "ws://{{ include "chronos.core.fullname" . }}:{{ .Values.core.service.httpPort }}/api/v1/events/stream"
             - name: SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:

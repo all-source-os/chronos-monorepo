@@ -8,11 +8,34 @@ defmodule QueryServiceExWeb.EventController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceEx.UsageMeter
+  alias QueryServiceExWeb.Schemas.Common
+  alias QueryServiceExWeb.Schemas.Events
 
   action_fallback(QueryServiceExWeb.FallbackController)
+
+  tags(["Events"])
+
+  operation(:index,
+    summary: "List events",
+    description:
+      "List events with optional filters. Results are scoped to the authenticated tenant.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      entity_id: [in: :query, type: :string, description: "Filter by entity ID"],
+      event_type: [in: :query, type: :string, description: "Filter by event type"],
+      limit: [in: :query, type: :integer, description: "Maximum number of results (default: 100)"],
+      offset: [in: :query, type: :integer, description: "Pagination offset (default: 0)"]
+    ],
+    responses: [
+      ok: {"Events list", "application/json", Events.EventListResponse},
+      bad_request: {"Bad request", "application/json", Common.SimpleError},
+      unauthorized: {"Unauthorized", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   List events with optional filters.
@@ -46,6 +69,20 @@ defmodule QueryServiceExWeb.EventController do
     end
   end
 
+  operation(:show,
+    summary: "Get event by ID",
+    description: "Retrieve a specific event by its ID. (Not yet implemented)",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      id: [in: :path, type: :string, description: "Event ID", required: true]
+    ],
+    responses: [
+      ok: {"Event details", "application/json", Events.EventResponse},
+      not_found: {"Event not found", "application/json", Common.SimpleError},
+      not_implemented: {"Not implemented", "application/json", Common.SimpleError}
+    ]
+  )
+
   @doc """
   Get a specific event by ID.
   """
@@ -56,6 +93,20 @@ defmodule QueryServiceExWeb.EventController do
     |> put_status(:not_implemented)
     |> json(%{error: "Direct event ID lookup not yet implemented"})
   end
+
+  operation(:create,
+    summary: "Create event",
+    description:
+      "Create a new event. Events are automatically associated with the authenticated tenant.",
+    security: [%{"bearer_auth" => []}],
+    request_body:
+      {"Event to create", "application/json", Events.CreateEventRequest, required: true},
+    responses: [
+      created: {"Event created", "application/json", Events.EventResponse},
+      unprocessable_entity: {"Validation error", "application/json", Common.SimpleError},
+      unauthorized: {"Unauthorized", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Create a new event.
@@ -96,6 +147,20 @@ defmodule QueryServiceExWeb.EventController do
         |> json(%{error: to_string(reason)})
     end
   end
+
+  operation(:create_batch,
+    summary: "Create events batch",
+    description:
+      "Create multiple events in a single request. All events are associated with the authenticated tenant.",
+    security: [%{"bearer_auth" => []}],
+    request_body:
+      {"Events to create", "application/json", Events.CreateBatchRequest, required: true},
+    responses: [
+      created: {"Events created", "application/json", Events.BatchCreateResponse},
+      bad_request: {"Invalid request", "application/json", Common.SimpleError},
+      unprocessable_entity: {"Validation error", "application/json", Common.SimpleError}
+    ]
+  )
 
   @doc """
   Create multiple events in a batch.
@@ -140,6 +205,19 @@ defmodule QueryServiceExWeb.EventController do
     |> json(%{error: "Expected 'events' array in request body"})
   end
 
+  operation(:by_entity,
+    summary: "Get events by entity",
+    description: "Retrieve all events for a specific entity ID.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      entity_id: [in: :path, type: :string, description: "Entity ID", required: true]
+    ],
+    responses: [
+      ok: {"Entity events", "application/json", Events.EntityEventsResponse},
+      bad_request: {"Bad request", "application/json", Common.SimpleError}
+    ]
+  )
+
   @doc """
   Get events for a specific entity.
 
@@ -158,6 +236,19 @@ defmodule QueryServiceExWeb.EventController do
         |> json(%{error: to_string(reason)})
     end
   end
+
+  operation(:by_type,
+    summary: "Get events by type",
+    description: "Retrieve all events of a specific event type.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      event_type: [in: :path, type: :string, description: "Event type", required: true]
+    ],
+    responses: [
+      ok: {"Events by type", "application/json", Events.TypeEventsResponse},
+      bad_request: {"Bad request", "application/json", Common.SimpleError}
+    ]
+  )
 
   @doc """
   Get events of a specific type.

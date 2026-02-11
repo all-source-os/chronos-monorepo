@@ -7,10 +7,38 @@ defmodule QueryServiceExWeb.WebhookController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Tenants
+  alias QueryServiceExWeb.Schemas.Webhooks
 
   require Logger
+
+  tags(["Webhooks"])
+
+  operation(:lemonsqueezy,
+    summary: "LemonSqueezy webhook",
+    description: """
+    Handles incoming webhooks from LemonSqueezy for subscription events.
+
+    Events handled:
+    - subscription_created
+    - subscription_updated
+    - subscription_cancelled
+    - subscription_resumed
+    - subscription_expired
+    - subscription_payment_success
+    - subscription_payment_failed
+    """,
+    request_body:
+      {"LemonSqueezy webhook payload", "application/json", Webhooks.LemonSqueezyWebhook,
+       required: true},
+    responses: [
+      ok: {"Webhook received", "application/json", Webhooks.WebhookResponse},
+      unauthorized: {"Invalid signature", "application/json", Webhooks.WebhookError},
+      unprocessable_entity: {"Processing failed", "application/json", Webhooks.WebhookError}
+    ]
+  )
 
   @doc """
   Handles incoming webhooks from LemonSqueezy.

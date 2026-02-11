@@ -5,6 +5,42 @@ All notable changes to the MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-02-10
+
+### Added
+
+#### Event Management Tools (v2.0 Phase 2 - Partial)
+
+**Lifecycle Operations (8 tools)**
+- `delete_events` - Soft delete with complete audit trail (GDPR/CCPA compliant)
+- `archive_events` - Move events to cold storage for cost optimization
+- `restore_events` - Restore deleted or archived events back to active state
+- `export_events` - Export to JSON/JSONL/CSV/Parquet formats with compression
+- `import_events` - Bulk import with validation, deduplication, and entity mapping
+- `clone_entity` - Deep copy entity with all events (for testing/templates)
+- `merge_entities` - Combine event streams from multiple entities
+- `split_entity` - Partition entity event stream by criteria
+
+**All Event Management Tools Include:**
+- Dry-run preview mode for safe operations
+- Complete audit trail for compliance
+- Rich tool descriptions with AI agent guidance
+- Decision trees and common patterns
+- Performance tips and best practices
+
+### Changed
+- Tool count increased from 19 to 27 tools
+- Updated all tool count assertions in test suite
+- Enhanced tool descriptions with dry_run/preview mentions
+
+### Technical Details
+- 82 new tests for event management tools
+- All 179 protocol tests passing
+- Code formatted and Credo compliant
+- ~800 LOC added for event management handlers
+
+---
+
 ## [0.2.0] - 2026-02-03
 
 ### Added
@@ -119,5 +155,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Status | Highlights |
 |---------|------|--------|------------|
-| [0.2.0] | 2026-02-03 | Current | AI-Native, Search, Real-Time Integration |
+| [0.9.0] | 2026-02-10 | Current | Event Management Tools (8 new), 27 total tools |
+| [0.2.0] | 2026-02-03 | Stable | AI-Native, Search, Real-Time Integration |
 | [0.1.0] | 2025-12-01 | Stable | MCP v2.0 Phase 1, 13 tools |

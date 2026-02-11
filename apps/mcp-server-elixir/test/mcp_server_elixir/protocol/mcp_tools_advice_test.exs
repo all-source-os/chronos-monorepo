@@ -201,9 +201,9 @@ defmodule McpServerElixir.Protocol.McpToolsAdviceTest do
   end
 
   describe "tool count" do
-    test "list_tools returns 19 tools (13 original + 1 advice + 2 exploration + 3 context tools)" do
+    test "list_tools returns 27 tools (13 original + 1 advice + 2 exploration + 3 context + 8 event management tools)" do
       tools = McpTools.list_tools()
-      assert length(tools) == 19
+      assert length(tools) == 27
     end
   end
 end

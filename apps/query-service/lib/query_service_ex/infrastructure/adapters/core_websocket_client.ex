@@ -137,12 +137,22 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
         {:ok, pid}
 
       {:error, %WebSockex.ConnError{original: reason}} ->
-        Logger.warning("[CoreWebSocketClient] Failed to connect: #{inspect(reason)}, will retry")
+        Logger.warning("[CoreWebSocketClient] Connection error: #{inspect(reason)}, will retry")
+        start_retry_loop(url, name, state)
+
+      {:error, %WebSockex.RequestError{code: code, message: msg}} ->
+        # HTTP error during WebSocket handshake (e.g., 404 Not Found)
+        # This usually means Core is up but the endpoint path is wrong
+        Logger.warning(
+          "[CoreWebSocketClient] WebSocket handshake failed: #{code} #{msg}, will retry"
+        )
+
         start_retry_loop(url, name, state)
 
       {:error, reason} ->
-        Logger.error("[CoreWebSocketClient] Failed to start: #{inspect(reason)}")
-        {:error, reason}
+        # Other errors - still retry instead of crashing
+        Logger.warning("[CoreWebSocketClient] Failed to start: #{inspect(reason)}, will retry")
+        start_retry_loop(url, name, state)
     end
   end
 

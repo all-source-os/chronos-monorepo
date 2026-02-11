@@ -9,14 +9,29 @@ defmodule QueryServiceExWeb.OnboardingController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.Onboarding
   alias QueryServiceEx.Onboarding.OnboardingProgress
+  alias QueryServiceExWeb.Schemas.Common
+  alias QueryServiceExWeb.Schemas.Onboarding, as: OnboardingSchemas
 
   require Logger
 
   action_fallback(QueryServiceExWeb.FallbackController)
+
+  tags(["Onboarding"])
+
+  operation(:show,
+    summary: "Get onboarding status",
+    description: "Returns the current onboarding status for the authenticated user's tenant.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Onboarding status", "application/json", OnboardingSchemas.OnboardingStatusResponse},
+      internal_server_error: {"Retrieval failed", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Returns the current onboarding status for the authenticated user's tenant.
@@ -41,6 +56,15 @@ defmodule QueryServiceExWeb.OnboardingController do
     end
   end
 
+  operation(:steps,
+    summary: "List onboarding steps",
+    description: "Returns details about all onboarding steps.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Onboarding steps", "application/json", OnboardingSchemas.StepsResponse}
+    ]
+  )
+
   @doc """
   Returns details about all onboarding steps.
 
@@ -57,6 +81,20 @@ defmodule QueryServiceExWeb.OnboardingController do
     |> put_status(:ok)
     |> json(%{data: steps})
   end
+
+  operation(:complete_step,
+    summary: "Complete onboarding step",
+    description: "Marks a specific onboarding step as completed.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      step: [in: :path, type: :string, description: "Step identifier", required: true]
+    ],
+    responses: [
+      ok: {"Step completed", "application/json", OnboardingSchemas.OnboardingStatusResponse},
+      bad_request: {"Invalid step", "application/json", OnboardingSchemas.InvalidStepError},
+      internal_server_error: {"Completion failed", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Completes a specific onboarding step.
@@ -97,6 +135,16 @@ defmodule QueryServiceExWeb.OnboardingController do
     end
   end
 
+  operation(:skip,
+    summary: "Skip onboarding",
+    description: "Skips the onboarding process entirely.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Onboarding skipped", "application/json", OnboardingSchemas.OnboardingStatusResponse},
+      internal_server_error: {"Skip failed", "application/json", Common.Error}
+    ]
+  )
+
   @doc """
   Skips the onboarding process entirely.
 
@@ -121,6 +169,16 @@ defmodule QueryServiceExWeb.OnboardingController do
         |> json(%{error: %{code: "onboarding_error", message: "Failed to skip onboarding"}})
     end
   end
+
+  operation(:reset,
+    summary: "Reset onboarding",
+    description: "Resets onboarding progress to start over.",
+    security: [%{"bearer_auth" => []}],
+    responses: [
+      ok: {"Onboarding reset", "application/json", OnboardingSchemas.OnboardingStatusResponse},
+      internal_server_error: {"Reset failed", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Resets onboarding progress to start over.

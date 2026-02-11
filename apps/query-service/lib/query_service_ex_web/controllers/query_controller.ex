@@ -6,12 +6,39 @@ defmodule QueryServiceExWeb.QueryController do
   """
 
   use Phoenix.Controller, formats: [:json]
+  use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Domain.Entities.Query
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceEx.UsageMeter
+  alias QueryServiceExWeb.Schemas.Common
+  alias QueryServiceExWeb.Schemas.Query, as: QuerySchemas
 
   action_fallback(QueryServiceExWeb.FallbackController)
+
+  tags(["Query"])
+
+  operation(:execute,
+    summary: "Execute query",
+    description: """
+    Execute a query against the event store.
+
+    Supports two query formats:
+
+    1. **Simple filter parameters** - Basic filtering by entity_id, event_type, etc.
+    2. **DSL query** - Advanced queries with predicates, logical operators, and aggregations.
+
+    All queries are automatically scoped to the authenticated tenant.
+    """,
+    security: [%{"bearer_auth" => []}],
+    request_body:
+      {"Query to execute", "application/json", QuerySchemas.QueryRequest, required: true},
+    responses: [
+      ok: {"Query results", "application/json", QuerySchemas.QueryResponse},
+      bad_request: {"Invalid query", "application/json", Common.SimpleError},
+      unauthorized: {"Unauthorized", "application/json", Common.Error}
+    ]
+  )
 
   @doc """
   Execute a query.

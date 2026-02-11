@@ -30,6 +30,9 @@ COPY tooling/typescript/package.json tooling/typescript/
 # Package packages
 COPY packages/ui/package.json packages/ui/
 
+# App packages
+COPY apps/web/package.json apps/web/
+
 # Install dependencies (cached layer if package.jsons unchanged)
 RUN bun install
 
@@ -57,9 +60,9 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production \
     NEXT_PUBLIC_VERSION=${VERSION}
 
-# Build the web application
+# Build the web application (run next build directly, not turbo)
 WORKDIR /app/apps/web
-RUN bun run build
+RUN bun next build
 
 # =============================================================================
 # Stage 2: Runtime
@@ -95,9 +98,10 @@ RUN apk add --no-cache tini wget && \
     adduser --system --uid 1001 nextjs
 
 # Copy built application with correct permissions
-COPY --from=builder /app/apps/web/public ./public
+# Standalone preserves monorepo structure, so paths must match
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./.next/static
+COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 
 USER nextjs
 
@@ -110,4 +114,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # Use tini for signal handling
 ENTRYPOINT ["/sbin/tini", "-g", "--"]
 
-CMD ["node", "server.js"]
+CMD ["node", "apps/web/server.js"]

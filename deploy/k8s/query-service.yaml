@@ -37,7 +37,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: query-service
-          image: chronos/query-service:0.6.0
+          image: chronos/query-service:0.9.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -53,7 +53,7 @@ spec:
             - name: CORE_URL
               value: "http://chronos-core:3900"
             - name: CORE_WS_URL
-              value: "ws://chronos-core:3901"
+              value: "ws://chronos-core:3900/api/v1/events/stream"
             - name: SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:

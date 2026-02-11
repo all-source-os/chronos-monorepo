@@ -278,6 +278,100 @@ get_elixir_versions() {
     log ""
 }
 
+get_app_versions() {
+    log "=== Application Versions ==="
+
+    declare -A app_versions
+
+    # Rust Core - Cargo.toml
+    if [ -f "apps/core/Cargo.toml" ]; then
+        local core_version=$(grep -E '^version\s*=' apps/core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "")
+        if [ -n "$core_version" ]; then
+            app_versions["core"]=$core_version
+            log "  Core (Cargo.toml):           $core_version"
+        fi
+    fi
+
+    # Go Control Plane - main.go healthHandler
+    if [ -f "apps/control-plane/main.go" ]; then
+        local control_version=$(grep '"version":' apps/control-plane/main.go | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$control_version" ]; then
+            app_versions["control-main"]=$control_version
+            log "  Control (main.go):           $control_version"
+        fi
+    fi
+
+    # Go Control Plane - main_v1.go Version const
+    if [ -f "apps/control-plane/main_v1.go" ]; then
+        local control_v1_version=$(grep 'Version\s*=' apps/control-plane/main_v1.go | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$control_v1_version" ]; then
+            app_versions["control-v1"]=$control_v1_version
+            log "  Control (main_v1.go):        $control_v1_version"
+        fi
+    fi
+
+    # Go Control Plane - tracing.go serviceVersion
+    if [ -f "apps/control-plane/tracing.go" ]; then
+        local control_tracing_version=$(grep 'serviceVersion\s*=' apps/control-plane/tracing.go | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$control_tracing_version" ]; then
+            app_versions["control-tracing"]=$control_tracing_version
+            log "  Control (tracing.go):        $control_tracing_version"
+        fi
+    fi
+
+    # Query Service - mix.exs
+    if [ -f "apps/query-service/mix.exs" ]; then
+        local query_version=$(grep 'version:' apps/query-service/mix.exs | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$query_version" ]; then
+            app_versions["query-service"]=$query_version
+            log "  Query Service (mix.exs):     $query_version"
+        fi
+    fi
+
+    # MCP Server - mix.exs
+    if [ -f "apps/mcp-server-elixir/mix.exs" ]; then
+        local mcp_version=$(grep 'version:' apps/mcp-server-elixir/mix.exs | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$mcp_version" ]; then
+            app_versions["mcp-server"]=$mcp_version
+            log "  MCP Server (mix.exs):        $mcp_version"
+        fi
+    fi
+
+    # K8s Core image
+    if [ -f "deploy/k8s/core.yaml" ]; then
+        local k8s_core_version=$(grep 'image:.*chronos.*core' deploy/k8s/core.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$k8s_core_version" ]; then
+            app_versions["k8s-core"]=$k8s_core_version
+            log "  K8s Core (image tag):        $k8s_core_version"
+        fi
+    fi
+
+    # K8s Query Service image
+    if [ -f "deploy/k8s/query-service.yaml" ]; then
+        local k8s_query_version=$(grep 'image:.*chronos.*query' deploy/k8s/query-service.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$k8s_query_version" ]; then
+            app_versions["k8s-query"]=$k8s_query_version
+            log "  K8s Query (image tag):       $k8s_query_version"
+        fi
+    fi
+
+    # Check consistency
+    local unique_versions=($(printf '%s\n' "${app_versions[@]}" | sort -u))
+
+    if [ ${#unique_versions[@]} -gt 1 ]; then
+        log_error "Application version mismatch detected!"
+        log_error "  Found versions: ${unique_versions[*]}"
+        log_error "  Run 'make set-version VERSION=X.Y.Z' to fix"
+        for service in "${!app_versions[@]}"; do
+            add_json_result "$service" "app-version" "${unique_versions[0]}" "${app_versions[$service]}" "error" ""
+        done
+    elif [ ${#unique_versions[@]} -eq 1 ]; then
+        log_success "All application versions consistent: ${unique_versions[0]}"
+        add_json_result "all" "app-version" "${unique_versions[0]}" "${unique_versions[0]}" "ok" ""
+    fi
+    log ""
+}
+
 get_alpine_versions() {
     log "=== Alpine Base Image Versions ==="
     
@@ -364,6 +458,7 @@ main() {
         log ""
     fi
     
+    get_app_versions
     get_rust_versions
     get_go_versions
     get_node_versions

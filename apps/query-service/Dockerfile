@@ -25,7 +25,7 @@ ARG VERSION=dev
 ARG REVISION=unknown
 
 # Install build dependencies and hex/rebar in single layer
-RUN apk add --no-cache build-base git && \
+RUN apk add --no-cache build-base git cmake && \
     mix local.hex --force && \
     mix local.rebar --force
 

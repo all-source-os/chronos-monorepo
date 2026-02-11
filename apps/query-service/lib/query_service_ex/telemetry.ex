@@ -39,7 +39,7 @@ defmodule QueryServiceEx.Telemetry do
       {[:query_service_ex, :projection, :sync_failed],
        &__MODULE__.handle_projection_sync_failed/4},
 
-      # WebSocket client events
+      # WebSocket client events (connection to Core)
       {[:query_service_ex, :websocket, :connected], &__MODULE__.handle_websocket_connected/4},
       {[:query_service_ex, :websocket, :disconnected],
        &__MODULE__.handle_websocket_disconnected/4},
@@ -49,6 +49,10 @@ defmodule QueryServiceEx.Telemetry do
        &__MODULE__.handle_websocket_reconnect_attempt/4},
       {[:query_service_ex, :websocket, :reconnect_exhausted],
        &__MODULE__.handle_websocket_reconnect_exhausted/4},
+
+      # Phoenix Channel events (external client connections)
+      {[:query_service_ex, :channel, :joined], &__MODULE__.handle_channel_joined/4},
+      {[:query_service_ex, :channel, :left], &__MODULE__.handle_channel_left/4},
 
       # Circuit breaker events
       {[:query_service_ex, :circuit_breaker, :opened], &__MODULE__.handle_circuit_opened/4},
@@ -62,7 +66,12 @@ defmodule QueryServiceEx.Telemetry do
        &__MODULE__.handle_health_check_completed/4},
 
       # HTTP error events
-      {[:query_service_ex, :http, :error], &__MODULE__.handle_http_error/4}
+      {[:query_service_ex, :http, :error], &__MODULE__.handle_http_error/4},
+
+      # APM custom events
+      {[:query_service_ex, :apm, :event], &__MODULE__.handle_apm_event/4},
+      {[:query_service_ex, :apm, :span_start], &__MODULE__.handle_apm_span_start/4},
+      {[:query_service_ex, :apm, :span_end], &__MODULE__.handle_apm_span_end/4}
     ]
 
     for {event, handler} <- handlers do
@@ -92,7 +101,21 @@ defmodule QueryServiceEx.Telemetry do
       "query-service-query_service_ex-projection-sync_failed",
       "query-service-query_service_ex-websocket-connected",
       "query-service-query_service_ex-websocket-disconnected",
-      "query-service-query_service_ex-websocket-message_received"
+      "query-service-query_service_ex-websocket-message_received",
+      "query-service-query_service_ex-websocket-reconnect_attempt",
+      "query-service-query_service_ex-websocket-reconnect_exhausted",
+      "query-service-query_service_ex-channel-joined",
+      "query-service-query_service_ex-channel-left",
+      "query-service-query_service_ex-circuit_breaker-opened",
+      "query-service-query_service_ex-circuit_breaker-closed",
+      "query-service-query_service_ex-circuit_breaker-half_open",
+      "query-service-query_service_ex-circuit_breaker-rejected",
+      "query-service-query_service_ex-health_check-timeout",
+      "query-service-query_service_ex-health_check-completed",
+      "query-service-query_service_ex-http-error",
+      "query-service-query_service_ex-apm-event",
+      "query-service-query_service_ex-apm-span_start",
+      "query-service-query_service_ex-apm-span_end"
     ]
 
     for handler_id <- handlers do
@@ -307,6 +330,57 @@ defmodule QueryServiceEx.Telemetry do
       error_type: metadata[:error_type],
       status: metadata[:status],
       telemetry_event: "http.error"
+    )
+  end
+
+  # Phoenix Channel handlers (external client connections)
+  def handle_channel_joined(_event, _measurements, metadata, _config) do
+    Logger.info(
+      "Client joined channel",
+      channel: metadata[:channel],
+      telemetry_event: "channel.joined"
+    )
+  end
+
+  def handle_channel_left(_event, _measurements, metadata, _config) do
+    Logger.info(
+      "Client left channel",
+      channel: metadata[:channel],
+      telemetry_event: "channel.left"
+    )
+  end
+
+  # APM event handlers
+  def handle_apm_event(_event, _measurements, metadata, _config) do
+    Logger.debug(
+      "APM event tracked",
+      event_name: metadata[:event_name],
+      attributes: inspect(metadata[:attributes]),
+      telemetry_event: "apm.event"
+    )
+  end
+
+  def handle_apm_span_start(_event, _measurements, metadata, _config) do
+    Logger.debug(
+      "APM span started",
+      span_name: metadata[:span_name],
+      trace_id: metadata[:trace_id],
+      span_id: metadata[:span_id],
+      telemetry_event: "apm.span_start"
+    )
+  end
+
+  def handle_apm_span_end(_event, measurements, metadata, _config) do
+    duration_ms = System.convert_time_unit(measurements[:duration], :native, :millisecond)
+
+    Logger.debug(
+      "APM span ended",
+      span_name: metadata[:span_name],
+      trace_id: metadata[:trace_id],
+      span_id: metadata[:span_id],
+      status: metadata[:status],
+      duration_ms: duration_ms,
+      telemetry_event: "apm.span_end"
     )
   end
 end

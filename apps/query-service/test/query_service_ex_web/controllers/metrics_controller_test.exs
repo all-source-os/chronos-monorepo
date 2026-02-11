@@ -8,8 +8,8 @@ defmodule QueryServiceExWeb.MetricsControllerTest do
 
   @opts Router.init([])
 
-  describe "GET /api/metrics" do
-    test "returns system metrics" do
+  describe "GET /api/metrics (JSON format)" do
+    test "returns system metrics in JSON by default" do
       conn =
         :get
         |> conn("/api/metrics")
@@ -56,6 +56,30 @@ defmodule QueryServiceExWeb.MetricsControllerTest do
 
       # Should still return metrics even if backend is down
       assert Map.has_key?(response, "backend")
+    end
+  end
+
+  describe "GET /api/metrics/prometheus" do
+    test "returns Prometheus format directly" do
+      conn =
+        :get
+        |> conn("/api/metrics/prometheus")
+        |> Router.call(@opts)
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-type") |> List.first() =~ "text/plain"
+      assert is_binary(conn.resp_body)
+    end
+
+    test "always returns Prometheus format regardless of Accept header" do
+      conn =
+        :get
+        |> conn("/api/metrics/prometheus")
+        |> put_req_header("accept", "application/json")
+        |> Router.call(@opts)
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-type") |> List.first() =~ "text/plain"
     end
   end
 end

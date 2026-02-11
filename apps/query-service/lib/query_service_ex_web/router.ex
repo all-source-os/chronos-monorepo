@@ -63,8 +63,30 @@ defmodule QueryServiceExWeb.Router do
     get("/health/live", HealthController, :live)
     get("/health/ready", HealthController, :ready)
 
-    # Metrics endpoint
+    # Metrics endpoints
+    # GET /api/metrics - JSON format (default) or Prometheus (with Accept header/format param)
     get("/metrics", MetricsController, :show)
+    # GET /api/metrics/prometheus - Always returns Prometheus text format
+    get("/metrics/prometheus", MetricsController, :prometheus)
+
+    # OpenAPI documentation
+    # GET /api/openapi - Returns OpenAPI 3.0 specification in JSON
+    get("/openapi", OpenApiController, :spec)
+    # GET /api/docs - Swagger UI for interactive API documentation
+    get("/docs", OpenApiController, :docs)
+
+    # Cluster health (public endpoint)
+    get("/cluster", ClusterController, :health)
+    get("/cluster/members", ClusterController, :members)
+  end
+
+  # Cluster management (authenticated)
+  scope "/api/cluster", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    get("/registry", ClusterController, :registry)
+    get("/supervisor", ClusterController, :supervisor)
+    get("/hash-ring", ClusterController, :hash_ring)
   end
 
   # OAuth routes (public, handles provider redirects and callbacks)
@@ -134,6 +156,55 @@ defmodule QueryServiceExWeb.Router do
     get("/schemas", SchemaController, :index)
     get("/schemas/:event_type", SchemaController, :show)
     post("/schemas", SchemaController, :register)
+  end
+
+  # -------------------------------------------------------------------
+  # Analytics Routes
+  # -------------------------------------------------------------------
+
+  # Analytics endpoints (quota enforced for complex queries)
+  scope "/api/analytics", QueryServiceExWeb do
+    pipe_through([:tenant_scoped, :rate_limited, :queries_quota])
+
+    # Core analytics (proxied to Rust Core)
+    get("/frequency", AnalyticsController, :frequency)
+    get("/summary", AnalyticsController, :summary)
+    get("/correlation", AnalyticsController, :correlation)
+
+    # Extended analytics (computed locally)
+    get("/percentiles", AnalyticsController, :percentiles)
+    get("/stddev", AnalyticsController, :stddev)
+
+    # Time window aggregations
+    get("/sliding-window", AnalyticsController, :sliding_window)
+    get("/session-window", AnalyticsController, :session_window)
+
+    # Cache management
+    get("/cache/stats", AnalyticsController, :cache_stats)
+    post("/cache/invalidate", AnalyticsController, :invalidate_cache)
+  end
+
+  # -------------------------------------------------------------------
+  # Integrations Routes (Message Queues)
+  # -------------------------------------------------------------------
+
+  # Public status endpoints
+  scope "/api/integrations", QueryServiceExWeb do
+    pipe_through(:api)
+
+    get("/", IntegrationsController, :all_status)
+    get("/kafka", IntegrationsController, :kafka_status)
+    get("/rabbitmq", IntegrationsController, :rabbitmq_status)
+  end
+
+  # Authenticated management endpoints
+  scope "/api/integrations", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    get("/kafka/config", IntegrationsController, :kafka_config)
+    post("/kafka/publish", IntegrationsController, :kafka_publish)
+    get("/rabbitmq/config", IntegrationsController, :rabbitmq_config)
+    post("/rabbitmq/publish", IntegrationsController, :rabbitmq_publish)
   end
 
   # -------------------------------------------------------------------

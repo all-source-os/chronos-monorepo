@@ -43,6 +43,8 @@ services:
       ALLSOURCE_HOST: 0.0.0.0
       ALLSOURCE_PORT: 3900
       ALLSOURCE_DATA_DIR: /app/data
+      # Dev mode bypasses auth for local development - NEVER use in production
+      ALLSOURCE_DEV_MODE: "true"
     volumes:
       - core-data:/app/data
     healthcheck:
@@ -102,7 +104,7 @@ services:
       PORT: 3902
       PHX_HOST: localhost
       RUST_CORE_URL: http://core:3900
-      CORE_WS_URL: ws://core:3900
+      CORE_WS_URL: ws://core:3900/api/v1/events/stream
       CORE_WS_ENABLED: "true"
       POOL_SIZE: 10
       # OAuth (optional)
@@ -144,6 +146,38 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - chronos
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WEB - Dashboard & Documentation (Next.js)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Image: ghcr.io/all-source-os/chronos-web:latest
+  # Size:  ~50 MB (Node.js + Next.js standalone)
+  # UI:    React dashboard, documentation, onboarding
+  # ═══════════════════════════════════════════════════════════════════════════
+  web:
+    image: ghcr.io/all-source-os/chronos-web:${CHRONOS_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: chronos-web
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://query-service:3902
+      NEXT_PUBLIC_CORE_URL: http://core:3900
+    depends_on:
+      query-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
     networks:
       - chronos

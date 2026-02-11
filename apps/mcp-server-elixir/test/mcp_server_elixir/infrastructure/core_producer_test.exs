@@ -191,7 +191,7 @@ defmodule McpServerElixir.Infrastructure.CoreProducerTest do
           {:consumer, nil}
         end
 
-        def handle_events(events, _from, state) do
+        def handle_events(_events, _from, state) do
           {:noreply, [], state}
         end
       end

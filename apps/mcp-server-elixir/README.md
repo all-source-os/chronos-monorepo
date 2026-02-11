@@ -1,7 +1,8 @@
 ---
 title: "MCP Server"
 status: CURRENT
-last_updated: 2026-02-02
+version: 0.9.0
+last_updated: 2026-02-10
 category: service
 port: 4000
 technology: Elixir
@@ -19,7 +20,9 @@ This is the Elixir implementation of the AllSource MCP Server, replacing the Typ
 
 ## 🎯 Features
 
-- **11 Core Tools** for event operations
+- **27 MCP Tools** for comprehensive event operations
+- **8 Event Management Tools** - delete, archive, restore, export, import, clone, merge, split
+- **AI-Native Guidance** - embedded best practices, decision trees, performance tips
 - **TOON Format** by default (~50% fewer tokens than JSON)
 - **JSON Fallback** available via `format: "json"` parameter
 - **JSON-RPC 2.0** protocol over stdio
@@ -102,8 +105,9 @@ Or use the compiled release:
 
 ## 📋 Available Tools
 
-The server exposes 11 tools matching the TypeScript implementation:
+The server exposes 27 tools across multiple categories:
 
+### Core Tools (11 tools)
 1. **query_events** - Query events with flexible filters
 2. **reconstruct_state** - Time-travel state reconstruction
 3. **get_snapshot** - Fast current state retrieval
@@ -115,6 +119,26 @@ The server exposes 11 tools matching the TypeScript implementation:
 9. **ingest_event** - Event creation
 10. **get_stats** - Store statistics
 11. **get_cluster_status** - Cluster health
+
+### Search Tools (2 tools)
+12. **semantic_search_events** - Vector similarity search
+13. **hybrid_search** - Combined vector + keyword search
+
+### AI-Native Tools (4 tools)
+14. **get_query_advice** - Use-case specific recommendations
+15. **sample_events** - Fast data exploration with stratified sampling
+16. **quick_stats** - Rapid approximate statistics
+17. **start_session** / **refine_query** / **get_session_context** - Multi-turn conversation context
+
+### Event Management Tools (8 tools) - NEW in v0.9.0
+18. **delete_events** - Soft delete with audit trail (GDPR/CCPA compliant)
+19. **archive_events** - Move to cold storage with retention policies
+20. **restore_events** - Restore deleted or archived events
+21. **export_events** - Export to JSON/JSONL/CSV/Parquet formats
+22. **import_events** - Bulk import with validation and deduplication
+23. **clone_entity** - Deep copy entity with all events
+24. **merge_entities** - Combine event streams from multiple entities
+25. **split_entity** - Partition entity event stream by criteria
 
 ### Response Format
 
