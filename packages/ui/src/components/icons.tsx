@@ -8,30 +8,20 @@ interface IconProps {
 
 export const Icons = {
   logo: ({ className, style }: IconProps) => (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={cn("h-6 w-6", className)}
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/logo.png"
+      alt="all.source"
+      className={cn(
+        "h-6 w-6 object-contain",
+        "drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]",
+        "hover:drop-shadow-[0_4px_12px_rgba(79,195,247,0.5)]",
+        "transition-all duration-300",
+        "hover:scale-110",
+        className
+      )}
       style={style}
-      aria-hidden="true"
-    >
-      {/* Outer circle - represents time/continuity */}
-      <circle cx="12" cy="12" r="10" />
-      {/* Event stream flowing through time - three dots connected */}
-      <circle cx="7" cy="12" r="1.5" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-      <circle cx="17" cy="12" r="1.5" fill="currentColor" />
-      {/* Flow lines connecting events */}
-      <path d="M8.5 12h2" strokeWidth="1.5" />
-      <path d="M13.5 12h2" strokeWidth="1.5" />
-      {/* Time arrow at bottom */}
-      <path d="M8 16l4 2 4-2" strokeWidth="1.5" />
-    </svg>
+    />
   ),
   google: ({ className }: IconProps) => (
     <svg className={cn("h-4 w-4", className)} viewBox="0 0 24 24" aria-hidden="true">

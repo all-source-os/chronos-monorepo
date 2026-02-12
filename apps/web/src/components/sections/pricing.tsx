@@ -20,13 +20,31 @@ export default function PricingSection() {
   return (
     <Section title="Pricing" subtitle="Choose the plan that's right for you">
       <div className="flex justify-center mb-10">
-        <span className="mr-2 font-semibold">Monthly</span>
-        <div className="relative inline-flex items-center cursor-pointer">
-          <Label>
-            <Switch checked={!isMonthly} onCheckedChange={handleToggle} />
-          </Label>
+        <div className="inline-flex items-center rounded-full border-2 border-primary/20 bg-muted/50 p-1">
+          <button
+            onClick={() => setIsMonthly(true)}
+            className={cn(
+              "px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200",
+              isMonthly
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setIsMonthly(false)}
+            className={cn(
+              "px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-1",
+              !isMonthly
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Yearly
+            <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded-full">-20%</span>
+          </button>
         </div>
-        <span className="ml-2 font-semibold">Yearly</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 sm:2 gap-4">
         {siteConfig.pricing.map((plan, index) => (

@@ -46,10 +46,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-border px-4">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <Icons.logo className="h-8 w-8 shrink-0 text-primary" />
+        <Link href="/dashboard" className="group flex items-center gap-2">
+          <Icons.logo className="h-8 w-8 shrink-0 text-primary transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12" />
           {!collapsed && (
-            <span className="text-xl font-semibold tracking-tight">AllSource</span>
+            <span className="text-xl font-semibold tracking-tight bg-gradient-to-r from-foreground to-foreground bg-clip-text transition-all duration-300 group-hover:from-primary group-hover:to-foreground group-hover:text-transparent">AllSource</span>
           )}
         </Link>
         <Button

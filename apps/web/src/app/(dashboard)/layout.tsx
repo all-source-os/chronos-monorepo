@@ -6,6 +6,7 @@ import { cn } from "@allsource/ui/utils";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
 import { CommandPalette } from "@/components/dashboard/command-palette";
+import { EarlyAccessBanner } from "@/components/dashboard/early-access-banner";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 export default function DashboardLayout({
@@ -98,6 +99,16 @@ export default function DashboardLayout({
         onMenuClick={() => setMobileMenuOpen(true)}
         onCommandPaletteOpen={() => setCommandPaletteOpen(true)}
       />
+
+      {/* Early Access Banner */}
+      <div
+        className={cn(
+          "fixed top-16 right-0 left-0 z-20 transition-all duration-300",
+          sidebarCollapsed ? "md:left-16" : "md:left-64"
+        )}
+      >
+        <EarlyAccessBanner />
+      </div>
 
       {/* Main content */}
       <main

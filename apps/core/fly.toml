@@ -14,7 +14,7 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
   # PORT is automatically set by Fly.io
 
 [http_service]
-  internal_port = 8080
+  internal_port = 3900
   force_https = true
   auto_stop_machines = true
   auto_start_machines = true

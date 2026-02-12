@@ -70,6 +70,48 @@ export class ApiClient {
     return this.request<void>("/api/auth/logout", { method: "POST" });
   }
 
+  async register(data: RegisterRequest): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
+    return this.request<AuthResponse>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async verifyEmail(token: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>("/api/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  }
+
+  async forgotPassword(email: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, password: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    });
+  }
+
+  async resendVerification(email: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>("/api/auth/resend-verification", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
   // Tenant endpoints
   async getTenant(): Promise<ApiResponse<Tenant>> {
     return this.request<Tenant>("/api/tenant");
@@ -227,8 +269,27 @@ export interface User {
   email: string;
   name: string;
   avatar_url: string | null;
-  provider: "google" | "github";
+  provider: "google" | "github" | "email";
+  email_verified: boolean;
   tenant_id: string;
+}
+
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  tenant: Tenant;
+  token: string;
+  new_user?: boolean;
 }
 
 export interface Tenant {

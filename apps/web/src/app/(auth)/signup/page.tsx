@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useState, useEffect, Suspense } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
 
 import {
   BlurFade,
@@ -15,7 +15,10 @@ import {
   CardTitle,
   DotPattern,
   Icons,
+  Input,
+  Label,
 } from "@allsource/ui";
+import { cn } from "@allsource/ui/utils";
 import { getApiUrl } from "@/lib/api/client";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -23,12 +26,32 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_token: "Session expired. Please sign in again.",
   auth_failed: "Authentication failed. Please try again.",
   access_denied: "Access was denied. Please try again.",
+  email_exists: "An account with this email already exists.",
+  invalid_email: "Please enter a valid email address.",
+  weak_password: "Password must be at least 8 characters.",
 };
 
+const PASSWORD_REQUIREMENTS = [
+  { regex: /.{8,}/, label: "At least 8 characters" },
+  { regex: /[A-Z]/, label: "One uppercase letter" },
+  { regex: /[a-z]/, label: "One lowercase letter" },
+  { regex: /[0-9]/, label: "One number" },
+];
+
 function SignUpContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+
+  // Form state
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const errorId = useId();
 
@@ -48,7 +71,98 @@ function SignUpContent() {
     window.location.href = `${apiUrl}/api/auth/${provider}`;
   };
 
-  const isDisabled = loadingProvider !== null;
+  const handleEmailSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || data.message || "Registration failed");
+      }
+
+      // Show email verification message
+      setEmailSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getPasswordStrength = () => {
+    return PASSWORD_REQUIREMENTS.filter((req) => req.regex.test(password)).length;
+  };
+
+  const isPasswordValid = getPasswordStrength() === PASSWORD_REQUIREMENTS.length;
+  const isFormValid = name.trim() && email.trim() && isPasswordValid;
+  const isDisabled = loadingProvider !== null || isSubmitting;
+
+  if (emailSent) {
+    return (
+      <div className="relative min-h-screen w-full overflow-hidden">
+        <DotPattern
+          className="opacity-50 dark:opacity-30 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"
+          cr={1}
+          cx={1}
+          cy={1}
+        />
+        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:px-6">
+          <BlurFade delay={0.1} inView>
+            <div className="mb-10 flex flex-col items-center gap-3">
+              <div className="flex items-center gap-2.5">
+                <Icons.logo className="h-10 w-10 text-primary" />
+                <span className="text-3xl font-bold tracking-tight">AllSource</span>
+              </div>
+            </div>
+          </BlurFade>
+
+          <BlurFade delay={0.2} inView>
+            <Card className="w-full max-w-[420px] border-border/50 bg-background/80 px-2 py-2 backdrop-blur-sm sm:px-4 sm:py-4">
+              <CardContent className="flex flex-col items-center px-6 py-8 text-center sm:px-8">
+                <div className="mb-4 rounded-full bg-green-500/10 p-3">
+                  <Mail className="h-8 w-8 text-green-500" />
+                </div>
+                <h2 className="mb-2 text-xl font-semibold">Check your email</h2>
+                <p className="mb-6 text-muted-foreground">
+                  We've sent a verification link to <strong>{email}</strong>.
+                  Click the link to activate your account.
+                </p>
+                <div className="space-y-3 w-full">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setEmailSent(false)}
+                  >
+                    Use a different email
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Didn't receive the email? Check your spam folder or{" "}
+                    <button
+                      className="text-primary underline-offset-4 hover:underline"
+                      onClick={handleEmailSignUp}
+                      disabled={isSubmitting}
+                    >
+                      resend
+                    </button>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </BlurFade>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
@@ -87,68 +201,200 @@ function SignUpContent() {
                 <div
                   id={errorId}
                   role="alert"
-                  className="mb-5 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                  className="mb-5 flex items-start gap-2 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive"
                 >
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                   {error}
                 </div>
               )}
 
-              {/* OAuth buttons */}
-              <div className="grid gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="relative h-12 w-full bg-white hover:bg-gray-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                  onClick={() => handleOAuthSignUp("google")}
-                  disabled={isDisabled}
-                  aria-busy={loadingProvider === "google"}
-                >
-                  {loadingProvider === "google" ? (
-                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <>
-                      <Icons.google className="mr-2.5 h-5 w-5" aria-hidden="true" />
-                      Continue with Google
-                    </>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-12 w-full bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
-                  onClick={() => handleOAuthSignUp("github")}
-                  disabled={isDisabled}
-                  aria-busy={loadingProvider === "github"}
-                >
-                  {loadingProvider === "github" ? (
-                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <>
-                      <Icons.github className="mr-2.5 h-5 w-5" aria-hidden="true" />
-                      Continue with GitHub
-                    </>
-                  )}
-                </Button>
-              </div>
+              {showEmailForm ? (
+                // Email signup form
+                <form onSubmit={handleEmailSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full name</Label>
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="John Doe"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      disabled={isDisabled}
+                      autoComplete="name"
+                      required
+                    />
+                  </div>
 
-              {/* Features highlight */}
-              <div className="mt-6 space-y-3 rounded-lg bg-muted/50 p-4">
-                <p className="text-sm font-medium">Start free with:</p>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    100K events/month
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    Real-time streaming
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    AI-powered analytics
-                  </li>
-                </ul>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={isDisabled}
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Create a password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={isDisabled}
+                        autoComplete="new-password"
+                        className="pr-10"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Password requirements */}
+                    {password && (
+                      <div className="mt-2 space-y-1">
+                        {PASSWORD_REQUIREMENTS.map((req) => (
+                          <div
+                            key={req.label}
+                            className={cn(
+                              "flex items-center gap-2 text-xs",
+                              req.regex.test(password)
+                                ? "text-green-600"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            <CheckCircle2 className={cn(
+                              "h-3 w-3",
+                              req.regex.test(password) ? "opacity-100" : "opacity-40"
+                            )} />
+                            {req.label}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="h-12 w-full"
+                    disabled={isDisabled || !isFormValid}
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      "Create account"
+                    )}
+                  </Button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailForm(false)}
+                    className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    ← Back to all options
+                  </button>
+                </form>
+              ) : (
+                <>
+                  {/* OAuth buttons */}
+                  <div className="grid gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="relative h-12 w-full bg-white hover:bg-gray-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                      onClick={() => handleOAuthSignUp("google")}
+                      disabled={isDisabled}
+                      aria-busy={loadingProvider === "google"}
+                    >
+                      {loadingProvider === "google" ? (
+                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <>
+                          <Icons.google className="mr-2.5 h-5 w-5" aria-hidden="true" />
+                          Continue with Google
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 w-full bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
+                      onClick={() => handleOAuthSignUp("github")}
+                      disabled={isDisabled}
+                      aria-busy={loadingProvider === "github"}
+                    >
+                      {loadingProvider === "github" ? (
+                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <>
+                          <Icons.github className="mr-2.5 h-5 w-5" aria-hidden="true" />
+                          Continue with GitHub
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">
+                        Or continue with
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Email signup button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 w-full"
+                    onClick={() => setShowEmailForm(true)}
+                    disabled={isDisabled}
+                  >
+                    <Mail className="mr-2.5 h-5 w-5" />
+                    Continue with Email
+                  </Button>
+
+                  {/* Features highlight */}
+                  <div className="mt-6 space-y-3 rounded-lg bg-muted/50 p-4">
+                    <p className="text-sm font-medium">Start free with:</p>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        100K events/month
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        Real-time streaming
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        AI-powered analytics
+                      </li>
+                    </ul>
+                  </div>
+                </>
+              )}
 
               {/* Sign in link */}
               <p className="mt-6 text-center text-sm text-muted-foreground">

@@ -1,0 +1,86 @@
+---
+title: Introducing all.source
+publishedAt: "2026-02-01"
+summary: Time-travel your data with the AI-native event store built for the future.
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+We're excited to announce **all.source**, a high-performance event store built in Rust, designed for event sourcing, CQRS, and AI-native workflows.
+
+## The Problem with Traditional Databases
+
+In today's data-driven world, developers face critical challenges:
+
+- **State Amnesia**: Traditional databases only store current state. When something breaks, you can't see how you got there.
+- **Temporal Blindness**: Want to know what your data looked like last Tuesday at 3pm? Good luck.
+- **AI Integration Gap**: Your data is trapped behind rigid APIs that weren't designed for autonomous workflows.
+
+all.source tackles these challenges head-on with an event store that thinks.
+
+## What Makes all.source Different
+
+### 1. Blazing Fast Performance
+
+- **469K events/second** ingestion throughput
+- **11.9μs p99** query latency
+- **~129MB** binary footprint
+
+Built in Rust with lock-free data structures and Parquet-based storage for both high-throughput ingestion and fast analytical queries.
+
+### 2. Time-Travel Queries
+
+Reconstruct any entity's state at any point in time:
+
+```bash
+# Get user state as of last Tuesday
+GET /api/v1/entities/user-123/state?as_of=2026-02-04T15:00:00Z
+```
+
+Debug issues, audit changes, or replay historical states instantly.
+
+### 3. AI-Native by Design
+
+27 MCP (Model Context Protocol) tools for seamless integration with Claude, GPT, and custom AI agents:
+
+- Query events with natural language
+- Create projections autonomously
+- Manage schemas and pipelines
+- Run analytics and correlations
+
+Let AI agents manage your event streams.
+
+## Core Capabilities
+
+| Feature | Description |
+| --- | --- |
+| Event Sourcing | Immutable event logs with full audit trail |
+| Projections | 5 types including snapshots, counters, and funnels |
+| Schema Registry | Versioned schemas with evolution and compatibility |
+| Stream Processing | Filter, map, reduce, window operators |
+| Multi-tenancy | Full isolation with RBAC and quotas |
+
+## Getting Started
+
+all.source is MIT licensed and open source. Deploy in minutes:
+
+```bash
+# Docker
+docker run -p 3900:3900 ghcr.io/all-source-os/all-source:latest
+
+# Or use our cloud service
+curl -X POST https://api.all.source/signup
+```
+
+## What's Next
+
+We're building the event store for the AI era. Here's on our roadmap:
+
+- Vector embeddings for semantic event search
+- Real-time anomaly detection
+- Cross-tenant analytics
+- Edge deployment support
+
+Join us in building the future of data infrastructure.
+
+[Get started with all.source](/signup)

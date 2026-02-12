@@ -11,7 +11,7 @@
     "grepInvert": null,
     "maxFailures": 0,
     "metadata": {
-      "actualWorkers": 3
+      "actualWorkers": 6
     },
     "preserveOutput": "always",
     "reporter": [
@@ -43,7 +43,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 3
+          "actualWorkers": 6
         },
         "id": "chromium",
         "name": "chromium",
@@ -78,9 +78,1187 @@
           "specs": [],
           "suites": [
             {
+              "title": "Page Structure",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 21,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should load the UI test page successfully",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 1117,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:10.479Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-d00bf64ea99beac9edb8",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 22,
+                  "column": 5
+                },
+                {
+                  "title": "should display page heading",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 1204,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:10.477Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-69dc4407038f3bf7f77b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 30,
+                  "column": 5
+                },
+                {
+                  "title": "should have proper layout container",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 1163,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:10.478Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-455b4c7733b0cffc4cb0",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 38,
+                  "column": 5
+                },
+                {
+                  "title": "should display section headings for all component types",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 1110,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:10.491Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-a0b4228c295e752cea40",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 44,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Button Variants",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 58,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should display default button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 1113,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:10.494Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-75703856bcd66829acb5",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 59,
+                  "column": 5
+                },
+                {
+                  "title": "should display destructive button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 1172,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:10.483Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-780d75882e445bf1097d",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 67,
+                  "column": 5
+                },
+                {
+                  "title": "should display outline button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 519,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.068Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-0aba0eb40078426e134b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 75,
+                  "column": 5
+                },
+                {
+                  "title": "should display secondary button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 561,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.068Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-19df6612eeee876a6cde",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 83,
+                  "column": 5
+                },
+                {
+                  "title": "should display ghost button variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 746,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.072Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-6d4bb9254b55ae0d84c8",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 91,
+                  "column": 5
+                },
+                {
+                  "title": "should render all 5 button variants",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 586,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.078Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-15090ff17ebc655f1c82",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 99,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Button Sizes",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 111,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should have buttons with consistent sizing",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 772,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.079Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-9ee3e07496bfdc2a60a6",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 114,
+                  "column": 5
+                },
+                {
+                  "title": "should have minimum clickable area for accessibility",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 662,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.106Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-4a1cd56843a728ab6f7b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 136,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Badge Variants",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 151,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should display default badge variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 430,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.598Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-804714bc70bd0bea7fd4",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 152,
+                  "column": 5
+                },
+                {
+                  "title": "should display secondary badge variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 571,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.640Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-55bbb335e42289ccf553",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 162,
+                  "column": 5
+                },
+                {
+                  "title": "should display destructive badge variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 578,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.677Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-44d32a596acfeac42e71",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 171,
+                  "column": 5
+                },
+                {
+                  "title": "should display outline badge variant",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 504,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.778Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-9ba418554ce293122f2e",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 180,
+                  "column": 5
+                },
+                {
+                  "title": "should render all 4 badge variants",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 567,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.843Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-b56c9c92398c24e21186",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 189,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Card Components",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 203,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should display card component",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 591,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:13.858Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-ebf9417903b5b381586e",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 204,
+                  "column": 5
+                },
+                {
+                  "title": "should display card title",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 638,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.055Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-a5d215f31aa18af81ce2",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 209,
+                  "column": 5
+                },
+                {
+                  "title": "should display card content",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 669,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.223Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-bff91b0020b986788b9e",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 215,
+                  "column": 5
+                },
+                {
+                  "title": "should have proper card structure with header and content",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 622,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.282Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-c2f112ce4137e13b094b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 221,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Interactive States - Click",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 229,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should be able to click default button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 624,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.305Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-824528dd8665b8b56b38",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 230,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click destructive button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 563,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.422Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-9edabb6468a14ff928e1",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 241,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click outline button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 557,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.458Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-4fef9763f1700a49ed28",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 251,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click secondary button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 638,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.715Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-6ee1a8f973a896b45e87",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 261,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click ghost button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 602,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.904Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-3834197f145b03313b05",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 271,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to click all button variants sequentially",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
+                          "status": "passed",
+                          "duration": 695,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.918Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-cd067840057f21377073",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 281,
+                  "column": 5
+                }
+              ]
+            },
+            {
+              "title": "Interactive States - Hover",
+              "file": "ui-components/ui-components.spec.ts",
+              "line": 294,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should show hover state on default button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 554,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.945Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-d94723b336ae30f2000b",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 295,
+                  "column": 5
+                },
+                {
+                  "title": "should show hover state on destructive button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
+                          "status": "passed",
+                          "duration": 515,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:14.993Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-05a1c0a41a26c5822cfa",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 305,
+                  "column": 5
+                },
+                {
+                  "title": "should show hover state on outline button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 1,
+                          "parallelIndex": 1,
+                          "status": "passed",
+                          "duration": 558,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:15.024Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-a7deb8226494837aed17",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 314,
+                  "column": 5
+                },
+                {
+                  "title": "should show hover state on secondary button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 5,
+                          "parallelIndex": 5,
+                          "status": "passed",
+                          "duration": 610,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:15.371Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-aa74482463754f2642ca",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 323,
+                  "column": 5
+                },
+                {
+                  "title": "should show hover state on ghost button",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 3,
+                          "parallelIndex": 3,
+                          "status": "passed",
+                          "duration": 549,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:15.508Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-ff562e5a4d7e1a206755",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 332,
+                  "column": 5
+                },
+                {
+                  "title": "should be able to hover all button variants",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 30000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "chromium",
+                      "projectName": "chromium",
+                      "results": [
+                        {
+                          "workerIndex": 0,
+                          "parallelIndex": 0,
+                          "status": "passed",
+                          "duration": 743,
+                          "errors": [],
+                          "stdout": [],
+                          "stderr": [],
+                          "retry": 0,
+                          "startTime": "2026-02-11T17:34:15.514Z",
+                          "annotations": [],
+                          "attachments": []
+                        }
+                      ],
+                      "status": "expected"
+                    }
+                  ],
+                  "id": "65585ec0c444e09d7e71-4454961e7e8f6ffea556",
+                  "file": "ui-components/ui-components.spec.ts",
+                  "line": 341,
+                  "column": 5
+                }
+              ]
+            },
+            {
               "title": "Accessibility",
               "file": "ui-components/ui-components.spec.ts",
-              "line": 307,
+              "line": 354,
               "column": 8,
               "specs": [
                 {
@@ -96,23 +1274,17 @@
                       "projectName": "chromium",
                       "results": [
                         {
-                          "workerIndex": 6,
-                          "parallelIndex": 0,
+                          "workerIndex": 2,
+                          "parallelIndex": 2,
                           "status": "passed",
-                          "duration": 558,
+                          "duration": 529,
                           "errors": [],
                           "stdout": [],
                           "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-02-11T00:53:44.420Z",
+                          "startTime": "2026-02-11T17:34:15.522Z",
                           "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "trace",
-                              "contentType": "application/zip",
-                              "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/ui-components-ui-component-5abbd-ons-should-have-proper-role-chromium/trace.zip"
-                            }
-                          ]
+                          "attachments": []
                         }
                       ],
                       "status": "expected"
@@ -120,7 +1292,7 @@
                   ],
                   "id": "65585ec0c444e09d7e71-2a0e94338f828106cee8",
                   "file": "ui-components/ui-components.spec.ts",
-                  "line": 308,
+                  "line": 355,
                   "column": 5
                 },
                 {
@@ -136,23 +1308,17 @@
                       "projectName": "chromium",
                       "results": [
                         {
-                          "workerIndex": 7,
+                          "workerIndex": 1,
                           "parallelIndex": 1,
                           "status": "passed",
-                          "duration": 478,
+                          "duration": 474,
                           "errors": [],
                           "stdout": [],
                           "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-02-11T00:53:44.423Z",
+                          "startTime": "2026-02-11T17:34:15.592Z",
                           "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "trace",
-                              "contentType": "application/zip",
-                              "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/ui-components-ui-component-6e074-hould-be-keyboard-focusable-chromium/trace.zip"
-                            }
-                          ]
+                          "attachments": []
                         }
                       ],
                       "status": "expected"
@@ -160,7 +1326,7 @@
                   ],
                   "id": "65585ec0c444e09d7e71-d9757dfe078c8aff93ee",
                   "file": "ui-components/ui-components.spec.ts",
-                  "line": 323,
+                  "line": 366,
                   "column": 5
                 },
                 {
@@ -176,23 +1342,17 @@
                       "projectName": "chromium",
                       "results": [
                         {
-                          "workerIndex": 8,
-                          "parallelIndex": 2,
+                          "workerIndex": 4,
+                          "parallelIndex": 4,
                           "status": "passed",
-                          "duration": 459,
+                          "duration": 450,
                           "errors": [],
                           "stdout": [],
                           "stderr": [],
                           "retry": 0,
-                          "startTime": "2026-02-11T00:53:44.419Z",
+                          "startTime": "2026-02-11T17:34:15.621Z",
                           "annotations": [],
-                          "attachments": [
-                            {
-                              "name": "trace",
-                              "contentType": "application/zip",
-                              "path": "/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/e2e/test-results/ui-components-ui-component-7203b-ve-proper-heading-hierarchy-chromium/trace.zip"
-                            }
-                          ]
+                          "attachments": []
                         }
                       ],
                       "status": "expected"
@@ -200,7 +1360,7 @@
                   ],
                   "id": "65585ec0c444e09d7e71-d333cfb313ce27b39463",
                   "file": "ui-components/ui-components.spec.ts",
-                  "line": 329,
+                  "line": 375,
                   "column": 5
                 }
               ]
@@ -212,9 +1372,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-02-11T00:53:43.696Z",
-    "duration": 1490.4429999999993,
-    "expected": 3,
+    "startTime": "2026-02-11T17:34:03.841Z",
+    "duration": 12509.964,
+    "expected": 36,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

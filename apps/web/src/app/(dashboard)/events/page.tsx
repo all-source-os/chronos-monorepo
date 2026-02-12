@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { BlurFade, Button, Input, Card, CardContent } from "@allsource/ui";
-import { Search, Filter, Download, Plus, X } from "lucide-react";
+import { Search, Filter, Download, Plus, X, Info, RefreshCw } from "lucide-react";
 import { EventTimeline } from "@/components/events/event-timeline";
 import { EventList } from "@/components/events/event-list";
 import { LiveEventFeed } from "@/components/events/live-event-feed";
@@ -22,14 +22,18 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
 
-  const { events, total, isLoading, error } = useEvents({
+  const { events, total, isLoading, error, refresh } = useEvents({
     entity_id: entityFilter || undefined,
     event_type: typeFilter || undefined,
     limit: 50,
   });
 
+  // Track if we're showing demo data
+  const hasRealEvents = events.length > 0;
+  const showingDemoData = !hasRealEvents && !isLoading;
+
   // Demo events for timeline if no real events
-  const demoEvents: Event[] = events.length > 0 ? events : [
+  const demoEvents: Event[] = hasRealEvents ? events : [
     {
       id: "demo-1",
       entity_id: "user-123",
@@ -138,6 +142,24 @@ export default function EventsPage() {
           </div>
         </div>
       </BlurFade>
+
+      {/* Demo Data Notice */}
+      {showingDemoData && (
+        <BlurFade delay={0.15} inView>
+          <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Info className="h-4 w-4 text-primary" />
+              <span>
+                Showing sample events. Create your first event to see real data here.
+              </span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={refresh}>
+              <RefreshCw className="mr-1 h-3 w-3" />
+              Refresh
+            </Button>
+          </div>
+        </BlurFade>
+      )}
 
       {/* Search and Filters */}
       <BlurFade delay={0.2} inView>

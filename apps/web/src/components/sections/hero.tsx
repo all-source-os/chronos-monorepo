@@ -1,9 +1,69 @@
 "use client";
 
+import { useEffect, useState, useRef } from "react";
 import { motion } from "motion/react";
 
 import { HeroVideoDialog, Icons, buttonVariants, cn } from "@allsource/ui";
 import Link from "next/link";
+
+// Animated gradient text component for magic effect
+function AnimatedGradientText({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="relative inline-block">
+      <span className="animate-gradient-x bg-gradient-to-r from-primary via-purple-500 to-primary bg-[length:200%_auto] bg-clip-text text-transparent">
+        {children}
+      </span>
+    </span>
+  );
+}
+
+// Count-up animation hook
+function useCountUp(end: number, duration: number = 2000, delay: number = 0) {
+  const [count, setCount] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting && !hasStarted) {
+          setHasStarted(true);
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasStarted]);
+
+  useEffect(() => {
+    if (!hasStarted) return;
+
+    const timeout = setTimeout(() => {
+      const startTime = Date.now();
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        setCount(Math.floor(eased * end));
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      };
+      requestAnimationFrame(animate);
+    }, delay);
+
+    return () => clearTimeout(timeout);
+  }, [hasStarted, end, duration, delay]);
+
+  return { count, ref };
+}
 
 const ease: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -51,7 +111,7 @@ function HeroTitles() {
           staggerChildren: 0.2,
         }}
       >
-        {["Event", "sourcing", "that", "thinks"].map((text) => (
+        {["Time-travel", "your"].map((text) => (
           <motion.span
             key={text}
             className="inline-block px-1 md:px-2 text-balance font-semibold"
@@ -65,6 +125,18 @@ function HeroTitles() {
             {text}
           </motion.span>
         ))}
+        <motion.span
+          className="inline-block px-1 md:px-2 text-balance font-semibold"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 0.8,
+            ease,
+            delay: 0.3,
+          }}
+        >
+          <AnimatedGradientText>data</AnimatedGradientText>
+        </motion.span>
       </motion.h1>
       <motion.p
         className="mx-auto max-w-2xl text-center text-lg leading-7 text-muted-foreground sm:text-xl sm:leading-9 text-balance"
@@ -84,12 +156,28 @@ function HeroTitles() {
   );
 }
 
+function CountUpStat({ value, suffix, label, delay }: { value: number; suffix: string; label: string; delay: number }) {
+  const { count, ref } = useCountUp(value, 2000, delay);
+
+  return (
+    <div ref={ref} className="text-center group">
+      <motion.div
+        className="text-2xl font-bold text-primary sm:text-3xl transition-transform group-hover:scale-110"
+        whileHover={{ scale: 1.1 }}
+      >
+        {count.toLocaleString()}{suffix}
+      </motion.div>
+      <div className="text-xs text-muted-foreground sm:text-sm">{label}</div>
+    </div>
+  );
+}
+
 function HeroStats() {
   const stats = [
-    { value: "469K", label: "events/sec" },
-    { value: "11.9μs", label: "p99 latency" },
-    { value: "27", label: "MCP tools" },
-    { value: "~129MB", label: "footprint" },
+    { value: 469, suffix: "K", label: "events/sec", delay: 0 },
+    { value: 11.9, suffix: "μs", label: "p99 latency", delay: 100 },
+    { value: 27, suffix: "", label: "MCP tools", delay: 200 },
+    { value: 129, suffix: "MB", label: "footprint", delay: 300 },
   ];
 
   return (
@@ -100,10 +188,7 @@ function HeroStats() {
       transition={{ delay: 0.7, duration: 0.8, ease }}
     >
       {stats.map((stat) => (
-        <div key={stat.label} className="text-center">
-          <div className="text-2xl font-bold text-primary sm:text-3xl">{stat.value}</div>
-          <div className="text-xs text-muted-foreground sm:text-sm">{stat.label}</div>
-        </div>
+        <CountUpStat key={stat.label} {...stat} />
       ))}
     </motion.div>
   );
@@ -118,26 +203,39 @@ function HeroCTA() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.9, duration: 0.8, ease }}
       >
-        <Link
-          href="/signup"
-          className={cn(
-            buttonVariants({ variant: "default" }),
-            "w-full sm:w-auto text-background flex gap-2 px-8"
-          )}
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.98 }}
+          className="relative group"
         >
-          <Icons.logo className="h-5 w-5" />
-          Start Building Free
-        </Link>
-        <Link
-          href="https://github.com/allsource/chronos"
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "w-full sm:w-auto flex gap-2 px-8"
-          )}
+          {/* Glow effect */}
+          <div className="absolute -inset-1 bg-gradient-to-r from-primary via-purple-500 to-primary rounded-lg blur-lg opacity-0 group-hover:opacity-70 transition-opacity duration-500" />
+          <Link
+            href="/signup"
+            className={cn(
+              buttonVariants({ variant: "default" }),
+              "relative w-full sm:w-auto text-background flex gap-2 px-8 transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/25"
+            )}
+          >
+            <Icons.logo className="h-5 w-5" />
+            Start Your Project
+          </Link>
+        </motion.div>
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <Icons.github className="h-5 w-5" />
-          View on GitHub
-        </Link>
+          <Link
+            href="https://github.com/all-source-os/all-source"
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "w-full sm:w-auto flex gap-2 px-8 transition-all duration-300 hover:border-primary/50 hover:bg-primary/5"
+            )}
+          >
+            <Icons.github className="h-5 w-5" />
+            View on GitHub
+          </Link>
+        </motion.div>
       </motion.div>
       <motion.p
         className="mt-4 text-sm text-muted-foreground"
@@ -154,18 +252,28 @@ function HeroCTA() {
 function HeroImage() {
   return (
     <motion.div
-      className="relative mx-auto flex w-full items-center justify-center"
+      className="relative mx-auto flex w-full items-center justify-center mt-16"
       initial={{ opacity: 0, y: 50 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 1.3, duration: 1, ease }}
     >
-      <HeroVideoDialog
-        animationStyle="from-center"
-        videoSrc="https://www.youtube.com/embed/qh3NGpYRG3I?si=4rb-zSdDkVK9qxxb"
-        thumbnailSrc="/dashboard.png"
-        thumbnailAlt="AllSource Dashboard"
-        className="border rounded-lg shadow-lg max-w-screen-lg mt-16"
-      />
+      {/* Glow effect behind video */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="h-[60%] w-[80%] max-w-screen-lg rounded-3xl bg-gradient-to-r from-primary/30 via-purple-500/20 to-primary/30 blur-3xl animate-pulse" />
+      </div>
+
+      <div className="relative group">
+        {/* Hover glow intensification */}
+        <div className="absolute -inset-4 rounded-2xl bg-gradient-to-r from-primary/20 via-purple-500/10 to-primary/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+        <HeroVideoDialog
+          animationStyle="from-center"
+          videoSrc="https://www.youtube.com/embed/qh3NGpYRG3I?si=4rb-zSdDkVK9qxxb"
+          thumbnailSrc="/dashboard.png"
+          thumbnailAlt="AllSource Dashboard"
+          className="relative border rounded-lg shadow-lg shadow-primary/10 max-w-screen-lg transition-shadow duration-500 group-hover:shadow-xl group-hover:shadow-primary/20"
+        />
+      </div>
     </motion.div>
   );
 }

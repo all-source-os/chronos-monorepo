@@ -8,10 +8,10 @@ import "./globals.css";
 export const metadata: Metadata = constructMetadata({});
 
 export const viewport: Viewport = {
-  colorScheme: "light",
+  colorScheme: "dark",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
     { media: "(prefers-color-scheme: dark)", color: "black" },
+    { media: "(prefers-color-scheme: light)", color: "white" },
   ],
 };
 
@@ -27,7 +27,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
       </head>
       <body className={cn("min-h-screen bg-background antialiased w-full mx-auto scroll-smooth")}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           {children}
           <ThemeToggle />
           <TailwindIndicator />

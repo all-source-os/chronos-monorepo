@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <!-- Bright top surface gradient -->
+    <linearGradient id="topGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#81D4FA"/>
+      <stop offset="30%" stop-color="#4FC3F7"/>
+      <stop offset="70%" stop-color="#29B6F6"/>
+      <stop offset="100%" stop-color="#4FC3F7"/>
+    </linearGradient>
+    <!-- Left side (darker) -->
+    <linearGradient id="leftSide" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0277BD"/>
+      <stop offset="100%" stop-color="#01579B"/>
+    </linearGradient>
+    <!-- Right side (medium) -->
+    <linearGradient id="rightSide" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0288D1"/>
+      <stop offset="100%" stop-color="#0277BD"/>
+    </linearGradient>
+    <!-- Inner shadow/depth -->
+    <linearGradient id="innerShadow" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#01579B"/>
+      <stop offset="100%" stop-color="#002F4A"/>
+    </linearGradient>
+    <!-- Glow filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <!-- Drop shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)" transform="translate(256, 256)">
+    <!-- Center cube -->
+    <!-- Top face -->
+    <polygon points="0,-35 -40,-15 0,5 40,-15" fill="url(#topGradient)"/>
+    <!-- Left face -->
+    <polygon points="-40,-15 -40,25 0,45 0,5" fill="url(#leftSide)"/>
+    <!-- Right face -->
+    <polygon points="40,-15 40,25 0,45 0,5" fill="url(#rightSide)"/>
+
+    <!-- Top arm -->
+    <g>
+      <!-- Top face -->
+      <polygon points="0,-35 -25,-50 -25,-110 0,-95 25,-110 25,-50" fill="url(#topGradient)"/>
+      <!-- Left face -->
+      <polygon points="-25,-50 -25,-110 -25,-95 -40,-80 -40,-35" fill="url(#leftSide)"/>
+      <!-- Right face -->
+      <polygon points="25,-50 25,-110 25,-95 40,-80 40,-35" fill="url(#rightSide)"/>
+      <!-- Top cap - left -->
+      <polygon points="-25,-110 0,-125 0,-95 -25,-110" fill="url(#topGradient)"/>
+      <!-- Top cap - right -->
+      <polygon points="25,-110 0,-125 0,-95 25,-110" fill="url(#topGradient)"/>
+    </g>
+
+    <!-- Bottom arm -->
+    <g>
+      <!-- Left face -->
+      <polygon points="-40,25 -40,80 -25,95 -25,50 0,45" fill="url(#leftSide)"/>
+      <!-- Right face -->
+      <polygon points="40,25 40,80 25,95 25,50 0,45" fill="url(#rightSide)"/>
+      <!-- Bottom cap -->
+      <polygon points="-25,95 0,110 25,95 0,80" fill="url(#innerShadow)"/>
+      <!-- Front faces -->
+      <polygon points="-25,50 -25,95 0,110 0,80" fill="url(#leftSide)"/>
+      <polygon points="25,50 25,95 0,110 0,80" fill="url(#rightSide)"/>
+    </g>
+
+    <!-- Top-left arm -->
+    <g>
+      <!-- Top face -->
+      <polygon points="-40,-15 -55,-25 -100,-5 -85,5 -70,-5" fill="url(#topGradient)"/>
+      <!-- Left face -->
+      <polygon points="-55,-25 -100,-5 -100,20 -55,0" fill="url(#leftSide)"/>
+      <!-- Bottom face -->
+      <polygon points="-70,-5 -85,5 -100,20 -100,-5" fill="url(#innerShadow)"/>
+      <!-- End cap top -->
+      <polygon points="-100,-5 -115,5 -100,15 -85,5" fill="url(#topGradient)"/>
+      <!-- End cap left -->
+      <polygon points="-115,5 -100,15 -100,20" fill="url(#leftSide)"/>
+    </g>
+
+    <!-- Top-right arm -->
+    <g>
+      <!-- Top face -->
+      <polygon points="40,-15 55,-25 100,-5 85,5 70,-5" fill="url(#topGradient)"/>
+      <!-- Right face -->
+      <polygon points="55,-25 100,-5 100,20 55,0" fill="url(#rightSide)"/>
+      <!-- Bottom face -->
+      <polygon points="70,-5 85,5 100,20 100,-5" fill="url(#innerShadow)"/>
+      <!-- End cap top -->
+      <polygon points="100,-5 115,5 100,15 85,5" fill="url(#topGradient)"/>
+      <!-- End cap right -->
+      <polygon points="115,5 100,15 100,20" fill="url(#rightSide)"/>
+    </g>
+
+    <!-- Bottom-left arm -->
+    <g>
+      <!-- Top face -->
+      <polygon points="-40,25 -55,15 -100,35 -85,45 -70,35" fill="url(#topGradient)"/>
+      <!-- Left face -->
+      <polygon points="-55,15 -100,35 -100,60 -55,40" fill="url(#leftSide)"/>
+      <!-- Bottom right face -->
+      <polygon points="-70,35 -85,45 -100,60 -100,35" fill="url(#innerShadow)"/>
+      <!-- End cap -->
+      <polygon points="-100,35 -115,45 -100,55 -85,45" fill="url(#topGradient)"/>
+      <polygon points="-115,45 -100,55 -100,60" fill="url(#leftSide)"/>
+    </g>
+
+    <!-- Bottom-right arm -->
+    <g>
+      <!-- Top face -->
+      <polygon points="40,25 55,15 100,35 85,45 70,35" fill="url(#topGradient)"/>
+      <!-- Right face -->
+      <polygon points="55,15 100,35 100,60 55,40" fill="url(#rightSide)"/>
+      <!-- Bottom left face -->
+      <polygon points="70,35 85,45 100,60 100,35" fill="url(#innerShadow)"/>
+      <!-- End cap -->
+      <polygon points="100,35 115,45 100,55 85,45" fill="url(#topGradient)"/>
+      <polygon points="115,45 100,55 100,60" fill="url(#rightSide)"/>
+    </g>
+  </g>
+</svg>

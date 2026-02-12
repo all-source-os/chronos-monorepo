@@ -1,0 +1,91 @@
+---
+title: Time-Travel Queries Explained
+publishedAt: "2026-02-05"
+summary: How to reconstruct any entity's state at any point in time with all.source.
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+One of the most powerful features of all.source is the ability to query your data as it existed at any point in time. This is what we call **time-travel queries**.
+
+## Why Time-Travel Matters
+
+Traditional databases overwrite data when you update it. The old value is gone forever. But with event sourcing, every change is stored as an immutable event. This means you can:
+
+- **Debug production issues**: See exactly what state an entity was in when a bug occurred
+- **Audit compliance**: Prove what data looked like at any moment for regulatory requirements
+- **Replay scenarios**: Test how your system would have behaved with historical data
+- **Recover from mistakes**: Understand how data was corrupted and fix it
+
+## How It Works
+
+all.source stores events with timestamps and version numbers:
+
+```json
+{
+  "id": "evt_abc123",
+  "entity_id": "user-456",
+  "event_type": "user.email_changed",
+  "payload": { "new_email": "new@example.com" },
+  "timestamp": "2026-02-05T10:30:00Z",
+  "version": 5
+}
+```
+
+When you query with `as_of`, all.source replays all events up to that timestamp:
+
+```bash
+# Current state
+GET /api/v1/entities/user-456/state
+
+# State as of last week
+GET /api/v1/entities/user-456/state?as_of=2026-01-29T00:00:00Z
+```
+
+## Performance
+
+You might think replaying events is slow. It's not.
+
+- **Snapshots**: all.source automatically creates snapshots at configurable intervals
+- **Optimized replay**: Only events since the last snapshot are replayed
+- **Parquet storage**: Columnar format enables fast timestamp-based queries
+
+Typical time-travel queries complete in microseconds.
+
+## Use Cases
+
+### 1. Customer Support
+
+When a user reports "my settings were different yesterday", you can instantly verify:
+
+```bash
+GET /api/v1/entities/user-123/state?as_of=2026-02-04T09:00:00Z
+```
+
+### 2. Compliance Auditing
+
+Generate reports showing exactly what data looked like during an audit period:
+
+```bash
+GET /api/v1/events/query?entity_id=account-789&since=2026-01-01&until=2026-01-31
+```
+
+### 3. Bug Investigation
+
+Understand the sequence of events that led to a bug:
+
+```bash
+# Get all events for the affected entity
+GET /api/v1/events/query?entity_id=order-456
+
+# Replay state at each point
+GET /api/v1/entities/order-456/state?as_of=2026-02-05T10:00:00Z
+GET /api/v1/entities/order-456/state?as_of=2026-02-05T10:05:00Z
+GET /api/v1/entities/order-456/state?as_of=2026-02-05T10:10:00Z
+```
+
+## Getting Started
+
+Time-travel queries work out of the box with all.source. No configuration needed.
+
+[Try it now](/signup)

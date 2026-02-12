@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, Database, Zap, GitBranch, TrendingUp, TrendingDown } from "lucide-react";
+import { Activity, Database, Zap, GitBranch, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 
 interface StatCardProps {
   title: string;
@@ -88,46 +88,55 @@ function StatCard({ title, value, icon: Icon, trend, description, animate }: Sta
 }
 
 export function StatsCards() {
-  const { tenant } = useAuthStore();
+  const { stats, isLoading, refresh } = useDashboardStats();
 
-  const stats = [
+  const statCards = [
     {
       title: "Total Events",
-      value: tenant?.events_used || 0,
+      value: stats.events.used,
       icon: Activity,
-      trend: { value: 12, isPositive: true },
-      description: `of ${(tenant?.events_quota || 0).toLocaleString()} quota`,
+      description: `of ${stats.events.quota.toLocaleString()} quota (${stats.events.percentage}%)`,
       animate: true,
     },
     {
       title: "Queries Executed",
-      value: tenant?.queries_used || 0,
+      value: stats.queries.used,
       icon: Database,
-      trend: { value: 8, isPositive: true },
-      description: `of ${(tenant?.queries_quota || 0).toLocaleString()} quota`,
+      description: `of ${stats.queries.quota.toLocaleString()} quota (${stats.queries.percentage}%)`,
       animate: true,
     },
     {
       title: "Active Projections",
-      value: 3,
+      value: stats.projections.active,
       icon: GitBranch,
-      description: "Real-time data views",
+      description: `${stats.projections.count} total projections`,
       animate: true,
     },
     {
-      title: "Avg Latency",
-      value: "11.9μs",
+      title: "p99 Latency",
+      value: stats.latency.formatted,
       icon: Zap,
-      trend: { value: 5, isPositive: true },
-      description: "p99 query response",
+      description: "Query response time",
     },
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat) => (
-        <StatCard key={stat.title} {...stat} />
-      ))}
+    <div className="space-y-2">
+      <div className="flex items-center justify-end">
+        <button
+          onClick={refresh}
+          disabled={isLoading}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+        >
+          <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
+          {isLoading ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((stat) => (
+          <StatCard key={stat.title} {...stat} />
+        ))}
+      </div>
     </div>
   );
 }

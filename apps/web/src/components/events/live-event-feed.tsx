@@ -1,24 +1,60 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Radio, Pause, Play, Trash2 } from "lucide-react";
+import { Radio, Pause, Play, Trash2, Wifi, WifiOff } from "lucide-react";
+import { useWebSocket } from "@/hooks/use-websocket";
 import type { Event } from "@/lib/api/client";
 
 interface LiveEventFeedProps {
   onEventClick?: (event: Event) => void;
 }
 
+// WebSocket endpoint for event streaming
+const WS_EVENTS_ENDPOINT = "/api/v1/events/stream";
+
 export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
   const [events, setEvents] = useState<Event[]>([]);
   const [isPaused, setIsPaused] = useState(false);
+  const [useSimulation, setUseSimulation] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const eventCounterRef = useRef(0);
 
-  // Simulate live events (in production, this would use WebSocket)
-  useEffect(() => {
+  // Handle incoming WebSocket events
+  const handleWebSocketMessage = useCallback((data: unknown) => {
     if (isPaused) return;
+
+    // Parse event from WebSocket message
+    const eventData = data as { event?: Event; type?: string };
+    if (eventData.event) {
+      setEvents((prev) => [eventData.event!, ...prev].slice(0, 50));
+    } else if (eventData.type === "event") {
+      // Alternative message format
+      setEvents((prev) => [data as Event, ...prev].slice(0, 50));
+    }
+  }, [isPaused]);
+
+  // Connect to WebSocket
+  const { isConnected, connect } = useWebSocket(WS_EVENTS_ENDPOINT, {
+    onMessage: handleWebSocketMessage,
+    onError: () => {
+      // Fall back to simulation if WebSocket fails
+      setUseSimulation(true);
+    },
+    reconnectAttempts: 3,
+  });
+
+  // Use WebSocket connection status to determine mode
+  useEffect(() => {
+    if (isConnected) {
+      setUseSimulation(false);
+    }
+  }, [isConnected]);
+
+  // Simulate live events when WebSocket is not available
+  useEffect(() => {
+    if (isPaused || !useSimulation) return;
 
     const eventTypes = [
       "user.signed_up",
@@ -51,7 +87,7 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
         entity_id: entities[Math.floor(Math.random() * entities.length)]!,
         event_type: eventTypes[Math.floor(Math.random() * eventTypes.length)]!,
         payload: {
-          source: "live_demo",
+          source: "demo",
           random_value: Math.floor(Math.random() * 1000),
         },
         timestamp: new Date().toISOString(),
@@ -62,7 +98,18 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
     }, Math.random() * 1500 + 500);
 
     return () => clearInterval(interval);
-  }, [isPaused]);
+  }, [isPaused, useSimulation]);
+
+  // Start simulation by default if no WebSocket
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isConnected) {
+        setUseSimulation(true);
+      }
+    }, 2000); // Wait 2 seconds for WebSocket before falling back
+
+    return () => clearTimeout(timer);
+  }, [isConnected]);
 
   const clearEvents = () => {
     setEvents([]);
@@ -97,11 +144,39 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
             )}
           </div>
           <CardTitle className="text-base font-medium">Live Feed</CardTitle>
+          {isConnected ? (
+            <span title="WebSocket connected">
+              <Wifi className="h-3 w-3 text-green-500" />
+            </span>
+          ) : useSimulation ? (
+            <span className="text-[10px] text-muted-foreground" title="Using simulated events">
+              (demo)
+            </span>
+          ) : (
+            <span title="Connecting...">
+              <WifiOff className="h-3 w-3 text-muted-foreground" />
+            </span>
+          )}
           <span className="text-xs text-muted-foreground">
-            ({events.length} events)
+            ({events.length})
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {!isConnected && useSimulation && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                setUseSimulation(false);
+                connect();
+              }}
+              title="Try to connect to live stream"
+            >
+              <Wifi className="mr-1 h-3 w-3" />
+              Connect
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"

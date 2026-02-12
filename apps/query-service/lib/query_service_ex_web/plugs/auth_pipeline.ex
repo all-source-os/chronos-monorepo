@@ -11,6 +11,7 @@ defmodule QueryServiceExWeb.Plugs.AuthPipeline do
 
   @behaviour Plug
 
+  alias Guardian.Plug.{EnsureAuthenticated, LoadResource, VerifyHeader}
   alias QueryServiceEx.DevMode
 
   # Guardian module for this app
@@ -58,14 +59,14 @@ defmodule QueryServiceExWeb.Plugs.AuthPipeline do
     ]
 
     conn
-    |> Guardian.Plug.VerifyHeader.call(Guardian.Plug.VerifyHeader.init(verify_opts))
-    |> Guardian.Plug.EnsureAuthenticated.call(Guardian.Plug.EnsureAuthenticated.init(ensure_opts))
+    |> VerifyHeader.call(VerifyHeader.init(verify_opts))
+    |> EnsureAuthenticated.call(EnsureAuthenticated.init(ensure_opts))
     |> maybe_load_resource(load_opts)
   end
 
   defp maybe_load_resource(%Plug.Conn{halted: true} = conn, _opts), do: conn
 
   defp maybe_load_resource(conn, opts) do
-    Guardian.Plug.LoadResource.call(conn, Guardian.Plug.LoadResource.init(opts))
+    LoadResource.call(conn, LoadResource.init(opts))
   end
 end

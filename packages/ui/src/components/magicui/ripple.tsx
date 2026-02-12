@@ -32,15 +32,15 @@ export const Ripple = React.memo(function Ripple({
           <div
             // biome-ignore lint/suspicious/noArrayIndexKey: Ripple circles are generated based on index, index is appropriate
             key={i}
-            className={`absolute animate-ripple rounded-full bg-foreground/25 shadow-xl border [--i:${i}]`}
+            className="absolute rounded-full bg-foreground/25 shadow-xl border"
             style={{
               width: `${size}px`,
               height: `${size}px`,
               opacity,
-              animationDelay,
+              animation: `ripple 2s ease ${i * 0.2}s infinite`,
               borderStyle,
               borderWidth: "1px",
-              borderColor: `hsl(var(--foreground) / ${borderOpacity / 100})`,
+              borderColor: `color-mix(in oklch, var(--foreground) ${borderOpacity}%, transparent)`,
               top: "50%",
               left: "50%",
               transform: "translate(-50%, -50%) scale(1)",

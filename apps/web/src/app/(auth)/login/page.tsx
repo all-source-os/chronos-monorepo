@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useState, useEffect, Suspense } from "react";
-import { Loader2 } from "lucide-react";
-import { cn } from "@allsource/ui/utils";
+import { Loader2, Mail, Eye, EyeOff, AlertCircle } from "lucide-react";
 
 import {
   BlurFade,
@@ -16,7 +15,10 @@ import {
   CardTitle,
   DotPattern,
   Icons,
+  Input,
+  Label,
 } from "@allsource/ui";
+import { cn } from "@allsource/ui/utils";
 import { getApiUrl } from "@/lib/api/client";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -24,12 +26,23 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_token: "Session expired. Please sign in again.",
   auth_failed: "Authentication failed. Please try again.",
   access_denied: "Access was denied. Please try again.",
+  invalid_credentials: "Invalid email or password.",
+  email_not_verified: "Please verify your email before signing in.",
+  account_locked: "Your account has been locked. Please contact support.",
 };
 
 function LoginContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Form state
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const errorId = useId();
 
@@ -49,7 +62,45 @@ function LoginContent() {
     window.location.href = `${apiUrl}/api/auth/${provider}`;
   };
 
-  const isDisabled = loadingProvider !== null;
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || data.message || "Login failed");
+      }
+
+      // If we get a token, set it as cookie and redirect
+      if (data.token) {
+        // The backend should set the cookie, but we'll handle redirect
+        const isNewUser = data.new_user === true;
+        router.push(isNewUser ? "/onboarding" : "/dashboard");
+      } else if (data.redirect) {
+        window.location.href = data.redirect;
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isFormValid = email.trim() && password.trim();
+  const isDisabled = loadingProvider !== null || isSubmitting;
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
@@ -88,49 +139,153 @@ function LoginContent() {
                 <div
                   id={errorId}
                   role="alert"
-                  className="mb-5 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                  className="mb-5 flex items-start gap-2 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive"
                 >
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                   {error}
                 </div>
               )}
 
-              {/* OAuth buttons */}
-              <div className="grid gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="relative h-12 w-full bg-white hover:bg-gray-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                  onClick={() => handleOAuthLogin("google")}
-                  disabled={isDisabled}
-                  aria-busy={loadingProvider === "google"}
-                >
-                  {loadingProvider === "google" ? (
-                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <>
-                      <Icons.google className="mr-2.5 h-5 w-5" aria-hidden="true" />
-                      Continue with Google
-                    </>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-12 w-full bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
-                  onClick={() => handleOAuthLogin("github")}
-                  disabled={isDisabled}
-                  aria-busy={loadingProvider === "github"}
-                >
-                  {loadingProvider === "github" ? (
-                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <>
-                      <Icons.github className="mr-2.5 h-5 w-5" aria-hidden="true" />
-                      Continue with GitHub
-                    </>
-                  )}
-                </Button>
-              </div>
+              {showEmailForm ? (
+                // Email login form
+                <form onSubmit={handleEmailLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={isDisabled}
+                      autoComplete="email"
+                      autoFocus
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <Link
+                        href="/forgot-password"
+                        className="text-xs text-muted-foreground hover:text-primary"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={isDisabled}
+                        autoComplete="current-password"
+                        className="pr-10"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="h-12 w-full"
+                    disabled={isDisabled || !isFormValid}
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      "Sign in"
+                    )}
+                  </Button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailForm(false)}
+                    className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    ← Back to all options
+                  </button>
+                </form>
+              ) : (
+                <>
+                  {/* OAuth buttons */}
+                  <div className="grid gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="relative h-12 w-full bg-white hover:bg-gray-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                      onClick={() => handleOAuthLogin("google")}
+                      disabled={isDisabled}
+                      aria-busy={loadingProvider === "google"}
+                    >
+                      {loadingProvider === "google" ? (
+                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <>
+                          <Icons.google className="mr-2.5 h-5 w-5" aria-hidden="true" />
+                          Continue with Google
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 w-full bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
+                      onClick={() => handleOAuthLogin("github")}
+                      disabled={isDisabled}
+                      aria-busy={loadingProvider === "github"}
+                    >
+                      {loadingProvider === "github" ? (
+                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <>
+                          <Icons.github className="mr-2.5 h-5 w-5" aria-hidden="true" />
+                          Continue with GitHub
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">
+                        Or continue with
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Email login button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 w-full"
+                    onClick={() => setShowEmailForm(true)}
+                    disabled={isDisabled}
+                  >
+                    <Mail className="mr-2.5 h-5 w-5" />
+                    Continue with Email
+                  </Button>
+                </>
+              )}
 
               {/* Sign up link */}
               <p className="mt-6 text-center text-sm text-muted-foreground">

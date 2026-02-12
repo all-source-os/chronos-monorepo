@@ -2,7 +2,7 @@ import { siteConfig } from "@/lib/config";
 import { Icons } from "@allsource/ui";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { FaTwitter } from "react-icons/fa";
+import { FaTwitter, FaGithub, FaDiscord } from "react-icons/fa";
 import { FaYoutube } from "react-icons/fa6";
 import { RiInstagramFill } from "react-icons/ri";
 
@@ -10,6 +10,8 @@ const socialIcons = {
   twitter: FaTwitter,
   instagram: RiInstagramFill,
   youtube: FaYoutube,
+  github: FaGithub,
+  discord: FaDiscord,
 } as const;
 
 export default function Footer() {

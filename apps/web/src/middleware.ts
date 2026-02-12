@@ -5,7 +5,16 @@ import type { NextRequest } from "next/server";
 const protectedRoutes = ["/dashboard", "/onboarding"];
 
 // Routes that are public
-const publicRoutes = ["/", "/login", "/signup", "/blog", "/api/auth"];
+const publicRoutes = [
+  "/",
+  "/login",
+  "/signup",
+  "/blog",
+  "/api/auth",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

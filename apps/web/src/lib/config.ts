@@ -47,6 +47,11 @@ export const siteConfig = {
             title: "AI-Native Tools",
             description: "27 MCP tools for Claude Desktop integration.",
           },
+          {
+            href: "/solutions/quant-intelligence",
+            title: "Quant Intelligence",
+            description: "Probability-based market insights and AI queries.",
+          },
         ],
       },
     },
@@ -83,6 +88,11 @@ export const siteConfig = {
             title: "Multi-tenant SaaS",
             href: "#",
             description: "Secure isolation with RBAC and policy enforcement.",
+          },
+          {
+            title: "Quant Intelligence",
+            href: "/solutions/quant-intelligence",
+            description: "Probability-based analytics for trading strategies.",
           },
         ],
       },
@@ -172,6 +182,11 @@ export const siteConfig = {
       question: "Can I self-host AllSource?",
       answer:
         "Yes! AllSource is open-source (MIT licensed) with minimal footprint (~129 MB for all services). We provide Docker images, Helm charts, and Kubernetes manifests for easy deployment. The cloud offering handles infrastructure management for teams who prefer a managed solution.",
+    },
+    {
+      question: "What is Quant Intelligence?",
+      answer:
+        "Quant Intelligence is our premium analytics layer that transforms raw market data into probability-based insights. Instead of just showing charts, it reveals how markets tend to behave under specific conditions. Features include precomputed NQ/BTC distributions, point-in-time reproducibility for backtesting, and an upcoming AI query interface for natural language questions like 'What's the probability of NQ making new highs after a gap up?'",
     },
   ],
   footer: [
