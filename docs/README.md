@@ -1,12 +1,12 @@
 ---
-title: "Chronos Documentation"
+title: "AllSource Documentation"
 status: CURRENT
 last_updated: 2026-02-08
 ---
 
-# Chronos Documentation Hub
+# AllSource Documentation Hub
 
-Welcome to the Chronos documentation. This hub provides comprehensive guides, architecture documentation, and operational resources for the Chronos event sourcing platform.
+Welcome to the AllSource documentation. This hub provides comprehensive guides, architecture documentation, and operational resources for the AllSource event sourcing platform.
 
 ---
 
@@ -55,7 +55,7 @@ Welcome to the Chronos documentation. This hub provides comprehensive guides, ar
 
 ### Getting Started
 
-For new users looking to understand and run Chronos.
+For new users looking to understand and run AllSource.
 
 | Document | Description | Status |
 |----------|-------------|--------|
@@ -131,7 +131,7 @@ For DevOps and platform engineers.
 | [Query Service Roadmap](./roadmaps/query-service-roadmap.md) | Query service evolution | ✅ |
 | [MCP v2 Enhancements](./roadmaps/mcp-v2-enhancements.md) | MCP protocol improvements | ✅ |
 | [Vector Embedding Design](./roadmaps/FUTURE_VECTOR_EMBEDDING_DESIGN.md) | Future AI/ML integration | ✅ |
-| [LanceDB Comparison](./roadmaps/CHRONOS_VS_LANCEDB_COMPARISON.md) | Technology comparison | ✅ |
+| [LanceDB Comparison](./roadmaps/ALLSOURCE_VS_LANCEDB_COMPARISON.md) | Technology comparison | ✅ |
 
 ---
 

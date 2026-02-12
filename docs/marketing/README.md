@@ -9,7 +9,7 @@ category: marketing
 
 ## 📁 What's in This Folder
 
-This folder contains complete social media marketing materials for AllSource Chronos progress updates (v0.5 → v1.0 → Phase 1.5).
+This folder contains complete social media marketing materials for AllSource AllSource progress updates (v0.5 → v1.0 → Phase 1.5).
 
 ### ⚡ Quick Start (Choose Based on Your Situation)
 
@@ -201,7 +201,7 @@ Why 2x? Your audience grew + you have proven results to show.
 ## 🔗 Important Links
 
 Add these to all posts:
-- **GitHub**: https://github.com/[username]/chronos-monorepo
+- **GitHub**: https://github.com/[username]/allsource-monorepo
 - **Documentation**: Link to docs/INDEX.md
 - **Roadmap**: Link to comprehensive roadmap
 - **Website**: (if you create one)

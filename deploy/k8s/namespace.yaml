@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: chronos
+  name: allsource
   labels:
-    app.kubernetes.io/name: chronos
-    app.kubernetes.io/instance: chronos
+    app.kubernetes.io/name: allsource
+    app.kubernetes.io/instance: allsource

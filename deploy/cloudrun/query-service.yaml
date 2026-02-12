@@ -1,11 +1,11 @@
-# Google Cloud Run Service Configuration for Chronos Query Service
+# Google Cloud Run Service Configuration for AllSource Query Service
 #
 # Deploy:
 #   gcloud run services replace deploy/cloudrun/query-service.yaml --region=us-central1
 #
 # Or with gcloud run deploy:
-#   gcloud run deploy chronos-query-service \
-#     --image gcr.io/PROJECT_ID/chronos-query-service:latest \
+#   gcloud run deploy allsource-query-service \
+#     --image gcr.io/PROJECT_ID/allsource-query-service:latest \
 #     --region us-central1 \
 #     --platform managed \
 #     --allow-unauthenticated \
@@ -14,12 +14,12 @@
 #     --min-instances 0 \
 #     --max-instances 20 \
 #     --port 4000 \
-#     --set-env-vars CORE_URL=https://chronos-core-HASH-uc.a.run.app
+#     --set-env-vars CORE_URL=https://allsource-core-HASH-uc.a.run.app
 
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: chronos-query-service
+  name: allsource-query-service
   labels:
     cloud.googleapis.com/location: us-central1
   annotations:
@@ -40,20 +40,20 @@ spec:
       containerConcurrency: 200
       timeoutSeconds: 60
       containers:
-        - image: gcr.io/PROJECT_ID/chronos-query-service:latest
+        - image: gcr.io/PROJECT_ID/allsource-query-service:latest
           ports:
             - containerPort: 4000
           env:
             - name: MIX_ENV
               value: "prod"
             - name: PHX_HOST
-              value: "chronos-query-service.run.app"
+              value: "allsource-query-service.run.app"
             - name: CORE_URL
-              value: "https://chronos-core-HASH-uc.a.run.app"  # Replace with actual Core URL
+              value: "https://allsource-core-HASH-uc.a.run.app"  # Replace with actual Core URL
             - name: SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:
-                  name: chronos-secrets
+                  name: allsource-secrets
                   key: secret-key-base
             # PORT is automatically set by Cloud Run
           resources:

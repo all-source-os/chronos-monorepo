@@ -1,4 +1,4 @@
-# Chronos Launch Checklist (Manual Tasks)
+# AllSource Launch Checklist (Manual Tasks)
 
 **Target:** Minimum viable "users can sign up and explore"
 **Estimation:** Rock (days) / Sand (hours) / Water (minutes)
@@ -13,17 +13,17 @@
 
 ```
 [ ] Go to https://console.cloud.google.com/apis/credentials
-[ ] Create Project "Chronos Production" (if needed)
+[ ] Create Project "AllSource Production" (if needed)
 [ ] Configure OAuth consent screen
     [ ] User Type: External
-    [ ] App name: Chronos
+    [ ] App name: AllSource
     [ ] Support email: your email
     [ ] Authorized domains: allsource.dev
 [ ] Create OAuth 2.0 Client ID
     [ ] Application type: Web application
-    [ ] Name: Chronos Web
+    [ ] Name: AllSource Web
     [ ] Authorized redirect URIs:
-        - https://chronos.allsource.dev/api/auth/google/callback
+        - https://allsource.allsource.dev/api/auth/google/callback
         - http://localhost:3902/api/auth/google/callback (for testing)
 [ ] Copy Client ID: _______________________
 [ ] Copy Client Secret: _______________________
@@ -37,9 +37,9 @@
 [ ] Go to https://github.com/settings/developers
 [ ] Click "New OAuth App"
 [ ] Fill in:
-    [ ] Application name: Chronos
-    [ ] Homepage URL: https://chronos.allsource.dev
-    [ ] Authorization callback URL: https://chronos.allsource.dev/api/auth/github/callback
+    [ ] Application name: AllSource
+    [ ] Homepage URL: https://allsource.allsource.dev
+    [ ] Authorization callback URL: https://allsource.allsource.dev/api/auth/github/callback
 [ ] Click "Register application"
 [ ] Copy Client ID: _______________________
 [ ] Click "Generate a new client secret"
@@ -73,9 +73,9 @@
 [ ] Install flyctl: curl -L https://fly.io/install.sh | sh
 [ ] Login: fly auth login
 [ ] Create apps:
-    [ ] fly apps create chronos-core
-    [ ] fly apps create chronos-query-service
-    [ ] fly apps create chronos-web
+    [ ] fly apps create allsource-core
+    [ ] fly apps create allsource-query-service
+    [ ] fly apps create allsource-web
 [ ] Note your app names: _______________________
 ```
 
@@ -84,10 +84,10 @@
 
 ```
 [ ] Create Postgres cluster:
-    fly postgres create --name chronos-db --region iad --vm-size shared-cpu-1x --initial-cluster-size 1
+    fly postgres create --name allsource-db --region iad --vm-size shared-cpu-1x --initial-cluster-size 1
 
 [ ] Attach to query service:
-    fly postgres attach chronos-db --app chronos-query-service
+    fly postgres attach allsource-db --app allsource-query-service
 
 [ ] Note: DATABASE_URL is now automatically set as a secret
 ```
@@ -103,19 +103,19 @@
 [ ] Set query-service secrets:
     fly secrets set \
       SECRET_KEY_BASE="<generated-secret>" \
-      PHX_HOST="chronos-query-service.fly.dev" \
+      PHX_HOST="allsource-query-service.fly.dev" \
       GOOGLE_CLIENT_ID="<from-step-1>" \
       GOOGLE_CLIENT_SECRET="<from-step-1>" \
       GITHUB_CLIENT_ID="<from-step-1>" \
       GITHUB_CLIENT_SECRET="<from-step-1>" \
-      RUST_CORE_URL="http://chronos-core.internal:3900" \
-      CORE_WS_URL="ws://chronos-core.internal:3900/api/v1/events/stream" \
-      --app chronos-query-service
+      RUST_CORE_URL="http://allsource-core.internal:3900" \
+      CORE_WS_URL="ws://allsource-core.internal:3900/api/v1/events/stream" \
+      --app allsource-query-service
 
 [ ] Set web secrets:
     fly secrets set \
-      NEXT_PUBLIC_API_URL="https://chronos-query-service.fly.dev" \
-      --app chronos-web
+      NEXT_PUBLIC_API_URL="https://allsource-query-service.fly.dev" \
+      --app allsource-web
 ```
 
 ---
@@ -130,22 +130,22 @@
 [ ] Deploy core (from apps/core):
     cd apps/core
     fly deploy
-    [ ] Verify: fly status --app chronos-core
-    [ ] Verify health: curl https://chronos-core.fly.dev/health
+    [ ] Verify: fly status --app allsource-core
+    [ ] Verify health: curl https://allsource-core.fly.dev/health
 
 [ ] Deploy query-service (from apps/query-service):
     cd apps/query-service
     fly deploy
-    [ ] Verify: fly status --app chronos-query-service
+    [ ] Verify: fly status --app allsource-query-service
 
 [ ] Run migrations:
-    fly ssh console -a chronos-query-service -C "/app/bin/query_service_ex eval 'QueryServiceEx.Release.migrate()'"
-    [ ] Verify: fly logs -a chronos-query-service (check for migration success)
+    fly ssh console -a allsource-query-service -C "/app/bin/query_service_ex eval 'QueryServiceEx.Release.migrate()'"
+    [ ] Verify: fly logs -a allsource-query-service (check for migration success)
 
 [ ] Deploy web (from monorepo root - Dockerfile needs monorepo context):
     fly deploy -c apps/web/fly.toml --dockerfile apps/web/Dockerfile
-    [ ] Verify: fly status --app chronos-web
-    [ ] Verify health: curl https://chronos-web.fly.dev/
+    [ ] Verify: fly status --app allsource-web
+    [ ] Verify health: curl https://allsource-web.fly.dev/
 ```
 
 ---
@@ -156,7 +156,7 @@
 - **Estimate:** Water (15 min)
 
 ```
-[ ] Open https://chronos-web.fly.dev (or your domain)
+[ ] Open https://allsource-web.fly.dev (or your domain)
 [ ] Landing page loads
 [ ] Click "Get Started" or "Sign Up"
 [ ] Click "Continue with Google"
@@ -247,7 +247,7 @@
 These improve the product but don't block launch:
 
 ```
-[ ] Custom domain setup (chronos.allsource.dev → Fly.io)
+[ ] Custom domain setup (allsource.allsource.dev → Fly.io)
 [ ] LemonSqueezy billing integration test
 [ ] Privacy Policy page
 [ ] Terms of Service page
@@ -259,12 +259,12 @@ These improve the product but don't block launch:
 
 **OAuth redirect error:**
 - Check callback URLs match exactly (trailing slashes matter)
-- Ensure secrets are set correctly: `fly secrets list --app chronos-query-service`
+- Ensure secrets are set correctly: `fly secrets list --app allsource-query-service`
 
 **Database connection error:**
 - Verify attachment: `fly postgres list`
-- Check DATABASE_URL is set: `fly secrets list --app chronos-query-service`
+- Check DATABASE_URL is set: `fly secrets list --app allsource-query-service`
 
 **Service can't reach another service:**
-- Use `.internal` DNS: `http://chronos-core.internal:3900`
+- Use `.internal` DNS: `http://allsource-core.internal:3900`
 - Verify both apps are in same organization

@@ -1,13 +1,13 @@
 /*
- * Chronos C4 Architecture - Structurizr DSL
+ * AllSource C4 Architecture - Structurizr DSL
  *
  * Use with:
  * - Structurizr Lite: https://structurizr.com/help/lite
- * - Structurizr CLI: structurizr-cli export -workspace chronos.dsl -format plantuml
+ * - Structurizr CLI: structurizr-cli export -workspace allsource.dsl -format plantuml
  * - Online: https://structurizr.com/dsl
  */
 
-workspace "Chronos" "AI-native event sourcing platform for temporal data intelligence" {
+workspace "AllSource" "AI-native event sourcing platform for temporal data intelligence" {
 
     !identifiers hierarchical
 
@@ -24,8 +24,8 @@ workspace "Chronos" "AI-native event sourcing platform for temporal data intelli
         monitoringStack = softwareSystem "Monitoring Stack" "Prometheus, Grafana, Jaeger for observability" "External"
         identityProvider = softwareSystem "Identity Provider" "OAuth, LDAP, SAML for enterprise SSO" "External"
 
-        # ==================== Chronos System ====================
-        chronos = softwareSystem "Chronos Platform" "AI-native event sourcing platform. 469K events/sec, 11.9us p99 latency, 27 MCP tools." {
+        # ==================== AllSource System ====================
+        allsource = softwareSystem "AllSource Platform" "AI-native event sourcing platform. 469K events/sec, 11.9us p99 latency, 27 MCP tools." {
 
             # --- Web Dashboard ---
             webDashboard = container "Web Dashboard" "Real-time event visualization, management UI, OAuth login" "Next.js 16, React 19, Tailwind CSS" "Web Browser"
@@ -121,16 +121,16 @@ workspace "Chronos" "AI-native event sourcing platform for temporal data intelli
         # ==================== Relationships ====================
 
         # Users -> System
-        developer -> chronos "Ingests events, queries history, manages schemas"
-        dataEngineer -> chronos "Creates projections, exports data, builds pipelines"
-        aiEngineer -> chronos "Uses MCP tools for AI workflows"
-        operator -> chronos "Configures tenants, monitors health, manages security"
+        developer -> allsource "Ingests events, queries history, manages schemas"
+        dataEngineer -> allsource "Creates projections, exports data, builds pipelines"
+        aiEngineer -> allsource "Uses MCP tools for AI workflows"
+        operator -> allsource "Configures tenants, monitors health, manages security"
 
-        # External Systems -> Chronos
-        clientApps -> chronos "Consumes events via REST/WebSocket"
-        llmAgents -> chronos.mcpServer "Natural language queries via MCP protocol"
-        chronos -> monitoringStack "Exports metrics (Prometheus) and traces (OTLP)"
-        chronos.controlPlane -> identityProvider "Validates SSO tokens"
+        # External Systems -> AllSource
+        clientApps -> allsource "Consumes events via REST/WebSocket"
+        llmAgents -> allsource.mcpServer "Natural language queries via MCP protocol"
+        allsource -> monitoringStack "Exports metrics (Prometheus) and traces (OTLP)"
+        allsource.controlPlane -> identityProvider "Validates SSO tokens"
 
         # Users -> Containers
         developer -> webDashboard "Manages events via browser"
@@ -205,13 +205,13 @@ workspace "Chronos" "AI-native event sourcing platform for temporal data intelli
 
     views {
         # Level 1: System Context
-        systemContext chronos "SystemContext" {
+        systemContext allsource "SystemContext" {
             include *
             autoLayout
         }
 
         # Level 2: Container
-        container chronos "Containers" {
+        container allsource "Containers" {
             include *
             autoLayout
         }

@@ -9,7 +9,7 @@ category: reference
 
 ## Overview
 
-[TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) is a compact format designed for LLM prompts that uses approximately **50% fewer tokens** than JSON. This analysis identifies opportunities to adopt TOON across the Chronos stack to reduce token costs for AI agents.
+[TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) is a compact format designed for LLM prompts that uses approximately **50% fewer tokens** than JSON. This analysis identifies opportunities to adopt TOON across the AllSource stack to reduce token costs for AI agents.
 
 ## Why TOON?
 

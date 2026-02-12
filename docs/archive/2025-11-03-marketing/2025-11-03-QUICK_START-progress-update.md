@@ -48,19 +48,19 @@
 
 **Progress-focused:**
 ```
-"3 months ago I announced AllSource Chronos v0.5.
+"3 months ago I announced AllSource AllSource v0.5.
 Today: v1.0 shipped + Phase 1.5 at 70%"
 ```
 
 **Learning-focused:**
 ```
-"What I learned shipping AllSource Chronos v0.5 → v1.0:
+"What I learned shipping AllSource AllSource v0.5 → v1.0:
 [Key lessons thread]"
 ```
 
 **Metrics-focused:**
 ```
-"AllSource Chronos: By The Numbers
+"AllSource AllSource: By The Numbers
 0 → 86 tests
 0 → 469K events/sec
 0% → 70% Clean Architecture"
@@ -160,7 +160,7 @@ Announced          Shipped           Target:
 
 ### Metrics Dashboard
 ```
-📊 AllSource Chronos Progress
+📊 AllSource AllSource Progress
 
 Quality:
 ├─ Tests:        0 → 86 ████████████████████ +86

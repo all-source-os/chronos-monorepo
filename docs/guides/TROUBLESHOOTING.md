@@ -419,7 +419,7 @@ go run main.go
 curl http://localhost:3902/api/health | jq '.components.core_websocket'
 
 # Verify CORE_WS_URL is set
-docker exec chronos-query-service printenv | grep CORE_WS
+docker exec allsource-query-service printenv | grep CORE_WS
 
 # Test WebSocket endpoint on Core
 curl -i -N \
@@ -435,7 +435,7 @@ curl -i -N \
 **WebSocket URL not configured:**
 ```bash
 # Set the environment variable (use ws:// not http://)
-export CORE_WS_URL=ws://chronos-core:3900
+export CORE_WS_URL=ws://allsource-core:3900
 
 # Docker Compose
 environment:
@@ -445,13 +445,13 @@ environment:
 **Wrong protocol prefix:**
 ```bash
 # Wrong - will fail
-CORE_WS_URL=http://chronos-core:3900
+CORE_WS_URL=http://allsource-core:3900
 
 # Correct
-CORE_WS_URL=ws://chronos-core:3900
+CORE_WS_URL=ws://allsource-core:3900
 
 # Production with TLS
-CORE_WS_URL=wss://chronos-core.example.com:443
+CORE_WS_URL=wss://allsource-core.example.com:443
 ```
 
 **Wrong port in Kubernetes:**
@@ -460,16 +460,16 @@ CORE_WS_URL=wss://chronos-core.example.com:443
 CORE_WS_URL=ws://core:3900
 
 # Kubernetes uses port 3901
-CORE_WS_URL=ws://chronos-core:3901
+CORE_WS_URL=ws://allsource-core:3901
 ```
 
 **Core service unreachable:**
 ```bash
 # Ensure Core is running first
-curl http://chronos-core:3900/health
+curl http://allsource-core:3900/health
 
 # Check network connectivity
-docker exec chronos-query-service ping chronos-core
+docker exec allsource-query-service ping allsource-core
 ```
 
 **Disable WebSocket (use HTTP polling):**
@@ -741,7 +741,7 @@ cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | jq
 ```bash
 # Ensure path is absolute (not relative)
 # Wrong: "cwd": "./apps/mcp-server-elixir"
-# Right: "cwd": "/Users/username/Projects/chronos/chronos-monorepo/apps/mcp-server-elixir"
+# Right: "cwd": "/Users/username/Projects/allsource/allsource-monorepo/apps/mcp-server-elixir"
 
 # Ensure dependencies are installed
 cd apps/mcp-server-elixir
@@ -891,7 +891,7 @@ kill -9 $(lsof -t -i :3901)
 kill -9 $(lsof -t -i :3902)
 
 # Or kill all related processes
-pkill -f "allsource\|chronos"
+pkill -f "allsource\|allsource"
 ```
 
 **Use alternative ports:**
@@ -921,7 +921,7 @@ PORT=3912 mix phx.server
 docker network ls
 
 # Inspect network
-docker network inspect chronos-network
+docker network inspect allsource-network
 
 # Check container IPs
 docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' container_name
@@ -935,11 +935,11 @@ docker exec core ping control-plane
 **Create shared network:**
 ```bash
 # Create network
-docker network create chronos-network
+docker network create allsource-network
 
 # Run containers on same network
-docker run --network chronos-network --name core ...
-docker run --network chronos-network --name control-plane ...
+docker run --network allsource-network --name core ...
+docker run --network allsource-network --name control-plane ...
 ```
 
 **Use service names instead of localhost:**

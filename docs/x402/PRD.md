@@ -1,14 +1,14 @@
 ---
-title: "Product Requirements Document: Chronos Paywall"
+title: "Product Requirements Document: AllSource Paywall"
 status: CURRENT
 last_updated: 2026-02-02
 category: project
 project: x402-hackathon
 ---
 
-# Product Requirements Document: Chronos Paywall
+# Product Requirements Document: AllSource Paywall
 
-**Product:** Chronos Paywall - x402 Micropayments for Content Creators
+**Product:** AllSource Paywall - x402 Micropayments for Content Creators
 **Version:** 1.0
 **Date:** November 2025
 **Owner:** [Your Name]
@@ -18,7 +18,7 @@ project: x402-hackathon
 
 ## Executive Summary
 
-Chronos Paywall is a SaaS platform that enables content creators to monetize their work through per-article micropayments using the x402 protocol. By leveraging Chronos event store's unique time-travel capabilities, we provide analytics and dispute resolution features impossible with traditional databases.
+AllSource Paywall is a SaaS platform that enables content creators to monetize their work through per-article micropayments using the x402 protocol. By leveraging AllSource event store's unique time-travel capabilities, we provide analytics and dispute resolution features impossible with traditional databases.
 
 **One-line pitch:** "Stripe for content - add micropayments to your blog in 2 minutes."
 
@@ -249,7 +249,7 @@ Content creators face significant monetization challenges:
 - Plugin available in WordPress directory
 - Install via WordPress admin (Plugins → Add New)
 - Settings page for API key configuration
-- Shortcode: `[chronos-paywall price="0.50"]content[/chronos-paywall]`
+- Shortcode: `[allsource-paywall price="0.50"]content[/allsource-paywall]`
 - Block editor support (Gutenberg)
 
 **Priority:** P0 (MVP)
@@ -412,8 +412,8 @@ Content creators face significant monetization challenges:
 
 **Acceptance Criteria:**
 - WordPress plugin with < 5-minute setup
-- Shortcode: `[chronos-paywall price="0.50"]content[/chronos-paywall]`
-- Gutenberg block: "Chronos Paywall"
+- Shortcode: `[allsource-paywall price="0.50"]content[/allsource-paywall]`
+- Gutenberg block: "AllSource Paywall"
 - Settings page: API key, default price, wallet address
 
 **Priority:** P0 (MVP)
@@ -437,7 +437,7 @@ Content creators face significant monetization challenges:
 **Acceptance Criteria:**
 - Chrome extension available in Web Store
 - Firefox add-on available
-- Detects special marker: `🔒 CHRONOS-PAYWALL:0.50`
+- Detects special marker: `🔒 ALLSOURCE-PAYWALL:0.50`
 - Injects paywall widget automatically
 - Reader sees native-looking paywall
 
@@ -517,7 +517,7 @@ Content creators face significant monetization challenges:
 
 **Must Have:**
 - [ ] Paywall widget (vanilla JS)
-  - Detects `data-chronos-paywall` divs
+  - Detects `data-allsource-paywall` divs
   - Injects "Unlock for $X" overlay
   - Handles x402 payment flow
   - Unlocks content after verification
@@ -533,7 +533,7 @@ Content creators face significant monetization challenges:
 - [ ] WordPress plugin (basic)
   - Shortcode support
   - API key configuration
-- [ ] Chronos integration
+- [ ] AllSource integration
   - Event logging: `paywall.article.purchased`
   - Event logging: `paywall.content.accessed`
   - Query API for analytics
@@ -638,7 +638,7 @@ Content creators face significant monetization challenges:
 - File storage: S3 (for dispute proofs)
 
 **Database:**
-- Primary: Chronos Event Store (existing)
+- Primary: AllSource Event Store (existing)
 - Cache: Redis
 - Optional: PostgreSQL (for creator accounts)
 
@@ -654,7 +654,7 @@ Content creators face significant monetization challenges:
 
 ---
 
-### 6.2 Event Schema (Chronos)
+### 6.2 Event Schema (AllSource)
 
 **Core Events:**
 
@@ -795,12 +795,12 @@ Response: { status: 'resolved' }
 
 ```html
 <!-- Step 1: Add widget script to <head> -->
-<script src="https://paywall.chronos.dev/widget.js"
+<script src="https://paywall.allsource.dev/widget.js"
         data-creator-id="your-creator-id"
         data-network="solana"></script>
 
 <!-- Step 2: Wrap premium content -->
-<div data-chronos-paywall
+<div data-allsource-paywall
      data-price="0.50"
      data-article-id="my-article-slug"
      data-title="How to Scale to 1M Users">
@@ -815,9 +815,9 @@ Response: { status: 'resolved' }
 
 ```php
 // In post editor
-[chronos-paywall price="0.50" article-id="my-article"]
+[allsource-paywall price="0.50" article-id="my-article"]
 Premium content here...
-[/chronos-paywall]
+[/allsource-paywall]
 
 // Or use Gutenberg block
 ```
@@ -826,11 +826,11 @@ Premium content here...
 
 ```html
 <!-- Settings > Code Injection > Site Header -->
-<script src="https://paywall.chronos.dev/widget.js"
+<script src="https://paywall.allsource.dev/widget.js"
         data-creator-id="{{@site.uuid}}"></script>
 
 <!-- In your post -->
-<div data-chronos-paywall data-price="0.50">
+<div data-allsource-paywall data-price="0.50">
   Premium content...
 </div>
 ```
@@ -883,7 +883,7 @@ Premium content here...
 **Reliability:**
 - Uptime: 99.9% (V1.0), 99.99% (V2.0)
 - Payment success rate: > 95%
-- Data durability: 99.999999999% (Chronos)
+- Data durability: 99.999999999% (AllSource)
 
 **Scalability:**
 - Support 10,000 creators (V1.0)
@@ -999,7 +999,7 @@ Premium content here...
 **Alerts:**
 - Payment success rate drops below 90%
 - API error rate exceeds 5%
-- Chronos event store unavailable
+- AllSource event store unavailable
 - Creator withdrawal failures
 
 **Logging:**
@@ -1016,11 +1016,11 @@ Premium content here...
 - Payment verification logic
 - Access token generation/validation
 - x402 protocol compliance
-- Event logging to Chronos
+- Event logging to AllSource
 
 **Integration Tests:**
 - End-to-end payment flow
-- Dashboard → API → Chronos
+- Dashboard → API → AllSource
 - Widget → API → Blockchain
 - WordPress plugin activation
 
@@ -1040,7 +1040,7 @@ Premium content here...
 
 ### 9.1 Internal Dependencies
 
-**Chronos Event Store:**
+**AllSource Event Store:**
 - Must be deployed and accessible
 - Ingestion API: `/api/v1/events`
 - Query API: `/api/v1/events/query`
@@ -1050,7 +1050,7 @@ Premium content here...
 **x402 SDK:**
 - Built during hackathon
 - Handles payment verification
-- Logs events to Chronos
+- Logs events to AllSource
 
 ---
 
@@ -1273,9 +1273,9 @@ Premium content here...
 
 ---
 
-### Risk 6: Technical: Chronos Scalability
+### Risk 6: Technical: AllSource Scalability
 
-**Risk:** Chronos event store can't handle scale.
+**Risk:** AllSource event store can't handle scale.
 
 **Likelihood:** Low
 **Impact:** High
@@ -1299,7 +1299,7 @@ Premium content here...
 
 **Technical:**
 - [ ] Go or Node.js for backend? (Go = performance, Node = speed)
-- [ ] Hosted Chronos or self-hosted option?
+- [ ] Hosted AllSource or self-hosted option?
 - [ ] Real-time analytics (WebSocket) or polling?
 - [ ] Content encryption (optional for creators)?
 
@@ -1370,7 +1370,7 @@ Why: Directly reflects creator and reader value. Grows with both adoption and en
 
 **x402:** HTTP-based payment protocol enabling micropayments over the internet.
 
-**Chronos:** Event store platform with time-travel query capabilities.
+**AllSource:** Event store platform with time-travel query capabilities.
 
 **Event Sourcing:** Architecture pattern where state changes are stored as immutable events.
 
@@ -1380,7 +1380,7 @@ Why: Directly reflects creator and reader value. Grows with both adoption and en
 
 **Widget:** Client-side JavaScript component embedded in creator's website.
 
-**Creator:** Content producer monetizing with Chronos Paywall.
+**Creator:** Content producer monetizing with AllSource Paywall.
 
 **Reader:** Content consumer making micropayments.
 
@@ -1397,7 +1397,7 @@ Why: Directly reflects creator and reader value. Grows with both adoption and en
 - Whitepaper: https://x402.org/x402-whitepaper.pdf
 - Docs: https://docs.cdp.coinbase.com/x402/welcome
 
-**Chronos Event Store:**
+**AllSource Event Store:**
 - Repository: /services/core/
 - API Documentation: /services/core/src/api.rs
 - Event Schema: /services/core/src/domain/entities/

@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "chronos.core.fullname" . }}-data
+  name: {{ include "allsource.core.fullname" . }}-data
   labels:
-    {{- include "chronos.core.labels" . | nindent 4 }}
+    {{- include "allsource.core.labels" . | nindent 4 }}
 spec:
   accessModes:
     - {{ .Values.core.persistence.accessMode }}

@@ -11,7 +11,7 @@ category: guide
 **Status**: RECOMMENDED
 **Audience**: Repository Maintainers
 
-This document provides recommended branch protection settings for the Chronos monorepo to ensure code quality, security, and collaborative review processes.
+This document provides recommended branch protection settings for the AllSource monorepo to ensure code quality, security, and collaborative review processes.
 
 ---
 
@@ -230,7 +230,7 @@ For infrastructure-as-code setups:
 
 ```hcl
 resource "github_branch_protection" "main" {
-  repository_id = github_repository.chronos.node_id
+  repository_id = github_repository.allsource.node_id
   pattern       = "main"
 
   required_status_checks {
@@ -300,7 +300,7 @@ If using CODEOWNERS, create `.github/CODEOWNERS`:
 
 ```
 # Global owners
-* @chronos-maintainers
+* @allsource-maintainers
 
 # Service-specific owners
 /apps/core/           @rust-team
@@ -309,10 +309,10 @@ If using CODEOWNERS, create `.github/CODEOWNERS`:
 /apps/web/            @frontend-team
 
 # Workflow files require extra review
-/.github/workflows/   @devops-team @chronos-maintainers
+/.github/workflows/   @devops-team @allsource-maintainers
 
 # Documentation
-/docs/                @tech-writers @chronos-maintainers
+/docs/                @tech-writers @allsource-maintainers
 ```
 
 Then enable "Require review from code owners" in branch protection.

@@ -18,7 +18,7 @@ export const siteConfig = {
     email: "hello@allsource.dev",
     twitter: "https://twitter.com/allsourcedev",
     discord: "https://discord.gg/allsource",
-    github: "https://github.com/allsource/chronos",
+    github: "https://github.com/allsource/allsource",
     instagram: "https://instagram.com/allsourcedev",
   },
   header: [
@@ -222,7 +222,7 @@ export const siteConfig = {
       title: "Connect",
       links: [
         {
-          href: "https://github.com/allsource/chronos",
+          href: "https://github.com/allsource/allsource",
           text: "GitHub",
           icon: "github" as const,
         },

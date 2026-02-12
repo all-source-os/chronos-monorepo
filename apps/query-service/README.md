@@ -7,7 +7,7 @@ port: 3902
 technology: Elixir
 ---
 
-# Chronos Query Service (Elixir)
+# AllSource Query Service (Elixir)
 
 **AI-Native Event Processing & Projections on the BEAM**
 
@@ -124,13 +124,13 @@ iex -S mix
 
 ```bash
 # Build Docker image
-docker build -t chronos-query-service:latest .
+docker build -t allsource-query-service:latest .
 
 # Run with Docker
 docker run -p 3902:3902 \
   -e RUST_CORE_URL=http://rust-core:3900 \
   -e SECRET_KEY_BASE=$(mix phx.gen.secret) \
-  chronos-query-service:latest
+  allsource-query-service:latest
 ```
 
 **Built with ❤️ on the BEAM** 🦎✨

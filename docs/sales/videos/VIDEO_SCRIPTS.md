@@ -1,4 +1,4 @@
-# Chronos Video Content Scripts
+# AllSource Video Content Scripts
 
 This document contains scripts, storyboards, and recording guides for creating sales and demo videos.
 
@@ -40,13 +40,13 @@ You're stuck with either:
 And when AI agents need to understand your data?
 Good luck with that."
 
-[SCENE 3: Introducing Chronos - 0:45-1:30]
+[SCENE 3: Introducing AllSource - 0:45-1:30]
 -------------------------------------------
-VISUAL: Chronos logo animation, then architecture diagram animating in
+VISUAL: AllSource logo animation, then architecture diagram animating in
 AUDIO: Upbeat, confident music
 
 NARRATOR:
-"Meet Chronos - the AI-native event sourcing platform
+"Meet AllSource - the AI-native event sourcing platform
 built for the way modern applications work.
 
 469,000 events per second.
@@ -60,7 +60,7 @@ It's not just fast. It's designed for the AI era."
 VISUAL: Feature cards animating in sequence
 
 FEATURE 1 - PERFORMANCE
-"Built with Rust at its core, Chronos delivers
+"Built with Rust at its core, AllSource delivers
 469K events per second with 12 microsecond latency."
 
 FEATURE 2 - AI NATIVE
@@ -80,12 +80,12 @@ The best tool for each job."
 VISUAL: Dashboard demo, then CTA screen
 
 NARRATOR:
-"Start building with Chronos today.
+"Start building with AllSource today.
 Open source. Cloud ready.
 Future proof."
 
 TEXT ON SCREEN:
-github.com/[org]/chronos
+github.com/[org]/allsource
 "Star on GitHub"
 ```
 
@@ -95,10 +95,10 @@ github.com/[org]/chronos
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
 │  Frame 1: Hook  │  │ Frame 2: Problem│  │Frame 3: Solution│
 │                 │  │                 │  │                 │
-│   [Code rain    │  │  [Frustrated    │  │  [Chronos logo  │
+│   [Code rain    │  │  [Frustrated    │  │  [AllSource logo  │
 │    animation]   │  │   developer]    │  │   reveal]       │
 │                 │  │                 │  │                 │
-│  "What if..."   │  │ "Traditional    │  │ "Meet Chronos"  │
+│  "What if..."   │  │ "Traditional    │  │ "Meet AllSource"  │
 └─────────────────┘  │  DBs weren't..."│  └─────────────────┘
                      └─────────────────┘
 
@@ -117,7 +117,7 @@ github.com/[org]/chronos
 ## Video 2: Technical Demo (5-7 minutes)
 
 ### Purpose
-Detailed walkthrough for developers evaluating Chronos.
+Detailed walkthrough for developers evaluating AllSource.
 
 ### Target Audience
 Software Engineers, DevOps, Technical Architects
@@ -130,11 +130,11 @@ Software Engineers, DevOps, Technical Architects
 TERMINAL RECORDING (asciinema)
 
 NARRATOR:
-"Let's spin up Chronos locally. It's just one command."
+"Let's spin up AllSource locally. It's just one command."
 
 COMMANDS:
-$ git clone https://github.com/[org]/chronos-monorepo
-$ cd chronos-monorepo
+$ git clone https://github.com/[org]/allsource-monorepo
+$ cd allsource-monorepo
 $ docker compose up -d
 
 NARRATOR:
@@ -142,10 +142,10 @@ NARRATOR:
 Notice the container sizes - just 129 megabytes total."
 
 COMMANDS:
-$ docker images | grep chronos
-chronos-core           15.7MB
-chronos-control-plane  27.9MB
-chronos-query-service  35.1MB
+$ docker images | grep allsource
+allsource-core           15.7MB
+allsource-control-plane  27.9MB
+allsource-query-service  35.1MB
 
 [SCENE 2: Event Ingestion - 1:00-2:30]
 -------------------------------------------
@@ -219,7 +219,7 @@ Based on the events I found:
 The order was successfully fulfilled in 5 days."
 
 NARRATOR:
-"Claude used the MCP tools to query Chronos naturally.
+"Claude used the MCP tools to query AllSource naturally.
 No custom code. No manual API calls."
 
 User: "Were there any delays compared to similar orders?"
@@ -248,7 +248,7 @@ $ wscat -c "ws://localhost:3902/socket/websocket"
 DASHBOARD + TERMINAL SIDE BY SIDE
 
 NARRATOR:
-"That's Chronos.
+"That's AllSource.
 High-performance event sourcing.
 AI-native from day one.
 Try it yourself - link in the description."
@@ -262,7 +262,7 @@ brew install asciinema
 
 # Record terminal session
 asciinema rec demo.cast \
-  --title "Chronos Technical Demo" \
+  --title "AllSource Technical Demo" \
   --idle-time-limit 2
 
 # Convert to GIF (optional)
@@ -279,7 +279,7 @@ agg demo.cast demo.gif --theme monokai
 ## Video 3: MCP Integration Deep Dive (3-4 minutes)
 
 ### Purpose
-Show AI/ML engineers how to integrate Chronos with LLM applications.
+Show AI/ML engineers how to integrate AllSource with LLM applications.
 
 ### Script
 
@@ -289,7 +289,7 @@ Show AI/ML engineers how to integrate Chronos with LLM applications.
 VISUAL: Claude Desktop interface
 
 NARRATOR:
-"Chronos is the only event store with native
+"AllSource is the only event store with native
 Model Context Protocol support.
 
 Let me show you what that means for AI applications."
@@ -299,17 +299,17 @@ Let me show you what that means for AI applications."
 CODE EDITOR: claude_desktop_config.json
 
 NARRATOR:
-"Configuration is simple. Add Chronos to your Claude config."
+"Configuration is simple. Add AllSource to your Claude config."
 
 CODE:
 {
   "mcpServers": {
-    "chronos": {
+    "allsource": {
       "command": "mix",
       "args": ["run", "--no-halt"],
-      "cwd": "/path/to/chronos/mcp-server-elixir",
+      "cwd": "/path/to/allsource/mcp-server-elixir",
       "env": {
-        "CHRONOS_CORE_URL": "http://localhost:3900"
+        "ALLSOURCE_CORE_URL": "http://localhost:3900"
       }
     }
   }
@@ -386,7 +386,7 @@ Technical deep-dive into the polyglot architecture for architects.
 [Animation Sequence - C4 Diagrams]
 
 0:00 - Start with Context Diagram
-       "Chronos in its ecosystem"
+       "AllSource in its ecosystem"
        Animate: Users -> System -> External Systems
 
 0:30 - Zoom into Container Diagram
@@ -433,7 +433,7 @@ Technical deep-dive into the polyglot architecture for architects.
 
 ```bash
 # Option 1: Motion Canvas (React-based)
-npx create-motion-canvas@latest chronos-architecture
+npx create-motion-canvas@latest allsource-architecture
 
 # Option 2: Remotion (React video)
 npx create-video@latest
@@ -453,12 +453,12 @@ npx create-video@latest
 # save as: record-quickstart.sh
 
 # Start recording
-asciinema rec quickstart.cast --title "Chronos Quick Start"
+asciinema rec quickstart.cast --title "AllSource Quick Start"
 
 # Commands to execute during recording:
 echo "# Clone the repository"
-git clone https://github.com/[org]/chronos-monorepo
-cd chronos-monorepo
+git clone https://github.com/[org]/allsource-monorepo
+cd allsource-monorepo
 
 echo "# Start the stack"
 docker compose up -d
@@ -487,7 +487,7 @@ docker compose down
 #!/bin/bash
 # save as: record-performance.sh
 
-asciinema rec performance.cast --title "Chronos Performance Demo"
+asciinema rec performance.cast --title "AllSource Performance Demo"
 
 # Show benchmark
 echo "# Running throughput benchmark"
@@ -506,7 +506,7 @@ echo "Latency p99: 11.9 microseconds"
 ```yaml
 # terminalizer config for animated GIF
 command: bash
-cwd: /path/to/chronos-monorepo
+cwd: /path/to/allsource-monorepo
 env:
   recording: true
 cols: 120
@@ -517,7 +517,7 @@ frameDelay: auto
 maxIdleTime: 2000
 frameBox:
   type: floating
-  title: Chronos Demo
+  title: AllSource Demo
   style:
     backgroundColor: "#0a0e27"
 watermark:

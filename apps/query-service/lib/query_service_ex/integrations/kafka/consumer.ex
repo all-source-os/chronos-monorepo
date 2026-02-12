@@ -14,7 +14,7 @@ defmodule QueryServiceEx.Integrations.Kafka.Consumer do
         enabled: true,
         brokers: [{"localhost", 9092}],
         group_id: "query-service-consumer",
-        topics: ["chronos-events"],
+        topics: ["allsource-events"],
         processors: [default: [concurrency: 10]],
         batchers: [default: [batch_size: 100, batch_timeout: 1000]]
 
@@ -23,7 +23,7 @@ defmodule QueryServiceEx.Integrations.Kafka.Consumer do
       KAFKA_CONSUMER_ENABLED=true
       KAFKA_BROKERS=localhost:9092
       KAFKA_CONSUMER_GROUP_ID=query-service-consumer
-      KAFKA_CONSUMER_TOPICS=chronos-events
+      KAFKA_CONSUMER_TOPICS=allsource-events
   """
 
   use Broadway
@@ -240,7 +240,7 @@ defmodule QueryServiceEx.Integrations.Kafka.Consumer do
 
     case Keyword.get(config, :topics) do
       nil ->
-        topics_str = System.get_env("KAFKA_CONSUMER_TOPICS", "chronos-events")
+        topics_str = System.get_env("KAFKA_CONSUMER_TOPICS", "allsource-events")
         String.split(topics_str, ",") |> Enum.map(&String.trim/1)
 
       topics when is_list(topics) ->

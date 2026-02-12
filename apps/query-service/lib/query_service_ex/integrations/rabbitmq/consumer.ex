@@ -13,10 +13,10 @@ defmodule QueryServiceEx.Integrations.RabbitMQ.Consumer do
       config :query_service_ex, QueryServiceEx.Integrations.RabbitMQ.Consumer,
         enabled: true,
         url: "amqp://guest:guest@localhost:5672",
-        queue: "chronos.events.queue",
-        exchange: "chronos.events",
+        queue: "allsource.events.queue",
+        exchange: "allsource.events",
         routing_key: "#",
-        dlq_exchange: "chronos.events.dlq",
+        dlq_exchange: "allsource.events.dlq",
         processors: [default: [concurrency: 10]],
         batchers: [default: [batch_size: 50, batch_timeout: 1000]]
 
@@ -24,8 +24,8 @@ defmodule QueryServiceEx.Integrations.RabbitMQ.Consumer do
 
       RABBITMQ_CONSUMER_ENABLED=true
       RABBITMQ_URL=amqp://guest:guest@localhost:5672
-      RABBITMQ_CONSUMER_QUEUE=chronos.events.queue
-      RABBITMQ_CONSUMER_EXCHANGE=chronos.events
+      RABBITMQ_CONSUMER_QUEUE=allsource.events.queue
+      RABBITMQ_CONSUMER_EXCHANGE=allsource.events
       RABBITMQ_CONSUMER_ROUTING_KEY=#
   """
 
@@ -235,14 +235,14 @@ defmodule QueryServiceEx.Integrations.RabbitMQ.Consumer do
     config = Application.get_env(:query_service_ex, __MODULE__, [])
 
     Keyword.get(config, :queue) ||
-      System.get_env("RABBITMQ_CONSUMER_QUEUE", "chronos.events.queue")
+      System.get_env("RABBITMQ_CONSUMER_QUEUE", "allsource.events.queue")
   end
 
   defp get_exchange do
     config = Application.get_env(:query_service_ex, __MODULE__, [])
 
     Keyword.get(config, :exchange) ||
-      System.get_env("RABBITMQ_CONSUMER_EXCHANGE", "chronos.events")
+      System.get_env("RABBITMQ_CONSUMER_EXCHANGE", "allsource.events")
   end
 
   defp get_routing_key do

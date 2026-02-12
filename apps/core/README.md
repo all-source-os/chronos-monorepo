@@ -490,8 +490,8 @@ cargo add allsource-core@0.7
 
 ```bash
 # Clone the repository
-git clone https://github.com/all-source-os/chronos-monorepo.git
-cd chronos-monorepo/apps/core
+git clone https://github.com/all-source-os/allsource-monorepo.git
+cd allsource-monorepo/apps/core
 
 # Build
 cargo build --release

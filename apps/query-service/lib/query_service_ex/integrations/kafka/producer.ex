@@ -14,7 +14,7 @@ defmodule QueryServiceEx.Integrations.Kafka.Producer do
         enabled: true,
         brokers: [{"localhost", 9092}],
         client_id: :query_service_kafka,
-        default_topic: "chronos-events",
+        default_topic: "allsource-events",
         producer_config: [
           required_acks: :all,
           max_retries: 3
@@ -24,7 +24,7 @@ defmodule QueryServiceEx.Integrations.Kafka.Producer do
 
       KAFKA_ENABLED=true
       KAFKA_BROKERS=localhost:9092,broker2:9092
-      KAFKA_DEFAULT_TOPIC=chronos-events
+      KAFKA_DEFAULT_TOPIC=allsource-events
       KAFKA_CLIENT_ID=query-service
   """
 
@@ -32,7 +32,7 @@ defmodule QueryServiceEx.Integrations.Kafka.Producer do
 
   require Logger
 
-  @default_topic "chronos-events"
+  @default_topic "allsource-events"
 
   ## Client API
 

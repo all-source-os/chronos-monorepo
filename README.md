@@ -1,16 +1,16 @@
 ---
-title: "AllSource Event Store - Chronos Monorepo"
+title: "AllSource Event Store - AllSource Monorepo"
 status: CURRENT
 last_updated: 2026-02-11
 version: "0.9.0"
 ---
 
-# AllSource Event Store - Chronos Monorepo
+# AllSource Event Store - AllSource Monorepo
 
-[![CI](https://github.com/all-source-os/chronos-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/ci.yml)
-[![Container CI](https://github.com/all-source-os/chronos-monorepo/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/container-ci.yml)
-[![Docker Build](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/chronos-monorepo/actions/workflows/docker-build.yml)
-[![Release](https://img.shields.io/github/v/release/all-source-os/chronos-monorepo?label=release)](https://github.com/all-source-os/chronos-monorepo/releases/latest)
+[![CI](https://github.com/all-source-os/allsource-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/allsource-monorepo/actions/workflows/ci.yml)
+[![Container CI](https://github.com/all-source-os/allsource-monorepo/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/allsource-monorepo/actions/workflows/container-ci.yml)
+[![Docker Build](https://github.com/all-source-os/allsource-monorepo/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/allsource-monorepo/actions/workflows/docker-build.yml)
+[![Release](https://img.shields.io/github/v/release/all-source-os/allsource-monorepo?label=release)](https://github.com/all-source-os/allsource-monorepo/releases/latest)
 [![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.9.0-green.svg)](apps/core/)
 [![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v0.9.0-blue.svg)](apps/control-plane/)
 [![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-v0.9.0-purple.svg)](apps/query-service/)
@@ -25,7 +25,7 @@ High-performance event sourcing platform with distributed architecture and AI-na
 | Category | Links |
 |----------|-------|
 | **Documentation** | [Docs Hub](docs/README.md) · [Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [API Reference](docs/current/API_REFERENCE.md) |
-| **Deployment** | [Docker Guide](docs/deployment/DOCKER.md) · [Helm Chart](deploy/helm/chronos/) · [Kubernetes](deploy/k8s/) |
+| **Deployment** | [Docker Guide](docs/deployment/DOCKER.md) · [Helm Chart](deploy/helm/allsource/) · [Kubernetes](deploy/k8s/) |
 | **Services** | [Rust Core](apps/core/README.md) · [Control Plane](apps/control-plane/README.md) · [Query Service](apps/query-service/README.md) · [MCP Server](apps/mcp-server-elixir/README.md) · [Web](apps/web/README.md) |
 | **Roadmaps** | [SaaS Launch Roadmap](docs/roadmaps/SAAS_LAUNCH_ROADMAP.md) · [Consolidated Roadmap](docs/roadmaps/2026-02-02_CONSOLIDATED_ROADMAP.md) |
 
@@ -37,10 +37,10 @@ Production-optimized containers with minimal footprint:
 
 | Service | Image | Version | Size | Base |
 |---------|-------|:-------:|:----:|------|
-| **Core** | `ghcr.io/all-source-os/chronos-core` | [![v0.9.0](https://img.shields.io/badge/ghcr-v0.9.0-blue?logo=github)](https://github.com/all-source-os/chronos-monorepo/pkgs/container/chronos-core) | **15.7 MB** | Distroless |
-| **Control Plane** | `ghcr.io/all-source-os/chronos-control-plane` | [![v0.9.0](https://img.shields.io/badge/ghcr-v0.9.0-blue?logo=github)](https://github.com/all-source-os/chronos-monorepo/pkgs/container/chronos-control-plane) | **27.9 MB** | Distroless |
-| **Query Service** | `ghcr.io/all-source-os/chronos-query-service` | [![v0.9.0](https://img.shields.io/badge/ghcr-v0.9.0-blue?logo=github)](https://github.com/all-source-os/chronos-monorepo/pkgs/container/chronos-query-service) | **35.1 MB** | Alpine |
-| **Web** | `ghcr.io/all-source-os/chronos-web` | [![v0.9.0](https://img.shields.io/badge/ghcr-v0.9.0-blue?logo=github)](https://github.com/all-source-os/chronos-monorepo/pkgs/container/chronos-web) | **~50 MB** | Alpine |
+| **Core** | `ghcr.io/all-source-os/allsource-core` | [![v0.9.0](https://img.shields.io/badge/ghcr-v0.9.0-blue?logo=github)](https://github.com/all-source-os/allsource-monorepo/pkgs/container/allsource-core) | **15.7 MB** | Distroless |
+| **Control Plane** | `ghcr.io/all-source-os/allsource-control-plane` | [![v0.9.0](https://img.shields.io/badge/ghcr-v0.9.0-blue?logo=github)](https://github.com/all-source-os/allsource-monorepo/pkgs/container/allsource-control-plane) | **27.9 MB** | Distroless |
+| **Query Service** | `ghcr.io/all-source-os/allsource-query-service` | [![v0.9.0](https://img.shields.io/badge/ghcr-v0.9.0-blue?logo=github)](https://github.com/all-source-os/allsource-monorepo/pkgs/container/allsource-query-service) | **35.1 MB** | Alpine |
+| **Web** | `ghcr.io/all-source-os/allsource-web` | [![v0.9.0](https://img.shields.io/badge/ghcr-v0.9.0-blue?logo=github)](https://github.com/all-source-os/allsource-monorepo/pkgs/container/allsource-web) | **~50 MB** | Alpine |
 
 **Total production footprint: ~129 MB** (excluding database)
 
@@ -49,10 +49,10 @@ Production-optimized containers with minimal footprint:
 docker compose up -d
 
 # Or pull specific version from GHCR
-docker pull ghcr.io/all-source-os/chronos-core:0.9.0
-docker pull ghcr.io/all-source-os/chronos-control-plane:0.9.0
-docker pull ghcr.io/all-source-os/chronos-query-service:0.9.0
-docker pull ghcr.io/all-source-os/chronos-web:0.9.0
+docker pull ghcr.io/all-source-os/allsource-core:0.9.0
+docker pull ghcr.io/all-source-os/allsource-control-plane:0.9.0
+docker pull ghcr.io/all-source-os/allsource-query-service:0.9.0
+docker pull ghcr.io/all-source-os/allsource-web:0.9.0
 ```
 
 ---
@@ -162,8 +162,8 @@ Use `docker-compose.override.yml` for isolated local development with override p
 
 ```bash
 # Clone and start all services
-git clone https://github.com/all-source-os/chronos-monorepo.git
-cd chronos-monorepo
+git clone https://github.com/all-source-os/allsource-monorepo.git
+cd allsource-monorepo
 docker compose up -d
 
 # Or run individual services
@@ -248,8 +248,8 @@ make bump-version      # Interactive bump
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/all-source-os/chronos-monorepo/issues)
-- **Releases**: [GitHub Releases](https://github.com/all-source-os/chronos-monorepo/releases)
+- **Issues**: [GitHub Issues](https://github.com/all-source-os/allsource-monorepo/issues)
+- **Releases**: [GitHub Releases](https://github.com/all-source-os/allsource-monorepo/releases)
 - **Documentation**: [Docs Hub](docs/README.md)
 
 ---

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # =============================================================================
-# Chronos Core - Production-Optimized Multi-Stage Dockerfile
+# AllSource Core - Production-Optimized Multi-Stage Dockerfile
 # Optimized for: Fast cold starts, minimal image size, security
 #
 # Build targets:
@@ -75,14 +75,14 @@ ARG VERSION=dev
 ARG REVISION=unknown
 ARG BUILDTIME=unknown
 
-LABEL org.opencontainers.image.title="Chronos Core" \
+LABEL org.opencontainers.image.title="AllSource Core" \
       org.opencontainers.image.description="High-performance event store built in Rust" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.vendor="AllSource Team" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo" \
+      org.opencontainers.image.source="https://github.com/all-source-os/allsource-monorepo" \
       org.opencontainers.image.base.name="gcr.io/distroless/static-debian12:nonroot"
 
 WORKDIR /app
@@ -115,14 +115,14 @@ ARG VERSION=dev
 ARG REVISION=unknown
 ARG BUILDTIME=unknown
 
-LABEL org.opencontainers.image.title="Chronos Core" \
+LABEL org.opencontainers.image.title="AllSource Core" \
       org.opencontainers.image.description="High-performance event store built in Rust" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.vendor="AllSource Team" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo" \
+      org.opencontainers.image.source="https://github.com/all-source-os/allsource-monorepo" \
       org.opencontainers.image.base.name="alpine:${ALPINE_VERSION}"
 
 # Install only curl for health checks and ca-certificates, create user in single layer

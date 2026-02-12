@@ -111,7 +111,7 @@ POST /api/v1/operations/replay
 ```bash
 # Clone repository
 git clone <repo-url>
-cd chronos-monorepo/services/control-plane
+cd allsource-monorepo/services/control-plane
 
 # Install dependencies
 go mod download

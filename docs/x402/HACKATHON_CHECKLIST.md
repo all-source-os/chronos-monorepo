@@ -1,16 +1,16 @@
 ---
-title: "Chronos x402 Hackathon - Project Checklist"
+title: "AllSource x402 Hackathon - Project Checklist"
 status: CURRENT
 last_updated: 2026-02-02
 category: project
 project: x402-hackathon
 ---
 
-# 🏆 Chronos x402 Hackathon - Project Checklist
+# 🏆 AllSource x402 Hackathon - Project Checklist
 
-**Project:** Chronos x402 SDK - Solana Payment Infrastructure
+**Project:** AllSource x402 SDK - Solana Payment Infrastructure
 **Timeline:** 24-48 hours
-**Goal:** Showcase Chronos event store for x402 payment systems
+**Goal:** Showcase AllSource event store for x402 payment systems
 
 ---
 
@@ -22,22 +22,22 @@ project: x402-hackathon
 
 #### 🚀 Infrastructure Setup (2-3 hours)
 
-**Chronos Deployment**
-- [ ] Deploy Chronos core to Fly.io/Railway
+**AllSource Deployment**
+- [ ] Deploy AllSource core to Fly.io/Railway
   ```bash
   cd services/core
-  fly launch --name chronos-x402-demo
+  fly launch --name allsource-x402-demo
   fly secrets set JWT_SECRET=$(openssl rand -hex 32)
   fly deploy
   ```
 - [ ] Save deployment URL: `_______________________________________________`
-- [ ] Test health endpoint: `curl https://chronos-x402-demo.fly.dev/health`
+- [ ] Test health endpoint: `curl https://allsource-x402-demo.fly.dev/health`
 - [ ] Verify response: `{"status":"healthy","service":"allsource-core"}`
 
 **Event Ingestion Test**
 - [ ] Test POST to `/api/v1/events`
   ```bash
-  curl -X POST https://chronos-x402-demo.fly.dev/api/v1/events \
+  curl -X POST https://allsource-x402-demo.fly.dev/api/v1/events \
     -H "Content-Type: application/json" \
     -d '{
       "event_type": "test.event",
@@ -47,14 +47,14 @@ project: x402-hackathon
     }'
   ```
 - [ ] Verify 200 response received
-- [ ] Test GET query: `curl https://chronos-x402-demo.fly.dev/api/v1/events/query`
+- [ ] Test GET query: `curl https://allsource-x402-demo.fly.dev/api/v1/events/query`
 - [ ] Confirm event appears in results
 
 **WebSocket Test**
 - [ ] Install wscat: `bun add -g wscat`
 - [ ] Test WebSocket connection:
   ```bash
-  wscat -c wss://chronos-x402-demo.fly.dev/api/v1/events/stream
+  wscat -c wss://allsource-x402-demo.fly.dev/api/v1/events/stream
   ```
 - [ ] Send test event (from another terminal)
 - [ ] Verify event appears in WebSocket stream
@@ -125,7 +125,7 @@ project: x402-hackathon
 - [ ] Create package.json:
   ```json
   {
-    "name": "@chronos/x402-solana-sdk",
+    "name": "@allsource/x402-solana-sdk",
     "version": "0.1.0",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -152,7 +152,7 @@ project: x402-hackathon
 - [ ] Create src directory structure:
   ```bash
   mkdir -p src
-  touch src/index.ts src/types.ts src/chronos.ts src/solana.ts src/middleware.ts
+  touch src/index.ts src/types.ts src/allsource.ts src/solana.ts src/middleware.ts
   ```
 
 **Create Demo App**
@@ -170,7 +170,7 @@ project: x402-hackathon
 - [ ] Add SDK to workspace:
   ```json
   // In package.json dependencies
-  "@chronos/x402-solana-sdk": "workspace:*"
+  "@allsource/x402-solana-sdk": "workspace:*"
   ```
 - [ ] Create API route directory:
   ```bash
@@ -218,11 +218,11 @@ project: x402-hackathon
   import { Connection, PublicKey } from '@solana/web3.js';
 
   async function testSetup() {
-    // Test Chronos
-    console.log('Testing Chronos...');
-    const chronosUrl = process.env.CHRONOS_URL || 'https://chronos-x402-demo.fly.dev';
-    const response = await fetch(`${chronosUrl}/health`);
-    console.log('✅ Chronos:', response.status === 200 ? 'OK' : 'FAILED');
+    // Test AllSource
+    console.log('Testing AllSource...');
+    const allsourceUrl = process.env.ALLSOURCE_URL || 'https://allsource-x402-demo.fly.dev';
+    const response = await fetch(`${allsourceUrl}/health`);
+    console.log('✅ AllSource:', response.status === 200 ? 'OK' : 'FAILED');
 
     // Test Solana
     console.log('Testing Solana devnet...');
@@ -244,7 +244,7 @@ project: x402-hackathon
   ```
 - [ ] Create `.env.local`:
   ```
-  CHRONOS_URL=https://chronos-x402-demo.fly.dev
+  ALLSOURCE_URL=https://allsource-x402-demo.fly.dev
   SOLANA_WALLET=<your-wallet-address>
   SOLANA_RPC=https://api.devnet.solana.com
   OPENAI_API_KEY=<your-key>
@@ -253,7 +253,7 @@ project: x402-hackathon
 - [ ] Verify all checks pass
 
 **Pre-Hackathon Checklist Summary**
-- [ ] ✅ Chronos deployed and responding
+- [ ] ✅ AllSource deployed and responding
 - [ ] ✅ Solana wallet funded with devnet SOL
 - [ ] ✅ Project structure scaffolded
 - [ ] ✅ All dependencies installed
@@ -293,7 +293,7 @@ project: x402-hackathon
   }
 
   export interface X402Config {
-    chronosUrl: string;
+    allsourceUrl: string;
     solanaWallet: string;
     solanaRpc?: string;
     prices: Record<string, number>;
@@ -301,18 +301,18 @@ project: x402-hackathon
   ```
 - [ ] Build and verify no type errors
 
-#### Chronos Event Logger (1 hour)
+#### AllSource Event Logger (1 hour)
 
-- [ ] Create `src/chronos.ts`:
+- [ ] Create `src/allsource.ts`:
   ```typescript
-  export class ChronosEventLogger {
-    constructor(private chronosUrl: string) {}
+  export class AllSourceEventLogger {
+    constructor(private allsourceUrl: string) {}
 
     async logPaymentEvent(
       type: 'requested' | 'submitted' | 'verified' | 'failed',
       data: any
     ) {
-      const response = await fetch(`${this.chronosUrl}/api/v1/events`, {
+      const response = await fetch(`${this.allsourceUrl}/api/v1/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -333,13 +333,13 @@ project: x402-hackathon
   ```
 - [ ] Test logging:
   ```typescript
-  const logger = new ChronosEventLogger('https://chronos-x402-demo.fly.dev');
+  const logger = new AllSourceEventLogger('https://allsource-x402-demo.fly.dev');
   await logger.logPaymentEvent('requested', {
     payment_id: 'test-123',
     amount: 0.01
   });
   ```
-- [ ] Verify event appears in Chronos via query API
+- [ ] Verify event appears in AllSource via query API
 - [ ] Check event structure is correct
 
 #### Solana Transaction Verifier (1.5 hours)
@@ -393,7 +393,7 @@ project: x402-hackathon
 - [ ] Test error cases (invalid signature, failed tx)
 
 **Checkpoint at Hour 3:**
-- [ ] Can log events to Chronos successfully?
+- [ ] Can log events to AllSource successfully?
 - [ ] Can verify Solana transactions?
 - [ ] Types compile without errors?
 - [ ] Test script shows all green?
@@ -408,12 +408,12 @@ project: x402-hackathon
 
 - [ ] Create `src/middleware.ts`:
   ```typescript
-  import { ChronosEventLogger } from './chronos';
+  import { AllSourceEventLogger } from './allsource';
   import { verifyTransaction } from './solana';
   import type { X402Config, PaymentRequirement } from './types';
 
   export function createX402Middleware(config: X402Config) {
-    const logger = new ChronosEventLogger(config.chronosUrl);
+    const logger = new AllSourceEventLogger(config.allsourceUrl);
 
     return async function x402Middleware(
       req: any,
@@ -504,7 +504,7 @@ project: x402-hackathon
 - [ ] Update `src/index.ts`:
   ```typescript
   export { createX402Middleware } from './middleware';
-  export { ChronosEventLogger } from './chronos';
+  export { AllSourceEventLogger } from './allsource';
   export { verifyTransaction } from './solana';
   export type {
     X402Config,
@@ -530,7 +530,7 @@ project: x402-hackathon
 - [ ] Create `apps/x402-demo/app/api/ai/route.ts`:
   ```typescript
   import { NextRequest, NextResponse } from 'next/server';
-  import { createX402Middleware } from '@chronos/x402-solana-sdk';
+  import { createX402Middleware } from '@allsource/x402-solana-sdk';
   import OpenAI from 'openai';
 
   const openai = new OpenAI({
@@ -538,7 +538,7 @@ project: x402-hackathon
   });
 
   const x402 = createX402Middleware({
-    chronosUrl: process.env.CHRONOS_URL!,
+    allsourceUrl: process.env.ALLSOURCE_URL!,
     solanaWallet: process.env.SOLANA_WALLET!,
     solanaRpc: process.env.SOLANA_RPC,
     prices: {
@@ -594,7 +594,7 @@ project: x402-hackathon
   ```
 - [ ] Create `.env.local` in demo app:
   ```
-  CHRONOS_URL=https://chronos-x402-demo.fly.dev
+  ALLSOURCE_URL=https://allsource-x402-demo.fly.dev
   SOLANA_WALLET=<your-wallet>
   SOLANA_RPC=https://api.devnet.solana.com
   OPENAI_API_KEY=<your-key>
@@ -614,7 +614,7 @@ project: x402-hackathon
 - [ ] Create test payment header with real Solana tx
 - [ ] Test with payment header
 - [ ] Verify 200 response with AI output
-- [ ] Check Chronos for logged events
+- [ ] Check AllSource for logged events
 - [ ] Verify all event types present (requested, submitted, verified)
 
 #### Simple Frontend (1 hour)
@@ -696,7 +696,7 @@ project: x402-hackathon
 **Checkpoint at Hour 9:**
 - [ ] AI API returns 402 for unpaid requests?
 - [ ] AI API processes paid requests?
-- [ ] Events logged to Chronos?
+- [ ] Events logged to AllSource?
 - [ ] Frontend shows payment requirement?
 
 **If blocked on OpenAI:** Mock the response, focus on payment flow.
@@ -715,7 +715,7 @@ project: x402-hackathon
   vercel --prod
   ```
 - [ ] Set environment variables in Vercel dashboard:
-  - `CHRONOS_URL`
+  - `ALLSOURCE_URL`
   - `SOLANA_WALLET`
   - `SOLANA_RPC`
   - `OPENAI_API_KEY`
@@ -740,7 +740,7 @@ project: x402-hackathon
     -d '{"prompt": "Tell me a joke"}'
   ```
 - [ ] Verify AI response received
-- [ ] Check Chronos for events
+- [ ] Check AllSource for events
 - [ ] Verify event sequence (requested → submitted → verified)
 - [ ] Test failed payment (invalid signature)
 - [ ] Verify failure is logged correctly
@@ -761,7 +761,7 @@ project: x402-hackathon
 - [ ] Core SDK complete and working?
 - [ ] Demo API deployed and accessible?
 - [ ] Can complete full payment flow?
-- [ ] Events appearing in Chronos?
+- [ ] Events appearing in AllSource?
 - [ ] Documentation drafted?
 
 **Day 1 Status:** ____ / 100% complete
@@ -802,8 +802,8 @@ project: x402-hackathon
     const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
 
     useEffect(() => {
-      const wsUrl = process.env.NEXT_PUBLIC_CHRONOS_WS ||
-        'wss://chronos-x402-demo.fly.dev/api/v1/events/stream';
+      const wsUrl = process.env.NEXT_PUBLIC_ALLSOURCE_WS ||
+        'wss://allsource-x402-demo.fly.dev/api/v1/events/stream';
 
       const ws = new WebSocket(wsUrl);
 
@@ -962,7 +962,7 @@ project: x402-hackathon
     useEffect(() => {
       const fetchStats = async () => {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_CHRONOS_URL}/api/v1/events/query?event_type=x402.payment.*`
+          `${process.env.NEXT_PUBLIC_ALLSOURCE_URL}/api/v1/events/query?event_type=x402.payment.*`
         );
         const data = await response.json();
 
@@ -1077,7 +1077,7 @@ project: x402-hackathon
       try {
         const isoTimestamp = new Date(timestamp).toISOString();
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_CHRONOS_URL}/api/v1/entities/${paymentId}/state?as_of=${isoTimestamp}`
+          `${process.env.NEXT_PUBLIC_ALLSOURCE_URL}/api/v1/entities/${paymentId}/state?as_of=${isoTimestamp}`
         );
 
         if (!response.ok) {
@@ -1159,7 +1159,7 @@ project: x402-hackathon
 
             <div className="mt-4 text-sm text-gray-600">
               <p>
-                This state reconstruction is powered by Chronos event store's
+                This state reconstruction is powered by AllSource event store's
                 time-travel queries - impossible with traditional databases!
               </p>
             </div>
@@ -1207,8 +1207,8 @@ project: x402-hackathon
   vercel --prod
   ```
 - [ ] Set environment variables:
-  - `NEXT_PUBLIC_CHRONOS_URL`
-  - `NEXT_PUBLIC_CHRONOS_WS`
+  - `NEXT_PUBLIC_ALLSOURCE_URL`
+  - `NEXT_PUBLIC_ALLSOURCE_WS`
 - [ ] Test deployed dashboard
 - [ ] Verify WebSocket works in production
 - [ ] Save URL: `_______________________________________________`
@@ -1265,7 +1265,7 @@ project: x402-hackathon
 - [ ] Verify repo looks good
 - [ ] Submit to hackathon platform
 - [ ] Include all required information:
-  - Project name: "Chronos x402 - Solana Payment Infrastructure"
+  - Project name: "AllSource x402 - Solana Payment Infrastructure"
   - Description: Event-sourced payment infrastructure for x402
   - Demo URL: `_______________________________________________`
   - Video URL: `_______________________________________________`
@@ -1333,9 +1333,9 @@ project: x402-hackathon
 - [ ] Update every 3 seconds instead
 - [ ] Still demonstrates real-time capability
 
-### If Chronos Deployment Fails
+### If AllSource Deployment Fails
 
-- [ ] Use local Chronos instance
+- [ ] Use local AllSource instance
 - [ ] Record demo video with localhost
 - [ ] Deploy to Railway as backup
 - [ ] Contact for help in community
@@ -1348,7 +1348,7 @@ project: x402-hackathon
 
 **After Pre-Hackathon:**
 - [ ] ALL infrastructure deployed and tested
-- [ ] Can ingest events to Chronos
+- [ ] Can ingest events to AllSource
 - [ ] Can verify Solana transactions
 - [ ] Build system works end-to-end
 
@@ -1356,7 +1356,7 @@ project: x402-hackathon
 - [ ] SDK compiles without errors
 - [ ] Demo API returns 402
 - [ ] Can process paid requests
-- [ ] Events logged to Chronos
+- [ ] Events logged to AllSource
 - [ ] Deployed to production
 
 **After Day 2:**
@@ -1384,7 +1384,7 @@ project: x402-hackathon
 
 ### Key Deliverables
 
-- [ ] Chronos deployed and accessible
+- [ ] AllSource deployed and accessible
 - [ ] SDK package published
 - [ ] Demo API deployed
 - [ ] Dashboard deployed
@@ -1407,7 +1407,7 @@ Current Status: _____ (Update throughout hackathon)
 
 ### Must Have (Required)
 - [x] Working payment flow (402 → verify → process)
-- [x] Events logged to Chronos
+- [x] Events logged to AllSource
 - [x] Demo video (2 min max)
 - [x] Time-travel feature functional
 - [x] Deployed demo accessible

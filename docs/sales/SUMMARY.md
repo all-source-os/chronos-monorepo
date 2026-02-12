@@ -1,4 +1,4 @@
-# Chronos SaaS Evaluation Summary
+# AllSource SaaS Evaluation Summary
 
 **Date**: February 11, 2026
 **Version**: 0.9.0
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Chronos is an **AI-native event sourcing platform** positioned for the emerging market of temporal data intelligence. This evaluation assessed its readiness for SaaS release.
+AllSource is an **AI-native event sourcing platform** positioned for the emerging market of temporal data intelligence. This evaluation assessed its readiness for SaaS release.
 
 ### Verdict: Ready for Beta Launch (Score: 8.4/10)
 
@@ -52,7 +52,7 @@ Chronos is an **AI-native event sourcing platform** positioned for the emerging 
 
 ## Competitive Advantage
 
-| Competitor | Chronos Advantage |
+| Competitor | AllSource Advantage |
 |------------|-------------------|
 | EventStoreDB | 27 MCP tools, polyglot architecture |
 | Kafka | Purpose-built for events, simpler ops |
@@ -136,7 +136,7 @@ Community        Email support    24/7 + SLA
 |----------|----------|---------|
 | SaaS Evaluation | `evaluation/SAAS_EVALUATION.md` | Strategic planning |
 | C4 Diagrams (Mermaid) | `diagrams/C4_ARCHITECTURE_MERMAID.md` | Technical presentations |
-| C4 Diagrams (Structurizr) | `diagrams/chronos.dsl` | Architecture tooling |
+| C4 Diagrams (Structurizr) | `diagrams/allsource.dsl` | Architecture tooling |
 | Visual Assets | `pitch-deck/VISUAL_ASSETS.md` | SVG graphics, charts |
 | Video Scripts | `videos/VIDEO_SCRIPTS.md` | Demo recordings |
 | Sales Pitch Deck | `pitch-deck/SALES_PITCH_DECK.md` | Customer presentations |

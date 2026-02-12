@@ -14,7 +14,7 @@ defmodule QueryServiceEx.Integrations.RabbitMQ.Producer do
       config :query_service_ex, QueryServiceEx.Integrations.RabbitMQ.Producer,
         enabled: true,
         url: "amqp://guest:guest@localhost:5672",
-        exchange: "chronos.events",
+        exchange: "allsource.events",
         exchange_type: :topic,
         durable: true
 
@@ -22,7 +22,7 @@ defmodule QueryServiceEx.Integrations.RabbitMQ.Producer do
 
       RABBITMQ_ENABLED=true
       RABBITMQ_URL=amqp://guest:guest@localhost:5672
-      RABBITMQ_EXCHANGE=chronos.events
+      RABBITMQ_EXCHANGE=allsource.events
       RABBITMQ_EXCHANGE_TYPE=topic
   """
 
@@ -30,7 +30,7 @@ defmodule QueryServiceEx.Integrations.RabbitMQ.Producer do
 
   require Logger
 
-  @default_exchange "chronos.events"
+  @default_exchange "allsource.events"
 
   ## Client API
 

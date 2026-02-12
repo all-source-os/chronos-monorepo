@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-The Chronos Query Service has been successfully migrated from Clojure to Elixir, providing superior performance, fault tolerance, and operational capabilities while maintaining all original functionality.
+The AllSource Query Service has been successfully migrated from Clojure to Elixir, providing superior performance, fault tolerance, and operational capabilities while maintaining all original functionality.
 
 ### Key Metrics
 
@@ -237,11 +237,11 @@ mix phx.server
 
 ### Production (Docker)
 ```bash
-docker build -t chronos-query-service:latest .
+docker build -t allsource-query-service:latest .
 docker run -p 3902:3902 \
   -e RUST_CORE_URL=http://rust-core:3900 \
   -e SECRET_KEY_BASE=$(mix phx.gen.secret) \
-  chronos-query-service:latest
+  allsource-query-service:latest
 ```
 
 ---

@@ -1,11 +1,11 @@
 ---
-title: "LanceDB Technical Analysis: Key Findings for Chronos"
+title: "LanceDB Technical Analysis: Key Findings for AllSource"
 status: CURRENT
 last_updated: 2026-02-02
 category: roadmap
 ---
 
-# LanceDB Technical Analysis: Key Findings for Chronos
+# LanceDB Technical Analysis: Key Findings for AllSource
 
 **Document Type**: Executive Summary
 **Date**: 2025-11-04
@@ -16,7 +16,7 @@ category: roadmap
 
 ## Executive Summary
 
-We conducted a deep technical analysis of LanceDB to understand their implementation, identify gotchas, and determine strategic direction for potential vector embedding support in Chronos. **Bottom line: We recommend NOT building custom vector search now, but integrating with LanceDB in 12-24 months IF customer demand warrants it.**
+We conducted a deep technical analysis of LanceDB to understand their implementation, identify gotchas, and determine strategic direction for potential vector embedding support in AllSource. **Bottom line: We recommend NOT building custom vector search now, but integrating with LanceDB in 12-24 months IF customer demand warrants it.**
 
 ---
 
@@ -153,7 +153,7 @@ table.add(events)  # 1000-10000 rows per batch
 
 **Integration Architecture**:
 ```
-Chronos (Event Store)
+AllSource (Event Store)
     ↓ Event Stream (async pipeline)
 LanceDB (Vector Search)
     ↑ Query API
@@ -177,12 +177,12 @@ Unified Query Layer (Hybrid: temporal + semantic)
 **Consider approaching LanceDB for strategic partnership**:
 
 **Value Proposition**:
-> "Chronos brings event sourcing + time-travel to your vector search. Together we're the only platform offering temporal + semantic queries. Our customers need vector search; your customers need event sourcing."
+> "AllSource brings event sourcing + time-travel to your vector search. Together we're the only platform offering temporal + semantic queries. Our customers need vector search; your customers need event sourcing."
 
 **Potential Benefits**:
 - Joint go-to-market ("Temporal AI for Events")
 - Technical collaboration (contribute to Lance format)
-- Reference architecture (Chronos + LanceDB)
+- Reference architecture (AllSource + LanceDB)
 - Shared customer base
 - Co-marketing opportunities
 
@@ -318,7 +318,7 @@ LanceDB's disk-based approach (vs in-memory) enables billion-scale vectors. Trad
 
 ---
 
-**Document Owner**: Chronos Engineering Team
+**Document Owner**: AllSource Engineering Team
 **Last Updated**: 2025-11-04
 **Next Review**: Q3 2025 (after Phase 1.5 completion)
 

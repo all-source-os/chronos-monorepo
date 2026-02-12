@@ -1,8 +1,8 @@
 [package]
-name = "chronos-performance"
+name = "allsource-performance"
 version = "0.1.0"
 edition = "2021"
-description = "Performance benchmarks for Chronos event store"
+description = "Performance benchmarks for AllSource event store"
 publish = false
 
 [[bin]]

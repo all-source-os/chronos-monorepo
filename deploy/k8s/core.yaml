@@ -1,12 +1,12 @@
-# Chronos Core - Rust Event Store Engine
+# AllSource Core - Rust Event Store Engine
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: chronos-core-data
-  namespace: chronos
+  name: allsource-core-data
+  namespace: allsource
   labels:
-    app.kubernetes.io/name: chronos
+    app.kubernetes.io/name: allsource
     app.kubernetes.io/component: core
 spec:
   accessModes:
@@ -18,28 +18,28 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chronos-core
-  namespace: chronos
+  name: allsource-core
+  namespace: allsource
   labels:
-    app.kubernetes.io/name: chronos
+    app.kubernetes.io/name: allsource
     app.kubernetes.io/component: core
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: chronos
+      app.kubernetes.io/name: allsource
       app.kubernetes.io/component: core
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: chronos
+        app.kubernetes.io/name: allsource
         app.kubernetes.io/component: core
     spec:
       securityContext:
         fsGroup: 1000
       containers:
         - name: core
-          image: chronos/core:0.9.0
+          image: allsource/core:0.9.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -89,15 +89,15 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: chronos-core-data
+            claimName: allsource-core-data
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: chronos-core
-  namespace: chronos
+  name: allsource-core
+  namespace: allsource
   labels:
-    app.kubernetes.io/name: chronos
+    app.kubernetes.io/name: allsource
     app.kubernetes.io/component: core
 spec:
   type: ClusterIP
@@ -111,5 +111,5 @@ spec:
       protocol: TCP
       name: websocket
   selector:
-    app.kubernetes.io/name: chronos
+    app.kubernetes.io/name: allsource
     app.kubernetes.io/component: core

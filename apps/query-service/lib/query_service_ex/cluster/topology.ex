@@ -156,7 +156,7 @@ defmodule QueryServiceEx.Cluster.Topology do
 
   defp gossip_topology do
     port = String.to_integer(System.get_env("CLUSTER_GOSSIP_PORT", "45892"))
-    secret = System.get_env("CLUSTER_GOSSIP_SECRET", "chronos_cluster_secret")
+    secret = System.get_env("CLUSTER_GOSSIP_SECRET", "allsource_cluster_secret")
 
     {Cluster.Supervisor,
      [

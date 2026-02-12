@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Chronos x402 Hackathon - Pre-Setup Script
+# AllSource x402 Hackathon - Pre-Setup Script
 # Run this script before the hackathon to verify everything is ready
 
 set -e  # Exit on any error
 
-echo "🚀 Chronos x402 Pre-Hackathon Setup"
+echo "🚀 AllSource x402 Pre-Hackathon Setup"
 echo "===================================="
 echo ""
 
@@ -73,10 +73,10 @@ if [ -f ".env.local" ]; then
     print_status 0 ".env.local file exists"
 
     # Check for specific vars
-    if grep -q "CHRONOS_URL" .env.local; then
-        print_status 0 "CHRONOS_URL is set"
+    if grep -q "ALLSOURCE_URL" .env.local; then
+        print_status 0 "ALLSOURCE_URL is set"
     else
-        print_status 1 "CHRONOS_URL not found in .env.local"
+        print_status 1 "ALLSOURCE_URL not found in .env.local"
     fi
 
     if grep -q "SOLANA_WALLET" .env.local; then
@@ -98,22 +98,22 @@ echo ""
 echo "🔌 Checking connections..."
 echo ""
 
-# Check Chronos deployment
-if [ ! -z "$CHRONOS_URL" ]; then
-    CHRONOS_URL_VAR=$CHRONOS_URL
+# Check AllSource deployment
+if [ ! -z "$ALLSOURCE_URL" ]; then
+    ALLSOURCE_URL_VAR=$ALLSOURCE_URL
 elif [ -f ".env.local" ]; then
-    CHRONOS_URL_VAR=$(grep CHRONOS_URL .env.local | cut -d '=' -f2)
+    ALLSOURCE_URL_VAR=$(grep ALLSOURCE_URL .env.local | cut -d '=' -f2)
 fi
 
-if [ ! -z "$CHRONOS_URL_VAR" ]; then
-    echo "Testing Chronos at $CHRONOS_URL_VAR..."
-    if curl -s -f "$CHRONOS_URL_VAR/health" > /dev/null; then
-        print_status 0 "Chronos health endpoint responding"
+if [ ! -z "$ALLSOURCE_URL_VAR" ]; then
+    echo "Testing AllSource at $ALLSOURCE_URL_VAR..."
+    if curl -s -f "$ALLSOURCE_URL_VAR/health" > /dev/null; then
+        print_status 0 "AllSource health endpoint responding"
     else
-        print_status 1 "Chronos health endpoint not responding"
+        print_status 1 "AllSource health endpoint not responding"
     fi
 else
-    echo -e "${YELLOW}⚠️  CHRONOS_URL not set, skipping connection test${NC}"
+    echo -e "${YELLOW}⚠️  ALLSOURCE_URL not set, skipping connection test${NC}"
 fi
 
 # Check Solana devnet

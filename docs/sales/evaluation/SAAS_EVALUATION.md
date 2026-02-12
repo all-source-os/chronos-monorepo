@@ -1,4 +1,4 @@
-# Chronos SaaS Evaluation Report
+# AllSource SaaS Evaluation Report
 
 **Date**: February 2026
 **Version**: 0.9.0
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Chronos is an **AI-native event sourcing platform** positioned for the emerging market of temporal data intelligence. This evaluation assesses its readiness for SaaS release, market positioning, and go-to-market strategy.
+AllSource is an **AI-native event sourcing platform** positioned for the emerging market of temporal data intelligence. This evaluation assesses its readiness for SaaS release, market positioning, and go-to-market strategy.
 
 ### Verdict: **Ready for Beta Launch**
 
@@ -28,7 +28,7 @@ Chronos is an **AI-native event sourcing platform** positioned for the emerging 
 
 #### Primary Markets
 
-| Segment | Pain Point | Chronos Solution | Market Size |
+| Segment | Pain Point | AllSource Solution | Market Size |
 |---------|-----------|------------------|-------------|
 | **AI/ML Teams** | Training data pipelines, feature stores | MCP server, time-travel queries | $15B+ (growing 40% YoY) |
 | **Fintech** | Audit trails, transaction history | Immutable events, compliance | $120B+ market |
@@ -43,7 +43,7 @@ Chronos is an **AI-native event sourcing platform** positioned for the emerging 
 
 ### Competitive Landscape
 
-| Competitor | Strengths | Weaknesses | Chronos Advantage |
+| Competitor | Strengths | Weaknesses | AllSource Advantage |
 |------------|-----------|------------|-------------------|
 | **EventStoreDB** | Mature, community | No AI integration, single language | 27 MCP tools, polyglot |
 | **Apache Kafka** | Ubiquitous, ecosystem | Not event-sourced, complex ops | Purpose-built, simple deploy |
@@ -320,7 +320,7 @@ Revenue:
                     Performance
                          ^
                          |
-    [Chronos] *          |           * [Custom]
+    [AllSource] *          |           * [Custom]
                          |
     -------------------- + --------------------> AI Integration
                          |
@@ -331,7 +331,7 @@ Revenue:
 
 ### C. Technology Differentiation
 
-| Feature | Chronos | Others |
+| Feature | AllSource | Others |
 |---------|---------|--------|
 | MCP Protocol | Native (27 tools) | None |
 | Time-travel | Built-in | Limited |

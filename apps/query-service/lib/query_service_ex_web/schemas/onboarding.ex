@@ -30,7 +30,7 @@ defmodule QueryServiceExWeb.Schemas.Onboarding do
         description: "Generate your first API key to authenticate requests",
         completed: false,
         current: true,
-        docs_url: "https://docs.chronos.dev/getting-started/api-keys"
+        docs_url: "https://docs.allsource.dev/getting-started/api-keys"
       }
     })
   end

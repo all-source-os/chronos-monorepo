@@ -1,8 +1,8 @@
-# Fly.io Configuration for Chronos Web
-# Deploy: flyctl deploy --app chronos-web
+# Fly.io Configuration for AllSource Web
+# Deploy: flyctl deploy --app allsource-web
 # Build from monorepo root: fly deploy -c apps/web/fly.toml --dockerfile apps/web/Dockerfile
 
-app = "chronos-web"
+app = "allsource-web"
 primary_region = "iad"  # US East (Virginia)
 
 [build]
@@ -13,7 +13,7 @@ primary_region = "iad"  # US East (Virginia)
   NEXT_TELEMETRY_DISABLED = "1"
   PORT = "3000"
   # API URL for client-side requests (public)
-  NEXT_PUBLIC_API_URL = "https://chronos-query-service.fly.dev"
+  NEXT_PUBLIC_API_URL = "https://allsource-query-service.fly.dev"
 
 # Required secrets (set via flyctl secrets set):
 # None required for basic operation

@@ -1,4 +1,4 @@
-# Chronos Sales Pitch Deck
+# AllSource Sales Pitch Deck
 
 ## Deck Overview
 
@@ -13,7 +13,7 @@
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │                                                                    │
-│                           CHRONOS                                  │
+│                           ALLSOURCE                                  │
 │                                                                    │
 │           AI-Native Event Sourcing Platform                        │
 │                                                                    │
@@ -21,14 +21,14 @@
 │                                                                    │
 │                        [Company Logo]                              │
 │                                                                    │
-│                     www.chronos.io                                 │
+│                     www.allsource.io                                 │
 │                                                                    │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
 **Speaker Notes:**
 - Introduce yourself and company
-- Set expectation: "I'll show you how Chronos solves the event sourcing + AI challenge"
+- Set expectation: "I'll show you how AllSource solves the event sourcing + AI challenge"
 
 ---
 
@@ -68,7 +68,7 @@
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │                                                                    │
-│                  Introducing Chronos                               │
+│                  Introducing AllSource                               │
 │                                                                    │
 │     The only event sourcing platform built for the AI era          │
 │                                                                    │
@@ -89,7 +89,7 @@
 ```
 
 **Speaker Notes:**
-- "Chronos combines three things no one else has in one platform"
+- "AllSource combines three things no one else has in one platform"
 - Quick hit on headline metrics
 - Transition: "Let me show you why these numbers matter"
 
@@ -137,7 +137,7 @@
 │                                                                    │
 │  ┌───────────────┐          ┌───────────────────────────────────┐ │
 │  │               │   MCP    │                                   │ │
-│  │    Claude     │ ◄──────► │         Chronos MCP Server        │ │
+│  │    Claude     │ ◄──────► │         AllSource MCP Server        │ │
 │  │    GPT-4      │  JSON    │                                   │ │
 │  │    Custom     │  RPC     │  ┌─────────────────────────────┐  │ │
 │  │    Agents     │          │  │     27 Native Tools         │  │ │
@@ -182,7 +182,7 @@
 │                     └──────────────────┘                          │
 │                                                                    │
 │                                                                    │
-│                    1. Spin up Chronos (30 sec)                    │
+│                    1. Spin up AllSource (30 sec)                    │
 │                    2. Ingest 10K events                           │
 │                    3. Query with REST API                         │
 │                    4. Ask Claude about the events                  │
@@ -280,7 +280,7 @@
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │                                                                    │
-│                  Who's Using Chronos?                              │
+│                  Who's Using AllSource?                              │
 │                                                                    │
 │  ┌───────────────────────────────────────────────────────────────┐│
 │  │                                                               ││
@@ -298,7 +298,7 @@
 │  │                                                               ││
 │  └───────────────────────────────────────────────────────────────┘│
 │                                                                    │
-│        "If your application generates events, Chronos fits."       │
+│        "If your application generates events, AllSource fits."       │
 │                                                                    │
 └────────────────────────────────────────────────────────────────────┘
 ```
@@ -324,7 +324,7 @@
 │                                                                    │
 │   ────────────────────────────────────────────────────────────    │
 │                                                                    │
-│   "We replaced Kafka + custom code with Chronos.                   │
+│   "We replaced Kafka + custom code with AllSource.                   │
 │    Half the infrastructure, 5x the performance."                   │
 │                                        - [Name], [Company]         │
 │                                                                    │
@@ -339,7 +339,7 @@
 **Speaker Notes:**
 - Update with real testimonials as you get them
 - GitHub stars and community size build credibility
-- "Join [X] companies already using Chronos"
+- "Join [X] companies already using AllSource"
 
 ---
 
@@ -388,7 +388,7 @@
 │                                                                    │
 │     1. Clone & Run                                                 │
 │        ┌─────────────────────────────────────────────────────┐    │
-│        │  $ git clone https://github.com/[org]/chronos       │    │
+│        │  $ git clone https://github.com/[org]/allsource       │    │
 │        │  $ docker compose up -d                              │    │
 │        └─────────────────────────────────────────────────────┘    │
 │                                                                    │
@@ -399,7 +399,7 @@
 │                                                                    │
 │     3. Connect Your AI Agent                                       │
 │        ┌─────────────────────────────────────────────────────┐    │
-│        │  Add Chronos MCP to claude_desktop_config.json      │    │
+│        │  Add AllSource MCP to claude_desktop_config.json      │    │
 │        └─────────────────────────────────────────────────────┘    │
 │                                                                    │
 │                                                                    │
@@ -436,7 +436,7 @@
 │   └─────────────────────────────────────────────────────────────┘ │
 │                                                                    │
 │                                                                    │
-│       Chronos is the only platform at the intersection of          │
+│       AllSource is the only platform at the intersection of          │
 │       high-performance event sourcing and AI-native design.        │
 │                                                                    │
 │                                                                    │
@@ -464,13 +464,13 @@
 │          ┌─────────────────────────────────────────────┐          │
 │          │                                             │          │
 │          │   1. Start Free Trial Today                 │          │
-│          │      chronos.io/trial                       │          │
+│          │      allsource.io/trial                       │          │
 │          │                                             │          │
 │          │   2. Book a Technical Deep-Dive             │          │
-│          │      calendly.com/chronos-demo              │          │
+│          │      calendly.com/allsource-demo              │          │
 │          │                                             │          │
 │          │   3. Join Our Community                     │          │
-│          │      discord.gg/chronos                     │          │
+│          │      discord.gg/allsource                     │          │
 │          │                                             │          │
 │          └─────────────────────────────────────────────┘          │
 │                                                                    │
@@ -577,7 +577,7 @@ Q3 2024:
 
 | Objection | Response |
 |-----------|----------|
-| "We already use X" | "Chronos integrates with X, and adds AI-native capabilities" |
+| "We already use X" | "AllSource integrates with X, and adds AI-native capabilities" |
 | "Seems complex" | "One Docker command to start. We handle the complexity." |
 | "Security concerns" | Walk through enterprise security slide in detail |
 | "Pricing" | Start free, scale with usage. Open source = no lock-in |

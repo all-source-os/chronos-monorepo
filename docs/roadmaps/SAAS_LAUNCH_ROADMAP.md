@@ -1,4 +1,4 @@
-# Chronos SaaS Launch Roadmap - Indie Hacker Edition
+# AllSource SaaS Launch Roadmap - Indie Hacker Edition
 
 **Date**: 2026-02-10
 **Status**: PROPOSED
@@ -44,7 +44,7 @@
 | **Quick start curl examples** | P0 | 4 hrs | `curl -X POST` to send first event. Put in welcome email |
 | **Usage warning emails** | P1 | 1 day | 80% quota → email. Drives upgrades |
 | **Stripe as backup** | P1 | 2 days | Some customers hate LS. Have both |
-| **SDK: JavaScript** | P1 | 2 days | `npm install @chronos/client` with 3 methods |
+| **SDK: JavaScript** | P1 | 2 days | `npm install @allsource/client` with 3 methods |
 | **API docs on `/docs`** | P1 | 1 day | Mintlify or Docusaurus. Devs judge by docs |
 
 **What NOT to do yet:**
@@ -85,7 +85,7 @@
 
 ---
 
-## What Makes Chronos Defensible (Your Moat)
+## What Makes AllSource Defensible (Your Moat)
 
 1. **Performance** - 726K events/sec is enterprise-grade at indie prices
 2. **Event sourcing native** - Not just a queue, actual projections + replay
@@ -143,7 +143,7 @@ Overage: $1 per 100K events over quota (already built!)
 
 ## References
 
-- Existing SaaS PRD: `tasks/prd-chronos-saas-mvp-production-ready-with-billing.md`
+- Existing SaaS PRD: `tasks/prd-allsource-saas-mvp-production-ready-with-billing.md`
 - Billing implementation: `apps/query-service/lib/query_service_ex_web/controllers/billing_controller.ex`
 - Tenant management: `apps/query-service/lib/query_service_ex/tenants.ex`
 - Consolidated roadmap: `docs/roadmaps/2026-02-02_CONSOLIDATED_ROADMAP.md`

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Sparkles } from "lucide-react";
 import { cn } from "@allsource/ui/utils";
 
-const STORAGE_KEY = "chronos-early-access-banner-dismissed";
+const STORAGE_KEY = "allsource-early-access-banner-dismissed";
 
 export function EarlyAccessBanner() {
   const [dismissed, setDismissed] = useState(true); // Start hidden to prevent flash
@@ -33,10 +33,10 @@ export function EarlyAccessBanner() {
       <span className="text-muted-foreground">
         <span className="font-medium text-foreground">Early Access</span>
         {" — "}
-        You&apos;re exploring Chronos before public launch. Some features use demo data.
+        You&apos;re exploring AllSource before public launch. Some features use demo data.
       </span>
       <a
-        href="https://github.com/all-source-os/chronos-monorepo/issues"
+        href="https://github.com/all-source-os/allsource-monorepo/issues"
         target="_blank"
         rel="noopener noreferrer"
         className="ml-2 font-medium text-primary hover:underline"

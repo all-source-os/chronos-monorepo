@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 # =============================================================================
-# Chronos Web - Production-Optimized Multi-Stage Dockerfile (Bun)
+# AllSource Web - Production-Optimized Multi-Stage Dockerfile (Bun)
 # 
-# Build from monorepo root: docker build -f apps/web/Dockerfile -t chronos-web .
+# Build from monorepo root: docker build -f apps/web/Dockerfile -t allsource-web .
 # =============================================================================
 
 ARG BUN_VERSION=1.3
@@ -74,14 +74,14 @@ ARG REVISION=unknown
 ARG BUILDTIME=unknown
 
 # OCI Image Labels
-LABEL org.opencontainers.image.title="Chronos Web" \
-      org.opencontainers.image.description="Interactive web dashboard for Chronos event store" \
+LABEL org.opencontainers.image.title="AllSource Web" \
+      org.opencontainers.image.description="Interactive web dashboard for AllSource event store" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.vendor="AllSource Team" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo"
+      org.opencontainers.image.source="https://github.com/all-source-os/allsource-monorepo"
 
 WORKDIR /app
 

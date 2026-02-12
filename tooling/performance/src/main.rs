@@ -1,6 +1,6 @@
-//! Performance benchmarks for Chronos event store
+//! Performance benchmarks for AllSource event store
 //!
-//! Run with: cargo run --release -p chronos-performance
+//! Run with: cargo run --release -p allsource-performance
 //!
 //! These benchmarks validate that the performance optimizations achieve
 //! acceptable throughput. Must be run in release mode for accurate results.
@@ -366,9 +366,9 @@ fn bench_sustained() {
 }
 
 fn main() {
-    println!("Chronos Performance Benchmarks");
+    println!("AllSource Performance Benchmarks");
     println!("==============================");
-    println!("Run with: cargo run --release -p chronos-performance");
+    println!("Run with: cargo run --release -p allsource-performance");
     println!();
 
     #[cfg(debug_assertions)]

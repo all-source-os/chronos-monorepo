@@ -177,7 +177,7 @@ GitHub:
 ## ⚡ Quick Wins (Do These First)
 
 ### 1. Claim Social Handles (5 minutes)
-- [ ] Twitter: @AllSourceChronos or similar
+- [ ] Twitter: @AllSourceAllSource or similar
 - [ ] LinkedIn: Company page or personal profile
 - [ ] GitHub: Already have repo
 - [ ] Discord: Community server (future)

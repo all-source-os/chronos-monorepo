@@ -60,7 +60,7 @@ defmodule QueryServiceExWeb.Schemas.Integrations do
       example: %{
         enabled: true,
         brokers: [["localhost", 9092]],
-        default_topic: "chronos-events",
+        default_topic: "allsource-events",
         client_id: "query_service"
       }
     })
@@ -95,7 +95,7 @@ defmodule QueryServiceExWeb.Schemas.Integrations do
       },
       example: %{
         producer: %{status: "connected", published_count: 50, error_count: 0},
-        consumer: %{status: "running", enabled: true, queue: "chronos.events.queue"},
+        consumer: %{status: "running", enabled: true, queue: "allsource.events.queue"},
         enabled: true
       }
     })
@@ -116,7 +116,7 @@ defmodule QueryServiceExWeb.Schemas.Integrations do
       },
       example: %{
         enabled: true,
-        exchange: "chronos.events",
+        exchange: "allsource.events",
         status: "connected"
       }
     })

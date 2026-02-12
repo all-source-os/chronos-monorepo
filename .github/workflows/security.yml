@@ -60,6 +60,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.24.13"
+          cache-dependency-path: apps/control-plane/go.sum
 
       - name: Go vulnerability check
         if: matrix.name == 'go'
@@ -192,6 +193,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.24.13"
+          cache-dependency-path: apps/control-plane/go.sum
 
       - name: Install go-licenses
         run: go install github.com/google/go-licenses@latest

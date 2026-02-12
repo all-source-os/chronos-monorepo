@@ -2,14 +2,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "chronos.core.fullname" . }}
+  name: {{ include "allsource.core.fullname" . }}
   labels:
-    {{- include "chronos.core.labels" . | nindent 4 }}
+    {{- include "allsource.core.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.core.replicaCount }}
   selector:
     matchLabels:
-      {{- include "chronos.core.selectorLabels" . | nindent 6 }}
+      {{- include "allsource.core.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -17,7 +17,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "chronos.core.selectorLabels" . | nindent 8 }}
+        {{- include "allsource.core.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -62,7 +62,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "chronos.core.fullname" . }}-data
+            claimName: {{ include "allsource.core.fullname" . }}-data
       {{- end }}
       {{- with .Values.core.nodeSelector }}
       nodeSelector:

@@ -66,7 +66,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
       refute result.halted
       assert result.assigns[:current_tenant].id == tenant_a.id
       assert result.assigns[:tenant_id] == tenant_a.id
-      assert result.private[:chronos_tenant_id] == tenant_a.id
+      assert result.private[:allsource_tenant_id] == tenant_a.id
     end
 
     test "user from tenant A gets tenant A context", %{tenant_a: tenant_a, user_a: user_a} do
@@ -246,14 +246,14 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
       assert result.assigns[:tenant_id] == tenant_a.id
     end
 
-    test "private chronos_tenant_id matches assigns", %{user_a: user_a} do
+    test "private allsource_tenant_id matches assigns", %{user_a: user_a} do
       conn =
         conn(:get, "/api/events")
         |> assign_user(user_a)
 
       result = TenantContext.call(conn, TenantContext.init([]))
 
-      assert result.private[:chronos_tenant_id] == result.assigns[:tenant_id]
+      assert result.private[:allsource_tenant_id] == result.assigns[:tenant_id]
     end
   end
 

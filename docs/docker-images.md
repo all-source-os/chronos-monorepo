@@ -1,13 +1,13 @@
 ---
-title: "Chronos Docker Images"
+title: "AllSource Docker Images"
 status: CURRENT
 last_updated: 2026-02-02
 category: operations
 ---
 
-# Chronos Docker Images
+# AllSource Docker Images
 
-This document describes the official Docker images for the Chronos event store platform.
+This document describes the official Docker images for the AllSource event store platform.
 
 ## Authentication
 
@@ -32,11 +32,11 @@ All images are published to GitHub Container Registry (GHCR):
 
 | Image | Description | Port |
 |-------|-------------|------|
-| `ghcr.io/all-source-os/chronos-core` | High-performance Rust event store | 3900 |
-| `ghcr.io/all-source-os/chronos-query-service` | Elixir query service with SQL interface | 4000 |
-| `ghcr.io/all-source-os/chronos-control-plane` | Go enterprise orchestration | 8080 |
-| `ghcr.io/all-source-os/chronos-web` | Next.js web dashboard | 3000 |
-| `ghcr.io/all-source-os/chronos-mcp-server` | Model Context Protocol server for AI integration | 4001 |
+| `ghcr.io/all-source-os/allsource-core` | High-performance Rust event store | 3900 |
+| `ghcr.io/all-source-os/allsource-query-service` | Elixir query service with SQL interface | 4000 |
+| `ghcr.io/all-source-os/allsource-control-plane` | Go enterprise orchestration | 8080 |
+| `ghcr.io/all-source-os/allsource-web` | Next.js web dashboard | 3000 |
+| `ghcr.io/all-source-os/allsource-mcp-server` | Model Context Protocol server for AI integration | 4001 |
 
 ## Image Tags
 
@@ -55,12 +55,12 @@ Create a `docker-compose.yml`:
 
 ```yaml
 services:
-  chronos-core:
-    image: ghcr.io/all-source-os/chronos-core:latest
+  allsource-core:
+    image: ghcr.io/all-source-os/allsource-core:latest
     ports:
       - "3900:3900"
     volumes:
-      - chronos-data:/data
+      - allsource-data:/data
     environment:
       - RUST_LOG=info
     healthcheck:
@@ -69,32 +69,32 @@ services:
       timeout: 10s
       retries: 3
 
-  chronos-query:
-    image: ghcr.io/all-source-os/chronos-query-service:latest
+  allsource-query:
+    image: ghcr.io/all-source-os/allsource-query-service:latest
     ports:
       - "4000:4000"
     environment:
-      - CHRONOS_CORE_URL=http://chronos-core:3900
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/chronos
+      - ALLSOURCE_CORE_URL=http://allsource-core:3900
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/allsource
       - REDIS_URL=redis://redis:6379
     depends_on:
-      - chronos-core
+      - allsource-core
       - postgres
       - redis
 
-  chronos-web:
-    image: ghcr.io/all-source-os/chronos-web:latest
+  allsource-web:
+    image: ghcr.io/all-source-os/allsource-web:latest
     ports:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:4000
     depends_on:
-      - chronos-query
+      - allsource-query
 
   postgres:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_DB=chronos
+      - POSTGRES_DB=allsource
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     volumes:
@@ -106,7 +106,7 @@ services:
       - redis-data:/data
 
 volumes:
-  chronos-data:
+  allsource-data:
   postgres-data:
   redis-data:
 ```
@@ -123,15 +123,15 @@ Run just the core event store:
 
 ```bash
 docker run -d \
-  --name chronos-core \
+  --name allsource-core \
   -p 3900:3900 \
-  -v chronos-data:/data \
-  ghcr.io/all-source-os/chronos-core:latest
+  -v allsource-data:/data \
+  ghcr.io/all-source-os/allsource-core:latest
 ```
 
 ## Environment Variables
 
-### chronos-core
+### allsource-core
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -139,17 +139,17 @@ docker run -d \
 | `DATA_DIR` | Data directory path | `/data` |
 | `HTTP_PORT` | HTTP server port | `3900` |
 
-### chronos-query-service
+### allsource-query-service
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CHRONOS_CORE_URL` | URL of chronos-core | Required |
+| `ALLSOURCE_CORE_URL` | URL of allsource-core | Required |
 | `DATABASE_URL` | PostgreSQL connection string | Required |
 | `REDIS_URL` | Redis connection string | Required |
 | `PORT` | HTTP server port | `4000` |
 | `SECRET_KEY_BASE` | Phoenix secret key | Required for prod |
 
-### chronos-control-plane
+### allsource-control-plane
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -157,18 +157,18 @@ docker run -d \
 | `JWT_SECRET` | JWT signing secret | Required |
 | `JAEGER_ENDPOINT` | Jaeger tracing endpoint | Optional |
 
-### chronos-web
+### allsource-web
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | HTTP server port | `3000` |
 | `NEXT_PUBLIC_API_URL` | Public API URL | Required |
 
-### chronos-mcp-server
+### allsource-mcp-server
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CHRONOS_CORE_URL` | URL of chronos-core | Required |
+| `ALLSOURCE_CORE_URL` | URL of allsource-core | Required |
 | `MIX_ENV` | Elixir environment | `prod` |
 
 ## Multi-Architecture Support
@@ -183,7 +183,7 @@ All images include health checks:
 
 ```bash
 # Check if container is healthy
-docker inspect --format='{{.State.Health.Status}}' chronos-core
+docker inspect --format='{{.State.Health.Status}}' allsource-core
 ```
 
 ## Security
@@ -195,7 +195,7 @@ docker inspect --format='{{.State.Health.Status}}' chronos-core
 
 ## License
 
-Chronos is licensed under the **MIT License**.
+AllSource is licensed under the **MIT License**.
 
 ```
 MIT License
@@ -215,7 +215,7 @@ copies or substantial portions of the Software.
 
 ### Attribution Requirements
 
-When using Chronos in your projects:
+When using AllSource in your projects:
 
 1. **Source code**: Include the LICENSE file if redistributing source
 2. **Binary distribution**: Include license notice in documentation
@@ -232,12 +232,12 @@ MIT license permits:
 No restrictions on:
 - Proprietary derivatives
 - Closed-source modifications
-- Charging for services built on Chronos
+- Charging for services built on AllSource
 
 ## Support
 
-- GitHub Issues: https://github.com/all-source-os/chronos-monorepo/issues
-- Documentation: https://github.com/all-source-os/chronos-monorepo/tree/main/docs
+- GitHub Issues: https://github.com/all-source-os/allsource-monorepo/issues
+- Documentation: https://github.com/all-source-os/allsource-monorepo/tree/main/docs
 
 ## Changelog
 

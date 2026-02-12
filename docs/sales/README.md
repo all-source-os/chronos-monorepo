@@ -1,4 +1,4 @@
-# Chronos Sales & Marketing Artifacts
+# AllSource Sales & Marketing Artifacts
 
 This folder contains all materials needed for SaaS sales pitches, demos, and marketing.
 
@@ -11,7 +11,7 @@ docs/sales/
 │   └── SAAS_EVALUATION.md             # SaaS readiness assessment
 ├── diagrams/
 │   ├── C4_ARCHITECTURE_MERMAID.md     # C4 diagrams in Mermaid format
-│   └── chronos.dsl                     # C4 diagrams in Structurizr DSL
+│   └── allsource.dsl                     # C4 diagrams in Structurizr DSL
 ├── pitch-deck/
 │   ├── SALES_PITCH_DECK.md            # 14-slide pitch deck outline
 │   └── VISUAL_ASSETS.md               # SVG graphics, charts, brand assets
@@ -55,7 +55,7 @@ docs/sales/
    - 5 diagram levels (Context, Container, 3x Component)
    - Data flow and deployment diagrams
 
-2. **Structurizr DSL**: `diagrams/chronos.dsl`
+2. **Structurizr DSL**: `diagrams/allsource.dsl`
    - Full C4 model with relationships
    - Export to PlantUML, PNG, SVG
    - Use with Structurizr Lite or CLI
@@ -113,7 +113,7 @@ mmdc -i diagram.mmd -o diagram.png -t dark
 ```bash
 # Download Structurizr CLI
 # https://github.com/structurizr/cli
-structurizr-cli export -workspace chronos.dsl -format plantuml
+structurizr-cli export -workspace allsource.dsl -format plantuml
 ```
 
 ### Generate Charts with Python
@@ -125,7 +125,7 @@ python scripts/generate_charts.py
 ### Record Terminal Demos
 ```bash
 brew install asciinema
-asciinema rec demo.cast --title "Chronos Demo"
+asciinema rec demo.cast --title "AllSource Demo"
 # Convert to GIF
 agg demo.cast demo.gif --theme monokai
 ```

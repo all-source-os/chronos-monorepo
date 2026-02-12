@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Version Consistency Checker for Chronos Monorepo
+# Version Consistency Checker for AllSource Monorepo
 # =============================================================================
 # Ensures version declarations are consistent across:
 # - Dockerfiles
@@ -339,7 +339,7 @@ get_app_versions() {
 
     # K8s Core image
     if [ -f "deploy/k8s/core.yaml" ]; then
-        local k8s_core_version=$(grep 'image:.*chronos.*core' deploy/k8s/core.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        local k8s_core_version=$(grep 'image:.*allsource.*core' deploy/k8s/core.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
         if [ -n "$k8s_core_version" ]; then
             app_versions["k8s-core"]=$k8s_core_version
             log "  K8s Core (image tag):        $k8s_core_version"
@@ -348,7 +348,7 @@ get_app_versions() {
 
     # K8s Query Service image
     if [ -f "deploy/k8s/query-service.yaml" ]; then
-        local k8s_query_version=$(grep 'image:.*chronos.*query' deploy/k8s/query-service.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        local k8s_query_version=$(grep 'image:.*allsource.*query' deploy/k8s/query-service.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
         if [ -n "$k8s_query_version" ]; then
             app_versions["k8s-query"]=$k8s_query_version
             log "  K8s Query (image tag):       $k8s_query_version"
@@ -453,7 +453,7 @@ main() {
     if [ "$JSON_OUTPUT" = false ]; then
         log ""
         log "╔═══════════════════════════════════════════════════════════════╗"
-        log "║       Chronos Monorepo Version Consistency Checker            ║"
+        log "║       AllSource Monorepo Version Consistency Checker            ║"
         log "╚═══════════════════════════════════════════════════════════════╝"
         log ""
     fi

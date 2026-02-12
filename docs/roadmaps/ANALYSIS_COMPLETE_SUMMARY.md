@@ -15,7 +15,7 @@ category: roadmap
 
 ## 🎯 What Was Accomplished
 
-We conducted a comprehensive technical analysis of LanceDB to understand how Chronos could potentially adopt AI-first capabilities (vector embeddings, semantic search) in the future. **This research is documented for future reference only and is NOT part of the current roadmap.**
+We conducted a comprehensive technical analysis of LanceDB to understand how AllSource could potentially adopt AI-first capabilities (vector embeddings, semantic search) in the future. **This research is documented for future reference only and is NOT part of the current roadmap.**
 
 ---
 
@@ -88,7 +88,7 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 
 ---
 
-### 3. **[CHRONOS_VS_LANCEDB_COMPARISON.md](./CHRONOS_VS_LANCEDB_COMPARISON.md)** (Quick reference)
+### 3. **[ALLSOURCE_VS_LANCEDB_COMPARISON.md](./ALLSOURCE_VS_LANCEDB_COMPARISON.md)** (Quick reference)
 **Purpose**: Side-by-side comparison for strategic discussions
 
 **Contents**:
@@ -104,7 +104,7 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 - **Use Case Analysis**: Where each excels, where combined system wins
 - **Integration Scenarios**: 3 options analyzed
   - Scenario 1: Side-by-side (recommended) ⭐
-  - Scenario 2: Chronos as source, LanceDB as index
+  - Scenario 2: AllSource as source, LanceDB as index
   - Scenario 3: LanceDB as storage backend (not recommended)
 
 - **Market Positioning**: Competitive landscape, unique positioning
@@ -112,7 +112,7 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 - **Risk Assessment**: Integration vs build-custom risks
 - **Partnership Opportunity**: Pitch for LanceDB collaboration
 
-**Key Takeaway**: Chronos + LanceDB = only platform combining event sourcing + vector search + time-travel.
+**Key Takeaway**: AllSource + LanceDB = only platform combining event sourcing + vector search + time-travel.
 
 ---
 
@@ -173,7 +173,7 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 
 **Comparison**:
 
-| Dimension | Parquet | Lance | Winner for Chronos |
+| Dimension | Parquet | Lance | Winner for AllSource |
 |-----------|---------|-------|---------------------|
 | Maturity | 10+ years | 2-3 years | **Parquet** ✅ |
 | Random Access | Slow | 100x faster | Lance (but not critical for us) |
@@ -191,7 +191,7 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 ### 4. **Unique Market Position (If Implemented)**
 
 **Current**:
-- Chronos: Event sourcing + time-travel
+- AllSource: Event sourcing + time-travel
 - LanceDB: Vector search + AI workloads
 
 **Combined**:
@@ -226,7 +226,7 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 
 ```
 ┌──────────────────────┐
-│   Chronos            │
+│   AllSource            │
 │   (Event Store)      │
 │   • Time-travel      │
 │   • Event sourcing   │
@@ -252,20 +252,20 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 ```
 
 **Data Flow**:
-1. Events ingested to Chronos (as today)
+1. Events ingested to AllSource (as today)
 2. Async pipeline pushes payloads → LanceDB (with auto-generated embeddings)
 3. Event ID links both systems
 4. Queries route to appropriate system or combine results
 
 **Benefits**:
-- ✅ No changes to Chronos core
+- ✅ No changes to AllSource core
 - ✅ Gradual rollout
 - ✅ Can drop LanceDB if not needed
 - ✅ Best of both worlds
 
 **Trade-offs**:
 - Two systems to maintain
-- Data duplication (events in Chronos, embeddings in LanceDB)
+- Data duplication (events in AllSource, embeddings in LanceDB)
 - Join overhead for hybrid queries
 
 ---
@@ -275,12 +275,12 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 **Potential**: Approach LanceDB for strategic collaboration.
 
 **Value Proposition**:
-> "Chronos brings event sourcing + time-travel to your vector search. Together we're the only platform offering temporal + semantic queries. Our customers need vector search; your customers need event sourcing. Let's build the AI-native event platform together."
+> "AllSource brings event sourcing + time-travel to your vector search. Together we're the only platform offering temporal + semantic queries. Our customers need vector search; your customers need event sourcing. Let's build the AI-native event platform together."
 
 **Benefits**:
 - Joint go-to-market ("Temporal AI for Events")
 - Technical collaboration (contribute to Lance format)
-- Reference architecture (Chronos + LanceDB)
+- Reference architecture (AllSource + LanceDB)
 - Shared customer base
 - Co-marketing opportunities
 
@@ -324,7 +324,7 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 - Strategic recommendations
 
 ### For Product/Strategy Discussions
-**Start with**: [CHRONOS_VS_LANCEDB_COMPARISON.md](./CHRONOS_VS_LANCEDB_COMPARISON.md)
+**Start with**: [ALLSOURCE_VS_LANCEDB_COMPARISON.md](./ALLSOURCE_VS_LANCEDB_COMPARISON.md)
 - Feature comparison
 - Use case analysis
 - Market positioning
@@ -397,7 +397,7 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 - Mature alternatives exist (LanceDB, Pinecone, Weaviate)
 - **Decision**: Don't build; integrate if needed
 
-### 4. Chronos + LanceDB = Unique Position
+### 4. AllSource + LanceDB = Unique Position
 - Only platform combining event sourcing + vector search
 - Temporal + semantic queries (unique capability)
 - Complementary strengths, not competitive
@@ -433,7 +433,7 @@ We conducted a comprehensive technical analysis of LanceDB to understand how Chr
 
 ## 📞 Contact
 
-**For Questions**: Chronos Engineering Team
+**For Questions**: AllSource Engineering Team
 
 **Next Review**: Q3 2025 (after Phase 1.5 completion)
 

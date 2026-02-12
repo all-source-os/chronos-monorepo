@@ -2625,7 +2625,7 @@ The following areas represent strategic research and exploration for potential f
   - Operational best practices
   - Strategic recommendations
 
-- **[Chronos vs LanceDB Comparison](./CHRONOS_VS_LANCEDB_COMPARISON.md)** (Quick reference)
+- **[AllSource vs LanceDB Comparison](./ALLSOURCE_VS_LANCEDB_COMPARISON.md)** (Quick reference)
   - Feature matrix & architecture comparison
   - Use case analysis
   - Integration scenarios

@@ -1,4 +1,4 @@
-# Chronos Monorepo - v0.8.0 Release
+# AllSource Monorepo - v0.8.0 Release
 
 **Release Date**: 2026-02-08
 **Codename**: Clean Architecture
@@ -8,7 +8,7 @@
 
 ## Release Highlights
 
-This release represents a **major milestone** for the Chronos Event Store platform, achieving **100% completion** of all planned Q1 2026 roadmap items with significant architectural improvements across all components.
+This release represents a **major milestone** for the AllSource Event Store platform, achieving **100% completion** of all planned Q1 2026 roadmap items with significant architectural improvements across all components.
 
 ### Key Achievements
 
@@ -282,4 +282,4 @@ All roadmap items complete!
 
 ---
 
-**Chronos Event Store** - High-performance, AI-native event sourcing
+**AllSource Event Store** - High-performance, AI-native event sourcing

@@ -2,16 +2,16 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "chronos.fullname" . }}
+  name: {{ include "allsource.fullname" . }}
   labels:
-    {{- include "chronos.labels" . | nindent 4 }}
+    {{- include "allsource.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
   selector:
     matchLabels:
-      {{- include "chronos.selectorLabels" . | nindent 6 }}
+      {{- include "allsource.selectorLabels" . | nindent 6 }}
   endpoints:
     {{- if .Values.core.enabled }}
     - port: http

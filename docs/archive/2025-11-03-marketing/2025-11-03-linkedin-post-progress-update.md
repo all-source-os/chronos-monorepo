@@ -3,9 +3,9 @@
 ## Main Progress Update (Recommended)
 
 ```markdown
-🚀 AllSource Chronos: v0.5 → v1.0 → Phase 1.5 (70%) - Building an AI-Native Event Store in Public
+🚀 AllSource AllSource: v0.5 → v1.0 → Phase 1.5 (70%) - Building an AI-Native Event Store in Public
 
-Three months ago, I announced AllSource Chronos v0.5 - an ambitious project to build a high-performance, AI-native event store. Today, I'm excited to share what we've accomplished and what comes next.
+Three months ago, I announced AllSource AllSource v0.5 - an ambitious project to build a high-performance, AI-native event store. Today, I'm excited to share what we've accomplished and what comes next.
 
 📊 PROGRESS REPORT: v0.5 → v1.0
 
@@ -119,7 +119,7 @@ Traditional Event Stores:
 ❌ No safe experimentation
 ❌ Manual scaling decisions
 
-AllSource Chronos:
+AllSource AllSource:
 ✅ Built for AI agents (MCP-first)
 ✅ Native search (vector + keyword)
 ✅ Copy-on-write forks for testing
@@ -215,9 +215,9 @@ Let me know in the comments!
 ## Alternative: "Lessons Learned" Focus
 
 ```markdown
-🎓 What I Learned Building AllSource Chronos v0.5 → v1.0
+🎓 What I Learned Building AllSource AllSource v0.5 → v1.0
 
-Three months ago, I announced AllSource Chronos v0.5. Today: v1.0 shipped, 86 tests passing, 469K events/sec baseline.
+Three months ago, I announced AllSource AllSource v0.5. Today: v1.0 shipped, 86 tests passing, 469K events/sec baseline.
 
 Here's what I learned building an AI-native event store in public.
 
@@ -346,7 +346,7 @@ Building in public continues. Follow along!
 ## Alternative: "By The Numbers" Update
 
 ```markdown
-📊 AllSource Chronos: By The Numbers (v0.5 → v1.0 Update)
+📊 AllSource AllSource: By The Numbers (v0.5 → v1.0 Update)
 
 Three months of building in public. Here's what changed.
 
@@ -528,7 +528,7 @@ Your input directly shaped v1.0. Thank you 🙏
 
 ### Create Comparison Post
 ```
-Before & After: AllSource Chronos
+Before & After: AllSource AllSource
 
 BEFORE (v0.5):
 • Announced concept

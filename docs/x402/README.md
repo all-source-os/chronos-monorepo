@@ -1,20 +1,20 @@
 ---
-title: "Chronos x402 Hackathon Project"
+title: "AllSource x402 Hackathon Project"
 status: CURRENT
 last_updated: 2026-02-02
 category: project
 project: x402-hackathon
 ---
 
-# 🏆 Chronos x402 Hackathon Project
+# 🏆 AllSource x402 Hackathon Project
 
-> Event-sourced payment infrastructure for x402 on Solana - showcasing Chronos event store
+> Event-sourced payment infrastructure for x402 on Solana - showcasing AllSource event store
 
 ---
 
 ## 📚 Documentation Index
 
-This directory contains all documentation and planning materials for the Chronos x402 hackathon project.
+This directory contains all documentation and planning materials for the AllSource x402 hackathon project.
 
 ### 🚀 Getting Started
 
@@ -42,7 +42,7 @@ This directory contains all documentation and planning materials for the Chronos
 ### 💼 SaaS Product Planning
 
 5. **[PRD.md](./PRD.md)** - **Product Requirements Document**
-   - Formal PRD for Chronos Paywall SaaS
+   - Formal PRD for AllSource Paywall SaaS
    - User stories, features, technical requirements
    - Timeline, metrics, and success criteria
    - Use this for building the actual product
@@ -65,7 +65,7 @@ This directory contains all documentation and planning materials for the Chronos
 This script checks:
 - ✅ Prerequisites (Bun, Solana CLI, Fly CLI, Vercel CLI)
 - ✅ Environment variables
-- ✅ Chronos deployment
+- ✅ AllSource deployment
 - ✅ Solana devnet connection
 - ✅ Project structure
 - ✅ Build system
@@ -76,7 +76,7 @@ This script checks:
 cp .env.example .env.local
 
 # Required variables:
-# - CHRONOS_URL
+# - ALLSOURCE_URL
 # - SOLANA_WALLET
 # - OPENAI_API_KEY
 ```
@@ -87,14 +87,14 @@ cp .env.example .env.local
 
 ### What We're Building
 
-**Chronos x402 SDK** - Complete infrastructure toolkit for building x402 payment systems on Solana, powered by event sourcing.
+**AllSource x402 SDK** - Complete infrastructure toolkit for building x402 payment systems on Solana, powered by event sourcing.
 
 ### Components
 
 1. **TypeScript SDK** (`packages/x402-solana-sdk/`)
    - Drop-in facilitator middleware
    - Solana payment verification
-   - Automatic event logging to Chronos
+   - Automatic event logging to AllSource
 
 2. **Demo AI API** (`apps/x402-demo/`)
    - Pay-per-call AI API
@@ -125,7 +125,7 @@ cp .env.example .env.local
 ## ⏰ Timeline
 
 ### Pre-Hackathon (3 hours) - **DO NOT SKIP!**
-- Deploy Chronos
+- Deploy AllSource
 - Set up Solana wallet
 - Scaffold project structure
 - Verify everything works
@@ -185,8 +185,8 @@ bun run build
 ### Testing Commands
 
 ```bash
-# Test Chronos health
-curl https://chronos-x402-demo.fly.dev/health
+# Test AllSource health
+curl https://allsource-x402-demo.fly.dev/health
 
 # Test 402 response
 curl -X POST http://localhost:3000/api/ai \
@@ -211,7 +211,7 @@ vercel --prod
 cd apps/x402-dashboard
 vercel --prod
 
-# Deploy Chronos (one-time)
+# Deploy AllSource (one-time)
 cd services/core
 fly deploy
 ```
@@ -235,7 +235,7 @@ fly deploy
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│          @chronos/x402-solana-sdk                        │
+│          @allsource/x402-solana-sdk                        │
 │  ┌─────────────────────────────────────────────┐        │
 │  │ x402 Middleware                              │        │
 │  │  • Check for payment header                  │        │
@@ -246,14 +246,14 @@ fly deploy
 │    ┌────────┴────────┐                                   │
 │    ▼                 ▼                                    │
 │  ┌─────────┐    ┌─────────┐                             │
-│  │ Solana  │    │ Chronos │                             │
+│  │ Solana  │    │ AllSource │                             │
 │  │ Verify  │    │ Logger  │                             │
 │  └─────────┘    └─────────┘                             │
 └──────────────────────┬──────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│           Chronos Event Store (Hosted)                   │
+│           AllSource Event Store (Hosted)                   │
 │  ┌─────────────────────────────────────────────┐        │
 │  │ Payment Events (Parquet Storage)             │        │
 │  │  • x402.payment.requested                    │        │
@@ -339,7 +339,7 @@ Use polling fallback (see checklist)
 - [x402 Specification](https://github.com/coinbase/x402)
 - [Solana Developers](https://solana.com/developers)
 - [Next.js Docs](https://nextjs.org/docs)
-- [Chronos Core API](../../services/core/src/api.rs)
+- [AllSource Core API](../../services/core/src/api.rs)
 
 ### External Links
 - [x402 Foundation](https://x402.org)
@@ -393,7 +393,7 @@ Use polling fallback (see checklist)
 ### Impact (25%)
 - ✅ Lowers barrier to x402 adoption
 - ✅ Enables Solana x402 ecosystem
-- ✅ Showcases Chronos advantages
+- ✅ Showcases AllSource advantages
 
 ### Presentation (15%)
 - ✅ Clear value proposition
@@ -443,7 +443,7 @@ MIT License - See LICENSE file for details
 
 ## 🙏 Acknowledgments
 
-- **Chronos Team** - For the amazing event store
+- **AllSource Team** - For the amazing event store
 - **x402 Foundation** - For the payment standard
 - **Solana Foundation** - For the blockchain platform
 - **Hackathon Organizers** - For the opportunity

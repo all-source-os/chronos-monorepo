@@ -37,7 +37,7 @@ defmodule QueryServiceExWeb.Plugs.AuthPipeline do
     conn
     |> Plug.Conn.assign(:current_user, dev_user)
     |> Plug.Conn.put_private(:guardian_default_resource, dev_user)
-    |> Plug.Conn.put_private(:chronos_dev_mode, true)
+    |> Plug.Conn.put_private(:allsource_dev_mode, true)
   end
 
   # Run the standard Guardian authentication pipeline

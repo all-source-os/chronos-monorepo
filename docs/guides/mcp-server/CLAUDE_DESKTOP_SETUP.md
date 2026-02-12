@@ -35,7 +35,7 @@ Open the config file and add the AllSource server:
     "allsource": {
       "command": "mix",
       "args": ["run", "--no-halt"],
-      "cwd": "/Users/YOUR_USERNAME/Projects/chronos/chronos-monorepo/apps/mcp-server-elixir",
+      "cwd": "/Users/YOUR_USERNAME/Projects/allsource/allsource-monorepo/apps/mcp-server-elixir",
       "env": {
         "ALLSOURCE_CORE_URL": "http://localhost:3900",
         "ALLSOURCE_CONTROL_URL": "http://localhost:3901"
@@ -50,7 +50,7 @@ Open the config file and add the AllSource server:
 {
   "mcpServers": {
     "allsource": {
-      "command": "/Users/YOUR_USERNAME/Projects/chronos/chronos-monorepo/apps/mcp-server-elixir/_build/dev/rel/mcp_server_elixir/bin/mcp_server_elixir",
+      "command": "/Users/YOUR_USERNAME/Projects/allsource/allsource-monorepo/apps/mcp-server-elixir/_build/dev/rel/mcp_server_elixir/bin/mcp_server_elixir",
       "args": ["start"],
       "env": {
         "ALLSOURCE_CORE_URL": "http://localhost:3900",

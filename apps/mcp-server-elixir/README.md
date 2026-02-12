@@ -84,7 +84,7 @@ Update your Claude Desktop configuration:
     "allsource": {
       "command": "mix",
       "args": ["run", "--no-halt"],
-      "cwd": "/path/to/chronos-monorepo/apps/mcp-server-elixir"
+      "cwd": "/path/to/allsource-monorepo/apps/mcp-server-elixir"
     }
   }
 }
@@ -96,7 +96,7 @@ Or use the compiled release:
 {
   "mcpServers": {
     "allsource": {
-      "command": "/path/to/chronos-monorepo/apps/mcp-server-elixir/_build/dev/rel/mcp_server_elixir/bin/mcp_server_elixir",
+      "command": "/path/to/allsource-monorepo/apps/mcp-server-elixir/_build/dev/rel/mcp_server_elixir/bin/mcp_server_elixir",
       "args": ["start"]
     }
   }

@@ -55,7 +55,7 @@ run_check() {
 
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
-echo "║              Chronos Local Quality Gate                       ║"
+echo "║              AllSource Local Quality Gate                       ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
 

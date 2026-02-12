@@ -1,7 +1,7 @@
-# Chronos Soft Launch Checklist
+# AllSource Soft Launch Checklist
 
 **Target:** ProductHunt launch Day 7-10
-**Tracking:** `br show chronos-monorepo-2ie`
+**Tracking:** `br show allsource-monorepo-2ie`
 
 ---
 
@@ -18,33 +18,33 @@
 **Commands:**
 ```bash
 # Google OAuth: https://console.cloud.google.com/apis/credentials
-# Callback: https://chronos.allsource.dev/api/auth/google/callback
+# Callback: https://allsource.allsource.dev/api/auth/google/callback
 
 # GitHub OAuth: https://github.com/settings/developers
-# Callback: https://chronos.allsource.dev/api/auth/github/callback
+# Callback: https://allsource.allsource.dev/api/auth/github/callback
 
 # Fly.io setup
-fly apps create chronos-core
-fly apps create chronos-control-plane
-fly apps create chronos-query-service
-fly apps create chronos-web
+fly apps create allsource-core
+fly apps create allsource-control-plane
+fly apps create allsource-query-service
+fly apps create allsource-web
 
 # Create Postgres
-fly postgres create --name chronos-db
-fly postgres attach chronos-db --app chronos-query-service
+fly postgres create --name allsource-db
+fly postgres attach allsource-db --app allsource-query-service
 
 # Set secrets (for each app)
-fly secrets set GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx --app chronos-query-service
-fly secrets set GITHUB_CLIENT_ID=xxx GITHUB_CLIENT_SECRET=xxx --app chronos-query-service
-fly secrets set SECRET_KEY_BASE=$(mix phx.gen.secret) --app chronos-query-service
+fly secrets set GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx --app allsource-query-service
+fly secrets set GITHUB_CLIENT_ID=xxx GITHUB_CLIENT_SECRET=xxx --app allsource-query-service
+fly secrets set SECRET_KEY_BASE=$(mix phx.gen.secret) --app allsource-query-service
 
 # Deploy
-fly deploy --app chronos-core
-fly deploy --app chronos-query-service
-fly deploy --app chronos-web
+fly deploy --app allsource-core
+fly deploy --app allsource-query-service
+fly deploy --app allsource-web
 
 # Run migrations
-fly ssh console -a chronos-query-service -C "/app/bin/query_service_ex eval 'QueryServiceEx.Release.migrate()'"
+fly ssh console -a allsource-query-service -C "/app/bin/query_service_ex eval 'QueryServiceEx.Release.migrate()'"
 ```
 
 ---
@@ -102,13 +102,13 @@ fly ssh console -a chronos-query-service -C "/app/bin/query_service_ex eval 'Que
 
 ```bash
 # View all soft launch tasks
-br list --parent chronos-monorepo-2ie
+br list --parent allsource-monorepo-2ie
 
 # Start a task
-br update chronos-monorepo-2ie.1 -s in_progress
+br update allsource-monorepo-2ie.1 -s in_progress
 
 # Complete a task
-br close chronos-monorepo-2ie.1
+br close allsource-monorepo-2ie.1
 
 # View ready tasks (unblocked)
 br ready
@@ -119,27 +119,27 @@ br ready
 ## Environment Variables (Fly.io Secrets)
 
 ```bash
-# OAuth (required for launch) - set on chronos-query-service
-fly secrets set GOOGLE_CLIENT_ID=xxx --app chronos-query-service
-fly secrets set GOOGLE_CLIENT_SECRET=xxx --app chronos-query-service
-fly secrets set GITHUB_CLIENT_ID=xxx --app chronos-query-service
-fly secrets set GITHUB_CLIENT_SECRET=xxx --app chronos-query-service
+# OAuth (required for launch) - set on allsource-query-service
+fly secrets set GOOGLE_CLIENT_ID=xxx --app allsource-query-service
+fly secrets set GOOGLE_CLIENT_SECRET=xxx --app allsource-query-service
+fly secrets set GITHUB_CLIENT_ID=xxx --app allsource-query-service
+fly secrets set GITHUB_CLIENT_SECRET=xxx --app allsource-query-service
 
 # Database - auto-set by fly postgres attach
 # DATABASE_URL is automatically injected
 
 # App secrets
-fly secrets set SECRET_KEY_BASE=$(mix phx.gen.secret) --app chronos-query-service
-fly secrets set PHX_HOST=chronos.allsource.dev --app chronos-query-service
+fly secrets set SECRET_KEY_BASE=$(mix phx.gen.secret) --app allsource-query-service
+fly secrets set PHX_HOST=allsource.allsource.dev --app allsource-query-service
 
 # Billing (for Day 3-5)
-fly secrets set LEMON_SQUEEZY_API_KEY=xxx --app chronos-query-service
-fly secrets set LEMON_SQUEEZY_STORE_ID=xxx --app chronos-query-service
-fly secrets set LEMON_SQUEEZY_WEBHOOK_SECRET=xxx --app chronos-query-service
+fly secrets set LEMON_SQUEEZY_API_KEY=xxx --app allsource-query-service
+fly secrets set LEMON_SQUEEZY_STORE_ID=xxx --app allsource-query-service
+fly secrets set LEMON_SQUEEZY_WEBHOOK_SECRET=xxx --app allsource-query-service
 
 # Internal service URLs (use Fly.io internal DNS)
-fly secrets set RUST_CORE_URL=http://chronos-core.internal:3900 --app chronos-query-service
-fly secrets set CORE_WS_URL=ws://chronos-core.internal:3900/api/v1/events/stream --app chronos-query-service
+fly secrets set RUST_CORE_URL=http://allsource-core.internal:3900 --app allsource-query-service
+fly secrets set CORE_WS_URL=ws://allsource-core.internal:3900/api/v1/events/stream --app allsource-query-service
 ```
 
 ---

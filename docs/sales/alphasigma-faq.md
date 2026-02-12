@@ -1,6 +1,6 @@
 # AlphaSigma Pro - Data Layer FAQ
 
-Quick answers to your questions about the Chronos data infrastructure for Quant Intelligence.
+Quick answers to your questions about the AllSource data infrastructure for Quant Intelligence.
 
 ---
 

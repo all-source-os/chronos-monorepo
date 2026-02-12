@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Chronos Container Testing Script
+# AllSource Container Testing Script
 # World-class container build verification before pushing to GitHub
 # =============================================================================
 
@@ -24,11 +24,11 @@ SUMMARY_FILE="${LOG_DIR}/summary_${TIMESTAMP}.md"
 
 # Container definitions
 declare -A CONTAINERS=(
-    ["core"]="apps/core:chronos-core:3900"
-    ["query-service"]="apps/query-service:chronos-query-service:4000"
-    ["mcp-server"]="apps/mcp-server-elixir:chronos-mcp-server:4001"
-    ["control-plane"]="apps/control-plane:chronos-control-plane:8080"
-    ["web"]=".:chronos-web:3000"
+    ["core"]="apps/core:allsource-core:3900"
+    ["query-service"]="apps/query-service:allsource-query-service:4000"
+    ["mcp-server"]="apps/mcp-server-elixir:allsource-mcp-server:4001"
+    ["control-plane"]="apps/control-plane:allsource-control-plane:8080"
+    ["web"]=".:allsource-web:3000"
 )
 
 # Web uses monorepo root as context with -f flag
@@ -301,7 +301,7 @@ generate_summary() {
 # Container Test Summary
 
 **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-**Repository:** chronos-monorepo
+**Repository:** allsource-monorepo
 
 ## Build Results
 
@@ -523,7 +523,7 @@ main() {
     fi
 
     # Start testing
-    log_section "Chronos Container Test Suite"
+    log_section "AllSource Container Test Suite"
     log "Testing containers: ${containers_to_test[*]}"
     log "Repository root: $REPO_ROOT"
     

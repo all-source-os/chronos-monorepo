@@ -1,6 +1,6 @@
 # WebSocket Configuration Guide
 
-Real-time event streaming between Chronos services.
+Real-time event streaming between AllSource services.
 
 ---
 
@@ -13,7 +13,7 @@ The Query Service connects to Core via WebSocket for real-time event streaming. 
 
 If you see this warning, WebSocket configuration is needed:
 ```
-chronos-query-service │ ⚠️ WebSocket config needed
+allsource-query-service │ ⚠️ WebSocket config needed
 ```
 
 ---
@@ -24,10 +24,10 @@ Set the `CORE_WS_URL` environment variable pointing to your Core instance:
 
 ```bash
 # Docker Compose / Local
-export CORE_WS_URL=ws://chronos-core:3900
+export CORE_WS_URL=ws://allsource-core:3900
 
 # Kubernetes (port differs)
-export CORE_WS_URL=ws://chronos-core:3901
+export CORE_WS_URL=ws://allsource-core:3901
 ```
 
 ---
@@ -38,7 +38,7 @@ export CORE_WS_URL=ws://chronos-core:3901
 
 | Variable | Example | Description |
 |----------|---------|-------------|
-| `CORE_WS_URL` | `ws://chronos-core:3900` | WebSocket URL to Core service |
+| `CORE_WS_URL` | `ws://allsource-core:3900` | WebSocket URL to Core service |
 
 ### Optional
 
@@ -59,16 +59,16 @@ export CORE_WS_URL=ws://chronos-core:3901
 ```yaml
 services:
   core:
-    image: ghcr.io/allsource/chronos-core:latest
+    image: ghcr.io/allsource/allsource-core:latest
     ports:
       - "3900:3900"
 
   query-service:
-    image: ghcr.io/allsource/chronos-query-service:latest
+    image: ghcr.io/allsource/allsource-query-service:latest
     environment:
       CORE_WS_URL: ws://core:3900          # Use service name
       CORE_WS_ENABLED: "true"
-      DATABASE_URL: ecto://user:pass@postgres/chronos
+      DATABASE_URL: ecto://user:pass@postgres/allsource
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
     depends_on:
       - core
@@ -79,19 +79,19 @@ services:
 
 ```bash
 # Start Core first
-docker run -d --name chronos-core \
+docker run -d --name allsource-core \
   -p 3900:3900 \
-  ghcr.io/allsource/chronos-core:latest
+  ghcr.io/allsource/allsource-core:latest
 
 # Start Query Service with WebSocket config
-docker run -d --name chronos-query-service \
+docker run -d --name allsource-query-service \
   -p 3902:3902 \
-  -e CORE_WS_URL=ws://chronos-core:3900 \
+  -e CORE_WS_URL=ws://allsource-core:3900 \
   -e CORE_WS_ENABLED=true \
-  -e DATABASE_URL=ecto://user:pass@postgres/chronos \
+  -e DATABASE_URL=ecto://user:pass@postgres/allsource \
   -e SECRET_KEY_BASE=$(openssl rand -hex 64) \
-  --link chronos-core \
-  ghcr.io/allsource/chronos-query-service:latest
+  --link allsource-core \
+  ghcr.io/allsource/allsource-query-service:latest
 ```
 
 ### Kubernetes
@@ -100,16 +100,16 @@ docker run -d --name chronos-query-service \
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chronos-query-service
+  name: allsource-query-service
 spec:
   template:
     spec:
       containers:
         - name: query-service
-          image: ghcr.io/allsource/chronos-query-service:latest
+          image: ghcr.io/allsource/allsource-query-service:latest
           env:
             - name: CORE_WS_URL
-              value: "ws://chronos-core:3901"  # Note: port 3901 in K8s
+              value: "ws://allsource-core:3901"  # Note: port 3901 in K8s
             - name: CORE_WS_ENABLED
               value: "true"
             - name: CORE_WS_MAX_RECONNECT_ATTEMPTS
@@ -224,7 +224,7 @@ Core is not running or not reachable at the configured URL.
 **Debug steps:**
 ```bash
 # 1. Check Core is running
-curl http://chronos-core:3900/health
+curl http://allsource-core:3900/health
 
 # 2. Verify WebSocket endpoint exists
 curl -i -N \
@@ -232,10 +232,10 @@ curl -i -N \
   -H "Upgrade: websocket" \
   -H "Sec-WebSocket-Version: 13" \
   -H "Sec-WebSocket-Key: test" \
-  http://chronos-core:3900/api/v1/events/stream
+  http://allsource-core:3900/api/v1/events/stream
 
 # 3. Check network connectivity
-docker exec chronos-query-service ping chronos-core
+docker exec allsource-query-service ping allsource-core
 ```
 
 ### "Max reconnection attempts reached"
@@ -249,7 +249,7 @@ The service couldn't connect after multiple retries and entered degraded mode.
 
 **Fix:** Restart the Query Service after Core is healthy:
 ```bash
-docker restart chronos-query-service
+docker restart allsource-query-service
 ```
 
 ### Using wrong port
@@ -267,15 +267,15 @@ Always use `ws://` or `wss://` protocol prefix, never `http://`:
 
 ```bash
 # Correct
-CORE_WS_URL=ws://chronos-core:3900
+CORE_WS_URL=ws://allsource-core:3900
 
 # Wrong - will fail
-CORE_WS_URL=http://chronos-core:3900
+CORE_WS_URL=http://allsource-core:3900
 ```
 
 For TLS/SSL in production:
 ```bash
-CORE_WS_URL=wss://chronos-core.example.com:443
+CORE_WS_URL=wss://allsource-core.example.com:443
 ```
 
 ---

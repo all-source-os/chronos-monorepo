@@ -1,12 +1,12 @@
 ---
-title: "Chronos x402 Hackathon - Live Progress Tracker"
+title: "AllSource x402 Hackathon - Live Progress Tracker"
 status: CURRENT
 last_updated: 2026-02-02
 category: project
 project: x402-hackathon
 ---
 
-# 📊 Chronos x402 Hackathon - Live Progress Tracker
+# 📊 AllSource x402 Hackathon - Live Progress Tracker
 
 **Update this file as you complete tasks. Use it to stay on track!**
 
@@ -43,7 +43,7 @@ Scaffolding       Testing           Documentation     Time-Travel       Submissi
 ## ✅ Pre-Hackathon Progress
 
 ### Infrastructure Setup
-- [ ] Chronos deployed to Fly.io/Railway
+- [ ] AllSource deployed to Fly.io/Railway
   - Status: ________________
   - URL: ________________
   - Tested: [ ] Health [ ] Ingest [ ] Query [ ] WebSocket
@@ -72,7 +72,7 @@ Scaffolding       Testing           Documentation     Time-Travel       Submissi
 
 ### Core SDK (Hour 0-3)
 - [ ] Types defined (`types.ts`) - ________
-- [ ] Chronos logger (`chronos.ts`) - ________
+- [ ] AllSource logger (`allsource.ts`) - ________
   - Tested: [ ] Yes [ ] No
 - [ ] Solana verifier (`solana.ts`) - ________
   - Tested with real tx: [ ] Yes [ ] No
@@ -81,11 +81,11 @@ Scaffolding       Testing           Documentation     Time-Travel       Submissi
 - [ ] Middleware implemented (`middleware.ts`) - ________
 - [ ] Returns 402 correctly: [ ] Yes [ ] No
 - [ ] Verifies payments: [ ] Yes [ ] No
-- [ ] Logs to Chronos: [ ] Yes [ ] No
+- [ ] Logs to AllSource: [ ] Yes [ ] No
 - [ ] SDK builds: [ ] Yes [ ] No
 
 **Checkpoint at Hour 6:**
-- Can log events to Chronos? [ ] ✅ [ ] ❌
+- Can log events to AllSource? [ ] ✅ [ ] ❌
 - Can verify Solana transactions? [ ] ✅ [ ] ❌
 - SDK builds without errors? [ ] ✅ [ ] ❌
 
@@ -112,12 +112,12 @@ Scaffolding       Testing           Documentation     Time-Travel       Submissi
   - Status: [ ] Working [ ] Issues
 - [ ] Environment variables set - ________
 - [ ] End-to-end test passed: [ ] Yes [ ] No
-- [ ] Events in Chronos: [ ] Yes [ ] No
+- [ ] Events in AllSource: [ ] Yes [ ] No
 
 **Checkpoint at Hour 12:**
 - Demo API returns 402? [ ] ✅ [ ] ❌
 - Can process paid requests? [ ] ✅ [ ] ❌
-- Events logged to Chronos? [ ] ✅ [ ] ❌
+- Events logged to AllSource? [ ] ✅ [ ] ❌
 
 **Day 1 Afternoon Status:** `_____%` complete
 **Issues:** ________________
@@ -196,7 +196,7 @@ Scaffolding       Testing           Documentation     Time-Travel       Submissi
 ## 🎯 Final Deliverables Checklist
 
 ### Code
-- [ ] SDK package (`@chronos/x402-solana-sdk`)
+- [ ] SDK package (`@allsource/x402-solana-sdk`)
 - [ ] Demo AI API (deployed)
 - [ ] Dashboard (deployed)
 - [ ] GitHub repo (public)
@@ -306,7 +306,7 @@ Update throughout the hackathon:
 
 **Pitch Points:**
 1. Problem: Building x402 infrastructure is complex
-2. Solution: 3 lines of code with Chronos
+2. Solution: 3 lines of code with AllSource
 3. Differentiator: Time-travel debugging (impossible elsewhere)
 4. Impact: Enable Solana x402 ecosystem
 

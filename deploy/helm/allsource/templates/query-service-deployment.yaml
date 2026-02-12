@@ -2,14 +2,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "chronos.queryService.fullname" . }}
+  name: {{ include "allsource.queryService.fullname" . }}
   labels:
-    {{- include "chronos.queryService.labels" . | nindent 4 }}
+    {{- include "allsource.queryService.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.queryService.replicaCount }}
   selector:
     matchLabels:
-      {{- include "chronos.queryService.selectorLabels" . | nindent 6 }}
+      {{- include "allsource.queryService.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -17,7 +17,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "chronos.queryService.selectorLabels" . | nindent 8 }}
+        {{- include "allsource.queryService.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -43,13 +43,13 @@ spec:
             - name: PHX_HOST
               value: "{{ .Values.queryService.config.phxHost }}"
             - name: CORE_URL
-              value: "http://{{ include "chronos.core.fullname" . }}:{{ .Values.core.service.httpPort }}"
+              value: "http://{{ include "allsource.core.fullname" . }}:{{ .Values.core.service.httpPort }}"
             - name: CORE_WS_URL
-              value: "ws://{{ include "chronos.core.fullname" . }}:{{ .Values.core.service.httpPort }}/api/v1/events/stream"
+              value: "ws://{{ include "allsource.core.fullname" . }}:{{ .Values.core.service.httpPort }}/api/v1/events/stream"
             - name: SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "chronos.queryService.fullname" . }}-secrets
+                  name: {{ include "allsource.queryService.fullname" . }}-secrets
                   key: secret-key-base
           livenessProbe:
             {{- toYaml .Values.queryService.livenessProbe | nindent 12 }}

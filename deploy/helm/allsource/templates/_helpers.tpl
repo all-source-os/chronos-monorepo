@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "chronos.name" -}}
+{{- define "allsource.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "chronos.fullname" -}}
+{{- define "allsource.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,16 +24,16 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "chronos.chart" -}}
+{{- define "allsource.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "chronos.labels" -}}
-helm.sh/chart: {{ include "chronos.chart" . }}
-{{ include "chronos.selectorLabels" . }}
+{{- define "allsource.labels" -}}
+helm.sh/chart: {{ include "allsource.chart" . }}
+{{ include "allsource.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -43,47 +43,47 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "chronos.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "chronos.name" . }}
+{{- define "allsource.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "allsource.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Core specific labels
 */}}
-{{- define "chronos.core.labels" -}}
-{{ include "chronos.labels" . }}
+{{- define "allsource.core.labels" -}}
+{{ include "allsource.labels" . }}
 app.kubernetes.io/component: core
 {{- end }}
 
-{{- define "chronos.core.selectorLabels" -}}
-{{ include "chronos.selectorLabels" . }}
+{{- define "allsource.core.selectorLabels" -}}
+{{ include "allsource.selectorLabels" . }}
 app.kubernetes.io/component: core
 {{- end }}
 
 {{/*
 Query Service specific labels
 */}}
-{{- define "chronos.queryService.labels" -}}
-{{ include "chronos.labels" . }}
+{{- define "allsource.queryService.labels" -}}
+{{ include "allsource.labels" . }}
 app.kubernetes.io/component: query-service
 {{- end }}
 
-{{- define "chronos.queryService.selectorLabels" -}}
-{{ include "chronos.selectorLabels" . }}
+{{- define "allsource.queryService.selectorLabels" -}}
+{{ include "allsource.selectorLabels" . }}
 app.kubernetes.io/component: query-service
 {{- end }}
 
 {{/*
 Core fullname
 */}}
-{{- define "chronos.core.fullname" -}}
-{{- printf "%s-core" (include "chronos.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- define "allsource.core.fullname" -}}
+{{- printf "%s-core" (include "allsource.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Query Service fullname
 */}}
-{{- define "chronos.queryService.fullname" -}}
-{{- printf "%s-query-service" (include "chronos.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- define "allsource.queryService.fullname" -}}
+{{- printf "%s-query-service" (include "allsource.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}

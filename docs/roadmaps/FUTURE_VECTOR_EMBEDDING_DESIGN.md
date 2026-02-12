@@ -9,7 +9,7 @@ category: roadmap
 
 **Status**: ⏳ FUTURE ROADMAP (RESEARCH PHASE)
 **Created**: 2025-11-04
-**Author**: Chronos Engineering Team
+**Author**: AllSource Engineering Team
 **Version**: 1.0
 **Timeline**: Phase 2.0+ (12+ months out)
 
@@ -17,7 +17,7 @@ category: roadmap
 
 ## 🔮 Future Vision Statement
 
-This document represents a **future research and development roadmap** for adding vector embedding support to Chronos, enabling AI-native semantic search capabilities. This is **NOT** a current implementation plan but rather a strategic exploration of how Chronos could evolve to support AI/ML workloads while maintaining its core event sourcing strengths.
+This document represents a **future research and development roadmap** for adding vector embedding support to AllSource, enabling AI-native semantic search capabilities. This is **NOT** a current implementation plan but rather a strategic exploration of how AllSource could evolve to support AI/ML workloads while maintaining its core event sourcing strengths.
 
 **Purpose**:
 - Document strategic direction for AI-first capabilities
@@ -35,7 +35,7 @@ This document represents a **future research and development roadmap** for addin
 
 ## Executive Summary
 
-This document describes a **potential future design** for adding vector embedding support to Chronos, which would enable AI-native semantic search capabilities while maintaining backward compatibility with existing event sourcing functionality. If implemented, this would allow events to optionally include vector embeddings, support semantic similarity search, and integrate seamlessly with AI/ML frameworks like LangChain and LlamaIndex.
+This document describes a **potential future design** for adding vector embedding support to AllSource, which would enable AI-native semantic search capabilities while maintaining backward compatibility with existing event sourcing functionality. If implemented, this would allow events to optionally include vector embeddings, support semantic similarity search, and integrate seamlessly with AI/ML frameworks like LangChain and LlamaIndex.
 
 **Key Features**:
 - Optional vector embeddings on events (backward compatible)
@@ -88,7 +88,7 @@ This document describes a **potential future design** for adding vector embeddin
 
 ### 1.1 Current State
 
-Chronos provides high-performance event sourcing with:
+AllSource provides high-performance event sourcing with:
 - 469K events/sec ingestion
 - Time-travel queries by entity/type/time
 - Multi-tenant isolation
@@ -111,7 +111,7 @@ Chronos provides high-performance event sourcing with:
 
 ### 1.3 Competitive Analysis
 
-| Feature | Chronos (Current) | Chronos (Proposed) | LanceDB | Pinecone | Weaviate |
+| Feature | AllSource (Current) | AllSource (Proposed) | LanceDB | Pinecone | Weaviate |
 |---------|-------------------|-------------------|---------|----------|----------|
 | Event Sourcing | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Vector Search | ❌ | ✅ | ✅ | ✅ | ✅ |
@@ -127,7 +127,7 @@ Chronos provides high-performance event sourcing with:
 
 ### 2.1 Lance Data Format Architecture
 
-LanceDB is built on the **Lance columnar format**, a modern alternative to Parquet specifically designed for AI/ML workloads. Understanding their architecture provides valuable insights for Chronos.
+LanceDB is built on the **Lance columnar format**, a modern alternative to Parquet specifically designed for AI/ML workloads. Understanding their architecture provides valuable insights for AllSource.
 
 #### 2.1.1 File Structure & Organization
 
@@ -174,7 +174,7 @@ Lance File Structure:
 - Metadata overhead increases proportionally with versions
 - Deleted rows marked but not removed (enables recovery within backup policy)
 
-**Implication for Chronos**: Event immutability aligns well with versioning approach, but we need metadata compaction strategy.
+**Implication for AllSource**: Event immutability aligns well with versioning approach, but we need metadata compaction strategy.
 
 #### 2.1.4 Performance Characteristics
 
@@ -263,7 +263,7 @@ Inverted File:
 4. Optimizes page layout
 5. Rebuilds statistics
 
-**Implication for Chronos**: We already have Parquet compaction. Need similar strategy for vector indexes.
+**Implication for AllSource**: We already have Parquet compaction. Need similar strategy for vector indexes.
 
 #### 2.3.2 Batch Operations
 
@@ -276,7 +276,7 @@ Inverted File:
 - Use `Table.add()` with arrays/dataframes
 - Combine related operations
 
-**Chronos Advantage**: We already batch events (469K/sec throughput). Natural fit for vector embeddings.
+**AllSource Advantage**: We already batch events (469K/sec throughput). Natural fit for vector embeddings.
 
 #### 2.3.3 Index Management
 
@@ -312,7 +312,7 @@ table = connection_manager.open_table_once()
 # Reuse table for all queries
 ```
 
-**Implication for Chronos**: Need careful resource management in Rust (we have advantage with RAII).
+**Implication for AllSource**: Need careful resource management in Rust (we have advantage with RAII).
 
 #### 2.4.2 Storage Considerations
 
@@ -451,7 +451,7 @@ for event in events:
 
 ### 3.3 Trade-offs: Lance vs Parquet
 
-| Dimension | Parquet | Lance | Winner for Chronos? |
+| Dimension | Parquet | Lance | Winner for AllSource? |
 |-----------|---------|-------|---------------------|
 | **Random Access** | Slow (row groups) | 100x faster | Lance (if needed) |
 | **Scan Performance** | Excellent | Equal | Tie |
@@ -463,7 +463,7 @@ for event in events:
 | **Compression** | Excellent | Good | Parquet |
 | **Complexity** | Well-understood | New concepts | Parquet |
 
-**Verdict for Chronos**:
+**Verdict for AllSource**:
 - **Near-term**: Stick with Parquet (mature, proven, we know it well)
 - **Long-term**: Explore Lance for vector-heavy workloads
 - **Hybrid**: Use both (Parquet for events, Lance for embeddings)
@@ -549,14 +549,14 @@ embedding_vector: FixedSizeList<Float32, 1536>
 - Smaller ecosystem
 - Migration complexity
 
-### 4.2 Decision Framework for Chronos
+### 4.2 Decision Framework for AllSource
 
 #### 4.2.1 Hybrid Storage Strategy (Recommended)
 
 **Approach**: Use both formats for their strengths.
 
 ```
-Chronos Storage Architecture:
+AllSource Storage Architecture:
 ├── Events (Parquet)
 │   ├── event_id, event_type, entity_id
 │   ├── payload, timestamp, metadata
@@ -685,7 +685,7 @@ Event {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Chronos Event Store                      │
+│                     AllSource Event Store                      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                               │
 │  ┌─────────────────┐         ┌──────────────────┐          │
@@ -2488,7 +2488,7 @@ async fn bench_semantic_search_1m_vectors() {
 ```python
 from locust import HttpUser, task, between
 
-class ChronosUser(HttpUser):
+class AllSourceUser(HttpUser):
     wait_time = between(0.1, 0.5)
 
     @task(3)
@@ -2518,22 +2518,22 @@ class ChronosUser(HttpUser):
 **Environment Variables**:
 ```bash
 # Embedding Providers
-CHRONOS_EMBEDDING_DEFAULT_PROVIDER=openai
-CHRONOS_EMBEDDING_DEFAULT_MODEL=text-embedding-3-large
-CHRONOS_OPENAI_API_KEY=sk-...
-CHRONOS_COHERE_API_KEY=co-...
-CHRONOS_LOCAL_ENDPOINT=http://localhost:3900
+ALLSOURCE_EMBEDDING_DEFAULT_PROVIDER=openai
+ALLSOURCE_EMBEDDING_DEFAULT_MODEL=text-embedding-3-large
+ALLSOURCE_OPENAI_API_KEY=sk-...
+ALLSOURCE_COHERE_API_KEY=co-...
+ALLSOURCE_LOCAL_ENDPOINT=http://localhost:3900
 
 # Vector Index
-CHRONOS_INDEX_M=16
-CHRONOS_INDEX_EF_CONSTRUCTION=200
-CHRONOS_INDEX_EF_SEARCH=50
-CHRONOS_INDEX_PERSIST_INTERVAL=300  # seconds
+ALLSOURCE_INDEX_M=16
+ALLSOURCE_INDEX_EF_CONSTRUCTION=200
+ALLSOURCE_INDEX_EF_SEARCH=50
+ALLSOURCE_INDEX_PERSIST_INTERVAL=300  # seconds
 
 # Performance
-CHRONOS_EMBEDDING_BATCH_SIZE=100
-CHRONOS_EMBEDDING_CACHE_TTL=3600
-CHRONOS_MAX_EMBEDDING_WORKERS=10
+ALLSOURCE_EMBEDDING_BATCH_SIZE=100
+ALLSOURCE_EMBEDDING_CACHE_TTL=3600
+ALLSOURCE_MAX_EMBEDDING_WORKERS=10
 ```
 
 **Config File** (`config/embeddings.yaml`):
@@ -2579,43 +2579,43 @@ embeddings:
 **Metrics to Track**:
 ```rust
 // Embedding generation
-chronos_embedding_generation_total{provider, model, status}
-chronos_embedding_generation_duration_seconds{provider}
-chronos_embedding_tokens_total{provider, model}
-chronos_embedding_cost_usd{provider}
+allsource_embedding_generation_total{provider, model, status}
+allsource_embedding_generation_duration_seconds{provider}
+allsource_embedding_tokens_total{provider, model}
+allsource_embedding_cost_usd{provider}
 
 // Vector index
-chronos_vector_index_size_vectors{tenant_id}
-chronos_vector_index_memory_bytes{tenant_id}
-chronos_vector_index_insert_duration_seconds
-chronos_vector_index_search_duration_seconds
+allsource_vector_index_size_vectors{tenant_id}
+allsource_vector_index_memory_bytes{tenant_id}
+allsource_vector_index_insert_duration_seconds
+allsource_vector_index_search_duration_seconds
 
 // Semantic search
-chronos_semantic_search_total{status}
-chronos_semantic_search_duration_seconds
-chronos_semantic_search_results_returned
+allsource_semantic_search_total{status}
+allsource_semantic_search_duration_seconds
+allsource_semantic_search_results_returned
 
 // Cache
-chronos_embedding_cache_hits_total
-chronos_embedding_cache_misses_total
+allsource_embedding_cache_hits_total
+allsource_embedding_cache_misses_total
 ```
 
 **Alerts**:
 ```yaml
 - alert: EmbeddingProviderDown
-  expr: rate(chronos_embedding_generation_total{status="error"}[5m]) > 0.1
+  expr: rate(allsource_embedding_generation_total{status="error"}[5m]) > 0.1
   for: 5m
   annotations:
     summary: "Embedding provider {{ $labels.provider }} failing"
 
 - alert: HighEmbeddingLatency
-  expr: histogram_quantile(0.95, chronos_embedding_generation_duration_seconds) > 0.5
+  expr: histogram_quantile(0.95, allsource_embedding_generation_duration_seconds) > 0.5
   for: 10m
   annotations:
     summary: "p95 embedding latency > 500ms"
 
 - alert: SlowSemanticSearch
-  expr: histogram_quantile(0.95, chronos_semantic_search_duration_seconds) > 0.1
+  expr: histogram_quantile(0.95, allsource_semantic_search_duration_seconds) > 0.1
   for: 10m
   annotations:
     summary: "p95 semantic search latency > 100ms"
@@ -2678,7 +2678,7 @@ curl -X PUT http://localhost:3900/api/v1/config/embeddings \
 ### 15.2 Phase 3 Research
 
 **Learned Embeddings**:
-- Fine-tune embedding models on Chronos events
+- Fine-tune embedding models on AllSource events
 - Domain-specific embeddings
 - Tenant-specific embeddings
 
@@ -2702,7 +2702,7 @@ When the time comes to add vector search capabilities, we have three strategic p
 
 #### Option A: Build Custom (This Document's Approach)
 
-**Approach**: Implement vector embeddings natively in Chronos.
+**Approach**: Implement vector embeddings natively in AllSource.
 
 **Pros**:
 - ✅ Full control over architecture
@@ -2721,7 +2721,7 @@ When the time comes to add vector search capabilities, we have three strategic p
 
 #### Option B: Integrate with LanceDB
 
-**Approach**: Use LanceDB as vector search layer, Chronos as event sourcing layer.
+**Approach**: Use LanceDB as vector search layer, AllSource as event sourcing layer.
 
 **Pros**:
 - ✅ Leverage their expertise (proven 700M vector deployments)
@@ -2740,7 +2740,7 @@ When the time comes to add vector search capabilities, we have three strategic p
 **Architecture**:
 ```
 ┌─────────────────────────────────────┐
-│        Chronos (Event Store)        │
+│        AllSource (Event Store)        │
 │  • Time-travel queries              │
 │  • Event sourcing                   │
 │  • Multi-tenancy                    │
@@ -2767,9 +2767,9 @@ When the time comes to add vector search capabilities, we have three strategic p
 ```
 
 **Integration Pattern**:
-1. Events ingested to Chronos (as today)
+1. Events ingested to AllSource (as today)
 2. Async pipeline pushes event payloads → LanceDB with embeddings
-3. Queries: Chronos for temporal, LanceDB for semantic, or hybrid
+3. Queries: AllSource for temporal, LanceDB for semantic, or hybrid
 4. Event ID as foreign key linking both systems
 
 **Best For**: If we want AI capabilities quickly without building from scratch.
@@ -2825,13 +2825,13 @@ When the time comes to add vector search capabilities, we have three strategic p
 **Integration Steps**:
 ```
 Phase 1: Proof of Concept (2 weeks)
-- Spin up LanceDB alongside Chronos
+- Spin up LanceDB alongside AllSource
 - Ingest sample events with embeddings
 - Test semantic search performance
 - Measure latency, accuracy, costs
 
 Phase 2: Production Integration (4-6 weeks)
-- Event pipeline: Chronos → LanceDB
+- Event pipeline: AllSource → LanceDB
 - Unified query API
 - Multi-tenant isolation
 - Monitoring & alerting
@@ -2865,12 +2865,12 @@ Phase 4: Scale & Optimize (ongoing)
 **Potential Benefits**:
 - Joint go-to-market ("Temporal AI for Events")
 - Technical collaboration (we contribute to Lance format)
-- Reference architecture (Chronos + LanceDB)
+- Reference architecture (AllSource + LanceDB)
 - Shared customers (event sourcing + vector search)
 - Co-marketing opportunities
 
 **Pitch to LanceDB**:
-> "Chronos brings event sourcing + time-travel to your vector search. Together we're the only platform offering temporal + semantic queries. Our customers need vector search; your customers need event sourcing. Let's build the AI-native event platform together."
+> "AllSource brings event sourcing + time-travel to your vector search. Together we're the only platform offering temporal + semantic queries. Our customers need vector search; your customers need event sourcing. Let's build the AI-native event platform together."
 
 ---
 
@@ -2913,10 +2913,10 @@ Phase 4: Scale & Optimize (ongoing)
 ### 20.3 Additional References
 
 ```python
-from chronos import ChronosClient
+from allsource import AllSourceClient
 
 # Initialize
-client = ChronosClient("http://localhost:3900", api_key="...")
+client = AllSourceClient("http://localhost:3900", api_key="...")
 
 # Ingest with auto-embedding
 event_id = client.ingest(
@@ -2947,10 +2947,10 @@ results = client.search_hybrid(
 ### 20.4 API Examples (Python SDK)
 
 ```python
-from chronos import ChronosClient
+from allsource import AllSourceClient
 
 # Initialize
-client = ChronosClient("http://localhost:3900", api_key="...")
+client = AllSourceClient("http://localhost:3900", api_key="...")
 
 # Ingest with auto-embedding
 event_id = client.ingest(
@@ -3000,7 +3000,7 @@ results = client.search_hybrid(
 - ✅ Team capacity available (not pulling from core roadmap)
 - ✅ Build vs. Integrate decision made
 
-**Contact**: For questions about this document, contact Chronos Engineering Team.
+**Contact**: For questions about this document, contact AllSource Engineering Team.
 
 **Last Updated**: 2025-11-04
 

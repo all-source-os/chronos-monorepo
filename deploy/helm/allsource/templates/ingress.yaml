@@ -2,9 +2,9 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "chronos.fullname" . }}
+  name: {{ include "allsource.fullname" . }}
   labels:
-    {{- include "chronos.labels" . | nindent 4 }}
+    {{- include "allsource.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -34,11 +34,11 @@ spec:
             backend:
               service:
                 {{- if eq .service "core" }}
-                name: {{ include "chronos.core.fullname" $ }}
+                name: {{ include "allsource.core.fullname" $ }}
                 port:
                   number: {{ $.Values.core.service.httpPort }}
                 {{- else if eq .service "queryService" }}
-                name: {{ include "chronos.queryService.fullname" $ }}
+                name: {{ include "allsource.queryService.fullname" $ }}
                 port:
                   number: {{ $.Values.queryService.service.port }}
                 {{- end }}

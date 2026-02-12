@@ -1,21 +1,21 @@
 ---
-title: "Chronos vs LanceDB: Strategic Comparison & Synergies"
+title: "AllSource vs LanceDB: Strategic Comparison & Synergies"
 status: CURRENT
 last_updated: 2026-02-02
 category: roadmap
 ---
 
-# Chronos vs LanceDB: Strategic Comparison & Synergies
+# AllSource vs LanceDB: Strategic Comparison & Synergies
 
 **Status**: ✅ CURRENT (ANALYSIS)
 **Date**: 2025-11-04
-**Purpose**: Quick reference for understanding how Chronos and LanceDB compare and potentially complement each other
+**Purpose**: Quick reference for understanding how AllSource and LanceDB compare and potentially complement each other
 
 ---
 
 ## TL;DR
 
-| Aspect | Chronos | LanceDB | Strategic Fit |
+| Aspect | AllSource | LanceDB | Strategic Fit |
 |--------|---------|---------|---------------|
 | **Core Competency** | Event Sourcing + Time-Travel | Vector Search + AI Workloads | Complementary ✅ |
 | **Primary Use Case** | Temporal queries, CQRS, audit trails | Semantic search, RAG, embeddings | Different targets |
@@ -26,7 +26,7 @@ category: roadmap
 | **Maturity** | v1.0 (production) | Production-ready (700M vectors) | Both proven |
 | **License** | MIT | Apache 2.0 | Both open source ✅ |
 
-**Conclusion**: Chronos + LanceDB integration could create **the only platform combining event sourcing, time-travel, and semantic search**.
+**Conclusion**: AllSource + LanceDB integration could create **the only platform combining event sourcing, time-travel, and semantic search**.
 
 ---
 
@@ -34,12 +34,12 @@ category: roadmap
 
 ### Core Capabilities
 
-| Feature | Chronos | LanceDB | Winner | Notes |
+| Feature | AllSource | LanceDB | Winner | Notes |
 |---------|---------|---------|--------|-------|
-| **Event Ingestion** | 469K/sec | N/A | Chronos | Core feature |
+| **Event Ingestion** | 469K/sec | N/A | AllSource | Core feature |
 | **Vector Search** | ❌ | <1ms for 1M vectors | LanceDB | Core feature |
-| **Time-Travel Queries** | ✅ Native | ⚠️ Versioning only | Chronos | Reconstruct state at any timestamp |
-| **Temporal Filters** | ✅ Entity/Type/Time | ❌ | Chronos | Query by time range |
+| **Time-Travel Queries** | ✅ Native | ⚠️ Versioning only | AllSource | Reconstruct state at any timestamp |
+| **Temporal Filters** | ✅ Entity/Type/Time | ❌ | AllSource | Query by time range |
 | **Semantic Search** | ❌ | ✅ Native | LanceDB | Find similar items |
 | **Multimodal Data** | ❌ | ✅ Native | LanceDB | Images, video, audio |
 | **Full-Text Search** | ❌ | ✅ Native | LanceDB | Text search |
@@ -47,21 +47,21 @@ category: roadmap
 
 ### Data Management
 
-| Feature | Chronos | LanceDB | Winner | Notes |
+| Feature | AllSource | LanceDB | Winner | Notes |
 |---------|---------|---------|--------|-------|
-| **Immutability** | ✅ Core principle | ⚠️ Via versioning | Chronos | Events never change |
+| **Immutability** | ✅ Core principle | ⚠️ Via versioning | AllSource | Events never change |
 | **Versioning** | ⚠️ Manual snapshots | ✅ Automatic | LanceDB | Every write = new version |
 | **Compaction** | ✅ Parquet files | ✅ Fragment merging | Tie | Both need maintenance |
-| **Schema Evolution** | ✅ Via registry | ⚠️ Manual | Chronos | Compatibility modes |
+| **Schema Evolution** | ✅ Via registry | ⚠️ Manual | AllSource | Compatibility modes |
 | **Batch Operations** | ✅ Native (469K/sec) | ✅ Recommended | Tie | Both optimize for batches |
-| **Stream Processing** | ✅ Pipelines + Elixir | ❌ | Chronos | Real-time processing |
+| **Stream Processing** | ✅ Pipelines + Elixir | ❌ | AllSource | Real-time processing |
 
 ### Storage & Performance
 
-| Feature | Chronos | LanceDB | Winner | Notes |
+| Feature | AllSource | LanceDB | Winner | Notes |
 |---------|---------|---------|--------|-------|
-| **Columnar Format** | Parquet | Lance | Chronos | Parquet more mature |
-| **Compression** | 60-80% (gzip/zstd) | 20-30% (vectors) | Chronos | Text compresses better |
+| **Columnar Format** | Parquet | Lance | AllSource | Parquet more mature |
+| **Compression** | 60-80% (gzip/zstd) | 20-30% (vectors) | AllSource | Text compresses better |
 | **Random Access** | ⚠️ Row group overhead | ✅ 100x faster | LanceDB | Page-level independence |
 | **Scan Performance** | ✅ Excellent | ✅ Equal to Parquet | Tie | Both optimized |
 | **Index Types** | BTree, partitioning | IVF-PQ, HNSW, BTree, Bitmap | LanceDB | More variety |
@@ -69,20 +69,20 @@ category: roadmap
 
 ### Enterprise Features
 
-| Feature | Chronos | LanceDB | Winner | Notes |
+| Feature | AllSource | LanceDB | Winner | Notes |
 |---------|---------|---------|--------|-------|
-| **Multi-Tenancy** | ✅ Native + RBAC | ⚠️ Manual | Chronos | Built-in isolation |
-| **Authentication** | ✅ JWT + API Keys | ⚠️ App-level | Chronos | Security built-in |
-| **Audit Logging** | ✅ Immutable logs | ❌ | Chronos | Compliance ready |
-| **Encryption** | ✅ At-rest + transit | ⚠️ Via storage layer | Chronos | KMS integration |
-| **Rate Limiting** | ✅ Per-tenant | ❌ | Chronos | Quota enforcement |
-| **Backup/Recovery** | ✅ Full + incremental | ⚠️ Version snapshots | Chronos | Disaster recovery |
+| **Multi-Tenancy** | ✅ Native + RBAC | ⚠️ Manual | AllSource | Built-in isolation |
+| **Authentication** | ✅ JWT + API Keys | ⚠️ App-level | AllSource | Security built-in |
+| **Audit Logging** | ✅ Immutable logs | ❌ | AllSource | Compliance ready |
+| **Encryption** | ✅ At-rest + transit | ⚠️ Via storage layer | AllSource | KMS integration |
+| **Rate Limiting** | ✅ Per-tenant | ❌ | AllSource | Quota enforcement |
+| **Backup/Recovery** | ✅ Full + incremental | ⚠️ Version snapshots | AllSource | Disaster recovery |
 
 ### Developer Experience
 
-| Feature | Chronos | LanceDB | Winner | Notes |
+| Feature | AllSource | LanceDB | Winner | Notes |
 |---------|---------|---------|--------|-------|
-| **REST API** | ✅ Comprehensive | ⚠️ Limited | Chronos | Full HTTP API |
+| **REST API** | ✅ Comprehensive | ⚠️ Limited | AllSource | Full HTTP API |
 | **Language SDKs** | ⚠️ Planned | ✅ Python, Node, Rust, Java | LanceDB | Multiple languages |
 | **AI Framework Integration** | ⚠️ MCP only | ✅ LangChain, LlamaIndex | LanceDB | RAG ecosystem |
 | **Embedded Mode** | ❌ | ✅ Native | LanceDB | Library usage |
@@ -93,11 +93,11 @@ category: roadmap
 
 ## Architecture Comparison
 
-### Chronos Architecture
+### AllSource Architecture
 
 ```
 ┌─────────────────────────────────────────────┐
-│            Chronos Event Store               │
+│            AllSource Event Store               │
 ├─────────────────────────────────────────────┤
 │                                              │
 │  Rust Core (3900)                           │
@@ -185,7 +185,7 @@ Weaknesses:
 
 ## Use Case Comparison
 
-### Where Chronos Excels
+### Where AllSource Excels
 
 **1. Event Sourcing Systems**
 - Financial transactions (audit trails)
@@ -252,8 +252,8 @@ ORDER BY timestamp DESC
 **2. Historical RAG**
 ```python
 # RAG over historical events with time context
-retriever = ChronosLanceRetriever(
-    chronos_client=chronos,
+retriever = AllSourceLanceRetriever(
+    allsource_client=allsource,
     lance_client=lance,
     time_range={"since": "2024-01-01"},
     semantic_query="pricing questions"
@@ -264,14 +264,14 @@ retriever = ChronosLanceRetriever(
 
 **3. Anomaly Detection with Context**
 - Detect unusual events via embeddings (LanceDB)
-- Reconstruct entity state at anomaly time (Chronos)
-- Compare historical patterns (Chronos temporal queries)
-- Understand temporal context (Chronos time-travel)
+- Reconstruct entity state at anomaly time (AllSource)
+- Compare historical patterns (AllSource temporal queries)
+- Understand temporal context (AllSource time-travel)
 
 **4. Compliance + AI**
-- Immutable event log (Chronos)
+- Immutable event log (AllSource)
 - Semantic search over audit trail (LanceDB)
-- Time-travel for investigations (Chronos)
+- Time-travel for investigations (AllSource)
 - AI-powered insights (LanceDB + LLMs)
 
 ---
@@ -283,7 +283,7 @@ retriever = ChronosLanceRetriever(
 **Architecture**:
 ```
 ┌──────────────┐         ┌──────────────┐
-│   Chronos    │         │   LanceDB    │
+│   AllSource    │         │   LanceDB    │
 │ (Event Store)│◄───────►│(Vector Search)│
 └──────┬───────┘         └──────┬───────┘
        │                        │
@@ -296,14 +296,14 @@ retriever = ChronosLanceRetriever(
 ```
 
 **Data Flow**:
-1. Events ingested to Chronos (as today)
-2. Async pipeline: Chronos → LanceDB (with embeddings)
+1. Events ingested to AllSource (as today)
+2. Async pipeline: AllSource → LanceDB (with embeddings)
 3. Event ID links both systems
 4. Queries: route to appropriate system or hybrid
 
 **Pros**:
 - ✅ Best of both worlds
-- ✅ No changes to Chronos core
+- ✅ No changes to AllSource core
 - ✅ Gradual rollout
 - ✅ Can drop LanceDB if not needed
 
@@ -312,12 +312,12 @@ retriever = ChronosLanceRetriever(
 - ⚠️ Data duplication
 - ⚠️ Join overhead for hybrid queries
 
-### Scenario 2: Chronos as Source, LanceDB as Index
+### Scenario 2: AllSource as Source, LanceDB as Index
 
 **Architecture**:
 ```
 ┌──────────────────────────────┐
-│        Chronos (Primary)      │
+│        AllSource (Primary)      │
 │  • Source of truth            │
 │  • Event ingestion            │
 │  • Temporal queries           │
@@ -327,14 +327,14 @@ retriever = ChronosLanceRetriever(
                ▼
 ┌──────────────────────────────┐
 │    LanceDB (Materialized)     │
-│  • Derived from Chronos       │
+│  • Derived from AllSource       │
 │  • Semantic search index      │
 │  • Rebuilable from events     │
 └──────────────────────────────┘
 ```
 
 **Pros**:
-- ✅ Clear ownership (Chronos = source)
+- ✅ Clear ownership (AllSource = source)
 - ✅ LanceDB can be rebuilt
 - ✅ Temporal correctness guaranteed
 
@@ -347,7 +347,7 @@ retriever = ChronosLanceRetriever(
 **Architecture**:
 ```
 ┌──────────────────────────────┐
-│     Chronos Application       │
+│     AllSource Application       │
 ├──────────────────────────────┤
 │  Storage Abstraction Layer   │
 │  ├── Parquet Backend ──┐     │
@@ -373,28 +373,28 @@ retriever = ChronosLanceRetriever(
 
 ### Ingestion
 
-| Metric | Chronos | LanceDB | Winner |
+| Metric | AllSource | LanceDB | Winner |
 |--------|---------|---------|--------|
-| **Throughput** | 469K events/sec | N/A (not primary use case) | Chronos |
-| **Latency (p99)** | 11.9μs | N/A | Chronos |
+| **Throughput** | 469K events/sec | N/A (not primary use case) | AllSource |
+| **Latency (p99)** | 11.9μs | N/A | AllSource |
 | **Batch Optimization** | ✅ Native | ✅ Required | Tie |
 
 ### Query Performance
 
-| Query Type | Chronos | LanceDB | Winner |
+| Query Type | AllSource | LanceDB | Winner |
 |------------|---------|---------|--------|
-| **Point Lookup** | 11.9μs | <1ms | Chronos |
-| **Time Range** | <100ms | N/A | Chronos |
-| **Entity History** | <100ms | N/A | Chronos |
+| **Point Lookup** | 11.9μs | <1ms | AllSource |
+| **Time Range** | <100ms | N/A | AllSource |
+| **Entity History** | <100ms | N/A | AllSource |
 | **Vector Similarity** | N/A | <1ms (1M vectors) | LanceDB |
 | **Full-Text Search** | N/A | <10ms | LanceDB |
 | **Hybrid (Temporal + Semantic)** | N/A | N/A | Neither (need integration) |
 
 ### Storage Efficiency
 
-| Metric | Chronos | LanceDB | Winner |
+| Metric | AllSource | LanceDB | Winner |
 |--------|---------|---------|--------|
-| **Compression** | 60-80% (text) | 20-30% (vectors) | Chronos |
+| **Compression** | 60-80% (text) | 20-30% (vectors) | AllSource |
 | **Random Access** | ⚠️ Row group overhead | ✅ Page-level | LanceDB |
 | **Scan Throughput** | ✅ Excellent | ✅ Equal | Tie |
 
@@ -409,7 +409,7 @@ retriever = ChronosLanceRetriever(
                        ▲
                        │
                        │
-         EventStoreDB  │  Chronos ⭐
+         EventStoreDB  │  AllSource ⭐
                        │  (Unique!)
                        │
   ───────────────────┼───────────────────► Vector Search
@@ -423,15 +423,15 @@ retriever = ChronosLanceRetriever(
                   Streaming
 ```
 
-**Chronos Alone**: Event sourcing + time-travel (competes with EventStoreDB, Kafka)
+**AllSource Alone**: Event sourcing + time-travel (competes with EventStoreDB, Kafka)
 
 **LanceDB Alone**: Vector search + AI workloads (competes with Pinecone, Weaviate)
 
-**Chronos + LanceDB**: **Only solution** in upper-right quadrant (event sourcing + vector search)
+**AllSource + LanceDB**: **Only solution** in upper-right quadrant (event sourcing + vector search)
 
 ### Target Customers
 
-**Chronos Primary**:
+**AllSource Primary**:
 - Financial services (audit + compliance)
 - Healthcare (event history)
 - Supply chain (provenance)
@@ -445,7 +445,7 @@ retriever = ChronosLanceRetriever(
 
 **Combined System**:
 - **AI-native enterprises** needing both:
-  - Historical context (Chronos)
+  - Historical context (AllSource)
   - Semantic search (LanceDB)
 - **Examples**:
   - Fintech: Fraud detection with temporal + semantic
@@ -457,7 +457,7 @@ retriever = ChronosLanceRetriever(
 
 ## Strategic Recommendations
 
-### For Chronos Team
+### For AllSource Team
 
 **Near-Term (0-12 months)**:
 1. ❌ Do NOT build vector search (not core competency)
@@ -482,10 +482,10 @@ retriever = ChronosLanceRetriever(
 ### For LanceDB Partnership Pitch
 
 **Value Proposition**:
-> "We serve complementary markets. Chronos customers need vector search. Your customers need event sourcing. Together, we create a new category: **Temporal AI Infrastructure**."
+> "We serve complementary markets. AllSource customers need vector search. Your customers need event sourcing. Together, we create a new category: **Temporal AI Infrastructure**."
 
 **Joint Opportunities**:
-- Reference architecture (Chronos + LanceDB)
+- Reference architecture (AllSource + LanceDB)
 - Shared blog posts / webinars
 - Joint customer case studies
 - Technical collaboration (Lance format)
@@ -538,11 +538,11 @@ retriever = ChronosLanceRetriever(
 
 - [Full Technical Design](./FUTURE_VECTOR_EMBEDDING_DESIGN.md) - 100+ page detailed design
 - [Executive Summary](./LANCEDB_ANALYSIS_SUMMARY.md) - Key findings + gotchas
-- [Chronos Roadmap](./2025-10-22_COMPREHENSIVE_ROADMAP.md) - Current priorities
+- [AllSource Roadmap](./2025-10-22_COMPREHENSIVE_ROADMAP.md) - Current priorities
 
 ---
 
-**Document Owner**: Chronos Engineering Team
+**Document Owner**: AllSource Engineering Team
 **Last Updated**: 2025-11-04
 **Next Review**: Q3 2025
 

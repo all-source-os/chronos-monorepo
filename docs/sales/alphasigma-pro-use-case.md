@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document addresses how Chronos's event-sourced data architecture supports AlphaSigma Pro's **Quant Intelligence** layer — from precomputed NQ/BTC analytics through to a full intelligence engine powering strategy selection, risk filters, and AI-style data queries.
+This document addresses how AllSource's event-sourced data architecture supports AlphaSigma Pro's **Quant Intelligence** layer — from precomputed NQ/BTC analytics through to a full intelligence engine powering strategy selection, risk filters, and AI-style data queries.
 
 ---
 
@@ -349,9 +349,9 @@ pub struct EventStream {
 
 ```python
 # Proposed Python SDK usage
-from alphasigma import ChronosClient
+from alphasigma import AllSourceClient
 
-client = ChronosClient("https://api.alphasigma.pro")
+client = AllSourceClient("https://api.alphasigma.pro")
 
 # Reproduce exact dataset from past analysis
 analysis_run_id = "backtest-2024-01-15-nq-momentum"
@@ -396,7 +396,7 @@ assert results == original_results  # Deterministic!
 │   ├─────────────────────────────────────────────────────────────────┤   │
 │   │                                                                  │   │
 │   │  ┌───────────────────┐    ┌───────────────────────────────────┐ │   │
-│   │  │  ChronosClient    │    │  QuantIntelligence                │ │   │
+│   │  │  AllSourceClient    │    │  QuantIntelligence                │ │   │
 │   │  │                   │    │                                    │ │   │
 │   │  │  .query_events()  │    │  .get_probability_distribution() │ │   │
 │   │  │  .get_bars()      │    │  .analyze_regime()               │ │   │
@@ -425,10 +425,10 @@ assert results == original_results  # Deterministic!
 
 ```python
 import pandas as pd
-from alphasigma import ChronosClient, TimeWindow
+from alphasigma import AllSourceClient, TimeWindow
 
 # Initialize client
-client = ChronosClient(
+client = AllSourceClient(
     base_url="https://api.alphasigma.pro",
     api_key="sk_live_..."
 )

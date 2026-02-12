@@ -35,7 +35,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
     conn
     |> assign(:current_tenant, dev_tenant)
     |> assign(:tenant_id, dev_tenant.id)
-    |> put_private(:chronos_tenant_id, dev_tenant.id)
+    |> put_private(:allsource_tenant_id, dev_tenant.id)
   end
 
   defp set_user_tenant_context(conn) do
@@ -75,7 +75,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
         conn
         |> assign(:current_tenant, tenant)
         |> assign(:tenant_id, tenant.id)
-        |> put_private(:chronos_tenant_id, tenant.id)
+        |> put_private(:allsource_tenant_id, tenant.id)
     end
   end
 

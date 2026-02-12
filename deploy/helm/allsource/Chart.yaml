@@ -1,5 +1,5 @@
 apiVersion: v2
-name: chronos
+name: allsource
 description: High-performance event sourcing platform with Rust Core and Elixir Query Service
 type: application
 version: 0.6.0
@@ -14,10 +14,10 @@ keywords:
 
 maintainers:
   - name: AllSource Team
-    url: https://github.com/all-source-os/chronos-monorepo
+    url: https://github.com/all-source-os/allsource-monorepo
 
-home: https://github.com/all-source-os/chronos-monorepo
+home: https://github.com/all-source-os/allsource-monorepo
 sources:
-  - https://github.com/all-source-os/chronos-monorepo
+  - https://github.com/all-source-os/allsource-monorepo
 
 dependencies: []

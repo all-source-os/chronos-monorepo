@@ -33,7 +33,7 @@ They disable LSP file watchers to avoid performance issues:
 (setq lsp-enable-file-watchers nil)
 ```
 
-**For Chronos**: We have large codebases (core, query-service, mcp-server). Consider:
+**For AllSource**: We have large codebases (core, query-service, mcp-server). Consider:
 - Excluding `node_modules`, `_build`, `target`, `deps` from LSP watching
 - Configure `.elixir_ls/` directory ignores
 
@@ -67,7 +67,7 @@ end
 
 **Current Need**: Not applicable yet - we're using Phoenix API only, no LiveView
 
-## Recommendations for Chronos
+## Recommendations for AllSource
 
 ### Immediate Actions
 

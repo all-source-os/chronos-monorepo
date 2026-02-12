@@ -98,8 +98,8 @@ defmodule QueryServiceExWeb.ApiKeyControllerTest do
 
       assert response["data"]["name"] == "My New Key"
       assert response["data"]["description"] == "Test key for CI/CD"
-      assert response["data"]["key"] =~ ~r/^chronos_test_/
-      assert response["data"]["key_prefix"] =~ ~r/^chronos_test_/
+      assert response["data"]["key"] =~ ~r/^allsource_test_/
+      assert response["data"]["key_prefix"] =~ ~r/^allsource_test_/
       assert response["warning"] =~ "Save this key"
     end
 
@@ -163,7 +163,7 @@ defmodule QueryServiceExWeb.ApiKeyControllerTest do
       assert response["name"] == "Fetch Me"
       # Should NOT include the raw key
       refute Map.has_key?(response, "key") or
-               (Map.has_key?(response, "key") and response["key"] =~ ~r/^chronos_test_[^\.]+$/)
+               (Map.has_key?(response, "key") and response["key"] =~ ~r/^allsource_test_[^\.]+$/)
     end
 
     test "returns 404 for non-existent key", %{conn: conn} do
@@ -230,7 +230,7 @@ defmodule QueryServiceExWeb.ApiKeyControllerTest do
       response = json_response(conn, 200)
 
       # New key is returned
-      assert response["data"]["key"] =~ ~r/^chronos_test_/
+      assert response["data"]["key"] =~ ~r/^allsource_test_/
       assert response["data"]["key"] != old_raw_key
       assert response["data"]["name"] == "Rotate Me"
       assert response["data"]["description"] == "Important"

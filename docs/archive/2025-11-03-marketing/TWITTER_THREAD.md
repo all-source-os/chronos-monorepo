@@ -1,4 +1,4 @@
-what we shipped this week on chronos
+what we shipped this week on allsource
 
 had a weird problem. our stack is go + rust + elixir. but our mcp server? typescript. it stuck out like a sore thumb
 
@@ -47,6 +47,6 @@ mcp server is the bottleneck though. every response hits it. so optimizing there
 
 if you're building LLM tools, check out TOON. it's literally designed for this. github has the spec
 
-chronos is open source. temporal event store built for AI apps. if you're doing events + LLMs, might be interesting
+allsource is open source. temporal event store built for AI apps. if you're doing events + LLMs, might be interesting
 
 /end

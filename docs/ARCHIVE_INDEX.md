@@ -7,7 +7,7 @@ category: reference
 
 # Archive Index
 
-This document serves as a comprehensive index of all archived documentation in the Chronos monorepo. The archive contains historical documents that have been superseded by newer versions, completed phase documentation, and reference materials preserved for historical context.
+This document serves as a comprehensive index of all archived documentation in the AllSource monorepo. The archive contains historical documents that have been superseded by newer versions, completed phase documentation, and reference materials preserved for historical context.
 
 ## Archive Organization
 

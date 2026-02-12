@@ -61,11 +61,11 @@ defmodule QueryServiceExWeb.ApiSpec do
 
         ## Support
 
-        For API issues, contact support@chronos.dev or visit our documentation.
+        For API issues, contact support@allsource.dev or visit our documentation.
         """,
         contact: %OpenApiSpex.Contact{
-          name: "Chronos Support",
-          email: "support@chronos.dev"
+          name: "AllSource Support",
+          email: "support@allsource.dev"
         },
         license: %OpenApiSpex.License{
           name: "MIT"
@@ -149,8 +149,8 @@ defmodule QueryServiceExWeb.ApiSpec do
     case env do
       :prod ->
         [
-          %Server{url: "https://api.chronos.dev", description: "Production"},
-          %Server{url: "https://staging-api.chronos.dev", description: "Staging"}
+          %Server{url: "https://api.allsource.dev", description: "Production"},
+          %Server{url: "https://staging-api.allsource.dev", description: "Staging"}
         ]
 
       _ ->

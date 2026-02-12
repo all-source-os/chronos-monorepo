@@ -23,7 +23,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/chronos
+  IMAGE_PREFIX: ${{ github.repository_owner }}/allsource
 
 jobs:
   # ===========================================================================
@@ -150,19 +150,19 @@ jobs:
             core)
               echo "context=apps/core" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/core/Dockerfile" >> "$GITHUB_OUTPUT"
-              echo "image=chronos-core" >> "$GITHUB_OUTPUT"
+              echo "image=allsource-core" >> "$GITHUB_OUTPUT"
               echo "port=3900" >> "$GITHUB_OUTPUT"
               ;;
             query-service)
               echo "context=apps/query-service" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/query-service/Dockerfile" >> "$GITHUB_OUTPUT"
-              echo "image=chronos-query-service" >> "$GITHUB_OUTPUT"
+              echo "image=allsource-query-service" >> "$GITHUB_OUTPUT"
               echo "port=4000" >> "$GITHUB_OUTPUT"
               ;;
             control-plane)
               echo "context=apps/control-plane" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/control-plane/Dockerfile" >> "$GITHUB_OUTPUT"
-              echo "image=chronos-control-plane" >> "$GITHUB_OUTPUT"
+              echo "image=allsource-control-plane" >> "$GITHUB_OUTPUT"
               echo "port=8080" >> "$GITHUB_OUTPUT"
               ;;
           esac
@@ -299,16 +299,16 @@ jobs:
         run: |
           # Load core image and tag for docker-compose
           gunzip -c /tmp/images/core-image.tar.gz | docker load
-          docker tag chronos-core:test ghcr.io/all-source-os/chronos-core:latest
+          docker tag allsource-core:test ghcr.io/all-source-os/allsource-core:latest
 
           # Load query-service if it was built
           if [ -f /tmp/images/query-service-image.tar.gz ]; then
             gunzip -c /tmp/images/query-service-image.tar.gz | docker load
-            docker tag chronos-query-service:test ghcr.io/all-source-os/chronos-query-service:latest
+            docker tag allsource-query-service:test ghcr.io/all-source-os/allsource-query-service:latest
           fi
 
           echo "### 📦 Loaded images from build job:" >> "$GITHUB_STEP_SUMMARY"
-          docker images | grep -E "chronos-(core|query-service)" >> "$GITHUB_STEP_SUMMARY" || true
+          docker images | grep -E "allsource-(core|query-service)" >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Start services
         run: |

@@ -1,14 +1,14 @@
 # Docker Images
 
-Production-optimized container images for Chronos services.
+Production-optimized container images for AllSource services.
 
 ## Image Gallery
 
 | Service | Image | Size | Base |
 |---------|-------|------|------|
-| **Core** | `ghcr.io/allsource/chronos-core` | **15.7 MB** | Distroless |
-| **Control Plane** | `ghcr.io/allsource/chronos-control-plane` | **27.9 MB** | Distroless |
-| **Query Service** | `ghcr.io/allsource/chronos-query-service` | **35.1 MB** | Alpine 3.22 |
+| **Core** | `ghcr.io/allsource/allsource-core` | **15.7 MB** | Distroless |
+| **Control Plane** | `ghcr.io/allsource/allsource-control-plane` | **27.9 MB** | Distroless |
+| **Query Service** | `ghcr.io/allsource/allsource-query-service` | **35.1 MB** | Alpine 3.22 |
 
 ### Why So Small?
 
@@ -25,12 +25,12 @@ Production-optimized container images for Chronos services.
 
 ```bash
 # Latest stable
-docker pull ghcr.io/allsource/chronos-core:latest
-docker pull ghcr.io/allsource/chronos-control-plane:latest
-docker pull ghcr.io/allsource/chronos-query-service:latest
+docker pull ghcr.io/allsource/allsource-core:latest
+docker pull ghcr.io/allsource/allsource-control-plane:latest
+docker pull ghcr.io/allsource/allsource-query-service:latest
 
 # Specific version
-docker pull ghcr.io/allsource/chronos-core:0.7.3
+docker pull ghcr.io/allsource/allsource-core:0.7.3
 ```
 
 ### Run Locally
@@ -38,26 +38,26 @@ docker pull ghcr.io/allsource/chronos-core:0.7.3
 ```bash
 # Core Event Store (Rust)
 docker run -d \
-  --name chronos-core \
+  --name allsource-core \
   -p 3900:3900 \
-  -v chronos-data:/app/data \
-  ghcr.io/allsource/chronos-core:latest
+  -v allsource-data:/app/data \
+  ghcr.io/allsource/allsource-core:latest
 
 # Control Plane (Go)
 docker run -d \
-  --name chronos-control-plane \
+  --name allsource-control-plane \
   -p 8080:8080 \
-  -e CORE_URL=http://chronos-core:3900 \
-  ghcr.io/allsource/chronos-control-plane:latest
+  -e CORE_URL=http://allsource-core:3900 \
+  ghcr.io/allsource/allsource-control-plane:latest
 
 # Query Service (Elixir)
 docker run -d \
-  --name chronos-query-service \
+  --name allsource-query-service \
   -p 3902:3902 \
-  -e DATABASE_URL=ecto://user:pass@postgres/chronos \
+  -e DATABASE_URL=ecto://user:pass@postgres/allsource \
   -e SECRET_KEY_BASE=$(openssl rand -hex 64) \
-  -e RUST_CORE_URL=http://chronos-core:3900 \
-  ghcr.io/allsource/chronos-query-service:latest
+  -e RUST_CORE_URL=http://allsource-core:3900 \
+  ghcr.io/allsource/allsource-query-service:latest
 ```
 
 ---
@@ -172,18 +172,18 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 ```bash
 # Core (default: distroless)
 cd apps/core
-docker build -t chronos-core .
+docker build -t allsource-core .
 
 # Core (alpine variant with Docker HEALTHCHECK)
-docker build --target runtime-alpine -t chronos-core:alpine .
+docker build --target runtime-alpine -t allsource-core:alpine .
 
 # Control Plane
 cd apps/control-plane
-docker build -t chronos-control-plane .
+docker build -t allsource-control-plane .
 
 # Query Service
 cd apps/query-service
-docker build -t chronos-query-service .
+docker build -t allsource-query-service .
 ```
 
 ---
@@ -196,7 +196,7 @@ All images are built for:
 
 ```bash
 # Build multi-arch locally
-docker buildx build --platform linux/amd64,linux/arm64 -t chronos-core .
+docker buildx build --platform linux/amd64,linux/arm64 -t allsource-core .
 ```
 
 ---
@@ -216,10 +216,10 @@ docker buildx build --platform linux/amd64,linux/arm64 -t chronos-core .
 
 ```bash
 # Scan with Trivy
-trivy image ghcr.io/allsource/chronos-core:latest
+trivy image ghcr.io/allsource/allsource-core:latest
 
 # Scan with Grype
-grype ghcr.io/allsource/chronos-core:latest
+grype ghcr.io/allsource/allsource-core:latest
 ```
 
 ---
@@ -247,10 +247,10 @@ These reduce scheduler busy-wait times for faster cold starts.
 
 ```bash
 # Check logs
-docker logs chronos-core
+docker logs allsource-core
 
 # Run interactively (alpine variant only)
-docker run -it --rm chronos-core:alpine /bin/sh
+docker run -it --rm allsource-core:alpine /bin/sh
 ```
 
 ### Health check failing
@@ -272,5 +272,5 @@ Ensure Alpine version matches the build image (3.22+) for OpenSSL compatibility.
 
 - [WebSocket Configuration](../guides/WEBSOCKET_CONFIGURATION.md) - Real-time event streaming setup
 - [Kubernetes Deployment](../k8s/) - Production Kubernetes manifests
-- [Helm Chart](../../deploy/helm/chronos/) - Helm chart for easy deployment
+- [Helm Chart](../../deploy/helm/allsource/) - Helm chart for easy deployment
 - [Cloud Run](../../deploy/cloudrun/) - Google Cloud Run configurations

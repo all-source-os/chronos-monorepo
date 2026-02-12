@@ -1,6 +1,6 @@
 # Release Guide
 
-This guide covers the release workflow for the Chronos monorepo.
+This guide covers the release workflow for the AllSource monorepo.
 
 ## Quick Reference
 
@@ -139,10 +139,10 @@ After a release:
    ```bash
    make images-check
    ```
-   Or visit: https://github.com/all-source-os/chronos-monorepo/pkgs
+   Or visit: https://github.com/all-source-os/allsource-monorepo/pkgs
 
 2. **Verify GitHub Release**
-   Visit: https://github.com/all-source-os/chronos-monorepo/releases
+   Visit: https://github.com/all-source-os/allsource-monorepo/releases
 
 3. **Update Release Branch** (optional)
    ```bash

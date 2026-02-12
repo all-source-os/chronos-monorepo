@@ -1,4 +1,4 @@
-// Package main provides the control plane for the Chronos event sourcing system.
+// Package main provides the control plane for the AllSource event sourcing system.
 package main
 
 import (

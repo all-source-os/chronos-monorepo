@@ -1,57 +1,57 @@
 # Override for local development - unique names and ports in 3900-3999 range
 services:
   core:
-    container_name: chronos-monorepo-core
+    container_name: allsource-monorepo-core
     ports:
       - "3900:3900"
 
   control-plane:
-    container_name: chronos-monorepo-control-plane
+    container_name: allsource-monorepo-control-plane
     ports:
       - "3901:8080"
 
   query-service:
-    container_name: chronos-monorepo-query-service
+    container_name: allsource-monorepo-query-service
     ports:
       - "3902:3902"
 
   postgres:
-    container_name: chronos-monorepo-postgres
+    container_name: allsource-monorepo-postgres
     ports:
       - "3903:5432"
 
   web:
-    container_name: chronos-monorepo-web
+    container_name: allsource-monorepo-web
     ports:
       - "3908:3000"
 
   redis:
-    container_name: chronos-monorepo-redis
+    container_name: allsource-monorepo-redis
     ports:
       - "3905:6379"
 
   prometheus:
-    container_name: chronos-monorepo-prometheus
+    container_name: allsource-monorepo-prometheus
     ports:
       - "3906:9090"
 
   grafana:
-    container_name: chronos-monorepo-grafana
+    container_name: allsource-monorepo-grafana
     ports:
       - "3907:3000"
 
 networks:
-  chronos:
-    name: chronos-monorepo-network
+  allsource:
+    name: allsource-monorepo-network
 
 volumes:
   core-data:
-    name: chronos-monorepo-core-data
+    name: allsource-monorepo-core-data
   postgres-data:
-    name: chronos-monorepo-postgres-data
+    name: allsource-monorepo-postgres-data
   redis-data:
-    name: chronos-monorepo-redis-data
+    name: allsource-monorepo-redis-data
   prometheus-data:
-    name: chronos-monorepo-prometheus-data
+    name: allsource-monorepo-prometheus-data
   grafana-data:
-    name: chronos-monorepo-grafana-data
+    name: allsource-monorepo-grafana-data

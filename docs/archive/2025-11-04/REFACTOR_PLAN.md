@@ -3,7 +3,7 @@
 ## Current Structure (Before)
 
 ```
-chronos-monorepo/
+allsource-monorepo/
 ├── apps/
 │   └── web/                    # Next.js web app
 ├── packages/
@@ -20,7 +20,7 @@ chronos-monorepo/
 ## Proposed Structure (After)
 
 ```
-chronos-monorepo/
+allsource-monorepo/
 ├── apps/
 │   ├── web/                    # Next.js web app (existing)
 │   ├── mcp-server/             # MCP server (moved from packages)

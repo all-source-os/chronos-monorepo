@@ -15,9 +15,9 @@ defmodule QueryServiceEx.ApiKeys do
 
   require Logger
 
-  # Key format: chronos_<env>_<random>
-  # Example: chronos_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
-  @key_prefix "chronos"
+  # Key format: allsource_<env>_<random>
+  # Example: allsource_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+  @key_prefix "allsource"
   @key_length 32
 
   # -------------------------------------------------------------------
@@ -306,7 +306,7 @@ defmodule QueryServiceEx.ApiKeys do
 
     raw_key = "#{@key_prefix}_#{env_prefix}_#{random_part}"
     key_hash = hash_key(raw_key)
-    # Show first 12 chars for identification: chronos_live_xxxx
+    # Show first 12 chars for identification: allsource_live_xxxx
     key_prefix = String.slice(raw_key, 0, 17) <> "..."
 
     {raw_key, key_hash, key_prefix}

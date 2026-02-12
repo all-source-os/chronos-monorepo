@@ -1,4 +1,4 @@
-# Chronos Helm Chart Values
+# AllSource Helm Chart Values
 # Override these values for your deployment
 
 # =============================================================================
@@ -16,7 +16,7 @@ core:
   enabled: true
 
   image:
-    repository: chronos/core
+    repository: allsource/core
     tag: "0.6.0"
     pullPolicy: IfNotPresent
 
@@ -82,7 +82,7 @@ queryService:
   enabled: true
 
   image:
-    repository: chronos/query-service
+    repository: allsource/query-service
     tag: "0.6.0"
     pullPolicy: IfNotPresent
 
@@ -143,7 +143,7 @@ ingress:
     # kubernetes.io/ingress.class: nginx
     # cert-manager.io/cluster-issuer: letsencrypt-prod
   hosts:
-    - host: chronos.local
+    - host: allsource.local
       paths:
         - path: /api
           pathType: Prefix
@@ -152,9 +152,9 @@ ingress:
           pathType: Prefix
           service: queryService
   tls: []
-  #  - secretName: chronos-tls
+  #  - secretName: allsource-tls
   #    hosts:
-  #      - chronos.local
+  #      - allsource.local
 
 # =============================================================================
 # Service Monitor (Prometheus Operator)

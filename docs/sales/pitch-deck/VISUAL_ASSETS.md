@@ -1,4 +1,4 @@
-# Chronos Visual Assets for Sales
+# AllSource Visual Assets for Sales
 
 ## Brand Colors
 
@@ -20,7 +20,7 @@ Light:      #f8fafc (Off-white - text on dark)
 ```svg
 <svg viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="chronosGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="allsourceGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" style="stop-color:#ce422b"/>
       <stop offset="100%" style="stop-color:#8b1a1a"/>
     </linearGradient>
@@ -50,8 +50,8 @@ Light:      #f8fafc (Off-white - text on dark)
   <line x1="55" y1="350" x2="580" y2="350" stroke="#666" stroke-width="2"/>
 
   <!-- Bars -->
-  <!-- Chronos: 469K -->
-  <rect x="80" y="77" width="80" height="273" fill="url(#chronosGrad)" rx="4"/>
+  <!-- AllSource: 469K -->
+  <rect x="80" y="77" width="80" height="273" fill="url(#allsourceGrad)" rx="4"/>
   <text x="120" y="68" text-anchor="middle" fill="#4ecdc4" font-family="system-ui" font-size="14" font-weight="bold">469K</text>
 
   <!-- EventStoreDB: ~100K -->
@@ -71,7 +71,7 @@ Light:      #f8fafc (Off-white - text on dark)
   <text x="545" y="282" text-anchor="middle" fill="#666" font-family="system-ui" font-size="10">varies</text>
 
   <!-- X-axis labels -->
-  <text x="120" y="375" text-anchor="middle" fill="#f8fafc" font-family="system-ui" font-size="12" font-weight="bold">Chronos</text>
+  <text x="120" y="375" text-anchor="middle" fill="#f8fafc" font-family="system-ui" font-size="12" font-weight="bold">AllSource</text>
   <text x="230" y="375" text-anchor="middle" fill="#888" font-family="system-ui" font-size="11">EventStoreDB</text>
   <text x="340" y="375" text-anchor="middle" fill="#888" font-family="system-ui" font-size="11">Kafka</text>
   <text x="450" y="375" text-anchor="middle" fill="#888" font-family="system-ui" font-size="11">Marten</text>
@@ -90,9 +90,9 @@ Light:      #f8fafc (Off-white - text on dark)
   </text>
 
   <!-- Latency bars (lower is better) -->
-  <!-- Chronos: 11.9us -->
+  <!-- AllSource: 11.9us -->
   <rect x="80" y="80" width="100" height="40" fill="#4ecdc4" rx="4"/>
-  <text x="200" y="105" fill="#f8fafc" font-family="system-ui" font-size="14" font-weight="bold">11.9 us - Chronos</text>
+  <text x="200" y="105" fill="#f8fafc" font-family="system-ui" font-size="14" font-weight="bold">11.9 us - AllSource</text>
 
   <!-- Others typically 100us-10ms -->
   <rect x="80" y="140" width="350" height="30" fill="#666" rx="4"/>
@@ -106,7 +106,7 @@ Light:      #f8fafc (Off-white - text on dark)
 
   <!-- Legend -->
   <text x="300" y="330" text-anchor="middle" fill="#4ecdc4" font-family="system-ui" font-size="16">
-    Chronos: 8-40x faster than alternatives
+    AllSource: 8-40x faster than alternatives
   </text>
 </svg>
 ```
@@ -127,7 +127,7 @@ Light:      #f8fafc (Off-white - text on dark)
 
   <!-- Title -->
   <text x="400" y="40" text-anchor="middle" fill="#f8fafc" font-family="system-ui" font-size="24" font-weight="bold">
-    Chronos Architecture
+    AllSource Architecture
   </text>
   <text x="400" y="65" text-anchor="middle" fill="#888" font-family="system-ui" font-size="14">
     Polyglot Design: Best Language for Each Job
@@ -318,7 +318,7 @@ import plotly.express as px
 
 # Throughput comparison
 throughput_data = {
-    'System': ['Chronos', 'EventStoreDB', 'Kafka', 'Marten', 'Custom'],
+    'System': ['AllSource', 'EventStoreDB', 'Kafka', 'Marten', 'Custom'],
     'Events/sec': [469000, 100000, 200000, 50000, 75000],
     'Color': ['#ce422b', '#666', '#666', '#666', '#444']
 }
@@ -337,7 +337,7 @@ fig.write_image('throughput_comparison.png', scale=2)
 
 # Latency comparison
 latency_data = {
-    'System': ['Chronos', 'EventStoreDB', 'Kafka', 'PostgreSQL'],
+    'System': ['AllSource', 'EventStoreDB', 'Kafka', 'PostgreSQL'],
     'Latency_us': [11.9, 100, 500, 5000]
 }
 

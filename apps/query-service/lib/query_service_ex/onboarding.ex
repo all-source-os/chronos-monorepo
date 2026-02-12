@@ -17,13 +17,13 @@ defmodule QueryServiceEx.Onboarding do
     "workspace_setup" => %{
       title: "Set up your workspace",
       description: "Customize your workspace name and settings",
-      action: "Update your workspace settings to personalize Chronos for your team.",
+      action: "Update your workspace settings to personalize AllSource for your team.",
       docs_url: "/docs/getting-started/workspace"
     },
     "first_event" => %{
       title: "Send your first event",
       description: "Ingest an event into your event store",
-      action: "Use the Events API to send your first event to Chronos.",
+      action: "Use the Events API to send your first event to AllSource.",
       docs_url: "/docs/getting-started/events"
     },
     "first_query" => %{

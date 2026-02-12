@@ -1,19 +1,19 @@
 ---
-title: "Chronos x402 - Quick Reference Card"
+title: "AllSource x402 - Quick Reference Card"
 status: CURRENT
 last_updated: 2026-02-02
 category: project
 project: x402-hackathon
 ---
 
-# 🚀 Chronos x402 - Quick Reference Card
+# 🚀 AllSource x402 - Quick Reference Card
 
 **Print this and keep it visible during the hackathon!**
 
 ---
 
 ## 🎯 Project Goal
-Build x402 payment SDK for Solana that showcases Chronos event store's time-travel capabilities.
+Build x402 payment SDK for Solana that showcases AllSource event store's time-travel capabilities.
 
 ---
 
@@ -46,8 +46,8 @@ cd apps/x402-dashboard && bun run dev
 
 ### Test Endpoints
 ```bash
-# Test Chronos health
-curl https://chronos-x402-demo.fly.dev/health
+# Test AllSource health
+curl https://allsource-x402-demo.fly.dev/health
 
 # Test 402 response
 curl -X POST http://localhost:3000/api/ai \
@@ -71,7 +71,7 @@ cd apps/x402-dashboard && vercel --prod
 
 ## 🌐 Important URLs
 
-**Chronos API:** `https://chronos-x402-demo.fly.dev`
+**AllSource API:** `https://allsource-x402-demo.fly.dev`
 
 **Solana Explorer:** `https://explorer.solana.com/?cluster=devnet`
 
@@ -87,14 +87,14 @@ cd apps/x402-dashboard && vercel --prod
 
 ```bash
 # .env.local (all apps)
-CHRONOS_URL=https://chronos-x402-demo.fly.dev
+ALLSOURCE_URL=https://allsource-x402-demo.fly.dev
 SOLANA_WALLET=<your-wallet-pubkey>
 SOLANA_RPC=https://api.devnet.solana.com
 OPENAI_API_KEY=<your-key>
 
 # Dashboard only
-NEXT_PUBLIC_CHRONOS_URL=https://chronos-x402-demo.fly.dev
-NEXT_PUBLIC_CHRONOS_WS=wss://chronos-x402-demo.fly.dev/api/v1/events/stream
+NEXT_PUBLIC_ALLSOURCE_URL=https://allsource-x402-demo.fly.dev
+NEXT_PUBLIC_ALLSOURCE_WS=wss://allsource-x402-demo.fly.dev/api/v1/events/stream
 ```
 
 ---
@@ -102,14 +102,14 @@ NEXT_PUBLIC_CHRONOS_WS=wss://chronos-x402-demo.fly.dev/api/v1/events/stream
 ## 🚦 Quality Gates
 
 ### Hour 6 Checkpoint
-- [ ] Can log events to Chronos?
+- [ ] Can log events to AllSource?
 - [ ] Can verify Solana transactions?
 - [ ] SDK builds without errors?
 
 ### Hour 12 Checkpoint
 - [ ] Demo API returns 402?
 - [ ] Can process paid requests?
-- [ ] Events logged to Chronos?
+- [ ] Events logged to AllSource?
 
 ### Hour 18 Checkpoint
 - [ ] Dashboard shows real-time data?
@@ -198,7 +198,7 @@ NEXT_PUBLIC_CHRONOS_WS=wss://chronos-x402-demo.fly.dev/api/v1/events/stream
 
 ## 💪 Motivational Reminders
 
-- ✅ Chronos is already built → You're showcasing, not building from scratch
+- ✅ AllSource is already built → You're showcasing, not building from scratch
 - ✅ Time-travel is your killer feature → Focus here for max impact
 - ✅ Good demo video > Perfect code → Ship, don't perfect
 - ✅ You have 70% done already → Just need the x402 wrapper
@@ -209,7 +209,7 @@ NEXT_PUBLIC_CHRONOS_WS=wss://chronos-x402-demo.fly.dev/api/v1/events/stream
 
 ## 📞 Help Resources
 
-**Chronos Issues:** Check existing API endpoints in `services/core/src/api.rs`
+**AllSource Issues:** Check existing API endpoints in `services/core/src/api.rs`
 
 **Solana Issues:** https://solana.com/developers
 

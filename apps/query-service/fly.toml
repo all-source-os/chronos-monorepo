@@ -1,9 +1,9 @@
-# Fly.io Configuration for Chronos Query Service
-# Deploy: flyctl deploy --app chronos-query-service
-# Scale: flyctl scale count 3 --app chronos-query-service
+# Fly.io Configuration for AllSource Query Service
+# Deploy: flyctl deploy --app allsource-query-service
+# Scale: flyctl scale count 3 --app allsource-query-service
 # Secrets: flyctl secrets set SECRET_KEY_BASE=... GOOGLE_CLIENT_ID=... etc
 
-app = "chronos-query-service"
+app = "allsource-query-service"
 primary_region = "iad"  # US East (Virginia)
 
 [build]
@@ -11,9 +11,9 @@ primary_region = "iad"  # US East (Virginia)
 
 [env]
   MIX_ENV = "prod"
-  PHX_HOST = "chronos-query-service.fly.dev"
-  RUST_CORE_URL = "http://chronos-core.internal:3900"
-  CORE_WS_URL = "ws://chronos-core.internal:3900/api/v1/events/stream"
+  PHX_HOST = "allsource-query-service.fly.dev"
+  RUST_CORE_URL = "http://allsource-core.internal:3900"
+  CORE_WS_URL = "ws://allsource-core.internal:3900/api/v1/events/stream"
   ECTO_IPV6 = "true"
   # Use port 3902 to match application config
   PORT = "3902"
@@ -68,8 +68,8 @@ primary_region = "iad"  # US East (Virginia)
   memory_mb = 512  # Increased for production workload
 
 # Database: Attach Fly Postgres
-# flyctl postgres create --name chronos-db
-# flyctl postgres attach chronos-db --app chronos-query-service
+# flyctl postgres create --name allsource-db
+# flyctl postgres attach allsource-db --app allsource-query-service
 
 # Metrics: Prometheus-compatible endpoint available at /api/metrics
 # Configure Fly.io Prometheus scraping if needed

@@ -3,9 +3,9 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "chronos.core.fullname" . }}
+  name: {{ include "allsource.core.fullname" . }}
   labels:
-    {{- include "chronos.core.labels" . | nindent 4 }}
+    {{- include "allsource.core.labels" . | nindent 4 }}
 spec:
   {{- if .Values.podDisruptionBudget.minAvailable }}
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
@@ -14,16 +14,16 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "chronos.core.selectorLabels" . | nindent 6 }}
+      {{- include "allsource.core.selectorLabels" . | nindent 6 }}
 {{- end }}
 ---
 {{- if .Values.queryService.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "chronos.queryService.fullname" . }}
+  name: {{ include "allsource.queryService.fullname" . }}
   labels:
-    {{- include "chronos.queryService.labels" . | nindent 4 }}
+    {{- include "allsource.queryService.labels" . | nindent 4 }}
 spec:
   {{- if .Values.podDisruptionBudget.minAvailable }}
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
@@ -32,6 +32,6 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "chronos.queryService.selectorLabels" . | nindent 6 }}
+      {{- include "allsource.queryService.selectorLabels" . | nindent 6 }}
 {{- end }}
 {{- end }}

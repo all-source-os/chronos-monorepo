@@ -383,18 +383,18 @@ This document consolidates all roadmaps and their current completion status as o
 
 | Bead ID | User Story | Priority | Status |
 |---------|------------|----------|--------|
-| chronos-monorepo-2q1.9 | US-009: Set up dependency injection container | P2 | ✅ Closed |
-| chronos-monorepo-2q1.10 | US-010: Add storage integrity checks | P2 | ✅ Closed |
-| chronos-monorepo-2q1.11 | US-011: Add partition monitoring | P3 | ✅ Closed |
-| chronos-monorepo-2q1.12 | US-012: Add 7-day stress test suite | P3 | ✅ Closed |
+| allsource-monorepo-2q1.9 | US-009: Set up dependency injection container | P2 | ✅ Closed |
+| allsource-monorepo-2q1.10 | US-010: Add storage integrity checks | P2 | ✅ Closed |
+| allsource-monorepo-2q1.11 | US-011: Add partition monitoring | P3 | ✅ Closed |
+| allsource-monorepo-2q1.12 | US-012: Add 7-day stress test suite | P3 | ✅ Closed |
 
 ### Performance Optimizations - ✅ ALL COMPLETE
 
 | Bead ID | User Story | Priority | Status |
 |---------|------------|----------|--------|
-| chronos-monorepo-198.5 | US-025: Implement SIMD event filtering | P3 | ✅ Closed |
-| chronos-monorepo-198.7 | US-027: Go Control Plane response caching | P3 | ✅ Closed |
-| chronos-monorepo-198.8 | US-028: Go Control Plane async audit logging | P3 | ✅ Closed |
+| allsource-monorepo-198.5 | US-025: Implement SIMD event filtering | P3 | ✅ Closed |
+| allsource-monorepo-198.7 | US-027: Go Control Plane response caching | P3 | ✅ Closed |
+| allsource-monorepo-198.8 | US-028: Go Control Plane async audit logging | P3 | ✅ Closed |
 
 ---
 

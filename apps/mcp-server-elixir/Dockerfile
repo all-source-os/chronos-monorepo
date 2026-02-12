@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # =============================================================================
-# Chronos MCP Server - Production-Optimized Multi-Stage Dockerfile
+# AllSource MCP Server - Production-Optimized Multi-Stage Dockerfile
 # =============================================================================
 
 ARG ELIXIR_VERSION=1.17
@@ -52,14 +52,14 @@ ARG REVISION=unknown
 ARG BUILDTIME=unknown
 
 # OCI Image Labels
-LABEL org.opencontainers.image.title="Chronos MCP Server" \
-      org.opencontainers.image.description="Model Context Protocol server for AI-native Chronos integration" \
+LABEL org.opencontainers.image.title="AllSource MCP Server" \
+      org.opencontainers.image.description="Model Context Protocol server for AI-native AllSource integration" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.vendor="AllSource Team" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo"
+      org.opencontainers.image.source="https://github.com/all-source-os/allsource-monorepo"
 
 # Install runtime dependencies
 RUN apk add --no-cache \
@@ -69,16 +69,16 @@ RUN apk add --no-cache \
     openssl \
     tini && \
     rm -rf /var/cache/apk/* /tmp/* && \
-    addgroup -g 1000 chronos && \
-    adduser -u 1000 -G chronos -s /sbin/nologin -D chronos
+    addgroup -g 1000 allsource && \
+    adduser -u 1000 -G allsource -s /sbin/nologin -D allsource
 
 WORKDIR /app
 
 # Copy release from builder
-COPY --from=builder --chown=chronos:chronos /app/_build/prod/rel/mcp_server_elixir ./
+COPY --from=builder --chown=allsource:allsource /app/_build/prod/rel/mcp_server_elixir ./
 
 # Use non-root user
-USER chronos:chronos
+USER allsource:allsource
 
 # Expose port
 EXPOSE 4001

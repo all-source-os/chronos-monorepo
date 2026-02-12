@@ -35,12 +35,12 @@ defmodule QueryServiceEx.ApiKeysTest do
       attrs = %{name: "My API Key", description: "Test key"}
 
       assert {:ok, {raw_key, api_key}} = ApiKeys.create_api_key(tenant.id, user.id, attrs)
-      assert raw_key =~ ~r/^chronos_test_/
+      assert raw_key =~ ~r/^allsource_test_/
       assert api_key.name == "My API Key"
       assert api_key.description == "Test key"
       assert api_key.tenant_id == tenant.id
       assert api_key.created_by_user_id == user.id
-      assert api_key.key_prefix =~ ~r/^chronos_test_/
+      assert api_key.key_prefix =~ ~r/^allsource_test_/
       assert api_key.scopes == ApiKey.available_scopes()
       assert is_nil(api_key.revoked_at)
     end
@@ -220,7 +220,7 @@ defmodule QueryServiceEx.ApiKeysTest do
       assert new_key.description == "Important key"
       assert new_key.scopes == ["events:read"]
       assert new_key.id != old_key.id
-      assert new_raw_key =~ ~r/^chronos_test_/
+      assert new_raw_key =~ ~r/^allsource_test_/
 
       # Old key is revoked
       old = Repo.get(ApiKey, old_key.id)
@@ -238,7 +238,7 @@ defmodule QueryServiceEx.ApiKeysTest do
     end
 
     test "returns error for invalid key", %{} do
-      assert {:error, :invalid_key} = ApiKeys.verify_api_key("chronos_test_invalid123")
+      assert {:error, :invalid_key} = ApiKeys.verify_api_key("allsource_test_invalid123")
     end
 
     test "returns error for revoked key", %{tenant: tenant, user: user} do

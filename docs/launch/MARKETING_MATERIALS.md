@@ -1,4 +1,4 @@
-# Chronos Marketing Materials
+# AllSource Marketing Materials
 
 **Version:** 0.9.0
 **Last Updated:** 2026-02-11
@@ -14,14 +14,14 @@ Open-source event sourcing with time-travel debugging
 Store every event. Query any point in time. Debug like a time traveler.
 
 ### Elevator Pitch (30 seconds)
-Chronos is an open-source event sourcing platform that lets you capture every state change in your application. Query historical data at any point in time, replay events to debug issues, and build real-time dashboards with streaming updates. Think "Git for your application data" - but with 469K events/second performance.
+AllSource is an open-source event sourcing platform that lets you capture every state change in your application. Query historical data at any point in time, replay events to debug issues, and build real-time dashboards with streaming updates. Think "Git for your application data" - but with 469K events/second performance.
 
 ---
 
 ## X.com Launch Thread Draft
 
 ```
-🚀 Launching Chronos - Event sourcing infrastructure for modern apps
+🚀 Launching AllSource - Event sourcing infrastructure for modern apps
 
 After months of building, we're going live with early access.
 
@@ -43,7 +43,7 @@ Traditional databases don't help. You need event sourcing.
 
 ---
 
-2/ What Chronos Does
+2/ What AllSource Does
 
 ✅ Store every event immutably
 ✅ Query any point in time (time travel!)
@@ -72,7 +72,7 @@ Total production footprint: ~129 MB
 
 Create event:
 ```bash
-curl -X POST https://api.chronos.dev/events \
+curl -X POST https://api.allsource.dev/events \
   -d '{"type": "order.placed", "data": {"id": 123}}'
 ```
 
@@ -94,7 +94,7 @@ Event sourcing is infrastructure. You shouldn't be locked in.
 - Full audit trail
 - No vendor lock-in
 
-GitHub: github.com/all-source-os/chronos-monorepo
+GitHub: github.com/all-source-os/allsource-monorepo
 
 ---
 
@@ -104,7 +104,7 @@ We're opening early access today.
 
 Sign up, poke around, break things, tell us what sucks.
 
-👉 chronos.allsource.dev
+👉 allsource.allsource.dev
 
 What would you build with time-travel for your data?
 
@@ -120,20 +120,20 @@ cc @relevant_accounts
 ## ProductHunt Listing Draft
 
 ### Name
-Chronos
+AllSource
 
 ### Tagline
 Open-source event sourcing with time-travel debugging
 
 ### Description
 
-**Chronos is an open-source event sourcing platform that captures every state change and lets you query any point in time.**
+**AllSource is an open-source event sourcing platform that captures every state change and lets you query any point in time.**
 
 **The Problem**
 Debugging state changes in production is painful. "What happened?" "When?" "Why?" Traditional databases can't answer these questions because they only store current state.
 
 **The Solution**
-Chronos stores every event immutably. You can:
+AllSource stores every event immutably. You can:
 - Query historical state at any timestamp
 - Replay events to reproduce bugs
 - Stream real-time updates to dashboards
@@ -165,7 +165,7 @@ MIT licensed, deploy anywhere. Or use our hosted version (coming soon).
 
 Hey ProductHunt! 👋
 
-I'm [Name], maker of Chronos.
+I'm [Name], maker of AllSource.
 
 I built this because I was tired of debugging production issues by grepping logs. "What was the state of order #12345 at 3pm yesterday?" shouldn't require a PhD in log archaeology.
 
@@ -174,7 +174,7 @@ Event sourcing solves this, but existing solutions are either:
 - Framework-specific (Rails Event Store)
 - Just message queues (Kafka)
 
-Chronos is event sourcing infrastructure that's:
+AllSource is event sourcing infrastructure that's:
 - Fast (469K events/sec, Rust core)
 - Developer-friendly (REST API, time-travel queries)
 - Open source (MIT, self-host anywhere)
@@ -193,11 +193,11 @@ Thanks for checking us out! 🙏
 ## HackerNews Show HN Draft
 
 ### Title
-Show HN: Chronos – Open-source event sourcing with time-travel debugging
+Show HN: AllSource – Open-source event sourcing with time-travel debugging
 
 ### Post
 
-I built Chronos because debugging state changes in production shouldn't require reconstructing history from logs.
+I built AllSource because debugging state changes in production shouldn't require reconstructing history from logs.
 
 **What it is:**
 An event sourcing platform that stores every state change and lets you query any point in time. Think "git log" for your application data.
@@ -222,8 +222,8 @@ An event sourcing platform that stores every state change and lets you query any
 **Open source:**
 MIT licensed, self-host anywhere. No phone call required.
 
-GitHub: https://github.com/all-source-os/chronos-monorepo
-Try it: https://chronos.allsource.dev
+GitHub: https://github.com/all-source-os/allsource-monorepo
+Try it: https://allsource.allsource.dev
 
 Looking for feedback on:
 1. Is the time-travel query syntax intuitive?
@@ -303,7 +303,7 @@ Storyboard:
 
 ## Competitive Positioning
 
-| Feature | Chronos | EventStoreDB | Kafka | Rails Event Store |
+| Feature | AllSource | EventStoreDB | Kafka | Rails Event Store |
 |---------|---------|--------------|-------|-------------------|
 | Time-travel queries | ✅ | ✅ | ❌ | ✅ |
 | Real-time streaming | ✅ | ✅ | ✅ | ❌ |
@@ -324,10 +324,10 @@ Storyboard:
 
 ## Launch Checklist Reference
 
-See beads epic `chronos-monorepo-2ie` for full task tracking.
+See beads epic `allsource-monorepo-2ie` for full task tracking.
 
 **View with:**
 ```bash
-br show chronos-monorepo-2ie
-br list --parent chronos-monorepo-2ie
+br show allsource-monorepo-2ie
+br list --parent allsource-monorepo-2ie
 ```

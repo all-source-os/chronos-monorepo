@@ -1,4 +1,4 @@
-# Chronos C4 Architecture Diagrams (Mermaid)
+# AllSource C4 Architecture Diagrams (Mermaid)
 
 These diagrams follow the C4 model for visualizing software architecture.
 Render in any Mermaid-compatible tool (GitHub, Notion, VS Code, etc.)
@@ -7,33 +7,33 @@ Render in any Mermaid-compatible tool (GitHub, Notion, VS Code, etc.)
 
 ## Level 1: System Context Diagram
 
-Shows Chronos in the context of its users and external systems.
+Shows AllSource in the context of its users and external systems.
 
 ```mermaid
 C4Context
-    title Chronos System Context Diagram
+    title AllSource System Context Diagram
 
     Person(developer, "Developer", "Builds applications using event sourcing patterns")
     Person(dataEngineer, "Data Engineer", "Manages data pipelines and analytics")
     Person(aiEngineer, "AI/ML Engineer", "Builds AI agents and LLM applications")
     Person(operator, "Platform Operator", "Manages infrastructure and security")
 
-    System(chronos, "Chronos Platform", "AI-native event sourcing platform for temporal data intelligence. 469K events/sec, sub-microsecond queries.")
+    System(allsource, "AllSource Platform", "AI-native event sourcing platform for temporal data intelligence. 469K events/sec, sub-microsecond queries.")
 
     System_Ext(clientApps, "Client Applications", "Web, mobile, backend services consuming events")
     System_Ext(llmAgents, "LLM/AI Agents", "Claude, GPT, custom agents via MCP protocol")
     System_Ext(monitoring, "Monitoring Stack", "Prometheus, Grafana, Jaeger")
     System_Ext(authProvider, "Identity Provider", "OAuth, LDAP, SAML for enterprise SSO")
 
-    Rel(developer, chronos, "Ingests events, queries history")
-    Rel(dataEngineer, chronos, "Creates projections, exports data")
-    Rel(aiEngineer, chronos, "Uses MCP tools for AI workflows")
-    Rel(operator, chronos, "Configures tenants, monitors health")
+    Rel(developer, allsource, "Ingests events, queries history")
+    Rel(dataEngineer, allsource, "Creates projections, exports data")
+    Rel(aiEngineer, allsource, "Uses MCP tools for AI workflows")
+    Rel(operator, allsource, "Configures tenants, monitors health")
 
-    Rel(chronos, clientApps, "Serves events via REST/WebSocket")
-    Rel(llmAgents, chronos, "Natural language queries via MCP")
-    Rel(chronos, monitoring, "Exports metrics and traces")
-    Rel(chronos, authProvider, "Validates tokens")
+    Rel(allsource, clientApps, "Serves events via REST/WebSocket")
+    Rel(llmAgents, allsource, "Natural language queries via MCP")
+    Rel(allsource, monitoring, "Exports metrics and traces")
+    Rel(allsource, authProvider, "Validates tokens")
 
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
@@ -42,16 +42,16 @@ C4Context
 
 ## Level 2: Container Diagram
 
-Shows the high-level containers (services) that make up Chronos.
+Shows the high-level containers (services) that make up AllSource.
 
 ```mermaid
 C4Container
-    title Chronos Container Diagram
+    title AllSource Container Diagram
 
     Person(user, "User", "Developer, Data Engineer, or AI Engineer")
     Person(llm, "AI Agent", "Claude or other LLM via MCP")
 
-    System_Boundary(chronos, "Chronos Platform") {
+    System_Boundary(allsource, "AllSource Platform") {
         Container(web, "Web Dashboard", "Next.js 16, React 19", "Real-time event visualization, management UI, OAuth login")
         Container(controlPlane, "Control Plane", "Go 1.24, Gin", "Authentication, RBAC, audit logging, request routing")
         Container(core, "Event Store Core", "Rust 1.92, Axum", "High-performance event storage, indexing, schemas, projections")
@@ -88,7 +88,7 @@ Detailed view of the Rust core service following Clean Architecture.
 
 ```mermaid
 C4Component
-    title Chronos Core - Component Diagram (Clean Architecture)
+    title AllSource Core - Component Diagram (Clean Architecture)
 
     Container_Boundary(core, "Event Store Core (Rust)") {
 
@@ -145,7 +145,7 @@ C4Component
 
 ```mermaid
 C4Component
-    title Chronos Control Plane - Component Diagram
+    title AllSource Control Plane - Component Diagram
 
     Container_Boundary(cp, "Control Plane (Go)") {
 
@@ -186,7 +186,7 @@ C4Component
 
 ```mermaid
 C4Component
-    title Chronos Query Service - Component Diagram
+    title AllSource Query Service - Component Diagram
 
     Container_Boundary(qs, "Query Service (Elixir/Phoenix)") {
 
@@ -227,7 +227,7 @@ C4Component
 
 ```mermaid
 C4Component
-    title Chronos MCP Server - Component Diagram
+    title AllSource MCP Server - Component Diagram
 
     Container_Boundary(mcp, "MCP Server (Elixir)") {
 
@@ -303,7 +303,7 @@ sequenceDiagram
 
 ```mermaid
 C4Deployment
-    title Chronos Deployment - Kubernetes
+    title AllSource Deployment - Kubernetes
 
     Deployment_Node(k8s, "Kubernetes Cluster", "EKS/GKE/AKS") {
 
@@ -311,7 +311,7 @@ C4Deployment
             Container(nginx, "NGINX Ingress", "Load Balancer", "TLS termination, routing")
         }
 
-        Deployment_Node(appNs, "chronos namespace") {
+        Deployment_Node(appNs, "allsource namespace") {
             Container(webPod, "Web Dashboard", "2 replicas", "Next.js, 50MB")
             Container(cpPod, "Control Plane", "3 replicas", "Go, 28MB")
             Container(corePod, "Event Store Core", "3 replicas", "Rust, 16MB")

@@ -1,12 +1,12 @@
 ---
-title: "Chronos x402 Hackathon - Battle Plan"
+title: "AllSource x402 Hackathon - Battle Plan"
 status: CURRENT
 last_updated: 2026-02-02
 category: project
 project: x402-hackathon
 ---
 
-# 🎯 Chronos x402 Hackathon - Battle Plan
+# 🎯 AllSource x402 Hackathon - Battle Plan
 
 **Your complete strategy and reference guide for winning the hackathon**
 
@@ -24,14 +24,14 @@ project: x402-hackathon
 
 ### Project Structure Ready
 ```
-chronos-monorepo/
+allsource-monorepo/
 ├── packages/
 │   └── x402-solana-sdk/          # TO BUILD: Core SDK
 ├── apps/
 │   ├── x402-demo/                # TO BUILD: Demo AI API
 │   └── x402-dashboard/           # TO BUILD: Analytics dashboard
 ├── services/
-│   └── core/                     # EXISTING: Chronos (just deploy)
+│   └── core/                     # EXISTING: AllSource (just deploy)
 ├── docs/x402/                    # COMPLETE: All planning docs
 └── scripts/x402-setup.sh         # COMPLETE: Setup verification
 ```
@@ -99,14 +99,14 @@ Spend 3 quality hours on this feature. Make it polished and prominent.
 
 ```
 PRE-HACKATHON (3 hours) - DO THIS FIRST!
-├── Deploy Chronos to Fly.io (1h)
+├── Deploy AllSource to Fly.io (1h)
 ├── Set up Solana wallet (30m)
 ├── Scaffold packages (30m)
 └── Test everything (1h)
 
 DAY 1 MORNING (6 hours)
 ├── Core SDK types (1h)
-├── Chronos event logger (1h)
+├── AllSource event logger (1h)
 ├── Solana verifier (2h)
 └── x402 middleware (2h)
     → CHECKPOINT: Can log + verify?
@@ -143,13 +143,13 @@ TOTAL: 27 hours (fits in 48h hackathon with buffer)
 ### Step 1: Verify Environment (15 minutes)
 ```bash
 # Run setup verification script
-cd /Users/decebaldobrica/Projects/chronos/chronos-monorepo
+cd /Users/decebaldobrica/Projects/allsource/allsource-monorepo
 ./scripts/x402-setup.sh
 
 # This checks:
 # - Bun, Solana CLI, Fly CLI, Vercel CLI
 # - Environment variables
-# - Chronos connection
+# - AllSource connection
 # - Solana devnet
 # - Build system
 ```
@@ -168,21 +168,21 @@ open docs/x402/PROGRESS_TRACKER.md
 
 ### Step 3: Pre-Hackathon Prep (3 hours)
 
-#### A. Deploy Chronos (1 hour)
+#### A. Deploy AllSource (1 hour)
 ```bash
 cd services/core
 
 # Deploy to Fly.io
-fly launch --name chronos-x402-demo
+fly launch --name allsource-x402-demo
 fly secrets set JWT_SECRET=$(openssl rand -hex 32)
 fly deploy
 
 # Save the URL
-# CHRONOS_URL=https://chronos-x402-demo.fly.dev
+# ALLSOURCE_URL=https://allsource-x402-demo.fly.dev
 
 # Test it works
-curl https://chronos-x402-demo.fly.dev/health
-curl -X POST https://chronos-x402-demo.fly.dev/api/v1/events \
+curl https://allsource-x402-demo.fly.dev/health
+curl -X POST https://allsource-x402-demo.fly.dev/api/v1/events \
   -H "Content-Type: application/json" \
   -d '{"event_type":"test","entity_id":"test-1","data":{}}'
 ```
@@ -224,7 +224,7 @@ solana transfer <test-address> 0.01
 cp .env.example .env.local
 
 # Edit with your values
-# CHRONOS_URL=https://chronos-x402-demo.fly.dev
+# ALLSOURCE_URL=https://allsource-x402-demo.fly.dev
 # SOLANA_WALLET=<your-wallet-pubkey>
 # SOLANA_RPC=https://api.devnet.solana.com
 # OPENAI_API_KEY=<your-openai-key>
@@ -243,7 +243,7 @@ bun add -D typescript @types/node
 # Create package.json
 cat > package.json << 'EOF'
 {
-  "name": "@chronos/x402-solana-sdk",
+  "name": "@allsource/x402-solana-sdk",
   "version": "0.1.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -270,14 +270,14 @@ cat > tsconfig.json << 'EOF'
 EOF
 
 # Create source files
-touch src/index.ts src/types.ts src/chronos.ts src/solana.ts src/middleware.ts
+touch src/index.ts src/types.ts src/allsource.ts src/solana.ts src/middleware.ts
 
 # Create demo app
 cd ../../apps
 bun create next-app x402-demo --typescript --tailwind --app --no-src-dir
 cd x402-demo
 bun add openai
-bun add "@chronos/x402-solana-sdk@workspace:*"
+bun add "@allsource/x402-solana-sdk@workspace:*"
 
 mkdir -p app/api/ai
 touch app/api/ai/route.ts
@@ -301,10 +301,10 @@ bun run build
 
 ### Hour 6 Checkpoint ⚠️
 **Stop and verify:**
-- [ ] Can log events to Chronos?
+- [ ] Can log events to AllSource?
   ```bash
   # Test event logging
-  curl -X POST https://chronos-x402-demo.fly.dev/api/v1/events \
+  curl -X POST https://allsource-x402-demo.fly.dev/api/v1/events \
     -H "Content-Type: application/json" \
     -d '{"event_type":"x402.payment.test","entity_id":"test-1","data":{}}'
   ```
@@ -339,9 +339,9 @@ bun run build
     -d '{"prompt":"test"}'
   # Should get 200 with AI response
   ```
-- [ ] Events logged to Chronos?
+- [ ] Events logged to AllSource?
   ```bash
-  curl https://chronos-x402-demo.fly.dev/api/v1/events/query?event_type=x402.payment.*
+  curl https://allsource-x402-demo.fly.dev/api/v1/events/query?event_type=x402.payment.*
   # Should see payment events
   ```
 
@@ -433,7 +433,7 @@ useEffect(() => {
 }, []);
 ```
 
-### If Chronos Deployment Fails
+### If AllSource Deployment Fails
 
 **Backup plans:**
 1. Try Railway: `railway init`
@@ -478,13 +478,13 @@ compliance logging... that's months of work.
 
 [Zoom into code]
 
-Unless you use Chronos x402."
+Unless you use AllSource x402."
 ```
 
 **Shot 2: Code Simplicity (0:15-0:30)**
 ```
 [Screen: Terminal]
-$ bun add @chronos/x402-solana-sdk
+$ bun add @allsource/x402-solana-sdk
 
 [Screen: VS Code showing middleware code]
 app.use(x402({
@@ -513,7 +513,7 @@ POST /api/ai
 ```
 [Screen: Dashboard]
 
-"Everything's logged in real-time to Chronos event store..."
+"Everything's logged in real-time to AllSource event store..."
 
 [Payment appears in feed]
 
@@ -530,7 +530,7 @@ POST /api/ai
 
 "But here's where it gets REALLY interesting.
 
-Chronos is an event store, which means we can
+AllSource is an event store, which means we can
 reconstruct state at ANY point in time.
 
 [Select timestamp from 5 minutes ago]
@@ -558,7 +558,7 @@ For disputes, audits, compliance - this is a game-changer."
 ```
 [Screen: Split screen showing code + dashboard]
 
-"Chronos x402 SDK:
+"AllSource x402 SDK:
 
 ✓ Production-ready payment infrastructure
 ✓ In minutes, not months
@@ -571,7 +571,7 @@ For disputes, audits, compliance - this is a game-changer."
 Open source SDK. Managed hosting.
 Built for the x402 ecosystem.
 
-Check it out at github.com/yourorg/chronos-x402"
+Check it out at github.com/yourorg/allsource-x402"
 ```
 
 **Post-Production:**
@@ -588,7 +588,7 @@ Check it out at github.com/yourorg/chronos-x402"
 ### MUST HAVE (Do These First)
 Priority 1 - Core functionality:
 1. ✅ Payment flow (402 → verify → process)
-2. ✅ Event logging to Chronos
+2. ✅ Event logging to AllSource
 3. ✅ Time-travel feature
 4. ✅ Demo video
 5. ✅ Working deployment
@@ -632,7 +632,7 @@ Priority 3 - Bonus points:
 **Impact (25% of score)**
 - ✅ Explain: Lowers barrier to x402 adoption
 - ✅ Show: Enables Solana x402 ecosystem
-- ✅ Demonstrate: Chronos advantages (time-travel)
+- ✅ Demonstrate: AllSource advantages (time-travel)
 - 🎬 Demo: Real-world use case (pay-per-AI-call)
 
 **Presentation (15% of score)**
@@ -653,7 +653,7 @@ Priority 3 - Bonus points:
 **For judges:**
 "Time-travel debugging - impossible with traditional databases"
 
-**For Chronos:**
+**For AllSource:**
 "First real-world application showcasing event sourcing advantages"
 
 ---
@@ -663,14 +663,14 @@ Priority 3 - Bonus points:
 ### You Have Major Advantages
 
 **70% Already Done:**
-- ✅ Chronos core is built and tested
+- ✅ AllSource core is built and tested
 - ✅ Event store performs at 469K events/sec
 - ✅ Time-travel queries already work
 - ✅ Real-time streaming already works
 - ✅ UI components already exist
 
 **You're Just Building:**
-- 🔨 A wrapper SDK (x402 → Chronos)
+- 🔨 A wrapper SDK (x402 → AllSource)
 - 🔨 Payment verification logic
 - 🔨 A demo application
 - 🔨 A dashboard UI
@@ -713,7 +713,7 @@ cd apps/x402-demo && bun run dev              # Terminal 2
 cd apps/x402-dashboard && bun run dev         # Terminal 3
 
 # Test endpoints
-curl https://chronos-x402-demo.fly.dev/health
+curl https://allsource-x402-demo.fly.dev/health
 curl -X POST http://localhost:3000/api/ai -H "Content-Type: application/json" -d '{"prompt":"test"}'
 solana balance --url devnet
 
@@ -726,7 +726,7 @@ cd apps/x402-dashboard && vercel --prod
 ```
 
 ### Essential URLs
-- **Chronos API:** `https://chronos-x402-demo.fly.dev`
+- **AllSource API:** `https://allsource-x402-demo.fly.dev`
 - **Solana Explorer:** `https://explorer.solana.com/?cluster=devnet`
 - **Vercel Dashboard:** `https://vercel.com/dashboard`
 - **Fly.io Dashboard:** `https://fly.io/dashboard`
@@ -744,7 +744,7 @@ cd apps/x402-dashboard && vercel --prod
 Before starting the hackathon:
 
 **Environment:**
-- [ ] Chronos deployed and responding
+- [ ] AllSource deployed and responding
 - [ ] Solana wallet created and funded
 - [ ] .env.local configured with all variables
 - [ ] Setup script passes all checks
@@ -772,7 +772,7 @@ Before starting the hackathon:
 - 🕰️ Time-travel is your killer feature - spend time on it
 - 📹 Demo video quality matters more than code perfection
 - 🚀 Shipping beats perfecting
-- 💪 You have 70% done already with Chronos
+- 💪 You have 70% done already with AllSource
 - 🎯 Follow the checkpoints - they keep you on track
 - 🛟 Ask for help if blocked > 30 minutes
 - 🌟 Focus on the wow factor
@@ -795,7 +795,7 @@ Before starting the hackathon:
 - [ ] Print `QUICK_REFERENCE.md`
 
 **This week (pre-hackathon prep):**
-- [ ] Deploy Chronos to Fly.io
+- [ ] Deploy AllSource to Fly.io
 - [ ] Set up Solana wallet
 - [ ] Scaffold packages
 - [ ] Test everything

@@ -1,18 +1,18 @@
 ---
-title: "Chronos Paywall - SaaS Strategy & Brainstorming"
+title: "AllSource Paywall - SaaS Strategy & Brainstorming"
 status: CURRENT
 last_updated: 2026-02-02
 category: project
 project: x402-hackathon
 ---
 
-# Chronos Paywall - SaaS Strategy & Brainstorming
+# AllSource Paywall - SaaS Strategy & Brainstorming
 
 **Document Type:** Strategic Planning & Ideas
 **Date:** November 2025
 **Status:** Brainstorming / Reference
 
-> This document contains strategic thinking, market analysis, and creative ideas for building Chronos Paywall as a SaaS business. For formal requirements, see [PRD.md](./PRD.md).
+> This document contains strategic thinking, market analysis, and creative ideas for building AllSource Paywall as a SaaS business. For formal requirements, see [PRD.md](./PRD.md).
 
 ---
 
@@ -20,7 +20,7 @@ project: x402-hackathon
 
 **"Stripe for content - but better. Add micropayments to your blog in 2 minutes."**
 
-Transform Chronos from infrastructure tooling into a complete SaaS platform that enables content creators to monetize through x402 micropayments, with unprecedented analytics powered by event sourcing.
+Transform AllSource from infrastructure tooling into a complete SaaS platform that enables content creators to monetize through x402 micropayments, with unprecedented analytics powered by event sourcing.
 
 ---
 
@@ -56,7 +56,7 @@ Transform Chronos from infrastructure tooling into a complete SaaS platform that
 
 ### The Solution Vision
 
-**Chronos Paywall enables:**
+**AllSource Paywall enables:**
 
 **For Readers:**
 - Pay $0.50 for one article vs $10/month
@@ -75,7 +75,7 @@ Transform Chronos from infrastructure tooling into a complete SaaS platform that
 - Enable crypto micropayments
 - Showcase x402 adoption
 - Demonstrate event sourcing value
-- Build on Chronos infrastructure
+- Build on AllSource infrastructure
 
 ---
 
@@ -89,8 +89,8 @@ Transform Chronos from infrastructure tooling into a complete SaaS platform that
 │  (Substack, Medium, WordPress, Ghost, Custom HTML)      │
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
-│  <script src="https://paywall.chronos.dev/widget.js">  │
-│  <div data-chronos-paywall                              │
+│  <script src="https://paywall.allsource.dev/widget.js">  │
+│  <div data-allsource-paywall                              │
 │       data-price="0.50"                                  │
 │       data-article-id="my-article-slug">                │
 │    <!-- Premium content here -->                         │
@@ -101,7 +101,7 @@ Transform Chronos from infrastructure tooling into a complete SaaS platform that
                        │ Widget API
                        │
 ┌──────────────────────▼──────────────────────────────────┐
-│           Chronos Paywall Service (Your SaaS)           │
+│           AllSource Paywall Service (Your SaaS)           │
 │  ┌────────────────────────────────────────────┐         │
 │  │ Paywall Widget (Client-side)               │         │
 │  │ • Detect paywalled content                 │         │
@@ -119,7 +119,7 @@ Transform Chronos from infrastructure tooling into a complete SaaS platform that
 │  └───────────┬────────────────────────────────┘         │
 │              │                                           │
 │  ┌───────────▼────────────────────────────────┐         │
-│  │ Chronos Event Store                        │         │
+│  │ AllSource Event Store                        │         │
 │  │ • ArticlePurchased events                  │         │
 │  │ • ContentAccessed events                   │         │
 │  │ • ReaderBehavior events                    │         │
@@ -153,26 +153,26 @@ Transform Chronos from infrastructure tooling into a complete SaaS platform that
 **WordPress Plugin Features:**
 ```php
 // Install from WordPress.org
-Plugin Name: Chronos Paywall
+Plugin Name: AllSource Paywall
 Description: x402 micropayments for WordPress
 
 // Usage
-[chronos-paywall price="0.50" title="How to Scale"]
+[allsource-paywall price="0.50" title="How to Scale"]
 Premium content here...
-[/chronos-paywall]
+[/allsource-paywall]
 
 // Gutenberg block
-Add block → Chronos Paywall → Set price → Add content
+Add block → AllSource Paywall → Set price → Add content
 ```
 
 **Ghost Integration:**
 ```html
 <!-- Settings > Code Injection -->
-<script src="https://paywall.chronos.dev/widget.js"
+<script src="https://paywall.allsource.dev/widget.js"
         data-creator-id="{{@site.uuid}}"></script>
 
 <!-- In posts -->
-<div data-chronos-paywall data-price="0.50">
+<div data-allsource-paywall data-price="0.50">
   Premium content
 </div>
 ```
@@ -197,14 +197,14 @@ Add block → Chronos Paywall → Set price → Add content
 ```markdown
 # My Premium Article
 
-🔒 CHRONOS-PAYWALL:0.50
+🔒 ALLSOURCE-PAYWALL:0.50
 
 [Premium content starts here...]
 ```
 
 2. **Extension detects marker:**
 - Runs on `*.substack.com`
-- Scans for `🔒 CHRONOS-PAYWALL:X.XX`
+- Scans for `🔒 ALLSOURCE-PAYWALL:X.XX`
 - Injects paywall widget
 - Hides content until paid
 
@@ -229,9 +229,9 @@ Add block → Chronos Paywall → Set price → Add content
 
 **The Challenge:** Medium Partner Program has opaque payouts.
 
-**Solution:** Offer Medium-like experience with Chronos Paywall built-in.
+**Solution:** Offer Medium-like experience with AllSource Paywall built-in.
 
-**Product:** "Medium Clone + Chronos Paywall"
+**Product:** "Medium Clone + AllSource Paywall"
 
 Features:
 - Clean, distraction-free writing interface
@@ -261,11 +261,11 @@ Features:
 ```
 LinkedIn Post:
 "I just wrote about scaling to 1M users.
-Read it here: https://pay.chronos.dev/sarah/scaling-guide"
+Read it here: https://pay.allsource.dev/sarah/scaling-guide"
 
 ↓ Click
 
-Chronos-hosted page:
+AllSource-hosted page:
 - Clean reading experience
 - Paywall at natural break point
 - Pay $0.50 to continue
@@ -284,18 +284,18 @@ POST /api/landing-pages
   redirect_url: "https://myblog.com/article" // optional
 }
 
-Response: { url: "https://pay.chronos.dev/sarah/scaling-guide" }
+Response: { url: "https://pay.allsource.dev/sarah/scaling-guide" }
 ```
 
 **Benefits:**
 - Works on any platform (LinkedIn, Twitter, Instagram, TikTok)
 - Creator controls content
 - Still drives traffic to their main site
-- Chronos hosts paywall experience
+- AllSource hosts paywall experience
 
 ---
 
-## 🎯 The Chronos Advantage (Event Sourcing Use Cases)
+## 🎯 The AllSource Advantage (Event Sourcing Use Cases)
 
 ### 1. Granular Revenue Attribution
 
@@ -306,10 +306,10 @@ Dashboard:
 "Your top article made $120"
 ```
 
-**Chronos Paywall:**
+**AllSource Paywall:**
 ```typescript
 // Query: Which article made the most on Tuesday mornings?
-const topArticle = await chronos.query({
+const topArticle = await allsource.query({
   eventType: 'paywall.article.purchased',
   aggregation: 'sum',
   field: 'amount_usd',
@@ -344,10 +344,10 @@ const topArticle = await chronos.query({
 **Traditional:**
 "Someone bought 3 articles"
 
-**Chronos:**
+**AllSource:**
 ```typescript
 // Reconstruct complete reader journey
-const journey = await chronos.reconstructReaderJourney({
+const journey = await allsource.reconstructReaderJourney({
   readerId: 'wallet-0x1234...5678',
   from: '2025-01-01',
   to: '2025-01-31'
@@ -408,10 +408,10 @@ Reader: "I paid $0.50 but never got access to the article!"
 3. Maybe refund (to be safe)
 4. Time spent: 30 minutes
 
-**Chronos Paywall:**
+**AllSource Paywall:**
 ```typescript
 // Time-travel to exact moment of payment
-const state = await chronos.reconstructState({
+const state = await allsource.reconstructState({
   articleId: 'advanced-kubernetes',
   readerId: 'wallet-0x1234',
   asOf: '2025-01-15T14:32:00Z' // Timestamp of alleged payment
@@ -460,10 +460,10 @@ const state = await chronos.reconstructState({
 **Scenario:**
 "Should I charge $0.50 or $1.00 for technical tutorials?"
 
-**Chronos Analysis:**
+**AllSource Analysis:**
 ```typescript
 // Compare all historical price points
-const pricingAnalysis = await chronos.analyzeConversions({
+const pricingAnalysis = await allsource.analyzeConversions({
   articleType: 'technical-tutorial',
   pricePoints: [0.25, 0.50, 0.75, 1.00, 1.50],
   metric: 'revenue-per-100-visitors'
@@ -525,10 +525,10 @@ $0.50 and $0.75 are optimal. At $0.75, revenue is slightly higher but conversion
 **Traditional:**
 "You have 1,000 email subscribers" (but who actually pays?)
 
-**Chronos:**
+**AllSource:**
 ```typescript
 // Find your most valuable readers
-const superReaders = await chronos.identifyPatterns({
+const superReaders = await allsource.identifyPatterns({
   pattern: 'reader-purchased-3-or-more-articles',
   timeWindow: '30-days',
   includeAnalytics: true
@@ -640,7 +640,7 @@ Sarah
 - Creator makes $1,000/month
 - Platform fee: $70 (7%)
 - Subscription: $29
-- **Total to Chronos:** $99/month
+- **Total to AllSource:** $99/month
 - **Creator keeps:** $901 (90.1%)
 
 **Comparison:**
@@ -651,7 +651,7 @@ Sarah
 **Why this works:**
 - Better take rate than most platforms
 - More flexibility than Substack
-- Predictable revenue for Chronos
+- Predictable revenue for AllSource
 
 ---
 
@@ -675,7 +675,7 @@ Sarah
 - Creator makes $10,000/month
 - Platform fee: $500 (5%)
 - Subscription: $99
-- **Total to Chronos:** $599/month
+- **Total to AllSource:** $599/month
 - **Creator keeps:** $9,401 (94%)
 
 **When to upgrade:**
@@ -705,7 +705,7 @@ Sarah
 
 **Use Cases:**
 - TechCrunch wants to add per-article payments
-- Ghost wants to offer Chronos Paywall as built-in feature
+- Ghost wants to offer AllSource Paywall as built-in feature
 - Agency manages 50 creator clients
 
 **Pricing Examples:**
@@ -781,7 +781,7 @@ This is exceptional (target is 3:1).
 
 **Why such good economics?**
 1. Low CAC (plugin distribution, organic)
-2. High retention (sticky product, data lock-in via Chronos)
+2. High retention (sticky product, data lock-in via AllSource)
 3. Revenue grows with creator success (more volume = more fees)
 4. Network effects (creators refer creators)
 
@@ -839,12 +839,12 @@ This is exceptional (target is 3:1).
 2. **Ghost Community**
    - Forum posts with integration guide
    - Reddit: r/GhostCMS
-   - Example themes with Chronos Paywall
+   - Example themes with AllSource Paywall
    - Target: 50 Ghost installs
 
 3. **Content Marketing**
    - Blog: "How to monetize WordPress with micropayments"
-   - Blog: "Substack vs Chronos Paywall"
+   - Blog: "Substack vs AllSource Paywall"
    - Blog: "I made $500 in my first month with micropayments"
    - SEO: "WordPress micropayments", "Ghost monetization"
 
@@ -855,7 +855,7 @@ This is exceptional (target is 3:1).
    - Success stories on blog
 
 5. **Partnerships**
-   - WordPress theme developers (bundle Chronos)
+   - WordPress theme developers (bundle AllSource)
    - Ghost Pro (official integration?)
    - Hosting providers (Bluehost, SiteGround)
 
@@ -925,7 +925,7 @@ This is exceptional (target is 3:1).
 **Partnerships:**
 
 1. **Ghost Pro**
-   - Pitch: "Offer Chronos Paywall as built-in option"
+   - Pitch: "Offer AllSource Paywall as built-in option"
    - Revenue share: 50/50 split on Ghost Pro customers
    - They market, we provide tech
    - Target: 100 Ghost Pro sites
@@ -961,14 +961,14 @@ This is exceptional (target is 3:1).
 
 ### vs Substack
 
-| Aspect | Substack | Chronos Paywall | Winner |
+| Aspect | Substack | AllSource Paywall | Winner |
 |--------|----------|-----------------|--------|
-| **Monetization Model** | Subscriptions only | Per-article OR subscriptions | **Chronos** (flexible) |
-| **Creator Share** | 90% | 92.7% (Creator tier) | **Chronos** (slightly better) |
-| **Analytics** | Basic (opens, clicks) | Deep (time-travel, journey) | **Chronos** (way better) |
-| **Lock-in** | Full (email + payments) | None (export anytime) | **Chronos** (freedom) |
-| **Setup Time** | 30 minutes | 2 minutes | **Chronos** (faster) |
-| **Micropayments** | ❌ | ✅ | **Chronos** (unique) |
+| **Monetization Model** | Subscriptions only | Per-article OR subscriptions | **AllSource** (flexible) |
+| **Creator Share** | 90% | 92.7% (Creator tier) | **AllSource** (slightly better) |
+| **Analytics** | Basic (opens, clicks) | Deep (time-travel, journey) | **AllSource** (way better) |
+| **Lock-in** | Full (email + payments) | None (export anytime) | **AllSource** (freedom) |
+| **Setup Time** | 30 minutes | 2 minutes | **AllSource** (faster) |
+| **Micropayments** | ❌ | ✅ | **AllSource** (unique) |
 | **Email List** | Included | Bring your own | Substack (convenience) |
 | **Discovery** | Built-in network | None (yet) | Substack (network effects) |
 
@@ -987,15 +987,15 @@ This is exceptional (target is 3:1).
 
 ### vs Medium Partner Program
 
-| Aspect | Medium | Chronos Paywall | Winner |
+| Aspect | Medium | AllSource Paywall | Winner |
 |--------|--------|-----------------|--------|
-| **Creator Share** | 60-80% (variable) | 92.7% (fixed) | **Chronos** (better %) |
-| **Payment Clarity** | Opaque algorithm | Transparent (per article) | **Chronos** (clear) |
-| **Data Ownership** | Medium owns | Creator owns | **Chronos** (freedom) |
-| **Custom Domain** | ❌ (unless $ custom) | ✅ | **Chronos** (branding) |
-| **Reader Relationship** | Anonymous | Direct (via wallet) | **Chronos** (relationship) |
+| **Creator Share** | 60-80% (variable) | 92.7% (fixed) | **AllSource** (better %) |
+| **Payment Clarity** | Opaque algorithm | Transparent (per article) | **AllSource** (clear) |
+| **Data Ownership** | Medium owns | Creator owns | **AllSource** (freedom) |
+| **Custom Domain** | ❌ (unless $ custom) | ✅ | **AllSource** (branding) |
+| **Reader Relationship** | Anonymous | Direct (via wallet) | **AllSource** (relationship) |
 | **Discovery** | Strong network | None | Medium (built-in audience) |
-| **Crypto Payments** | ❌ | ✅ | **Chronos** (modern) |
+| **Crypto Payments** | ❌ | ✅ | **AllSource** (modern) |
 
 **Positioning:**
 "Medium, but you own your readers and know exactly what you earn."
@@ -1006,21 +1006,21 @@ This is exceptional (target is 3:1).
 - Those comfortable with some tech setup
 
 **Messaging:**
-"Stop wondering why you made $127.43 this month. With Chronos, you know exactly which articles earned what."
+"Stop wondering why you made $127.43 this month. With AllSource, you know exactly which articles earned what."
 
 ---
 
 ### vs Patreon
 
-| Aspect | Patreon | Chronos Paywall | Winner |
+| Aspect | Patreon | AllSource Paywall | Winner |
 |--------|---------|-----------------|--------|
 | **Monetization Model** | Subscription tiers | Pay-per-content | **Tie** (different use cases) |
 | **Creator Share** | 89-95% | 92.7% | **Tie** |
-| **Granular Pricing** | ❌ Tiers only | ✅ Per article | **Chronos** (flexibility) |
-| **Analytics** | Basic | Event sourcing | **Chronos** (way better) |
-| **Setup** | Complex (tiers, rewards) | Simple (one script) | **Chronos** (easier) |
+| **Granular Pricing** | ❌ Tiers only | ✅ Per article | **AllSource** (flexibility) |
+| **Analytics** | Basic | Event sourcing | **AllSource** (way better) |
+| **Setup** | Complex (tiers, rewards) | Simple (one script) | **AllSource** (easier) |
 | **Community Features** | Strong (comments, posts) | None | Patreon (community) |
-| **Integration** | Standalone platform | Embed in blog | **Chronos** (seamless) |
+| **Integration** | Standalone platform | Embed in blog | **AllSource** (seamless) |
 
 **Positioning:**
 "Patreon for your blog. No separate platform needed."
@@ -1040,7 +1040,7 @@ This is exceptional (target is 3:1).
 **1. Event Sourcing Analytics (Technical Moat)**
 - Time-travel queries impossible with SQL databases
 - Would take competitors months to replicate
-- Chronos is our unfair advantage
+- AllSource is our unfair advantage
 
 **2. First-Mover in x402 (Timing Moat)**
 - x402 is brand new (2025)
@@ -1166,19 +1166,19 @@ She's leaving money on the table."
 
 **Shot 2: Solution (0:20-0:40)**
 ```
-[Screen: WordPress with Chronos Paywall plugin]
+[Screen: WordPress with AllSource Paywall plugin]
 
-"Introducing Chronos Paywall.
+"Introducing AllSource Paywall.
 
 Add micropayments to any blog in 2 minutes."
 
 [Show installation:]
 1. Install plugin
-2. Add shortcode: [chronos-paywall price="0.50"]
+2. Add shortcode: [allsource-paywall price="0.50"]
 3. Done
 
 [Show code simplicity]
-<script src="paywall.chronos.dev/widget.js"></script>
+<script src="paywall.allsource.dev/widget.js"></script>
 
 "Works on WordPress, Ghost, even Substack via extension."
 ```
@@ -1230,7 +1230,7 @@ Add micropayments to any blog in 2 minutes."
 ```
 [Screen: Time travel interface]
 
-"Chronos is an event store.
+"AllSource is an event store.
 
 We can reconstruct EXACT state at any point in time."
 
@@ -1264,7 +1264,7 @@ Only event sourcing enables this."
 ```
 [Screen: Split screen - code + dashboard]
 
-"Chronos Paywall.
+"AllSource Paywall.
 
 ✓ Add micropayments in 2 minutes
 ✓ x402 protocol on Solana
@@ -1273,9 +1273,9 @@ Only event sourcing enables this."
 
 [Screen: Landing page URL]
 
-Join the waitlist: paywall.chronos.dev
+Join the waitlist: paywall.allsource.dev
 
-Built on Chronos event store."
+Built on AllSource event store."
 ```
 
 ---
@@ -1380,7 +1380,7 @@ Built on Chronos event store."
 **Event Sourcing:**
 - Martin Fowler: https://martinfowler.com/eaaDev/EventSourcing.html
 - Greg Young videos
-- Chronos documentation: Internal
+- AllSource documentation: Internal
 
 **Solana:**
 - Solana Pay: https://solanapay.com
@@ -1419,7 +1419,7 @@ This SaaS opportunity is **significantly stronger** than just infrastructure too
 
 **Why NOW:**
 - x402 just launched (be first)
-- Chronos infrastructure already built (70% done)
+- AllSource infrastructure already built (70% done)
 - Crypto adoption growing (300M+ wallets)
 - Subscription fatigue at peak
 

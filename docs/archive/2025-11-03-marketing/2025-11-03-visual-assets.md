@@ -5,7 +5,7 @@
 ### Card 1: Throughput Evolution
 ```
 ┌─────────────────────────────────────────────────┐
-│  AllSource Chronos - Throughput Roadmap         │
+│  AllSource AllSource - Throughput Roadmap         │
 ├─────────────────────────────────────────────────┤
 │                                                  │
 │  v1.0 (Current)                                  │
@@ -100,7 +100,7 @@
 ### Card 5: Tech Stack Visualization
 ```
 ┌─────────────────────────────────────────────────┐
-│  AllSource Chronos - Technology Stack           │
+│  AllSource AllSource - Technology Stack           │
 ├─────────────────────────────────────────────────┤
 │                                                  │
 │  ┌──────────────────────────────────────────┐   │
@@ -133,7 +133,7 @@
 ### Card 6: Test Coverage & Quality
 ```
 ┌─────────────────────────────────────────────────┐
-│  Quality Metrics - AllSource Chronos            │
+│  Quality Metrics - AllSource AllSource            │
 ├─────────────────────────────────────────────────┤
 │                                                  │
 │  ✅ Tests Passing                                │
@@ -166,7 +166,7 @@ Concept: Dark theme with code-style aesthetics
 
 ┌────────────────────────────────────────────────────────┐
 │                                                         │
-│  AllSource CHRONOS                    🦀 Rust          │
+│  AllSource ALLSOURCE                    🦀 Rust          │
 │  ════════════════════                                   │
 │                                                         │
 │  The AI-Native Event Store                              │
@@ -204,7 +204,7 @@ Concept: Graph visualization on gradient background
 │    0  └─────────────────────────────────────           │
 │       2025              2026              2027          │
 │                                                         │
-│  AllSource Chronos - Built for Scale                    │
+│  AllSource AllSource - Built for Scale                    │
 │                                                         │
 └────────────────────────────────────────────────────────┘
 
@@ -229,7 +229,7 @@ Concept: Split design showing traditional vs. AI-native
 │  ❌ External search    │  ✅ Native search              │
 │  ❌ No experimentation │  ✅ Instant forks              │
 │                        │                                │
-│                        │  AllSource Chronos             │
+│                        │  AllSource AllSource             │
 │                        │  The difference is built-in    │
 │                        │                                │
 └────────────────────────────────────────────────────────┘
@@ -246,7 +246,7 @@ Concept: Clean, layered architecture diagram
 
 ┌────────────────────────────────────────────────────────┐
 │                                                         │
-│         AllSource Chronos - Clean Architecture          │
+│         AllSource AllSource - Clean Architecture          │
 │                                                         │
 │  ┌────────────────────────────────────────────────┐   │
 │  │  MCP Layer    AI Agents • Embedded Expertise   │   │
@@ -283,7 +283,7 @@ Colors:
 ╔═══════════════════════════╗
 ║                           ║
 ║    AllSource              ║
-║    CHRONOS                ║
+║    ALLSOURCE                ║
 ║                           ║
 ║    The AI-Native          ║
 ║    Event Store            ║
@@ -372,7 +372,7 @@ Colors:
 ```
 00:00 - "Traditional event stores weren't built for AI agents"
 00:05 - Show comparison: Human operator vs. AI agent
-00:10 - "AllSource Chronos changes that"
+00:10 - "AllSource AllSource changes that"
 00:15 - Quick feature showcase (MCP, Forks, Search)
 00:20 - Performance numbers flash on screen
 00:25 - "469K→1M+ events/sec. Open source. MIT licensed."

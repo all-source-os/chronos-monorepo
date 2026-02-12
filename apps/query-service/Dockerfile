@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # =============================================================================
-# Chronos Query Service - Production-Optimized Multi-Stage Dockerfile
+# AllSource Query Service - Production-Optimized Multi-Stage Dockerfile
 # =============================================================================
 #
 # Optimizations applied:
@@ -65,14 +65,14 @@ ARG REVISION=unknown
 ARG BUILDTIME=unknown
 
 # OCI Image Labels
-LABEL org.opencontainers.image.title="Chronos Query Service" \
-      org.opencontainers.image.description="High-performance query service for Chronos event store" \
+LABEL org.opencontainers.image.title="AllSource Query Service" \
+      org.opencontainers.image.description="High-performance query service for AllSource event store" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.vendor="AllSource Team" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo"
+      org.opencontainers.image.source="https://github.com/all-source-os/allsource-monorepo"
 
 # Install minimal runtime dependencies and create non-root user in single layer
 # - tini: proper signal handling and zombie reaping

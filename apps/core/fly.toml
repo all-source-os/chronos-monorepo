@@ -1,8 +1,8 @@
-# Fly.io Configuration for Chronos Core
-# Deploy: flyctl deploy --app chronos-core
-# Scale: flyctl scale count 2 --app chronos-core
+# Fly.io Configuration for AllSource Core
+# Deploy: flyctl deploy --app allsource-core
+# Scale: flyctl scale count 2 --app allsource-core
 
-app = "chronos-core"
+app = "allsource-core"
 primary_region = "iad"  # US East (Virginia) - change to your preferred region
 
 [build]
@@ -38,8 +38,8 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
   cpus = 1
   memory_mb = 512
 
-# For persistent storage (optional - Chronos uses in-memory by default)
+# For persistent storage (optional - AllSource uses in-memory by default)
 # Uncomment and configure if you need data persistence across restarts
 # [mounts]
-#   source = "chronos_data"
+#   source = "allsource_data"
 #   destination = "/app/data"

@@ -129,7 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Cloud Deployment Configurations
 - **Fly.io**: `fly.toml` with auto-scaling and health checks
 - **Google Cloud Run**: Knative service YAML with startup probes
-- **Helm Charts**: Complete Kubernetes deployment (`deploy/helm/chronos/`)
+- **Helm Charts**: Complete Kubernetes deployment (`deploy/helm/allsource/`)
   - Core deployment, service, PVC
   - Query Service deployment with secrets
   - Ingress, ServiceMonitor, PodDisruptionBudget

@@ -1,11 +1,11 @@
-# Google Cloud Run Service Configuration for Chronos Core
+# Google Cloud Run Service Configuration for AllSource Core
 #
 # Deploy:
 #   gcloud run services replace deploy/cloudrun/core-service.yaml --region=us-central1
 #
 # Or with gcloud run deploy:
-#   gcloud run deploy chronos-core \
-#     --image gcr.io/PROJECT_ID/chronos-core:latest \
+#   gcloud run deploy allsource-core \
+#     --image gcr.io/PROJECT_ID/allsource-core:latest \
 #     --region us-central1 \
 #     --platform managed \
 #     --allow-unauthenticated \
@@ -18,7 +18,7 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: chronos-core
+  name: allsource-core
   labels:
     cloud.googleapis.com/location: us-central1
   annotations:
@@ -39,7 +39,7 @@ spec:
       containerConcurrency: 100
       timeoutSeconds: 300
       containers:
-        - image: gcr.io/PROJECT_ID/chronos-core:latest
+        - image: gcr.io/PROJECT_ID/allsource-core:latest
           ports:
             - containerPort: 8080
           env:

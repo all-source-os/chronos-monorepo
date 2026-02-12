@@ -16,7 +16,7 @@ TEST_OUTPUT_DIR := .test-reports
 # =============================================================================
 
 help:
-	@echo "Chronos - Available Commands"
+	@echo "AllSource - Available Commands"
 	@echo "=============================="
 	@echo ""
 	@echo "Development:"
@@ -108,7 +108,7 @@ clean:
 	-rm -rf .container-test-logs
 
 demo: install
-	@echo "🎪 Starting Chronos demo..."
+	@echo "🎪 Starting AllSource demo..."
 	@echo "Dashboard will be available at http://localhost:3000"
 	@echo ""
 	bun dev
@@ -119,7 +119,7 @@ test:
 
 perf-bench:
 	@echo "Running performance benchmarks (release mode)..."
-	cargo run --release -p chronos-performance
+	cargo run --release -p allsource-performance
 
 lint:
 	@echo "🔍 Running linters..."
@@ -311,11 +311,11 @@ docker-build:
 docker-clean:
 	@echo "🧹 Cleaning test containers and images..."
 	-docker rm -f query-service-test-db 2>/dev/null
-	-docker rmi chronos-core:test 2>/dev/null
-	-docker rmi chronos-web:test 2>/dev/null
-	-docker rmi chronos-query-service:test 2>/dev/null
-	-docker rmi chronos-mcp-server:test 2>/dev/null
-	-docker rmi chronos-control-plane:test 2>/dev/null
+	-docker rmi allsource-core:test 2>/dev/null
+	-docker rmi allsource-web:test 2>/dev/null
+	-docker rmi allsource-query-service:test 2>/dev/null
+	-docker rmi allsource-mcp-server:test 2>/dev/null
+	-docker rmi allsource-control-plane:test 2>/dev/null
 	@echo "✅ Test images cleaned"
 
 docker-purge:
@@ -331,23 +331,23 @@ docker-purge:
 # Individual container builds
 docker-core:
 	@echo "🐳 Building core container..."
-	docker build -t chronos-core:test apps/core
+	docker build -t allsource-core:test apps/core
 
 docker-web:
 	@echo "🐳 Building web container..."
-	docker build -f apps/web/Dockerfile -t chronos-web:test .
+	docker build -f apps/web/Dockerfile -t allsource-web:test .
 
 docker-query:
 	@echo "🐳 Building query-service container..."
-	docker build -t chronos-query-service:test apps/query-service
+	docker build -t allsource-query-service:test apps/query-service
 
 docker-mcp:
 	@echo "🐳 Building mcp-server container..."
-	docker build -t chronos-mcp-server:test apps/mcp-server-elixir
+	docker build -t allsource-mcp-server:test apps/mcp-server-elixir
 
 docker-control:
 	@echo "🐳 Building control-plane container..."
-	docker build -t chronos-control-plane:test apps/control-plane
+	docker build -t allsource-control-plane:test apps/control-plane
 
 # =============================================================================
 # Docker Compose Commands
@@ -447,7 +447,7 @@ elixir-test-report:
 
 # GitHub org and repo for release URLs
 GITHUB_ORG := all-source-os
-REPO_NAME := chronos-monorepo
+REPO_NAME := allsource-monorepo
 GHCR_REGISTRY := ghcr.io
 
 release: release-preflight
@@ -497,7 +497,7 @@ release: release-preflight
 	echo ""; \
 	echo "=== Updating Documentation ==="; \
 	sed -i '' "s/ghcr-v[0-9]*\.[0-9]*\.[0-9]*/ghcr-$${VERSION}/g" README.md; \
-	sed -i '' "s/^# Chronos Monorepo - v[0-9]*\.[0-9]*\.[0-9]* Release/# Chronos Monorepo - $${VERSION} Release/" RELEASE.md; \
+	sed -i '' "s/^# AllSource Monorepo - v[0-9]*\.[0-9]*\.[0-9]* Release/# AllSource Monorepo - $${VERSION} Release/" RELEASE.md; \
 	sed -i '' "s/^\*\*Release Date\*\*:.*/\*\*Release Date\*\*: $$(date +%Y-%m-%d)/" RELEASE.md; \
 	echo "Documentation updated."; \
 	git diff --stat README.md RELEASE.md; \
@@ -524,8 +524,8 @@ release: release-preflight
 	echo "=== Creating GitHub Release ==="; \
 	PREV_TAG=$$(git describe --tags --abbrev=0 $$VERSION^ 2>/dev/null || echo ""); \
 	gh release create "$$VERSION" \
-		--title "Chronos $$VERSION - $$TITLE" \
-		--notes "# Chronos $$VERSION - $$TITLE\n\n**Release Date**: $$(date +%Y-%m-%d)\n\n## Changes\n\n$$CHANGES\n\n## Docker Images\n\n\`\`\`bash\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-core:$$VERSION\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-control-plane:$$VERSION\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-query-service:$$VERSION\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-mcp-server:$$VERSION\n\`\`\`\n\n---\n\n**Full changelog**: https://github.com/$(GITHUB_ORG)/$(REPO_NAME)/compare/$${PREV_TAG}...$$VERSION"; \
+		--title "AllSource $$VERSION - $$TITLE" \
+		--notes "# AllSource $$VERSION - $$TITLE\n\n**Release Date**: $$(date +%Y-%m-%d)\n\n## Changes\n\n$$CHANGES\n\n## Docker Images\n\n\`\`\`bash\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/allsource-core:$$VERSION\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/allsource-control-plane:$$VERSION\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/allsource-query-service:$$VERSION\ndocker pull $(GHCR_REGISTRY)/$(GITHUB_ORG)/allsource-mcp-server:$$VERSION\n\`\`\`\n\n---\n\n**Full changelog**: https://github.com/$(GITHUB_ORG)/$(REPO_NAME)/compare/$${PREV_TAG}...$$VERSION"; \
 	echo ""; \
 	echo "=== Waiting for Docker Images ==="; \
 	echo "Checking docker-publish workflow..."; \
@@ -549,10 +549,10 @@ release: release-preflight
 	echo "  - GitHub Release: https://github.com/$(GITHUB_ORG)/$(REPO_NAME)/releases/tag/$$VERSION"; \
 	echo ""; \
 	echo "Docker Images (once workflow completes):"; \
-	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-core:$$VERSION"; \
-	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-control-plane:$$VERSION"; \
-	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-query-service:$$VERSION"; \
-	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/chronos-mcp-server:$$VERSION"
+	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/allsource-core:$$VERSION"; \
+	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/allsource-control-plane:$$VERSION"; \
+	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/allsource-query-service:$$VERSION"; \
+	echo "  - $(GHCR_REGISTRY)/$(GITHUB_ORG)/allsource-mcp-server:$$VERSION"
 
 release-quick: release-preflight
 	@echo ""
@@ -566,14 +566,14 @@ release-quick: release-preflight
 	read -p "Release title [Patch Release]: " TITLE; \
 	TITLE=$${TITLE:-"Patch Release"}; \
 	sed -i '' "s/ghcr-v[0-9]*\.[0-9]*\.[0-9]*/ghcr-$${VERSION}/g" README.md; \
-	sed -i '' "s/^# Chronos Monorepo - v[0-9]*\.[0-9]*\.[0-9]* Release/# Chronos Monorepo - $${VERSION} Release/" RELEASE.md; \
+	sed -i '' "s/^# AllSource Monorepo - v[0-9]*\.[0-9]*\.[0-9]* Release/# AllSource Monorepo - $${VERSION} Release/" RELEASE.md; \
 	git add README.md RELEASE.md; \
 	git commit -m "docs: update version to $$VERSION for release" || true; \
 	git tag -a "$$VERSION" -m "$$VERSION - $$TITLE"; \
 	git push origin main; \
 	git push origin "$$VERSION"; \
 	PREV_TAG=$$(git describe --tags --abbrev=0 $$VERSION^ 2>/dev/null || echo ""); \
-	gh release create "$$VERSION" --title "Chronos $$VERSION - $$TITLE" --generate-notes; \
+	gh release create "$$VERSION" --title "AllSource $$VERSION - $$TITLE" --generate-notes; \
 	echo ""; \
 	echo "Release $$VERSION created!"
 
@@ -616,8 +616,8 @@ images-check:
 	@echo "=== Docker Images in GHCR ==="
 	@for SERVICE in core control-plane query-service mcp-server; do \
 		echo ""; \
-		echo "chronos-$$SERVICE:"; \
-		gh api "/orgs/$(GITHUB_ORG)/packages/container/chronos-$$SERVICE/versions" \
+		echo "allsource-$$SERVICE:"; \
+		gh api "/orgs/$(GITHUB_ORG)/packages/container/allsource-$$SERVICE/versions" \
 			--jq '.[0:5] | .[] | "  \(.metadata.container.tags | join(", "))"' 2>/dev/null || echo "  (not found or no access)"; \
 	done
 
@@ -647,9 +647,9 @@ endif
 	@echo "Updating MCP Server (mix.exs)..."
 	@sed -i '' 's/version: "[0-9]*\.[0-9]*\.[0-9]*"/version: "$(VERSION)"/' apps/mcp-server-elixir/mix.exs
 	@echo "Updating K8s Core manifest..."
-	@sed -i '' 's|image: chronos/core:[0-9]*\.[0-9]*\.[0-9]*|image: chronos/core:$(VERSION)|' deploy/k8s/core.yaml
+	@sed -i '' 's|image: allsource/core:[0-9]*\.[0-9]*\.[0-9]*|image: allsource/core:$(VERSION)|' deploy/k8s/core.yaml
 	@echo "Updating K8s Query Service manifest..."
-	@sed -i '' 's|image: chronos/query-service:[0-9]*\.[0-9]*\.[0-9]*|image: chronos/query-service:$(VERSION)|' deploy/k8s/query-service.yaml
+	@sed -i '' 's|image: allsource/query-service:[0-9]*\.[0-9]*\.[0-9]*|image: allsource/query-service:$(VERSION)|' deploy/k8s/query-service.yaml
 	@echo "Updating README.md version..."
 	@sed -i '' 's/version: "[0-9]*\.[0-9]*\.[0-9]*"/version: "$(VERSION)"/' README.md
 	@sed -i '' 's/\*\*Monorepo Version\*\*: v[0-9]*\.[0-9]*\.[0-9]*/\*\*Monorepo Version\*\*: v$(VERSION)/' README.md

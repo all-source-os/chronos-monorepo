@@ -1,5 +1,5 @@
 # ╔═══════════════════════════════════════════════════════════════════════════╗
-# ║                     CHRONOS - Event Sourcing Platform                      ║
+# ║                     ALLSOURCE - Event Sourcing Platform                      ║
 # ║                         Local Development Stack                            ║
 # ╠═══════════════════════════════════════════════════════════════════════════╣
 # ║  Quick Start:                                                              ║
@@ -26,16 +26,16 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   # CORE - High-Performance Event Store (Rust)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Image: ghcr.io/all-source-os/chronos-core:latest
+  # Image: ghcr.io/all-source-os/allsource-core:latest
   # Size:  15.7 MB (distroless base)
   # Perf:  469K events/sec write throughput
   # ═══════════════════════════════════════════════════════════════════════════
   core:
-    image: ghcr.io/all-source-os/chronos-core:${CHRONOS_VERSION:-latest}
+    image: ghcr.io/all-source-os/allsource-core:${ALLSOURCE_VERSION:-latest}
     build:
       context: ./apps/core
       target: runtime-alpine  # Use alpine for Docker healthcheck support
-    container_name: chronos-core
+    container_name: allsource-core
     ports:
       - "3900:3900"
     environment:
@@ -55,20 +55,20 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - chronos
+      - allsource
 
   # ═══════════════════════════════════════════════════════════════════════════
   # CONTROL PLANE - Auth & Orchestration (Go)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Image: ghcr.io/all-source-os/chronos-control-plane:latest
+  # Image: ghcr.io/all-source-os/allsource-control-plane:latest
   # Size:  27.9 MB (distroless base)
   # Auth:  JWT + RBAC (4 roles, 7 permissions)
   # ═══════════════════════════════════════════════════════════════════════════
   control-plane:
-    image: ghcr.io/all-source-os/chronos-control-plane:${CHRONOS_VERSION:-latest}
+    image: ghcr.io/all-source-os/allsource-control-plane:${ALLSOURCE_VERSION:-latest}
     build:
       context: ./apps/control-plane
-    container_name: chronos-control-plane
+    container_name: allsource-control-plane
     ports:
       - "8080:8080"
     environment:
@@ -82,24 +82,24 @@ services:
     # Note: Distroless has no shell for healthcheck - use orchestrator probes in production
     restart: unless-stopped
     networks:
-      - chronos
+      - allsource
 
   # ═══════════════════════════════════════════════════════════════════════════
   # QUERY SERVICE - API & Real-time Subscriptions (Elixir)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Image: ghcr.io/all-source-os/chronos-query-service:latest
+  # Image: ghcr.io/all-source-os/allsource-query-service:latest
   # Size:  35.1 MB (Alpine + ERTS)
   # API:   REST, GraphQL, WebSocket subscriptions
   # ═══════════════════════════════════════════════════════════════════════════
   query-service:
-    image: ghcr.io/all-source-os/chronos-query-service:${CHRONOS_VERSION:-latest}
+    image: ghcr.io/all-source-os/allsource-query-service:${ALLSOURCE_VERSION:-latest}
     build:
       context: ./apps/query-service
-    container_name: chronos-query-service
+    container_name: allsource-query-service
     ports:
       - "3902:3902"
     environment:
-      DATABASE_URL: ecto://postgres:postgres@postgres:5432/chronos
+      DATABASE_URL: ecto://postgres:postgres@postgres:5432/allsource
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev-secret-key-base-must-be-at-least-64-characters-long-for-security}
       PORT: 3902
       PHX_HOST: localhost
@@ -127,20 +127,20 @@ services:
       start_period: 15s
     restart: unless-stopped
     networks:
-      - chronos
+      - allsource
 
   # ═══════════════════════════════════════════════════════════════════════════
   # POSTGRESQL - Query Service Database
   # ═══════════════════════════════════════════════════════════════════════════
   postgres:
     image: postgres:16-alpine
-    container_name: chronos-postgres
+    container_name: allsource-postgres
     ports:
       - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: chronos
+      POSTGRES_DB: allsource
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -150,21 +150,21 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - chronos
+      - allsource
 
   # ═══════════════════════════════════════════════════════════════════════════
   # WEB - Dashboard & Documentation (Next.js)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Image: ghcr.io/all-source-os/chronos-web:latest
+  # Image: ghcr.io/all-source-os/allsource-web:latest
   # Size:  ~50 MB (Node.js + Next.js standalone)
   # UI:    React dashboard, documentation, onboarding
   # ═══════════════════════════════════════════════════════════════════════════
   web:
-    image: ghcr.io/all-source-os/chronos-web:${CHRONOS_VERSION:-latest}
+    image: ghcr.io/all-source-os/allsource-web:${ALLSOURCE_VERSION:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    container_name: chronos-web
+    container_name: allsource-web
     ports:
       - "3000:3000"
     environment:
@@ -182,14 +182,14 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - chronos
+      - allsource
 
   # ═══════════════════════════════════════════════════════════════════════════
   # REDIS - Caching & Sessions (Optional)
   # ═══════════════════════════════════════════════════════════════════════════
   redis:
     image: redis:7-alpine
-    container_name: chronos-redis
+    container_name: allsource-redis
     ports:
       - "6379:6379"
     volumes:
@@ -202,7 +202,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - chronos
+      - allsource
     profiles:
       - full
 
@@ -211,7 +211,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   prometheus:
     image: prom/prometheus:v2.51.0
-    container_name: chronos-prometheus
+    container_name: allsource-prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -224,7 +224,7 @@ services:
       - '--web.enable-lifecycle'
     restart: unless-stopped
     networks:
-      - chronos
+      - allsource
     profiles:
       - monitoring
 
@@ -233,7 +233,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   grafana:
     image: grafana/grafana:10.4.0
-    container_name: chronos-grafana
+    container_name: allsource-grafana
     ports:
       - "3000:3000"
     environment:
@@ -247,7 +247,7 @@ services:
       - prometheus
     restart: unless-stopped
     networks:
-      - chronos
+      - allsource
     profiles:
       - monitoring
 
@@ -256,20 +256,20 @@ services:
 # ═══════════════════════════════════════════════════════════════════════════════
 volumes:
   core-data:
-    name: chronos-core-data
+    name: allsource-core-data
   postgres-data:
-    name: chronos-postgres-data
+    name: allsource-postgres-data
   redis-data:
-    name: chronos-redis-data
+    name: allsource-redis-data
   prometheus-data:
-    name: chronos-prometheus-data
+    name: allsource-prometheus-data
   grafana-data:
-    name: chronos-grafana-data
+    name: allsource-grafana-data
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # NETWORKS
 # ═══════════════════════════════════════════════════════════════════════════════
 networks:
-  chronos:
-    name: chronos-network
+  allsource:
+    name: allsource-network
     driver: bridge

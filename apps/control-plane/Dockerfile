@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # =============================================================================
-# Chronos Control Plane - Production-Optimized Multi-Stage Dockerfile
+# AllSource Control Plane - Production-Optimized Multi-Stage Dockerfile
 # =============================================================================
 # Uses distroless for minimal attack surface (~2MB base image)
 # No shell, no package manager, no unnecessary utilities
@@ -57,14 +57,14 @@ ARG REVISION=unknown
 ARG BUILDTIME=unknown
 
 # OCI Image Labels
-LABEL org.opencontainers.image.title="Chronos Control Plane" \
-      org.opencontainers.image.description="Enterprise orchestration and management for Chronos" \
+LABEL org.opencontainers.image.title="AllSource Control Plane" \
+      org.opencontainers.image.description="Enterprise orchestration and management for AllSource" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.vendor="AllSource Team" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.source="https://github.com/all-source-os/chronos-monorepo" \
+      org.opencontainers.image.source="https://github.com/all-source-os/allsource-monorepo" \
       org.opencontainers.image.base.name="gcr.io/distroless/static-debian12:nonroot"
 
 WORKDIR /app
