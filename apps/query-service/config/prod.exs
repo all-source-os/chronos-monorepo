@@ -27,8 +27,7 @@ config :logger, level: :info
 
 # Configure structured JSON logging for production (LoggerJSON 6.x with Elixir 1.17+)
 # Note: :default_handler formatter takes precedence over :console/:default_formatter
-config :logger, :default_handler,
-  formatter: {LoggerJSON.Formatters.Basic, metadata: :all}
+config :logger, :default_handler, formatter: {LoggerJSON.Formatters.Basic, metadata: :all}
 
 # Database configuration is handled in runtime.exs for production
 # using the DATABASE_URL environment variable
