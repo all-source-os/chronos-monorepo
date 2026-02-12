@@ -55,6 +55,13 @@ defmodule QueryServiceExWeb.Router do
   # Public Routes
   # -------------------------------------------------------------------
 
+  # Root health check (MCP expects /health)
+  scope "/", QueryServiceExWeb do
+    pipe_through(:api)
+
+    get("/health", HealthController, :show)
+  end
+
   # Health checks (no auth required)
   scope "/api", QueryServiceExWeb do
     pipe_through(:api)
@@ -131,6 +138,10 @@ defmodule QueryServiceExWeb.Router do
     get("/events/:id", EventController, :show)
     get("/events/entity/:entity_id", EventController, :by_entity)
     get("/events/type/:event_type", EventController, :by_type)
+
+    # Discovery endpoints for streams and event types
+    get("/streams", EventController, :streams)
+    get("/event-types", EventController, :event_types)
   end
 
   # Query execution (with usage quota enforcement)
@@ -296,5 +307,48 @@ defmodule QueryServiceExWeb.Router do
     pipe_through(:api)
 
     post("/lemonsqueezy", WebhookController, :lemonsqueezy)
+  end
+
+  # -------------------------------------------------------------------
+  # MCP-Compatible v1 API Routes
+  # -------------------------------------------------------------------
+  # The chronos-mcp Docker container expects /api/v1/ prefixed URLs.
+  # These routes use the tenant_scoped pipeline which bypasses auth
+  # in dev mode (AUTH_DISABLED=true) and injects the dev tenant.
+
+  # Health check (no auth)
+  scope "/api/v1", QueryServiceExWeb do
+    pipe_through(:api)
+
+    get("/health", HealthController, :show)
+  end
+
+  # Event read endpoints (tenant-scoped for data isolation)
+  scope "/api/v1", QueryServiceExWeb do
+    pipe_through([:tenant_scoped, :rate_limited])
+
+    get("/events", EventController, :index)
+    get("/events/recent", EventController, :recent)
+    get("/events/:id", EventController, :show)
+    get("/events/entity/:entity_id", EventController, :by_entity)
+    get("/events/type/:event_type", EventController, :by_type)
+    get("/streams", EventController, :streams)
+    get("/event-types", EventController, :event_types)
+  end
+
+  # Snapshot endpoints (tenant-scoped)
+  scope "/api/v1", QueryServiceExWeb do
+    pipe_through([:tenant_scoped, :rate_limited])
+
+    get("/snapshots", SnapshotController, :index)
+  end
+
+  # Projection endpoints (tenant-scoped)
+  scope "/api/v1", QueryServiceExWeb do
+    pipe_through([:tenant_scoped, :rate_limited])
+
+    get("/projections", ProjectionController, :index)
+    get("/projections/rebuild-stats", ProjectionController, :rebuild_stats)
+    get("/projections/:name", ProjectionController, :show)
   end
 end

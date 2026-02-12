@@ -20,9 +20,7 @@ test.describe("UI Components", () => {
   test.describe("Page Structure", () => {
     test("should load the UI test page successfully", async ({ page }) => {
       await expect(page).toHaveURL(/\/ui-test$/);
-      await expect(
-        page.getByRole("heading", { name: "UI Component Test" })
-      ).toBeVisible();
+      await expect(page.getByRole("heading", { name: "UI Component Test" })).toBeVisible();
     });
 
     test("should display page heading", async ({ page }) => {
@@ -35,18 +33,10 @@ test.describe("UI Components", () => {
       await expect(container).toBeVisible();
     });
 
-    test("should display section headings for all component types", async ({
-      page,
-    }) => {
-      await expect(
-        page.locator("h2").filter({ hasText: "Buttons" })
-      ).toBeVisible();
-      await expect(
-        page.locator("h2").filter({ hasText: "Badges" })
-      ).toBeVisible();
-      await expect(
-        page.locator("h2").filter({ hasText: "Cards" })
-      ).toBeVisible();
+    test("should display section headings for all component types", async ({ page }) => {
+      await expect(page.locator("h2").filter({ hasText: "Buttons" })).toBeVisible();
+      await expect(page.locator("h2").filter({ hasText: "Badges" })).toBeVisible();
+      await expect(page.locator("h2").filter({ hasText: "Cards" })).toBeVisible();
     });
   });
 
@@ -78,13 +68,7 @@ test.describe("UI Components", () => {
 
     test("should render all 5 button variants", async ({ page }) => {
       // Verify all 5 buttons exist on the page
-      const buttonNames = [
-        "Default Button",
-        "Destructive",
-        "Outline",
-        "Secondary",
-        "Ghost",
-      ];
+      const buttonNames = ["Default Button", "Destructive", "Outline", "Secondary", "Ghost"];
       for (const name of buttonNames) {
         await expect(page.getByRole("button", { name })).toBeVisible();
       }
@@ -112,16 +96,8 @@ test.describe("UI Components", () => {
       expect(destructiveBox!.height).toBeGreaterThan(20);
     });
 
-    test("should have minimum clickable area for accessibility", async ({
-      page,
-    }) => {
-      const buttonNames = [
-        "Default Button",
-        "Destructive",
-        "Outline",
-        "Secondary",
-        "Ghost",
-      ];
+    test("should have minimum clickable area for accessibility", async ({ page }) => {
+      const buttonNames = ["Default Button", "Destructive", "Outline", "Secondary", "Ghost"];
 
       for (const name of buttonNames) {
         const button = page.getByRole("button", { name });
@@ -182,15 +158,11 @@ test.describe("UI Components", () => {
     });
 
     test("should display card content", async ({ page }) => {
-      const cardContent = page.getByText(
-        "This card is imported from @allsource/ui package!"
-      );
+      const cardContent = page.getByText("This card is imported from @allsource/ui package!");
       await expect(cardContent).toBeVisible();
     });
 
-    test("should have proper card structure with header and content", async ({
-      page,
-    }) => {
+    test("should have proper card structure with header and content", async ({ page }) => {
       // Card should contain both title and content
       await expect(page.getByText("Test Card")).toBeVisible();
       await expect(
@@ -236,16 +208,8 @@ test.describe("UI Components", () => {
       await expect(button).toBeEnabled();
     });
 
-    test("should be able to click all button variants sequentially", async ({
-      page,
-    }) => {
-      const buttonNames = [
-        "Default Button",
-        "Destructive",
-        "Outline",
-        "Secondary",
-        "Ghost",
-      ];
+    test("should be able to click all button variants sequentially", async ({ page }) => {
+      const buttonNames = ["Default Button", "Destructive", "Outline", "Secondary", "Ghost"];
 
       for (const name of buttonNames) {
         const button = page.getByRole("button", { name });
@@ -288,13 +252,7 @@ test.describe("UI Components", () => {
     });
 
     test("should be able to hover all button variants", async ({ page }) => {
-      const buttonNames = [
-        "Default Button",
-        "Destructive",
-        "Outline",
-        "Secondary",
-        "Ghost",
-      ];
+      const buttonNames = ["Default Button", "Destructive", "Outline", "Secondary", "Ghost"];
 
       for (const name of buttonNames) {
         const button = page.getByRole("button", { name });
@@ -306,13 +264,7 @@ test.describe("UI Components", () => {
 
   test.describe("Accessibility", () => {
     test("buttons should have proper role", async ({ page }) => {
-      const buttons = [
-        "Default Button",
-        "Destructive",
-        "Outline",
-        "Secondary",
-        "Ghost",
-      ];
+      const buttons = ["Default Button", "Destructive", "Outline", "Secondary", "Ghost"];
 
       for (const name of buttons) {
         const button = page.getByRole("button", { name });

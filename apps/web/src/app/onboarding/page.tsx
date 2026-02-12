@@ -1,28 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Button, Icons } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { ArrowLeft, Check, SkipForward } from "lucide-react";
-import { useOnboarding, ONBOARDING_STEPS } from "@/hooks/use-onboarding";
-import { useAuthStore } from "@/lib/stores/auth-store";
-import { StepWelcome } from "@/components/onboarding/step-welcome";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { StepApiKey } from "@/components/onboarding/step-api-key";
 import { StepCreateEvent } from "@/components/onboarding/step-create-event";
 import { StepExplore } from "@/components/onboarding/step-explore";
-import { StepApiKey } from "@/components/onboarding/step-api-key";
 import { StepNextSteps } from "@/components/onboarding/step-next-steps";
+import { StepWelcome } from "@/components/onboarding/step-welcome";
+import { ONBOARDING_STEPS, useOnboarding } from "@/hooks/use-onboarding";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { login, setLoading } = useAuthStore();
-  const {
-    currentStep,
-    setCurrentStep,
-    completeStep,
-    setSkipped,
-    isStepCompleted,
-  } = useOnboarding();
+  const { currentStep, setCurrentStep, completeStep, setSkipped, isStepCompleted } =
+    useOnboarding();
 
   // Verify session on mount
   useEffect(() => {
@@ -172,9 +167,7 @@ export default function OnboardingPage() {
       <footer className="fixed bottom-0 left-0 right-0 border-t border-border bg-background py-4">
         <div className="mx-auto flex max-w-4xl items-center justify-center px-4">
           <div className="text-center">
-            <p className="text-sm font-medium">
-              {ONBOARDING_STEPS[currentStep]?.title}
-            </p>
+            <p className="text-sm font-medium">{ONBOARDING_STEPS[currentStep]?.title}</p>
             <p className="text-xs text-muted-foreground">
               {ONBOARDING_STEPS[currentStep]?.description}
             </p>

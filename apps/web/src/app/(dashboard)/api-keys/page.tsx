@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
 import { BlurFade, Button, Card, CardContent } from "@allsource/ui";
-import { Plus, Key, Shield, AlertTriangle } from "lucide-react";
-import { KeyTable } from "@/components/api-keys/key-table";
+import { AlertTriangle, Key, Plus, Shield } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { CreateKeyDialog } from "@/components/api-keys/create-key-dialog";
+import { KeyTable } from "@/components/api-keys/key-table";
 import type { ApiKey, ApiKeyWithSecret } from "@/lib/api/client";
 
 // Demo keys for display
@@ -35,7 +35,13 @@ const DEMO_KEYS: ApiKey[] = [
     name: "Development",
     description: "Local development key",
     key_prefix: "qs_test_dev",
-    scopes: ["events:read", "events:write", "queries:execute", "projections:read", "projections:write"],
+    scopes: [
+      "events:read",
+      "events:write",
+      "queries:execute",
+      "projections:read",
+      "projections:write",
+    ],
     last_used_at: null,
     expires_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), // Expired
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(),
@@ -77,8 +83,8 @@ export default function ApiKeysPage() {
       id: `key-${Date.now()}`,
       name: data.name,
       description: data.description || null,
-      key_prefix: "qs_live_" + Math.random().toString(36).slice(2, 8),
-      key: "qs_live_" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
+      key_prefix: `qs_live_${Math.random().toString(36).slice(2, 8)}`,
+      key: `qs_live_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`,
       scopes: data.scopes,
       last_used_at: null,
       expires_at: data.expires_at || null,
@@ -97,7 +103,7 @@ export default function ApiKeysPage() {
         key.id === id
           ? {
               ...key,
-              key_prefix: "qs_live_" + Math.random().toString(36).slice(2, 8),
+              key_prefix: `qs_live_${Math.random().toString(36).slice(2, 8)}`,
               created_at: new Date().toISOString(),
             }
           : key
@@ -123,9 +129,7 @@ export default function ApiKeysPage() {
       <BlurFade delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              API Keys
-            </h1>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">API Keys</h1>
             <p className="mt-1 text-muted-foreground">
               Manage API keys for authenticating your applications
             </p>
@@ -145,9 +149,8 @@ export default function ApiKeysPage() {
             <div>
               <h3 className="font-medium">Keep your keys secure</h3>
               <p className="text-sm text-muted-foreground">
-                API keys grant access to your AllSource account. Never share them
-                publicly or commit them to version control. Use environment
-                variables instead.
+                API keys grant access to your AllSource account. Never share them publicly or commit
+                them to version control. Use environment variables instead.
               </p>
             </div>
           </CardContent>
@@ -214,19 +217,13 @@ export default function ApiKeysPage() {
           <Card className="relative z-10 w-full max-w-sm mx-4">
             <CardContent className="p-6">
               <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-destructive" />
-              <h3 className="mb-2 text-center text-lg font-semibold">
-                Revoke API Key?
-              </h3>
+              <h3 className="mb-2 text-center text-lg font-semibold">Revoke API Key?</h3>
               <p className="mb-6 text-center text-sm text-muted-foreground">
-                This action cannot be undone. Any applications using this key will
-                stop working immediately.
+                This action cannot be undone. Any applications using this key will stop working
+                immediately.
               </p>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setConfirmRevoke(null)}
-                >
+                <Button variant="outline" className="flex-1" onClick={() => setConfirmRevoke(null)}>
                   Cancel
                 </Button>
                 <Button

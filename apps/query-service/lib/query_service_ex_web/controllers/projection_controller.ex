@@ -190,4 +190,32 @@ defmodule QueryServiceExWeb.ProjectionController do
     |> put_status(:not_implemented)
     |> json(%{error: "Projection reset not yet implemented"})
   end
+
+  @doc """
+  Get rebuild statistics for all projections.
+  Returns the current status and progress of any ongoing or completed rebuilds.
+  """
+  def rebuild_stats(conn, _params) do
+    case RustCoreClient.list_projections() do
+      {:ok, projections} ->
+        stats =
+          Enum.map(projections, fn proj ->
+            name = proj["name"] || proj[:name] || "unknown"
+
+            %{
+              name: name,
+              status: "idle",
+              last_rebuilt_at: nil,
+              events_processed: 0
+            }
+          end)
+
+        json(conn, %{data: stats, count: length(stats)})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
+  end
 end

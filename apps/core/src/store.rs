@@ -709,6 +709,54 @@ impl EventStore {
             total_ingested: *self.total_ingested.read(),
         }
     }
+
+    /// Get all unique streams (entity_ids) in the store
+    pub fn list_streams(&self) -> Vec<StreamInfo> {
+        self.index
+            .get_all_entities()
+            .into_iter()
+            .map(|entity_id| {
+                let event_count = self
+                    .index
+                    .get_by_entity(&entity_id)
+                    .map(|entries| entries.len())
+                    .unwrap_or(0);
+                let last_event_at = self
+                    .index
+                    .get_by_entity(&entity_id)
+                    .and_then(|entries| entries.last().map(|e| e.timestamp));
+                StreamInfo {
+                    stream_id: entity_id,
+                    event_count,
+                    last_event_at,
+                }
+            })
+            .collect()
+    }
+
+    /// Get all unique event types in the store
+    pub fn list_event_types(&self) -> Vec<EventTypeInfo> {
+        self.index
+            .get_all_types()
+            .into_iter()
+            .map(|event_type| {
+                let event_count = self
+                    .index
+                    .get_by_type(&event_type)
+                    .map(|entries| entries.len())
+                    .unwrap_or(0);
+                let last_event_at = self
+                    .index
+                    .get_by_type(&event_type)
+                    .and_then(|entries| entries.last().map(|e| e.timestamp));
+                EventTypeInfo {
+                    event_type,
+                    event_count,
+                    last_event_at,
+                }
+            })
+            .collect()
+    }
 }
 
 /// Configuration for EventStore
@@ -820,6 +868,28 @@ pub struct StoreStats {
     pub total_entities: usize,
     pub total_event_types: usize,
     pub total_ingested: u64,
+}
+
+/// Information about a stream (entity_id)
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StreamInfo {
+    /// The stream identifier (entity_id)
+    pub stream_id: String,
+    /// Total number of events in this stream
+    pub event_count: usize,
+    /// Timestamp of the last event in this stream
+    pub last_event_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Information about an event type
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EventTypeInfo {
+    /// The event type name
+    pub event_type: String,
+    /// Total number of events of this type
+    pub event_count: usize,
+    /// Timestamp of the last event of this type
+    pub last_event_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl Default for EventStore {

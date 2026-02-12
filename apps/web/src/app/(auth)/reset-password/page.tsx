@@ -1,10 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
-import { Loader2, Eye, EyeOff, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
-
 import {
   BlurFade,
   Button,
@@ -19,6 +14,10 @@ import {
   Label,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, XCircle } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { getApiUrl } from "@/lib/api/client";
 
 const PASSWORD_REQUIREMENTS = [
@@ -168,9 +167,7 @@ function ResetPasswordContent() {
                 </p>
                 <div className="space-y-3 w-full">
                   <Link href="/forgot-password" className="block">
-                    <Button className="w-full">
-                      Request new reset link
-                    </Button>
+                    <Button className="w-full">Request new reset link</Button>
                   </Link>
                   <Link href="/login" className="block">
                     <Button variant="ghost" className="w-full">
@@ -215,9 +212,7 @@ function ResetPasswordContent() {
                 <p className="mb-6 text-muted-foreground">{error}</p>
                 <div className="space-y-3 w-full">
                   <Link href="/forgot-password" className="block">
-                    <Button className="w-full">
-                      Request new reset link
-                    </Button>
+                    <Button className="w-full">Request new reset link</Button>
                   </Link>
                   <Link href="/login" className="block">
                     <Button variant="ghost" className="w-full">
@@ -293,11 +288,7 @@ function ResetPasswordContent() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       tabIndex={-1}
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
 
@@ -308,9 +299,7 @@ function ResetPasswordContent() {
                           key={req.label}
                           className={cn(
                             "flex items-center gap-2 text-xs",
-                            req.regex.test(password)
-                              ? "text-green-600"
-                              : "text-muted-foreground"
+                            req.regex.test(password) ? "text-green-600" : "text-muted-foreground"
                           )}
                         >
                           <CheckCircle2
@@ -370,11 +359,7 @@ function ResetPasswordContent() {
                   className="h-12 w-full"
                   disabled={isSubmitting || !isFormValid}
                 >
-                  {isSubmitting ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    "Reset password"
-                  )}
+                  {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Reset password"}
                 </Button>
               </form>
             </CardContent>

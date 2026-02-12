@@ -128,7 +128,7 @@ docker build -t allsource-query-service:latest .
 
 # Run with Docker
 docker run -p 3902:3902 \
-  -e RUST_CORE_URL=http://rust-core:3900 \
+  -e CORE_URL=http://rust-core:3900 \
   -e SECRET_KEY_BASE=$(mix phx.gen.secret) \
   allsource-query-service:latest
 ```

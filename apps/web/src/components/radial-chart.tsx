@@ -2,6 +2,7 @@
 
 import { Card, CardContent, type ChartConfig, ChartContainer } from "@allsource/ui";
 import { Label, PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
+
 const chartData = [{ browser: "safari", visitors: 1260, fill: "var(--color-safari)" }];
 
 const chartConfig = {

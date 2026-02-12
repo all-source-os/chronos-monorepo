@@ -203,10 +203,18 @@ export const siteConfig = {
     {
       title: "Resources",
       links: [
-        { href: "https://github.com/all-source-os/all-source/discussions", text: "Community", icon: null },
+        {
+          href: "https://github.com/all-source-os/all-source/discussions",
+          text: "Community",
+          icon: null,
+        },
         { href: "/contact", text: "Contact", icon: null },
         { href: "https://status.all.source", text: "Status", icon: null },
-        { href: "https://github.com/all-source-os/all-source/releases", text: "Changelog", icon: null },
+        {
+          href: "https://github.com/all-source-os/all-source/releases",
+          text: "Changelog",
+          icon: null,
+        },
       ],
     },
     {

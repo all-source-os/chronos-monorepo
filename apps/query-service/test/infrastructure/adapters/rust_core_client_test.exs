@@ -82,6 +82,47 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClientTest do
     end
   end
 
+  describe "create_event_batch/2 with tenant" do
+    test "accepts tenant_id and list of events" do
+      tenant_id = "test-tenant"
+
+      events = [
+        %{entity_id: "e1", event_type: "test.event1", payload: %{}},
+        %{entity_id: "e2", event_type: "test.event2", payload: %{}}
+      ]
+
+      result = RustCoreClient.create_event_batch(tenant_id, events)
+      assert_result(result)
+    end
+
+    test "handles empty list with tenant" do
+      result = RustCoreClient.create_event_batch("test-tenant", [])
+      assert_result(result)
+    end
+
+    test "returns batch response structure" do
+      tenant_id = "test-tenant"
+
+      events = [
+        %{entity_id: "batch-e1", event_type: "test.batch", payload: %{}}
+      ]
+
+      case RustCoreClient.create_event_batch(tenant_id, events) do
+        {:ok, response} when is_map(response) ->
+          # Should have batch response fields
+          assert Map.has_key?(response, "total") or Map.has_key?(response, "ingested") or
+                   Map.has_key?(response, "events")
+
+        {:ok, _} ->
+          assert true
+
+        {:error, _} ->
+          # Backend not available
+          assert true
+      end
+    end
+  end
+
   describe "query_events/1 with map params" do
     test "queries with entity_id filter" do
       params = %{entity_id: "test-entity"}
@@ -332,10 +373,36 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClientTest do
         end)
 
       case RustCoreClient.create_event_batch(events) do
-        {:ok, created_events} ->
-          assert is_list(created_events)
-          # Should have created all events
-          assert length(created_events) == 5
+        {:ok, response} ->
+          # New batch endpoint returns {total, ingested, events}
+          assert is_map(response)
+          assert Map.has_key?(response, "total") or Map.has_key?(response, "events")
+
+        {:error, _reason} ->
+          # Backend not available
+          :ok
+      end
+    end
+
+    @tag :skip_unless_backend
+    test "batch event creation with tenant isolation" do
+      tenant_id = "test-tenant-#{System.unique_integer([:positive])}"
+      base_id = "batch-tenant-test-#{System.unique_integer([:positive])}"
+
+      events =
+        Enum.map(1..3, fn i ->
+          %{
+            entity_id: "#{base_id}-#{i}",
+            event_type: "batch.tenant.test",
+            payload: %{index: i}
+          }
+        end)
+
+      case RustCoreClient.create_event_batch(tenant_id, events) do
+        {:ok, response} ->
+          # Batch endpoint returns {total, ingested, events}
+          assert is_map(response)
+          assert Map.get(response, "total") == 3 or Map.get(response, "ingested") == 3
 
         {:error, _reason} ->
           # Backend not available

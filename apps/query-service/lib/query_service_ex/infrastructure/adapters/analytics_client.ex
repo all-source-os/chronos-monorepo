@@ -28,7 +28,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.AnalyticsClient do
 
   @doc false
   def client do
-    base_url = Application.get_env(:query_service_ex, :rust_core_url, @default_base_url)
+    base_url = Application.get_env(:query_service_ex, :core_url, @default_base_url)
 
     middleware = [
       {Tesla.Middleware.BaseUrl, base_url},

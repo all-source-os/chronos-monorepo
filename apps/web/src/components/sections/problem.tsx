@@ -31,10 +31,7 @@ export default function Component() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
         {problems.map((problem, index) => (
           <BlurFade key={problem.title} delay={0.2 + index * 0.1} inView>
-            <motion.div
-              whileHover={{ y: -8, transition: { duration: 0.3 } }}
-              className="h-full"
-            >
+            <motion.div whileHover={{ y: -8, transition: { duration: 0.3 } }} className="h-full">
               <Card className="h-full bg-background border border-transparent hover:border-destructive/20 shadow-none hover:shadow-lg hover:shadow-destructive/5 transition-all duration-300 group">
                 <CardContent className="p-6 space-y-4">
                   <motion.div
@@ -43,7 +40,9 @@ export default function Component() {
                   >
                     <problem.icon className="w-6 h-6 text-destructive transition-transform duration-300 group-hover:scale-110" />
                   </motion.div>
-                  <h3 className="text-xl font-semibold group-hover:text-destructive transition-colors duration-300">{problem.title}</h3>
+                  <h3 className="text-xl font-semibold group-hover:text-destructive transition-colors duration-300">
+                    {problem.title}
+                  </h3>
                   <p className="text-muted-foreground">{problem.description}</p>
                 </CardContent>
               </Card>

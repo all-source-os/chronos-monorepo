@@ -1,18 +1,10 @@
 "use client";
 
+import { BlurFade, Button, Card, CardContent, DotPattern, Icons } from "@allsource/ui";
+import { CheckCircle2, Loader2, Mail, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
-import { Loader2, CheckCircle2, XCircle, Mail } from "lucide-react";
-
-import {
-  BlurFade,
-  Button,
-  Card,
-  CardContent,
-  DotPattern,
-  Icons,
-} from "@allsource/ui";
+import { Suspense, useEffect, useState } from "react";
 import { getApiUrl } from "@/lib/api/client";
 
 type VerificationState = "verifying" | "success" | "error" | "expired";
@@ -131,7 +123,8 @@ function VerifyEmailContent() {
                   </div>
                   <h2 className="mb-2 text-xl font-semibold">Email verified!</h2>
                   <p className="mb-6 text-muted-foreground">
-                    Your email has been verified successfully. You'll be redirected to sign in shortly.
+                    Your email has been verified successfully. You'll be redirected to sign in
+                    shortly.
                   </p>
                   <Button onClick={() => router.push("/login")} className="w-full">
                     Continue to Sign In

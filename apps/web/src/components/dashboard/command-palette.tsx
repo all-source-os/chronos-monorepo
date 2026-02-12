@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { cn } from "@allsource/ui/utils";
 import {
-  Search,
-  LayoutDashboard,
   Activity,
+  CreditCard,
+  ExternalLink,
+  FileText,
   GitBranch,
   Key,
-  CreditCard,
-  Settings,
+  LayoutDashboard,
   Plus,
-  FileText,
-  ExternalLink,
+  Search,
+  Settings,
 } from "lucide-react";
-import { cn } from "@allsource/ui/utils";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -141,15 +141,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((i) =>
-            i < flatFilteredCommands.length - 1 ? i + 1 : 0
-          );
+          setSelectedIndex((i) => (i < flatFilteredCommands.length - 1 ? i + 1 : 0));
           break;
         case "ArrowUp":
           e.preventDefault();
-          setSelectedIndex((i) =>
-            i > 0 ? i - 1 : flatFilteredCommands.length - 1
-          );
+          setSelectedIndex((i) => (i > 0 ? i - 1 : flatFilteredCommands.length - 1));
           break;
         case "Enter":
           e.preventDefault();
@@ -174,7 +170,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [search]);
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -188,10 +184,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   return (
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Dialog */}
       <div className="relative mx-auto mt-[20vh] w-full max-w-lg px-4">
@@ -205,7 +198,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              autoFocus
             />
             <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
               ESC
@@ -221,9 +213,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             ) : (
               Object.entries(groupedCommands).map(([group, commands]) => (
                 <div key={group} className="mb-2">
-                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                    {group}
-                  </div>
+                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{group}</div>
                   {commands.map((command) => {
                     const globalIndex = flatFilteredCommands.indexOf(command);
                     const isSelected = globalIndex === selectedIndex;

@@ -12,7 +12,7 @@ primary_region = "iad"  # US East (Virginia)
 [env]
   MIX_ENV = "prod"
   PHX_HOST = "allsource-query-service.fly.dev"
-  RUST_CORE_URL = "http://allsource-core.internal:3900"
+  CORE_URL = "http://allsource-core.internal:3900"
   CORE_WS_URL = "ws://allsource-core.internal:3900/api/v1/events/stream"
   ECTO_IPV6 = "true"
   # Use port 3902 to match application config

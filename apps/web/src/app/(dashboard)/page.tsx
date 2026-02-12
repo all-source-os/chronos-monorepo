@@ -1,10 +1,10 @@
 "use client";
 
 import { BlurFade } from "@allsource/ui";
-import { StatsCards } from "@/components/dashboard/stats-cards";
 import { LiveMetrics } from "@/components/dashboard/live-metrics";
-import { RecentEvents } from "@/components/dashboard/recent-events";
 import { QuickActions } from "@/components/dashboard/quick-actions";
+import { RecentEvents } from "@/components/dashboard/recent-events";
+import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsageProgress } from "@/components/dashboard/usage-progress";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
@@ -69,9 +69,7 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h3 className="text-lg font-semibold">AllSource Event Store</h3>
-              <p className="text-sm text-muted-foreground">
-                Powering real-time data intelligence
-              </p>
+              <p className="text-sm text-muted-foreground">Powering real-time data intelligence</p>
             </div>
             <div className="flex flex-wrap gap-6 text-center">
               <div>

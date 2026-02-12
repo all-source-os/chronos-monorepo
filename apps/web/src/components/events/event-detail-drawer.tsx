@@ -1,17 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import {
+  Button,
   Drawer,
   DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
   DrawerDescription,
   DrawerFooter,
-  Button,
+  DrawerHeader,
+  DrawerTitle,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Copy, Check, Clock, Hash, Layers, ExternalLink } from "lucide-react";
+import { Check, Clock, Copy, ExternalLink, Hash, Layers } from "lucide-react";
+import { useState } from "react";
 import type { Event } from "@/lib/api/client";
 
 interface EventDetailDrawerProps {
@@ -21,12 +21,7 @@ interface EventDetailDrawerProps {
   onViewEntity?: (entityId: string) => void;
 }
 
-export function EventDetailDrawer({
-  event,
-  open,
-  onClose,
-  onViewEntity,
-}: EventDetailDrawerProps) {
+export function EventDetailDrawer({ event, open, onClose, onViewEntity }: EventDetailDrawerProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   if (!event) return null;
@@ -40,8 +35,10 @@ export function EventDetailDrawer({
   const getEventTypeColor = (eventType: string) => {
     if (eventType.includes("user")) return "bg-blue-500/10 text-blue-600 dark:text-blue-400";
     if (eventType.includes("order")) return "bg-green-500/10 text-green-600 dark:text-green-400";
-    if (eventType.includes("payment")) return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
-    if (eventType.includes("inventory")) return "bg-orange-500/10 text-orange-600 dark:text-orange-400";
+    if (eventType.includes("payment"))
+      return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
+    if (eventType.includes("inventory"))
+      return "bg-orange-500/10 text-orange-600 dark:text-orange-400";
     return "bg-muted text-muted-foreground";
   };
 
@@ -189,12 +186,7 @@ export function EventDetailDrawer({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() =>
-                    copyToClipboard(
-                      JSON.stringify(event.payload, null, 2),
-                      "payload"
-                    )
-                  }
+                  onClick={() => copyToClipboard(JSON.stringify(event.payload, null, 2), "payload")}
                 >
                   {copiedField === "payload" ? (
                     <>

@@ -1,31 +1,22 @@
 "use client";
 
-import { useState } from "react";
 import {
+  Badge,
   BlurFade,
   Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
+  Icons,
   Input,
   Label,
-  Badge,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import {
-  User,
-  Building2,
-  Shield,
-  Bell,
-  Palette,
-  Loader2,
-  Check,
-  ExternalLink,
-} from "lucide-react";
+import { Bell, Building2, Check, Loader2, Shield, User } from "lucide-react";
+import { useState } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { Icons } from "@allsource/ui";
 
 type Tab = "profile" | "workspace" | "security" | "notifications";
 
@@ -66,9 +57,7 @@ export default function SettingsPage() {
       {/* Header */}
       <BlurFade delay={0.1} inView>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            Settings
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Settings</h1>
           <p className="mt-1 text-muted-foreground">
             Manage your account and workspace preferences
           </p>
@@ -105,9 +94,7 @@ export default function SettingsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Profile Information</CardTitle>
-                    <CardDescription>
-                      Update your personal information
-                    </CardDescription>
+                    <CardDescription>Update your personal information</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Avatar */}
@@ -137,9 +124,7 @@ export default function SettingsPage() {
                       <Input
                         id="name"
                         value={profileData.name}
-                        onChange={(e) =>
-                          setProfileData((p) => ({ ...p, name: e.target.value }))
-                        }
+                        onChange={(e) => setProfileData((p) => ({ ...p, name: e.target.value }))}
                         className="mt-1.5"
                       />
                     </div>
@@ -188,9 +173,7 @@ export default function SettingsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Workspace Settings</CardTitle>
-                    <CardDescription>
-                      Manage your workspace details
-                    </CardDescription>
+                    <CardDescription>Manage your workspace details</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Workspace icon */}
@@ -212,9 +195,7 @@ export default function SettingsPage() {
                       <Input
                         id="workspace-name"
                         value={workspaceData.name}
-                        onChange={(e) =>
-                          setWorkspaceData((w) => ({ ...w, name: e.target.value }))
-                        }
+                        onChange={(e) => setWorkspaceData((w) => ({ ...w, name: e.target.value }))}
                         className="mt-1.5"
                       />
                     </div>
@@ -281,9 +262,7 @@ export default function SettingsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Connected Accounts</CardTitle>
-                    <CardDescription>
-                      Manage your authentication providers
-                    </CardDescription>
+                    <CardDescription>Manage your authentication providers</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Google */}
@@ -293,15 +272,11 @@ export default function SettingsPage() {
                         <div>
                           <p className="font-medium">Google</p>
                           <p className="text-sm text-muted-foreground">
-                            {user?.provider === "google"
-                              ? user.email
-                              : "Not connected"}
+                            {user?.provider === "google" ? user.email : "Not connected"}
                           </p>
                         </div>
                       </div>
-                      <Badge
-                        variant={user?.provider === "google" ? "default" : "outline"}
-                      >
+                      <Badge variant={user?.provider === "google" ? "default" : "outline"}>
                         {user?.provider === "google" ? "Connected" : "Connect"}
                       </Badge>
                     </div>
@@ -313,15 +288,11 @@ export default function SettingsPage() {
                         <div>
                           <p className="font-medium">GitHub</p>
                           <p className="text-sm text-muted-foreground">
-                            {user?.provider === "github"
-                              ? user.email
-                              : "Not connected"}
+                            {user?.provider === "github" ? user.email : "Not connected"}
                           </p>
                         </div>
                       </div>
-                      <Badge
-                        variant={user?.provider === "github" ? "default" : "outline"}
-                      >
+                      <Badge variant={user?.provider === "github" ? "default" : "outline"}>
                         {user?.provider === "github" ? "Connected" : "Connect"}
                       </Badge>
                     </div>
@@ -331,18 +302,14 @@ export default function SettingsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Active Sessions</CardTitle>
-                    <CardDescription>
-                      Devices where you're currently logged in
-                    </CardDescription>
+                    <CardDescription>Devices where you're currently logged in</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="rounded-lg border border-border p-4">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium">Current Session</p>
-                          <p className="text-sm text-muted-foreground">
-                            Active now
-                          </p>
+                          <p className="text-sm text-muted-foreground">Active now</p>
                         </div>
                         <Badge variant="secondary">This device</Badge>
                       </div>
@@ -353,9 +320,7 @@ export default function SettingsPage() {
                 <Card className="border-destructive/50">
                   <CardHeader>
                     <CardTitle className="text-destructive">Danger Zone</CardTitle>
-                    <CardDescription>
-                      Irreversible and destructive actions
-                    </CardDescription>
+                    <CardDescription>Irreversible and destructive actions</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Button variant="destructive">Delete Account</Button>
@@ -369,9 +334,7 @@ export default function SettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Notification Preferences</CardTitle>
-                  <CardDescription>
-                    Choose what updates you want to receive
-                  </CardDescription>
+                  <CardDescription>Choose what updates you want to receive</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {[
@@ -401,15 +364,10 @@ export default function SettingsPage() {
                       enabled: false,
                     },
                   ].map((pref) => (
-                    <div
-                      key={pref.title}
-                      className="flex items-center justify-between"
-                    >
+                    <div key={pref.title} className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">{pref.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {pref.description}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{pref.description}</p>
                       </div>
                       <label className="relative inline-flex cursor-pointer items-center">
                         <input

@@ -1,7 +1,7 @@
-import { siteConfig } from "@/lib/config";
 import { Icons } from "@allsource/ui";
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
+import { siteConfig } from "@/lib/config";
 
 export const runtime = "edge";
 

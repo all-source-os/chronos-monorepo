@@ -1,28 +1,19 @@
 "use client";
 
-import { useState } from "react";
 import {
   Button,
-  Input,
-  Label,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   CardDescription,
   CardFooter,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import {
-  Loader2,
-  Key,
-  Copy,
-  Check,
-  Eye,
-  EyeOff,
-  AlertTriangle,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Check, Copy, Eye, EyeOff, Key, Loader2, X } from "lucide-react";
+import { useState } from "react";
 import type { ApiKeyWithSecret } from "@/lib/api/client";
 
 interface CreateKeyDialogProps {
@@ -56,10 +47,7 @@ const EXPIRATION_OPTIONS = [
 export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedScopes, setSelectedScopes] = useState<string[]>([
-    "events:read",
-    "events:write",
-  ]);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(["events:read", "events:write"]);
   const [expiration, setExpiration] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<ApiKeyWithSecret | null>(null);
@@ -68,9 +56,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
 
   const toggleScope = (scopeId: string) => {
     setSelectedScopes((prev) =>
-      prev.includes(scopeId)
-        ? prev.filter((s) => s !== scopeId)
-        : [...prev, scopeId]
+      prev.includes(scopeId) ? prev.filter((s) => s !== scopeId) : [...prev, scopeId]
     );
   };
 
@@ -80,7 +66,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
     setIsCreating(true);
     try {
       const expiresAt = expiration
-        ? new Date(Date.now() + parseInt(expiration) * 24 * 60 * 60 * 1000).toISOString()
+        ? new Date(Date.now() + parseInt(expiration, 10) * 24 * 60 * 60 * 1000).toISOString()
         : undefined;
 
       const key = await onCreateKey({
@@ -120,10 +106,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-        onClick={handleClose}
-      />
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={handleClose} />
 
       {/* Dialog */}
       <Card className="relative z-10 w-full max-w-lg mx-4">
@@ -134,9 +117,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
                 <Key className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle>
-                  {createdKey ? "API Key Created" : "Create API Key"}
-                </CardTitle>
+                <CardTitle>{createdKey ? "API Key Created" : "Create API Key"}</CardTitle>
                 <CardDescription>
                   {createdKey
                     ? "Save your key now - you won't see it again"
@@ -158,9 +139,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-600" />
                   <div>
-                    <p className="font-medium text-yellow-600">
-                      Copy your key now
-                    </p>
+                    <p className="font-medium text-yellow-600">Copy your key now</p>
                     <p className="text-sm text-yellow-600/80">
                       This key will only be shown once. Store it securely.
                     </p>
@@ -181,11 +160,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
                       onClick={() => setShowKey(!showKey)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      {showKey ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                   <Button variant="outline" onClick={handleCopy}>
@@ -261,15 +236,11 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
                             : "border-muted-foreground"
                         )}
                       >
-                        {selectedScopes.includes(scope.id) && (
-                          <Check className="h-3 w-3" />
-                        )}
+                        {selectedScopes.includes(scope.id) && <Check className="h-3 w-3" />}
                       </div>
                       <div>
                         <p className="text-sm font-medium">{scope.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {scope.description}
-                        </p>
+                        <p className="text-xs text-muted-foreground">{scope.description}</p>
                       </div>
                     </button>
                   ))}

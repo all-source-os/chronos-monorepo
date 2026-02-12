@@ -87,6 +87,10 @@ pub async fn serve_v1(
         .route("/api/v1/tenants/{id}", delete(delete_tenant_handler))
         // Event and data routes (protected by auth)
         .route("/api/v1/events", post(super::api::ingest_event))
+        .route(
+            "/api/v1/events/batch",
+            post(super::api::ingest_events_batch),
+        )
         .route("/api/v1/events/query", get(super::api::query_events))
         .route("/api/v1/events/stream", get(super::api::events_websocket))
         .route(
@@ -98,6 +102,9 @@ pub async fn serve_v1(
             get(super::api::get_entity_snapshot),
         )
         .route("/api/v1/stats", get(super::api::get_stats))
+        // v0.10: Stream and event type discovery endpoints
+        .route("/api/v1/streams", get(super::api::list_streams))
+        .route("/api/v1/event-types", get(super::api::list_event_types))
         // Analytics
         .route(
             "/api/v1/analytics/frequency",

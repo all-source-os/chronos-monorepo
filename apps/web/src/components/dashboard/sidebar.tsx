@@ -1,20 +1,20 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Button, Icons } from "@allsource/ui";
+import { cn } from "@allsource/ui/utils";
 import {
-  LayoutDashboard,
   Activity,
-  GitBranch,
-  Key,
-  CreditCard,
-  Settings,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
+  GitBranch,
+  Key,
+  LayoutDashboard,
+  Settings,
   Sparkles,
 } from "lucide-react";
-import { cn } from "@allsource/ui/utils";
-import { Button, Icons } from "@allsource/ui";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 interface SidebarProps {
@@ -49,7 +49,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <Link href="/dashboard" className="group flex items-center gap-2">
           <Icons.logo className="h-8 w-8 shrink-0 text-primary transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12" />
           {!collapsed && (
-            <span className="text-xl font-semibold tracking-tight bg-gradient-to-r from-foreground to-foreground bg-clip-text transition-all duration-300 group-hover:from-primary group-hover:to-foreground group-hover:text-transparent">AllSource</span>
+            <span className="text-xl font-semibold tracking-tight bg-gradient-to-r from-foreground to-foreground bg-clip-text transition-all duration-300 group-hover:from-primary group-hover:to-foreground group-hover:text-transparent">
+              AllSource
+            </span>
           )}
         </Link>
         <Button
@@ -59,11 +61,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           className="h-8 w-8 shrink-0"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
       </div>
 
@@ -88,9 +86,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
         {navigation.map((item) => {
           const isActive =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+            item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
 
           return (
             <Link

@@ -94,3 +94,20 @@ impl From<Event> for EventDto {
         EventDto::from(&event)
     }
 }
+
+/// DTO for batch ingesting multiple events
+#[derive(Debug, Deserialize)]
+pub struct IngestEventsBatchRequest {
+    pub events: Vec<IngestEventRequest>,
+}
+
+/// DTO for batch ingestion response
+#[derive(Debug, Serialize)]
+pub struct IngestEventsBatchResponse {
+    /// Total number of events submitted
+    pub total: usize,
+    /// Number of events successfully ingested
+    pub ingested: usize,
+    /// Individual results for each event
+    pub events: Vec<IngestEventResponse>,
+}

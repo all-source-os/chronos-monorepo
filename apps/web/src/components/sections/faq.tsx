@@ -1,4 +1,3 @@
-import { siteConfig } from "@/lib/config";
 import {
   Accordion,
   AccordionContent,
@@ -6,6 +5,7 @@ import {
   AccordionTrigger,
   Section,
 } from "@allsource/ui";
+import { siteConfig } from "@/lib/config";
 
 export default function FAQ() {
   return (

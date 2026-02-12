@@ -1,10 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useId, useState, useEffect, Suspense } from "react";
-import { Loader2, Mail, Eye, EyeOff, AlertCircle } from "lucide-react";
-
 import {
   BlurFade,
   Button,
@@ -18,7 +13,10 @@ import {
   Input,
   Label,
 } from "@allsource/ui";
-import { cn } from "@allsource/ui/utils";
+import { AlertCircle, Eye, EyeOff, Loader2, Mail } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useId, useState } from "react";
 import { getApiUrl } from "@/lib/api/client";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -206,11 +204,7 @@ function LoginContent() {
                     className="h-12 w-full"
                     disabled={isDisabled || !isFormValid}
                   >
-                    {isSubmitting ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      "Sign in"
-                    )}
+                    {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Sign in"}
                   </Button>
 
                   <button

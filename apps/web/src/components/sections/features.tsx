@@ -1,33 +1,37 @@
-import Features from "@/components/features-horizontal";
 import { Section } from "@allsource/ui";
 import { Bot, GitBranch, History, Zap } from "lucide-react";
+import Features from "@/components/features-horizontal";
 
 const data = [
   {
     id: 1,
-    title: "469K Events/Second",
-    content: "Rust-powered core with lock-free data structures. Ingest at scale without breaking a sweat.",
-    image: "/dashboard.png",
-    icon: <Zap className="h-6 w-6 text-primary" />,
-  },
-  {
-    id: 2,
-    title: "Time-Travel Queries",
-    content: "Query any point in history. Reconstruct past states. Debug with complete temporal context.",
+    title: "Perfect Memory",
+    content:
+      "Never lose a change. Every event is immutable, versioned, and instantly queryable. Your application remembers everything.",
     image: "/dashboard.png",
     icon: <History className="h-6 w-6 text-primary" />,
   },
   {
+    id: 2,
+    title: "Temporal Queries",
+    content:
+      "Query any point in history with 11.9μs latency. Reconstruct past states, compare timelines, debug with complete context.",
+    image: "/dashboard.png",
+    icon: <Zap className="h-6 w-6 text-primary" />,
+  },
+  {
     id: 3,
-    title: "Stream Processing",
-    content: "Filter, map, reduce, window, branch, enrich. Build real-time pipelines with a fluent API.",
+    title: "Event Replay",
+    content:
+      "Replay any sequence of events. Rebuild projections, test what-if scenarios, audit any decision path.",
     image: "/dashboard.png",
     icon: <GitBranch className="h-6 w-6 text-primary" />,
   },
   {
     id: 4,
-    title: "27 MCP Tools",
-    content: "AI-native from day one. Claude Desktop integration for autonomous event management.",
+    title: "AI Integration",
+    content:
+      "27 MCP tools for Claude and GPT. Your AI agents don't just store data—they understand your application's history.",
     image: "/dashboard.png",
     icon: <Bot className="h-6 w-6 text-primary" />,
   },
@@ -35,7 +39,10 @@ const data = [
 
 export default function Component() {
   return (
-    <Section title="Features" subtitle="Built for performance. Designed for intelligence.">
+    <Section
+      title="Temporal Intelligence"
+      subtitle="Not just storage—complete memory for your applications"
+    >
       <Features collapseDelay={5000} linePosition="bottom" data={data} />
     </Section>
   );

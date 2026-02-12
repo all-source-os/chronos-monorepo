@@ -193,4 +193,108 @@ defmodule QueryServiceExWeb.Schemas.Events do
       required: [:data, :count]
     })
   end
+
+  defmodule StreamInfo do
+    @moduledoc "Stream (entity) information"
+    OpenApiSpex.schema(%{
+      title: "StreamInfo",
+      description: "Information about a stream (entity_id)",
+      type: :object,
+      properties: %{
+        stream_id: %Schema{type: :string, description: "The stream identifier (entity_id)"},
+        event_count: %Schema{type: :integer, description: "Total events in this stream"},
+        last_event_at: %Schema{
+          type: :string,
+          format: :"date-time",
+          nullable: true,
+          description: "Timestamp of the last event"
+        }
+      },
+      required: [:stream_id, :event_count],
+      example: %{
+        stream_id: "order-123",
+        event_count: 42,
+        last_event_at: "2026-02-10T15:30:00Z"
+      }
+    })
+  end
+
+  defmodule StreamsResponse do
+    @moduledoc "List of streams response"
+    OpenApiSpex.schema(%{
+      title: "StreamsResponse",
+      description: "Response containing a list of streams (entity_ids)",
+      type: :object,
+      properties: %{
+        data: %Schema{
+          type: :array,
+          items: StreamInfo,
+          description: "List of streams with metadata"
+        },
+        count: %Schema{type: :integer, description: "Number of streams returned"},
+        total: %Schema{type: :integer, description: "Total number of streams"}
+      },
+      required: [:data, :count, :total],
+      example: %{
+        data: [
+          %{stream_id: "order-123", event_count: 42, last_event_at: "2026-02-10T15:30:00Z"},
+          %{stream_id: "user-456", event_count: 15, last_event_at: "2026-02-10T14:20:00Z"}
+        ],
+        count: 2,
+        total: 150
+      }
+    })
+  end
+
+  defmodule EventTypeInfo do
+    @moduledoc "Event type information"
+    OpenApiSpex.schema(%{
+      title: "EventTypeInfo",
+      description: "Information about an event type",
+      type: :object,
+      properties: %{
+        event_type: %Schema{type: :string, description: "The event type name"},
+        event_count: %Schema{type: :integer, description: "Total events of this type"},
+        last_event_at: %Schema{
+          type: :string,
+          format: :"date-time",
+          nullable: true,
+          description: "Timestamp of the last event of this type"
+        }
+      },
+      required: [:event_type, :event_count],
+      example: %{
+        event_type: "order.placed",
+        event_count: 1500,
+        last_event_at: "2026-02-10T15:45:00Z"
+      }
+    })
+  end
+
+  defmodule EventTypesResponse do
+    @moduledoc "List of event types response"
+    OpenApiSpex.schema(%{
+      title: "EventTypesResponse",
+      description: "Response containing a list of event types",
+      type: :object,
+      properties: %{
+        data: %Schema{
+          type: :array,
+          items: EventTypeInfo,
+          description: "List of event types with metadata"
+        },
+        count: %Schema{type: :integer, description: "Number of event types returned"},
+        total: %Schema{type: :integer, description: "Total number of event types"}
+      },
+      required: [:data, :count, :total],
+      example: %{
+        data: [
+          %{event_type: "order.placed", event_count: 1500, last_event_at: "2026-02-10T15:45:00Z"},
+          %{event_type: "user.created", event_count: 850, last_event_at: "2026-02-10T15:30:00Z"}
+        ],
+        count: 2,
+        total: 25
+      }
+    })
+  end
 end

@@ -51,12 +51,10 @@ defmodule QueryServiceExWeb.EventController do
   def index(conn, params) do
     tenant_id = get_tenant_id!(conn)
 
-    query_params = %{
-      entity_id: params["entity_id"],
-      event_type: params["event_type"],
-      limit: parse_int(params["limit"], 100),
-      offset: parse_int(params["offset"], 0)
-    }
+    query_params =
+      %{limit: parse_int(params["limit"], 100), offset: parse_int(params["offset"], 0)}
+      |> maybe_put(:entity_id, params["entity_id"])
+      |> maybe_put(:event_type, params["event_type"])
 
     case RustCoreClient.query_events(tenant_id, query_params) do
       {:ok, events} ->
@@ -269,6 +267,128 @@ defmodule QueryServiceExWeb.EventController do
     end
   end
 
+  @doc """
+  Get recent events sorted by timestamp descending.
+
+  Query params:
+  - limit: Maximum number of results (default: 20)
+  """
+  def recent(conn, params) do
+    tenant_id = get_tenant_id!(conn)
+    limit = parse_int(params["limit"], 20)
+
+    query_params = %{
+      limit: limit,
+      sort: "timestamp:desc"
+    }
+
+    case RustCoreClient.query_events(tenant_id, query_params) do
+      {:ok, events} ->
+        json(conn, %{data: events, count: length(events)})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
+  end
+
+  operation(:streams,
+    summary: "List streams (entities)",
+    description:
+      "List all unique streams (entity_ids) in the event store. Streams represent unique entities that have events. Useful for discovering available entities in the system.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      limit: [in: :query, type: :integer, description: "Maximum number of streams to return"],
+      offset: [in: :query, type: :integer, description: "Number of streams to skip (pagination)"]
+    ],
+    responses: [
+      ok: {"Streams list", "application/json", Events.StreamsResponse},
+      bad_request: {"Bad request", "application/json", Common.SimpleError}
+    ]
+  )
+
+  @doc """
+  List distinct streams (entity_ids) from the event store.
+
+  Uses dedicated Core endpoint for efficient stream discovery.
+  Returns streams sorted by most recent activity first.
+  """
+  def streams(conn, params) do
+    _tenant_id = get_tenant_id!(conn)
+
+    opts = [
+      limit: parse_int(params["limit"], nil),
+      offset: parse_int(params["offset"], nil)
+    ]
+
+    case RustCoreClient.list_streams(opts) do
+      {:ok, %{"streams" => streams, "total" => total}} ->
+        json(conn, %{data: streams, count: length(streams), total: total})
+
+      {:ok, response} when is_map(response) ->
+        # Handle alternative response formats
+        streams = Map.get(response, "streams", [])
+        total = Map.get(response, "total", length(streams))
+        json(conn, %{data: streams, count: length(streams), total: total})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
+  end
+
+  operation(:event_types,
+    summary: "List event types",
+    description:
+      "List all unique event types in the event store. Useful for discovering what types of events exist and their usage statistics.",
+    security: [%{"bearer_auth" => []}],
+    parameters: [
+      limit: [in: :query, type: :integer, description: "Maximum number of event types to return"],
+      offset: [
+        in: :query,
+        type: :integer,
+        description: "Number of event types to skip (pagination)"
+      ]
+    ],
+    responses: [
+      ok: {"Event types list", "application/json", Events.EventTypesResponse},
+      bad_request: {"Bad request", "application/json", Common.SimpleError}
+    ]
+  )
+
+  @doc """
+  List distinct event types from the event store.
+
+  Uses dedicated Core endpoint for efficient event type discovery.
+  Returns event types sorted by most used first.
+  """
+  def event_types(conn, params) do
+    _tenant_id = get_tenant_id!(conn)
+
+    opts = [
+      limit: parse_int(params["limit"], nil),
+      offset: parse_int(params["offset"], nil)
+    ]
+
+    case RustCoreClient.list_event_types(opts) do
+      {:ok, %{"event_types" => event_types, "total" => total}} ->
+        json(conn, %{data: event_types, count: length(event_types), total: total})
+
+      {:ok, response} when is_map(response) ->
+        # Handle alternative response formats
+        types = Map.get(response, "event_types", [])
+        total = Map.get(response, "total", length(types))
+        json(conn, %{data: types, count: length(types), total: total})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
+  end
+
   # Helper to parse integer parameters with defaults
   defp parse_int(nil, default), do: default
 
@@ -281,6 +401,11 @@ defmodule QueryServiceExWeb.EventController do
 
   defp parse_int(value, _default) when is_integer(value), do: value
   defp parse_int(_, default), do: default
+
+  # Only add param to map if value is non-nil and non-empty
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, _key, ""), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   # Gets tenant_id from connection, raises if not present (security check)
   defp get_tenant_id!(conn) do

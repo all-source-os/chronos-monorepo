@@ -1,15 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
-import {
-  Plus,
-  Key,
-  FileText,
-  MessageSquare,
-  BookOpen,
-  Terminal,
-} from "lucide-react";
+import { BookOpen, FileText, Key, MessageSquare, Plus, Terminal } from "lucide-react";
+import Link from "next/link";
 
 const actions = [
   {
@@ -84,9 +77,7 @@ export function QuickActions() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{action.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {action.description}
-                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{action.description}</p>
                 </div>
               </Component>
             );

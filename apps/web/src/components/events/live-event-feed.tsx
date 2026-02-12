@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button } from "@allsource/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Radio, Pause, Play, Trash2, Wifi, WifiOff } from "lucide-react";
+import { Pause, Play, Radio, Trash2, Wifi, WifiOff } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useWebSocket } from "@/hooks/use-websocket";
 import type { Event } from "@/lib/api/client";
 
@@ -22,18 +22,21 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
   const eventCounterRef = useRef(0);
 
   // Handle incoming WebSocket events
-  const handleWebSocketMessage = useCallback((data: unknown) => {
-    if (isPaused) return;
+  const handleWebSocketMessage = useCallback(
+    (data: unknown) => {
+      if (isPaused) return;
 
-    // Parse event from WebSocket message
-    const eventData = data as { event?: Event; type?: string };
-    if (eventData.event) {
-      setEvents((prev) => [eventData.event!, ...prev].slice(0, 50));
-    } else if (eventData.type === "event") {
-      // Alternative message format
-      setEvents((prev) => [data as Event, ...prev].slice(0, 50));
-    }
-  }, [isPaused]);
+      // Parse event from WebSocket message
+      const eventData = data as { event?: Event; type?: string };
+      if (eventData.event) {
+        setEvents((prev) => [eventData.event!, ...prev].slice(0, 50));
+      } else if (eventData.type === "event") {
+        // Alternative message format
+        setEvents((prev) => [data as Event, ...prev].slice(0, 50));
+      }
+    },
+    [isPaused]
+  );
 
   // Connect to WebSocket
   const { isConnected, connect } = useWebSocket(WS_EVENTS_ENDPOINT, {
@@ -81,21 +84,24 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
       "inventory-xyz",
     ];
 
-    const interval = setInterval(() => {
-      const newEvent: Event = {
-        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        entity_id: entities[Math.floor(Math.random() * entities.length)]!,
-        event_type: eventTypes[Math.floor(Math.random() * eventTypes.length)]!,
-        payload: {
-          source: "demo",
-          random_value: Math.floor(Math.random() * 1000),
-        },
-        timestamp: new Date().toISOString(),
-        version: ++eventCounterRef.current,
-      };
+    const interval = setInterval(
+      () => {
+        const newEvent: Event = {
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          entity_id: entities[Math.floor(Math.random() * entities.length)]!,
+          event_type: eventTypes[Math.floor(Math.random() * eventTypes.length)]!,
+          payload: {
+            source: "demo",
+            random_value: Math.floor(Math.random() * 1000),
+          },
+          timestamp: new Date().toISOString(),
+          version: ++eventCounterRef.current,
+        };
 
-      setEvents((prev) => [newEvent, ...prev].slice(0, 50));
-    }, Math.random() * 1500 + 500);
+        setEvents((prev) => [newEvent, ...prev].slice(0, 50));
+      },
+      Math.random() * 1500 + 500
+    );
 
     return () => clearInterval(interval);
   }, [isPaused, useSimulation]);
@@ -157,9 +163,7 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
               <WifiOff className="h-3 w-3 text-muted-foreground" />
             </span>
           )}
-          <span className="text-xs text-muted-foreground">
-            ({events.length})
-          </span>
+          <span className="text-xs text-muted-foreground">({events.length})</span>
         </div>
         <div className="flex items-center gap-1">
           {!isConnected && useSimulation && (
@@ -183,27 +187,15 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
             className="h-7 w-7"
             onClick={() => setIsPaused(!isPaused)}
           >
-            {isPaused ? (
-              <Play className="h-3.5 w-3.5" />
-            ) : (
-              <Pause className="h-3.5 w-3.5" />
-            )}
+            {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={clearEvents}
-          >
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearEvents}>
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden p-0">
-        <div
-          ref={containerRef}
-          className="h-[400px] overflow-y-auto px-4 pb-4"
-        >
+        <div ref={containerRef} className="h-[400px] overflow-y-auto px-4 pb-4">
           {events.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {isPaused ? "Feed paused" : "Waiting for events..."}

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Clock, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
-import { Button } from "@allsource/ui";
+import { Clock, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { useRef, useState } from "react";
 import type { Event } from "@/lib/api/client";
 
 interface EventTimelineProps {
@@ -13,11 +12,7 @@ interface EventTimelineProps {
   selectedEventId?: string;
 }
 
-export function EventTimeline({
-  events,
-  onEventClick,
-  selectedEventId,
-}: EventTimelineProps) {
+export function EventTimeline({ events, onEventClick, selectedEventId }: EventTimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState(0);
@@ -33,9 +28,7 @@ export function EventTimeline({
 
   // Calculate time range
   const minTime =
-    sortedEvents.length > 0
-      ? new Date(sortedEvents[0]!.timestamp).getTime()
-      : Date.now();
+    sortedEvents.length > 0 ? new Date(sortedEvents[0]!.timestamp).getTime() : Date.now();
   const maxTime =
     sortedEvents.length > 0
       ? new Date(sortedEvents[sortedEvents.length - 1]!.timestamp).getTime()
@@ -126,12 +119,7 @@ export function EventTimeline({
           >
             <ZoomIn className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={resetView}
-          >
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={resetView}>
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -168,7 +156,7 @@ export function EventTimeline({
                 <div className="absolute left-4 right-4 top-1/2 h-0.5 -translate-y-1/2 bg-border" />
 
                 {/* Event dots */}
-                {sortedEvents.map((event, index) => {
+                {sortedEvents.map((event, _index) => {
                   const position = getEventPosition(event);
                   const isSelected = event.id === selectedEventId;
 
@@ -193,7 +181,11 @@ export function EventTimeline({
             {/* Time labels */}
             <div className="mt-2 flex justify-between text-xs text-muted-foreground">
               <span>{sortedEvents[0] ? formatTime(sortedEvents[0].timestamp) : ""}</span>
-              <span>{sortedEvents[sortedEvents.length - 1] ? formatTime(sortedEvents[sortedEvents.length - 1]!.timestamp) : ""}</span>
+              <span>
+                {sortedEvents[sortedEvents.length - 1]
+                  ? formatTime(sortedEvents[sortedEvents.length - 1]!.timestamp)
+                  : ""}
+              </span>
             </div>
 
             {/* Tooltip */}
@@ -206,9 +198,7 @@ export function EventTimeline({
                 }}
               >
                 <p className="font-medium">{hoveredEvent.event_type}</p>
-                <p className="text-xs text-muted-foreground">
-                  {hoveredEvent.entity_id}
-                </p>
+                <p className="text-xs text-muted-foreground">{hoveredEvent.entity_id}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {formatTime(hoveredEvent.timestamp)}
                 </p>

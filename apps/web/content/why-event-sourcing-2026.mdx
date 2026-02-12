@@ -1,0 +1,143 @@
+---
+title: "Why Event Sourcing in 2026: Beyond Simple Storage"
+publishedAt: "2026-02-12"
+summary: Your application needs more than a database—it needs perfect memory. Here's why event sourcing matters more than ever.
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+The database landscape in 2026 is crowded. Edge databases, serverless SQL, vector stores, graph databases—there's a solution for every niche. But here's what most of them have in common: **they only store current state**.
+
+When your user asks "what happened to my order?" or your compliance team needs an audit trail, or your AI agent needs context about historical patterns—you're stuck. You have today's snapshot, but you've lost the journey.
+
+## The Amnesia Problem
+
+Traditional databases—even modern ones—have a fundamental limitation: they **overwrite history**.
+
+```sql
+UPDATE users SET email = 'new@example.com' WHERE id = 123;
+```
+
+That `UPDATE` just destroyed information. What was the old email? When did it change? Who changed it? Why? Gone.
+
+Most applications paper over this with:
+- Audit log tables (separate from your data, often inconsistent)
+- Soft deletes with `updated_at` columns (incomplete history)
+- Change Data Capture pipelines (complex, eventually consistent)
+
+These are band-aids. The core problem remains: **your database has amnesia**.
+
+## What Event Sourcing Actually Gives You
+
+Event sourcing flips the model. Instead of storing current state, you store the **sequence of changes** that led to current state:
+
+```json
+{"type": "UserCreated", "data": {"id": 123, "email": "old@example.com"}, "timestamp": "2026-01-15T10:30:00Z"}
+{"type": "EmailChanged", "data": {"id": 123, "email": "new@example.com"}, "timestamp": "2026-02-10T14:22:00Z"}
+```
+
+Now you have:
+- **Complete history**: Every change, forever
+- **Time-travel queries**: Reconstruct state at any timestamp
+- **Audit trails**: Built-in, not bolted-on
+- **Debugging superpowers**: Replay the exact sequence that led to a bug
+
+## "But I Can Do That With..."
+
+Here's where it gets interesting. You might think:
+
+> "I can add audit logging to my Postgres/SQLite/MongoDB"
+
+Yes, but you're fighting the data model. Your audit log is a second-class citizen—separate tables, separate queries, separate consistency guarantees. Event sourcing makes history **the source of truth**, not an afterthought.
+
+> "I can use a message queue like Kafka"
+
+Kafka is a transport, not a database. You can't query Kafka for "all events for entity X between timestamps A and B" with sub-millisecond latency. You need to materialize that data somewhere—which means you're back to building event sourcing yourself.
+
+> "My new edge database has versioning"
+
+Version control ≠ event sourcing. Versioning gives you snapshots. Event sourcing gives you the **granular sequence of changes**. The difference matters when you need to understand *how* you got from version A to version B.
+
+## When Event Sourcing Shines
+
+Event sourcing isn't for every application. But it's essential when you need:
+
+### 1. Compliance & Audit
+
+Financial services, healthcare, government—any domain where "show me the complete history of this record" isn't optional.
+
+```bash
+# Who changed this patient's medication and when?
+GET /api/v1/entities/patient-456/events?type=MedicationChanged
+```
+
+### 2. Temporal Analytics
+
+Understanding patterns over time, not just current state:
+
+- How did user behavior change after the feature launch?
+- What's the sequence of events leading to churn?
+- When do anomalies typically occur?
+
+### 3. AI Agent Memory
+
+This is the big one for 2026. AI agents need context. Not just "what is the current state" but "what happened before."
+
+```
+Agent: "The user's subscription was downgraded on Feb 5th after
+        three failed payment attempts starting Jan 28th. The card
+        on file was updated but marked as expired. Recommending
+        we reach out about updating payment method."
+```
+
+That level of contextual understanding requires access to **event history**, not just current rows.
+
+### 4. Debugging Complex Systems
+
+When something goes wrong in a distributed system, you need to reconstruct exactly what happened:
+
+```bash
+# Replay the events that led to the corrupted state
+GET /api/v1/entities/order-789/events?since=2026-02-10T00:00:00Z
+```
+
+No more guessing. No more "works on my machine." The event log is the truth.
+
+## The Performance Question
+
+"Event sourcing sounds great, but isn't it slow?"
+
+It was. Traditional event stores optimized for writes but struggled with reads. Querying millions of events to reconstruct state? Expensive.
+
+Modern event stores solve this with:
+
+- **Projections**: Pre-computed views materialized from events
+- **Snapshots**: Periodic state checkpoints for fast reconstruction
+- **Columnar storage**: Parquet/Arrow for analytical queries
+- **Aggressive indexing**: Entity-based, time-based, type-based
+
+At all.source, we've achieved:
+- **469K events/second** write throughput
+- **11.9μs** query latency for point lookups
+- **Sub-100ms** time-travel queries across millions of events
+
+Event sourcing doesn't have to be slow anymore.
+
+## Getting Started
+
+If you're considering event sourcing, start with these questions:
+
+1. **Do you need audit trails?** If compliance matters, event sourcing is your friend.
+2. **Do you debug temporal issues?** "What was the state at time X?" becomes trivial.
+3. **Are you building AI features?** Your agents need memory, not just snapshots.
+4. **Is data integrity critical?** Immutable logs prevent accidental (or malicious) history rewriting.
+
+If you answered yes to any of these, it's time to look beyond traditional databases.
+
+## The Bottom Line
+
+Your application doesn't need another database. It needs **perfect memory**—the ability to remember every change, query any point in history, and give AI agents the context they need.
+
+That's what event sourcing provides. And that's what we're building at all.source.
+
+[Start your free trial →](/signup)

@@ -1,18 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Button, Card, CardContent, Input, Label } from "@allsource/ui";
-import { cn } from "@allsource/ui/utils";
-import {
-  Loader2,
-  Key,
-  Copy,
-  Check,
-  Eye,
-  EyeOff,
-  AlertTriangle,
-  ArrowRight,
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Copy, Eye, EyeOff, Key, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { useOnboarding } from "@/hooks/use-onboarding";
 
 interface StepApiKeyProps {
@@ -31,7 +21,7 @@ export function StepApiKey({ onNext }: StepApiKeyProps) {
     setIsCreating(true);
     // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    setApiKey("qs_live_demo_" + Math.random().toString(36).slice(2, 30));
+    setApiKey(`qs_live_demo_${Math.random().toString(36).slice(2, 30)}`);
     setIsCreating(false);
     setApiKeyCreated(true);
   };
@@ -114,12 +104,10 @@ export function StepApiKey({ onNext }: StepApiKeyProps) {
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-600" />
                   <div>
-                    <p className="font-medium text-yellow-600">
-                      Save your API key now
-                    </p>
+                    <p className="font-medium text-yellow-600">Save your API key now</p>
                     <p className="text-sm text-yellow-600/80">
-                      You won't be able to see this key again after leaving this
-                      page. Copy it and store it securely.
+                      You won't be able to see this key again after leaving this page. Copy it and
+                      store it securely.
                     </p>
                   </div>
                 </div>
@@ -138,11 +126,7 @@ export function StepApiKey({ onNext }: StepApiKeyProps) {
                       onClick={() => setShowKey(!showKey)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      {showKey ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                   <Button variant="outline" onClick={handleCopy}>

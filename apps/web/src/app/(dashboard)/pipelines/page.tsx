@@ -1,29 +1,27 @@
 "use client";
 
-import { useState } from "react";
 import {
+  Badge,
   BlurFade,
   Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
-  Badge,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import {
-  GitBranch,
-  Plus,
-  Play,
-  Pause,
-  RefreshCw,
-  MoreHorizontal,
-  Clock,
-  Activity,
-  Layers,
   AlertTriangle,
+  GitBranch,
+  Layers,
+  MoreHorizontal,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
 } from "lucide-react";
+import { useState } from "react";
 
 interface Pipeline {
   id: string;
@@ -157,9 +155,7 @@ function PipelineCard({
                 )}
               />
             </div>
-            <CardDescription className="mt-1">
-              {pipeline.description}
-            </CardDescription>
+            <CardDescription className="mt-1">{pipeline.description}</CardDescription>
           </div>
         </div>
 
@@ -175,10 +171,7 @@ function PipelineCard({
 
           {showMenu && (
             <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowMenu(false)}
-              />
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
               <div className="absolute right-0 top-full z-50 mt-1 w-36 rounded-lg border border-border bg-popover p-1 shadow-lg">
                 {pipeline.status === "running" ? (
                   <button
@@ -239,15 +232,11 @@ function PipelineCard({
           </div>
           <div>
             <p className="text-muted-foreground">Processed</p>
-            <p className="mt-1 font-medium">
-              {formatNumber(pipeline.eventsProcessed)} events
-            </p>
+            <p className="mt-1 font-medium">{formatNumber(pipeline.eventsProcessed)} events</p>
           </div>
           <div>
             <p className="text-muted-foreground">Last Active</p>
-            <p className="mt-1 font-medium">
-              {formatTimestamp(pipeline.lastProcessed)}
-            </p>
+            <p className="mt-1 font-medium">{formatTimestamp(pipeline.lastProcessed)}</p>
           </div>
         </div>
       </CardContent>
@@ -280,9 +269,7 @@ export default function PipelinesPage() {
       <BlurFade delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              Pipelines
-            </h1>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Pipelines</h1>
             <p className="mt-1 text-muted-foreground">
               Manage projections and stream processing pipelines
             </p>

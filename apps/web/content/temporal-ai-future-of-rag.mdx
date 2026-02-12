@@ -1,0 +1,237 @@
+---
+title: "Temporal AI: Why Your RAG Pipeline Needs a Timeline"
+publishedAt: "2026-02-12"
+summary: Vector search finds similar content. Event sourcing tracks history. Combined, they create AI that truly understands context.
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+Vector databases revolutionized how AI applications retrieve information. Semantic search, embeddings, RAG pipelines—suddenly your AI could find *relevant* content, not just keyword matches.
+
+But there's a gap. A big one.
+
+**Vector search has no concept of time.**
+
+## The Missing Dimension
+
+Ask a typical RAG system: "What happened with the Johnson account?"
+
+It will find documents *about* the Johnson account—contracts, emails, support tickets—ranked by semantic similarity. But it can't tell you:
+
+- What happened first, second, third
+- How the relationship evolved over time
+- What changed between last month and this month
+- The sequence of events that led to the current situation
+
+Vector similarity ≠ temporal understanding.
+
+## Why Temporal Context Matters
+
+Consider these real-world scenarios:
+
+### Customer Support AI
+
+**Without temporal context:**
+> "I found 47 support tickets for this customer about billing issues."
+
+**With temporal context:**
+> "This customer had 3 billing issues in January, all resolved. Then 12 tickets in the past week—something changed. The issues started after their plan was migrated on Feb 5th."
+
+### Fraud Detection
+
+**Without temporal context:**
+> "This transaction is similar to known fraud patterns (0.87 similarity)."
+
+**With temporal context:**
+> "This transaction matches fraud patterns AND breaks the user's established behavior—they've never made international purchases before, and this is the 4th attempt in 10 minutes."
+
+### Sales Intelligence
+
+**Without temporal context:**
+> "Here are emails related to the Acme deal."
+
+**With temporal context:**
+> "The Acme deal went cold after Feb 1st. Before that, there were 12 positive interactions. The last email mentioned budget concerns. No follow-up was sent."
+
+The pattern is clear: **AI needs both similarity AND sequence**.
+
+## The Architecture Gap
+
+Here's why this is hard:
+
+```
+┌─────────────────┐         ┌─────────────────┐
+│  Vector Store   │         │   Event Store   │
+│  (Similarity)   │         │   (Timeline)    │
+├─────────────────┤         ├─────────────────┤
+│ • Embeddings    │         │ • Append-only   │
+│ • ANN search    │         │ • Time queries  │
+│ • No history    │         │ • No semantics  │
+└─────────────────┘         └─────────────────┘
+        ↓                           ↓
+    "Find similar"           "What happened when"
+```
+
+You need **both**. But they're typically separate systems with separate data models, separate query languages, and separate consistency guarantees.
+
+Developers end up building brittle pipelines:
+1. Query vector store for relevant documents
+2. Extract entity IDs from results
+3. Query event store for timeline
+4. Merge results manually
+5. Hope the two systems are in sync
+
+This is the 2026 equivalent of "just add a JOIN."
+
+## Temporal RAG: The Better Way
+
+What if your RAG pipeline understood time natively?
+
+```python
+# Traditional RAG
+docs = vector_store.similarity_search("customer complaints")
+# Returns: 50 documents, no temporal ordering
+
+# Temporal RAG
+events = temporal_store.search(
+    semantic="customer complaints",
+    entity="customer-123",
+    since="2026-01-01",
+    order="chronological"
+)
+# Returns: Sequence of events, semantically relevant,
+#          in the order they occurred
+```
+
+Now your AI can:
+
+1. **Find** relevant content (semantic search)
+2. **Order** it chronologically (event timeline)
+3. **Understand** what changed (temporal diffing)
+4. **Explain** the sequence (causal reasoning)
+
+## Real-World Applications
+
+### 1. Incident Response
+
+```
+Query: "What caused the outage on Feb 10th?"
+
+Temporal RAG response:
+"Here's the sequence:
+1. 14:23 - Deploy event for service-auth (similar to 3 previous incident-causing deploys)
+2. 14:25 - Error rate spike in auth-service
+3. 14:27 - Cascade failures in dependent services
+4. 14:31 - Automated rollback triggered
+
+The deploy included a configuration change similar to the Jan 15th incident."
+```
+
+### 2. Customer Journey Analysis
+
+```
+Query: "Why did Enterprise Corp churn?"
+
+Temporal RAG response:
+"Timeline analysis:
+- Month 1-6: Regular engagement, 47 positive interactions
+- Month 7: Support tickets increased 3x, all about performance
+- Month 8: Feature requests submitted, marked 'won't fix'
+- Month 9: Competitor mentioned in email (semantic match)
+- Month 10: Cancellation request
+
+Pattern matches 3 other enterprise churns in Q4."
+```
+
+### 3. Compliance Auditing
+
+```
+Query: "Show me all data access for user records in the past 30 days"
+
+Temporal RAG response:
+"Access timeline:
+- 847 reads by application services (normal pattern)
+- 12 reads by admin user alice@company.com (normal)
+- 3 reads by admin user bob@company.com at 3am (anomaly)
+- 1 bulk export by bob@company.com (similar to previous breach pattern)
+
+Flagging for review: Bob's access pattern is 0.91 similar to the
+March 2025 data exfiltration incident."
+```
+
+## Building Temporal AI
+
+If you're building AI features that need temporal context, here's the architecture:
+
+### Option 1: Side-by-Side Integration
+
+Keep your vector store for semantic search. Add an event store for temporal queries. Link them by entity ID.
+
+```
+User Query → AI Agent
+                ↓
+    ┌───────────┴───────────┐
+    ↓                       ↓
+Vector Search          Event Store
+"Find similar"         "Get timeline"
+    ↓                       ↓
+    └───────────┬───────────┘
+                ↓
+         Merge & Reason
+                ↓
+          AI Response
+```
+
+**Pros**: Use best-in-class for each capability
+**Cons**: Two systems to maintain, potential consistency issues
+
+### Option 2: Event Store with Semantic Indexing
+
+Store events as source of truth. Generate embeddings for semantic search as a projection.
+
+```
+Events → Event Store → Embedding Pipeline → Vector Index
+              ↓
+         Time Queries ←→ Semantic Queries
+              ↓
+         Unified Results
+```
+
+**Pros**: Single source of truth, guaranteed consistency
+**Cons**: Need embedding pipeline, storage overhead
+
+### Option 3: Native Temporal AI Store (Coming Soon)
+
+A unified system designed for both temporal and semantic queries from the ground up.
+
+This is where the industry is heading—and what we're building toward at all.source.
+
+## Getting Started Today
+
+You don't need to wait for the perfect unified solution. Start building temporal AI now:
+
+1. **Instrument your events**: If you're not capturing events, start. Every user action, system change, external integration—make it an event.
+
+2. **Add timestamps everywhere**: Not just `created_at`. Add `occurred_at`, `processed_at`, `received_at`. Time is data.
+
+3. **Design for replay**: Can you reconstruct what happened from your event log? If not, you're missing events.
+
+4. **Link entities**: Every event should have entity IDs that let you query "all events for X."
+
+5. **Plan for semantics**: Even if you're not embedding events today, structure them so you can tomorrow.
+
+## The Future is Temporal
+
+AI is evolving from "find me similar things" to "help me understand what happened."
+
+That shift requires temporal context. Not just what—but when, in what order, and how things changed over time.
+
+Vector search gave AI memory of *concepts*. Event sourcing gives AI memory of *events*. Combined, you get AI that truly understands your domain.
+
+That's temporal intelligence. And it's the future of AI applications.
+
+---
+
+*all.source is the temporal intelligence platform for event-driven applications. Query any point in history, replay any sequence, and give your AI agents perfect memory.*
+
+[Start building with temporal AI →](/signup)

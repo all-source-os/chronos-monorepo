@@ -1,5 +1,6 @@
 use crate::application::dto::{
-    EventDto, IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse,
+    EventDto, IngestEventRequest, IngestEventResponse, IngestEventsBatchRequest,
+    IngestEventsBatchResponse, QueryEventsRequest, QueryEventsResponse,
 };
 use crate::application::services::analytics::{
     AnalyticsEngine, CorrelationRequest, CorrelationResponse, EventFrequencyRequest,
@@ -20,7 +21,7 @@ use crate::infrastructure::persistence::snapshot::{
     CreateSnapshotRequest, CreateSnapshotResponse, ListSnapshotsRequest, ListSnapshotsResponse,
     SnapshotInfo,
 };
-use crate::store::EventStore;
+use crate::store::{EventStore, EventTypeInfo, StreamInfo};
 use axum::{
     extract::{Path, Query, State, WebSocketUpgrade},
     response::{IntoResponse, Response},
@@ -39,8 +40,12 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         .route("/health", get(health))
         .route("/metrics", get(prometheus_metrics)) // v0.6: Prometheus metrics endpoint
         .route("/api/v1/events", post(ingest_event))
+        .route("/api/v1/events/batch", post(ingest_events_batch))
         .route("/api/v1/events/query", get(query_events))
         .route("/api/v1/events/stream", get(events_websocket)) // v0.2: WebSocket streaming
+        // v0.10: Stream and event type discovery endpoints
+        .route("/api/v1/streams", get(list_streams))
+        .route("/api/v1/event-types", get(list_event_types))
         .route("/api/v1/entities/{entity_id}/state", get(get_entity_state))
         .route(
             "/api/v1/entities/{entity_id}/snapshot",
@@ -188,6 +193,49 @@ pub async fn ingest_event(
     }))
 }
 
+/// Batch ingest multiple events in a single request
+///
+/// This endpoint allows ingesting multiple events atomically, which is more
+/// efficient than making individual requests for each event.
+pub async fn ingest_events_batch(
+    State(store): State<SharedStore>,
+    Json(req): Json<IngestEventsBatchRequest>,
+) -> Result<Json<IngestEventsBatchResponse>> {
+    let total = req.events.len();
+    let mut ingested_events = Vec::with_capacity(total);
+
+    for event_req in req.events {
+        let tenant_id = event_req.tenant_id.unwrap_or_else(|| "default".to_string());
+
+        let event = Event::from_strings(
+            event_req.event_type,
+            event_req.entity_id,
+            tenant_id,
+            event_req.payload,
+            event_req.metadata,
+        )?;
+
+        let event_id = event.id;
+        let timestamp = event.timestamp;
+
+        store.ingest(event)?;
+
+        ingested_events.push(IngestEventResponse {
+            event_id,
+            timestamp,
+        });
+    }
+
+    let ingested = ingested_events.len();
+    tracing::info!("Batch ingested {} events", ingested);
+
+    Ok(Json(IngestEventsBatchResponse {
+        total,
+        ingested,
+        events: ingested_events,
+    }))
+}
+
 pub async fn query_events(
     State(store): State<SharedStore>,
     Query(req): Query<QueryEventsRequest>,
@@ -232,6 +280,100 @@ pub async fn get_entity_snapshot(
 pub async fn get_stats(State(store): State<SharedStore>) -> impl IntoResponse {
     let stats = store.stats();
     Json(stats)
+}
+
+// v0.10: List all streams (entity_ids) in the event store
+/// Query parameters for listing streams
+#[derive(Debug, Deserialize)]
+pub struct ListStreamsParams {
+    /// Optional limit on number of streams to return
+    pub limit: Option<usize>,
+    /// Optional offset for pagination
+    pub offset: Option<usize>,
+}
+
+/// Response for listing streams
+#[derive(Debug, serde::Serialize)]
+pub struct ListStreamsResponse {
+    pub streams: Vec<StreamInfo>,
+    pub total: usize,
+}
+
+pub async fn list_streams(
+    State(store): State<SharedStore>,
+    Query(params): Query<ListStreamsParams>,
+) -> Json<ListStreamsResponse> {
+    let mut streams = store.list_streams();
+    let total = streams.len();
+
+    // Sort by last_event_at descending (most recent first)
+    streams.sort_by(|a, b| b.last_event_at.cmp(&a.last_event_at));
+
+    // Apply pagination
+    if let Some(offset) = params.offset {
+        if offset < streams.len() {
+            streams = streams[offset..].to_vec();
+        } else {
+            streams = vec![];
+        }
+    }
+
+    if let Some(limit) = params.limit {
+        streams.truncate(limit);
+    }
+
+    tracing::debug!("Listed {} streams (total: {})", streams.len(), total);
+
+    Json(ListStreamsResponse { streams, total })
+}
+
+// v0.10: List all event types in the event store
+/// Query parameters for listing event types
+#[derive(Debug, Deserialize)]
+pub struct ListEventTypesParams {
+    /// Optional limit on number of event types to return
+    pub limit: Option<usize>,
+    /// Optional offset for pagination
+    pub offset: Option<usize>,
+}
+
+/// Response for listing event types
+#[derive(Debug, serde::Serialize)]
+pub struct ListEventTypesResponse {
+    pub event_types: Vec<EventTypeInfo>,
+    pub total: usize,
+}
+
+pub async fn list_event_types(
+    State(store): State<SharedStore>,
+    Query(params): Query<ListEventTypesParams>,
+) -> Json<ListEventTypesResponse> {
+    let mut event_types = store.list_event_types();
+    let total = event_types.len();
+
+    // Sort by event_count descending (most used first)
+    event_types.sort_by(|a, b| b.event_count.cmp(&a.event_count));
+
+    // Apply pagination
+    if let Some(offset) = params.offset {
+        if offset < event_types.len() {
+            event_types = event_types[offset..].to_vec();
+        } else {
+            event_types = vec![];
+        }
+    }
+
+    if let Some(limit) = params.limit {
+        event_types.truncate(limit);
+    }
+
+    tracing::debug!(
+        "Listed {} event types (total: {})",
+        event_types.len(),
+        total
+    );
+
+    Json(ListEventTypesResponse { event_types, total })
 }
 
 // v0.2: WebSocket endpoint for real-time event streaming

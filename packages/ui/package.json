@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "AllSource UI component library",
-  "sideEffects": ["**/*.css"],
+  "sideEffects": [
+    "**/*.css"
+  ],
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

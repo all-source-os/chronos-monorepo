@@ -29,7 +29,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc false
   def client do
-    base_url = Application.get_env(:query_service_ex, :rust_core_url, @default_base_url)
+    base_url = Application.get_env(:query_service_ex, :core_url, @default_base_url)
 
     middleware = [
       {Tesla.Middleware.BaseUrl, base_url},
@@ -82,8 +82,8 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   def create_event(tenant_id, event) when is_binary(tenant_id) and is_map(event) do
     event_with_tenant = Map.put(event, :tenant_id, tenant_id)
 
-    case Tesla.post(client(), "/api/events", event_with_tenant) do
-      {:ok, %Tesla.Env{status: 201, body: body}} ->
+    case Tesla.post(client(), "/api/v1/events", event_with_tenant) do
+      {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 201] ->
         {:ok, body}
 
       {:ok, %Tesla.Env{status: status, body: body}} ->
@@ -97,8 +97,8 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   # Deprecated: Use create_event/2 with tenant_id for proper isolation
   @doc false
   def create_event(event) when is_map(event) do
-    case Tesla.post(client(), "/api/events", event) do
-      {:ok, %Tesla.Env{status: 201, body: body}} ->
+    case Tesla.post(client(), "/api/v1/events", event) do
+      {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 201] ->
         {:ok, body}
 
       {:ok, %Tesla.Env{status: status, body: body}} ->
@@ -112,18 +112,23 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   @doc """
   Create multiple events in a batch with tenant isolation.
 
+  Uses the Core batch endpoint for efficient bulk ingestion.
+
   ## Parameters
     * `tenant_id` - The tenant ID (required for isolation)
     * `events` - List of event maps
 
   ## Returns
-    * `{:ok, events}` - List of created events
+    * `{:ok, response}` - Batch response with `total`, `ingested`, and `events` list
     * `{:error, reason}` - Error details
   """
   def create_event_batch(tenant_id, events) when is_binary(tenant_id) and is_list(events) do
     events_with_tenant = Enum.map(events, &Map.put(&1, :tenant_id, tenant_id))
 
-    case Tesla.post(client(), "/api/events/batch", %{events: events_with_tenant}) do
+    case Tesla.post(client(), "/api/v1/events/batch", %{events: events_with_tenant}) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -138,7 +143,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   # Deprecated: Use create_event_batch/2 with tenant_id for proper isolation
   @doc false
   def create_event_batch(events) when is_list(events) do
-    case Tesla.post(client(), "/api/events/batch", %{events: events}) do
+    case Tesla.post(client(), "/api/v1/events/batch", %{events: events}) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -174,7 +179,13 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   def query_events(tenant_id, params) when is_binary(tenant_id) and is_map(params) do
     params_with_tenant = Map.put(params, :tenant_id, tenant_id)
 
-    case Tesla.get(client(), "/api/events", query: params_with_tenant) do
+    case Tesla.get(client(), "/api/v1/events/query", query: params_with_tenant) do
+      {:ok, %Tesla.Env{status: 200, body: %{"events" => events}}} when is_list(events) ->
+        {:ok, events}
+
+      {:ok, %Tesla.Env{status: 200, body: body}} when is_list(body) ->
+        {:ok, body}
+
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -195,7 +206,13 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc false
   def query_events(params) when is_map(params) do
-    case Tesla.get(client(), "/api/events", query: params) do
+    case Tesla.get(client(), "/api/v1/events/query", query: params) do
+      {:ok, %Tesla.Env{status: 200, body: %{"events" => events}}} when is_list(events) ->
+        {:ok, events}
+
+      {:ok, %Tesla.Env{status: 200, body: body}} when is_list(body) ->
+        {:ok, body}
+
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -229,11 +246,100 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     query_events(%{event_type: event_type})
   end
 
+  ## Streams (Entity Discovery)
+
+  @doc """
+  List all streams (entity_ids) in the event store.
+
+  Streams represent unique entity_ids that have events. This endpoint
+  is useful for discovering available entities in the system.
+
+  ## Parameters
+    * `opts` - Keyword list of options:
+      * `:limit` - Maximum number of streams to return
+      * `:offset` - Number of streams to skip (for pagination)
+
+  ## Returns
+    * `{:ok, %{streams: [...], total: N}}` - List of streams with metadata
+    * `{:error, reason}` - Error details
+
+  ## Examples
+
+      iex> list_streams(limit: 10)
+      {:ok, %{streams: [%{stream_id: "user-123", event_count: 42, ...}], total: 150}}
+  """
+  def list_streams(opts \\ []) do
+    query_params =
+      opts
+      |> Keyword.take([:limit, :offset])
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
+
+    case Tesla.get(client(), "/api/v1/streams", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  ## Event Types (Type Discovery)
+
+  @doc """
+  List all unique event types in the event store.
+
+  This endpoint is useful for discovering what types of events
+  exist in the system and their usage statistics.
+
+  ## Parameters
+    * `opts` - Keyword list of options:
+      * `:limit` - Maximum number of event types to return
+      * `:offset` - Number of event types to skip (for pagination)
+
+  ## Returns
+    * `{:ok, %{event_types: [...], total: N}}` - List of event types with metadata
+    * `{:error, reason}` - Error details
+
+  ## Examples
+
+      iex> list_event_types(limit: 10)
+      {:ok, %{event_types: [%{event_type: "user.created", event_count: 1500, ...}], total: 25}}
+  """
+  def list_event_types(opts \\ []) do
+    query_params =
+      opts
+      |> Keyword.take([:limit, :offset])
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
+
+    case Tesla.get(client(), "/api/v1/event-types", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   ## Projections
 
   @doc "List all projections"
   def list_projections do
-    case Tesla.get(client(), "/api/projections") do
+    case Tesla.get(client(), "/api/v1/projections") do
+      {:ok, %Tesla.Env{status: 200, body: %{"projections" => projections}}}
+      when is_list(projections) ->
+        {:ok, projections}
+
+      {:ok, %Tesla.Env{status: 200, body: body}} when is_list(body) ->
+        {:ok, body}
+
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -247,7 +353,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Get a specific projection by ID"
   def get_projection(id) do
-    case Tesla.get(client(), "/api/projections/#{id}") do
+    case Tesla.get(client(), "/api/v1/projections/#{id}") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -264,7 +370,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Create a new projection"
   def create_projection(projection) when is_map(projection) do
-    case Tesla.post(client(), "/api/projections", projection) do
+    case Tesla.post(client(), "/api/v1/projections", projection) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -280,7 +386,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "List all schemas"
   def list_schemas do
-    case Tesla.get(client(), "/api/schemas") do
+    case Tesla.get(client(), "/api/v1/schemas") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -296,9 +402,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   def get_schema(event_type, version \\ nil) do
     path =
       if version do
-        "/api/schemas/#{event_type}?version=#{version}"
+        "/api/v1/schemas/#{event_type}?version=#{version}"
       else
-        "/api/schemas/#{event_type}"
+        "/api/v1/schemas/#{event_type}"
       end
 
     case Tesla.get(client(), path) do
@@ -318,7 +424,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Register a new schema"
   def register_schema(schema) when is_map(schema) do
-    case Tesla.post(client(), "/api/schemas", schema) do
+    case Tesla.post(client(), "/api/v1/schemas", schema) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -336,9 +442,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   def list_snapshots(entity_id \\ nil) do
     path =
       if entity_id do
-        "/api/snapshots?entity_id=#{entity_id}"
+        "/api/v1/snapshots?entity_id=#{entity_id}"
       else
-        "/api/snapshots"
+        "/api/v1/snapshots"
       end
 
     case Tesla.get(client(), path) do
@@ -355,7 +461,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Create a snapshot"
   def create_snapshot(entity_id, snapshot_type) do
-    case Tesla.post(client(), "/api/snapshots", %{
+    case Tesla.post(client(), "/api/v1/snapshots", %{
            entity_id: entity_id,
            snapshot_type: snapshot_type
          }) do
@@ -484,7 +590,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Get system metrics"
   def get_metrics do
-    case Tesla.get(client(), "/api/metrics") do
+    case Tesla.get(client(), "/metrics") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 

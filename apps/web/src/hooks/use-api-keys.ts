@@ -1,12 +1,7 @@
 "use client";
 
 import useSWR, { mutate } from "swr";
-import {
-  apiClient,
-  type ApiKey,
-  type CreateApiKeyRequest,
-  type UpdateApiKeyRequest,
-} from "@/lib/api/client";
+import { apiClient, type CreateApiKeyRequest, type UpdateApiKeyRequest } from "@/lib/api/client";
 
 const fetcher = async () => {
   const response = await apiClient.listApiKeys();

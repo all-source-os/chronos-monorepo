@@ -1,39 +1,4 @@
 // Utility exports
-export { cn } from "./lib/utils";
-
-// Component exports
-export { Button, buttonVariants } from "./components/button";
-export type { ButtonProps } from "./components/button";
-
-export { Badge, badgeVariants } from "./components/badge";
-export type { BadgeProps } from "./components/badge";
-
-export {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "./components/card";
-export type { CardTitleProps } from "./components/card";
-
-// Form components
-export { Input } from "./components/input";
-
-export { Label } from "./components/label";
-
-export { Textarea } from "./components/textarea";
-export type { TextareaProps } from "./components/textarea";
-
-export { Switch } from "./components/switch";
-
-// Layout components
-export { Separator } from "./components/separator";
-export type { SeparatorProps } from "./components/separator";
-
-export { Skeleton } from "./components/skeleton";
-export type { SkeletonProps } from "./components/skeleton";
 
 // Interactive components
 export {
@@ -42,7 +7,24 @@ export {
   AccordionItem,
   AccordionTrigger,
 } from "./components/accordion";
+// Avatar Circles
+export { AvatarCircles } from "./components/avatar-circles";
+export type { BadgeProps } from "./components/badge";
 
+export { Badge, badgeVariants } from "./components/badge";
+export type { ButtonProps } from "./components/button";
+// Component exports
+export { Button, buttonVariants } from "./components/button";
+export type { CardTitleProps } from "./components/card";
+export {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./components/card";
+export type { CarouselApi } from "./components/carousel";
 // Carousel
 export {
   Carousel,
@@ -52,8 +34,16 @@ export {
   CarouselPrevious,
   useCarousel,
 } from "./components/carousel";
-export type { CarouselApi } from "./components/carousel";
-
+export type { ChartConfig } from "./components/chart";
+// Chart
+export {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartStyle,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "./components/chart";
 // Drawer
 export {
   Drawer,
@@ -67,7 +57,20 @@ export {
   DrawerTitle,
   DrawerTrigger,
 } from "./components/drawer";
-
+export type { IconKeys } from "./components/icons";
+// Icons
+export { Icons } from "./components/icons";
+// Form components
+export { Input } from "./components/input";
+export { Label } from "./components/label";
+// MagicUI components
+export { BlurFade } from "./components/magicui/blur-fade";
+export { BorderBeam } from "./components/magicui/border-beam";
+export { DotPattern } from "./components/magicui/dot-pattern";
+export { FlickeringGrid } from "./components/magicui/flickering-grid";
+export { HeroVideoDialog } from "./components/magicui/hero-video";
+export { Marquee } from "./components/magicui/marquee";
+export { Ripple } from "./components/magicui/ripple";
 // Navigation Menu
 export {
   NavigationMenu,
@@ -80,37 +83,17 @@ export {
   NavigationMenuViewport,
   navigationMenuTriggerStyle,
 } from "./components/navigation-menu";
-
-// Section
-export { Section } from "./components/section";
-
+export type { SafariProps } from "./components/safari";
 // Safari
 export { Safari } from "./components/safari";
-export type { SafariProps } from "./components/safari";
-
-// Avatar Circles
-export { AvatarCircles } from "./components/avatar-circles";
-
-// Icons
-export { Icons } from "./components/icons";
-export type { IconKeys } from "./components/icons";
-
-// Chart
-export {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  ChartStyle,
-} from "./components/chart";
-export type { ChartConfig } from "./components/chart";
-
-// MagicUI components
-export { BlurFade } from "./components/magicui/blur-fade";
-export { BorderBeam } from "./components/magicui/border-beam";
-export { DotPattern } from "./components/magicui/dot-pattern";
-export { FlickeringGrid } from "./components/magicui/flickering-grid";
-export { HeroVideoDialog } from "./components/magicui/hero-video";
-export { Marquee } from "./components/magicui/marquee";
-export { Ripple } from "./components/magicui/ripple";
+// Section
+export { Section } from "./components/section";
+export type { SeparatorProps } from "./components/separator";
+// Layout components
+export { Separator } from "./components/separator";
+export type { SkeletonProps } from "./components/skeleton";
+export { Skeleton } from "./components/skeleton";
+export { Switch } from "./components/switch";
+export type { TextareaProps } from "./components/textarea";
+export { Textarea } from "./components/textarea";
+export { cn } from "./lib/utils";

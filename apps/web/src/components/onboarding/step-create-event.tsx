@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { Button, Card, CardContent, Input, Label } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Loader2, Check, Sparkles, Code2 } from "lucide-react";
+import { Check, Code2, Loader2, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { useOnboarding } from "@/hooks/use-onboarding";
 
 interface StepCreateEventProps {
@@ -64,7 +64,7 @@ const response = await fetch('https://api.allsource.dev/api/events', {
   body: JSON.stringify({
     entity_id: '${currentTemplate.entity_id}',
     event_type: '${currentTemplate.event_type}',
-    payload: ${JSON.stringify(currentTemplate.payload, null, 4).replace(/\n/g, '\n    ')}
+    payload: ${JSON.stringify(currentTemplate.payload, null, 4).replace(/\n/g, "\n    ")}
   })
 });`;
 
@@ -94,9 +94,7 @@ const response = await fetch('https://api.allsource.dev/api/events', {
               disabled={isCreating || isCreated}
             >
               <p className="font-medium">{template.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {template.event_type}
-              </p>
+              <p className="text-xs text-muted-foreground">{template.event_type}</p>
             </button>
           ))}
         </div>
@@ -107,11 +105,7 @@ const response = await fetch('https://api.allsource.dev/api/events', {
         <CardContent className="p-4">
           <div className="mb-4 flex items-center justify-between">
             <span className="text-sm font-medium">Event Preview</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowCode(!showCode)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setShowCode(!showCode)}>
               <Code2 className="mr-1.5 h-4 w-4" />
               {showCode ? "Hide code" : "Show code"}
             </Button>
@@ -125,15 +119,11 @@ const response = await fetch('https://api.allsource.dev/api/events', {
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-xs text-muted-foreground">
-                    Entity ID
-                  </Label>
+                  <Label className="text-xs text-muted-foreground">Entity ID</Label>
                   <Input value={currentTemplate.entity_id} readOnly />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">
-                    Event Type
-                  </Label>
+                  <Label className="text-xs text-muted-foreground">Event Type</Label>
                   <Input value={currentTemplate.event_type} readOnly />
                 </div>
               </div>

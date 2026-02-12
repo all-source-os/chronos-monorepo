@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 // Routes that require authentication
 const protectedRoutes = ["/dashboard", "/onboarding"];
 
 // Routes that are public
-const publicRoutes = [
+const _publicRoutes = [
   "/",
   "/login",
   "/signup",
@@ -20,9 +20,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check if the route is protected
-  const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route)
-  );
+  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
 
   // Check if the route is public auth-related
   const isAuthRoute = pathname === "/login" || pathname === "/signup";

@@ -1,19 +1,19 @@
 "use client";
 
-import { siteConfig } from "@/lib/config";
-import useWindowSize from "@/lib/hooks/use-window-size";
-import { Label, Section, Switch, buttonVariants, cn } from "@allsource/ui";
-import { motion } from "motion/react";
+import { buttonVariants, cn, Section } from "@allsource/ui";
 import { Check } from "lucide-react";
+import { motion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 import { FaStar } from "react-icons/fa";
+import { siteConfig } from "@/lib/config";
+import useWindowSize from "@/lib/hooks/use-window-size";
 
 export default function PricingSection() {
   const [isMonthly, setIsMonthly] = useState(true);
   const { isDesktop } = useWindowSize();
 
-  const handleToggle = () => {
+  const _handleToggle = () => {
     setIsMonthly(!isMonthly);
   };
 

@@ -1,17 +1,8 @@
 "use client";
 
-import { FlickeringGrid, Ripple, Section, cn } from "@allsource/ui";
+import { cn, FlickeringGrid, Ripple, Section } from "@allsource/ui";
+import { Bot, Clock, Database, GitBranch, RefreshCw, Search, Shield, Zap } from "lucide-react";
 import { motion } from "motion/react";
-import {
-  Bot,
-  Clock,
-  Database,
-  GitBranch,
-  RefreshCw,
-  Search,
-  Shield,
-  Zap,
-} from "lucide-react";
 
 const metrics = [
   { value: "11.9μs", label: "Query Latency" },
@@ -105,9 +96,7 @@ export default function QuantIntelligence() {
             transition={{ duration: 0.3, delay: index * 0.1 }}
             viewport={{ once: true }}
           >
-            <span className="text-2xl font-bold text-primary md:text-3xl">
-              {metric.value}
-            </span>
+            <span className="text-2xl font-bold text-primary md:text-3xl">{metric.value}</span>
             <span className="text-sm text-muted-foreground">{metric.label}</span>
           </motion.div>
         ))}
@@ -184,12 +173,8 @@ export default function QuantIntelligence() {
                 {capability.metric}
               </span>
             </div>
-            <h3 className="mt-4 font-semibold text-foreground">
-              {capability.title}
-            </h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {capability.description}
-            </p>
+            <h3 className="mt-4 font-semibold text-foreground">{capability.title}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">{capability.description}</p>
           </motion.div>
         ))}
       </div>
@@ -272,17 +257,12 @@ export default function QuantIntelligence() {
               viewport={{ once: true }}
             >
               <div className="flex items-center gap-2">
-                <div className="rounded-lg bg-primary/10 p-1.5">
-                  {useCase.icon}
-                </div>
+                <div className="rounded-lg bg-primary/10 p-1.5">{useCase.icon}</div>
                 <h4 className="font-semibold text-foreground">{useCase.title}</h4>
               </div>
               <ul className="mt-3 space-y-1">
                 {useCase.items.map((item) => (
-                  <li
-                    key={item}
-                    className="flex items-center gap-2 text-sm text-muted-foreground"
-                  >
+                  <li key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
                     <div className="h-1 w-1 rounded-full bg-primary" />
                     {item}
                   </li>

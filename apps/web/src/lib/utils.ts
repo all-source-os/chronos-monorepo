@@ -1,7 +1,7 @@
-import { siteConfig } from "@/lib/config";
 import { type ClassValue, clsx } from "clsx";
 import type { Metadata } from "next";
 import { twMerge } from "tailwind-merge";
+import { siteConfig } from "@/lib/config";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -58,7 +58,7 @@ export function constructMetadata({
 }
 
 export function formatDate(date: string) {
-  const currentDate = new Date().getTime();
+  const currentDate = Date.now();
   const normalizedDate = date.includes("T") ? date : `${date}T00:00:00`;
   const targetDate = new Date(normalizedDate).getTime();
   const timeDifference = Math.abs(currentDate - targetDate);

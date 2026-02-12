@@ -1,28 +1,20 @@
 "use client";
 
-import { useState } from "react";
 import {
+  Badge,
   BlurFade,
   Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
-  Badge,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import {
-  CreditCard,
-  ExternalLink,
-  Calendar,
-  Zap,
-  AlertTriangle,
-  Check,
-  ArrowUpRight,
-} from "lucide-react";
-import { UsageChart } from "@/components/billing/usage-chart";
+import { Calendar, Check, CreditCard, ExternalLink } from "lucide-react";
+import { useState } from "react";
 import { PlanCards } from "@/components/billing/plan-cards";
+import { UsageChart } from "@/components/billing/usage-chart";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 export default function BillingPage() {
@@ -63,12 +55,8 @@ export default function BillingPage() {
       <BlurFade delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              Billing & Usage
-            </h1>
-            <p className="mt-1 text-muted-foreground">
-              Manage your subscription and monitor usage
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Billing & Usage</h1>
+            <p className="mt-1 text-muted-foreground">Manage your subscription and monitor usage</p>
           </div>
           {currentPlan !== "free" && (
             <Button variant="outline" onClick={handleManageSubscription}>
@@ -108,9 +96,7 @@ export default function BillingPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Current Plan</CardTitle>
-              <CardDescription>
-                Your active subscription details
-              </CardDescription>
+              <CardDescription>Your active subscription details</CardDescription>
             </div>
             <Badge
               variant={currentPlan === "free" ? "secondary" : "default"}
@@ -126,11 +112,7 @@ export default function BillingPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Monthly Price</p>
                   <p className="text-2xl font-bold">
-                    {currentPlan === "free"
-                      ? "$0"
-                      : currentPlan === "growth"
-                        ? "$99"
-                        : "Custom"}
+                    {currentPlan === "free" ? "$0" : currentPlan === "growth" ? "$99" : "Custom"}
                   </p>
                 </div>
                 {subscriptionEndsAt && (
@@ -172,21 +154,11 @@ export default function BillingPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Usage This Month</h2>
-            <span className="text-sm text-muted-foreground">
-              Resets on the 1st of each month
-            </span>
+            <span className="text-sm text-muted-foreground">Resets on the 1st of each month</span>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
-            <UsageChart
-              title="Events"
-              used={eventsUsed}
-              quota={eventsQuota}
-            />
-            <UsageChart
-              title="Queries"
-              used={queriesUsed}
-              quota={queriesQuota}
-            />
+            <UsageChart title="Events" used={eventsUsed} quota={eventsQuota} />
+            <UsageChart title="Queries" used={queriesUsed} quota={queriesQuota} />
           </div>
         </div>
       </BlurFade>
@@ -197,9 +169,7 @@ export default function BillingPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">Available Plans</h2>
-              <p className="text-sm text-muted-foreground">
-                Choose the plan that fits your needs
-              </p>
+              <p className="text-sm text-muted-foreground">Choose the plan that fits your needs</p>
             </div>
 
             {/* Billing toggle */}
@@ -242,22 +212,22 @@ export default function BillingPage() {
             <div>
               <h3 className="font-medium">What happens if I exceed my quota?</h3>
               <p className="text-sm text-muted-foreground">
-                You can enable overage billing to continue using the service beyond your
-                quota. Overages are charged at a per-unit rate based on your plan.
+                You can enable overage billing to continue using the service beyond your quota.
+                Overages are charged at a per-unit rate based on your plan.
               </p>
             </div>
             <div>
               <h3 className="font-medium">Can I downgrade my plan?</h3>
               <p className="text-sm text-muted-foreground">
-                Yes, you can downgrade at any time. The change will take effect at the
-                end of your current billing period.
+                Yes, you can downgrade at any time. The change will take effect at the end of your
+                current billing period.
               </p>
             </div>
             <div>
               <h3 className="font-medium">Do you offer refunds?</h3>
               <p className="text-sm text-muted-foreground">
-                We offer a 14-day money-back guarantee for all paid plans. Contact
-                support if you'd like a refund.
+                We offer a 14-day money-back guarantee for all paid plans. Contact support if you'd
+                like a refund.
               </p>
             </div>
           </CardContent>

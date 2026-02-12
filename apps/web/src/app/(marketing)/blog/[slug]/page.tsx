@@ -1,16 +1,18 @@
+import type { Metadata } from "next";
+import Image from "next/image";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import Author from "@/components/blog-author";
 import CtaSection from "@/components/sections/cta";
 import { getPost } from "@/lib/blog";
 import { siteConfig } from "@/lib/config";
 import { formatDate } from "@/lib/utils";
-import type { Metadata } from "next";
-import Image from "next/image";
-import { notFound } from "next/navigation";
-import { Suspense } from "react";
 
 export async function generateMetadata({
   params,
-}: { params: Promise<{ slug: string }> }): Promise<Metadata | undefined> {
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata | undefined> {
   const { slug } = await params;
   const post = await getPost(slug);
   const { title, publishedAt: publishedTime, summary: description, image } = post.metadata;
@@ -39,11 +41,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function Blog({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function Blog({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const post = await getPost(slug);
   if (!post) {

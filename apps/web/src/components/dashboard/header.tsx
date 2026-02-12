@@ -1,21 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  Search,
-  Bell,
-  Moon,
-  Sun,
-  LogOut,
-  User,
-  Settings,
-  Menu,
-} from "lucide-react";
-import { useTheme } from "next-themes";
 import { Button } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
+import { Bell, LogOut, Menu, Moon, Search, Settings, Sun, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
+import { useState } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { TimeTravelPicker } from "./time-travel-picker";
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -23,11 +15,7 @@ interface HeaderProps {
   onCommandPaletteOpen: () => void;
 }
 
-export function Header({
-  sidebarCollapsed,
-  onMenuClick,
-  onCommandPaletteOpen,
-}: HeaderProps) {
+export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: HeaderProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuthStore();
@@ -79,12 +67,13 @@ export function Header({
 
       {/* Right section */}
       <div className="flex items-center gap-2">
+        {/* Time Travel Picker */}
+        <TimeTravelPicker />
+
         {/* Connection status */}
         <div className="hidden items-center gap-2 rounded-full bg-green-500/10 px-3 py-1 sm:flex">
           <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-          <span className="text-xs font-medium text-green-600 dark:text-green-400">
-            Connected
-          </span>
+          <span className="text-xs font-medium text-green-600 dark:text-green-400">Connected</span>
         </div>
 
         {/* Theme toggle */}
@@ -114,11 +103,7 @@ export function Header({
             aria-expanded={showUserMenu}
           >
             {user?.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt={user.name}
-                className="h-8 w-8 rounded-full"
-              />
+              <img src={user.avatar_url} alt={user.name} className="h-8 w-8 rounded-full" />
             ) : (
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
                 {user?.name?.charAt(0).toUpperCase() || "U"}
@@ -129,10 +114,7 @@ export function Header({
           {/* Dropdown menu */}
           {showUserMenu && (
             <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowUserMenu(false)}
-              />
+              <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
               <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-border bg-background p-1 shadow-lg">
                 <div className="border-b border-border px-3 py-2">
                   <p className="text-sm font-medium">{user?.name}</p>

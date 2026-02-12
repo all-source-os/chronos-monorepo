@@ -21,7 +21,7 @@ export function UsageChart({ title, used, quota, unit = "", history = [] }: Usag
     history.length > 0
       ? history
       : Array.from({ length: 30 }, (_, i) => {
-          const dayProgress = i / 29;
+          const _dayProgress = i / 29;
           const base = (used / 30) * i;
           const noise = base * (0.9 + Math.random() * 0.2);
           return Math.min(noise, quota);
@@ -44,9 +44,7 @@ export function UsageChart({ title, used, quota, unit = "", history = [] }: Usag
         {/* Current usage */}
         <div className="mb-4 flex items-baseline justify-between">
           <div>
-            <span className="text-3xl font-bold tabular-nums">
-              {formatNumber(used)}
-            </span>
+            <span className="text-3xl font-bold tabular-nums">{formatNumber(used)}</span>
             <span className="ml-1 text-muted-foreground">
               / {formatNumber(quota)} {unit}
             </span>
@@ -70,11 +68,7 @@ export function UsageChart({ title, used, quota, unit = "", history = [] }: Usag
           <div
             className={cn(
               "h-full rounded-full transition-all duration-500",
-              isCritical
-                ? "bg-destructive"
-                : isWarning
-                  ? "bg-yellow-500"
-                  : "bg-primary"
+              isCritical ? "bg-destructive" : isWarning ? "bg-yellow-500" : "bg-primary"
             )}
             style={{ width: `${Math.min(percentage, 100)}%` }}
           />
@@ -82,18 +76,34 @@ export function UsageChart({ title, used, quota, unit = "", history = [] }: Usag
 
         {/* Area chart */}
         <div className="h-24 w-full">
-          <svg viewBox={`0 0 ${chartData.length * 4} 100`} className="h-full w-full" preserveAspectRatio="none">
+          <svg
+            viewBox={`0 0 ${chartData.length * 4} 100`}
+            className="h-full w-full"
+            preserveAspectRatio="none"
+          >
             {/* Gradient definitions */}
             <defs>
               <linearGradient id={`usageGradient-${title}`} x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="0%"
-                  stopColor={isCritical ? "rgb(239, 68, 68)" : isWarning ? "rgb(234, 179, 8)" : "hsl(var(--primary))"}
+                  stopColor={
+                    isCritical
+                      ? "rgb(239, 68, 68)"
+                      : isWarning
+                        ? "rgb(234, 179, 8)"
+                        : "hsl(var(--primary))"
+                  }
                   stopOpacity="0.3"
                 />
                 <stop
                   offset="100%"
-                  stopColor={isCritical ? "rgb(239, 68, 68)" : isWarning ? "rgb(234, 179, 8)" : "hsl(var(--primary))"}
+                  stopColor={
+                    isCritical
+                      ? "rgb(239, 68, 68)"
+                      : isWarning
+                        ? "rgb(234, 179, 8)"
+                        : "hsl(var(--primary))"
+                  }
                   stopOpacity="0"
                 />
               </linearGradient>
@@ -133,7 +143,13 @@ export function UsageChart({ title, used, quota, unit = "", history = [] }: Usag
                   .join(" ")}
               `}
               fill="none"
-              stroke={isCritical ? "rgb(239, 68, 68)" : isWarning ? "rgb(234, 179, 8)" : "hsl(var(--primary))"}
+              stroke={
+                isCritical
+                  ? "rgb(239, 68, 68)"
+                  : isWarning
+                    ? "rgb(234, 179, 8)"
+                    : "hsl(var(--primary))"
+              }
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"

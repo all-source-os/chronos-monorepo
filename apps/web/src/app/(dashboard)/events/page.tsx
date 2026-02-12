@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { BlurFade, Button, Input, Card, CardContent } from "@allsource/ui";
-import { Search, Filter, Download, Plus, X, Info, RefreshCw } from "lucide-react";
-import { EventTimeline } from "@/components/events/event-timeline";
-import { EventList } from "@/components/events/event-list";
-import { LiveEventFeed } from "@/components/events/live-event-feed";
+import { BlurFade, Button, Card, CardContent, Input } from "@allsource/ui";
+import { Download, Filter, Info, Plus, RefreshCw, Search, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { EventDetailDrawer } from "@/components/events/event-detail-drawer";
+import { EventList } from "@/components/events/event-list";
+import { EventTimeline } from "@/components/events/event-timeline";
+import { LiveEventFeed } from "@/components/events/live-event-feed";
 import { useEvents } from "@/hooks/use-events";
 import type { Event } from "@/lib/api/client";
 
@@ -33,48 +33,50 @@ export default function EventsPage() {
   const showingDemoData = !hasRealEvents && !isLoading;
 
   // Demo events for timeline if no real events
-  const demoEvents: Event[] = hasRealEvents ? events : [
-    {
-      id: "demo-1",
-      entity_id: "user-123",
-      event_type: "user.signed_up",
-      payload: { email: "demo@example.com" },
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-      version: 1,
-    },
-    {
-      id: "demo-2",
-      entity_id: "order-456",
-      event_type: "order.placed",
-      payload: { total: 99.99 },
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
-      version: 1,
-    },
-    {
-      id: "demo-3",
-      entity_id: "payment-789",
-      event_type: "payment.completed",
-      payload: { method: "card" },
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-      version: 1,
-    },
-    {
-      id: "demo-4",
-      entity_id: "user-123",
-      event_type: "user.profile_updated",
-      payload: { field: "name" },
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-      version: 2,
-    },
-    {
-      id: "demo-5",
-      entity_id: "inventory-abc",
-      event_type: "inventory.updated",
-      payload: { sku: "WIDGET-1", quantity: 100 },
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-      version: 1,
-    },
-  ];
+  const demoEvents: Event[] = hasRealEvents
+    ? events
+    : [
+        {
+          id: "demo-1",
+          entity_id: "user-123",
+          event_type: "user.signed_up",
+          payload: { email: "demo@example.com" },
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+          version: 1,
+        },
+        {
+          id: "demo-2",
+          entity_id: "order-456",
+          event_type: "order.placed",
+          payload: { total: 99.99 },
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
+          version: 1,
+        },
+        {
+          id: "demo-3",
+          entity_id: "payment-789",
+          event_type: "payment.completed",
+          payload: { method: "card" },
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
+          version: 1,
+        },
+        {
+          id: "demo-4",
+          entity_id: "user-123",
+          event_type: "user.profile_updated",
+          payload: { field: "name" },
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+          version: 2,
+        },
+        {
+          id: "demo-5",
+          entity_id: "inventory-abc",
+          event_type: "inventory.updated",
+          payload: { sku: "WIDGET-1", quantity: 100 },
+          timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+          version: 1,
+        },
+      ];
 
   // Filter events by search
   const filteredEvents = demoEvents.filter((event) =>
@@ -123,9 +125,7 @@ export default function EventsPage() {
       <BlurFade delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              Event Explorer
-            </h1>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Event Explorer</h1>
             <p className="mt-1 text-muted-foreground">
               Browse, search, and analyze your event streams
             </p>
@@ -149,9 +149,7 @@ export default function EventsPage() {
           <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
             <div className="flex items-center gap-2 text-sm">
               <Info className="h-4 w-4 text-primary" />
-              <span>
-                Showing sample events. Create your first event to see real data here.
-              </span>
+              <span>Showing sample events. Create your first event to see real data here.</span>
             </div>
             <Button variant="ghost" size="sm" onClick={refresh}>
               <RefreshCw className="mr-1 h-3 w-3" />
@@ -203,9 +201,7 @@ export default function EventsPage() {
             {showFilters && (
               <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium">
-                    Entity ID
-                  </label>
+                  <label className="mb-1.5 block text-sm font-medium">Entity ID</label>
                   <Input
                     placeholder="Filter by entity..."
                     value={entityFilter}
@@ -213,9 +209,7 @@ export default function EventsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium">
-                    Event Type
-                  </label>
+                  <label className="mb-1.5 block text-sm font-medium">Event Type</label>
                   <Input
                     placeholder="Filter by type..."
                     value={typeFilter}
@@ -223,9 +217,7 @@ export default function EventsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium">
-                    Date Range
-                  </label>
+                  <label className="mb-1.5 block text-sm font-medium">Date Range</label>
                   <Input type="date" placeholder="Select date..." />
                 </div>
               </div>

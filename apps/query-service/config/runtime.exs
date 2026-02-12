@@ -44,7 +44,7 @@ if config_env() == :prod do
 
   # Configure Rust Core backend URLs and authentication
   config :query_service_ex,
-    rust_core_url: System.get_env("RUST_CORE_URL") || "http://localhost:3900",
+    core_url: System.get_env("CORE_URL") || "http://localhost:3900",
     core_ws_url: System.get_env("CORE_WS_URL") || "ws://localhost:3900/api/v1/events/stream",
     core_api_key: System.get_env("CORE_API_KEY")
 

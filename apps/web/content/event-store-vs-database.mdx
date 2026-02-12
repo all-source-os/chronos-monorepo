@@ -1,0 +1,211 @@
+---
+title: "Event Store vs Database: Choosing the Right Foundation"
+publishedAt: "2026-02-12"
+summary: Databases store state. Event stores store history. Here's how to decide which foundation your application actually needs.
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+Every few months, a new database launches claiming to be "the future of data." Edge databases, serverless SQL, multi-model stores—the options are endless.
+
+But here's the question nobody asks often enough: **Do you need a database, or do you need an event store?**
+
+They solve fundamentally different problems. Choosing wrong means either over-engineering simple applications or constantly fighting your data layer when complexity grows.
+
+## The Core Difference
+
+**Databases** answer: "What is the current state?"
+
+```sql
+SELECT * FROM users WHERE id = 123;
+-- Returns: {id: 123, email: "new@example.com", plan: "pro"}
+```
+
+**Event stores** answer: "What happened, and when?"
+
+```json
+[
+  {"type": "UserCreated", "data": {...}, "timestamp": "2026-01-01"},
+  {"type": "EmailChanged", "data": {...}, "timestamp": "2026-01-15"},
+  {"type": "PlanUpgraded", "data": {...}, "timestamp": "2026-02-01"}
+]
+```
+
+From events, you can always derive current state. From current state, you **cannot** recover history.
+
+This asymmetry matters more than most developers realize.
+
+## When You Need a Database
+
+Use a traditional database when:
+
+### 1. Your data is simple CRUD
+
+Blog posts, user profiles, product catalogs—if your application is mostly "create, read, update, delete" with no complex business logic, a database is simpler.
+
+### 2. You don't care about history
+
+Some data is truly ephemeral. Cache entries, session data, temporary calculations—if you'd never ask "what was this value last week?", you don't need event sourcing.
+
+### 3. You need complex ad-hoc queries
+
+Databases excel at flexible querying. If you're building BI dashboards with complex JOINs and aggregations across arbitrary dimensions, a relational database is hard to beat.
+
+### 4. Your team knows SQL
+
+There's value in familiarity. If your team thinks in SQL and your problem fits SQL, don't force event sourcing.
+
+## When You Need an Event Store
+
+Use an event store when:
+
+### 1. You need audit trails
+
+**Compliance isn't optional** in finance, healthcare, government, and increasingly everywhere else.
+
+"Show me every change to this record, who made it, and when" is trivial with event sourcing:
+
+```bash
+GET /api/v1/entities/user-123/events
+```
+
+With a database, you're building audit logging as a secondary system, praying it stays in sync.
+
+### 2. You need to debug temporal issues
+
+Production bug: "The user's subscription shows as expired, but they claim they renewed."
+
+**With a database:** Check logs? Query audit tables? Hope timestamps are accurate?
+
+**With an event store:**
+```bash
+GET /api/v1/entities/subscription-456/events?since=2026-02-01
+```
+
+See exactly what happened. Replay if needed. Debug with certainty.
+
+### 3. Your business logic is event-driven
+
+Some domains are inherently temporal:
+- Order processing (placed → paid → shipped → delivered)
+- Workflows (draft → review → approved → published)
+- Financial transactions (credits, debits, settlements)
+- IoT streams (sensor readings over time)
+
+Fighting an event-driven domain with a state-based database creates accidental complexity.
+
+### 4. You're building AI features
+
+This is the big one for 2026.
+
+AI agents need **context**. Not just current state, but what happened before. An agent analyzing customer behavior needs the sequence of events, not just today's snapshot.
+
+```
+AI: "This user's support tickets increased 3x after the
+     Feb 5th migration. Recommend proactive outreach."
+```
+
+That insight requires event history. No history, no insight.
+
+### 5. You need replay and recovery
+
+Event stores enable:
+- **Replay**: Rebuild any projection from raw events
+- **What-if analysis**: "What if we applied this new rule to historical data?"
+- **Recovery**: Corrupted state? Replay from events.
+- **Testing**: Run production event streams through new code paths
+
+These capabilities don't exist in traditional databases without significant custom infrastructure.
+
+## The Hybrid Reality
+
+In practice, most complex applications need both:
+
+```
+┌──────────────────────────────────────────┐
+│              Event Store                 │
+│  (Source of Truth - What Happened)       │
+└─────────────────┬────────────────────────┘
+                  │
+                  │ Projections
+                  ▼
+┌──────────────────────────────────────────┐
+│           Read Models / Views            │
+│  (Derived State - Current Snapshot)      │
+│  • PostgreSQL for queries                │
+│  • Elasticsearch for search              │
+│  • Redis for caching                     │
+└──────────────────────────────────────────┘
+```
+
+This is **CQRS** (Command Query Responsibility Segregation):
+- Commands (writes) → Event Store
+- Queries (reads) → Optimized read models
+
+The event store is the source of truth. Everything else is derived and rebuildable.
+
+## Performance Reality Check
+
+"Event sourcing sounds great, but is it practical at scale?"
+
+Let's address the common concerns:
+
+### "Replaying millions of events is slow"
+
+**Solution: Snapshots and projections**
+
+You don't replay from the beginning of time. Periodic snapshots capture state, and you only replay events since the last snapshot.
+
+At all.source:
+- Time-travel queries: **<100ms** for millions of events
+- Point lookups: **11.9μs** p99 latency
+- Write throughput: **469K events/second**
+
+Event sourcing isn't slow anymore.
+
+### "Storage costs will explode"
+
+**Solution: Columnar compression**
+
+Events compress extremely well—60-80% compression ratios are common. A year of events for a typical application might be 10-50GB, which costs pennies in cloud storage.
+
+The value of complete history far outweighs storage costs.
+
+### "It's too complex"
+
+**Fair point.** Event sourcing adds concepts: events, projections, event handlers, eventual consistency.
+
+But complexity is relative. Compare:
+- Event sourcing complexity: Learn new patterns
+- Database + audit logging + CDC + sync pipelines complexity: Maintain multiple systems
+
+If you need the capabilities event sourcing provides, it's actually **less** complex than building them yourself.
+
+## Making the Decision
+
+Ask yourself:
+
+| Question | If Yes → Consider |
+|----------|-------------------|
+| Do I need complete audit history? | Event Store |
+| Will I debug issues by asking "what happened when"? | Event Store |
+| Is my domain inherently event-driven? | Event Store |
+| Am I building AI features that need context? | Event Store |
+| Is my data simple CRUD with no audit requirements? | Database |
+| Do I need complex ad-hoc SQL queries? | Database |
+
+## The Bottom Line
+
+Databases and event stores are **complementary**, not competing.
+
+Databases excel at current-state queries. Event stores excel at temporal queries and history.
+
+If your application needs both—and most non-trivial applications do—use both. Make the event store your source of truth, and project to databases for reads.
+
+Or, use an event store that's fast enough to serve as your primary data layer. That's what we're building at all.source.
+
+---
+
+*Ready to give your application perfect memory?*
+
+[Start with all.source →](/signup)

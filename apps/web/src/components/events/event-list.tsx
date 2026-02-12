@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { cn } from "@allsource/ui/utils";
-import { ChevronDown, ChevronRight, Copy, Check, Clock } from "lucide-react";
 import { Button } from "@allsource/ui";
+import { cn } from "@allsource/ui/utils";
+import { Check, ChevronDown, ChevronRight, Clock, Copy } from "lucide-react";
+import { useState } from "react";
 import type { Event } from "@/lib/api/client";
 
 interface EventListProps {
@@ -28,8 +28,10 @@ function EventRow({
   const getEventTypeColor = (eventType: string) => {
     if (eventType.includes("user")) return "bg-blue-500/10 text-blue-600 dark:text-blue-400";
     if (eventType.includes("order")) return "bg-green-500/10 text-green-600 dark:text-green-400";
-    if (eventType.includes("payment")) return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
-    if (eventType.includes("inventory")) return "bg-orange-500/10 text-orange-600 dark:text-orange-400";
+    if (eventType.includes("payment"))
+      return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
+    if (eventType.includes("inventory"))
+      return "bg-orange-500/10 text-orange-600 dark:text-orange-400";
     if (eventType.includes("error")) return "bg-red-500/10 text-red-600 dark:text-red-400";
     return "bg-muted text-muted-foreground";
   };
@@ -51,12 +53,7 @@ function EventRow({
   const { date, time } = formatTimestamp(event.timestamp);
 
   return (
-    <div
-      className={cn(
-        "border-b border-border transition-colors",
-        isSelected && "bg-primary/5"
-      )}
-    >
+    <div className={cn("border-b border-border transition-colors", isSelected && "bg-primary/5")}>
       {/* Main row */}
       <div
         className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-muted/50"
@@ -90,9 +87,7 @@ function EventRow({
         </span>
 
         {/* Entity ID */}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {event.entity_id}
-        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{event.entity_id}</span>
 
         {/* Timestamp */}
         <div className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:flex">
@@ -112,13 +107,9 @@ function EventRow({
         <div className="border-t border-border bg-muted/30 px-4 py-3">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                Event Payload
-              </p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Event Payload</p>
               <pre className="overflow-x-auto rounded-lg bg-background p-3 text-xs">
-                <code className="text-foreground">
-                  {JSON.stringify(event.payload, null, 2)}
-                </code>
+                <code className="text-foreground">{JSON.stringify(event.payload, null, 2)}</code>
               </pre>
             </div>
             <Button
@@ -162,12 +153,7 @@ function EventRow({
   );
 }
 
-export function EventList({
-  events,
-  onEventClick,
-  selectedEventId,
-  isLoading,
-}: EventListProps) {
+export function EventList({ events, onEventClick, selectedEventId, isLoading }: EventListProps) {
   if (isLoading) {
     return (
       <div className="divide-y divide-border rounded-lg border border-border">

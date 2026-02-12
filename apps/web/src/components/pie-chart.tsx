@@ -1,7 +1,5 @@
 "use client";
 
-import { Pie, PieChart } from "recharts";
-
 import {
   Card,
   CardContent,
@@ -11,6 +9,8 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@allsource/ui";
+import { Pie, PieChart } from "recharts";
+
 const chartData = [
   { browser: "chrome", visitors: 187, fill: "var(--color-chrome)" },
   { browser: "safari", visitors: 110, fill: "var(--color-safari)" },

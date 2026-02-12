@@ -1,8 +1,8 @@
 "use client";
 
-import { Marquee, Section, cn } from "@allsource/ui";
-import { motion } from "motion/react";
+import { cn, Marquee, Section } from "@allsource/ui";
 import { Star } from "lucide-react";
+import { motion } from "motion/react";
 import Image from "next/image";
 
 export const Highlight = ({
@@ -86,8 +86,8 @@ const testimonials = [
     description: (
       <p>
         We migrated from Kafka + PostgreSQL to AllSource for our trading audit logs.
-        <Highlight>Query latency dropped from 200ms to under 12 microseconds.</Highlight> The time-travel
-        queries saved our compliance team hundreds of hours.
+        <Highlight>Query latency dropped from 200ms to under 12 microseconds.</Highlight> The
+        time-travel queries saved our compliance team hundreds of hours.
       </p>
     ),
   },
@@ -98,8 +98,8 @@ const testimonials = [
     description: (
       <p>
         The MCP Server integration is a game-changer.
-        <Highlight>Our AI agents now autonomously detect anomalies and trigger alerts.</Highlight> What
-        used to require a dedicated team now runs itself.
+        <Highlight>Our AI agents now autonomously detect anomalies and trigger alerts.</Highlight>{" "}
+        What used to require a dedicated team now runs itself.
       </p>
     ),
   },
@@ -110,8 +110,8 @@ const testimonials = [
     description: (
       <p>
         Processing 2M sensor events per minute was crushing our infrastructure.
-        <Highlight>AllSource handles it with a 129MB footprint.</Highlight> The Rust core is incredibly
-        efficient.
+        <Highlight>AllSource handles it with a 129MB footprint.</Highlight> The Rust core is
+        incredibly efficient.
       </p>
     ),
   },
@@ -134,7 +134,9 @@ const testimonials = [
     description: (
       <p>
         The polyglot architecture (Rust, Go, Elixir) worried me at first.
-        <Highlight>Turns out using the right tool for each job actually simplifies operations.</Highlight>{" "}
+        <Highlight>
+          Turns out using the right tool for each job actually simplifies operations.
+        </Highlight>{" "}
         Each service does one thing exceptionally well.
       </p>
     ),
@@ -146,7 +148,9 @@ const testimonials = [
     description: (
       <p>
         Our inventory system needed complete audit trails for SOX compliance.
-        <Highlight>AllSource gave us immutable event logs with zero schema migration headaches.</Highlight>{" "}
+        <Highlight>
+          AllSource gave us immutable event logs with zero schema migration headaches.
+        </Highlight>{" "}
         Auditors love the time-travel queries.
       </p>
     ),
@@ -170,8 +174,8 @@ const testimonials = [
     description: (
       <p>
         Game telemetry generates massive event volumes.
-        <Highlight>469K events/sec ingestion means we never drop player data.</Highlight> The analytics
-        team can query any moment in a player&apos;s journey.
+        <Highlight>469K events/sec ingestion means we never drop player data.</Highlight> The
+        analytics team can query any moment in a player&apos;s journey.
       </p>
     ),
   },
@@ -182,8 +186,8 @@ const testimonials = [
     description: (
       <p>
         Deploying was dead simple - Docker, Helm charts, K8s manifests all provided.
-        <Highlight>Total footprint under 130MB for the entire stack.</Highlight> Resource efficiency we&apos;ve
-        never seen before.
+        <Highlight>Total footprint under 130MB for the entire stack.</Highlight> Resource efficiency
+        we&apos;ve never seen before.
       </p>
     ),
   },
@@ -194,7 +198,9 @@ const testimonials = [
     description: (
       <p>
         The 27 MCP tools transformed how we work with event data.
-        <Highlight>Claude can now query, analyze, and even manage our event streams directly.</Highlight>{" "}
+        <Highlight>
+          Claude can now query, analyze, and even manage our event streams directly.
+        </Highlight>{" "}
         True AI-native infrastructure.
       </p>
     ),
@@ -206,7 +212,9 @@ const testimonials = [
     description: (
       <p>
         Supply chain events are complex and time-sensitive.
-        <Highlight>AllSource&apos;s stream processing pipelines handle our branching logic elegantly.</Highlight>{" "}
+        <Highlight>
+          AllSource&apos;s stream processing pipelines handle our branching logic elegantly.
+        </Highlight>{" "}
         Filter, enrich, route - all in real-time.
       </p>
     ),
@@ -218,7 +226,9 @@ const testimonials = [
     description: (
       <p>
         Multi-tenancy was a hard requirement. AllSource&apos;s built-in isolation
-        <Highlight>means each customer&apos;s data is completely separated at the infrastructure level.</Highlight>{" "}
+        <Highlight>
+          means each customer&apos;s data is completely separated at the infrastructure level.
+        </Highlight>{" "}
         No custom code needed.
       </p>
     ),
@@ -239,7 +249,11 @@ const testimonials = [
 
 export default function Testimonials() {
   return (
-    <Section title="Testimonials" subtitle="Trusted by engineering teams worldwide" className="max-w-8xl">
+    <Section
+      title="Testimonials"
+      subtitle="Trusted by engineering teams worldwide"
+      className="max-w-8xl"
+    >
       <div className="relative mt-6 max-h-screen overflow-hidden">
         <div className="gap-4 md:columns-2 xl:columns-3 2xl:columns-4">
           {Array(Math.ceil(testimonials.length / 3))

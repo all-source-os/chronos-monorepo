@@ -1,10 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import * as React from "react";
-
-import { siteConfig } from "@/lib/config";
 import {
+  cn,
   Icons,
   NavigationMenu,
   NavigationMenuContent,
@@ -12,9 +9,11 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
-  cn,
   navigationMenuTriggerStyle,
 } from "@allsource/ui";
+import Link from "next/link";
+import * as React from "react";
+import { siteConfig } from "@/lib/config";
 
 export default function NavigationMenuDemo() {
   return (

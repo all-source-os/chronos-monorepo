@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Activity, Gauge, Zap, Pause, Play } from "lucide-react";
-import { Button } from "@allsource/ui";
+import { Activity, Gauge, Pause, Play, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 interface MetricData {
   eventsPerSec: number;
@@ -27,10 +26,8 @@ export function LiveMetrics() {
     if (isPaused) return;
 
     animationRef.current = setInterval(() => {
-      setMetrics((prev) => ({
-        eventsPerSec: Math.floor(
-          469000 + (Math.random() - 0.5) * 50000
-        ),
+      setMetrics((_prev) => ({
+        eventsPerSec: Math.floor(469000 + (Math.random() - 0.5) * 50000),
         latencyP99: Math.round((11.9 + (Math.random() - 0.5) * 2) * 10) / 10,
         throughput: Math.round((98.7 + (Math.random() - 0.5) * 2) * 10) / 10,
       }));
@@ -73,9 +70,7 @@ export function LiveMetrics() {
                 isPaused ? "bg-yellow-500" : "bg-green-500 animate-pulse"
               )}
             />
-            <span className="text-xs text-muted-foreground">
-              {isPaused ? "Paused" : "Live"}
-            </span>
+            <span className="text-xs text-muted-foreground">{isPaused ? "Paused" : "Live"}</span>
           </div>
           <Button
             variant="ghost"
@@ -83,11 +78,7 @@ export function LiveMetrics() {
             className="h-7 w-7"
             onClick={() => setIsPaused(!isPaused)}
           >
-            {isPaused ? (
-              <Play className="h-3.5 w-3.5" />
-            ) : (
-              <Pause className="h-3.5 w-3.5" />
-            )}
+            {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </CardHeader>
@@ -126,10 +117,7 @@ export function LiveMetrics() {
               d={`
                 M 0 64
                 ${sparklineData
-                  .map(
-                    (value, i) =>
-                      `L ${i * 4} ${64 - ((value - minSparkline) / range) * 56}`
-                  )
+                  .map((value, i) => `L ${i * 4} ${64 - ((value - minSparkline) / range) * 56}`)
                   .join(" ")}
                 L ${(sparklineData.length - 1) * 4} 64
                 Z
@@ -142,10 +130,7 @@ export function LiveMetrics() {
                 d={`
                   M 0 ${64 - (((sparklineData[0] ?? 0) - minSparkline) / range) * 56}
                   ${sparklineData
-                    .map(
-                      (value, i) =>
-                        `L ${i * 4} ${64 - ((value - minSparkline) / range) * 56}`
-                    )
+                    .map((value, i) => `L ${i * 4} ${64 - ((value - minSparkline) / range) * 56}`)
                     .join(" ")}
                 `}
                 fill="none"
@@ -161,9 +146,7 @@ export function LiveMetrics() {
                 cx={(sparklineData.length - 1) * 4}
                 cy={
                   64 -
-                  (((sparklineData[sparklineData.length - 1] ?? 0) - minSparkline) /
-                    range) *
-                    56
+                  (((sparklineData[sparklineData.length - 1] ?? 0) - minSparkline) / range) * 56
                 }
                 r="4"
                 fill="hsl(var(--primary))"
@@ -181,9 +164,7 @@ export function LiveMetrics() {
               <span className="text-xs">p99 Latency</span>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-semibold tabular-nums">
-                {metrics.latencyP99}
-              </span>
+              <span className="text-2xl font-semibold tabular-nums">{metrics.latencyP99}</span>
               <span className="text-sm text-muted-foreground">μs</span>
             </div>
           </div>
@@ -193,9 +174,7 @@ export function LiveMetrics() {
               <span className="text-xs">Throughput</span>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-semibold tabular-nums">
-                {metrics.throughput}
-              </span>
+              <span className="text-2xl font-semibold tabular-nums">{metrics.throughput}</span>
               <span className="text-sm text-muted-foreground">%</span>
             </div>
           </div>

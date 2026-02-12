@@ -13,18 +13,6 @@ export class UITestPage extends BasePage {
   private readonly primaryButton: Locator;
   private readonly secondaryButton: Locator;
   private readonly destructiveButton: Locator;
-  private readonly outlineButton: Locator;
-  private readonly ghostButton: Locator;
-  private readonly linkButton: Locator;
-  private readonly smallButton: Locator;
-  private readonly largeButton: Locator;
-
-  // Badges section
-  private readonly defaultBadge: Locator;
-  private readonly primaryBadge: Locator;
-  private readonly secondaryBadge: Locator;
-  private readonly destructiveBadge: Locator;
-  private readonly outlineBadge: Locator;
 
   // Cards section
   private readonly card1: Locator;

@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Activity, Database, Zap, GitBranch, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
+import {
+  Activity,
+  Database,
+  GitBranch,
+  RefreshCw,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 
 interface StatCardProps {
@@ -54,9 +62,7 @@ function StatCard({ title, value, icon: Icon, trend, description, animate }: Sta
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold tracking-tight">
-                {typeof displayValue === "number"
-                  ? displayValue.toLocaleString()
-                  : displayValue}
+                {typeof displayValue === "number" ? displayValue.toLocaleString() : displayValue}
               </span>
               {trend && (
                 <span
@@ -74,9 +80,7 @@ function StatCard({ title, value, icon: Icon, trend, description, animate }: Sta
                 </span>
               )}
             </div>
-            {description && (
-              <p className="text-xs text-muted-foreground">{description}</p>
-            )}
+            {description && <p className="text-xs text-muted-foreground">{description}</p>}
           </div>
           <div className="rounded-lg bg-primary/10 p-3">
             <Icon className="h-5 w-5 text-primary" />

@@ -1,15 +1,9 @@
-import type { Post } from "@/lib/blog";
-import { formatDate } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
+import type { Post } from "@/lib/blog";
+import { formatDate } from "@/lib/utils";
 
-export default function BlogCard({
-  data,
-  priority,
-}: {
-  data: Post;
-  priority?: boolean;
-}) {
+export default function BlogCard({ data, priority }: { data: Post; priority?: boolean }) {
   return (
     <Link href={`/blog/${data.slug}`} className="block">
       <div className="bg-background rounded-lg p-4 mb-4 border hover:shadow-sm transition-shadow duration-200">

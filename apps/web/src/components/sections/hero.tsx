@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { buttonVariants, cn, HeroVideoDialog, Icons } from "@allsource/ui";
 import { motion } from "motion/react";
-
-import { HeroVideoDialog, Icons, buttonVariants, cn } from "@allsource/ui";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 // Animated gradient text component for magic effect
 function AnimatedGradientText({ children }: { children: React.ReactNode }) {
@@ -49,7 +48,7 @@ function useCountUp(end: number, duration: number = 2000, delay: number = 0) {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
         // Ease out cubic
-        const eased = 1 - Math.pow(1 - progress, 3);
+        const eased = 1 - (1 - progress) ** 3;
         setCount(Math.floor(eased * end));
 
         if (progress < 1) {
@@ -148,15 +147,25 @@ function HeroTitles() {
           ease,
         }}
       >
-        AI-native event store with <span className="text-primary font-semibold">469K events/sec</span> throughput
-        and <span className="text-primary font-semibold">11.9μs</span> query latency.
-        Time-travel your data. Let AI agents manage it.
+        Query any point in history. Replay any sequence. Give your AI agents{" "}
+        <span className="text-primary font-semibold">perfect memory</span>. The temporal
+        intelligence platform for event-driven applications.
       </motion.p>
     </div>
   );
 }
 
-function CountUpStat({ value, suffix, label, delay }: { value: number; suffix: string; label: string; delay: number }) {
+function CountUpStat({
+  value,
+  suffix,
+  label,
+  delay,
+}: {
+  value: number;
+  suffix: string;
+  label: string;
+  delay: number;
+}) {
   const { count, ref } = useCountUp(value, 2000, delay);
 
   return (
@@ -165,7 +174,8 @@ function CountUpStat({ value, suffix, label, delay }: { value: number; suffix: s
         className="text-2xl font-bold text-primary sm:text-3xl transition-transform group-hover:scale-110"
         whileHover={{ scale: 1.1 }}
       >
-        {count.toLocaleString()}{suffix}
+        {count.toLocaleString()}
+        {suffix}
       </motion.div>
       <div className="text-xs text-muted-foreground sm:text-sm">{label}</div>
     </div>
@@ -221,10 +231,7 @@ function HeroCTA() {
             Start Your Project
           </Link>
         </motion.div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.98 }}
-        >
+        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
           <Link
             href="https://github.com/all-source-os/all-source"
             className={cn(

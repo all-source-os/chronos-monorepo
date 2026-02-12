@@ -1,0 +1,270 @@
+---
+title: "Your AI Agents Need Memory, Not Just Storage"
+publishedAt: "2026-02-12"
+summary: AI agents are getting smarter, but they still can't remember yesterday. Here's why temporal context is the missing piece in agentic AI.
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+AI agents in 2026 are impressive. They can write code, analyze documents, manage workflows, and hold conversations that feel genuinely intelligent.
+
+But ask an agent what happened yesterday, and you'll hit a wall.
+
+**AI agents have no memory.**
+
+Not because they can't—but because we haven't given them the right infrastructure.
+
+## The Memory Problem
+
+Current AI agent architectures look like this:
+
+```
+User Request → Agent → Tool Calls → Response
+                ↓
+            [Context Window]
+            (Limited, ephemeral)
+```
+
+The agent has access to:
+- The current conversation
+- Whatever tools you've connected
+- Maybe a vector store for "knowledge"
+
+What it doesn't have:
+- History of past interactions
+- Sequence of actions taken
+- Temporal context ("last week", "before the update", "since January")
+- Understanding of how things change over time
+
+## Why This Matters
+
+Consider what humans do naturally:
+
+> "Remember last month when we tried that marketing campaign? It worked for the first week, then engagement dropped. Let's not repeat that mistake."
+
+An AI agent can't do this unless you:
+1. Manually retrieve the historical data
+2. Paste it into the prompt
+3. Hope it fits in the context window
+4. Repeat for every relevant piece of history
+
+That's not an "agent"—that's a very sophisticated autocomplete with extra steps.
+
+## What Agents Actually Need
+
+For AI agents to be truly useful, they need:
+
+### 1. Persistent Memory
+
+Not just "remember this conversation," but remember **everything**:
+- Every action taken
+- Every decision made
+- Every outcome observed
+- Every piece of context that influenced those decisions
+
+### 2. Temporal Queries
+
+The ability to ask:
+- "What happened last Tuesday?"
+- "What changed after the deployment?"
+- "What's the pattern over the past month?"
+- "When did this behavior start?"
+
+### 3. Causal Understanding
+
+Not just "what happened" but "what led to what":
+- "The error started after the config change"
+- "Customer complaints increased following the price update"
+- "This pattern preceded the previous outage"
+
+### 4. Context Retrieval
+
+Automatically pulling relevant history based on the current task:
+- Working on customer X? Here's their event history.
+- Debugging service Y? Here's the timeline of recent changes.
+- Planning feature Z? Here's what happened with similar features.
+
+## Enter MCP: AI Meets Event Sourcing
+
+The Model Context Protocol (MCP) lets AI agents use external tools. Combined with an event store, you get agents with **perfect memory**.
+
+At all.source, we've built 27 MCP tools that give AI agents full access to temporal data:
+
+### Event Tools
+- `append_events` - Record new events
+- `get_events` - Query events by entity, type, time range
+- `get_entity_state` - Reconstruct state at any timestamp
+- `search_events` - Find events matching patterns
+
+### Projection Tools
+- `create_projection` - Define materialized views
+- `get_projection_state` - Query computed state
+- `list_projections` - See all active projections
+
+### Analysis Tools
+- `correlate_events` - Find patterns across entities
+- `get_event_frequency` - Analyze event distributions
+- `compare_timelines` - Diff entity states over time
+
+### Management Tools
+- `manage_schema` - Handle schema evolution
+- `configure_pipeline` - Set up event processing
+- `set_retention` - Control data lifecycle
+
+## What This Looks Like in Practice
+
+### Example 1: Customer Support Agent
+
+**Before (no memory):**
+```
+User: "Customer is complaining about billing"
+Agent: "I can see their current subscription is active.
+        What specific issue are they having?"
+```
+
+**After (with event history):**
+```
+User: "Customer is complaining about billing"
+Agent: [Queries event history]
+       "I see the issue. This customer:
+        - Was charged $99 on Feb 1st (correct)
+        - Then charged $99 again on Feb 3rd (duplicate!)
+        - Has submitted 3 support tickets since
+
+        Recommending: Process refund for duplicate charge
+        and credit their account for the inconvenience."
+```
+
+### Example 2: DevOps Agent
+
+**Before:**
+```
+User: "Why is the API slow?"
+Agent: "Current metrics show 500ms response times.
+        Would you like me to check logs?"
+```
+
+**After:**
+```
+User: "Why is the API slow?"
+Agent: [Queries deployment and metrics events]
+       "Timeline analysis:
+        - 14:00 - Response times normal (50ms)
+        - 14:15 - Deployment to api-service (commit abc123)
+        - 14:16 - Response times increased to 500ms
+        - 14:20 - Error rate increased 10x
+
+        The deployment introduced the issue.
+        Diff shows a new database query without an index.
+        Recommend: Add index or rollback."
+```
+
+### Example 3: Business Intelligence Agent
+
+**Before:**
+```
+User: "How are sales this month?"
+Agent: "Current month sales are $1.2M."
+```
+
+**After:**
+```
+User: "How are sales this month?"
+Agent: [Queries sales events with temporal comparison]
+       "This month: $1.2M (on track for $1.5M)
+
+        Compared to last month:
+        - Enterprise deals: +40% (3 new accounts)
+        - SMB deals: -15% (longer sales cycle)
+
+        Compared to same month last year:
+        - Overall: +65%
+        - Win rate: Improved from 23% to 34%
+
+        The enterprise push is working. SMB slowdown
+        coincides with the pricing change on Jan 15th."
+```
+
+## Building Memory-Enabled Agents
+
+If you're building AI features, here's how to give your agents memory:
+
+### Step 1: Capture Everything
+
+Every action, decision, and outcome should be an event:
+
+```json
+{
+  "type": "AgentActionTaken",
+  "entity_id": "conversation-123",
+  "data": {
+    "action": "send_email",
+    "target": "customer-456",
+    "content_summary": "Billing resolution",
+    "outcome": "sent"
+  },
+  "timestamp": "2026-02-12T10:30:00Z"
+}
+```
+
+### Step 2: Connect via MCP
+
+Give your agent access to event tools:
+
+```json
+{
+  "mcpServers": {
+    "allsource": {
+      "command": "npx",
+      "args": ["@allsource/mcp-server"],
+      "env": {
+        "ALLSOURCE_API_KEY": "your-key"
+      }
+    }
+  }
+}
+```
+
+### Step 3: Design for Context
+
+Structure your agents to query history before acting:
+
+```
+1. Receive user request
+2. Identify relevant entities
+3. Query event history for those entities
+4. Include temporal context in reasoning
+5. Take action
+6. Record action as new event
+```
+
+### Step 4: Build Feedback Loops
+
+Use outcomes to improve:
+- Record what worked and what didn't
+- Query for similar past situations
+- Learn from historical patterns
+
+## The Future of Agentic AI
+
+We're at an inflection point.
+
+AI agents are becoming capable enough to take autonomous actions. But capability without memory is dangerous—imagine an agent that keeps making the same mistake because it can't remember the last failure.
+
+The agents that win will be the ones with **perfect memory**:
+- Complete history of actions and outcomes
+- Temporal queries for context
+- Pattern recognition across time
+- Causal understanding of what leads to what
+
+That's not science fiction. That's event sourcing + AI.
+
+And that's exactly what we're building at all.source.
+
+---
+
+*Ready to give your AI agents perfect memory?*
+
+[Explore MCP integration →](/docs/mcp)
+
+[Start your free trial →](/signup)

@@ -19,7 +19,7 @@ config :query_service_ex, QueryServiceExWeb.Endpoint,
 
 # Configure Rust Core backend (defaults, can be overridden in runtime.exs)
 config :query_service_ex,
-  rust_core_url: "http://localhost:3900",
+  core_url: "http://localhost:3900",
   core_ws_url: "ws://localhost:3900/api/v1/events/stream"
 
 # Do not print debug messages in production

@@ -1,6 +1,6 @@
+import { Section } from "@allsource/ui";
 import BlogCard from "@/components/blog-card";
 import { getBlogPosts } from "@/lib/blog";
-import { Section } from "@allsource/ui";
 
 export default async function BlogSection() {
   const allPosts = await getBlogPosts();

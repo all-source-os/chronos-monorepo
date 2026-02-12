@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Sparkles } from "lucide-react";
 import { cn } from "@allsource/ui/utils";
+import { Sparkles, X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "allsource-early-access-banner-dismissed";
 

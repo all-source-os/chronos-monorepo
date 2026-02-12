@@ -1,17 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Button, Icons } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import {
-  BookOpen,
-  MessageSquare,
-  Code2,
-  Sparkles,
-  ChevronRight,
-  PartyPopper,
-} from "lucide-react";
+import { BookOpen, ChevronRight, Code2, MessageSquare, PartyPopper, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 interface StepNextStepsProps {
   onComplete: () => void;
@@ -102,8 +95,8 @@ export function StepNextSteps({ onComplete }: StepNextStepsProps) {
       {/* Success message */}
       <h2 className="mb-2 text-3xl font-bold">You're All Set!</h2>
       <p className="mb-8 text-lg text-muted-foreground">
-        Congratulations! You've completed the onboarding. You're ready to build
-        amazing things with AllSource.
+        Congratulations! You've completed the onboarding. You're ready to build amazing things with
+        AllSource.
       </p>
 
       {/* Resources grid */}
@@ -129,9 +122,7 @@ export function StepNextSteps({ onComplete }: StepNextStepsProps) {
               </div>
               <div className="flex-1">
                 <p className="font-medium">{resource.title}</p>
-                <p className="text-sm text-muted-foreground">
-                  {resource.description}
-                </p>
+                <p className="text-sm text-muted-foreground">{resource.description}</p>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </Component>

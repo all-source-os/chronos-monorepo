@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, Button } from "@allsource/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { Activity, ArrowRight, Clock } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 interface RecentEvent {
   id: string;
@@ -106,9 +106,7 @@ export function RecentEvents() {
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Activity className="h-8 w-8 text-muted-foreground/50 mb-2" />
             <p className="text-sm text-muted-foreground">No events yet</p>
-            <p className="text-xs text-muted-foreground">
-              Create your first event to get started
-            </p>
+            <p className="text-xs text-muted-foreground">Create your first event to get started</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -129,12 +127,8 @@ export function RecentEvents() {
                   )}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {event.event_type}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {event.entity_id}
-                  </p>
+                  <p className="truncate text-sm font-medium">{event.event_type}</p>
+                  <p className="truncate text-xs text-muted-foreground">{event.entity_id}</p>
                 </div>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />

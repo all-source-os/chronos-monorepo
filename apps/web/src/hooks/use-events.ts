@@ -1,7 +1,8 @@
 "use client";
 
 import useSWR, { mutate } from "swr";
-import { apiClient, type Event, type CreateEventRequest, type ListEventsParams } from "@/lib/api/client";
+import { useTimeTravelOptional } from "@/hooks/use-time-travel";
+import { apiClient, type CreateEventRequest, type ListEventsParams } from "@/lib/api/client";
 
 const fetcher = async (key: string) => {
   const params: ListEventsParams = {};
@@ -11,6 +12,7 @@ const fetcher = async (key: string) => {
   if (searchParams.get("event_type")) params.event_type = searchParams.get("event_type")!;
   if (searchParams.get("limit")) params.limit = parseInt(searchParams.get("limit")!, 10);
   if (searchParams.get("offset")) params.offset = parseInt(searchParams.get("offset")!, 10);
+  if (searchParams.get("as_of")) params.as_of = searchParams.get("as_of")!;
 
   const response = await apiClient.listEvents(params);
   if (response.error) throw new Error(response.error.message);
@@ -18,26 +20,27 @@ const fetcher = async (key: string) => {
 };
 
 export function useEvents(params?: ListEventsParams) {
-  const queryString = params
-    ? `?${new URLSearchParams(
-        Object.entries(params).reduce(
-          (acc, [key, value]) => {
-            if (value !== undefined) acc[key] = String(value);
-            return acc;
-          },
-          {} as Record<string, string>
-        )
-      ).toString()}`
-    : "";
+  const { asOfIso, isHistorical } = useTimeTravelOptional();
 
-  const { data, error, isLoading, isValidating } = useSWR(
-    `/api/events${queryString}`,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 5000,
+  // Build query params including time travel
+  const queryParams: Record<string, string> = {};
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined) queryParams[key] = String(value);
     }
-  );
+  }
+  // Add as_of from time travel context if not already specified
+  if (asOfIso && !queryParams.as_of) {
+    queryParams.as_of = asOfIso;
+  }
+
+  const queryString =
+    Object.keys(queryParams).length > 0 ? `?${new URLSearchParams(queryParams).toString()}` : "";
+
+  const { data, error, isLoading, isValidating } = useSWR(`/api/events${queryString}`, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 5000,
+  });
 
   const createEvent = async (event: CreateEventRequest) => {
     const response = await apiClient.createEvent(event);
@@ -64,6 +67,7 @@ export function useEvents(params?: ListEventsParams) {
     total: data?.count || 0,
     isLoading,
     isValidating,
+    isHistorical,
     error: error?.message,
     createEvent,
     createEventBatch,
@@ -72,9 +76,20 @@ export function useEvents(params?: ListEventsParams) {
 }
 
 export function useEventsByEntity(entityId: string) {
+  const { asOfIso, isHistorical } = useTimeTravelOptional();
+
+  // Include as_of in the SWR key
+  const swrKey = entityId
+    ? asOfIso
+      ? `/api/events/entity/${entityId}?as_of=${asOfIso}`
+      : `/api/events/entity/${entityId}`
+    : null;
+
   const { data, error, isLoading } = useSWR(
-    entityId ? `/api/events/entity/${entityId}` : null,
+    swrKey,
     async () => {
+      // Set asOf on client before request
+      apiClient.setAsOf(asOfIso);
       const response = await apiClient.getEventsByEntity(entityId);
       if (response.error) throw new Error(response.error.message);
       return response.data;
@@ -88,6 +103,7 @@ export function useEventsByEntity(entityId: string) {
     events: data?.data || [],
     total: data?.count || 0,
     isLoading,
+    isHistorical,
     error: error?.message,
   };
 }

@@ -1,10 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useId, useState, useEffect, Suspense } from "react";
-import { Loader2, Mail, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
-
 import {
   BlurFade,
   Button,
@@ -19,6 +14,10 @@ import {
   Label,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Mail } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useId, useState } from "react";
 import { getApiUrl } from "@/lib/api/client";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -39,7 +38,7 @@ const PASSWORD_REQUIREMENTS = [
 ];
 
 function SignUpContent() {
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -134,15 +133,11 @@ function SignUpContent() {
                 </div>
                 <h2 className="mb-2 text-xl font-semibold">Check your email</h2>
                 <p className="mb-6 text-muted-foreground">
-                  We've sent a verification link to <strong>{email}</strong>.
-                  Click the link to activate your account.
+                  We've sent a verification link to <strong>{email}</strong>. Click the link to
+                  activate your account.
                 </p>
                 <div className="space-y-3 w-full">
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setEmailSent(false)}
-                  >
+                  <Button variant="outline" className="w-full" onClick={() => setEmailSent(false)}>
                     Use a different email
                   </Button>
                   <p className="text-xs text-muted-foreground">
@@ -275,15 +270,15 @@ function SignUpContent() {
                             key={req.label}
                             className={cn(
                               "flex items-center gap-2 text-xs",
-                              req.regex.test(password)
-                                ? "text-green-600"
-                                : "text-muted-foreground"
+                              req.regex.test(password) ? "text-green-600" : "text-muted-foreground"
                             )}
                           >
-                            <CheckCircle2 className={cn(
-                              "h-3 w-3",
-                              req.regex.test(password) ? "opacity-100" : "opacity-40"
-                            )} />
+                            <CheckCircle2
+                              className={cn(
+                                "h-3 w-3",
+                                req.regex.test(password) ? "opacity-100" : "opacity-40"
+                              )}
+                            />
                             {req.label}
                           </div>
                         ))}
@@ -296,11 +291,7 @@ function SignUpContent() {
                     className="h-12 w-full"
                     disabled={isDisabled || !isFormValid}
                   >
-                    {isSubmitting ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      "Create account"
-                    )}
+                    {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Create account"}
                   </Button>
 
                   <button

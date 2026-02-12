@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, Button } from "@allsource/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { ArrowRight, AlertTriangle } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 interface UsageBarProps {
@@ -29,18 +29,16 @@ function UsageBar({ label, used, quota, unit = "" }: UsageBarProps) {
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">{label}</span>
         <span className="text-muted-foreground">
-          {formatNumber(used)}{unit} / {formatNumber(quota)}{unit}
+          {formatNumber(used)}
+          {unit} / {formatNumber(quota)}
+          {unit}
         </span>
       </div>
       <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
         <div
           className={cn(
             "h-full rounded-full transition-all duration-500",
-            isCritical
-              ? "bg-destructive"
-              : isWarning
-                ? "bg-yellow-500"
-                : "bg-primary"
+            isCritical ? "bg-destructive" : isWarning ? "bg-yellow-500" : "bg-primary"
           )}
           style={{ width: `${Math.min(percentage, 100)}%` }}
         />
@@ -82,16 +80,8 @@ export function UsageProgress() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-6">
-        <UsageBar
-          label="Events"
-          used={eventsUsed}
-          quota={eventsQuota}
-        />
-        <UsageBar
-          label="Queries"
-          used={queriesUsed}
-          quota={queriesQuota}
-        />
+        <UsageBar label="Events" used={eventsUsed} quota={eventsQuota} />
+        <UsageBar label="Queries" used={queriesUsed} quota={queriesQuota} />
       </CardContent>
     </Card>
   );

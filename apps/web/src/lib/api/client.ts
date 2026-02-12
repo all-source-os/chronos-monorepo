@@ -16,16 +16,35 @@ export interface ApiResponse<T> {
 
 export class ApiClient {
   private baseUrl: string;
+  private asOf: string | null = null;
 
   constructor(baseUrl: string = API_URL) {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
-    const url = `${this.baseUrl}${endpoint}`;
+  /**
+   * Set the as_of timestamp for time travel queries.
+   * All subsequent requests will include this timestamp.
+   * Set to null to return to present.
+   */
+  setAsOf(timestamp: string | null): void {
+    this.asOf = timestamp;
+  }
+
+  /**
+   * Get the current as_of timestamp.
+   */
+  getAsOf(): string | null {
+    return this.asOf;
+  }
+
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+    // Append as_of parameter if set and not already present
+    let url = `${this.baseUrl}${endpoint}`;
+    if (this.asOf && !endpoint.includes("as_of=")) {
+      const separator = endpoint.includes("?") ? "&" : "?";
+      url = `${url}${separator}as_of=${encodeURIComponent(this.asOf)}`;
+    }
 
     const headers: HeadersInit = {
       "Content-Type": "application/json",
@@ -166,6 +185,44 @@ export class ApiClient {
     return this.request<EventListResponse>(`/api/events/type/${encodeURIComponent(eventType)}`);
   }
 
+  // Streams (entity discovery) endpoint
+  async listStreams(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<StreamsListResponse>> {
+    const queryString = params
+      ? `?${new URLSearchParams(
+          Object.entries(params).reduce(
+            (acc, [key, value]) => {
+              if (value !== undefined) acc[key] = String(value);
+              return acc;
+            },
+            {} as Record<string, string>
+          )
+        ).toString()}`
+      : "";
+    return this.request<StreamsListResponse>(`/api/streams${queryString}`);
+  }
+
+  // Event types discovery endpoint
+  async listEventTypes(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<EventTypesListResponse>> {
+    const queryString = params
+      ? `?${new URLSearchParams(
+          Object.entries(params).reduce(
+            (acc, [key, value]) => {
+              if (value !== undefined) acc[key] = String(value);
+              return acc;
+            },
+            {} as Record<string, string>
+          )
+        ).toString()}`
+      : "";
+    return this.request<EventTypesListResponse>(`/api/event-types${queryString}`);
+  }
+
   // Query endpoint
   async executeQuery(query: QueryRequest): Promise<ApiResponse<QueryResponse>> {
     return this.request<QueryResponse>("/api/query", {
@@ -261,6 +318,41 @@ export class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  // Analytics endpoints
+  async getAnalyticsStats(params?: { as_of?: string }): Promise<ApiResponse<AnalyticsStats>> {
+    const queryString = params?.as_of ? `?as_of=${encodeURIComponent(params.as_of)}` : "";
+    return this.request<AnalyticsStats>(`/api/analytics/stats${queryString}`);
+  }
+
+  // Events replay for time range
+  async getEventsInRange(params: {
+    start: string;
+    end: string;
+    entity_id?: string;
+    event_type?: string;
+    limit?: number;
+  }): Promise<ApiResponse<EventListResponse>> {
+    const queryParams = new URLSearchParams();
+    queryParams.set("start", params.start);
+    queryParams.set("end", params.end);
+    if (params.entity_id) queryParams.set("entity_id", params.entity_id);
+    if (params.event_type) queryParams.set("event_type", params.event_type);
+    if (params.limit) queryParams.set("limit", String(params.limit));
+
+    return this.request<EventListResponse>(`/api/events/range?${queryParams.toString()}`);
+  }
+
+  // Entity timeline (formatted for visualization)
+  async getEntityTimeline(
+    entityId: string,
+    params?: { as_of?: string }
+  ): Promise<ApiResponse<EntityTimeline>> {
+    const queryString = params?.as_of ? `?as_of=${encodeURIComponent(params.as_of)}` : "";
+    return this.request<EntityTimeline>(
+      `/api/entities/${encodeURIComponent(entityId)}/timeline${queryString}`
+    );
+  }
 }
 
 // Types
@@ -353,11 +445,36 @@ export interface ListEventsParams {
   event_type?: string;
   limit?: number;
   offset?: number;
+  as_of?: string;
 }
 
 export interface EventListResponse {
   data: Event[];
   count: number;
+}
+
+export interface StreamInfo {
+  stream_id: string;
+  event_count: number;
+  last_event_at: string | null;
+}
+
+export interface StreamsListResponse {
+  data: StreamInfo[];
+  count: number;
+  total: number;
+}
+
+export interface EventTypeInfo {
+  event_type: string;
+  event_count: number;
+  last_event_at: string | null;
+}
+
+export interface EventTypesListResponse {
+  data: EventTypeInfo[];
+  count: number;
+  total: number;
 }
 
 export interface QueryRequest {
@@ -481,6 +598,49 @@ export interface CreateProjectionRequest {
   version: number;
   initial_state: Record<string, unknown>;
   definition: string;
+}
+
+export interface AnalyticsStats {
+  events: {
+    total: number;
+    by_type: Record<string, number>;
+    recent_rate: number; // events per minute
+  };
+  entities: {
+    total: number;
+    active: number;
+  };
+  errors: {
+    count: number;
+    rate: number;
+  };
+  latency: {
+    p50_us: number;
+    p99_us: number;
+  };
+  as_of?: string;
+}
+
+export interface EntityTimeline {
+  entity_id: string;
+  events: TimelineEvent[];
+  gaps: TimelineGap[];
+  as_of?: string;
+}
+
+export interface TimelineEvent {
+  id: string;
+  event_type: string;
+  timestamp: string;
+  payload: Record<string, unknown>;
+  duration_since_previous_ms?: number;
+}
+
+export interface TimelineGap {
+  start: string;
+  end: string;
+  duration_ms: number;
+  expected_event_types?: string[];
 }
 
 // Export singleton instance

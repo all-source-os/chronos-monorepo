@@ -1,9 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useState, Suspense } from "react";
-import { Loader2, Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
-
 import {
   BlurFade,
   Button,
@@ -17,13 +13,16 @@ import {
   Input,
   Label,
 } from "@allsource/ui";
+import { ArrowLeft, CheckCircle2, Loader2, Mail } from "lucide-react";
+import Link from "next/link";
+import { Suspense, useState } from "react";
 import { getApiUrl } from "@/lib/api/client";
 
 function ForgotPasswordContent() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [_error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +31,7 @@ function ForgotPasswordContent() {
 
     try {
       const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/auth/forgot-password`, {
+      const _response = await fetch(`${apiUrl}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -75,7 +74,8 @@ function ForgotPasswordContent() {
                 </div>
                 <h2 className="mb-2 text-xl font-semibold">Check your email</h2>
                 <p className="mb-6 text-muted-foreground">
-                  If an account exists for <strong>{email}</strong>, we've sent a password reset link.
+                  If an account exists for <strong>{email}</strong>, we've sent a password reset
+                  link.
                 </p>
                 <div className="space-y-3 w-full">
                   <Link href="/login" className="block">

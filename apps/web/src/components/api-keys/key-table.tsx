@@ -1,20 +1,8 @@
 "use client";
 
+import { Badge, Button } from "@allsource/ui";
+import { Check, Clock, Copy, Key, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
-import {
-  Button,
-  Badge,
-} from "@allsource/ui";
-import { cn } from "@allsource/ui/utils";
-import {
-  MoreHorizontal,
-  Copy,
-  RefreshCw,
-  Trash2,
-  Check,
-  Clock,
-  Key,
-} from "lucide-react";
 import type { ApiKey } from "@/lib/api/client";
 
 interface KeyTableProps {
@@ -37,7 +25,7 @@ function KeyRow({
   const [copied, setCopied] = useState(false);
 
   const copyPrefix = async () => {
-    await navigator.clipboard.writeText(apiKey.key_prefix + "...");
+    await navigator.clipboard.writeText(`${apiKey.key_prefix}...`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -47,8 +35,7 @@ function KeyRow({
     return new Date(dateStr).toLocaleDateString();
   };
 
-  const isExpired =
-    apiKey.expires_at && new Date(apiKey.expires_at) < new Date();
+  const isExpired = apiKey.expires_at && new Date(apiKey.expires_at) < new Date();
 
   return (
     <tr className="border-b border-border transition-colors hover:bg-muted/50">
@@ -60,9 +47,7 @@ function KeyRow({
           <div>
             <p className="font-medium">{apiKey.name}</p>
             {apiKey.description && (
-              <p className="text-xs text-muted-foreground">
-                {apiKey.description}
-              </p>
+              <p className="text-xs text-muted-foreground">{apiKey.description}</p>
             )}
           </div>
         </div>
@@ -72,17 +57,8 @@ function KeyRow({
           <code className="rounded bg-muted px-2 py-1 font-mono text-xs">
             {apiKey.key_prefix}...
           </code>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={copyPrefix}
-          >
-            {copied ? (
-              <Check className="h-3 w-3 text-green-500" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={copyPrefix}>
+            {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
           </Button>
         </div>
       </td>
@@ -107,9 +83,7 @@ function KeyRow({
         </div>
       </td>
       <td className="px-4 py-3">
-        <span className="text-sm text-muted-foreground">
-          {formatDate(apiKey.created_at)}
-        </span>
+        <span className="text-sm text-muted-foreground">{formatDate(apiKey.created_at)}</span>
       </td>
       <td className="px-4 py-3">
         {isExpired ? (
@@ -117,9 +91,7 @@ function KeyRow({
             Expired
           </Badge>
         ) : apiKey.expires_at ? (
-          <span className="text-sm text-muted-foreground">
-            {formatDate(apiKey.expires_at)}
-          </span>
+          <span className="text-sm text-muted-foreground">{formatDate(apiKey.expires_at)}</span>
         ) : (
           <span className="text-sm text-muted-foreground">Never</span>
         )}
@@ -137,10 +109,7 @@ function KeyRow({
 
           {showMenu && (
             <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowMenu(false)}
-              />
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
               <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-border bg-popover p-1 shadow-lg">
                 <button
                   onClick={() => {

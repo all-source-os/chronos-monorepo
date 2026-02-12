@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import { useTimeTravelOptional } from "@/hooks/use-time-travel";
 import { apiClient } from "@/lib/api/client";
 
 interface DashboardStats {
@@ -22,6 +23,8 @@ interface DashboardStats {
     p99_us: number;
     formatted: string;
   };
+  isHistorical?: boolean;
+  asOf?: string | null;
 }
 
 const DEFAULT_STATS: DashboardStats = {
@@ -31,7 +34,10 @@ const DEFAULT_STATS: DashboardStats = {
   latency: { p99_us: 11900, formatted: "11.9μs" },
 };
 
-async function fetchDashboardStats(): Promise<DashboardStats> {
+async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardStats> {
+  // Set the asOf on the client for time travel queries
+  apiClient.setAsOf(asOfIso);
+
   // Fetch all data in parallel
   const [usageResponse, projectionsResponse] = await Promise.all([
     apiClient.getTenantUsage(),
@@ -60,13 +66,20 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
   // In future, could fetch from /api/metrics backend data
   stats.latency = { p99_us: 11900, formatted: "11.9μs" };
 
+  // Include time travel metadata
+  stats.isHistorical = asOfIso !== null;
+  stats.asOf = asOfIso;
+
   return stats;
 }
 
 export function useDashboardStats() {
+  const { asOfIso, isHistorical } = useTimeTravelOptional();
+
   const { data, error, isLoading, mutate } = useSWR(
-    "/dashboard/stats",
-    fetchDashboardStats,
+    // Include asOfIso in the key so SWR refetches when time travel changes
+    asOfIso ? `/dashboard/stats?as_of=${asOfIso}` : "/dashboard/stats",
+    () => fetchDashboardStats(asOfIso),
     {
       revalidateOnFocus: false,
       dedupingInterval: 30000, // Cache for 30 seconds
@@ -80,6 +93,7 @@ export function useDashboardStats() {
   return {
     stats: data || DEFAULT_STATS,
     isLoading,
+    isHistorical,
     error: error?.message,
     refresh: () => mutate(),
   };

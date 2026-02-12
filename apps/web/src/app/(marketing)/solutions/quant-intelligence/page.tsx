@@ -1,10 +1,6 @@
 "use client";
 
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
 import { buttonVariants, cn, FlickeringGrid, Ripple, Section } from "@allsource/ui";
-import { motion } from "motion/react";
-import Link from "next/link";
 import {
   BarChart3,
   Brain,
@@ -20,11 +16,16 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import { motion } from "motion/react";
+import Link from "next/link";
+import Footer from "@/components/sections/footer";
+import Header from "@/components/sections/header";
 
 const capabilities = [
   {
     question: "Where does the data live?",
-    answer: "Apache Parquet files with SNAPPY compression, organized into 32 fixed partitions using consistent hashing.",
+    answer:
+      "Apache Parquet files with SNAPPY compression, organized into 32 fixed partitions using consistent hashing.",
     icon: Database,
     details: [
       "By Symbol: entity_id = 'NQ' or 'BTC'",
@@ -36,7 +37,8 @@ const capabilities = [
   },
   {
     question: "How fast is time slicing?",
-    answer: "11.9μs indexed lookups with O(1) complexity. Generate 1-minute bars for a full trading session in under 10ms.",
+    answer:
+      "11.9μs indexed lookups with O(1) complexity. Generate 1-minute bars for a full trading session in under 10ms.",
     icon: Zap,
     details: [
       "Symbol lookup: 11.9μs (indexed)",
@@ -48,7 +50,8 @@ const capabilities = [
   },
   {
     question: "How are corrections handled?",
-    answer: "Immutable append-only event sourcing with correction events. Full audit trails with as_of temporal queries.",
+    answer:
+      "Immutable append-only event sourcing with correction events. Full audit trails with as_of temporal queries.",
     icon: RefreshCw,
     details: [
       "Original events are never modified",
@@ -60,7 +63,8 @@ const capabilities = [
   },
   {
     question: "Can past analysis be reproduced?",
-    answer: "Yes — automatic snapshots, as_of queries, and event replay engine ensure exact reproducibility.",
+    answer:
+      "Yes — automatic snapshots, as_of queries, and event replay engine ensure exact reproducibility.",
     icon: Clock,
     details: [
       "Snapshots: Every 100 events or 1 hour",
@@ -72,7 +76,8 @@ const capabilities = [
   },
   {
     question: "How easy is Python integration?",
-    answer: "REST API ready with pandas-compatible responses. WebSocket streaming for real-time updates. SDK coming soon.",
+    answer:
+      "REST API ready with pandas-compatible responses. WebSocket streaming for real-time updates. SDK coming soon.",
     icon: Code2,
     details: [
       "REST API: GET /api/v1/events/query",
@@ -84,7 +89,8 @@ const capabilities = [
   },
   {
     question: "Does it support concurrent users?",
-    answer: "Lock-free DashMap architecture handles 40K+ queries/sec with graceful latency degradation under load.",
+    answer:
+      "Lock-free DashMap architecture handles 40K+ queries/sec with graceful latency degradation under load.",
     icon: Users,
     details: [
       "10 users: 12μs latency, ~83K qps",
@@ -203,9 +209,9 @@ export default function QuantIntelligencePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            Turn raw market data into probability-based insights. From precomputed
-            analytics to AI-powered natural language queries — the data layer that
-            powers smart trading decisions.
+            Turn raw market data into probability-based insights. From precomputed analytics to
+            AI-powered natural language queries — the data layer that powers smart trading
+            decisions.
           </motion.p>
 
           <motion.div
@@ -214,10 +220,7 @@ export default function QuantIntelligencePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            <Link
-              href="/signup"
-              className={buttonVariants({ variant: "default", size: "lg" })}
-            >
+            <Link href="/signup" className={buttonVariants({ variant: "default", size: "lg" })}>
               Get Early Access
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
@@ -305,10 +308,7 @@ export default function QuantIntelligencePage() {
           {capabilities.map((cap, index) => (
             <motion.div
               key={cap.question}
-              className={cn(
-                "overflow-hidden rounded-2xl border bg-gradient-to-r p-6",
-                cap.color
-              )}
+              className={cn("overflow-hidden rounded-2xl border bg-gradient-to-r p-6", cap.color)}
               initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, delay: index * 0.1 }}
@@ -330,10 +330,7 @@ export default function QuantIntelligencePage() {
                   <p className="mt-2 text-muted-foreground">{cap.answer}</p>
                   <ul className="mt-4 grid gap-2 md:grid-cols-3">
                     {cap.details.map((detail) => (
-                      <li
-                        key={detail}
-                        className="flex items-center gap-2 text-sm"
-                      >
+                      <li key={detail} className="flex items-center gap-2 text-sm">
                         <Check className="h-4 w-4 flex-shrink-0 text-primary" />
                         <span className="text-foreground">{detail}</span>
                       </li>
@@ -389,9 +386,7 @@ export default function QuantIntelligencePage() {
                         Coming Soon
                       </span>
                     )}
-                    <span className="text-neutral-500">
-                      // {endpoint.description}
-                    </span>
+                    <span className="text-neutral-500">// {endpoint.description}</span>
                   </motion.div>
                 ))}
               </div>
@@ -429,15 +424,15 @@ export default function QuantIntelligencePage() {
                 <div>
                   <div className="text-sm text-neutral-500">Your question:</div>
                   <div className="mt-2 rounded-lg bg-neutral-800/50 p-4 text-green-400">
-                    &quot;What&apos;s the probability of NQ making new session highs after a
-                    gap up greater than 0.5% on Mondays?&quot;
+                    &quot;What&apos;s the probability of NQ making new session highs after a gap up
+                    greater than 0.5% on Mondays?&quot;
                   </div>
                 </div>
 
                 <div>
                   <div className="text-sm text-neutral-500">Generated SQL:</div>
                   <pre className="mt-2 overflow-x-auto rounded-lg bg-neutral-800/50 p-4 text-xs text-neutral-300">
-{`WITH gap_days AS (
+                    {`WITH gap_days AS (
   SELECT date, open, high, prev_close,
          (open - prev_close) / prev_close * 100 AS gap_pct
   FROM daily_bars
@@ -457,8 +452,8 @@ FROM gap_days`}
                   <div className="text-sm text-neutral-500">Answer:</div>
                   <div className="mt-2 rounded-lg bg-neutral-800/50 p-4">
                     <p className="text-neutral-300">
-                      Based on <span className="font-bold text-primary">52 samples</span> over
-                      5 years of Monday gap-up sessions for NQ:
+                      Based on <span className="font-bold text-primary">52 samples</span> over 5
+                      years of Monday gap-up sessions for NQ:
                     </p>
                     <div className="mt-4 grid gap-4 md:grid-cols-3">
                       <div className="rounded-lg bg-neutral-700/50 p-3">
@@ -483,11 +478,7 @@ FROM gap_days`}
       </Section>
 
       {/* Roadmap */}
-      <Section
-        title="Roadmap"
-        subtitle="From Analytics to AI"
-        className="bg-background"
-      >
+      <Section title="Roadmap" subtitle="From Analytics to AI" className="bg-background">
         <div className="mx-auto mt-12 max-w-4xl">
           <div className="grid gap-6 md:grid-cols-3">
             {[
@@ -529,9 +520,7 @@ FROM gap_days`}
                 key={phase.phase}
                 className={cn(
                   "rounded-2xl border p-6",
-                  phase.status === "current"
-                    ? "border-primary bg-primary/5"
-                    : "bg-background"
+                  phase.status === "current" ? "border-primary bg-primary/5" : "bg-background"
                 )}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -539,9 +528,7 @@ FROM gap_days`}
                 viewport={{ once: true }}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {phase.phase}
-                  </span>
+                  <span className="text-sm font-medium text-muted-foreground">{phase.phase}</span>
                   {phase.status === "current" && (
                     <span className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
                       Now
@@ -585,25 +572,17 @@ FROM gap_days`}
             transition={{ duration: 0.5 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl font-bold md:text-4xl">
-              Ready to Build Smarter?
-            </h2>
+            <h2 className="text-3xl font-bold md:text-4xl">Ready to Build Smarter?</h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-              Get early access to Quant Intelligence and start turning market data
-              into probability-based insights.
+              Get early access to Quant Intelligence and start turning market data into
+              probability-based insights.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href="/signup"
-                className={buttonVariants({ variant: "default", size: "lg" })}
-              >
+              <Link href="/signup" className={buttonVariants({ variant: "default", size: "lg" })}>
                 Get Early Access
                 <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
-              <Link
-                href="/#pricing"
-                className={buttonVariants({ variant: "outline", size: "lg" })}
-              >
+              <Link href="/#pricing" className={buttonVariants({ variant: "outline", size: "lg" })}>
                 View Pricing
               </Link>
             </div>

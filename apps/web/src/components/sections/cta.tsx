@@ -1,6 +1,6 @@
 "use client";
 
-import { Icons, Section, buttonVariants, cn } from "@allsource/ui";
+import { buttonVariants, cn, Icons, Section } from "@allsource/ui";
 import { motion } from "motion/react";
 import Link from "next/link";
 
@@ -8,8 +8,8 @@ export default function CtaSection() {
   return (
     <Section
       id="cta"
-      title="Ready to time-travel your data?"
-      subtitle="Start building with AllSource today. Free tier available."
+      title="Give your application perfect memory"
+      subtitle="Query any point in history. Never lose an event. Free tier with 50K events/month."
       className="relative overflow-hidden rounded-xl py-16"
     >
       {/* Animated gradient background */}
@@ -47,10 +47,7 @@ export default function CtaSection() {
             Start Your Project
           </Link>
         </motion.div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.98 }}
-        >
+        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
           <Link
             href="https://github.com/all-source-os/all-source"
             className={cn(

@@ -1,29 +1,29 @@
-import Features from "@/components/features-vertical";
 import { Section } from "@allsource/ui";
 import { Database, Play, Sparkles } from "lucide-react";
+import Features from "@/components/features-vertical";
 
 const data = [
   {
     id: 1,
-    title: "1. Connect Your Sources",
+    title: "1. Capture Everything",
     content:
-      "Point AllSource at your event streams. REST API, WebSocket, or direct SDK integration. Schema validation ensures data quality from the start.",
+      "Send events via REST, WebSocket, or SDK. Every event is immutably stored with automatic schema validation. Nothing is ever lost or overwritten.",
     image: "/dashboard.png",
     icon: <Database className="w-6 h-6 text-primary" />,
   },
   {
     id: 2,
-    title: "2. Build Your Pipelines",
+    title: "2. Process in Real-Time",
     content:
-      "Define stream processing pipelines with our fluent API. Filter, transform, aggregate, and route events in real-time. No complex infrastructure to manage.",
+      "Build pipelines that filter, transform, and route events as they arrive. Create projections and materialized views that stay in sync automatically.",
     image: "/dashboard.png",
     icon: <Play className="w-6 h-6 text-primary" />,
   },
   {
     id: 3,
-    title: "3. Query Through Time",
+    title: "3. Query Any Point in Time",
     content:
-      "Access any point in your event history with sub-microsecond latency. Use our MCP tools to let AI agents analyze patterns, detect anomalies, and automate responses.",
+      "Reconstruct state at any timestamp. Replay sequences for debugging. Let AI agents analyze patterns across your entire history with 27 MCP tools.",
     image: "/dashboard.png",
     icon: <Sparkles className="w-6 h-6 text-primary" />,
   },
@@ -31,7 +31,7 @@ const data = [
 
 export default function Component() {
   return (
-    <Section title="How It Works" subtitle="From events to intelligence in three steps">
+    <Section title="How It Works" subtitle="From events to perfect memory in three steps">
       <Features data={data} />
     </Section>
   );

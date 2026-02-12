@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { Button, Card, CardContent } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Clock, Rewind, FastForward, Play, ArrowRight } from "lucide-react";
+import { ArrowRight, Clock, FastForward, Play, Rewind } from "lucide-react";
+import { useState } from "react";
 
 interface StepExploreProps {
   onNext: () => void;
@@ -177,9 +177,9 @@ export function StepExplore({ onNext }: StepExploreProps) {
       <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4">
         <h3 className="mb-1 font-medium">Why Time Travel Matters</h3>
         <p className="text-sm text-muted-foreground">
-          Traditional databases only show current state. With AllSource, you can see exactly
-          what happened, when it happened, and reconstruct state at any point in time.
-          Perfect for debugging, auditing, and understanding user journeys.
+          Traditional databases only show current state. With AllSource, you can see exactly what
+          happened, when it happened, and reconstruct state at any point in time. Perfect for
+          debugging, auditing, and understanding user journeys.
         </p>
       </div>
 

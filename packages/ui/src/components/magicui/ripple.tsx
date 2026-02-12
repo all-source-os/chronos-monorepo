@@ -24,7 +24,7 @@ export const Ripple = React.memo(function Ripple({
       {Array.from({ length: numCircles }, (_, i) => {
         const size = mainCircleSize + i * 70;
         const opacity = mainCircleOpacity - i * 0.03;
-        const animationDelay = `${i * 0.06}s`;
+        const _animationDelay = `${i * 0.06}s`;
         const borderStyle = i === numCircles - 1 ? "dashed" : "solid";
         const borderOpacity = 5 + i * 5;
 

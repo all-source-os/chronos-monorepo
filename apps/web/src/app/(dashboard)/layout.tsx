@@ -1,19 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { cn } from "@allsource/ui/utils";
-import { Sidebar } from "@/components/dashboard/sidebar";
-import { Header } from "@/components/dashboard/header";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { EarlyAccessBanner } from "@/components/dashboard/early-access-banner";
+import { Header } from "@/components/dashboard/header";
+import { HistoricalModeBanner } from "@/components/dashboard/historical-mode-banner";
+import { Sidebar } from "@/components/dashboard/sidebar";
+import { TimeTravelProvider } from "@/hooks/use-time-travel";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { login, setLoading, isLoading } = useAuthStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -71,62 +69,60 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Sidebar - Desktop */}
-      <div className="hidden md:block">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
-      </div>
-
-      {/* Mobile sidebar overlay */}
-      {mobileMenuOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-30 bg-background/80 backdrop-blur-sm md:hidden"
-            onClick={() => setMobileMenuOpen(false)}
+    <TimeTravelProvider>
+      <div className="min-h-screen bg-background">
+        {/* Sidebar - Desktop */}
+        <div className="hidden md:block">
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
           />
-          <div className="fixed left-0 top-0 z-40 md:hidden">
-            <Sidebar collapsed={false} onToggle={() => setMobileMenuOpen(false)} />
-          </div>
-        </>
-      )}
-
-      {/* Header */}
-      <Header
-        sidebarCollapsed={sidebarCollapsed}
-        onMenuClick={() => setMobileMenuOpen(true)}
-        onCommandPaletteOpen={() => setCommandPaletteOpen(true)}
-      />
-
-      {/* Early Access Banner */}
-      <div
-        className={cn(
-          "fixed top-16 right-0 left-0 z-20 transition-all duration-300",
-          sidebarCollapsed ? "md:left-16" : "md:left-64"
-        )}
-      >
-        <EarlyAccessBanner />
-      </div>
-
-      {/* Main content */}
-      <main
-        className={cn(
-          "min-h-screen pt-16 transition-all duration-300",
-          sidebarCollapsed ? "md:ml-16" : "md:ml-64"
-        )}
-      >
-        <div className="container mx-auto max-w-7xl p-4 md:p-6 lg:p-8">
-          {children}
         </div>
-      </main>
 
-      {/* Command Palette */}
-      <CommandPalette
-        open={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-      />
-    </div>
+        {/* Mobile sidebar overlay */}
+        {mobileMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-30 bg-background/80 backdrop-blur-sm md:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <div className="fixed left-0 top-0 z-40 md:hidden">
+              <Sidebar collapsed={false} onToggle={() => setMobileMenuOpen(false)} />
+            </div>
+          </>
+        )}
+
+        {/* Header */}
+        <Header
+          sidebarCollapsed={sidebarCollapsed}
+          onMenuClick={() => setMobileMenuOpen(true)}
+          onCommandPaletteOpen={() => setCommandPaletteOpen(true)}
+        />
+
+        {/* Banners */}
+        <div
+          className={cn(
+            "fixed top-16 right-0 left-0 z-20 transition-all duration-300",
+            sidebarCollapsed ? "md:left-16" : "md:left-64"
+          )}
+        >
+          <EarlyAccessBanner />
+          <HistoricalModeBanner />
+        </div>
+
+        {/* Main content */}
+        <main
+          className={cn(
+            "min-h-screen pt-16 transition-all duration-300",
+            sidebarCollapsed ? "md:ml-16" : "md:ml-64"
+          )}
+        >
+          <div className="container mx-auto max-w-7xl p-4 md:p-6 lg:p-8">{children}</div>
+        </main>
+
+        {/* Command Palette */}
+        <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+      </div>
+    </TimeTravelProvider>
   );
 }

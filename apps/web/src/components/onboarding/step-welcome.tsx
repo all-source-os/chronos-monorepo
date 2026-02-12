@@ -1,8 +1,8 @@
 "use client";
 
-import { Icons, Button } from "@allsource/ui";
+import { Button, Icons } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Sparkles, Zap, Shield, Clock } from "lucide-react";
+import { Clock, Shield, Sparkles, Zap } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 interface StepWelcomeProps {
@@ -58,7 +58,7 @@ export function StepWelcome({ onNext }: StepWelcomeProps) {
             key={feature.title}
             className={cn(
               "rounded-xl border border-border bg-card p-4 text-left transition-all",
-              "animate-in fade-in-50 slide-in-from-bottom-4",
+              "animate-in fade-in-50 slide-in-from-bottom-4"
             )}
             style={{ animationDelay: `${index * 100}ms` }}
           >
