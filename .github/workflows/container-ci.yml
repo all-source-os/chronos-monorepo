@@ -62,7 +62,7 @@ jobs:
       control-plane: ${{ steps.set-matrix.outputs.control-plane }}
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set Matrix
         id: set-matrix
@@ -138,7 +138,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -280,7 +280,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download core image
         uses: actions/download-artifact@v4

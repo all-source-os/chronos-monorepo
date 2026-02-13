@@ -26,7 +26,7 @@ jobs:
     name: Workflow Syntax
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install actionlint
         run: |
@@ -49,7 +49,7 @@ jobs:
     name: Workflow Validation (act)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install act
         run: |
@@ -78,7 +78,7 @@ jobs:
     name: Version Consistency
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check version consistency
         run: |
@@ -103,7 +103,7 @@ jobs:
       query-service: ${{ steps.filter.outputs.elixir }}
       control-plane: ${{ steps.filter.outputs.go }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -139,7 +139,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -194,7 +194,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -258,7 +258,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
@@ -332,7 +332,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
