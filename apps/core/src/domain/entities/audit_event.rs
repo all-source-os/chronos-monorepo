@@ -285,7 +285,6 @@ impl AuditEvent {
     }
 
     /// Builder pattern methods
-
     pub fn with_resource(mut self, resource_type: String, resource_id: String) -> Self {
         self.resource_type = Some(resource_type);
         self.resource_id = Some(resource_id);

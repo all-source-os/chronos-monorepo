@@ -1,10 +1,13 @@
-use crate::domain::entities::{ArticleStatus, PaywallArticle};
-use crate::domain::repositories::{ArticleOrderBy, ArticleQuery, ArticleRepository};
-use crate::domain::value_objects::{ArticleId, CreatorId, TenantId};
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{ArticleStatus, PaywallArticle},
+        repositories::{ArticleOrderBy, ArticleQuery, ArticleRepository},
+        value_objects::{ArticleId, CreatorId, TenantId},
+    },
+    error::Result,
+};
 use async_trait::async_trait;
-use std::collections::HashMap;
-use std::sync::RwLock;
+use std::{collections::HashMap, sync::RwLock};
 
 /// In-memory implementation of ArticleRepository
 ///

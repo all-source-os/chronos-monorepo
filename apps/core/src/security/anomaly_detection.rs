@@ -13,8 +13,7 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 /// Anomaly detection configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,38 +220,38 @@ impl AnomalyDetector {
         };
 
         // Check for brute force attacks
-        if config.enable_brute_force_detection {
-            if let Some((score, factors)) = self.detect_brute_force(&user_id, event)? {
-                anomaly_scores.push((AnomalyType::BruteForceAttack, score, factors));
-            }
+        if config.enable_brute_force_detection
+            && let Some((score, factors)) = self.detect_brute_force(&user_id, event)?
+        {
+            anomaly_scores.push((AnomalyType::BruteForceAttack, score, factors));
         }
 
         // Check for unusual access patterns
-        if config.enable_unusual_access_detection {
-            if let Some((score, factors)) = self.detect_unusual_access(&user_id, event)? {
-                anomaly_scores.push((AnomalyType::UnusualAccessPattern, score, factors));
-            }
+        if config.enable_unusual_access_detection
+            && let Some((score, factors)) = self.detect_unusual_access(&user_id, event)?
+        {
+            anomaly_scores.push((AnomalyType::UnusualAccessPattern, score, factors));
         }
 
         // Check for privilege escalation
-        if config.enable_privilege_escalation_detection {
-            if let Some((score, factors)) = self.detect_privilege_escalation(&user_id, event)? {
-                anomaly_scores.push((AnomalyType::PrivilegeEscalation, score, factors));
-            }
+        if config.enable_privilege_escalation_detection
+            && let Some((score, factors)) = self.detect_privilege_escalation(&user_id, event)?
+        {
+            anomaly_scores.push((AnomalyType::PrivilegeEscalation, score, factors));
         }
 
         // Check for data exfiltration
-        if config.enable_data_exfiltration_detection {
-            if let Some((score, factors)) = self.detect_data_exfiltration(&user_id, event)? {
-                anomaly_scores.push((AnomalyType::DataExfiltration, score, factors));
-            }
+        if config.enable_data_exfiltration_detection
+            && let Some((score, factors)) = self.detect_data_exfiltration(&user_id, event)?
+        {
+            anomaly_scores.push((AnomalyType::DataExfiltration, score, factors));
         }
 
         // Check for velocity anomalies
-        if config.enable_velocity_detection {
-            if let Some((score, factors)) = self.detect_velocity_anomaly(&user_id, event)? {
-                anomaly_scores.push((AnomalyType::VelocityAnomaly, score, factors));
-            }
+        if config.enable_velocity_detection
+            && let Some((score, factors)) = self.detect_velocity_anomaly(&user_id, event)?
+        {
+            anomaly_scores.push((AnomalyType::VelocityAnomaly, score, factors));
         }
 
         // Store event for future analysis
@@ -439,7 +438,7 @@ impl AnomalyDetector {
         event: &AuditEvent,
     ) -> Result<Option<(f64, Vec<String>)>> {
         // Detect attempts to gain unauthorized privileges
-        let sensitive_actions = vec![AuditAction::TenantUpdated, AuditAction::RoleChanged];
+        let sensitive_actions = [AuditAction::TenantUpdated, AuditAction::RoleChanged];
 
         if sensitive_actions.contains(event.action()) && event.outcome() == &AuditOutcome::Failure {
             let recent = self.recent_events.read();
@@ -587,8 +586,7 @@ pub struct DetectionStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::Actor;
-    use crate::domain::value_objects::TenantId;
+    use crate::domain::{entities::Actor, value_objects::TenantId};
 
     fn create_test_event(action: AuditAction, outcome: AuditOutcome, user_id: &str) -> AuditEvent {
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();

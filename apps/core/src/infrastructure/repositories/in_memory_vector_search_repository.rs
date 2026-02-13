@@ -1,14 +1,20 @@
-use crate::domain::repositories::{
-    SearchResult, VectorEntry, VectorSearchQuery, VectorSearchReader, VectorSearchRepository,
-    VectorSearchWriter,
+use crate::{
+    domain::{
+        repositories::{
+            SearchResult, VectorEntry, VectorSearchQuery, VectorSearchReader,
+            VectorSearchRepository, VectorSearchWriter,
+        },
+        value_objects::{DistanceMetric, EmbeddingVector, SimilarityScore},
+    },
+    error::{AllSourceError, Result},
 };
-use crate::domain::value_objects::{DistanceMetric, EmbeddingVector, SimilarityScore};
-use crate::error::{AllSourceError, Result};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use parking_lot::RwLock;
-use std::collections::{BinaryHeap, HashMap};
-use std::sync::Arc;
+use std::{
+    collections::{BinaryHeap, HashMap},
+    sync::Arc,
+};
 use uuid::Uuid;
 
 /// Internal storage entry for vectors
@@ -116,14 +122,14 @@ impl InMemoryVectorSearchRepository {
     /// Validate that the embedding dimensions match the stored dimensions
     fn validate_dimensions(&self, embedding: &EmbeddingVector) -> Result<()> {
         let dims = self.dimensions.read();
-        if let Some(expected) = *dims {
-            if embedding.dimensions() != expected {
-                return Err(AllSourceError::InvalidInput(format!(
-                    "Embedding dimension mismatch: expected {}, got {}",
-                    expected,
-                    embedding.dimensions()
-                )));
-            }
+        if let Some(expected) = *dims
+            && embedding.dimensions() != expected
+        {
+            return Err(AllSourceError::InvalidInput(format!(
+                "Embedding dimension mismatch: expected {}, got {}",
+                expected,
+                embedding.dimensions()
+            )));
         }
         Ok(())
     }

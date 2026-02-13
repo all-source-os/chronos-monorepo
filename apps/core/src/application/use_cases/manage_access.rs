@@ -1,11 +1,16 @@
-use crate::application::dto::{
-    AccessTokenDto, CheckAccessRequest, CheckAccessResponse, GrantAccessResponse,
-    GrantFreeAccessRequest, ListAccessTokensResponse, RevokeAccessRequest, RevokeAccessResponse,
+use crate::{
+    application::dto::{
+        AccessTokenDto, CheckAccessRequest, CheckAccessResponse, GrantAccessResponse,
+        GrantFreeAccessRequest, ListAccessTokensResponse, RevokeAccessRequest,
+        RevokeAccessResponse,
+    },
+    domain::{
+        entities::{AccessToken, AccessTokenId},
+        repositories::{AccessTokenRepository, ArticleRepository},
+        value_objects::{ArticleId, WalletAddress},
+    },
+    error::Result,
 };
-use crate::domain::entities::{AccessToken, AccessTokenId};
-use crate::domain::repositories::{AccessTokenRepository, ArticleRepository};
-use crate::domain::value_objects::{ArticleId, WalletAddress};
-use crate::error::Result;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
@@ -274,7 +279,7 @@ impl CleanupExpiredTokensUseCase {
 /// Generate a raw token for access
 fn generate_raw_token(article_id: &ArticleId, wallet: &WalletAddress) -> String {
     use rand::Rng;
-    let random_bytes: [u8; 32] = rand::thread_rng().gen();
+    let random_bytes: [u8; 32] = rand::thread_rng().r#gen();
     let mut hasher = Sha256::new();
     hasher.update(article_id.to_string().as_bytes());
     hasher.update(wallet.to_string().as_bytes());
@@ -293,9 +298,11 @@ fn hash_token(raw_token: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::PaywallArticle;
-    use crate::domain::repositories::{AccessTokenQuery, ArticleQuery};
-    use crate::domain::value_objects::{CreatorId, TenantId, TransactionId};
+    use crate::domain::{
+        entities::PaywallArticle,
+        repositories::{AccessTokenQuery, ArticleQuery},
+        value_objects::{CreatorId, TenantId, TransactionId},
+    };
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
     use std::sync::Mutex;
@@ -664,15 +671,17 @@ mod tests {
         let creator_id = CreatorId::new();
         let wallet = WalletAddress::new(VALID_WALLET.to_string()).unwrap();
 
-        let tokens = vec![AccessToken::new_free(
-            tenant_id,
-            article_id,
-            creator_id,
-            wallet,
-            VALID_TOKEN_HASH.to_string(),
-            30,
-        )
-        .unwrap()];
+        let tokens = vec![
+            AccessToken::new_free(
+                tenant_id,
+                article_id,
+                creator_id,
+                wallet,
+                VALID_TOKEN_HASH.to_string(),
+                30,
+            )
+            .unwrap(),
+        ];
 
         let response = ListAccessTokensUseCase::execute(tokens);
         assert_eq!(response.count, 1);

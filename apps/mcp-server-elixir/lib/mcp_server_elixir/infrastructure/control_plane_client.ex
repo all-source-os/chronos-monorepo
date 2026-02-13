@@ -46,4 +46,107 @@ defmodule McpServerElixir.Infrastructure.ControlPlaneClient do
         {:error, reason}
     end
   end
+
+  # ============================================================================
+  # Tenant Management Endpoints
+  # ============================================================================
+
+  @doc "Create a new tenant with quotas and settings"
+  def tenant_create(_client, params) do
+    case post("/api/v1/tenants", params) do
+      {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 201] ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Update tenant settings and quotas"
+  def tenant_update(_client, tenant_id, params) do
+    case put("/api/v1/tenants/#{tenant_id}", params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get usage statistics for a tenant"
+  def tenant_usage(_client, tenant_id, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/tenants/#{tenant_id}/usage", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get or update quota configuration for a tenant"
+  def tenant_quotas(_client, tenant_id, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/tenants/#{tenant_id}/quotas", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Suspend a tenant (soft disable)"
+  def tenant_suspend(_client, tenant_id, params) do
+    case post("/api/v1/tenants/#{tenant_id}/suspend", params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Export all data for a tenant"
+  def tenant_export(_client, tenant_id, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/tenants/#{tenant_id}/export", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 end

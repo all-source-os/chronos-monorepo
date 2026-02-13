@@ -5,18 +5,22 @@
 //! These benchmarks validate that the performance optimizations achieve
 //! acceptable throughput. Must be run in release mode for accurate results.
 
-use allsource_core::domain::entities::Event;
-use allsource_core::infrastructure::persistence::{
-    arena_pool::{arena_stats, get_arena, reset_stats as reset_arena_stats},
-    batch_processor::{BatchProcessor, BatchProcessorConfig},
-    lock_free::{LockFreeEventQueue, ShardedEventQueue},
-    simd_filter::{FilterPredicate, SimdEventFilter},
-    simd_json::SimdJsonParser,
+use allsource_core::{
+    domain::entities::Event,
+    infrastructure::persistence::{
+        arena_pool::{arena_stats, get_arena, reset_stats as reset_arena_stats},
+        batch_processor::{BatchProcessor, BatchProcessorConfig},
+        lock_free::{LockFreeEventQueue, ShardedEventQueue},
+        simd_filter::{FilterPredicate, SimdEventFilter},
+        simd_json::SimdJsonParser,
+    },
 };
 use chrono::Utc;
 use serde_json::json;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 fn create_test_json(id: u32) -> String {
     json!({

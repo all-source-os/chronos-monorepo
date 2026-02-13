@@ -8,6 +8,7 @@ defmodule QueryServiceExWeb.QueryController do
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
+  alias QueryServiceEx.DevMode
   alias QueryServiceEx.Domain.Entities.Query
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceEx.UsageMeter
@@ -68,6 +69,7 @@ defmodule QueryServiceExWeb.QueryController do
   """
   def execute(conn, params) do
     tenant_id = get_tenant_id!(conn)
+    consistency = conn.assigns[:consistency]
 
     # Check if this is a simple query or DSL query
     query =
@@ -79,7 +81,7 @@ defmodule QueryServiceExWeb.QueryController do
 
     case query do
       {:ok, q} ->
-        case RustCoreClient.query_events(tenant_id, q) do
+        case RustCoreClient.query_events(tenant_id, q, consistency: consistency) do
           {:ok, events} ->
             # Record usage after successful query execution
             record_query_usage(conn, %{
@@ -191,23 +193,24 @@ defmodule QueryServiceExWeb.QueryController do
     end
   end
 
-  # Records query usage for the current tenant
+  # Records query usage for the current tenant (skipped in standalone mode)
   defp record_query_usage(conn, metadata) do
-    case conn.assigns[:current_tenant] do
-      nil ->
-        # No tenant context - skip metering (should not happen in normal flow)
-        :ok
+    if DevMode.repo_available?() do
+      case conn.assigns[:current_tenant] do
+        nil ->
+          :ok
 
-      tenant ->
-        # Record usage asynchronously to not block the response
-        # In test mode (sandbox), run synchronously to avoid connection issues
-        if Application.get_env(:query_service_ex, :sql_sandbox, false) do
-          UsageMeter.record_queries(tenant.id, count: 1, metadata: metadata)
-        else
-          Task.start(fn ->
+        tenant ->
+          if Application.get_env(:query_service_ex, :sql_sandbox, false) do
             UsageMeter.record_queries(tenant.id, count: 1, metadata: metadata)
-          end)
-        end
+          else
+            Task.start(fn ->
+              UsageMeter.record_queries(tenant.id, count: 1, metadata: metadata)
+            end)
+          end
+      end
+    else
+      :ok
     end
   end
 end

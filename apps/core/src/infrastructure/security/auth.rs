@@ -1,11 +1,11 @@
 use crate::error::{AllSourceError, Result};
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use chrono::{Duration, Utc};
 use dashmap::DashMap;
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -185,10 +185,10 @@ impl ApiKey {
             return false;
         }
 
-        if let Some(expires_at) = self.expires_at {
-            if Utc::now() > expires_at {
-                return false;
-            }
+        if let Some(expires_at) = self.expires_at
+            && Utc::now() > expires_at
+        {
+            return false;
         }
 
         hash_api_key(key) == self.key_hash
@@ -429,7 +429,7 @@ impl Default for AuthManager {
     fn default() -> Self {
         // Generate a random secret for development
         // In production, this should come from configuration
-        use base64::{engine::general_purpose, Engine as _};
+        use base64::{Engine as _, engine::general_purpose};
         let secret = general_purpose::STANDARD.encode(rand::random::<[u8; 32]>());
         Self::new(&secret)
     }
@@ -460,7 +460,7 @@ fn verify_password(password: &str, hash: &str) -> Result<bool> {
 
 /// Generate API key
 fn generate_api_key() -> String {
-    use base64::{engine::general_purpose, Engine as _};
+    use base64::{Engine as _, engine::general_purpose};
     let random_bytes: [u8; 32] = rand::random();
     format!(
         "ask_{}",
@@ -470,8 +470,10 @@ fn generate_api_key() -> String {
 
 /// Hash API key for storage
 fn hash_api_key(key: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
+    use std::{
+        collections::hash_map::DefaultHasher,
+        hash::{Hash, Hasher},
+    };
 
     let mut hasher = DefaultHasher::new();
     key.hash(&mut hasher);

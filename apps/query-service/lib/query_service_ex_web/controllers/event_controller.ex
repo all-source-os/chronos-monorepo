@@ -10,6 +10,7 @@ defmodule QueryServiceExWeb.EventController do
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
+  alias QueryServiceEx.DevMode
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceEx.UsageMeter
   alias QueryServiceExWeb.Schemas.Common
@@ -50,13 +51,14 @@ defmodule QueryServiceExWeb.EventController do
   """
   def index(conn, params) do
     tenant_id = get_tenant_id!(conn)
+    consistency = conn.assigns[:consistency]
 
     query_params =
       %{limit: parse_int(params["limit"], 100), offset: parse_int(params["offset"], 0)}
       |> maybe_put(:entity_id, params["entity_id"])
       |> maybe_put(:event_type, params["event_type"])
 
-    case RustCoreClient.query_events(tenant_id, query_params) do
+    case RustCoreClient.query_events(tenant_id, query_params, consistency: consistency) do
       {:ok, events} ->
         json(conn, %{data: events, count: length(events)})
 
@@ -223,8 +225,9 @@ defmodule QueryServiceExWeb.EventController do
   """
   def by_entity(conn, %{"entity_id" => entity_id}) do
     tenant_id = get_tenant_id!(conn)
+    consistency = conn.assigns[:consistency]
 
-    case RustCoreClient.get_events_by_entity(tenant_id, entity_id) do
+    case RustCoreClient.get_events_by_entity(tenant_id, entity_id, consistency: consistency) do
       {:ok, events} ->
         json(conn, %{data: events, count: length(events), entity_id: entity_id})
 
@@ -255,8 +258,9 @@ defmodule QueryServiceExWeb.EventController do
   """
   def by_type(conn, %{"event_type" => event_type}) do
     tenant_id = get_tenant_id!(conn)
+    consistency = conn.assigns[:consistency]
 
-    case RustCoreClient.get_events_by_type(tenant_id, event_type) do
+    case RustCoreClient.get_events_by_type(tenant_id, event_type, consistency: consistency) do
       {:ok, events} ->
         json(conn, %{data: events, count: length(events), event_type: event_type})
 
@@ -275,6 +279,7 @@ defmodule QueryServiceExWeb.EventController do
   """
   def recent(conn, params) do
     tenant_id = get_tenant_id!(conn)
+    consistency = conn.assigns[:consistency]
     limit = parse_int(params["limit"], 20)
 
     query_params = %{
@@ -282,7 +287,7 @@ defmodule QueryServiceExWeb.EventController do
       sort: "timestamp:desc"
     }
 
-    case RustCoreClient.query_events(tenant_id, query_params) do
+    case RustCoreClient.query_events(tenant_id, query_params, consistency: consistency) do
       {:ok, events} ->
         json(conn, %{data: events, count: length(events)})
 
@@ -316,10 +321,12 @@ defmodule QueryServiceExWeb.EventController do
   """
   def streams(conn, params) do
     _tenant_id = get_tenant_id!(conn)
+    consistency = conn.assigns[:consistency]
 
     opts = [
       limit: parse_int(params["limit"], nil),
-      offset: parse_int(params["offset"], nil)
+      offset: parse_int(params["offset"], nil),
+      consistency: consistency
     ]
 
     case RustCoreClient.list_streams(opts) do
@@ -366,10 +373,12 @@ defmodule QueryServiceExWeb.EventController do
   """
   def event_types(conn, params) do
     _tenant_id = get_tenant_id!(conn)
+    consistency = conn.assigns[:consistency]
 
     opts = [
       limit: parse_int(params["limit"], nil),
-      offset: parse_int(params["offset"], nil)
+      offset: parse_int(params["offset"], nil),
+      consistency: consistency
     ]
 
     case RustCoreClient.list_event_types(opts) do
@@ -418,23 +427,24 @@ defmodule QueryServiceExWeb.EventController do
     end
   end
 
-  # Records event usage for the current tenant
+  # Records event usage for the current tenant (skipped in standalone mode)
   defp record_event_usage(conn, count, metadata) do
-    case conn.assigns[:current_tenant] do
-      nil ->
-        # No tenant context - skip metering (should not happen in normal flow)
-        :ok
+    if DevMode.repo_available?() do
+      case conn.assigns[:current_tenant] do
+        nil ->
+          :ok
 
-      tenant ->
-        # Record usage asynchronously to not block the response
-        # In test mode (sandbox), run synchronously to avoid connection issues
-        if Application.get_env(:query_service_ex, :sql_sandbox, false) do
-          UsageMeter.record_events(tenant.id, count: count, metadata: metadata)
-        else
-          Task.start(fn ->
+        tenant ->
+          if Application.get_env(:query_service_ex, :sql_sandbox, false) do
             UsageMeter.record_events(tenant.id, count: count, metadata: metadata)
-          end)
-        end
+          else
+            Task.start(fn ->
+              UsageMeter.record_events(tenant.id, count: count, metadata: metadata)
+            end)
+          end
+      end
+    else
+      :ok
     end
   end
 end

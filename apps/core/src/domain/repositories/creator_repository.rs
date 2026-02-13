@@ -1,6 +1,10 @@
-use crate::domain::entities::{Creator, CreatorStatus, CreatorTier};
-use crate::domain::value_objects::{CreatorId, TenantId, WalletAddress};
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{Creator, CreatorStatus, CreatorTier},
+        value_objects::{CreatorId, TenantId, WalletAddress},
+    },
+    error::Result,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 

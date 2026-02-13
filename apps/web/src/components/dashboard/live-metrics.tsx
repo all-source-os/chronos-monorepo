@@ -3,7 +3,8 @@
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { Activity, Gauge, Pause, Play, Zap } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { apiClient } from "@/lib/api/client";
 
 interface MetricData {
   eventsPerSec: number;
@@ -11,45 +12,55 @@ interface MetricData {
   throughput: number;
 }
 
+function extractMetrics(response: Record<string, unknown>): MetricData {
+  const backend = response.backend as Record<string, unknown> | undefined;
+
+  // Try to extract real metrics from backend response
+  const eventsPerSec =
+    (backend?.events_per_second as number) ?? (backend?.throughput as number) ?? 0;
+  const latencyP99 =
+    (backend?.p99_latency_us as number) ?? (backend?.latency_p99_us as number) ?? 11.9;
+  const throughput =
+    (backend?.throughput_percent as number) ?? (backend?.utilization as number) ?? 0;
+
+  return { eventsPerSec, latencyP99, throughput };
+}
+
 export function LiveMetrics() {
   const [isPaused, setIsPaused] = useState(false);
   const [metrics, setMetrics] = useState<MetricData>({
-    eventsPerSec: 469000,
+    eventsPerSec: 0,
     latencyP99: 11.9,
-    throughput: 98.7,
+    throughput: 0,
   });
   const [sparklineData, setSparklineData] = useState<number[]>([]);
-  const animationRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Simulate real-time metrics (in production, this would use WebSocket)
+  const fetchMetrics = useCallback(async () => {
+    try {
+      const response = await apiClient.getMetrics();
+      if (response.data) {
+        const extracted = extractMetrics(response.data as unknown as Record<string, unknown>);
+        setMetrics(extracted);
+        setSparklineData((prev) => [...prev, extracted.eventsPerSec].slice(-30));
+      }
+    } catch {
+      // Silently fail — metrics are non-critical
+    }
+  }, []);
+
+  // Poll metrics every 5 seconds
   useEffect(() => {
+    fetchMetrics();
+
     if (isPaused) return;
 
-    animationRef.current = setInterval(() => {
-      setMetrics((_prev) => ({
-        eventsPerSec: Math.floor(469000 + (Math.random() - 0.5) * 50000),
-        latencyP99: Math.round((11.9 + (Math.random() - 0.5) * 2) * 10) / 10,
-        throughput: Math.round((98.7 + (Math.random() - 0.5) * 2) * 10) / 10,
-      }));
-
-      setSparklineData((prev) => {
-        const newData = [...prev, 469000 + (Math.random() - 0.5) * 50000];
-        return newData.slice(-30); // Keep last 30 data points
-      });
-    }, 1000);
+    intervalRef.current = setInterval(fetchMetrics, 5000);
 
     return () => {
-      if (animationRef.current) clearInterval(animationRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPaused]);
-
-  // Initialize sparkline data
-  useEffect(() => {
-    const initialData = Array.from({ length: 30 }, () =>
-      Math.floor(469000 + (Math.random() - 0.5) * 50000)
-    );
-    setSparklineData(initialData);
-  }, []);
+  }, [isPaused, fetchMetrics]);
 
   const maxSparkline = Math.max(...sparklineData, 1);
   const minSparkline = Math.min(...sparklineData, 0);

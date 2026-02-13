@@ -1,21 +1,27 @@
 // Article HTTP handlers - delegate to article use cases
 // Clean Architecture: Infrastructure Layer (HTTP) -> Application Layer (Use Cases)
 
-use crate::application::dto::{
-    ArticleDto, CreateArticleRequest, CreateArticleResponse, ListArticlesResponse,
-    UpdateArticleRequest, UpdateArticleResponse,
+use crate::{
+    application::{
+        dto::{
+            ArticleDto, CreateArticleRequest, CreateArticleResponse, ListArticlesResponse,
+            UpdateArticleRequest, UpdateArticleResponse,
+        },
+        use_cases::{
+            ArchiveArticleUseCase, CreateArticleUseCase, DeleteArticleUseCase, ListArticlesUseCase,
+            PublishArticleUseCase, RestoreArticleUseCase, UpdateArticleUseCase,
+        },
+    },
+    domain::{
+        entities::ArticleStatus,
+        repositories::{ArticleRepository, CreatorRepository},
+        value_objects::{ArticleId, CreatorId, TenantId},
+    },
+    error::Result,
 };
-use crate::application::use_cases::{
-    ArchiveArticleUseCase, CreateArticleUseCase, DeleteArticleUseCase, ListArticlesUseCase,
-    PublishArticleUseCase, RestoreArticleUseCase, UpdateArticleUseCase,
-};
-use crate::domain::entities::ArticleStatus;
-use crate::domain::repositories::{ArticleRepository, CreatorRepository};
-use crate::domain::value_objects::{ArticleId, CreatorId, TenantId};
-use crate::error::Result;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use std::sync::Arc;

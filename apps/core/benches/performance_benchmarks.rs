@@ -1,11 +1,11 @@
 use allsource_core::{
+    QueryEventsRequest,
     domain::entities::Event,
     infrastructure::persistence::{SnapshotConfig, WALConfig},
     store::{EventStore, EventStoreConfig},
-    QueryEventsRequest,
 };
 use chrono::Utc;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use serde_json::json;
 use std::sync::Arc;
 use tempfile::TempDir;

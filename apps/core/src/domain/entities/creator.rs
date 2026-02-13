@@ -1,12 +1,15 @@
-use crate::domain::value_objects::{CreatorId, TenantId, WalletAddress};
-use crate::error::Result;
+use crate::{
+    domain::value_objects::{CreatorId, TenantId, WalletAddress},
+    error::Result,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Creator status in the paywall system
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CreatorStatus {
     /// Creator has signed up but not verified email
+    #[default]
     Pending,
     /// Creator is active and can receive payments
     Active,
@@ -16,16 +19,11 @@ pub enum CreatorStatus {
     Deactivated,
 }
 
-impl Default for CreatorStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
-}
-
 /// Creator tier determining fees and features
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CreatorTier {
     /// Free tier: 10% platform fee
+    #[default]
     Free,
     /// Creator tier ($29/month): 7% platform fee
     Creator,
@@ -44,12 +42,6 @@ impl CreatorTier {
             CreatorTier::Pro => 5,
             CreatorTier::Enterprise => 3,
         }
-    }
-}
-
-impl Default for CreatorTier {
-    fn default() -> Self {
-        Self::Free
     }
 }
 

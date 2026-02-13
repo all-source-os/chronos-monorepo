@@ -1,5 +1,7 @@
-use crate::domain::value_objects::{DistanceMetric, EmbeddingVector, SimilarityScore};
-use crate::error::Result;
+use crate::{
+    domain::value_objects::{DistanceMetric, EmbeddingVector, SimilarityScore},
+    error::Result,
+};
 use async_trait::async_trait;
 use uuid::Uuid;
 

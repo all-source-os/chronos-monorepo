@@ -1,6 +1,8 @@
-use crate::application::services::tenant_service::{Tenant, TenantQuotas};
-use crate::infrastructure::security::middleware::{Admin, Authenticated};
-use axum::{extract::State, http::StatusCode, Json};
+use crate::{
+    application::services::tenant_service::{Tenant, TenantQuotas},
+    infrastructure::security::middleware::{Admin, Authenticated},
+};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 
 // AppState is defined in api_v1.rs

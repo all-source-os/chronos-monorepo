@@ -52,7 +52,10 @@ defmodule QueryServiceEx.Application do
           {QueryServiceEx.CircuitBreaker, name: QueryServiceEx.CircuitBreaker},
 
           # ETS cache for analytics results
-          QueryServiceEx.Infrastructure.Adapters.AnalyticsCache
+          QueryServiceEx.Infrastructure.Adapters.AnalyticsCache,
+
+          # Health checker for Core read nodes (polls /health, tracks lag in ETS)
+          QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
         ] ++
         cluster_children ++
         integration_children() ++

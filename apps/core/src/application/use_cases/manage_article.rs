@@ -1,11 +1,15 @@
-use crate::application::dto::{
-    ArticleDto, CreateArticleRequest, CreateArticleResponse, ListArticlesResponse,
-    UpdateArticleRequest, UpdateArticleResponse,
+use crate::{
+    application::dto::{
+        ArticleDto, CreateArticleRequest, CreateArticleResponse, ListArticlesResponse,
+        UpdateArticleRequest, UpdateArticleResponse,
+    },
+    domain::{
+        entities::PaywallArticle,
+        repositories::ArticleRepository,
+        value_objects::{ArticleId, CreatorId, TenantId},
+    },
+    error::Result,
 };
-use crate::domain::entities::PaywallArticle;
-use crate::domain::repositories::ArticleRepository;
-use crate::domain::value_objects::{ArticleId, CreatorId, TenantId};
-use crate::error::Result;
 use std::sync::Arc;
 
 /// Use Case: Create Article
@@ -225,8 +229,7 @@ impl ListArticlesUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::ArticleStatus;
-    use crate::domain::repositories::ArticleQuery;
+    use crate::domain::{entities::ArticleStatus, repositories::ArticleQuery};
     use async_trait::async_trait;
     use std::sync::Mutex;
 

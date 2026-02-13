@@ -15,18 +15,17 @@
 /// 9. Persistent storage configuration
 /// 10. WAL durability
 use allsource_core::{
+    QueryEventsRequest,
+    TenantManager,
     // Auth and security (optional in embedded mode)
     auth::{AuthManager, Permission, Role},
     domain::entities::Event,
     rate_limit::{RateLimitConfig, RateLimiter},
     store::EventStore,
     tenant::TenantQuotas,
-    QueryEventsRequest,
-    TenantManager,
 };
 use serde_json::json;
-use std::sync::Arc;
-use std::thread;
+use std::{sync::Arc, thread};
 
 // =============================================================================
 // Test 1: Basic EventStore Creation (In-Memory Mode)

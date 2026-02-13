@@ -22,8 +22,10 @@
 //! ```
 
 use bumpalo::Bump;
-use std::cell::RefCell;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    cell::RefCell,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 /// Default arena size (16MB)
 const DEFAULT_ARENA_SIZE: usize = 16 * 1024 * 1024;

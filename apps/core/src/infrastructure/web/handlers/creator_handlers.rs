@@ -1,21 +1,25 @@
 // Creator HTTP handlers - delegate to CreatorCoordinator and use cases
 // Clean Architecture: Infrastructure Layer (HTTP) -> Application Layer (Coordinator/Use Cases)
 
-use crate::application::dto::{
-    CreatorDto, ListCreatorsResponse, RegisterCreatorRequest, RegisterCreatorResponse,
-    UpdateCreatorRequest, UpdateCreatorResponse, UpgradeCreatorTierRequest,
+use crate::{
+    application::{
+        dto::{
+            CreatorDto, ListCreatorsResponse, RegisterCreatorRequest, RegisterCreatorResponse,
+            UpdateCreatorRequest, UpdateCreatorResponse, UpgradeCreatorTierRequest,
+        },
+        services::CreatorCoordinator,
+        use_cases::{
+            DeactivateCreatorUseCase, ListCreatorsUseCase, ReactivateCreatorUseCase,
+            SuspendCreatorUseCase, UpdateCreatorUseCase, UpgradeCreatorTierUseCase,
+            VerifyCreatorEmailUseCase,
+        },
+    },
+    domain::{repositories::CreatorRepository, value_objects::CreatorId},
+    error::Result,
 };
-use crate::application::services::CreatorCoordinator;
-use crate::application::use_cases::{
-    DeactivateCreatorUseCase, ListCreatorsUseCase, ReactivateCreatorUseCase, SuspendCreatorUseCase,
-    UpdateCreatorUseCase, UpgradeCreatorTierUseCase, VerifyCreatorEmailUseCase,
-};
-use crate::domain::repositories::CreatorRepository;
-use crate::domain::value_objects::CreatorId;
-use crate::error::Result;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use std::sync::Arc;

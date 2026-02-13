@@ -1,6 +1,10 @@
-use crate::domain::entities::{Event, EventStream};
-use crate::domain::value_objects::{EntityId, PartitionKey};
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{Event, EventStream},
+        value_objects::{EntityId, PartitionKey},
+    },
+    error::Result,
+};
 use async_trait::async_trait;
 
 /// Event Stream Repository Trait (SierraDB Pattern)

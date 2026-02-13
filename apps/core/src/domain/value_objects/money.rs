@@ -1,7 +1,9 @@
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::ops::{Add, Sub};
+use std::{
+    fmt,
+    ops::{Add, Sub},
+};
 
 /// Supported currencies in the paywall system
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

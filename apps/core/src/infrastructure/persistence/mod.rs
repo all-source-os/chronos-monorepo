@@ -13,12 +13,14 @@ pub mod simd_json;
 pub mod snapshot;
 pub mod storage;
 pub mod storage_integrity;
+pub mod system_bootstrap;
+pub mod system_store;
 pub mod wal;
 
 // Re-exports for convenience
 pub use arena_pool::{
-    arena_stats, get_arena, get_arena_with_capacity, ArenaPoolStats, PooledArena, ScopedArena,
-    SizedBufferPool,
+    ArenaPoolStats, PooledArena, ScopedArena, SizedBufferPool, arena_stats, get_arena,
+    get_arena_with_capacity,
 };
 pub use backup::*;
 pub use batch_processor::{
@@ -32,8 +34,8 @@ pub use lock_free::{
 };
 pub use performance::{BatchWriter, MemoryPool, PerformanceMetrics};
 pub use simd_filter::{
-    filter_events_simd, filter_events_simd_indices, FilterPredicate, SimdEventFilter,
-    SimdFilterStats,
+    FilterPredicate, SimdEventFilter, SimdFilterStats, filter_events_simd,
+    filter_events_simd_indices,
 };
 pub use simd_json::{BatchEventParser, SimdJsonError, SimdJsonParser, SimdJsonStats, ZeroCopyJson};
 pub use snapshot::{
@@ -41,8 +43,10 @@ pub use snapshot::{
     Snapshot, SnapshotConfig, SnapshotInfo, SnapshotManager, SnapshotType,
 };
 pub use storage::{
-    BatchWriteResult, BatchWriteStats, ParquetStorage, ParquetStorageConfig, DEFAULT_BATCH_SIZE,
-    DEFAULT_FLUSH_TIMEOUT_MS,
+    BatchWriteResult, BatchWriteStats, DEFAULT_BATCH_SIZE, DEFAULT_FLUSH_TIMEOUT_MS,
+    ParquetStorage, ParquetStorageConfig,
 };
 pub use storage_integrity::{IntegrityCheckResult, StorageIntegrity};
+pub use system_bootstrap::{SystemBootstrap, SystemRepositories};
+pub use system_store::SystemMetadataStore;
 pub use wal::{WALConfig, WriteAheadLog};

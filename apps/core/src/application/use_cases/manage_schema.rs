@@ -1,9 +1,11 @@
-use crate::application::dto::{
-    ListSchemasResponse, RegisterSchemaRequest, RegisterSchemaResponse, SchemaDto,
-    UpdateSchemaRequest,
+use crate::{
+    application::dto::{
+        ListSchemasResponse, RegisterSchemaRequest, RegisterSchemaResponse, SchemaDto,
+        UpdateSchemaRequest,
+    },
+    domain::entities::{CompatibilityMode, Schema},
+    error::Result,
 };
-use crate::domain::entities::{CompatibilityMode, Schema};
-use crate::error::Result;
 
 /// Use Case: Register Schema
 ///
@@ -87,7 +89,7 @@ impl UpdateSchemaMetadataUseCase {
         if let Some(tags) = request.tags {
             // Clear existing tags and add new ones
             for existing_tag in schema.tags().to_vec() {
-                schema.remove_tag(&existing_tag);
+                schema.remove_tag(&existing_tag)?;
             }
             for tag in tags {
                 schema.add_tag(tag)?;

@@ -7,23 +7,18 @@ use uuid::Uuid;
 /// Compatibility mode for schema evolution
 ///
 /// Defines how schema changes are validated when registering new versions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CompatibilityMode {
     /// No compatibility checking
     None,
     /// New schema must be backward compatible (can read old data)
+    #[default]
     Backward,
     /// New schema must be forward compatible (old readers can read new data)
     Forward,
     /// New schema must be both backward and forward compatible
     Full,
-}
-
-impl Default for CompatibilityMode {
-    fn default() -> Self {
-        Self::Backward
-    }
 }
 
 impl CompatibilityMode {

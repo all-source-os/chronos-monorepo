@@ -1,3 +1,29 @@
+//! RocksDB-backed Event Stream Repository
+//!
+//! Embedded high-performance storage implementing SierraDB patterns:
+//! - Fixed partitioning for horizontal scaling
+//! - Gapless version guarantees via watermarks
+//! - Optimistic locking for concurrency control
+//! - LSM-tree optimized for write-heavy workloads
+//!
+//! # Features
+//! - **Embedded storage**: No separate database process
+//! - **Ultra-low latency**: <1μs reads, sub-millisecond writes
+//! - **LSM-tree architecture**: Optimized for sequential writes
+//! - **Column families**: Organized data structures
+//! - **Atomic writes**: Batch operations for consistency
+//! - **Compaction**: Automatic background optimization
+//!
+//! # Column Family Design
+//! - **streams**: Stream metadata (stream_id -> EventStream)
+//! - **events**: Individual events (stream_id:version -> Event)
+//! - **partition_index**: Partition mapping (partition_id -> Vec<stream_id>)
+//!
+//! # Performance
+//! - Read: <1μs (memory table + bloom filters)
+//! - Write: 100-500μs (WAL + memtable)
+//! - Scan: Linear with data size (LSM compaction)
+
 #[cfg(feature = "rocksdb-storage")]
 use crate::domain::entities::{Event, EventStream};
 #[cfg(feature = "rocksdb-storage")]
@@ -10,34 +36,8 @@ use crate::error::{AllSourceError, Result};
 use async_trait::async_trait;
 #[cfg(feature = "rocksdb-storage")]
 use chrono::{DateTime, Utc};
-/// RocksDB-backed Event Stream Repository
-///
-/// Embedded high-performance storage implementing SierraDB patterns:
-/// - Fixed partitioning for horizontal scaling
-/// - Gapless version guarantees via watermarks
-/// - Optimistic locking for concurrency control
-/// - LSM-tree optimized for write-heavy workloads
-///
-/// # Features
-/// - **Embedded storage**: No separate database process
-/// - **Ultra-low latency**: <1μs reads, sub-millisecond writes
-/// - **LSM-tree architecture**: Optimized for sequential writes
-/// - **Column families**: Organized data structures
-/// - **Atomic writes**: Batch operations for consistency
-/// - **Compaction**: Automatic background optimization
-///
-/// # Column Family Design
-/// - **streams**: Stream metadata (stream_id -> EventStream)
-/// - **events**: Individual events (stream_id:version -> Event)
-/// - **partition_index**: Partition mapping (partition_id -> Vec<stream_id>)
-///
-/// # Performance
-/// - Read: <1μs (memory table + bloom filters)
-/// - Write: 100-500μs (WAL + memtable)
-/// - Scan: Linear with data size (LSM compaction)
-
 #[cfg(feature = "rocksdb-storage")]
-use rocksdb::{ColumnFamilyDescriptor, IteratorMode, Options, WriteBatch, DB};
+use rocksdb::{ColumnFamilyDescriptor, DB, IteratorMode, Options, WriteBatch};
 #[cfg(feature = "rocksdb-storage")]
 use serde::de::Error as DeError;
 #[cfg(feature = "rocksdb-storage")]
@@ -286,13 +286,13 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
         let current_metadata = Self::deserialize_stream_metadata(&current_data)?;
 
         // Optimistic locking check (domain level)
-        if let Some(expected) = stream.expected_version() {
-            if expected != current_metadata.current_version {
-                return Err(AllSourceError::ConcurrencyError(format!(
-                    "Version conflict: expected {}, got {}",
-                    expected, current_metadata.current_version
-                )));
-            }
+        if let Some(expected) = stream.expected_version()
+            && expected != current_metadata.current_version
+        {
+            return Err(AllSourceError::ConcurrencyError(format!(
+                "Version conflict: expected {}, got {}",
+                expected, current_metadata.current_version
+            )));
         }
 
         // Append event to domain entity (validation)
@@ -460,19 +460,16 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
             let (key, value) =
                 item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {e}")))?;
 
-            if let Ok(key_str) = std::str::from_utf8(&key) {
-                if let Some(partition_suffix) = key_str.strip_prefix("partition:") {
-                    if let Ok(partition_id) = partition_suffix.parse::<u32>() {
-                        let mut value_mut = value.to_vec();
-                        let stream_ids: Vec<String> = simd_json::from_slice(&mut value_mut)
-                            .map_err(|e| {
-                                AllSourceError::SerializationError(serde_json::Error::custom(
-                                    e.to_string(),
-                                ))
-                            })?;
-                        stats.push((partition_id, stream_ids.len()));
-                    }
-                }
+            if let Ok(key_str) = std::str::from_utf8(&key)
+                && let Some(partition_suffix) = key_str.strip_prefix("partition:")
+                && let Ok(partition_id) = partition_suffix.parse::<u32>()
+            {
+                let mut value_mut = value.to_vec();
+                let stream_ids: Vec<String> =
+                    simd_json::from_slice(&mut value_mut).map_err(|e| {
+                        AllSourceError::SerializationError(serde_json::Error::custom(e.to_string()))
+                    })?;
+                stats.push((partition_id, stream_ids.len()));
             }
         }
 
@@ -503,10 +500,10 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
             let (_, value) =
                 item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {e}")))?;
 
-            if let Ok(event) = Self::deserialize_event(&value) {
-                if event.tenant_id().as_str() == tenant_id.as_str() {
-                    stream_ids.insert(event.entity_id().as_str().to_string());
-                }
+            if let Ok(event) = Self::deserialize_event(&value)
+                && event.tenant_id().as_str() == tenant_id.as_str()
+            {
+                stream_ids.insert(event.entity_id().as_str().to_string());
             }
         }
 
@@ -542,10 +539,10 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
             let (_, value) =
                 item.map_err(|e| AllSourceError::StorageError(format!("Iterator error: {e}")))?;
 
-            if let Ok(event) = Self::deserialize_event(&value) {
-                if event.tenant_id().as_str() == tenant_id.as_str() {
-                    stream_ids.insert(event.entity_id().as_str().to_string());
-                }
+            if let Ok(event) = Self::deserialize_event(&value)
+                && event.tenant_id().as_str() == tenant_id.as_str()
+            {
+                stream_ids.insert(event.entity_id().as_str().to_string());
             }
         }
 

@@ -7,10 +7,10 @@
 /// - Per-field encryption keys
 use crate::error::{AllSourceError, Result};
 use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit, OsRng},
 };
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

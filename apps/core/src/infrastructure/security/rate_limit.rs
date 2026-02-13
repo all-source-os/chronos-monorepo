@@ -9,8 +9,7 @@
 /// - Automatic token replenishment
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 /// Rate limit configuration for different resource types
 #[derive(Debug, Clone)]
@@ -235,8 +234,7 @@ pub struct RateLimitStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
-    use std::time::Duration as StdDuration;
+    use std::{thread, time::Duration as StdDuration};
 
     #[test]
     fn test_token_bucket_creation() {

@@ -15,6 +15,7 @@ pub mod config;
 pub mod di;
 pub mod observability;
 pub mod persistence;
+pub mod replication;
 pub mod repositories;
 pub mod search;
 pub mod security;

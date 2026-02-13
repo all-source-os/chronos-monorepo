@@ -9,8 +9,7 @@
 use crate::error::{AllSourceError, Result};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 /// KMS provider type
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -175,15 +174,13 @@ impl KmsClient for LocalKms {
         let key_material = match algorithm {
             KeyAlgorithm::Aes256Gcm => {
                 let mut key = vec![0u8; 32];
-                use aes_gcm::aead::rand_core::RngCore;
-                use aes_gcm::aead::OsRng;
+                use aes_gcm::aead::{OsRng, rand_core::RngCore};
                 RngCore::fill_bytes(&mut OsRng, &mut key);
                 key
             }
             KeyAlgorithm::Aes128Gcm => {
                 let mut key = vec![0u8; 16];
-                use aes_gcm::aead::rand_core::RngCore;
-                use aes_gcm::aead::OsRng;
+                use aes_gcm::aead::{OsRng, rand_core::RngCore};
                 RngCore::fill_bytes(&mut OsRng, &mut key);
                 key
             }
@@ -232,8 +229,7 @@ impl KmsClient for LocalKms {
     }
 
     async fn encrypt(&self, key_id: &str, plaintext: &[u8]) -> Result<Vec<u8>> {
-        use aes_gcm::aead::Aead;
-        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+        use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
 
         let stored_key = self
             .keys
@@ -250,8 +246,7 @@ impl KmsClient for LocalKms {
             .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {e}")))?;
 
         // Generate nonce
-        use aes_gcm::aead::rand_core::RngCore;
-        use aes_gcm::aead::OsRng;
+        use aes_gcm::aead::{OsRng, rand_core::RngCore};
         let nonce_bytes = OsRng.next_u64().to_le_bytes();
         let mut nonce_array = [0u8; 12];
         nonce_array[..8].copy_from_slice(&nonce_bytes);
@@ -269,8 +264,7 @@ impl KmsClient for LocalKms {
     }
 
     async fn decrypt(&self, key_id: &str, ciphertext_with_nonce: &[u8]) -> Result<Vec<u8>> {
-        use aes_gcm::aead::Aead;
-        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+        use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
 
         if ciphertext_with_nonce.len() < 12 {
             return Err(AllSourceError::ValidationError(
@@ -304,8 +298,7 @@ impl KmsClient for LocalKms {
         // Generate new key material
         let new_key_material = {
             let mut key = vec![0u8; 32];
-            use aes_gcm::aead::rand_core::RngCore;
-            use aes_gcm::aead::OsRng;
+            use aes_gcm::aead::{OsRng, rand_core::RngCore};
             RngCore::fill_bytes(&mut OsRng, &mut key);
             key
         };
@@ -340,8 +333,7 @@ impl KmsClient for LocalKms {
     async fn generate_data_key(&self, key_id: &str) -> Result<(Vec<u8>, Vec<u8>)> {
         // Generate data encryption key
         let mut dek = vec![0u8; 32];
-        use aes_gcm::aead::rand_core::RngCore;
-        use aes_gcm::aead::OsRng;
+        use aes_gcm::aead::{OsRng, rand_core::RngCore};
         RngCore::fill_bytes(&mut OsRng, &mut dek);
 
         // Encrypt DEK with master key
@@ -388,14 +380,12 @@ impl KmsManager {
         let (dek, encrypted_dek) = self.client.generate_data_key(master_key_id).await?;
 
         // Encrypt data with DEK
-        use aes_gcm::aead::Aead;
-        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+        use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
 
         let cipher = Aes256Gcm::new_from_slice(&dek)
             .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {e}")))?;
 
-        use aes_gcm::aead::rand_core::RngCore;
-        use aes_gcm::aead::OsRng;
+        use aes_gcm::aead::{OsRng, rand_core::RngCore};
         let nonce_bytes = OsRng.next_u64().to_le_bytes();
         let mut nonce_array = [0u8; 12];
         nonce_array[..8].copy_from_slice(&nonce_bytes);
@@ -422,8 +412,7 @@ impl KmsManager {
             .await?;
 
         // Decrypt data with DEK
-        use aes_gcm::aead::Aead;
-        use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+        use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
 
         let cipher = Aes256Gcm::new_from_slice(&dek)
             .map_err(|e| AllSourceError::ValidationError(format!("Invalid key: {e}")))?;

@@ -1,11 +1,14 @@
-use crate::domain::entities::{EventStoreFork, ForkStatus};
-use crate::domain::repositories::{ForkQuery, ForkRepository};
-use crate::domain::value_objects::{ForkId, TenantId};
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{EventStoreFork, ForkStatus},
+        repositories::{ForkQuery, ForkRepository},
+        value_objects::{ForkId, TenantId},
+    },
+    error::Result,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
-use std::sync::RwLock;
+use std::{collections::HashMap, sync::RwLock};
 
 /// In-memory implementation of ForkRepository
 ///

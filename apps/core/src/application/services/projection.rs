@@ -1,6 +1,6 @@
-use crate::domain::entities::Event;
-use crate::error::Result;
-use crate::infrastructure::observability::metrics::MetricsRegistry;
+use crate::{
+    domain::entities::Event, error::Result, infrastructure::observability::metrics::MetricsRegistry,
+};
 use dashmap::DashMap;
 use serde_json::Value;
 use std::sync::Arc;
@@ -55,11 +55,9 @@ impl Projection for EntitySnapshotProjection {
             .entry(event.entity_id_str().to_string())
             .and_modify(|state| {
                 // Merge the event payload into existing state
-                if let Value::Object(ref mut map) = state {
-                    if let Value::Object(ref payload_map) = event.payload {
-                        for (key, value) in payload_map {
-                            map.insert(key.clone(), value.clone());
-                        }
+                if let (Value::Object(map), Value::Object(payload_map)) = (state, &event.payload) {
+                    for (key, value) in payload_map {
+                        map.insert(key.clone(), value.clone());
                     }
                 }
             })

@@ -1,6 +1,8 @@
 use super::node_registry::{Node, NodeRegistry};
-use crate::domain::value_objects::{EntityId, PartitionKey};
-use crate::error::{AllSourceError, Result};
+use crate::{
+    domain::value_objects::{EntityId, PartitionKey},
+    error::{AllSourceError, Result},
+};
 /// Request Router for Distributed Partitioning
 ///
 /// Routes requests to the correct node based on partition assignment.

@@ -9,8 +9,7 @@
 use crate::error::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use super::{
@@ -631,15 +630,15 @@ impl HybridSearchEngine {
             // Filter by time range
             if filters.time_from.is_some() || filters.time_to.is_some() {
                 if let Some(timestamp) = cached.and_then(|m| m.timestamp) {
-                    if let Some(from) = filters.time_from {
-                        if timestamp < from {
-                            return false;
-                        }
+                    if let Some(from) = filters.time_from
+                        && timestamp < from
+                    {
+                        return false;
                     }
-                    if let Some(to) = filters.time_to {
-                        if timestamp > to {
-                            return false;
-                        }
+                    if let Some(to) = filters.time_to
+                        && timestamp > to
+                    {
+                        return false;
                     }
                 } else {
                     // No timestamp available, exclude if time filter is required
@@ -711,10 +710,10 @@ fn extract_source_text(payload: &serde_json::Value) -> Option<String> {
 
     if let serde_json::Value::Object(map) = payload {
         for field in priority_fields {
-            if let Some(serde_json::Value::String(s)) = map.get(field) {
-                if !s.is_empty() {
-                    return Some(s.clone());
-                }
+            if let Some(serde_json::Value::String(s)) = map.get(field)
+                && !s.is_empty()
+            {
+                return Some(s.clone());
             }
         }
     }

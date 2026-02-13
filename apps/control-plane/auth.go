@@ -103,8 +103,8 @@ func RoleHasPermission(role entities.Role, perm entities.Permission) bool {
 // AuthMiddleware validates JWT tokens and adds auth context to requests
 func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Skip auth for health endpoints
-		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathMetrics {
+		// Skip auth for health endpoints and public cluster health
+		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathMetrics || c.Request.URL.Path == "/api/v1/cluster/health" {
 			c.Next()
 			return
 		}
@@ -134,6 +134,8 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 
 		// Store in context
 		c.Set("auth", authCtx)
+		c.Set("auth_role", authCtx.Role)      // Separate key for cross-package access
+		c.Set("auth_user_id", authCtx.UserID) // Separate key for cross-package access
 		c.Next()
 	}
 }

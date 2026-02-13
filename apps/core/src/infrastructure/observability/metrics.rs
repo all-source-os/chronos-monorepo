@@ -3,10 +3,14 @@ use prometheus::{
     Registry,
 };
 use serde::Serialize;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 /// Centralized metrics registry for AllSource
 pub struct MetricsRegistry {
@@ -79,6 +83,23 @@ pub struct MetricsRegistry {
     pub http_requests_total: IntCounterVec,
     pub http_request_duration_seconds: HistogramVec,
     pub http_requests_in_flight: IntGauge,
+
+    // Replication metrics (leader)
+    pub replication_followers_connected: IntGauge,
+    pub replication_wal_shipped_total: IntCounter,
+    pub replication_wal_shipped_bytes_total: IntCounter,
+    pub replication_follower_lag_seconds: IntGaugeVec,
+    pub replication_acks_total: IntCounter,
+
+    // Replication ACK wait metric (semi-sync/sync mode)
+    pub replication_ack_wait_seconds: Histogram,
+
+    // Replication metrics (follower)
+    pub replication_wal_received_total: IntCounter,
+    pub replication_wal_replayed_total: IntCounter,
+    pub replication_lag_seconds: IntGauge,
+    pub replication_connected: IntGauge,
+    pub replication_reconnects_total: IntCounter,
 }
 
 impl MetricsRegistry {
@@ -399,6 +420,82 @@ impl MetricsRegistry {
         ))
         .unwrap();
 
+        // Replication metrics (leader)
+        let replication_followers_connected = IntGauge::with_opts(Opts::new(
+            "allsource_replication_followers_connected",
+            "Number of connected followers",
+        ))
+        .unwrap();
+
+        let replication_wal_shipped_total = IntCounter::with_opts(Opts::new(
+            "allsource_replication_wal_shipped_total",
+            "Total WAL entries shipped to followers",
+        ))
+        .unwrap();
+
+        let replication_wal_shipped_bytes_total = IntCounter::with_opts(Opts::new(
+            "allsource_replication_wal_shipped_bytes_total",
+            "Total bytes shipped to followers",
+        ))
+        .unwrap();
+
+        let replication_follower_lag_seconds = IntGaugeVec::new(
+            Opts::new(
+                "allsource_replication_follower_lag_seconds",
+                "Per-follower replication lag in seconds",
+            ),
+            &["follower_id"],
+        )
+        .unwrap();
+
+        let replication_acks_total = IntCounter::with_opts(Opts::new(
+            "allsource_replication_acks_total",
+            "Total ACKs received from followers",
+        ))
+        .unwrap();
+
+        let replication_ack_wait_seconds = Histogram::with_opts(
+            HistogramOpts::new(
+                "allsource_replication_ack_wait_seconds",
+                "Time spent waiting for follower ACKs in semi-sync/sync mode",
+            )
+            .buckets(vec![
+                0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
+            ]),
+        )
+        .unwrap();
+
+        // Replication metrics (follower)
+        let replication_wal_received_total = IntCounter::with_opts(Opts::new(
+            "allsource_replication_wal_received_total",
+            "Total WAL entries received from leader",
+        ))
+        .unwrap();
+
+        let replication_wal_replayed_total = IntCounter::with_opts(Opts::new(
+            "allsource_replication_wal_replayed_total",
+            "Total WAL entries replayed into DashMap",
+        ))
+        .unwrap();
+
+        let replication_lag_seconds = IntGauge::with_opts(Opts::new(
+            "allsource_replication_lag_seconds",
+            "Replication lag behind leader in seconds",
+        ))
+        .unwrap();
+
+        let replication_connected = IntGauge::with_opts(Opts::new(
+            "allsource_replication_connected",
+            "Whether connected to leader (1=connected, 0=disconnected)",
+        ))
+        .unwrap();
+
+        let replication_reconnects_total = IntCounter::with_opts(Opts::new(
+            "allsource_replication_reconnects_total",
+            "Total reconnection attempts to leader",
+        ))
+        .unwrap();
+
         // Register all metrics
         registry
             .register(Box::new(events_ingested_total.clone()))
@@ -544,6 +641,40 @@ impl MetricsRegistry {
             .register(Box::new(http_requests_in_flight.clone()))
             .unwrap();
 
+        registry
+            .register(Box::new(replication_followers_connected.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_wal_shipped_total.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_wal_shipped_bytes_total.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_follower_lag_seconds.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_acks_total.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_ack_wait_seconds.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_wal_received_total.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_wal_replayed_total.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_lag_seconds.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_connected.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(replication_reconnects_total.clone()))
+            .unwrap();
+
         Arc::new(Self {
             registry,
             events_ingested_total,
@@ -591,6 +722,17 @@ impl MetricsRegistry {
             http_requests_total,
             http_request_duration_seconds,
             http_requests_in_flight,
+            replication_followers_connected,
+            replication_wal_shipped_total,
+            replication_wal_shipped_bytes_total,
+            replication_follower_lag_seconds,
+            replication_acks_total,
+            replication_ack_wait_seconds,
+            replication_wal_received_total,
+            replication_wal_replayed_total,
+            replication_lag_seconds,
+            replication_connected,
+            replication_reconnects_total,
         })
     }
 
@@ -873,6 +1015,84 @@ mod tests {
         // Total snapshots
         metrics.snapshots_total.set(10);
         assert_eq!(metrics.snapshots_total.get(), 10);
+    }
+
+    #[test]
+    fn test_replication_leader_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // Follower connected
+        metrics.replication_followers_connected.set(2);
+        assert_eq!(metrics.replication_followers_connected.get(), 2);
+
+        // WAL entries shipped
+        metrics.replication_wal_shipped_total.inc_by(100);
+        assert_eq!(metrics.replication_wal_shipped_total.get(), 100);
+
+        // Bytes shipped
+        metrics
+            .replication_wal_shipped_bytes_total
+            .inc_by(1024 * 1024);
+        assert_eq!(
+            metrics.replication_wal_shipped_bytes_total.get(),
+            1024 * 1024
+        );
+
+        // Per-follower lag
+        metrics
+            .replication_follower_lag_seconds
+            .with_label_values(&["follower-1"])
+            .set(5);
+        assert_eq!(
+            metrics
+                .replication_follower_lag_seconds
+                .with_label_values(&["follower-1"])
+                .get(),
+            5
+        );
+
+        // ACKs received
+        metrics.replication_acks_total.inc_by(50);
+        assert_eq!(metrics.replication_acks_total.get(), 50);
+    }
+
+    #[test]
+    fn test_replication_follower_metrics() {
+        let metrics = MetricsRegistry::new();
+
+        // WAL entries received
+        metrics.replication_wal_received_total.inc_by(200);
+        assert_eq!(metrics.replication_wal_received_total.get(), 200);
+
+        // WAL entries replayed
+        metrics.replication_wal_replayed_total.inc_by(195);
+        assert_eq!(metrics.replication_wal_replayed_total.get(), 195);
+
+        // Lag behind leader
+        metrics.replication_lag_seconds.set(3);
+        assert_eq!(metrics.replication_lag_seconds.get(), 3);
+
+        // Connected state
+        metrics.replication_connected.set(1);
+        assert_eq!(metrics.replication_connected.get(), 1);
+
+        // Reconnects
+        metrics.replication_reconnects_total.inc_by(2);
+        assert_eq!(metrics.replication_reconnects_total.get(), 2);
+    }
+
+    #[test]
+    fn test_replication_metrics_in_encode() {
+        let metrics = MetricsRegistry::new();
+
+        metrics.replication_followers_connected.set(1);
+        metrics.replication_wal_shipped_total.inc();
+        metrics.replication_connected.set(1);
+
+        let encoded = metrics.encode().unwrap();
+        assert!(encoded.contains("allsource_replication_followers_connected"));
+        assert!(encoded.contains("allsource_replication_wal_shipped_total"));
+        assert!(encoded.contains("allsource_replication_connected"));
     }
 
     #[test]

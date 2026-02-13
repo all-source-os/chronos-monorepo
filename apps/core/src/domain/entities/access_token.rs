@@ -1,5 +1,7 @@
-use crate::domain::value_objects::{ArticleId, CreatorId, TenantId, TransactionId, WalletAddress};
-use crate::error::Result;
+use crate::{
+    domain::value_objects::{ArticleId, CreatorId, TenantId, TransactionId, WalletAddress},
+    error::Result,
+};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -45,9 +47,10 @@ impl std::fmt::Display for AccessTokenId {
 }
 
 /// How access was granted
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AccessMethod {
     /// Paid for directly
+    #[default]
     Paid,
     /// Accessed through a bundle
     Bundle,
@@ -55,12 +58,6 @@ pub enum AccessMethod {
     Free,
     /// Subscription access
     Subscription,
-}
-
-impl Default for AccessMethod {
-    fn default() -> Self {
-        Self::Paid
-    }
 }
 
 /// Default access duration: 30 days
@@ -370,7 +367,7 @@ impl AccessToken {
             ));
         }
 
-        self.expires_at = self.expires_at + Duration::days(additional_days);
+        self.expires_at += Duration::days(additional_days);
         Ok(())
     }
 

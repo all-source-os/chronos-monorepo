@@ -253,14 +253,13 @@ impl AdaptiveRateLimiter {
             }
 
             // Load-based adjustment
-            if config.enable_load_based_adjustment {
-                if let Some(load) = self.get_current_load() {
-                    if load.cpu_usage > 0.8 || load.memory_usage > 0.8 {
-                        // High system load - reduce limits
-                        new_limit = ((profile.current_limit as f64) * 0.7) as u32;
-                        reason = AdjustmentReason::HighLoad;
-                    }
-                }
+            if config.enable_load_based_adjustment
+                && let Some(load) = self.get_current_load()
+                && (load.cpu_usage > 0.8 || load.memory_usage > 0.8)
+            {
+                // High system load - reduce limits
+                new_limit = ((profile.current_limit as f64) * 0.7) as u32;
+                reason = AdjustmentReason::HighLoad;
             }
 
             // Apply safety limits

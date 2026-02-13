@@ -1,7 +1,11 @@
-use crate::application::dto::{CreatorDto, RegisterCreatorRequest, RegisterCreatorResponse};
-use crate::application::use_cases::RegisterCreatorUseCase;
-use crate::domain::repositories::CreatorRepository;
-use crate::error::Result;
+use crate::{
+    application::{
+        dto::{CreatorDto, RegisterCreatorRequest, RegisterCreatorResponse},
+        use_cases::RegisterCreatorUseCase,
+    },
+    domain::repositories::CreatorRepository,
+    error::Result,
+};
 use std::sync::Arc;
 
 /// Coordinator service for creator operations.

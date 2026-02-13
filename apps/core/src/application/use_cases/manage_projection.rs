@@ -1,10 +1,14 @@
-use crate::application::dto::{
-    CreateProjectionRequest, CreateProjectionResponse, ListProjectionsResponse, ProjectionDto,
-    UpdateProjectionRequest,
+use crate::{
+    application::dto::{
+        CreateProjectionRequest, CreateProjectionResponse, ListProjectionsResponse, ProjectionDto,
+        UpdateProjectionRequest,
+    },
+    domain::{
+        entities::{Projection, ProjectionConfig, ProjectionType},
+        value_objects::{EventType, TenantId},
+    },
+    error::Result,
 };
-use crate::domain::entities::{Projection, ProjectionConfig, ProjectionType};
-use crate::domain::value_objects::{EventType, TenantId};
-use crate::error::Result;
 
 /// Use Case: Create Projection
 ///
@@ -70,7 +74,7 @@ impl UpdateProjectionUseCase {
             // Clear existing and add new ones
             let existing = projection.event_types().to_vec();
             for event_type in existing {
-                projection.remove_event_type(&event_type);
+                projection.remove_event_type(&event_type)?;
             }
             for event_type_str in event_types {
                 let event_type = EventType::new(event_type_str)?;
@@ -113,7 +117,7 @@ pub struct StopProjectionUseCase;
 
 impl StopProjectionUseCase {
     pub fn execute(mut projection: Projection) -> Result<ProjectionDto> {
-        projection.stop();
+        projection.stop()?;
         Ok(ProjectionDto::from(&projection))
     }
 }
@@ -125,7 +129,7 @@ pub struct RebuildProjectionUseCase;
 
 impl RebuildProjectionUseCase {
     pub fn execute(mut projection: Projection) -> Result<ProjectionDto> {
-        projection.start_rebuild();
+        projection.start_rebuild()?;
         Ok(ProjectionDto::from(&projection))
     }
 }

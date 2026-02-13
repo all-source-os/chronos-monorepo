@@ -6,52 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CreateKeyDialog } from "@/components/api-keys/create-key-dialog";
 import { KeyTable } from "@/components/api-keys/key-table";
-import type { ApiKey, ApiKeyWithSecret } from "@/lib/api/client";
-
-// Demo keys for display
-const DEMO_KEYS: ApiKey[] = [
-  {
-    id: "key-1",
-    name: "Production Backend",
-    description: "Main backend service",
-    key_prefix: "qs_live_prod",
-    scopes: ["events:read", "events:write", "queries:execute"],
-    last_used_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    expires_at: null,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
-  },
-  {
-    id: "key-2",
-    name: "Analytics Service",
-    description: "Read-only analytics",
-    key_prefix: "qs_live_analytics",
-    scopes: ["events:read", "queries:execute"],
-    last_used_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 60).toISOString(),
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
-  },
-  {
-    id: "key-3",
-    name: "Development",
-    description: "Local development key",
-    key_prefix: "qs_test_dev",
-    scopes: [
-      "events:read",
-      "events:write",
-      "queries:execute",
-      "projections:read",
-      "projections:write",
-    ],
-    last_used_at: null,
-    expires_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), // Expired
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(),
-  },
-];
+import { useApiKeys } from "@/hooks/use-api-keys";
+import type { ApiKeyWithSecret } from "@/lib/api/client";
 
 export default function ApiKeysPage() {
   const searchParams = useSearchParams();
-  const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { keys, isLoading, createKey, rotateKey, revokeKey } = useApiKeys();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
@@ -62,53 +22,26 @@ export default function ApiKeysPage() {
     }
   }, [searchParams]);
 
-  // Simulate loading
-  useEffect(() => {
-    setTimeout(() => {
-      setKeys(DEMO_KEYS);
-      setIsLoading(false);
-    }, 500);
-  }, []);
-
   const handleCreateKey = async (data: {
     name: string;
     description?: string;
     scopes: string[];
     expires_at?: string;
   }): Promise<ApiKeyWithSecret | undefined> => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const newKey: ApiKeyWithSecret = {
-      id: `key-${Date.now()}`,
-      name: data.name,
-      description: data.description || null,
-      key_prefix: `qs_live_${Math.random().toString(36).slice(2, 8)}`,
-      key: `qs_live_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`,
-      scopes: data.scopes,
-      last_used_at: null,
-      expires_at: data.expires_at || null,
-      created_at: new Date().toISOString(),
-    };
-
-    setKeys((prev) => [newKey, ...prev]);
-    return newKey;
+    try {
+      return await createKey(data);
+    } catch (error) {
+      console.error("Failed to create API key:", error);
+      return undefined;
+    }
   };
 
   const handleRotate = async (id: string) => {
-    // Simulate rotation
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setKeys((prev) =>
-      prev.map((key) =>
-        key.id === id
-          ? {
-              ...key,
-              key_prefix: `qs_live_${Math.random().toString(36).slice(2, 8)}`,
-              created_at: new Date().toISOString(),
-            }
-          : key
-      )
-    );
+    try {
+      await rotateKey(id);
+    } catch (error) {
+      console.error("Failed to rotate API key:", error);
+    }
   };
 
   const handleRevoke = async (id: string) => {
@@ -117,9 +50,11 @@ export default function ApiKeysPage() {
       return;
     }
 
-    // Simulate revocation
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setKeys((prev) => prev.filter((key) => key.id !== id));
+    try {
+      await revokeKey(id);
+    } catch (error) {
+      console.error("Failed to revoke API key:", error);
+    }
     setConfirmRevoke(null);
   };
 

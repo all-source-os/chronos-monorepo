@@ -47,21 +47,16 @@
 //! store.ingest(event)?;
 //! ```
 
-// Suppress warnings for development
+// Safety: no unsafe code allowed in this crate
+#![forbid(unsafe_code)]
+// Development suppressions — tighten progressively
 #![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(deprecated)]
-#![allow(unused_must_use)]
-// Clippy configuration - allow common patterns in this codebase
+// Clippy — allow patterns justified by architecture
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 #![allow(clippy::module_inception)]
-#![allow(clippy::derivable_impls)]
-#![allow(clippy::empty_line_after_doc_comments)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::or_fun_call)]
-#![allow(clippy::only_used_in_recursion)]
-#![allow(clippy::assign_op_pattern)]
 
 // =============================================================================
 // Clean Architecture Layers
@@ -98,29 +93,34 @@ pub mod store;
 /// Advanced security module (anomaly detection, encryption, KMS)
 pub mod security;
 
+/// Shared test fixture builders for integration tests and cross-crate use
+pub mod test_utils;
+
 // =============================================================================
 // Public API - Commonly Used Types
 // =============================================================================
 
 // Domain layer exports
-pub use domain::entities;
-pub use domain::entities::Event;
-pub use domain::repositories;
+pub use domain::{entities, entities::Event, repositories};
 
 // Application layer exports
-pub use application::dto::{IngestEventRequest, QueryEventsRequest};
-pub use application::services::{
-    AnalyticsEngine, Pipeline, PipelineConfig, PipelineManager, ProjectionManager, ReplayManager,
-    SchemaRegistry, TenantManager,
+pub use application::{
+    dto::{IngestEventRequest, QueryEventsRequest},
+    services::{
+        AnalyticsEngine, Pipeline, PipelineConfig, PipelineManager, ProjectionManager,
+        ReplayManager, SchemaRegistry, TenantManager,
+    },
 };
 
 // Infrastructure layer exports
-pub use infrastructure::persistence::{
-    CompactionConfig, CompactionManager, EventIndex, ParquetStorage, SnapshotConfig,
-    SnapshotManager, WALConfig, WriteAheadLog,
+pub use infrastructure::{
+    persistence::{
+        CompactionConfig, CompactionManager, EventIndex, ParquetStorage, SnapshotConfig,
+        SnapshotManager, WALConfig, WriteAheadLog,
+    },
+    security::{AuthManager, Permission, RateLimiter, Role},
+    web::{WebSocketManager, serve},
 };
-pub use infrastructure::security::{AuthManager, Permission, RateLimiter, Role};
-pub use infrastructure::web::{serve, WebSocketManager};
 
 // Error handling
 pub use error::{AllSourceError, Result};
@@ -141,8 +141,10 @@ pub mod rate_limit {
 
 /// Tenant module re-export
 pub mod tenant {
-    pub use crate::application::services::tenant_service::{TenantManager, TenantQuotas};
-    pub use crate::domain::entities::Tenant;
+    pub use crate::{
+        application::services::tenant_service::{TenantManager, TenantQuotas},
+        domain::entities::Tenant,
+    };
 }
 
 /// Config module re-export
@@ -157,7 +159,14 @@ pub mod backup {
 
 /// API v1 module re-export
 pub mod api_v1 {
-    pub use crate::infrastructure::web::api_v1::*;
+    pub use crate::infrastructure::web::api_v1::{AppState, AtomicNodeRole, NodeRole, serve_v1};
+}
+
+/// Replication module re-export
+pub mod replication {
+    pub use crate::infrastructure::replication::{
+        FollowerReplicationStatus, ReplicationMode, ReplicationStatus, WalReceiver, WalShipper,
+    };
 }
 
 // Main store facade

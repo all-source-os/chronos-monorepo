@@ -23,14 +23,77 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   """
 
   alias QueryServiceEx.Domain.Entities.Query
+  alias QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
 
   @default_base_url "http://localhost:3900"
   @default_timeout 30_000
+  @read_counter_name :core_read_round_robin
 
   @doc false
   def client do
-    base_url = Application.get_env(:query_service_ex, :core_url, @default_base_url)
+    write_client()
+  end
 
+  @doc """
+  Returns a Tesla client targeting the write (leader) URL.
+
+  Uses `core_write_url` config, falling back to `core_url`.
+  All POST/PUT/DELETE calls should use this client.
+  """
+  def write_client do
+    base_url =
+      Application.get_env(:query_service_ex, :core_write_url) ||
+        Application.get_env(:query_service_ex, :core_url, @default_base_url)
+
+    build_client(base_url)
+  end
+
+  @doc """
+  Returns a Tesla client respecting the given consistency mode.
+
+  - `:strong` — routes to the leader (write URL) for read-your-writes
+  - `:eventual` (default) — round-robin across healthy followers
+  """
+  def client_for_consistency(:strong), do: write_client()
+  def client_for_consistency(_), do: read_client()
+
+  @doc """
+  Returns a Tesla client targeting one of the healthy read URLs via round-robin.
+
+  Checks CoreHealthChecker ETS state to skip unhealthy or lagging nodes.
+  If all read nodes are unhealthy, falls back to the write (leader) URL.
+  Uses `core_read_urls` config (list), falling back to `core_url`.
+  All GET calls should use this client.
+  """
+  def read_client do
+    all_urls =
+      case Application.get_env(:query_service_ex, :core_read_urls) do
+        urls when is_list(urls) and urls != [] -> urls
+        _ -> [Application.get_env(:query_service_ex, :core_url, @default_base_url)]
+      end
+
+    healthy_urls = CoreHealthChecker.healthy_read_urls()
+
+    # Use healthy subset if any are available, otherwise fall back to leader
+    urls =
+      case Enum.filter(all_urls, &(&1 in healthy_urls)) do
+        [] ->
+          # All read nodes unhealthy — fall back to write (leader) URL
+          write_url =
+            Application.get_env(:query_service_ex, :core_write_url) ||
+              Application.get_env(:query_service_ex, :core_url, @default_base_url)
+
+          [write_url]
+
+        available ->
+          available
+      end
+
+    base_url = pick_read_url(urls)
+    build_client(base_url)
+  end
+
+  defp build_client(base_url) do
     middleware = [
       {Tesla.Middleware.BaseUrl, base_url},
       Tesla.Middleware.JSON,
@@ -55,6 +118,27 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
       end
 
     Tesla.client(middleware)
+  end
+
+  defp pick_read_url([single_url]), do: single_url
+
+  defp pick_read_url(urls) do
+    count = length(urls)
+    ref = ensure_counter()
+    index = :atomics.add_get(ref, 1, 1)
+    Enum.at(urls, rem(abs(index), count))
+  end
+
+  defp ensure_counter do
+    case :persistent_term.get(@read_counter_name, nil) do
+      nil ->
+        ref = :atomics.new(1, signed: true)
+        :persistent_term.put(@read_counter_name, ref)
+        ref
+
+      ref ->
+        ref
+    end
   end
 
   ## Event Management
@@ -82,7 +166,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   def create_event(tenant_id, event) when is_binary(tenant_id) and is_map(event) do
     event_with_tenant = Map.put(event, :tenant_id, tenant_id)
 
-    case Tesla.post(client(), "/api/v1/events", event_with_tenant) do
+    case Tesla.post(write_client(), "/api/v1/events", event_with_tenant) do
       {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 201] ->
         {:ok, body}
 
@@ -97,7 +181,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   # Deprecated: Use create_event/2 with tenant_id for proper isolation
   @doc false
   def create_event(event) when is_map(event) do
-    case Tesla.post(client(), "/api/v1/events", event) do
+    case Tesla.post(write_client(), "/api/v1/events", event) do
       {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 201] ->
         {:ok, body}
 
@@ -125,7 +209,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   def create_event_batch(tenant_id, events) when is_binary(tenant_id) and is_list(events) do
     events_with_tenant = Enum.map(events, &Map.put(&1, :tenant_id, tenant_id))
 
-    case Tesla.post(client(), "/api/v1/events/batch", %{events: events_with_tenant}) do
+    case Tesla.post(write_client(), "/api/v1/events/batch", %{events: events_with_tenant}) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -143,7 +227,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   # Deprecated: Use create_event_batch/2 with tenant_id for proper isolation
   @doc false
   def create_event_batch(events) when is_list(events) do
-    case Tesla.post(client(), "/api/v1/events/batch", %{events: events}) do
+    case Tesla.post(write_client(), "/api/v1/events/batch", %{events: events}) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -171,15 +255,18 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
       iex> query_events("tenant-uuid", %{entity_id: "user-123", limit: 10})
       {:ok, [%{id: "evt-1", ...}, ...]}
   """
-  def query_events(tenant_id, %Query{} = query) when is_binary(tenant_id) do
+  def query_events(tenant_id, query, opts \\ [])
+
+  def query_events(tenant_id, %Query{} = query, opts) when is_binary(tenant_id) do
     params = compile_query(query)
-    query_events(tenant_id, params)
+    query_events(tenant_id, params, opts)
   end
 
-  def query_events(tenant_id, params) when is_binary(tenant_id) and is_map(params) do
+  def query_events(tenant_id, params, opts) when is_binary(tenant_id) and is_map(params) do
     params_with_tenant = Map.put(params, :tenant_id, tenant_id)
+    client = client_for_consistency(Keyword.get(opts, :consistency))
 
-    case Tesla.get(client(), "/api/v1/events/query", query: params_with_tenant) do
+    case Tesla.get(client, "/api/v1/events/query", query: params_with_tenant) do
       {:ok, %Tesla.Env{status: 200, body: %{"events" => events}}} when is_list(events) ->
         {:ok, events}
 
@@ -206,7 +293,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc false
   def query_events(params) when is_map(params) do
-    case Tesla.get(client(), "/api/v1/events/query", query: params) do
+    case Tesla.get(read_client(), "/api/v1/events/query", query: params) do
       {:ok, %Tesla.Env{status: 200, body: %{"events" => events}}} when is_list(events) ->
         {:ok, events}
 
@@ -225,8 +312,8 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   end
 
   @doc "Get events by entity ID with tenant isolation"
-  def get_events_by_entity(tenant_id, entity_id) when is_binary(tenant_id) do
-    query_events(tenant_id, %{entity_id: entity_id})
+  def get_events_by_entity(tenant_id, entity_id, opts \\ []) when is_binary(tenant_id) do
+    query_events(tenant_id, %{entity_id: entity_id}, opts)
   end
 
   # Deprecated: Use get_events_by_entity/2 with tenant_id
@@ -236,8 +323,8 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   end
 
   @doc "Get events by event type with tenant isolation"
-  def get_events_by_type(tenant_id, event_type) when is_binary(tenant_id) do
-    query_events(tenant_id, %{event_type: event_type})
+  def get_events_by_type(tenant_id, event_type, opts \\ []) when is_binary(tenant_id) do
+    query_events(tenant_id, %{event_type: event_type}, opts)
   end
 
   # Deprecated: Use get_events_by_type/2 with tenant_id
@@ -269,13 +356,17 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
       {:ok, %{streams: [%{stream_id: "user-123", event_count: 42, ...}], total: 150}}
   """
   def list_streams(opts \\ []) do
+    {consistency, opts} = Keyword.pop(opts, :consistency)
+
     query_params =
       opts
       |> Keyword.take([:limit, :offset])
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
 
-    case Tesla.get(client(), "/api/v1/streams", query: query_params) do
+    client = client_for_consistency(consistency)
+
+    case Tesla.get(client, "/api/v1/streams", query: query_params) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -310,13 +401,17 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
       {:ok, %{event_types: [%{event_type: "user.created", event_count: 1500, ...}], total: 25}}
   """
   def list_event_types(opts \\ []) do
+    {consistency, opts} = Keyword.pop(opts, :consistency)
+
     query_params =
       opts
       |> Keyword.take([:limit, :offset])
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
 
-    case Tesla.get(client(), "/api/v1/event-types", query: query_params) do
+    client = client_for_consistency(consistency)
+
+    case Tesla.get(client, "/api/v1/event-types", query: query_params) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -332,7 +427,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "List all projections"
   def list_projections do
-    case Tesla.get(client(), "/api/v1/projections") do
+    case Tesla.get(read_client(), "/api/v1/projections") do
       {:ok, %Tesla.Env{status: 200, body: %{"projections" => projections}}}
       when is_list(projections) ->
         {:ok, projections}
@@ -353,7 +448,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Get a specific projection by ID"
   def get_projection(id) do
-    case Tesla.get(client(), "/api/v1/projections/#{id}") do
+    case Tesla.get(read_client(), "/api/v1/projections/#{id}") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -370,7 +465,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Create a new projection"
   def create_projection(projection) when is_map(projection) do
-    case Tesla.post(client(), "/api/v1/projections", projection) do
+    case Tesla.post(write_client(), "/api/v1/projections", projection) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -386,7 +481,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "List all schemas"
   def list_schemas do
-    case Tesla.get(client(), "/api/v1/schemas") do
+    case Tesla.get(read_client(), "/api/v1/schemas") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -407,7 +502,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
         "/api/v1/schemas/#{event_type}"
       end
 
-    case Tesla.get(client(), path) do
+    case Tesla.get(read_client(), path) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -424,7 +519,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Register a new schema"
   def register_schema(schema) when is_map(schema) do
-    case Tesla.post(client(), "/api/v1/schemas", schema) do
+    case Tesla.post(write_client(), "/api/v1/schemas", schema) do
       {:ok, %Tesla.Env{status: 201, body: body}} ->
         {:ok, body}
 
@@ -447,7 +542,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
         "/api/v1/snapshots"
       end
 
-    case Tesla.get(client(), path) do
+    case Tesla.get(read_client(), path) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -461,7 +556,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Create a snapshot"
   def create_snapshot(entity_id, snapshot_type) do
-    case Tesla.post(client(), "/api/v1/snapshots", %{
+    case Tesla.post(write_client(), "/api/v1/snapshots", %{
            entity_id: entity_id,
            snapshot_type: snapshot_type
          }) do
@@ -491,7 +586,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     * `{:error, reason}` - Error details
   """
   def get_projection_state(projection_name, entity_id) do
-    case Tesla.get(client(), "/api/v1/projections/#{projection_name}/#{entity_id}/state") do
+    case Tesla.get(read_client(), "/api/v1/projections/#{projection_name}/#{entity_id}/state") do
       {:ok, %Tesla.Env{status: 200, body: %{"found" => true, "state" => state}}} ->
         {:ok, state}
 
@@ -522,7 +617,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     * `{:error, reason}` - Error details
   """
   def save_projection_state(projection_name, entity_id, state) when is_map(state) do
-    case Tesla.put(client(), "/api/v1/projections/#{projection_name}/#{entity_id}/state", %{
+    case Tesla.put(write_client(), "/api/v1/projections/#{projection_name}/#{entity_id}/state", %{
            state: state
          }) do
       {:ok, %Tesla.Env{status: 200, body: %{"saved" => true}}} ->
@@ -548,7 +643,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     * `{:error, reason}` - Error details
   """
   def bulk_get_projection_states(projection_name, entity_ids) when is_list(entity_ids) do
-    case Tesla.post(client(), "/api/v1/projections/#{projection_name}/bulk", %{
+    case Tesla.post(read_client(), "/api/v1/projections/#{projection_name}/bulk", %{
            entity_ids: entity_ids
          }) do
       {:ok, %Tesla.Env{status: 200, body: %{"states" => states}}} ->
@@ -590,7 +685,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Get system metrics"
   def get_metrics do
-    case Tesla.get(client(), "/metrics") do
+    case Tesla.get(read_client(), "/metrics") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
@@ -604,7 +699,75 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   @doc "Check health status"
   def health_check do
-    case Tesla.get(client(), "/health") do
+    case Tesla.get(read_client(), "/health") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status}} ->
+        {:error, "HTTP #{status}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Aggregated cluster health check.
+
+  Queries Core's health endpoint and optionally the Control Plane's
+  cluster status endpoint to provide a unified cluster health view.
+  Returns a map with core health, control plane status, and read URL count.
+  """
+  def cluster_health do
+    core_task = Task.async(fn -> health_check() end)
+    cp_task = Task.async(fn -> control_plane_cluster_status() end)
+
+    core_result = Task.await(core_task, 5_000)
+    cp_result = Task.await(cp_task, 5_000)
+
+    read_urls =
+      case Application.get_env(:query_service_ex, :core_read_urls) do
+        urls when is_list(urls) -> length(urls)
+        _ -> 1
+      end
+
+    core_health =
+      case core_result do
+        {:ok, body} -> %{status: "healthy", details: body}
+        {:error, reason} -> %{status: "unhealthy", error: inspect(reason)}
+      end
+
+    control_plane =
+      case cp_result do
+        {:ok, body} -> %{status: "healthy", details: body}
+        {:error, _reason} -> %{status: "unavailable"}
+      end
+
+    {:ok,
+     %{
+       core: core_health,
+       control_plane: control_plane,
+       read_replicas: read_urls,
+       timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+     }}
+  rescue
+    error -> {:error, inspect(error)}
+  catch
+    :exit, reason -> {:error, inspect(reason)}
+  end
+
+  defp control_plane_cluster_status do
+    cp_url =
+      Application.get_env(:query_service_ex, :control_plane_url, "http://localhost:3901")
+
+    cp_client =
+      Tesla.client([
+        {Tesla.Middleware.BaseUrl, cp_url},
+        Tesla.Middleware.JSON,
+        {Tesla.Middleware.Timeout, timeout: 5_000}
+      ])
+
+    case Tesla.get(cp_client, "/api/v1/cluster/health") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 

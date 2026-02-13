@@ -1,7 +1,5 @@
-use allsource_core::domain::entities::Event;
-use allsource_core::store::EventStore;
-use allsource_core::QueryEventsRequest;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use allsource_core::{QueryEventsRequest, domain::entities::Event, store::EventStore};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use serde_json::json;
 
 fn generate_test_event(entity_id: usize) -> Event {
@@ -63,8 +61,7 @@ fn bench_concurrent_ingestion(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_ingestion");
 
     group.bench_function("parallel_100_threads", |b| {
-        use std::sync::Arc;
-        use std::thread;
+        use std::{sync::Arc, thread};
 
         b.iter(|| {
             let store = Arc::new(EventStore::new());

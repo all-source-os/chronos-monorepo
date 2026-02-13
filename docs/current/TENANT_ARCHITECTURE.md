@@ -130,7 +130,10 @@ createTenantUC := usecases.NewCreateTenantUseCase(tenantRepo, auditRepo)
 
 ---
 
-## Why In-Memory Works
+## Why In-Memory Works (for Tenant/User Metadata)
+
+> **Important**: This section discusses Core's **user/tenant metadata** storage only.
+> Core's **event storage** is fully durable (WAL + Parquet) and does NOT lose data on restart.
 
 ### For Development/Small-Scale
 
@@ -142,10 +145,10 @@ createTenantUC := usecases.NewCreateTenantUseCase(tenantRepo, auditRepo)
 - ✅ Atomic operations (thread-safe)
 
 **Limitations**:
-- ⚠️ Data lost on restart
+- ⚠️ User/tenant metadata lost on restart (event data is NOT affected)
 - ⚠️ Single-node only (no distribution)
 - ⚠️ Limited to RAM size
-- ⚠️ No persistent audit trail
+- ⚠️ No persistent audit trail for tenant operations
 
 **Suitable For**:
 - Development environments
@@ -390,7 +393,7 @@ func NewContainer() *Container {
 ### For Development/Demo (Current) ✅
 **Use**: In-memory (current implementation)
 **Why**: Fast, simple, zero dependencies
-**Trade-off**: Data lost on restart (acceptable for dev)
+**Trade-off**: Tenant metadata lost on restart (acceptable for dev — event data is durable via WAL)
 
 ### For Production (Small Scale)
 **Use**: Option 2 - Sync to Core's DashMap API

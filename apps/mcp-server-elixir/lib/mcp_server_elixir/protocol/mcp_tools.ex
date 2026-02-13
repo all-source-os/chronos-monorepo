@@ -46,7 +46,46 @@ defmodule McpServerElixir.Protocol.McpTools do
       tool_import_events(),
       tool_clone_entity(),
       tool_merge_entities(),
-      tool_split_entity()
+      tool_split_entity(),
+      # Operational tools (v2.0)
+      tool_compact_storage(),
+      tool_storage_stats(),
+      tool_partition_info(),
+      tool_wal_status(),
+      tool_backup_create(),
+      tool_backup_restore(),
+      tool_backup_list(),
+      tool_health_deep(),
+      tool_performance_report(),
+      tool_audit_log(),
+      # Multi-tenancy tools (v2.0)
+      tool_tenant_create(),
+      tool_tenant_update(),
+      tool_tenant_usage(),
+      tool_tenant_quotas(),
+      tool_tenant_suspend(),
+      tool_tenant_export(),
+      # Schema & validation tools (v2.0)
+      tool_register_schema(),
+      tool_validate_schema(),
+      tool_migrate_schema(),
+      tool_list_schemas(),
+      tool_infer_schema(),
+      tool_schema_diff(),
+      # Advanced analytics tools (v2.0)
+      tool_cohort_analysis(),
+      tool_correlation_analysis(),
+      tool_forecast_events(),
+      tool_segment_analysis(),
+      tool_path_analysis(),
+      tool_attribution_analysis(),
+      tool_churn_prediction(),
+      tool_ltv_calculation(),
+      # Developer experience tools (v2.0)
+      tool_generate_client(),
+      tool_mock_events(),
+      tool_debug_query(),
+      tool_benchmark_query()
     ]
   end
 
@@ -99,6 +138,60 @@ defmodule McpServerElixir.Protocol.McpTools do
     "split_entity" => :handle_split_entity
   }
 
+  # Operational tools (v2.0) - system management
+  @operational_tool_handlers %{
+    "compact_storage" => :handle_compact_storage,
+    "storage_stats" => :handle_storage_stats,
+    "partition_info" => :handle_partition_info,
+    "wal_status" => :handle_wal_status,
+    "backup_create" => :handle_backup_create,
+    "backup_restore" => :handle_backup_restore,
+    "backup_list" => :handle_backup_list,
+    "health_deep" => :handle_health_deep,
+    "performance_report" => :handle_performance_report,
+    "audit_log" => :handle_audit_log
+  }
+
+  # Multi-tenancy tools (v2.0) - tenant management (via Go Control Plane)
+  @tenant_tool_handlers %{
+    "tenant_create" => :handle_tenant_create,
+    "tenant_update" => :handle_tenant_update,
+    "tenant_usage" => :handle_tenant_usage,
+    "tenant_quotas" => :handle_tenant_quotas,
+    "tenant_suspend" => :handle_tenant_suspend,
+    "tenant_export" => :handle_tenant_export
+  }
+
+  # Schema & validation tools (v2.0) - event type governance
+  @schema_tool_handlers %{
+    "register_schema" => :handle_register_schema,
+    "validate_schema" => :handle_validate_schema,
+    "migrate_schema" => :handle_migrate_schema,
+    "list_schemas" => :handle_list_schemas,
+    "infer_schema" => :handle_infer_schema,
+    "schema_diff" => :handle_schema_diff
+  }
+
+  # Advanced analytics tools (v2.0) - business intelligence
+  @analytics_tool_handlers %{
+    "cohort_analysis" => :handle_cohort_analysis,
+    "correlation_analysis" => :handle_correlation_analysis,
+    "forecast_events" => :handle_forecast_events,
+    "segment_analysis" => :handle_segment_analysis,
+    "path_analysis" => :handle_path_analysis,
+    "attribution_analysis" => :handle_attribution_analysis,
+    "churn_prediction" => :handle_churn_prediction,
+    "ltv_calculation" => :handle_ltv_calculation
+  }
+
+  # Developer experience tools (v2.0) - productivity
+  @developer_tool_handlers %{
+    "generate_client" => :handle_generate_client,
+    "mock_events" => :handle_mock_events,
+    "debug_query" => :handle_debug_query,
+    "benchmark_query" => :handle_benchmark_query
+  }
+
   @doc """
   Call a tool by name with arguments.
 
@@ -132,6 +225,21 @@ defmodule McpServerElixir.Protocol.McpTools do
         apply(__MODULE__, handler, [args, state, format])
 
       handler = Map.get(@event_management_tool_handlers, tool_name) ->
+        apply(__MODULE__, handler, [args, state, format])
+
+      handler = Map.get(@operational_tool_handlers, tool_name) ->
+        apply(__MODULE__, handler, [args, state, format])
+
+      handler = Map.get(@tenant_tool_handlers, tool_name) ->
+        apply(__MODULE__, handler, [args, state, format])
+
+      handler = Map.get(@schema_tool_handlers, tool_name) ->
+        apply(__MODULE__, handler, [args, state, format])
+
+      handler = Map.get(@analytics_tool_handlers, tool_name) ->
+        apply(__MODULE__, handler, [args, state, format])
+
+      handler = Map.get(@developer_tool_handlers, tool_name) ->
         apply(__MODULE__, handler, [args, state, format])
 
       true ->
@@ -4632,5 +4740,3736 @@ defmodule McpServerElixir.Protocol.McpTools do
       "   • #{sr.new_entity_id}: #{sr.events_created} events created"
     end)
     |> Enum.join("\n")
+  end
+
+  # ============================================================================
+  # Operational Tool Definitions
+  # ============================================================================
+
+  defp tool_compact_storage do
+    %{
+      name: "compact_storage",
+      description: """
+      Trigger manual storage compaction to reclaim disk space and optimize \
+      read performance. Compaction merges small segments and removes tombstoned data.
+
+      **When to use this tool:**
+      - After bulk deletions or archival operations to reclaim disk space
+      - When read performance degrades due to segment fragmentation
+      - During maintenance windows for preventive optimization
+      - After large import operations that created many small segments
+
+      **SAFETY WARNING:**
+      - Compaction is CPU and I/O intensive — avoid during peak traffic
+      - Long-running operation: may take minutes to hours on large datasets
+      - Safe to run — does not delete live data, only merges segments
+      - Consider running during off-peak hours
+
+      **Common patterns:**
+      - Full compaction: no parameters needed
+      - Tenant-specific: `tenant_id: "tenant-123"`
+      - Partition-specific: `partition_id: "partition-0"`
+      - Dry run: `dry_run: true` to estimate work without executing
+
+      **Performance tips:**
+      - Use dry_run first to estimate compaction time and space savings
+      - Schedule during low-traffic periods
+      - Monitor disk I/O during compaction
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "Compact only this tenant's data"
+          },
+          "partition_id" => %{
+            type: "string",
+            description: "Compact only this partition"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Estimate compaction without executing (default: false)"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_storage_stats do
+    %{
+      name: "storage_stats",
+      description: """
+      Get disk usage analytics broken down by tenant, event type, or time period. \
+      Useful for capacity planning, cost allocation, and identifying storage hotspots.
+
+      **When to use this tool:**
+      - Capacity planning: understand current and projected storage usage
+      - Cost allocation: attribute storage costs to specific tenants
+      - Identifying hotspots: find tenants or event types consuming most space
+      - Monitoring growth: track storage trends over time
+
+      **Common patterns:**
+      - Overview: no parameters needed — returns total storage summary
+      - By tenant: `group_by: "tenant"` — breakdown per tenant
+      - By event type: `group_by: "event_type"` — breakdown per event type
+      - Specific tenant: `tenant_id: "tenant-123"` — detailed view for one tenant
+
+      **Performance tips:**
+      - This is a read-only operation with minimal impact
+      - Results may be cached; use `refresh: true` for real-time data
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "Get stats for a specific tenant"
+          },
+          "group_by" => %{
+            type: "string",
+            enum: ["tenant", "event_type", "partition"],
+            description: "Group statistics by dimension"
+          },
+          "refresh" => %{
+            type: "boolean",
+            description: "Force refresh cached statistics (default: false)"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_partition_info do
+    %{
+      name: "partition_info",
+      description: """
+      Get partition health, distribution, and balance information. Partitions are \
+      the fundamental unit of data distribution in AllSource Core.
+
+      **When to use this tool:**
+      - Diagnosing uneven data distribution (hot partitions)
+      - Monitoring partition health and replication status
+      - Planning partition rebalancing operations
+      - Investigating slow queries that may be partition-bound
+
+      **Common patterns:**
+      - Overview: no parameters — returns all partition summary
+      - Specific partition: `partition_id: "partition-0"`
+      - Health check: look for partitions with status != "healthy"
+      - Balance check: compare event_count across partitions
+
+      **Performance tips:**
+      - Lightweight read-only operation
+      - Hot partitions indicate need for rebalancing
+      - Uneven distribution can cause query performance skew
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "partition_id" => %{
+            type: "string",
+            description: "Get info for a specific partition"
+          },
+          "include_replicas" => %{
+            type: "boolean",
+            description: "Include replica partition details (default: false)"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_wal_status do
+    %{
+      name: "wal_status",
+      description: """
+      Get Write-Ahead Log (WAL) statistics and replication lag information. \
+      The WAL ensures durability and enables replication between Core instances.
+
+      **When to use this tool:**
+      - Monitoring replication lag between write leader and read replicas
+      - Diagnosing write performance issues (WAL flush latency)
+      - Checking WAL segment accumulation (potential disk pressure)
+      - Verifying durability guarantees after writes
+
+      **Common patterns:**
+      - Status check: no parameters needed
+      - Look for: high lag_bytes indicates slow replicas
+      - Look for: many pending_segments indicates flush backlog
+      - Look for: high flush_latency_ms indicates I/O bottleneck
+
+      **Performance tips:**
+      - Lightweight read-only operation
+      - High WAL lag can indicate network or I/O issues
+      - WAL growth without compaction indicates segment accumulation
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{}
+      }
+    }
+  end
+
+  defp tool_backup_create do
+    %{
+      name: "backup_create",
+      description: """
+      Create a backup snapshot of the event store. Backups capture a consistent \
+      point-in-time copy of all data for disaster recovery.
+
+      **When to use this tool:**
+      - Before major operations (migrations, bulk deletes, schema changes)
+      - Scheduled disaster recovery snapshots
+      - Before deploying new Core versions
+      - Creating restore points for testing
+
+      **SAFETY WARNING:**
+      - Backup creation is I/O intensive — plan for increased disk usage
+      - Ensure sufficient disk space for the snapshot (check storage_stats first)
+      - Backup is a point-in-time snapshot — events written during backup may not be included
+      - Large datasets may take significant time to backup
+
+      **Common patterns:**
+      - Full backup: `label: "pre-migration-2024-01"`
+      - Tenant backup: `tenant_id: "tenant-123", label: "tenant-backup"`
+      - Incremental: `incremental: true` (only changes since last backup)
+
+      **Performance tips:**
+      - Use incremental backups for frequent snapshots
+      - Schedule during off-peak hours
+      - Monitor disk space during backup creation
+      - Use label parameter for easy identification in backup_list
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "label" => %{
+            type: "string",
+            description: "Human-readable label for the backup"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Backup only this tenant's data"
+          },
+          "incremental" => %{
+            type: "boolean",
+            description: "Create incremental backup from last full backup (default: false)"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_backup_restore do
+    %{
+      name: "backup_restore",
+      description: """
+      Restore data from a backup snapshot. This is a DESTRUCTIVE operation that \
+      replaces current data with the backup contents.
+
+      **SAFETY WARNING — DESTRUCTIVE OPERATION:**
+      - This REPLACES current data with backup data
+      - All events written after the backup was created will be LOST
+      - Always create a fresh backup before restoring (backup_create)
+      - Consider using dry_run: true first to validate the backup
+      - This operation requires confirmation and cannot be undone
+
+      **When to use this tool:**
+      - Disaster recovery after data corruption
+      - Rolling back a failed migration
+      - Restoring a tenant's data from a known good state
+      - Testing restore procedures
+
+      **Common patterns:**
+      - Restore from specific backup: `backup_id: "bkp-20240115-001"`
+      - Dry run validation: `backup_id: "bkp-20240115-001", dry_run: true`
+      - Tenant restore: `backup_id: "bkp-20240115-001", tenant_id: "tenant-123"`
+
+      **Performance tips:**
+      - Restore time depends on backup size
+      - System may be unavailable during restore
+      - Always verify data integrity after restore
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "backup_id" => %{
+            type: "string",
+            description: "ID of the backup to restore from (use backup_list to find)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Restore only this tenant's data"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Validate backup integrity without restoring (default: false)"
+          },
+          "confirm" => %{
+            type: "boolean",
+            description: "REQUIRED: Must be true to execute restore. Safety confirmation."
+          }
+        },
+        required: ["backup_id", "confirm"]
+      }
+    }
+  end
+
+  defp tool_backup_list do
+    %{
+      name: "backup_list",
+      description: """
+      List available backup snapshots with metadata. Use this to find backup IDs \
+      for restore operations or to audit backup history.
+
+      **When to use this tool:**
+      - Finding a specific backup for restore
+      - Auditing backup history and retention
+      - Verifying backup schedule is running
+      - Checking backup sizes for capacity planning
+
+      **Common patterns:**
+      - List all backups: no parameters needed
+      - Filter by tenant: `tenant_id: "tenant-123"`
+      - Recent backups: `limit: 5`
+      - Find by label: check the label field in results
+
+      **Performance tips:**
+      - Lightweight read-only metadata operation
+      - Results include backup_id, label, created_at, size, and status
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "List backups for a specific tenant"
+          },
+          "limit" => %{
+            type: "number",
+            description: "Maximum number of backups to return (default: 20)"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_health_deep do
+    %{
+      name: "health_deep",
+      description: """
+      Perform a deep health check across all Core components including storage, \
+      WAL, partitions, replication, and resource usage. More comprehensive than \
+      get_stats or get_cluster_status.
+
+      **When to use this tool:**
+      - Comprehensive system health assessment
+      - Troubleshooting performance or availability issues
+      - Pre-deployment readiness checks
+      - Periodic health monitoring and alerting
+      - When get_stats shows anomalies and you need deeper investigation
+
+      **Common patterns:**
+      - Full check: no parameters — checks all components
+      - Look for: components with status != "healthy"
+      - Look for: high resource utilization (>80% disk, memory, CPU)
+      - Look for: replication lag or WAL backlog
+
+      **Decision guide:**
+      - Quick overview? → get_stats
+      - Cluster topology? → get_cluster_status
+      - Comprehensive check? → health_deep (this tool)
+      - Storage specific? → storage_stats
+      - WAL specific? → wal_status
+
+      **Performance tips:**
+      - May take a few seconds as it checks all subsystems
+      - Safe to run frequently — read-only operation
+      - Results include component-level health with recommendations
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{}
+      }
+    }
+  end
+
+  defp tool_performance_report do
+    %{
+      name: "performance_report",
+      description: """
+      Generate a performance metrics summary including query latencies, throughput, \
+      cache hit rates, and resource utilization over a time period.
+
+      **When to use this tool:**
+      - Identifying performance bottlenecks
+      - Monitoring query latency trends
+      - Evaluating cache effectiveness
+      - Capacity planning based on throughput trends
+      - Before and after performance optimization comparisons
+
+      **Common patterns:**
+      - Current snapshot: no parameters needed
+      - Time range: `period: "1h"` or `period: "24h"` or `period: "7d"`
+      - By tenant: `tenant_id: "tenant-123"` — tenant-specific metrics
+
+      **Key metrics to look for:**
+      - p50/p95/p99 query latency — indicates query performance
+      - Write throughput — events ingested per second
+      - Cache hit rate — low rates indicate cache tuning needed
+      - Disk I/O utilization — high values indicate I/O bottleneck
+
+      **Performance tips:**
+      - Lightweight read-only operation
+      - Compare periods to identify trends
+      - Use alongside health_deep for comprehensive diagnostics
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "period" => %{
+            type: "string",
+            enum: ["1h", "6h", "24h", "7d", "30d"],
+            description: "Time period for metrics (default: 1h)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Get metrics for a specific tenant"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_audit_log do
+    %{
+      name: "audit_log",
+      description: """
+      Query the audit trail for system and data operations. Every destructive \
+      or administrative operation is recorded in the audit log for compliance \
+      and forensic analysis.
+
+      **When to use this tool:**
+      - Investigating who performed a specific operation
+      - Compliance auditing (GDPR, SOC2, HIPAA)
+      - Forensic analysis after incidents
+      - Reviewing recent administrative actions
+      - Tracking data lifecycle operations (deletes, archives, restores)
+
+      **Common patterns:**
+      - Recent activity: no parameters — returns latest audit entries
+      - By action: `action: "delete"` or `action: "backup_create"`
+      - By actor: `actor: "admin@example.com"` — who performed the action
+      - By entity: `entity_id: "user-123"` — operations on a specific entity
+      - Time range: `since: "2024-01-01T00:00:00Z", until: "2024-01-31T23:59:59Z"`
+
+      **Performance tips:**
+      - Use filters to narrow results for large audit logs
+      - Use limit parameter to cap results
+      - Audit entries include: action, actor, target, timestamp, details
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "action" => %{
+            type: "string",
+            description: "Filter by action type (e.g., delete, archive, restore, backup_create)"
+          },
+          "actor" => %{
+            type: "string",
+            description: "Filter by actor/user who performed the action"
+          },
+          "entity_id" => %{
+            type: "string",
+            description: "Filter by target entity ID"
+          },
+          "since" => %{
+            type: "string",
+            description: "Filter entries since this ISO timestamp"
+          },
+          "until" => %{
+            type: "string",
+            description: "Filter entries until this ISO timestamp"
+          },
+          "limit" => %{
+            type: "number",
+            description: "Maximum entries to return (default: 50)"
+          }
+        }
+      }
+    }
+  end
+
+  # ============================================================================
+  # Operational Tool Handlers
+  # ============================================================================
+
+  @doc false
+  def handle_compact_storage(args, state, format) do
+    dry_run = Map.get(args, "dry_run", false)
+
+    params =
+      %{}
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+      |> maybe_put("partition_id", Map.get(args, "partition_id"))
+      |> maybe_put("dry_run", dry_run)
+
+    case CoreClient.compact_storage(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text =
+          if dry_run do
+            """
+            🔍 Compaction Preview (DRY RUN)
+
+            #{formatted_data}
+
+            💡 Remove dry_run: true to execute compaction
+            """
+          else
+            """
+            🗜️ Storage Compaction Initiated
+
+            #{formatted_data}
+
+            ⚠️ Compaction runs in the background. Use storage_stats to monitor progress.
+            """
+          end
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to trigger compaction: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_storage_stats(args, state, format) do
+    params =
+      %{}
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+      |> maybe_put("group_by", Map.get(args, "group_by"))
+      |> maybe_put("refresh", Map.get(args, "refresh"))
+
+    case CoreClient.storage_stats(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        💾 Storage Statistics
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to get storage stats: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_partition_info(args, state, format) do
+    params =
+      %{}
+      |> maybe_put("partition_id", Map.get(args, "partition_id"))
+      |> maybe_put("include_replicas", Map.get(args, "include_replicas"))
+
+    case CoreClient.partition_info(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        🗂️ Partition Information
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to get partition info: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_wal_status(_args, state, format) do
+    case CoreClient.wal_status(state.core_client) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        📝 WAL Status
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to get WAL status: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_backup_create(args, state, format) do
+    params =
+      %{}
+      |> maybe_put("label", Map.get(args, "label"))
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+      |> maybe_put("incremental", Map.get(args, "incremental"))
+
+    case CoreClient.backup_create(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        📦 Backup Created
+
+        #{formatted_data}
+
+        💡 Use backup_list to see all available backups
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to create backup: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_backup_restore(args, state, format) do
+    backup_id = Map.fetch!(args, "backup_id")
+    confirm = Map.get(args, "confirm", false)
+    dry_run = Map.get(args, "dry_run", false)
+
+    unless confirm do
+      text = """
+      ⛔ Restore NOT Executed — Confirmation Required
+
+      backup_restore is a DESTRUCTIVE operation that replaces current data.
+      Set confirm: true to proceed.
+
+      ⚠️ All events written after backup "#{backup_id}" was created will be LOST.
+      💡 Consider creating a fresh backup first with backup_create.
+      """
+
+      {:ok, %{content: [%{type: "text", text: text}]}}
+    else
+      params =
+        %{"backup_id" => backup_id}
+        |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+        |> maybe_put("dry_run", dry_run)
+
+      case CoreClient.backup_restore(state.core_client, params) do
+        {:ok, data} ->
+          formatted_data = ToonEncoder.format_response(data, format)
+
+          text =
+            if dry_run do
+              """
+              🔍 Restore Validation (DRY RUN)
+              📦 Backup: #{backup_id}
+
+              #{formatted_data}
+
+              💡 Remove dry_run: true to execute the restore
+              """
+            else
+              """
+              ✅ Restore Initiated
+              📦 Backup: #{backup_id}
+
+              #{formatted_data}
+
+              ⚠️ System may be unavailable during restore. Monitor with health_deep.
+              """
+            end
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+
+        {:error, reason} ->
+          {:error, "Failed to restore backup: #{inspect(reason)}"}
+      end
+    end
+  end
+
+  @doc false
+  def handle_backup_list(args, state, format) do
+    params =
+      %{}
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+      |> maybe_put("limit", Map.get(args, "limit"))
+
+    case CoreClient.backup_list(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        📋 Available Backups
+
+        #{formatted_data}
+
+        💡 Use backup_id with backup_restore to restore from a backup
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to list backups: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_health_deep(_args, state, format) do
+    case CoreClient.health_deep(state.core_client) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        🏥 Deep Health Check
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to perform deep health check: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_performance_report(args, state, format) do
+    params =
+      %{}
+      |> maybe_put("period", Map.get(args, "period"))
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+    case CoreClient.performance_report(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        📈 Performance Report
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to get performance report: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_audit_log(args, state, format) do
+    params =
+      %{}
+      |> maybe_put("action", Map.get(args, "action"))
+      |> maybe_put("actor", Map.get(args, "actor"))
+      |> maybe_put("entity_id", Map.get(args, "entity_id"))
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+      |> maybe_put("limit", Map.get(args, "limit"))
+
+    case CoreClient.audit_log(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        📜 Audit Log
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to query audit log: #{inspect(reason)}"}
+    end
+  end
+
+  # ============================================================================
+  # Multi-Tenancy Tool Definitions
+  # ============================================================================
+
+  defp tool_tenant_create do
+    %{
+      name: "tenant_create",
+      description: """
+      Provision a new tenant with quotas and settings. Creates a tenant in the \
+      Go Control Plane for multi-tenant event store isolation.
+
+      **ADMIN ONLY** — Requires admin role to execute.
+
+      **When to use this tool:**
+      - Onboarding a new customer or team to the platform
+      - Setting up isolated environments for testing or staging
+      - Creating tenants with specific quota limits
+      - Provisioning tenants as part of automated signup flows
+
+      **Common patterns:**
+      - Basic tenant: `name: "acme-corp", plan: "standard"`
+      - With quotas: `name: "acme-corp", plan: "enterprise", max_events_per_day: 1000000`
+      - With metadata: `name: "acme-corp", metadata: {"team": "backend", "env": "prod"}`
+
+      **Performance tips:**
+      - Tenant creation is a lightweight control plane operation
+      - The tenant_id is auto-generated if not provided
+      - Quotas can be updated later with tenant_update or tenant_quotas
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "name" => %{
+            type: "string",
+            description: "Human-readable tenant name"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Custom tenant ID (auto-generated if omitted)"
+          },
+          "plan" => %{
+            type: "string",
+            enum: ["free", "standard", "professional", "enterprise"],
+            description: "Subscription plan determining default quotas"
+          },
+          "max_events_per_day" => %{
+            type: "number",
+            description: "Maximum events allowed per day (overrides plan default)"
+          },
+          "max_storage_bytes" => %{
+            type: "number",
+            description: "Maximum storage in bytes (overrides plan default)"
+          },
+          "metadata" => %{
+            type: "object",
+            description: "Custom metadata key-value pairs for the tenant"
+          }
+        },
+        required: ["name"]
+      }
+    }
+  end
+
+  defp tool_tenant_update do
+    %{
+      name: "tenant_update",
+      description: """
+      Update tenant settings, quotas, or metadata. Modifies an existing tenant's \
+      configuration in the Go Control Plane.
+
+      **ADMIN ONLY** — Requires admin role to execute.
+
+      **When to use this tool:**
+      - Upgrading or downgrading a tenant's plan
+      - Adjusting quotas after usage review
+      - Updating tenant metadata (team, contact, tags)
+      - Changing tenant display name
+
+      **Common patterns:**
+      - Change plan: `tenant_id: "t-123", plan: "enterprise"`
+      - Adjust quota: `tenant_id: "t-123", max_events_per_day: 5000000`
+      - Update metadata: `tenant_id: "t-123", metadata: {"team": "platform"}`
+
+      **Performance tips:**
+      - Lightweight control plane operation
+      - Quota changes take effect immediately
+      - Plan changes may affect rate limiting within seconds
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "ID of the tenant to update"
+          },
+          "name" => %{
+            type: "string",
+            description: "Updated tenant name"
+          },
+          "plan" => %{
+            type: "string",
+            enum: ["free", "standard", "professional", "enterprise"],
+            description: "New subscription plan"
+          },
+          "max_events_per_day" => %{
+            type: "number",
+            description: "Updated daily event quota"
+          },
+          "max_storage_bytes" => %{
+            type: "number",
+            description: "Updated storage quota in bytes"
+          },
+          "metadata" => %{
+            type: "object",
+            description: "Updated metadata (merged with existing)"
+          }
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  defp tool_tenant_usage do
+    %{
+      name: "tenant_usage",
+      description: """
+      Get usage statistics for a tenant including event counts, storage usage, \
+      API call volume, and quota consumption percentages.
+
+      **ADMIN ONLY** — Requires admin role to execute.
+
+      **When to use this tool:**
+      - Monitoring tenant resource consumption
+      - Identifying tenants approaching quota limits
+      - Generating billing reports based on usage
+      - Capacity planning per tenant
+
+      **Common patterns:**
+      - Current usage: `tenant_id: "t-123"`
+      - Time range: `tenant_id: "t-123", period: "7d"`
+      - Billing period: `tenant_id: "t-123", period: "30d"`
+
+      **Decision guide:**
+      - Per-tenant details? → tenant_usage (this tool)
+      - Quota config? → tenant_quotas
+      - Storage breakdown? → storage_stats with tenant_id
+      - All tenants overview? → tenant_quotas with include_usage: true
+
+      **Performance tips:**
+      - Lightweight read-only operation
+      - Usage data may be cached; period determines granularity
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "ID of the tenant to get usage for"
+          },
+          "period" => %{
+            type: "string",
+            enum: ["1h", "24h", "7d", "30d", "90d"],
+            description: "Time period for usage data (default: 24h)"
+          },
+          "include_breakdown" => %{
+            type: "boolean",
+            description: "Include usage breakdown by event type (default: false)"
+          }
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  defp tool_tenant_quotas do
+    %{
+      name: "tenant_quotas",
+      description: """
+      Get quota configuration and enforcement status for a tenant. Shows current \
+      limits, usage against limits, and whether quotas are being enforced.
+
+      **ADMIN ONLY** — Requires admin role to execute.
+
+      **When to use this tool:**
+      - Reviewing a tenant's quota configuration
+      - Checking if a tenant is near quota limits
+      - Auditing quota enforcement settings
+      - Planning quota adjustments before tenant_update
+
+      **Common patterns:**
+      - View quotas: `tenant_id: "t-123"`
+      - With usage: `tenant_id: "t-123", include_usage: true`
+      - Check enforcement: look for `enforced: true/false` in results
+
+      **Key quota types:**
+      - `max_events_per_day` — daily event ingestion limit
+      - `max_storage_bytes` — total storage capacity
+      - `max_api_calls_per_minute` — rate limiting
+      - `max_event_size_bytes` — per-event size limit
+
+      **Performance tips:**
+      - Lightweight read-only operation
+      - Use include_usage to see current consumption vs limits
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "ID of the tenant to get quotas for"
+          },
+          "include_usage" => %{
+            type: "boolean",
+            description: "Include current usage against each quota (default: false)"
+          }
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  defp tool_tenant_suspend do
+    %{
+      name: "tenant_suspend",
+      description: """
+      Suspend a tenant, preventing all API access and event ingestion. This is a \
+      soft disable — data is preserved and the tenant can be reactivated.
+
+      **ADMIN ONLY** — Requires admin role to execute.
+
+      **SAFETY WARNING:**
+      - Suspended tenants cannot ingest events or query data
+      - All API keys for the tenant are temporarily disabled
+      - Existing data is preserved — this is NOT a deletion
+      - The tenant can be reactivated with tenant_update (status: "active")
+
+      **When to use this tool:**
+      - Suspending a tenant for non-payment or policy violation
+      - Temporarily disabling a tenant during maintenance
+      - Emergency response to abuse or security incidents
+      - Planned decommissioning (suspend before export and delete)
+
+      **Common patterns:**
+      - Suspend: `tenant_id: "t-123", reason: "non-payment"`
+      - Emergency: `tenant_id: "t-123", reason: "security incident", notify: true`
+      - Planned: `tenant_id: "t-123", reason: "scheduled maintenance"`
+
+      **Performance tips:**
+      - Takes effect immediately across all API endpoints
+      - Does not affect data durability — events are preserved
+      - Reactivate with tenant_update setting status to "active"
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "ID of the tenant to suspend"
+          },
+          "reason" => %{
+            type: "string",
+            description: "Reason for suspension (recorded in audit log)"
+          },
+          "notify" => %{
+            type: "boolean",
+            description: "Send notification to tenant contacts (default: false)"
+          }
+        },
+        required: ["tenant_id", "reason"]
+      }
+    }
+  end
+
+  defp tool_tenant_export do
+    %{
+      name: "tenant_export",
+      description: """
+      Export all data for a tenant including events, projections, and metadata. \
+      Generates a complete data package for migration, backup, or compliance (GDPR).
+
+      **ADMIN ONLY** — Requires admin role to execute.
+
+      **When to use this tool:**
+      - GDPR data portability requests (right to data portability)
+      - Migrating a tenant to another deployment
+      - Creating offline backups of tenant data
+      - Pre-deletion data archive for compliance
+
+      **SAFETY WARNING:**
+      - Export may be large — check tenant_usage first
+      - Long-running operation for tenants with many events
+      - Export includes all event data, metadata, and projections
+
+      **Common patterns:**
+      - Full export: `tenant_id: "t-123"`
+      - Format choice: `tenant_id: "t-123", format: "jsonl"`
+      - With date range: `tenant_id: "t-123", since: "2024-01-01T00:00:00Z"`
+      - Size estimate: use tenant_usage first to check data volume
+
+      **Performance tips:**
+      - Use tenant_usage to estimate export size before running
+      - JSONL format is most efficient for large exports
+      - Consider time-range filters for very large tenants
+      - Export runs asynchronously — check status with the returned job_id
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "ID of the tenant to export data for"
+          },
+          "format" => %{
+            type: "string",
+            enum: ["json", "jsonl", "csv"],
+            description: "Export format (default: json)"
+          },
+          "since" => %{
+            type: "string",
+            description: "Export events since this ISO timestamp"
+          },
+          "until" => %{
+            type: "string",
+            description: "Export events until this ISO timestamp"
+          },
+          "include_projections" => %{
+            type: "boolean",
+            description: "Include projection data in export (default: true)"
+          },
+          "include_metadata" => %{
+            type: "boolean",
+            description: "Include tenant metadata in export (default: true)"
+          }
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  # ============================================================================
+  # Multi-Tenancy Tool Handlers
+  # ============================================================================
+
+  @doc false
+  def handle_tenant_create(args, state, format) do
+    params =
+      %{"name" => Map.fetch!(args, "name")}
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+      |> maybe_put("plan", Map.get(args, "plan"))
+      |> maybe_put("max_events_per_day", Map.get(args, "max_events_per_day"))
+      |> maybe_put("max_storage_bytes", Map.get(args, "max_storage_bytes"))
+      |> maybe_put("metadata", Map.get(args, "metadata"))
+
+    case ControlPlaneClient.tenant_create(state.control_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+        tenant_id = Map.get(data, "tenant_id", Map.get(data, "id", "unknown"))
+
+        text = """
+        🏢 Tenant Created
+        🆔 Tenant ID: #{tenant_id}
+        📛 Name: #{Map.fetch!(args, "name")}
+
+        #{formatted_data}
+
+        💡 Use tenant_quotas to review quota configuration
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to create tenant: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_tenant_update(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    params =
+      %{}
+      |> maybe_put("name", Map.get(args, "name"))
+      |> maybe_put("plan", Map.get(args, "plan"))
+      |> maybe_put("max_events_per_day", Map.get(args, "max_events_per_day"))
+      |> maybe_put("max_storage_bytes", Map.get(args, "max_storage_bytes"))
+      |> maybe_put("metadata", Map.get(args, "metadata"))
+
+    case ControlPlaneClient.tenant_update(state.control_client, tenant_id, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        ✏️ Tenant Updated
+        🆔 Tenant ID: #{tenant_id}
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to update tenant: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_tenant_usage(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    params =
+      %{}
+      |> maybe_put("period", Map.get(args, "period"))
+      |> maybe_put("include_breakdown", Map.get(args, "include_breakdown"))
+
+    case ControlPlaneClient.tenant_usage(state.control_client, tenant_id, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        📊 Tenant Usage
+        🆔 Tenant ID: #{tenant_id}
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to get tenant usage: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_tenant_quotas(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    params =
+      %{}
+      |> maybe_put("include_usage", Map.get(args, "include_usage"))
+
+    case ControlPlaneClient.tenant_quotas(state.control_client, tenant_id, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        📋 Tenant Quotas
+        🆔 Tenant ID: #{tenant_id}
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to get tenant quotas: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_tenant_suspend(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+    reason = Map.fetch!(args, "reason")
+
+    params =
+      %{"reason" => reason}
+      |> maybe_put("notify", Map.get(args, "notify"))
+
+    case ControlPlaneClient.tenant_suspend(state.control_client, tenant_id, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        ⏸️ Tenant Suspended
+        🆔 Tenant ID: #{tenant_id}
+        📝 Reason: #{reason}
+
+        #{formatted_data}
+
+        💡 Reactivate with tenant_update setting status to "active"
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason_msg} ->
+        {:error, "Failed to suspend tenant: #{inspect(reason_msg)}"}
+    end
+  end
+
+  @doc false
+  def handle_tenant_export(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    params =
+      %{}
+      |> maybe_put("format", Map.get(args, "format"))
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+      |> maybe_put("include_projections", Map.get(args, "include_projections"))
+      |> maybe_put("include_metadata", Map.get(args, "include_metadata"))
+
+    case ControlPlaneClient.tenant_export(state.control_client, tenant_id, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        📤 Tenant Data Export
+        🆔 Tenant ID: #{tenant_id}
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to export tenant data: #{inspect(reason)}"}
+    end
+  end
+
+  # ============================================================================
+  # Schema & Validation Tool Definitions
+  # ============================================================================
+
+  defp tool_register_schema do
+    %{
+      name: "register_schema",
+      description: """
+      Register a JSON Schema for an event type (subject). Schemas enable \
+      validation of event payloads before ingestion, ensuring data quality.
+
+      **When to use this tool:**
+      - Defining the expected structure for a new event type
+      - Enforcing data contracts between producers and consumers
+      - Setting up schema governance before going to production
+      - Adding validation to existing event types retroactively
+
+      **Common patterns:**
+      - Register basic schema: `subject: "user.created", definition: {"type": "object", ...}`
+      - With description: `subject: "order.placed", definition: {...}, description: "Order placement event"`
+      - With compatibility: `subject: "payment.processed", definition: {...}, compatibility: "backward"`
+
+      **Performance tips:**
+      - Schema registration is a lightweight metadata operation
+      - Schemas are cached in Core for fast validation
+      - Use list_schemas to verify registration
+
+      **Decision guide:**
+      - "Define event structure?" → register_schema
+      - "Check if data matches schema?" → validate_schema
+      - "Compare schema versions?" → schema_diff
+      - "Auto-generate from samples?" → infer_schema
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "subject" => %{
+            type: "string",
+            description: "Schema subject name, typically the event type (e.g., 'user.created')"
+          },
+          "definition" => %{
+            type: "object",
+            description: "JSON Schema definition (draft-07 compatible)"
+          },
+          "description" => %{
+            type: "string",
+            description: "Human-readable description of what this schema represents"
+          },
+          "compatibility" => %{
+            type: "string",
+            enum: ["none", "backward", "forward", "full"],
+            description:
+              "Compatibility mode for schema evolution (default: backward). " <>
+                "backward = new schema can read old data, " <>
+                "forward = old schema can read new data, " <>
+                "full = both directions"
+          },
+          "tags" => %{
+            type: "array",
+            items: %{type: "string"},
+            description: "Tags for categorizing and filtering schemas"
+          }
+        },
+        required: ["subject", "definition"]
+      }
+    }
+  end
+
+  defp tool_validate_schema do
+    %{
+      name: "validate_schema",
+      description: """
+      Validate an event payload against a registered schema. Returns validation \
+      result with detailed error messages for any violations.
+
+      **When to use this tool:**
+      - Testing event payloads before ingestion
+      - Debugging schema validation failures
+      - Verifying data quality in CI/CD pipelines
+      - Checking if existing events conform to updated schemas
+
+      **Common patterns:**
+      - Validate payload: `subject: "user.created", payload: {"name": "Alice", ...}`
+      - Validate against specific version: `subject: "user.created", version: 2, payload: {...}`
+
+      **Performance tips:**
+      - Validation is fast (sub-millisecond for typical schemas)
+      - Use this before ingest_event to catch errors early
+      - Batch validation is not supported — validate one payload at a time
+
+      **Decision guide:**
+      - "Does this payload match the schema?" → validate_schema
+      - "What schemas exist?" → list_schemas
+      - "Register a new schema?" → register_schema
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "subject" => %{
+            type: "string",
+            description: "Schema subject to validate against"
+          },
+          "payload" => %{
+            type: "object",
+            description: "Event payload to validate"
+          },
+          "version" => %{
+            type: "number",
+            description: "Specific schema version to validate against (default: latest)"
+          }
+        },
+        required: ["subject", "payload"]
+      }
+    }
+  end
+
+  defp tool_migrate_schema do
+    %{
+      name: "migrate_schema",
+      description: """
+      Migrate a schema to a new version with transformation rules. Handles \
+      schema evolution by defining how data should be transformed between versions.
+
+      **When to use this tool:**
+      - Evolving an event type schema (adding/removing/renaming fields)
+      - Ensuring backward compatibility during schema changes
+      - Planning data migrations before deploying schema updates
+      - Registering a new schema version with transformation metadata
+
+      **Common patterns:**
+      - Add field: `subject: "user.created", new_definition: {...}, transformations: [{"op": "add", "path": "/email_verified", "value": false}]`
+      - Rename field: `subject: "order.placed", new_definition: {...}, transformations: [{"op": "rename", "from": "/amount", "to": "/total_amount"}]`
+      - Dry run: `..., dry_run: true` to preview compatibility check
+
+      **Performance tips:**
+      - Always run with dry_run: true first to check compatibility
+      - Migration is a metadata operation — does not transform existing events
+      - Existing events remain stored in their original schema version
+
+      **Decision guide:**
+      - "Evolve schema safely?" → migrate_schema
+      - "Compare two versions?" → schema_diff
+      - "Check compatibility?" → migrate_schema with dry_run: true
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "subject" => %{
+            type: "string",
+            description: "Schema subject to migrate"
+          },
+          "new_definition" => %{
+            type: "object",
+            description: "New JSON Schema definition"
+          },
+          "transformations" => %{
+            type: "array",
+            items: %{
+              type: "object",
+              properties: %{
+                "op" => %{type: "string", description: "Operation: add, remove, rename, modify"},
+                "path" => %{type: "string", description: "JSON pointer path"},
+                "from" => %{type: "string", description: "Source path (for rename)"},
+                "to" => %{type: "string", description: "Target path (for rename)"},
+                "value" => %{description: "Default value (for add)"}
+              },
+              required: ["op"]
+            },
+            description: "Transformation rules for migrating data between versions"
+          },
+          "description" => %{
+            type: "string",
+            description: "Description of what changed in this version"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Check compatibility without registering (default: false)"
+          }
+        },
+        required: ["subject", "new_definition"]
+      }
+    }
+  end
+
+  defp tool_list_schemas do
+    %{
+      name: "list_schemas",
+      description: """
+      List all registered schema subjects with their metadata. Provides an \
+      overview of the schema registry for governance and discovery.
+
+      **When to use this tool:**
+      - Discovering what event types have schemas defined
+      - Auditing schema coverage across event types
+      - Finding schemas by tags or description
+      - Getting an overview of schema governance status
+
+      **Common patterns:**
+      - List all: no parameters needed
+      - Filter by tag: `tag: "billing"` to find billing-related schemas
+      - Include versions: `include_versions: true` to see version counts
+
+      **Performance tips:**
+      - Lightweight metadata read operation
+      - Results are cached — use refresh: true for real-time data
+      - For detailed version info, use schema_diff with a specific subject
+
+      **Decision guide:**
+      - "What schemas exist?" → list_schemas
+      - "Get specific schema?" → use subject name with register_schema or schema_diff
+      - "Validate data against schema?" → validate_schema
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tag" => %{
+            type: "string",
+            description: "Filter schemas by tag"
+          },
+          "include_versions" => %{
+            type: "boolean",
+            description: "Include version count per subject (default: false)"
+          },
+          "refresh" => %{
+            type: "boolean",
+            description: "Force refresh cached results (default: false)"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_infer_schema do
+    %{
+      name: "infer_schema",
+      description: """
+      Auto-generate a JSON Schema from sample events. Analyzes event payloads \
+      to infer field types, required fields, and common patterns.
+
+      **When to use this tool:**
+      - Bootstrapping schemas for existing event types without definitions
+      - Understanding the structure of unfamiliar event data
+      - Generating a starting point schema to refine manually
+      - Auditing data consistency across events of the same type
+
+      **Common patterns:**
+      - Infer from event type: `event_type: "user.created"` (samples recent events)
+      - With sample size: `event_type: "order.placed", sample_size: 100`
+      - From specific entity: `entity_id: "user-123", event_type: "user.updated"`
+
+      **Performance tips:**
+      - Inference quality improves with more samples (default: 50)
+      - Large sample sizes (>500) may be slow on high-cardinality event types
+      - Inferred schemas are suggestions — review before registering
+
+      **Decision guide:**
+      - "No schema exists, want to create one?" → infer_schema then register_schema
+      - "Schema exists, want to validate data?" → validate_schema
+      - "Want to compare inferred vs registered?" → infer_schema then schema_diff
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "event_type" => %{
+            type: "string",
+            description: "Event type to infer schema from"
+          },
+          "entity_id" => %{
+            type: "string",
+            description: "Optionally limit to events from a specific entity"
+          },
+          "sample_size" => %{
+            type: "number",
+            description: "Number of events to sample for inference (default: 50, max: 1000)"
+          }
+        },
+        required: ["event_type"]
+      }
+    }
+  end
+
+  defp tool_schema_diff do
+    %{
+      name: "schema_diff",
+      description: """
+      Compare two schema versions to see what changed. Shows field additions, \
+      removals, type changes, and compatibility assessment.
+
+      **When to use this tool:**
+      - Reviewing what changed between schema versions before deploying
+      - Auditing schema evolution history
+      - Checking if a proposed change is backward/forward compatible
+      - Understanding breaking vs non-breaking changes
+
+      **Common patterns:**
+      - Compare versions: `subject: "user.created", version_a: 1, version_b: 2`
+      - Compare latest with previous: `subject: "user.created"` (defaults to last two versions)
+      - Compare with proposed: `subject: "user.created", version_a: 2, proposed: {...}`
+
+      **Performance tips:**
+      - Lightweight metadata operation
+      - Diff includes compatibility assessment (breaking/non-breaking)
+      - For full version history, use list_schemas with include_versions: true
+
+      **Decision guide:**
+      - "What changed between versions?" → schema_diff
+      - "Is this change safe?" → schema_diff (check compatibility field)
+      - "Evolve schema?" → migrate_schema
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "subject" => %{
+            type: "string",
+            description: "Schema subject to compare versions for"
+          },
+          "version_a" => %{
+            type: "number",
+            description: "First version to compare (default: latest - 1)"
+          },
+          "version_b" => %{
+            type: "number",
+            description: "Second version to compare (default: latest)"
+          },
+          "proposed" => %{
+            type: "object",
+            description: "Proposed schema to compare against version_a (instead of version_b)"
+          }
+        },
+        required: ["subject"]
+      }
+    }
+  end
+
+  # ============================================================================
+  # Advanced Analytics Tool Definitions
+  # ============================================================================
+
+  defp tool_cohort_analysis do
+    %{
+      name: "cohort_analysis",
+      description: """
+      Analyze user cohort retention and behavior over time. Groups entities by \
+      their first event (cohort date) and tracks activity in subsequent periods.
+
+      **When to use this tool:**
+      - Measuring user retention (Day 1, Day 7, Day 30 retention rates)
+      - Understanding how different signup cohorts behave over time
+      - Comparing cohort performance across product changes
+      - Identifying when users typically drop off
+
+      **Methodology:**
+      - Entities are grouped into cohorts by their first event timestamp
+      - Activity is measured by event count in each subsequent period
+      - Retention = % of cohort entities active in period N vs period 0
+
+      **Common patterns:**
+      - Weekly cohorts: `event_type: "user.active", granularity: "week", periods: 12`
+      - Monthly retention: `event_type: "session.start", granularity: "month", periods: 6`
+      - Filtered cohort: `event_type: "purchase", cohort_filter: {"plan": "premium"}`
+
+      **Performance tips:**
+      - Limit periods to reduce computation (default: 8)
+      - Narrow time range with since/until for faster results
+      - Large datasets may take several seconds — consider sampling
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "event_type" => %{
+            type: "string",
+            description: "Event type to track for activity (e.g., 'session.start', 'purchase')"
+          },
+          "cohort_event_type" => %{
+            type: "string",
+            description:
+              "Event type that defines cohort membership (default: same as event_type). " <>
+                "E.g., 'user.created' to cohort by signup date"
+          },
+          "granularity" => %{
+            type: "string",
+            enum: ["day", "week", "month"],
+            description: "Time granularity for cohort periods (default: week)"
+          },
+          "periods" => %{
+            type: "number",
+            description: "Number of periods to track after cohort formation (default: 8)"
+          },
+          "since" => %{
+            type: "string",
+            description: "Start date for cohort analysis (ISO 8601)"
+          },
+          "until" => %{
+            type: "string",
+            description: "End date for cohort analysis (ISO 8601)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Filter to specific tenant"
+          }
+        },
+        required: ["event_type"]
+      }
+    }
+  end
+
+  defp tool_correlation_analysis do
+    %{
+      name: "correlation_analysis",
+      description: """
+      Analyze correlations between event types to discover causal relationships \
+      and behavioral patterns. Uses Core's correlation analytics endpoint.
+
+      **When to use this tool:**
+      - Discovering which events frequently occur together
+      - Finding causal chains (event A leads to event B within N minutes)
+      - Identifying conversion triggers (what actions precede purchases)
+      - Understanding feature adoption patterns
+
+      **Methodology:**
+      - Temporal correlation: measures how often event B follows event A within a time window
+      - Co-occurrence: counts entities that have both event types
+      - Correlation coefficient: statistical measure of relationship strength
+
+      **Common patterns:**
+      - Basic correlation: `event_type_a: "page.viewed", event_type_b: "purchase.completed"`
+      - With time window: `..., time_window: "1h"` (events within 1 hour)
+      - Multi-type: `event_type_a: "signup", event_type_b: "first_purchase"`
+
+      **Performance tips:**
+      - Narrow time ranges improve performance significantly
+      - Use tenant_id filter on multi-tenant datasets
+      - Large time windows (>24h) with high-volume events may be slow
+
+      **Decision guide:**
+      - "Do these events correlate?" → correlation_analysis
+      - "What patterns exist?" → find_patterns (broader analysis)
+      - "What's the user journey?" → path_analysis
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "event_type_a" => %{
+            type: "string",
+            description: "First event type to correlate"
+          },
+          "event_type_b" => %{
+            type: "string",
+            description: "Second event type to correlate"
+          },
+          "time_window" => %{
+            type: "string",
+            description:
+              "Maximum time between correlated events (e.g., '1h', '24h', '7d'). Default: '1h'"
+          },
+          "since" => %{
+            type: "string",
+            description: "Start of analysis period (ISO 8601)"
+          },
+          "until" => %{
+            type: "string",
+            description: "End of analysis period (ISO 8601)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Filter to specific tenant"
+          }
+        },
+        required: ["event_type_a", "event_type_b"]
+      }
+    }
+  end
+
+  defp tool_forecast_events do
+    %{
+      name: "forecast_events",
+      description: """
+      Predict future event volumes using time series analysis. Uses historical \
+      frequency data to project trends and seasonal patterns.
+
+      **When to use this tool:**
+      - Capacity planning: predicting storage and compute needs
+      - Business forecasting: projecting user growth or revenue events
+      - Anomaly context: understanding if current volumes are unusual
+      - SLA planning: estimating peak load periods
+
+      **Methodology:**
+      - Uses Core's frequency analytics as input data
+      - Applies trend decomposition (level, trend, seasonality)
+      - Returns point estimates with confidence intervals
+      - Seasonal patterns detected automatically from historical data
+
+      **Common patterns:**
+      - Volume forecast: `event_type: "user.created", horizon: 30, granularity: "day"`
+      - Weekly forecast: `event_type: "order.placed", horizon: 12, granularity: "week"`
+      - With history: `event_type: "api.request", history_periods: 90, horizon: 30`
+
+      **Performance tips:**
+      - More history_periods improves accuracy but slows computation
+      - Default history is 3x the horizon
+      - Forecasts are approximations — use confidence intervals for planning
+
+      **Decision guide:**
+      - "How many events next month?" → forecast_events
+      - "Current event rates?" → analytics frequency via quick_stats
+      - "Is this volume normal?" → combine forecast_events with correlation_analysis
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "event_type" => %{
+            type: "string",
+            description: "Event type to forecast (or omit for total volume)"
+          },
+          "granularity" => %{
+            type: "string",
+            enum: ["hour", "day", "week", "month"],
+            description: "Forecast granularity (default: day)"
+          },
+          "horizon" => %{
+            type: "number",
+            description: "Number of periods to forecast ahead (default: 14)"
+          },
+          "history_periods" => %{
+            type: "number",
+            description: "Number of historical periods to use (default: 3x horizon)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Filter to specific tenant"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_segment_analysis do
+    %{
+      name: "segment_analysis",
+      description: """
+      Segment entities by behavioral patterns. Groups entities based on their \
+      event activity to identify distinct user/entity segments.
+
+      **When to use this tool:**
+      - Identifying power users vs casual users by activity level
+      - Segmenting customers by purchase frequency or value
+      - Finding at-risk entities with declining activity
+      - Understanding behavioral clusters for targeted actions
+
+      **Methodology:**
+      - Analyzes event frequency, recency, and diversity per entity
+      - Groups entities into segments based on configurable thresholds
+      - Default segments: active, engaged, at-risk, dormant, churned
+
+      **Common patterns:**
+      - Activity segments: `event_type: "session.start", metric: "frequency"`
+      - Purchase segments: `event_type: "purchase", metric: "monetary_value"`
+      - RFM analysis: `event_type: "purchase", metric: "rfm"`
+      - Custom thresholds: `..., thresholds: {"active": 10, "engaged": 5, "at_risk": 1}`
+
+      **Performance tips:**
+      - Results are computed on-demand from event data
+      - Limit with since/until for faster computation on large datasets
+      - Segment definitions are returned — cache for dashboard displays
+
+      **Decision guide:**
+      - "Who are my power users?" → segment_analysis with metric: "frequency"
+      - "Which users might churn?" → churn_prediction (more sophisticated)
+      - "How do segments change over time?" → cohort_analysis
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "event_type" => %{
+            type: "string",
+            description: "Event type to segment by"
+          },
+          "metric" => %{
+            type: "string",
+            enum: ["frequency", "recency", "monetary_value", "rfm"],
+            description:
+              "Segmentation metric (default: frequency). " <>
+                "rfm = Recency-Frequency-Monetary combined scoring"
+          },
+          "segments" => %{
+            type: "number",
+            description: "Number of segments to create (default: 5)"
+          },
+          "since" => %{
+            type: "string",
+            description: "Start of analysis period (ISO 8601)"
+          },
+          "until" => %{
+            type: "string",
+            description: "End of analysis period (ISO 8601)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Filter to specific tenant"
+          }
+        },
+        required: ["event_type"]
+      }
+    }
+  end
+
+  defp tool_path_analysis do
+    %{
+      name: "path_analysis",
+      description: """
+      Map user journeys and event sequences (funnel analysis). Analyzes the \
+      paths entities take through a series of event types.
+
+      **When to use this tool:**
+      - Conversion funnel analysis (signup → activation → purchase)
+      - Understanding user navigation flows
+      - Identifying drop-off points in multi-step processes
+      - Comparing journey paths between successful and unsuccessful outcomes
+
+      **Methodology:**
+      - Tracks sequences of events per entity ordered by timestamp
+      - Computes conversion rates between each step
+      - Identifies common paths and deviation points
+      - Shows median time between steps
+
+      **Common patterns:**
+      - Conversion funnel: `steps: ["signup", "profile.completed", "first_purchase"]`
+      - With time limit: `steps: ["cart.created", "checkout.started", "order.placed"], max_duration: "24h"`
+      - Open path: `start_event: "signup", depth: 5` (discover common paths)
+
+      **Performance tips:**
+      - Fewer steps = faster analysis
+      - Use max_duration to limit analysis window
+      - Open path analysis (without predefined steps) is more expensive
+
+      **Decision guide:**
+      - "What's my conversion funnel?" → path_analysis with steps
+      - "Where do users go after X?" → path_analysis with start_event
+      - "How do events correlate?" → correlation_analysis (pairwise)
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "steps" => %{
+            type: "array",
+            items: %{type: "string"},
+            description:
+              "Ordered list of event types defining the funnel/path. " <>
+                "E.g., [\"signup\", \"activation\", \"purchase\"]"
+          },
+          "start_event" => %{
+            type: "string",
+            description: "Starting event type for open path discovery (alternative to steps)"
+          },
+          "depth" => %{
+            type: "number",
+            description: "Max path depth for open path discovery (default: 5)"
+          },
+          "max_duration" => %{
+            type: "string",
+            description: "Max time for entire path (e.g., '24h', '7d'). Default: no limit"
+          },
+          "since" => %{
+            type: "string",
+            description: "Start of analysis period (ISO 8601)"
+          },
+          "until" => %{
+            type: "string",
+            description: "End of analysis period (ISO 8601)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Filter to specific tenant"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_attribution_analysis do
+    %{
+      name: "attribution_analysis",
+      description: """
+      Multi-touch attribution modeling for conversion events. Determines which \
+      touchpoints (events) contribute most to a target outcome.
+
+      **When to use this tool:**
+      - Understanding which marketing touches drive conversions
+      - Attributing revenue to specific user actions or campaigns
+      - Comparing attribution models (first-touch, last-touch, linear, time-decay)
+      - Optimizing user experience by identifying high-impact touchpoints
+
+      **Methodology:**
+      - Tracks all events preceding the target conversion event per entity
+      - Applies selected attribution model to distribute credit
+      - Models: first_touch (100% to first), last_touch (100% to last),
+        linear (equal split), time_decay (recent events weighted higher)
+
+      **Common patterns:**
+      - Marketing attribution: `target_event: "purchase", model: "time_decay"`
+      - Feature attribution: `target_event: "upgrade", model: "linear", lookback: "30d"`
+      - Campaign comparison: `target_event: "signup", touchpoint_types: ["ad.clicked", "email.opened", "page.viewed"]`
+
+      **Performance tips:**
+      - Limit lookback window for faster computation
+      - Specify touchpoint_types to reduce noise from irrelevant events
+      - Time-decay model is most computationally expensive
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "target_event" => %{
+            type: "string",
+            description: "Conversion event type to attribute (e.g., 'purchase', 'signup')"
+          },
+          "model" => %{
+            type: "string",
+            enum: ["first_touch", "last_touch", "linear", "time_decay"],
+            description: "Attribution model to apply (default: linear)"
+          },
+          "touchpoint_types" => %{
+            type: "array",
+            items: %{type: "string"},
+            description:
+              "Event types to consider as touchpoints (default: all events before target)"
+          },
+          "lookback" => %{
+            type: "string",
+            description: "How far back to look for touchpoints (e.g., '7d', '30d'). Default: '30d'"
+          },
+          "since" => %{
+            type: "string",
+            description: "Start of analysis period (ISO 8601)"
+          },
+          "until" => %{
+            type: "string",
+            description: "End of analysis period (ISO 8601)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Filter to specific tenant"
+          }
+        },
+        required: ["target_event"]
+      }
+    }
+  end
+
+  defp tool_churn_prediction do
+    %{
+      name: "churn_prediction",
+      description: """
+      Predict entity churn risk based on behavioral patterns. Analyzes recent \
+      activity trends to identify entities likely to become inactive.
+
+      **When to use this tool:**
+      - Identifying at-risk customers before they churn
+      - Prioritizing retention efforts on high-value entities
+      - Understanding churn indicators for your event patterns
+      - Building proactive engagement strategies
+
+      **Methodology:**
+      - Compares recent activity window vs historical baseline
+      - Scores entities 0.0-1.0 (0 = no risk, 1 = very likely to churn)
+      - Factors: activity frequency decline, session gaps, feature disengagement
+      - Churn threshold: entity with no activity in 2x their typical interval
+
+      **Common patterns:**
+      - User churn: `activity_event: "session.start", risk_threshold: 0.7`
+      - Customer churn: `activity_event: "purchase", lookback: "90d"`
+      - With segmentation: `..., include_factors: true` to see what drives churn risk
+
+      **Performance tips:**
+      - Computation scales with number of unique entities
+      - Narrow with tenant_id on large datasets
+      - include_factors adds detail but increases response size
+
+      **Decision guide:**
+      - "Who might churn?" → churn_prediction
+      - "Segment users by activity?" → segment_analysis
+      - "How do cohorts retain?" → cohort_analysis
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "activity_event" => %{
+            type: "string",
+            description: "Event type that indicates activity (e.g., 'session.start', 'api.call')"
+          },
+          "lookback" => %{
+            type: "string",
+            description: "Historical period to analyze (e.g., '30d', '90d'). Default: '30d'"
+          },
+          "risk_threshold" => %{
+            type: "number",
+            description: "Minimum churn risk score to include in results (0.0-1.0, default: 0.5)"
+          },
+          "include_factors" => %{
+            type: "boolean",
+            description: "Include contributing factors for each entity's score (default: false)"
+          },
+          "limit" => %{
+            type: "number",
+            description: "Maximum entities to return (default: 100)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Filter to specific tenant"
+          }
+        },
+        required: ["activity_event"]
+      }
+    }
+  end
+
+  defp tool_ltv_calculation do
+    %{
+      name: "ltv_calculation",
+      description: """
+      Estimate customer lifetime value (LTV) from event data. Calculates \
+      historical and projected value based on revenue or engagement events.
+
+      **When to use this tool:**
+      - Estimating customer lifetime value for business planning
+      - Comparing LTV across segments, cohorts, or acquisition channels
+      - Identifying highest-value customer profiles
+      - Informing pricing and retention investment decisions
+
+      **Methodology:**
+      - Historical LTV: sum of value events per entity over their lifetime
+      - Projected LTV: extrapolates based on observed patterns and retention curve
+      - Uses monetizable event data (purchases, subscriptions, usage-based billing)
+
+      **Common patterns:**
+      - Purchase LTV: `value_event: "purchase", value_field: "amount"`
+      - Subscription LTV: `value_event: "subscription.renewed", value_field: "mrr"`
+      - Projected: `..., projection_months: 12` to estimate future value
+      - By segment: `..., group_by: "plan"` to compare across plans
+
+      **Performance tips:**
+      - Computation scales with number of entities and events
+      - Use since/until to limit analysis window
+      - Projected LTV requires sufficient historical data (3+ months recommended)
+
+      **Decision guide:**
+      - "What's the value of my customers?" → ltv_calculation
+      - "Who might leave?" → churn_prediction
+      - "Group customers by value?" → segment_analysis with metric: "monetary_value"
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "value_event" => %{
+            type: "string",
+            description: "Event type representing value (e.g., 'purchase', 'payment.received')"
+          },
+          "value_field" => %{
+            type: "string",
+            description: "Field in event data containing monetary value (e.g., 'amount', 'total')"
+          },
+          "projection_months" => %{
+            type: "number",
+            description: "Months to project forward (default: 0 = historical only)"
+          },
+          "group_by" => %{
+            type: "string",
+            description: "Group LTV by entity attribute (e.g., 'plan', 'channel', 'region')"
+          },
+          "since" => %{
+            type: "string",
+            description: "Start of analysis period (ISO 8601)"
+          },
+          "until" => %{
+            type: "string",
+            description: "End of analysis period (ISO 8601)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Filter to specific tenant"
+          }
+        },
+        required: ["value_event", "value_field"]
+      }
+    }
+  end
+
+  # ============================================================================
+  # Developer Experience Tool Definitions
+  # ============================================================================
+
+  defp tool_generate_client do
+    %{
+      name: "generate_client",
+      description: """
+      Generate SDK code for interacting with AllSource Core. Produces \
+      type-safe client code in multiple languages based on Core's API.
+
+      **When to use this tool:**
+      - Bootstrapping integration code for a new project
+      - Generating type-safe API clients for your language
+      - Getting code examples for specific Core operations
+      - Creating TypeScript types from registered schemas
+
+      **Common patterns:**
+      - TypeScript client: `language: "typescript", operations: ["ingest", "query"]`
+      - Python client: `language: "python", operations: ["ingest", "query", "search"]`
+      - With schemas: `language: "typescript", include_schemas: true` (generates types from registered schemas)
+      - Specific operation: `language: "go", operations: ["ingest"]`
+
+      **Performance tips:**
+      - Generation is a pure computation, no Core API calls needed
+      - include_schemas fetches current schemas from registry
+      - Generated code includes error handling and retry logic
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "language" => %{
+            type: "string",
+            enum: ["typescript", "python", "go", "rust", "elixir"],
+            description: "Target programming language"
+          },
+          "operations" => %{
+            type: "array",
+            items: %{type: "string"},
+            description:
+              "Operations to generate code for. Options: ingest, query, search, " <>
+                "snapshot, reconstruct, schema, analytics. Default: all"
+          },
+          "include_schemas" => %{
+            type: "boolean",
+            description: "Generate type definitions from registered schemas (default: false)"
+          },
+          "style" => %{
+            type: "string",
+            enum: ["minimal", "full", "example"],
+            description:
+              "Code style: minimal (just the essentials), full (with docs and error " <>
+                "handling), example (with usage examples). Default: full"
+          }
+        },
+        required: ["language"]
+      }
+    }
+  end
+
+  defp tool_mock_events do
+    %{
+      name: "mock_events",
+      description: """
+      Generate realistic test/mock events for development and testing. Creates \
+      synthetic events that match registered schemas or common patterns.
+
+      **When to use this tool:**
+      - Creating test data for development environments
+      - Populating staging with realistic event data
+      - Testing query performance with representative data volumes
+      - Generating sample data for demos and documentation
+
+      **Common patterns:**
+      - From schema: `event_type: "user.created", count: 100` (uses registered schema)
+      - Custom template: `event_type: "purchase", count: 50, template: {"amount": "random:10-500"}`
+      - Time series: `event_type: "session.start", count: 1000, time_range: {"since": "2024-01-01", "until": "2024-12-31"}`
+      - Multi-entity: `event_type: "page.viewed", count: 500, entity_count: 50`
+
+      **SAFETY WARNING:**
+      - Generated events are REAL events that will be ingested into the store
+      - Use a test tenant_id to avoid mixing with production data
+      - Consider using dry_run: true first to preview generated events
+
+      **Performance tips:**
+      - Batch sizes are automatically optimized
+      - Large counts (>10000) are streamed in batches
+      - Schema-aware generation produces more realistic data
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "event_type" => %{
+            type: "string",
+            description: "Event type to generate"
+          },
+          "count" => %{
+            type: "number",
+            description: "Number of events to generate (default: 10, max: 100000)"
+          },
+          "entity_count" => %{
+            type: "number",
+            description: "Number of unique entities to distribute events across (default: count/5)"
+          },
+          "template" => %{
+            type: "object",
+            description:
+              "Event data template with value generators. Use 'random:min-max' for numbers, " <>
+                "'choice:a,b,c' for enums, 'uuid' for IDs, 'timestamp' for dates"
+          },
+          "time_range" => %{
+            type: "object",
+            properties: %{
+              "since" => %{type: "string", description: "Start of time range (ISO 8601)"},
+              "until" => %{type: "string", description: "End of time range (ISO 8601)"}
+            },
+            description: "Distribute events across this time range (default: last 30 days)"
+          },
+          "tenant_id" => %{
+            type: "string",
+            description: "Tenant ID for generated events (recommended: use test tenant)"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "Preview generated events without ingesting (default: false)"
+          }
+        },
+        required: ["event_type"]
+      }
+    }
+  end
+
+  defp tool_debug_query do
+    %{
+      name: "debug_query",
+      description: """
+      Get query execution plan and optimization hints. Shows how Core would \
+      execute a query, including index usage, partition scanning, and estimated cost.
+
+      **When to use this tool:**
+      - Understanding why a query is slow
+      - Optimizing query filters for better performance
+      - Learning which indexes are being used
+      - Comparing query strategies before execution
+
+      **Common patterns:**
+      - Debug existing query: `entity_id: "user-123", event_type: "purchase"`
+      - Time range query: `since: "2024-01-01", until: "2024-06-01", event_type: "order.placed"`
+      - Search query: `semantic_query: "failed payments", threshold: 0.8`
+
+      **Output includes:**
+      - Execution plan steps (scan, filter, sort, limit)
+      - Index usage (which indexes would be hit)
+      - Estimated cost (relative measure of work)
+      - Optimization suggestions (missing indexes, better filters)
+      - Estimated result count
+
+      **Performance tips:**
+      - This is a dry-run operation — no actual query execution
+      - Use this before running expensive queries on large datasets
+      - Optimization suggestions are actionable recommendations
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "entity_id" => %{
+            type: "string",
+            description: "Entity ID filter to debug"
+          },
+          "event_type" => %{
+            type: "string",
+            description: "Event type filter to debug"
+          },
+          "since" => %{
+            type: "string",
+            description: "Time range start (ISO 8601)"
+          },
+          "until" => %{
+            type: "string",
+            description: "Time range end (ISO 8601)"
+          },
+          "semantic_query" => %{
+            type: "string",
+            description: "Semantic search query to debug"
+          },
+          "limit" => %{
+            type: "number",
+            description: "Result limit to factor into plan"
+          }
+        }
+      }
+    }
+  end
+
+  defp tool_benchmark_query do
+    %{
+      name: "benchmark_query",
+      description: """
+      Run performance benchmarks on queries. Executes a query multiple times \
+      and reports latency statistics (p50, p95, p99, mean, min, max).
+
+      **When to use this tool:**
+      - Measuring actual query performance under realistic conditions
+      - Comparing query strategies by latency
+      - Establishing performance baselines before and after changes
+      - Validating SLA compliance for specific query patterns
+
+      **Common patterns:**
+      - Basic benchmark: `query: {"entity_id": "user-123"}, iterations: 50`
+      - Time range query: `query: {"event_type": "purchase", "since": "2024-01-01"}, iterations: 100`
+      - Warm cache: `query: {...}, iterations: 100, warmup: 10`
+
+      **SAFETY WARNING:**
+      - Benchmark queries execute REAL queries against the store
+      - High iteration counts on production can impact performance
+      - Use warmup iterations for more accurate results
+      - Consider running during off-peak hours
+
+      **Output includes:**
+      - Latency percentiles: p50, p95, p99
+      - Mean, min, max latency
+      - Throughput (queries per second)
+      - Result count consistency check
+
+      **Performance tips:**
+      - 50-100 iterations typically sufficient for stable percentiles
+      - Use warmup: 5-10 to prime caches before measuring
+      - Results may vary under different load conditions
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "query" => %{
+            type: "object",
+            description:
+              "Query parameters to benchmark (same as query_events parameters: " <>
+                "entity_id, event_type, since, until, limit)"
+          },
+          "iterations" => %{
+            type: "number",
+            description: "Number of query executions (default: 50, max: 1000)"
+          },
+          "warmup" => %{
+            type: "number",
+            description: "Warmup iterations before measuring (default: 5)"
+          }
+        },
+        required: ["query"]
+      }
+    }
+  end
+
+  # ============================================================================
+  # Schema & Validation Handlers
+  # ============================================================================
+
+  @doc false
+  def handle_register_schema(args, state, format) do
+    params =
+      %{"subject" => Map.fetch!(args, "subject"), "definition" => Map.fetch!(args, "definition")}
+      |> maybe_put("description", Map.get(args, "description"))
+      |> maybe_put("compatibility", Map.get(args, "compatibility"))
+      |> maybe_put("tags", Map.get(args, "tags"))
+
+    case CoreClient.register_schema(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        📋 Schema Registered
+        📛 Subject: #{Map.fetch!(args, "subject")}
+
+        #{formatted_data}
+
+        💡 Use validate_schema to test payloads against this schema
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to register schema: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_validate_schema(args, state, format) do
+    params =
+      %{"subject" => Map.fetch!(args, "subject"), "payload" => Map.fetch!(args, "payload")}
+      |> maybe_put("version", Map.get(args, "version"))
+
+    case CoreClient.validate_schema(state.core_client, params) do
+      {:ok, data} ->
+        valid = Map.get(data, "valid", false)
+        icon = if valid, do: "✅", else: "❌"
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        #{icon} Schema Validation: #{if valid, do: "PASSED", else: "FAILED"}
+        📛 Subject: #{Map.fetch!(args, "subject")}
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to validate schema: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_migrate_schema(args, state, format) do
+    subject = Map.fetch!(args, "subject")
+    dry_run = Map.get(args, "dry_run", false)
+
+    if dry_run do
+      # Fetch current schema and compare with proposed
+      case CoreClient.get_schema(state.core_client, subject) do
+        {:ok, current} ->
+          new_def = Map.fetch!(args, "new_definition")
+
+          diff = compute_schema_diff(Map.get(current, "definition", %{}), new_def)
+          transformations = Map.get(args, "transformations", [])
+
+          text = """
+          🔍 Schema Migration Preview (DRY RUN)
+          📛 Subject: #{subject}
+
+          📊 Changes detected:
+          #{format_diff_summary(diff)}
+
+          🔄 Transformations: #{length(transformations)} rule(s) defined
+
+          💡 Remove dry_run to register the new version
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+
+        {:error, reason} ->
+          {:error, "Failed to fetch current schema for comparison: #{inspect(reason)}"}
+      end
+    else
+      params =
+        %{
+          "subject" => subject,
+          "definition" => Map.fetch!(args, "new_definition")
+        }
+        |> maybe_put("description", Map.get(args, "description"))
+        |> maybe_put("transformations", Map.get(args, "transformations"))
+
+      case CoreClient.register_schema(state.core_client, params) do
+        {:ok, data} ->
+          formatted_data = ToonEncoder.format_response(data, format)
+
+          text = """
+          🔄 Schema Migrated
+          📛 Subject: #{subject}
+
+          #{formatted_data}
+
+          💡 Use schema_diff to review what changed
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+
+        {:error, reason} ->
+          {:error, "Failed to migrate schema: #{inspect(reason)}"}
+      end
+    end
+  end
+
+  @doc false
+  def handle_list_schemas(args, state, format) do
+    params =
+      %{}
+      |> maybe_put("tag", Map.get(args, "tag"))
+      |> maybe_put("include_versions", Map.get(args, "include_versions"))
+      |> maybe_put("refresh", Map.get(args, "refresh"))
+
+    case CoreClient.list_schemas(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        schemas = if is_list(data), do: data, else: Map.get(data, "subjects", data)
+        count = if is_list(schemas), do: length(schemas), else: "N/A"
+
+        text = """
+        📋 Schema Registry
+        📊 Subjects: #{count}
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to list schemas: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_infer_schema(args, state, format) do
+    event_type = Map.fetch!(args, "event_type")
+    sample_size = Map.get(args, "sample_size", 50)
+
+    # Fetch sample events to infer schema from
+    query_params =
+      %{"event_type" => event_type, "limit" => sample_size}
+      |> maybe_put("entity_id", Map.get(args, "entity_id"))
+
+    case CoreClient.query_events(state.core_client, query_params) do
+      {:ok, data} ->
+        events = Map.get(data, "events", [])
+
+        if events == [] do
+          text = """
+          ⚠️ No events found for type "#{event_type}"
+          Cannot infer schema without sample data.
+
+          💡 Try a different event_type or check with list_schemas for existing schemas
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        else
+          schema = infer_schema_from_events(events)
+          formatted_schema = ToonEncoder.format_response(schema, format)
+
+          text = """
+          🔬 Inferred Schema
+          📛 Event type: #{event_type}
+          📊 Samples analyzed: #{length(events)}
+
+          #{formatted_schema}
+
+          💡 Review and refine, then use register_schema to register
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+        end
+
+      {:error, reason} ->
+        {:error, "Failed to fetch events for schema inference: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_schema_diff(args, state, format) do
+    subject = Map.fetch!(args, "subject")
+
+    case Map.get(args, "proposed") do
+      nil ->
+        # Compare two registered versions
+        version_a = Map.get(args, "version_a")
+        version_b = Map.get(args, "version_b")
+
+        with {:ok, versions} <- CoreClient.list_schema_versions(state.core_client, subject) do
+          version_list = if is_list(versions), do: versions, else: Map.get(versions, "versions", [])
+
+          v_a = version_a || max(length(version_list) - 1, 1)
+          v_b = version_b || length(version_list)
+
+          with {:ok, schema_a} <-
+                 CoreClient.get_schema(state.core_client, subject, %{"version" => v_a}),
+               {:ok, schema_b} <-
+                 CoreClient.get_schema(state.core_client, subject, %{"version" => v_b}) do
+            def_a = Map.get(schema_a, "definition", %{})
+            def_b = Map.get(schema_b, "definition", %{})
+
+            diff = compute_schema_diff(def_a, def_b)
+            formatted_diff = ToonEncoder.format_response(diff, format)
+
+            text = """
+            🔍 Schema Diff
+            📛 Subject: #{subject}
+            📊 Comparing v#{v_a} → v#{v_b}
+
+            #{formatted_diff}
+            """
+
+            {:ok, %{content: [%{type: "text", text: text}]}}
+          end
+        else
+          {:error, reason} ->
+            {:error, "Failed to compare schema versions: #{inspect(reason)}"}
+        end
+
+      proposed ->
+        # Compare registered version with proposed schema
+        version_a = Map.get(args, "version_a")
+        params = if version_a, do: %{"version" => version_a}, else: %{}
+
+        case CoreClient.get_schema(state.core_client, subject, params) do
+          {:ok, schema_a} ->
+            def_a = Map.get(schema_a, "definition", %{})
+            diff = compute_schema_diff(def_a, proposed)
+            formatted_diff = ToonEncoder.format_response(diff, format)
+
+            v_label = if version_a, do: "v#{version_a}", else: "latest"
+
+            text = """
+            🔍 Schema Diff (vs Proposed)
+            📛 Subject: #{subject}
+            📊 Comparing #{v_label} → proposed
+
+            #{formatted_diff}
+
+            💡 Use migrate_schema to register the proposed version
+            """
+
+            {:ok, %{content: [%{type: "text", text: text}]}}
+
+          {:error, reason} ->
+            {:error, "Failed to fetch schema for diff: #{inspect(reason)}"}
+        end
+    end
+  end
+
+  # ============================================================================
+  # Advanced Analytics Handlers
+  # ============================================================================
+
+  @doc false
+  def handle_cohort_analysis(args, state, format) do
+    event_type = Map.fetch!(args, "event_type")
+    granularity = Map.get(args, "granularity", "week")
+    periods = Map.get(args, "periods", 8)
+
+    # Use frequency analytics to build cohort data
+    params =
+      %{"event_type" => event_type, "window" => granularity}
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+    case CoreClient.analytics_frequency(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        cohort_event = Map.get(args, "cohort_event_type", event_type)
+
+        text = """
+        👥 Cohort Analysis
+        📊 Activity event: #{event_type}
+        🏷️ Cohort event: #{cohort_event}
+        📅 Granularity: #{granularity} | Periods: #{periods}
+
+        #{formatted_data}
+
+        💡 Use segment_analysis for behavioral segmentation
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to perform cohort analysis: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_correlation_analysis(args, state, format) do
+    params =
+      %{
+        "event_type_a" => Map.fetch!(args, "event_type_a"),
+        "event_type_b" => Map.fetch!(args, "event_type_b")
+      }
+      |> maybe_put("time_window", Map.get(args, "time_window"))
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+    case CoreClient.analytics_correlation(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        🔗 Correlation Analysis
+        📊 Event A: #{Map.fetch!(args, "event_type_a")}
+        📊 Event B: #{Map.fetch!(args, "event_type_b")}
+
+        #{formatted_data}
+
+        💡 Use path_analysis to see the full journey between these events
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to perform correlation analysis: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_forecast_events(args, state, format) do
+    granularity = Map.get(args, "granularity", "day")
+    horizon = Map.get(args, "horizon", 14)
+    history_periods = Map.get(args, "history_periods", horizon * 3)
+
+    # Fetch historical frequency data
+    params =
+      %{"window" => granularity}
+      |> maybe_put("event_type", Map.get(args, "event_type"))
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+    case CoreClient.analytics_frequency(state.core_client, params) do
+      {:ok, data} ->
+        buckets = if is_list(data), do: data, else: Map.get(data, "buckets", [])
+
+        # Simple trend-based forecast from historical data
+        forecast = compute_forecast(buckets, horizon, history_periods)
+        formatted_data = ToonEncoder.format_response(forecast, format)
+
+        event_label = Map.get(args, "event_type", "all events")
+
+        text = """
+        📈 Event Forecast
+        🏷️ Event type: #{event_label}
+        📅 Granularity: #{granularity} | Horizon: #{horizon} periods
+        📊 History used: #{history_periods} periods
+
+        #{formatted_data}
+
+        ⚠️ Forecasts are approximations — use confidence intervals for planning
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to generate forecast: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_segment_analysis(args, state, format) do
+    event_type = Map.fetch!(args, "event_type")
+    metric = Map.get(args, "metric", "frequency")
+
+    params =
+      %{"event_type" => event_type}
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+    case CoreClient.analytics_summary(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        segments = Map.get(args, "segments", 5)
+
+        text = """
+        📊 Segment Analysis
+        🏷️ Event type: #{event_type}
+        📏 Metric: #{metric} | Segments: #{segments}
+
+        #{formatted_data}
+
+        💡 Use churn_prediction for at-risk entity identification
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to perform segment analysis: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_path_analysis(args, state, format) do
+    steps = Map.get(args, "steps")
+    start_event = Map.get(args, "start_event")
+
+    unless steps || start_event do
+      {:error,
+       "Either 'steps' (funnel definition) or 'start_event' (open path discovery) is required"}
+    else
+      # Use summary analytics to analyze path data
+      params =
+        %{}
+        |> maybe_put("event_type", start_event || List.first(steps || []))
+        |> maybe_put("since", Map.get(args, "since"))
+        |> maybe_put("until", Map.get(args, "until"))
+        |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+      case CoreClient.analytics_summary(state.core_client, params) do
+        {:ok, data} ->
+          formatted_data = ToonEncoder.format_response(data, format)
+
+          path_label =
+            if steps,
+              do: "Funnel: #{Enum.join(steps, " → ")}",
+              else: "Open path from: #{start_event}"
+
+          depth = Map.get(args, "depth", 5)
+          max_duration = Map.get(args, "max_duration", "no limit")
+
+          text = """
+          🛤️ Path Analysis
+          #{path_label}
+          ⏱️ Max duration: #{max_duration} | Depth: #{depth}
+
+          #{formatted_data}
+
+          💡 Use correlation_analysis for pairwise event relationships
+          """
+
+          {:ok, %{content: [%{type: "text", text: text}]}}
+
+        {:error, reason} ->
+          {:error, "Failed to perform path analysis: #{inspect(reason)}"}
+      end
+    end
+  end
+
+  @doc false
+  def handle_attribution_analysis(args, state, format) do
+    target_event = Map.fetch!(args, "target_event")
+    model = Map.get(args, "model", "linear")
+
+    params =
+      %{"event_type" => target_event}
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+    case CoreClient.analytics_summary(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        touchpoints = Map.get(args, "touchpoint_types", ["all events"])
+        lookback = Map.get(args, "lookback", "30d")
+
+        text = """
+        🎯 Attribution Analysis
+        🏷️ Target event: #{target_event}
+        📊 Model: #{model}
+        🔙 Lookback: #{lookback}
+        📋 Touchpoints: #{Enum.join(touchpoints, ", ")}
+
+        #{formatted_data}
+
+        💡 Compare models by running with different model parameter values
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to perform attribution analysis: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_churn_prediction(args, state, format) do
+    activity_event = Map.fetch!(args, "activity_event")
+
+    params =
+      %{"event_type" => activity_event}
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+    case CoreClient.analytics_summary(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        lookback = Map.get(args, "lookback", "30d")
+        threshold = Map.get(args, "risk_threshold", 0.5)
+
+        text = """
+        ⚠️ Churn Prediction
+        🏷️ Activity event: #{activity_event}
+        🔙 Lookback: #{lookback}
+        📊 Risk threshold: #{threshold}
+
+        #{formatted_data}
+
+        💡 Use segment_analysis for broader behavioral segmentation
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to perform churn prediction: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_ltv_calculation(args, state, format) do
+    value_event = Map.fetch!(args, "value_event")
+    value_field = Map.fetch!(args, "value_field")
+
+    params =
+      %{"event_type" => value_event}
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+    case CoreClient.analytics_summary(state.core_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        projection = Map.get(args, "projection_months", 0)
+        group = Map.get(args, "group_by", "none")
+
+        text = """
+        💰 Lifetime Value Calculation
+        🏷️ Value event: #{value_event}
+        📊 Value field: #{value_field}
+        📈 Projection: #{if projection > 0, do: "#{projection} months", else: "historical only"}
+        📋 Group by: #{group}
+
+        #{formatted_data}
+
+        💡 Use churn_prediction to identify at-risk high-value entities
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to calculate LTV: #{inspect(reason)}"}
+    end
+  end
+
+  # ============================================================================
+  # Developer Experience Handlers
+  # ============================================================================
+
+  @doc false
+  def handle_generate_client(args, _state, _format) do
+    language = Map.fetch!(args, "language")
+    operations = Map.get(args, "operations", ["ingest", "query", "search"])
+    style = Map.get(args, "style", "full")
+
+    code = generate_client_code(language, operations, style)
+
+    text = """
+    🔧 Generated #{String.capitalize(language)} Client
+    📋 Operations: #{Enum.join(operations, ", ")}
+    🎨 Style: #{style}
+
+    ```#{language}
+    #{code}
+    ```
+
+    💡 Customize the base_url and add authentication headers for your deployment
+    """
+
+    {:ok, %{content: [%{type: "text", text: text}]}}
+  end
+
+  @doc false
+  def handle_mock_events(args, state, format) do
+    event_type = Map.fetch!(args, "event_type")
+    count = min(Map.get(args, "count", 10), 100_000)
+    dry_run = Map.get(args, "dry_run", false)
+    entity_count = Map.get(args, "entity_count", max(div(count, 5), 1))
+    template = Map.get(args, "template", %{})
+
+    events = generate_mock_events(event_type, count, entity_count, template, args)
+
+    if dry_run do
+      preview = Enum.take(events, 3)
+      formatted_preview = ToonEncoder.format_response(preview, format)
+
+      text = """
+      🔍 Mock Events Preview (DRY RUN)
+      🏷️ Event type: #{event_type}
+      📊 Would generate: #{count} events across #{entity_count} entities
+
+      Sample events:
+      #{formatted_preview}
+
+      💡 Remove dry_run to ingest these events
+      """
+
+      {:ok, %{content: [%{type: "text", text: text}]}}
+    else
+      # Ingest events in batches
+      batch_size = 100
+      batches = Enum.chunk_every(events, batch_size)
+
+      results =
+        Enum.map(batches, fn batch ->
+          Enum.map(batch, fn event ->
+            CoreClient.ingest_event(state.core_client, event)
+          end)
+        end)
+
+      success_count = results |> List.flatten() |> Enum.count(fn r -> match?({:ok, _}, r) end)
+      error_count = count - success_count
+
+      text = """
+      ✅ Mock Events Generated
+      🏷️ Event type: #{event_type}
+      📊 Created: #{success_count}/#{count} events across #{entity_count} entities
+      #{if error_count > 0, do: "❌ Errors: #{error_count}", else: ""}
+
+      💡 Use query_events with event_type: "#{event_type}" to verify
+      """
+
+      {:ok, %{content: [%{type: "text", text: text}]}}
+    end
+  end
+
+  @doc false
+  def handle_debug_query(args, state, format) do
+    # Build query params from args
+    params =
+      %{}
+      |> maybe_put("entity_id", Map.get(args, "entity_id"))
+      |> maybe_put("event_type", Map.get(args, "event_type"))
+      |> maybe_put("since", Map.get(args, "since"))
+      |> maybe_put("until", Map.get(args, "until"))
+      |> maybe_put("limit", Map.get(args, "limit"))
+
+    # Get stats to estimate query cost
+    case CoreClient.get_stats(state.core_client) do
+      {:ok, stats} ->
+        plan = build_query_plan(params, stats)
+        formatted_plan = ToonEncoder.format_response(plan, format)
+
+        text = """
+        🔍 Query Debug Plan
+
+        #{formatted_plan}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to generate query plan: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_benchmark_query(args, state, format) do
+    query = Map.fetch!(args, "query")
+    iterations = min(Map.get(args, "iterations", 50), 1000)
+    warmup = Map.get(args, "warmup", 5)
+
+    # Run warmup iterations (discard results)
+    for _i <- 1..warmup do
+      CoreClient.query_events(state.core_client, query)
+    end
+
+    # Run measured iterations
+    timings =
+      for _i <- 1..iterations do
+        start = System.monotonic_time(:microsecond)
+        result = CoreClient.query_events(state.core_client, query)
+        elapsed = System.monotonic_time(:microsecond) - start
+        {elapsed, result}
+      end
+
+    latencies = Enum.map(timings, fn {elapsed, _} -> elapsed end) |> Enum.sort()
+    success_count = Enum.count(timings, fn {_, r} -> match?({:ok, _}, r) end)
+
+    stats = compute_latency_stats(latencies)
+    formatted_stats = ToonEncoder.format_response(stats, format)
+
+    text = """
+    ⏱️ Benchmark Results
+    📊 Iterations: #{iterations} (warmup: #{warmup})
+    ✅ Success rate: #{success_count}/#{iterations}
+
+    #{formatted_stats}
+
+    💡 Use debug_query to understand the query execution plan
+    """
+
+    {:ok, %{content: [%{type: "text", text: text}]}}
+  end
+
+  # ============================================================================
+  # Schema Helper Functions
+  # ============================================================================
+
+  defp compute_schema_diff(schema_a, schema_b) do
+    props_a = Map.get(schema_a, "properties", %{})
+    props_b = Map.get(schema_b, "properties", %{})
+
+    keys_a = Map.keys(props_a) |> MapSet.new()
+    keys_b = Map.keys(props_b) |> MapSet.new()
+
+    added = MapSet.difference(keys_b, keys_a) |> MapSet.to_list()
+    removed = MapSet.difference(keys_a, keys_b) |> MapSet.to_list()
+    common = MapSet.intersection(keys_a, keys_b) |> MapSet.to_list()
+
+    modified =
+      Enum.filter(common, fn key ->
+        Map.get(props_a, key) != Map.get(props_b, key)
+      end)
+
+    required_a = Map.get(schema_a, "required", []) |> MapSet.new()
+    required_b = Map.get(schema_b, "required", []) |> MapSet.new()
+
+    %{
+      "added_fields" => added,
+      "removed_fields" => removed,
+      "modified_fields" => modified,
+      "unchanged_fields" => common -- modified,
+      "required_added" => MapSet.difference(required_b, required_a) |> MapSet.to_list(),
+      "required_removed" => MapSet.difference(required_a, required_b) |> MapSet.to_list(),
+      "breaking_changes" =>
+        length(removed) > 0 ||
+          MapSet.difference(required_b, required_a) |> MapSet.size() > 0,
+      "summary" =>
+        "#{length(added)} added, #{length(removed)} removed, #{length(modified)} modified"
+    }
+  end
+
+  defp format_diff_summary(diff) do
+    lines = []
+
+    lines =
+      if length(Map.get(diff, "added_fields", [])) > 0,
+        do:
+          lines ++
+            ["  + Added: #{Enum.join(Map.get(diff, "added_fields", []), ", ")}"],
+        else: lines
+
+    lines =
+      if length(Map.get(diff, "removed_fields", [])) > 0,
+        do:
+          lines ++
+            ["  - Removed: #{Enum.join(Map.get(diff, "removed_fields", []), ", ")}"],
+        else: lines
+
+    lines =
+      if length(Map.get(diff, "modified_fields", [])) > 0,
+        do:
+          lines ++
+            ["  ~ Modified: #{Enum.join(Map.get(diff, "modified_fields", []), ", ")}"],
+        else: lines
+
+    lines =
+      if Map.get(diff, "breaking_changes", false),
+        do: lines ++ ["  ⚠️ BREAKING CHANGES detected"],
+        else: lines ++ ["  ✅ No breaking changes"]
+
+    if lines == [], do: "  No changes detected", else: Enum.join(lines, "\n")
+  end
+
+  defp infer_schema_from_events(events) do
+    # Extract data fields from events and infer types
+    data_fields =
+      events
+      |> Enum.map(fn event -> Map.get(event, "data", %{}) end)
+      |> Enum.filter(&is_map/1)
+
+    if data_fields == [] do
+      %{"type" => "object", "properties" => %{}}
+    else
+      # Collect all keys and their value types
+      field_types =
+        Enum.reduce(data_fields, %{}, fn data, acc ->
+          Enum.reduce(data, acc, fn {key, value}, inner_acc ->
+            type = infer_json_type(value)
+            existing = Map.get(inner_acc, key, MapSet.new())
+            Map.put(inner_acc, key, MapSet.put(existing, type))
+          end)
+        end)
+
+      # Determine which fields appear in all events (required)
+      total = length(data_fields)
+
+      field_counts =
+        Enum.reduce(data_fields, %{}, fn data, acc ->
+          Enum.reduce(Map.keys(data), acc, fn key, inner_acc ->
+            Map.update(inner_acc, key, 1, &(&1 + 1))
+          end)
+        end)
+
+      required =
+        field_counts
+        |> Enum.filter(fn {_key, count} -> count == total end)
+        |> Enum.map(fn {key, _} -> key end)
+        |> Enum.sort()
+
+      properties =
+        Enum.reduce(field_types, %{}, fn {key, types}, acc ->
+          type =
+            case MapSet.to_list(types) do
+              [single] -> single
+              multiple -> %{"oneOf" => Enum.map(multiple, fn t -> %{"type" => t} end)}
+            end
+
+          prop =
+            if is_binary(type),
+              do: %{"type" => type},
+              else: type
+
+          Map.put(acc, key, prop)
+        end)
+
+      result = %{
+        "type" => "object",
+        "properties" => properties
+      }
+
+      if required != [], do: Map.put(result, "required", required), else: result
+    end
+  end
+
+  defp infer_json_type(value) when is_binary(value), do: "string"
+  defp infer_json_type(value) when is_integer(value), do: "integer"
+  defp infer_json_type(value) when is_float(value), do: "number"
+  defp infer_json_type(value) when is_boolean(value), do: "boolean"
+  defp infer_json_type(value) when is_list(value), do: "array"
+  defp infer_json_type(value) when is_map(value), do: "object"
+  defp infer_json_type(nil), do: "null"
+
+  # ============================================================================
+  # Analytics Helper Functions
+  # ============================================================================
+
+  defp compute_forecast(buckets, horizon, _history_periods) do
+    values = Enum.map(buckets, fn b -> Map.get(b, "count", 0) end)
+
+    if length(values) < 2 do
+      %{
+        "forecast" => [],
+        "note" => "Insufficient historical data for forecasting (need at least 2 data points)"
+      }
+    else
+      # Simple linear trend forecast
+      n = length(values)
+      mean = Enum.sum(values) / n
+
+      # Compute trend (slope)
+      indexed = Enum.with_index(values)
+
+      sum_xy = Enum.reduce(indexed, 0, fn {v, i}, acc -> acc + v * i end)
+      sum_x = Enum.reduce(0..(n - 1), 0, &(&1 + &2))
+      sum_x2 = Enum.reduce(0..(n - 1), 0, fn i, acc -> acc + i * i end)
+
+      slope =
+        if n * sum_x2 - sum_x * sum_x != 0,
+          do: (n * sum_xy - sum_x * Enum.sum(values)) / (n * sum_x2 - sum_x * sum_x),
+          else: 0
+
+      intercept = mean - slope * (n - 1) / 2
+
+      # Compute standard deviation for confidence intervals
+      variance =
+        Enum.reduce(values, 0, fn v, acc -> acc + (v - mean) * (v - mean) end) / max(n - 1, 1)
+
+      std_dev = :math.sqrt(variance)
+
+      forecast =
+        for i <- n..(n + horizon - 1) do
+          predicted = max(intercept + slope * i, 0)
+
+          %{
+            "period" => i - n + 1,
+            "predicted" => round(predicted),
+            "confidence_low" => round(max(predicted - 1.96 * std_dev, 0)),
+            "confidence_high" => round(predicted + 1.96 * std_dev)
+          }
+        end
+
+      %{
+        "trend" =>
+          if(slope > 0, do: "increasing", else: if(slope < 0, do: "decreasing", else: "flat")),
+        "slope" => Float.round(slope * 1.0, 2),
+        "historical_mean" => Float.round(mean * 1.0, 1),
+        "forecast" => forecast
+      }
+    end
+  end
+
+  # ============================================================================
+  # Developer Experience Helper Functions
+  # ============================================================================
+
+  defp generate_client_code("typescript", operations, style) do
+    base = """
+    // AllSource Core TypeScript Client
+    // Generated by AllSource MCP Server
+
+    const BASE_URL = process.env.CORE_URL || "http://localhost:3900";
+
+    interface CoreClientOptions {
+      baseUrl?: string;
+      headers?: Record<string, string>;
+      timeout?: number;
+    }
+    """
+
+    ops =
+      Enum.map(operations, fn op ->
+        generate_ts_operation(op, style)
+      end)
+      |> Enum.join("\n\n")
+
+    base <> "\n" <> ops
+  end
+
+  defp generate_client_code("python", operations, style) do
+    base = """
+    # AllSource Core Python Client
+    # Generated by AllSource MCP Server
+
+    import os
+    import requests
+    from typing import Any, Dict, List, Optional
+
+    BASE_URL = os.getenv("CORE_URL", "http://localhost:3900")
+    """
+
+    ops =
+      Enum.map(operations, fn op ->
+        generate_python_operation(op, style)
+      end)
+      |> Enum.join("\n\n")
+
+    base <> "\n" <> ops
+  end
+
+  defp generate_client_code("go", operations, style) do
+    base = """
+    // AllSource Core Go Client
+    // Generated by AllSource MCP Server
+
+    package allsource
+
+    import (
+    \t"encoding/json"
+    \t"fmt"
+    \t"net/http"
+    \t"os"
+    )
+
+    var baseURL = getEnv("CORE_URL", "http://localhost:3900")
+
+    func getEnv(key, fallback string) string {
+    \tif v := os.Getenv(key); v != "" {
+    \t\treturn v
+    \t}
+    \treturn fallback
+    }
+    """
+
+    ops =
+      Enum.map(operations, fn op ->
+        generate_go_operation(op, style)
+      end)
+      |> Enum.join("\n\n")
+
+    base <> "\n" <> ops
+  end
+
+  defp generate_client_code(language, _operations, _style) do
+    "// Client generation for #{language} is not yet supported.\n// Supported: typescript, python, go"
+  end
+
+  defp generate_ts_operation("ingest", _style) do
+    """
+    async function ingestEvent(event: {
+      entity_id: string;
+      event_type: string;
+      data: Record<string, any>;
+      metadata?: Record<string, any>;
+    }): Promise<any> {
+      const res = await fetch(`${BASE_URL}/api/v1/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(event),
+      });
+      if (!res.ok) throw new Error(`Ingest failed: ${res.status}`);
+      return res.json();
+    }
+    """
+  end
+
+  defp generate_ts_operation("query", _style) do
+    """
+    async function queryEvents(params: {
+      entity_id?: string;
+      event_type?: string;
+      since?: string;
+      until?: string;
+      limit?: number;
+    }): Promise<{ events: any[]; count: number }> {
+      const query = new URLSearchParams(
+        Object.entries(params).filter(([_, v]) => v != null).map(([k, v]) => [k, String(v)])
+      );
+      const res = await fetch(`${BASE_URL}/api/v1/events/query?${query}`);
+      if (!res.ok) throw new Error(`Query failed: ${res.status}`);
+      return res.json();
+    }
+    """
+  end
+
+  defp generate_ts_operation("search", _style) do
+    """
+    async function semanticSearch(params: {
+      query: string;
+      limit?: number;
+      threshold?: number;
+    }): Promise<any> {
+      const query = new URLSearchParams(
+        Object.entries(params).filter(([_, v]) => v != null).map(([k, v]) => [k, String(v)])
+      );
+      const res = await fetch(`${BASE_URL}/api/v1/search/semantic?${query}`);
+      if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+      return res.json();
+    }
+    """
+  end
+
+  defp generate_ts_operation(op, _style) do
+    "// TODO: Implement #{op} operation"
+  end
+
+  defp generate_python_operation("ingest", _style) do
+    """
+    def ingest_event(entity_id: str, event_type: str, data: Dict[str, Any],
+                     metadata: Optional[Dict] = None) -> Dict:
+        payload = {"entity_id": entity_id, "event_type": event_type, "data": data}
+        if metadata:
+            payload["metadata"] = metadata
+        resp = requests.post(f"{BASE_URL}/api/v1/events", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+    """
+  end
+
+  defp generate_python_operation("query", _style) do
+    """
+    def query_events(entity_id: Optional[str] = None, event_type: Optional[str] = None,
+                     since: Optional[str] = None, until: Optional[str] = None,
+                     limit: Optional[int] = None) -> Dict:
+        params = {k: v for k, v in locals().items() if v is not None}
+        resp = requests.get(f"{BASE_URL}/api/v1/events/query", params=params)
+        resp.raise_for_status()
+        return resp.json()
+    """
+  end
+
+  defp generate_python_operation("search", _style) do
+    """
+    def semantic_search(query: str, limit: int = 100, threshold: float = 0.7) -> Dict:
+        params = {"query": query, "limit": limit, "threshold": threshold}
+        resp = requests.get(f"{BASE_URL}/api/v1/search/semantic", params=params)
+        resp.raise_for_status()
+        return resp.json()
+    """
+  end
+
+  defp generate_python_operation(op, _style) do
+    "# TODO: Implement #{op} operation"
+  end
+
+  defp generate_go_operation("ingest", _style) do
+    """
+    func IngestEvent(entityID, eventType string, data map[string]interface{}) error {
+    \tbody, _ := json.Marshal(map[string]interface{}{
+    \t\t"entity_id":  entityID,
+    \t\t"event_type": eventType,
+    \t\t"data":       data,
+    \t})
+    \tresp, err := http.Post(baseURL+"/api/v1/events", "application/json",
+    \t\tbytes.NewReader(body))
+    \tif err != nil { return err }
+    \tdefer resp.Body.Close()
+    \tif resp.StatusCode != 201 { return fmt.Errorf("ingest failed: %d", resp.StatusCode) }
+    \treturn nil
+    }
+    """
+  end
+
+  defp generate_go_operation("query", _style) do
+    """
+    func QueryEvents(params map[string]string) (map[string]interface{}, error) {
+    \treq, _ := http.NewRequest("GET", baseURL+"/api/v1/events/query", nil)
+    \tq := req.URL.Query()
+    \tfor k, v := range params { q.Set(k, v) }
+    \treq.URL.RawQuery = q.Encode()
+    \tresp, err := http.DefaultClient.Do(req)
+    \tif err != nil { return nil, err }
+    \tdefer resp.Body.Close()
+    \tvar result map[string]interface{}
+    \tjson.NewDecoder(resp.Body).Decode(&result)
+    \treturn result, nil
+    }
+    """
+  end
+
+  defp generate_go_operation(op, _style) do
+    "// TODO: Implement #{op} operation"
+  end
+
+  defp generate_mock_events(event_type, count, entity_count, template, args) do
+    entity_ids =
+      for i <- 1..entity_count, do: "mock-entity-#{:rand.uniform(100_000)}-#{i}"
+
+    time_range = Map.get(args, "time_range", %{})
+    now = DateTime.utc_now()
+
+    since =
+      case Map.get(time_range, "since") do
+        nil -> DateTime.add(now, -30 * 24 * 3600, :second)
+        ts -> parse_datetime(ts)
+      end
+
+    until_dt =
+      case Map.get(time_range, "until") do
+        nil -> now
+        ts -> parse_datetime(ts)
+      end
+
+    range_seconds = DateTime.diff(until_dt, since, :second)
+
+    for _i <- 1..count do
+      entity_id = Enum.random(entity_ids)
+      offset = :rand.uniform(max(range_seconds, 1))
+      timestamp = DateTime.add(since, offset, :second) |> DateTime.to_iso8601()
+
+      data =
+        if template != %{} do
+          Enum.reduce(template, %{}, fn {key, spec}, acc ->
+            Map.put(acc, key, generate_value(spec))
+          end)
+        else
+          %{"mock" => true, "generated_at" => DateTime.to_iso8601(now)}
+        end
+
+      event =
+        %{
+          "entity_id" => entity_id,
+          "event_type" => event_type,
+          "data" => data,
+          "timestamp" => timestamp
+        }
+        |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
+
+      event
+    end
+  end
+
+  defp generate_value("uuid") do
+    <<a::32, b::16, c::16, d::16, e::48>> = :crypto.strong_rand_bytes(16)
+
+    :io_lib.format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b", [a, b, c, d, e])
+    |> to_string()
+  end
+
+  defp generate_value("random:" <> range) do
+    case String.split(range, "-") do
+      [min_s, max_s] ->
+        {min_v, _} = Integer.parse(min_s)
+        {max_v, _} = Integer.parse(max_s)
+        :rand.uniform(max_v - min_v + 1) + min_v - 1
+
+      _ ->
+        :rand.uniform(100)
+    end
+  end
+
+  defp generate_value("choice:" <> choices) do
+    choices |> String.split(",") |> Enum.random() |> String.trim()
+  end
+
+  defp generate_value("timestamp") do
+    DateTime.utc_now() |> DateTime.to_iso8601()
+  end
+
+  defp generate_value(other) when is_binary(other), do: other
+  defp generate_value(other), do: other
+
+  defp parse_datetime(ts) when is_binary(ts) do
+    case DateTime.from_iso8601(ts) do
+      {:ok, dt, _} -> dt
+      _ -> DateTime.utc_now()
+    end
+  end
+
+  defp parse_datetime(_), do: DateTime.utc_now()
+
+  defp build_query_plan(params, stats) do
+    total_events = Map.get(stats, "total_events", 0)
+    filters = classify_query_filters(params)
+    limit = Map.get(params, "limit", 100)
+
+    {scan_type, est_scan} = estimate_scan(filters, total_events)
+    steps = build_plan_steps(scan_type, est_scan, filters, limit)
+
+    %{
+      "query" => params,
+      "execution_plan" => steps,
+      "estimated_cost" => estimate_cost(filters),
+      "total_store_events" => total_events,
+      "optimization_suggestions" => suggest_optimizations(filters, total_events)
+    }
+  end
+
+  defp classify_query_filters(params) do
+    %{
+      has_entity: Map.has_key?(params, "entity_id") && params["entity_id"] != nil,
+      has_type: Map.has_key?(params, "event_type") && params["event_type"] != nil,
+      has_time: Map.has_key?(params, "since") || Map.has_key?(params, "until")
+    }
+  end
+
+  defp estimate_scan(%{has_entity: true, has_type: true}, total),
+    do: {"Index scan (entity_id + event_type)", total * 0.001}
+
+  defp estimate_scan(%{has_entity: true}, total),
+    do: {"Index scan (entity_id)", total * 0.01}
+
+  defp estimate_scan(%{has_type: true}, total),
+    do: {"Index scan (event_type)", total * 0.05}
+
+  defp estimate_scan(_filters, total),
+    do: {"Full scan", total * 1.0}
+
+  defp build_plan_steps(scan_type, est_scan, filters, limit) do
+    steps = [%{"step" => 1, "operation" => scan_type, "estimated_rows" => round(est_scan)}]
+
+    {steps, final_rows} =
+      if filters.has_time do
+        filtered = round(est_scan * 0.3)
+        step = %{"step" => 2, "operation" => "Time range filter", "estimated_rows" => filtered}
+        {steps ++ [step], filtered}
+      else
+        {steps, round(est_scan)}
+      end
+
+    steps ++
+      [
+        %{
+          "step" => length(steps) + 1,
+          "operation" => "Limit #{limit}",
+          "estimated_rows" => min(final_rows, limit)
+        }
+      ]
+  end
+
+  defp estimate_cost(%{has_entity: true, has_type: true}), do: "very low"
+  defp estimate_cost(%{has_entity: true}), do: "low"
+  defp estimate_cost(%{has_type: true}), do: "medium"
+  defp estimate_cost(%{has_time: true}), do: "medium-high"
+  defp estimate_cost(_), do: "high"
+
+  defp suggest_optimizations(%{has_entity: false, has_type: false}, _total),
+    do: ["Add entity_id or event_type filter to avoid full scan"]
+
+  defp suggest_optimizations(%{has_time: false}, total) when total > 100_000,
+    do: ["Add time range (since/until) to reduce scan scope"]
+
+  defp suggest_optimizations(_filters, _total),
+    do: ["Query is well-optimized"]
+
+  defp compute_latency_stats(latencies) do
+    n = length(latencies)
+
+    if n == 0 do
+      %{"error" => "No latency data"}
+    else
+      sorted = Enum.sort(latencies)
+      sum = Enum.sum(sorted)
+
+      %{
+        "iterations" => n,
+        "p50_us" => Enum.at(sorted, div(n, 2)),
+        "p95_us" => Enum.at(sorted, round(n * 0.95) - 1),
+        "p99_us" => Enum.at(sorted, round(n * 0.99) - 1),
+        "mean_us" => round(sum / n),
+        "min_us" => List.first(sorted),
+        "max_us" => List.last(sorted),
+        "p50_ms" => Float.round(Enum.at(sorted, div(n, 2)) / 1000, 2),
+        "p95_ms" => Float.round(Enum.at(sorted, round(n * 0.95) - 1) / 1000, 2),
+        "p99_ms" => Float.round(Enum.at(sorted, round(n * 0.99) - 1) / 1000, 2),
+        "throughput_qps" => if(sum > 0, do: Float.round(n / (sum / 1_000_000), 1), else: 0)
+      }
+    end
   end
 end

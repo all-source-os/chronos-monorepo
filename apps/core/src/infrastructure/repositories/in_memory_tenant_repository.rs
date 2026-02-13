@@ -1,7 +1,11 @@
-use crate::domain::entities::{Tenant, TenantQuotas, TenantUsage};
-use crate::domain::repositories::TenantRepository;
-use crate::domain::value_objects::TenantId;
-use crate::error::{AllSourceError, Result};
+use crate::{
+    domain::{
+        entities::{Tenant, TenantQuotas, TenantUsage},
+        repositories::TenantRepository,
+        value_objects::TenantId,
+    },
+    error::{AllSourceError, Result},
+};
 use async_trait::async_trait;
 use chrono::Utc;
 use dashmap::DashMap;

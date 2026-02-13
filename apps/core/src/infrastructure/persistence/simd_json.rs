@@ -13,8 +13,10 @@
 use bumpalo::Bump;
 use serde::de::DeserializeOwned;
 use simd_json::prelude::*;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::Instant,
+};
 
 /// Statistics for SIMD JSON parsing performance
 #[derive(Debug, Default)]

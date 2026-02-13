@@ -11,33 +11,55 @@ import {
   CardTitle,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Calendar, Check, CreditCard, ExternalLink } from "lucide-react";
+import { Calendar, Check, CreditCard, ExternalLink, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { PlanCards } from "@/components/billing/plan-cards";
 import { UsageChart } from "@/components/billing/usage-chart";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
+import { apiClient } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 export default function BillingPage() {
   const { tenant } = useAuthStore();
+  const { stats } = useDashboardStats();
   const [isYearly, setIsYearly] = useState(false);
+  const [isLoadingPortal, setIsLoadingPortal] = useState(false);
 
-  // Demo data
   const currentPlan = tenant?.subscription_tier || "free";
-  const eventsUsed = tenant?.events_used || 45000;
-  const eventsQuota = tenant?.events_quota || 100000;
-  const queriesUsed = tenant?.queries_used || 3200;
-  const queriesQuota = tenant?.queries_quota || 10000;
+  const eventsUsed = stats.events.used || tenant?.events_used || 0;
+  const eventsQuota = stats.events.quota || tenant?.events_quota || 10000;
+  const queriesUsed = stats.queries.used || tenant?.queries_used || 0;
+  const queriesQuota = stats.queries.quota || tenant?.queries_quota || 10000;
   const trialEndsAt = tenant?.trial_ends_at;
   const subscriptionEndsAt = tenant?.subscription_ends_at;
 
-  const handleManageSubscription = () => {
-    // In production, this would redirect to LemonSqueezy portal
-    window.open("https://billing.lemonsqueezy.com/", "_blank");
+  const handleManageSubscription = async () => {
+    setIsLoadingPortal(true);
+    try {
+      const response = await apiClient.getBillingPortal();
+      if (response.data?.portal_url) {
+        window.open(response.data.portal_url, "_blank");
+      }
+    } catch (error) {
+      console.error("Failed to get billing portal:", error);
+    } finally {
+      setIsLoadingPortal(false);
+    }
   };
 
-  const handleUpgrade = (planName: string) => {
-    // In production, this would initiate checkout
-    console.log("Upgrading to:", planName);
+  const handleUpgrade = async (planTier: string) => {
+    if (planTier === "enterprise") {
+      window.open("mailto:sales@allsource.co?subject=Enterprise%20Plan%20Inquiry", "_blank");
+      return;
+    }
+    try {
+      const response = await apiClient.createCheckout(planTier);
+      if (response.data?.checkout_url) {
+        window.location.href = response.data.checkout_url;
+      }
+    } catch (error) {
+      console.error("Failed to create checkout:", error);
+    }
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -59,8 +81,12 @@ export default function BillingPage() {
             <p className="mt-1 text-muted-foreground">Manage your subscription and monitor usage</p>
           </div>
           {currentPlan !== "free" && (
-            <Button variant="outline" onClick={handleManageSubscription}>
-              <CreditCard className="mr-2 h-4 w-4" />
+            <Button variant="outline" onClick={handleManageSubscription} disabled={isLoadingPortal}>
+              {isLoadingPortal ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CreditCard className="mr-2 h-4 w-4" />
+              )}
               Manage Subscription
               <ExternalLink className="ml-2 h-4 w-4" />
             </Button>

@@ -1,0 +1,24 @@
+# release-plz configuration
+# https://release-plz.dev/docs/config
+
+[workspace]
+# Only manage Rust crates in the workspace
+changelog_update = true
+git_tag_enable = true
+git_release_enable = true
+git_release_draft = true
+
+# Use conventional commits for changelog generation
+changelog_config = "cliff.toml"
+
+[[package]]
+name = "allsource-core"
+changelog_path = "apps/core/CHANGELOG.md"
+# Publish to crates.io disabled — private crate
+publish = false
+
+[[package]]
+name = "allsource-performance"
+# Internal tooling — skip release
+release = false
+publish = false

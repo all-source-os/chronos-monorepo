@@ -1,8 +1,6 @@
 /// Advanced rate limit tests for comprehensive coverage
 use allsource_core::rate_limit::{RateLimitConfig, RateLimiter};
-use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
+use std::{sync::Arc, thread, time::Duration};
 
 #[test]
 fn test_token_refill() {

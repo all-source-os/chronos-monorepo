@@ -34,6 +34,7 @@ defmodule QueryServiceExWeb.Router do
     plug(QueryServiceExWeb.Plugs.CorrelationId)
     plug(QueryServiceExWeb.Plugs.AuthPipeline)
     plug(QueryServiceExWeb.Plugs.TenantContext)
+    plug(QueryServiceExWeb.Plugs.ConsistencyRouting)
   end
 
   # Requires tenant + enforces event usage quota
@@ -307,6 +308,17 @@ defmodule QueryServiceExWeb.Router do
     pipe_through(:api)
 
     post("/lemonsqueezy", WebhookController, :lemonsqueezy)
+  end
+
+  # -------------------------------------------------------------------
+  # Internal Routes (service-to-service, no auth)
+  # -------------------------------------------------------------------
+
+  # Called by allsource-sentinel during failover to update the leader URL
+  scope "/internal", QueryServiceExWeb do
+    pipe_through(:api)
+
+    post("/update-leader", InternalController, :update_leader)
   end
 
   # -------------------------------------------------------------------

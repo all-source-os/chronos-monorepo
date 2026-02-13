@@ -1,10 +1,11 @@
-use crate::application::dto::{
-    CreateTenantRequest, CreateTenantResponse, ListTenantsResponse, TenantDto, UpdateTenantRequest,
-    UpdateTenantResponse,
+use crate::{
+    application::dto::{
+        CreateTenantRequest, CreateTenantResponse, ListTenantsResponse, TenantDto,
+        UpdateTenantRequest, UpdateTenantResponse,
+    },
+    domain::{entities::Tenant, value_objects::TenantId},
+    error::Result,
 };
-use crate::domain::entities::Tenant;
-use crate::domain::value_objects::TenantId;
-use crate::error::Result;
 
 /// Use Case: Create Tenant
 ///

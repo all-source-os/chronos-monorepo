@@ -1,6 +1,10 @@
-use crate::domain::entities::{Tenant, TenantQuotas, TenantUsage};
-use crate::domain::value_objects::TenantId;
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{Tenant, TenantQuotas, TenantUsage},
+        value_objects::TenantId,
+    },
+    error::Result,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 

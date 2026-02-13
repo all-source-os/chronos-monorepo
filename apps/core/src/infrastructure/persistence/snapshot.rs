@@ -1,5 +1,4 @@
-use crate::domain::entities::Event;
-use crate::error::Result;
+use crate::{domain::entities::Event, error::Result};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -85,13 +84,12 @@ impl Snapshot {
 
         for event in events {
             // Only process events after the snapshot
-            if event.timestamp > self.as_of {
-                if let serde_json::Value::Object(ref mut state_map) = merged {
-                    if let serde_json::Value::Object(ref payload_map) = event.payload {
-                        for (key, value) in payload_map {
-                            state_map.insert(key.clone(), value.clone());
-                        }
-                    }
+            if event.timestamp > self.as_of
+                && let serde_json::Value::Object(ref mut state_map) = merged
+                && let serde_json::Value::Object(ref payload_map) = event.payload
+            {
+                for (key, value) in payload_map {
+                    state_map.insert(key.clone(), value.clone());
                 }
             }
         }

@@ -21,7 +21,8 @@ import {
   Plus,
   RefreshCw,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiClient, type Projection } from "@/lib/api/client";
 
 interface Pipeline {
   id: string;
@@ -34,49 +35,18 @@ interface Pipeline {
   createdAt: string;
 }
 
-// Demo pipelines
-const DEMO_PIPELINES: Pipeline[] = [
-  {
-    id: "proj-1",
-    name: "UserActivitySummary",
-    description: "Aggregates user activity into daily summaries",
-    status: "running",
+function projectionToPipeline(proj: Projection): Pipeline {
+  return {
+    id: proj.id,
+    name: proj.name,
+    description: proj.definition || `Projection v${proj.version}`,
+    status: proj.status,
     type: "projection",
-    eventsProcessed: 125420,
-    lastProcessed: new Date(Date.now() - 1000 * 30).toISOString(),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
-  },
-  {
-    id: "proj-2",
-    name: "OrderTotals",
-    description: "Maintains running totals for orders by customer",
-    status: "running",
-    type: "projection",
-    eventsProcessed: 45230,
-    lastProcessed: new Date(Date.now() - 1000 * 60).toISOString(),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
-  },
-  {
-    id: "stream-1",
-    name: "PaymentAlerts",
-    description: "Filters high-value payments for alerting",
-    status: "paused",
-    type: "stream",
-    eventsProcessed: 8923,
-    lastProcessed: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-  },
-  {
-    id: "proj-3",
-    name: "InventorySnapshots",
-    description: "Creates hourly inventory state snapshots",
-    status: "error",
-    type: "projection",
-    eventsProcessed: 2341,
-    lastProcessed: null,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-  },
-];
+    eventsProcessed: 0,
+    lastProcessed: proj.updated_at,
+    createdAt: proj.created_at,
+  };
+}
 
 function PipelineCard({
   pipeline,
@@ -245,7 +215,24 @@ function PipelineCard({
 }
 
 export default function PipelinesPage() {
-  const [pipelines, setPipelines] = useState(DEMO_PIPELINES);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchPipelines() {
+      try {
+        const response = await apiClient.listProjections();
+        if (response.data) {
+          setPipelines(response.data.map(projectionToPipeline));
+        }
+      } catch (error) {
+        console.error("Failed to fetch pipelines:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchPipelines();
+  }, []);
 
   const handlePause = (id: string) => {
     setPipelines((prev) =>
@@ -333,20 +320,38 @@ export default function PipelinesPage() {
 
       {/* Pipelines Grid */}
       <BlurFade delay={0.3} inView>
-        <div className="grid gap-4 md:grid-cols-2">
-          {pipelines.map((pipeline) => (
-            <PipelineCard
-              key={pipeline.id}
-              pipeline={pipeline}
-              onPause={() => handlePause(pipeline.id)}
-              onResume={() => handleResume(pipeline.id)}
-            />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-6 space-y-4">
+                  <div className="h-6 w-40 animate-pulse rounded bg-muted" />
+                  <div className="h-4 w-full animate-pulse rounded bg-muted" />
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="h-8 animate-pulse rounded bg-muted" />
+                    <div className="h-8 animate-pulse rounded bg-muted" />
+                    <div className="h-8 animate-pulse rounded bg-muted" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {pipelines.map((pipeline) => (
+              <PipelineCard
+                key={pipeline.id}
+                pipeline={pipeline}
+                onPause={() => handlePause(pipeline.id)}
+                onResume={() => handleResume(pipeline.id)}
+              />
+            ))}
+          </div>
+        )}
       </BlurFade>
 
       {/* Empty state */}
-      {pipelines.length === 0 && (
+      {!isLoading && pipelines.length === 0 && (
         <BlurFade delay={0.3} inView>
           <Card className="p-12 text-center">
             <GitBranch className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />

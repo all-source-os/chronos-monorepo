@@ -1,12 +1,15 @@
 defmodule QueryServiceEx.DevMode do
   @moduledoc """
-  Development mode utilities for bypassing authentication.
+  Development and standalone mode utilities.
 
   When `AUTH_DISABLED=true` or `AUTH_DISABLED=1` is set, authentication
-  and authorization checks are bypassed, allowing local development without
-  requiring OAuth configuration.
+  and authorization checks are bypassed, allowing local development or
+  standalone deployment without requiring OAuth configuration.
 
-  **WARNING**: Never enable this in production environments!
+  Standalone mode (no PostgreSQL) is automatically detected when the
+  Repo process is not running. All DB-dependent code paths gracefully
+  degrade — usage metering is skipped, tenant endpoints return the
+  in-memory dev tenant, and health checks skip the database.
   """
 
   require Logger
@@ -27,13 +30,31 @@ defmodule QueryServiceEx.DevMode do
   end
 
   @doc """
-  Log a warning on startup if dev mode is enabled.
+  Check if the Ecto Repo process is running.
+
+  Returns `true` if `QueryServiceEx.Repo` is alive, meaning PostgreSQL
+  is configured and available. Returns `false` in standalone mode
+  (no DATABASE_URL configured).
+  """
+  def repo_available? do
+    Process.whereis(QueryServiceEx.Repo) != nil
+  end
+
+  @doc """
+  Log a warning on startup if dev mode or standalone mode is enabled.
   Should be called during application startup.
   """
   def maybe_log_warning do
     if auth_disabled?() do
-      Logger.warning("⚠️  AUTH_DISABLED is enabled - authentication is BYPASSED")
-      Logger.warning("⚠️  This should NEVER be used in production!")
+      Logger.warning("AUTH_DISABLED is enabled - authentication is BYPASSED")
+
+      if repo_available?() do
+        Logger.warning("Running in dev mode with PostgreSQL")
+      else
+        Logger.warning(
+          "Running in standalone mode (no PostgreSQL) - usage metering and tenant persistence disabled"
+        )
+      end
     end
   end
 

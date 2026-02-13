@@ -1,7 +1,11 @@
-use crate::domain::entities::{Actor, AuditAction, AuditEvent, AuditOutcome};
-use crate::domain::repositories::AuditEventRepository;
-use crate::domain::value_objects::TenantId;
-use crate::error::AllSourceError;
+use crate::{
+    domain::{
+        entities::{Actor, AuditAction, AuditEvent, AuditOutcome},
+        repositories::AuditEventRepository,
+        value_objects::TenantId,
+    },
+    error::AllSourceError,
+};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use tracing::error;
@@ -326,8 +330,9 @@ impl<'a, R: AuditEventRepository> AuditLogEntry<'a, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::AuditAction;
-    use crate::infrastructure::repositories::InMemoryAuditRepository;
+    use crate::{
+        domain::entities::AuditAction, infrastructure::repositories::InMemoryAuditRepository,
+    };
 
     fn setup_logger() -> AuditLogger<InMemoryAuditRepository> {
         let repo = Arc::new(InMemoryAuditRepository::new());

@@ -1,5 +1,4 @@
-use crate::domain::value_objects::TenantId;
-use crate::error::Result;
+use crate::{domain::value_objects::TenantId, error::Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 

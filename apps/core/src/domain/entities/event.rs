@@ -1,5 +1,7 @@
-use crate::domain::value_objects::{EntityId, EventType, TenantId};
-use crate::error::Result;
+use crate::{
+    domain::value_objects::{EntityId, EventType, TenantId},
+    error::Result,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

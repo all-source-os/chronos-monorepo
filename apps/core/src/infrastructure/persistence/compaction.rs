@@ -1,13 +1,17 @@
-use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
-use crate::infrastructure::persistence::storage::ParquetStorage;
+use crate::{
+    domain::entities::Event,
+    error::{AllSourceError, Result},
+    infrastructure::persistence::storage::ParquetStorage,
+};
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 /// Manages Parquet file compaction for optimal storage and query performance
 pub struct CompactionManager {
@@ -124,30 +128,29 @@ impl CompactionManager {
             })?;
 
             let path = entry.path();
-            if let Some(ext) = path.extension() {
-                if ext == "parquet" {
-                    let metadata = entry.metadata().map_err(|e| {
-                        AllSourceError::StorageError(format!("Failed to read file metadata: {e}"))
-                    })?;
+            if let Some(ext) = path.extension()
+                && ext == "parquet"
+            {
+                let metadata = entry.metadata().map_err(|e| {
+                    AllSourceError::StorageError(format!("Failed to read file metadata: {e}"))
+                })?;
 
-                    let size = metadata.len();
-                    let created = metadata
-                        .created()
-                        .ok()
-                        .and_then(|t| {
-                            t.duration_since(std::time::UNIX_EPOCH).ok().map(|d| {
-                                DateTime::from_timestamp(d.as_secs() as i64, 0)
-                                    .unwrap_or_else(Utc::now)
-                            })
+                let size = metadata.len();
+                let created = metadata
+                    .created()
+                    .ok()
+                    .and_then(|t| {
+                        t.duration_since(std::time::UNIX_EPOCH).ok().map(|d| {
+                            DateTime::from_timestamp(d.as_secs() as i64, 0).unwrap_or_else(Utc::now)
                         })
-                        .unwrap_or_else(Utc::now);
+                    })
+                    .unwrap_or_else(Utc::now);
 
-                    files.push(FileInfo {
-                        path,
-                        size,
-                        created,
-                    });
-                }
+                files.push(FileInfo {
+                    path,
+                    size,
+                    created,
+                });
             }
         }
 

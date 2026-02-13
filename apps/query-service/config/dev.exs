@@ -48,10 +48,12 @@ config :ueberauth, Ueberauth.Strategy.Github.OAuth,
   client_secret: System.get_env("GITHUB_CLIENT_SECRET") || "dev_github_client_secret"
 
 # LemonSqueezy configuration for development (optional)
+# Set LEMON_SQUEEZY_VARIANT_TIERS="variant_id:tier,..." to map variants to tiers
 config :query_service_ex, :lemon_squeezy,
   api_key: System.get_env("LEMON_SQUEEZY_API_KEY"),
   store_id: System.get_env("LEMON_SQUEEZY_STORE_ID"),
-  webhook_secret: System.get_env("LEMON_SQUEEZY_WEBHOOK_SECRET")
+  webhook_secret: System.get_env("LEMON_SQUEEZY_WEBHOOK_SECRET"),
+  variant_tiers: %{}
 
 # Guardian secret key for development
 config :query_service_ex, QueryServiceEx.Accounts.Guardian,

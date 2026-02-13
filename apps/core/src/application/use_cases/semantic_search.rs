@@ -1,8 +1,11 @@
-use crate::application::dto::EventDto;
-use crate::application::services::{SemanticSearchRequest, VectorSearchService};
-use crate::domain::repositories::EventRepository;
-use crate::domain::value_objects::EmbeddingVector;
-use crate::error::{AllSourceError, Result};
+use crate::{
+    application::{
+        dto::EventDto,
+        services::{SemanticSearchRequest, VectorSearchService},
+    },
+    domain::{repositories::EventRepository, value_objects::EmbeddingVector},
+    error::{AllSourceError, Result},
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -314,8 +317,9 @@ pub struct BatchIndexResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::Event;
-    use crate::infrastructure::repositories::InMemoryVectorSearchRepository;
+    use crate::{
+        domain::entities::Event, infrastructure::repositories::InMemoryVectorSearchRepository,
+    };
     use async_trait::async_trait;
     use chrono::Utc;
     use serde_json::json;
@@ -384,14 +388,16 @@ mod tests {
         let vector_repo = Arc::new(InMemoryVectorSearchRepository::new());
         let vector_service = Arc::new(VectorSearchService::new(vector_repo));
 
-        let events = vec![Event::from_strings(
-            "user.created".to_string(),
-            "user-1".to_string(),
-            "tenant-1".to_string(),
-            json!({"name": "Test"}),
-            None,
-        )
-        .unwrap()];
+        let events = vec![
+            Event::from_strings(
+                "user.created".to_string(),
+                "user-1".to_string(),
+                "tenant-1".to_string(),
+                json!({"name": "Test"}),
+                None,
+            )
+            .unwrap(),
+        ];
 
         let event_repo = Arc::new(MockEventRepository::with_events(events));
 

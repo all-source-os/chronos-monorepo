@@ -31,8 +31,7 @@
 /// let node_id = registry.node_for_partition(15);
 /// ```
 use dashmap::DashMap;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 /// Node in the cluster
 #[derive(Debug, Clone)]

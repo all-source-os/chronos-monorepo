@@ -19,17 +19,16 @@ use crate::{
             InMemoryAuditRepository, InMemoryEventStreamRepository, InMemoryTenantRepository,
         },
         security::{
+            IpFilter,
             auth::{ApiKey, AuthManager, Claims, Permission, Role},
             middleware::{AuthContext, RequestId, SecurityConfig},
             rate_limit::{RateLimitConfig, RateLimiter},
-            IpFilter,
         },
     },
 };
 use chrono::{Duration, Utc};
 use serde_json::json;
-use std::net::IpAddr;
-use std::str::FromStr;
+use std::{net::IpAddr, str::FromStr};
 
 // ============================================================================
 // Test Helpers

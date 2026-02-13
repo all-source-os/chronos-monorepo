@@ -1,3 +1,24 @@
+//! PostgreSQL-backed Event Stream Repository
+//!
+//! Production-grade persistent storage implementing SierraDB patterns:
+//! - Fixed partitioning for horizontal scaling
+//! - Gapless version guarantees via watermarks
+//! - Optimistic locking for concurrency control
+//! - Transaction management for ACID guarantees
+//!
+//! # Features
+//! - **Persistent storage**: Data survives restarts
+//! - **Transaction safety**: ACID properties ensured
+//! - **Concurrent access**: PostgreSQL handles multi-writer scenarios
+//! - **Partition-aware**: Ready for sharding/clustering
+//! - **Integrity checks**: Built-in gapless verification
+//!
+//! # Performance
+//! - Batch inserts for high throughput
+//! - Indexed queries for low latency
+//! - Connection pooling for scalability
+//! - Prepared statements for efficiency
+
 #[cfg(feature = "postgres")]
 use crate::domain::entities::{Event, EventStream};
 #[cfg(feature = "postgres")]
@@ -10,31 +31,14 @@ use crate::error::{AllSourceError, Result};
 use async_trait::async_trait;
 #[cfg(feature = "postgres")]
 use chrono::{DateTime, Utc};
-/// PostgreSQL-backed Event Stream Repository
-///
-/// Production-grade persistent storage implementing SierraDB patterns:
-/// - Fixed partitioning for horizontal scaling
-/// - Gapless version guarantees via watermarks
-/// - Optimistic locking for concurrency control
-/// - Transaction management for ACID guarantees
-///
-/// # Features
-/// - **Persistent storage**: Data survives restarts
-/// - **Transaction safety**: ACID properties ensured
-/// - **Concurrent access**: PostgreSQL handles multi-writer scenarios
-/// - **Partition-aware**: Ready for sharding/clustering
-/// - **Integrity checks**: Built-in gapless verification
-///
-/// # Performance
-/// - Batch inserts for high throughput
-/// - Indexed queries for low latency
-/// - Connection pooling for scalability
-/// - Prepared statements for efficiency
-
 #[cfg(feature = "postgres")]
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
 #[cfg(feature = "postgres")]
+#[deprecated(
+    since = "0.10.0",
+    note = "AllSource Core uses its own WAL + Parquet for event storage. The postgres feature flag will be removed in a future release."
+)]
 pub struct PostgresEventStreamRepository {
     pool: PgPool,
 }
@@ -244,13 +248,13 @@ impl EventStreamRepository for PostgresEventStreamRepository {
         .map_err(|e| AllSourceError::StorageError(format!("Stream not found: {e}")))?;
 
         // Optimistic locking check (domain-level)
-        if let Some(expected) = stream.expected_version() {
-            if expected != current_version as u64 {
-                return Err(AllSourceError::ConcurrencyError(format!(
-                    "Version conflict: expected {}, got {}",
-                    expected, current_version
-                )));
-            }
+        if let Some(expected) = stream.expected_version()
+            && expected != current_version as u64
+        {
+            return Err(AllSourceError::ConcurrencyError(format!(
+                "Version conflict: expected {}, got {}",
+                expected, current_version
+            )));
         }
 
         // Append event to domain entity (this also validates)
@@ -500,7 +504,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
 mod tests {
     use super::*;
     use sqlx::postgres::PgPoolOptions;
-    use testcontainers::{runners::AsyncRunner, ContainerAsync, ImageExt};
+    use testcontainers::{ContainerAsync, ImageExt, runners::AsyncRunner};
     use testcontainers_modules::postgres::Postgres;
 
     struct TestDb {

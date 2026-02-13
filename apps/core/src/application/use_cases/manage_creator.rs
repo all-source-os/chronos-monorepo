@@ -1,11 +1,15 @@
-use crate::application::dto::{
-    CreatorDto, CreatorTierDto, ListCreatorsResponse, RegisterCreatorRequest,
-    RegisterCreatorResponse, UpdateCreatorRequest, UpdateCreatorResponse,
+use crate::{
+    application::dto::{
+        CreatorDto, CreatorTierDto, ListCreatorsResponse, RegisterCreatorRequest,
+        RegisterCreatorResponse, UpdateCreatorRequest, UpdateCreatorResponse,
+    },
+    domain::{
+        entities::{Creator, CreatorSettings},
+        repositories::CreatorRepository,
+        value_objects::{TenantId, WalletAddress},
+    },
+    error::Result,
 };
-use crate::domain::entities::{Creator, CreatorSettings};
-use crate::domain::repositories::CreatorRepository;
-use crate::domain::value_objects::{TenantId, WalletAddress};
-use crate::error::Result;
 use std::sync::Arc;
 
 /// Use Case: Register Creator
@@ -221,8 +225,10 @@ impl ListCreatorsUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::{CreatorStatus, CreatorTier};
-    use crate::domain::repositories::CreatorQuery;
+    use crate::domain::{
+        entities::{CreatorStatus, CreatorTier},
+        repositories::CreatorQuery,
+    };
     use async_trait::async_trait;
     use std::sync::Mutex;
 

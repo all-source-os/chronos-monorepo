@@ -19,8 +19,8 @@ pub use anomaly_detection::{
 };
 
 pub use encryption::{
-    decrypt_json_value, encrypt_json_value, Encryptable, EncryptedData, EncryptionAlgorithm,
-    EncryptionConfig, EncryptionStats, FieldEncryption,
+    Encryptable, EncryptedData, EncryptionAlgorithm, EncryptionConfig, EncryptionStats,
+    FieldEncryption, decrypt_json_value, encrypt_json_value,
 };
 
 pub use kms::{

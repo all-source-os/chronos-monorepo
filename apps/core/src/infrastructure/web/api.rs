@@ -1,39 +1,92 @@
-use crate::application::dto::{
-    EventDto, IngestEventRequest, IngestEventResponse, IngestEventsBatchRequest,
-    IngestEventsBatchResponse, QueryEventsRequest, QueryEventsResponse,
+use crate::{
+    application::{
+        dto::{
+            EventDto, IngestEventRequest, IngestEventResponse, IngestEventsBatchRequest,
+            IngestEventsBatchResponse, QueryEventsRequest, QueryEventsResponse,
+        },
+        services::{
+            analytics::{
+                AnalyticsEngine, CorrelationRequest, CorrelationResponse, EventFrequencyRequest,
+                EventFrequencyResponse, StatsSummaryRequest, StatsSummaryResponse,
+            },
+            pipeline::{PipelineConfig, PipelineStats},
+            replay::{ReplayProgress, StartReplayRequest, StartReplayResponse},
+            schema::{
+                CompatibilityMode, RegisterSchemaRequest, RegisterSchemaResponse,
+                ValidateEventRequest, ValidateEventResponse,
+            },
+        },
+    },
+    domain::entities::Event,
+    error::Result,
+    infrastructure::{
+        persistence::{
+            compaction::CompactionResult,
+            snapshot::{
+                CreateSnapshotRequest, CreateSnapshotResponse, ListSnapshotsRequest,
+                ListSnapshotsResponse, SnapshotInfo,
+            },
+        },
+        replication::ReplicationMode,
+        web::api_v1::AppState,
+    },
+    store::{EventStore, EventTypeInfo, StreamInfo},
 };
-use crate::application::services::analytics::{
-    AnalyticsEngine, CorrelationRequest, CorrelationResponse, EventFrequencyRequest,
-    EventFrequencyResponse, StatsSummaryRequest, StatsSummaryResponse,
-};
-use crate::application::services::pipeline::{PipelineConfig, PipelineStats};
-use crate::application::services::replay::{
-    ReplayProgress, StartReplayRequest, StartReplayResponse,
-};
-use crate::application::services::schema::{
-    CompatibilityMode, RegisterSchemaRequest, RegisterSchemaResponse, ValidateEventRequest,
-    ValidateEventResponse,
-};
-use crate::domain::entities::Event;
-use crate::error::Result;
-use crate::infrastructure::persistence::compaction::CompactionResult;
-use crate::infrastructure::persistence::snapshot::{
-    CreateSnapshotRequest, CreateSnapshotResponse, ListSnapshotsRequest, ListSnapshotsResponse,
-    SnapshotInfo,
-};
-use crate::store::{EventStore, EventTypeInfo, StreamInfo};
 use axum::{
+    Json, Router,
     extract::{Path, Query, State, WebSocketUpgrade},
     response::{IntoResponse, Response},
     routing::{get, post, put},
-    Json, Router,
 };
 use serde::Deserialize;
 use std::sync::Arc;
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::trace::TraceLayer;
+use tower_http::{
+    cors::{Any, CorsLayer},
+    trace::TraceLayer,
+};
 
 type SharedStore = Arc<EventStore>;
+
+/// Wait for follower ACK(s) in semi-sync/sync replication modes.
+///
+/// In async mode (default), returns immediately. In semi-sync mode, waits for
+/// at least 1 follower to ACK the current WAL offset. In sync mode, waits for
+/// all followers. If the timeout expires, logs a warning and continues (degraded mode).
+async fn await_replication_ack(state: &AppState) {
+    let shipper_guard = state.wal_shipper.read().await;
+    if let Some(ref shipper) = *shipper_guard {
+        let mode = shipper.replication_mode();
+        if mode == ReplicationMode::Async {
+            return;
+        }
+
+        let target_offset = shipper.current_leader_offset();
+        if target_offset == 0 {
+            return;
+        }
+
+        let shipper = Arc::clone(shipper);
+        // Drop the read guard before the async wait to avoid holding it across await
+        drop(shipper_guard);
+
+        let timer = state
+            .store
+            .metrics()
+            .replication_ack_wait_seconds
+            .start_timer();
+        let acked = shipper.wait_for_ack(target_offset).await;
+        timer.observe_duration();
+
+        if !acked {
+            tracing::warn!(
+                "Replication ACK timeout in {} mode (offset {}). \
+                 Write succeeded locally but follower confirmation pending.",
+                mode,
+                target_offset,
+            );
+        }
+    }
+}
 
 pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
@@ -193,6 +246,37 @@ pub async fn ingest_event(
     }))
 }
 
+/// Ingest a single event with semi-sync/sync replication ACK waiting.
+///
+/// Used by the v1 API (with auth and replication support).
+pub async fn ingest_event_v1(
+    State(state): State<AppState>,
+    Json(req): Json<IngestEventRequest>,
+) -> Result<Json<IngestEventResponse>> {
+    let event = Event::from_strings(
+        req.event_type,
+        req.entity_id,
+        "default".to_string(),
+        req.payload,
+        req.metadata,
+    )?;
+
+    let event_id = event.id;
+    let timestamp = event.timestamp;
+
+    state.store.ingest(event)?;
+
+    // Semi-sync/sync: wait for follower ACK(s) before returning
+    await_replication_ack(&state).await;
+
+    tracing::info!("Event ingested: {}", event_id);
+
+    Ok(Json(IngestEventResponse {
+        event_id,
+        timestamp,
+    }))
+}
+
 /// Batch ingest multiple events in a single request
 ///
 /// This endpoint allows ingesting multiple events atomically, which is more
@@ -225,6 +309,51 @@ pub async fn ingest_events_batch(
             timestamp,
         });
     }
+
+    let ingested = ingested_events.len();
+    tracing::info!("Batch ingested {} events", ingested);
+
+    Ok(Json(IngestEventsBatchResponse {
+        total,
+        ingested,
+        events: ingested_events,
+    }))
+}
+
+/// Batch ingest with semi-sync/sync replication ACK waiting.
+///
+/// Used by the v1 API (with auth and replication support).
+pub async fn ingest_events_batch_v1(
+    State(state): State<AppState>,
+    Json(req): Json<IngestEventsBatchRequest>,
+) -> Result<Json<IngestEventsBatchResponse>> {
+    let total = req.events.len();
+    let mut ingested_events = Vec::with_capacity(total);
+
+    for event_req in req.events {
+        let tenant_id = event_req.tenant_id.unwrap_or_else(|| "default".to_string());
+
+        let event = Event::from_strings(
+            event_req.event_type,
+            event_req.entity_id,
+            tenant_id,
+            event_req.payload,
+            event_req.metadata,
+        )?;
+
+        let event_id = event.id;
+        let timestamp = event.timestamp;
+
+        state.store.ingest(event)?;
+
+        ingested_events.push(IngestEventResponse {
+            event_id,
+            timestamp,
+        });
+    }
+
+    // Semi-sync/sync: wait for follower ACK(s) after all events are ingested
+    await_replication_ack(&state).await;
 
     let ingested = ingested_events.len();
     tracing::info!("Batch ingested {} events", ingested);
@@ -1078,8 +1207,7 @@ pub async fn bulk_save_projection_states(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::Event;
-    use crate::store::EventStore;
+    use crate::{domain::entities::Event, store::EventStore};
 
     fn create_test_store() -> Arc<EventStore> {
         Arc::new(EventStore::new())

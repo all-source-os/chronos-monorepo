@@ -1,12 +1,15 @@
 use async_trait::async_trait;
 use dashmap::DashMap;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::domain::entities::{Event, EventStream};
-use crate::domain::repositories::{EventStreamReader, EventStreamRepository, EventStreamWriter};
-use crate::domain::value_objects::{EntityId, PartitionKey, TenantId};
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{Event, EventStream},
+        repositories::{EventStreamReader, EventStreamRepository, EventStreamWriter},
+        value_objects::{EntityId, PartitionKey, TenantId},
+    },
+    error::Result,
+};
 
 /// In-memory implementation of EventStreamRepository
 ///
@@ -142,10 +145,10 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
         let mut result = Vec::new();
         for entry in self.streams.iter() {
             // Check if stream belongs to this tenant
-            if let Some(stream_tenant) = entry.value().tenant_id() {
-                if stream_tenant == tenant_id {
-                    result.push(entry.value().clone());
-                }
+            if let Some(stream_tenant) = entry.value().tenant_id()
+                && stream_tenant == tenant_id
+            {
+                result.push(entry.value().clone());
             }
         }
 
@@ -344,9 +347,11 @@ mod tests {
         let entity_id = EntityId::new("entity-1".to_string()).unwrap();
 
         // Empty stream is gapless
-        assert!(EventStreamRepository::verify_gapless(&repo, &entity_id)
-            .await
-            .unwrap());
+        assert!(
+            EventStreamRepository::verify_gapless(&repo, &entity_id)
+                .await
+                .unwrap()
+        );
 
         let mut stream = EventStreamRepository::get_or_create_stream(&repo, &entity_id)
             .await
@@ -361,9 +366,11 @@ mod tests {
         }
 
         // Should still be gapless
-        assert!(EventStreamRepository::verify_gapless(&repo, &entity_id)
-            .await
-            .unwrap());
+        assert!(
+            EventStreamRepository::verify_gapless(&repo, &entity_id)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

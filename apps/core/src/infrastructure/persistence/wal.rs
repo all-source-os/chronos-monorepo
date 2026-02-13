@@ -1,12 +1,16 @@
-use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
+use crate::{
+    domain::entities::Event,
+    error::{AllSourceError, Result},
+};
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Write};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    fs::{self, File, OpenOptions},
+    io::{BufRead, BufReader, BufWriter, Write},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Write-Ahead Log for durability and crash recovery
 pub struct WriteAheadLog {
@@ -24,6 +28,11 @@ pub struct WriteAheadLog {
 
     /// Current sequence number
     sequence: Arc<RwLock<u64>>,
+
+    /// Optional broadcast channel for replication — when set, each WAL append
+    /// publishes the entry so the WAL shipper can stream it to followers.
+    /// Wrapped in Mutex so it can be set at runtime (e.g. during follower → leader promotion).
+    replication_tx: parking_lot::Mutex<Option<tokio::sync::broadcast::Sender<WALEntry>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -183,6 +192,7 @@ impl WriteAheadLog {
             config,
             stats: Arc::new(RwLock::new(WALStats::default())),
             sequence: Arc::new(RwLock::new(0)),
+            replication_tx: parking_lot::Mutex::new(None),
         })
     }
 
@@ -212,6 +222,12 @@ impl WriteAheadLog {
         stats.total_bytes_written += bytes_written as u64;
         stats.current_file_size = current.size;
         drop(stats);
+
+        // Broadcast to replication channel (if enabled).
+        // Errors are ignored: no receivers simply means no followers are connected.
+        if let Some(ref tx) = *self.replication_tx.lock() {
+            let _ = tx.send(entry);
+        }
 
         // Check if we need to rotate
         let should_rotate = current.size >= self.config.max_file_size;
@@ -286,12 +302,11 @@ impl WriteAheadLog {
             })?;
 
             let path = entry.path();
-            if let Some(name) = path.file_name() {
-                if name.to_string_lossy().starts_with("wal-")
-                    && name.to_string_lossy().ends_with(".log")
-                {
-                    wal_files.push(path);
-                }
+            if let Some(name) = path.file_name()
+                && name.to_string_lossy().starts_with("wal-")
+                && name.to_string_lossy().ends_with(".log")
+            {
+                wal_files.push(path);
             }
         }
 
@@ -420,6 +435,55 @@ impl WriteAheadLog {
     /// Get current sequence number
     pub fn current_sequence(&self) -> u64 {
         *self.sequence.read()
+    }
+
+    /// Get the oldest available WAL sequence number.
+    ///
+    /// Returns the first sequence found in the oldest WAL file, or `None`
+    /// if no WAL entries exist. Used by the replication catch-up protocol
+    /// to determine whether a follower can catch up from WAL alone.
+    pub fn oldest_sequence(&self) -> Option<u64> {
+        let mut wal_files = match self.list_wal_files() {
+            Ok(files) => files,
+            Err(_) => return None,
+        };
+
+        if wal_files.is_empty() {
+            return None;
+        }
+
+        wal_files.sort();
+
+        // Read the first entry from the oldest WAL file
+        for wal_file_path in &wal_files {
+            let file = match File::open(wal_file_path) {
+                Ok(f) => f,
+                Err(_) => continue,
+            };
+            let reader = BufReader::new(file);
+            for line in reader.lines() {
+                let line = match line {
+                    Ok(l) => l,
+                    Err(_) => continue,
+                };
+                if line.trim().is_empty() {
+                    continue;
+                }
+                if let Ok(entry) = serde_json::from_str::<WALEntry>(&line) {
+                    return Some(entry.sequence);
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Attach a broadcast sender for WAL replication.
+    ///
+    /// When set, every `append()` call will publish the WAL entry to this
+    /// channel so the WAL shipper can stream it to connected followers.
+    pub fn set_replication_tx(&self, tx: tokio::sync::broadcast::Sender<WALEntry>) {
+        *self.replication_tx.lock() = Some(tx);
     }
 }
 

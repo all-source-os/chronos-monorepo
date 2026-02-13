@@ -1,10 +1,13 @@
-use crate::domain::entities::{Creator, CreatorStatus};
-use crate::domain::repositories::{CreatorQuery, CreatorRepository};
-use crate::domain::value_objects::{CreatorId, TenantId, WalletAddress};
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{Creator, CreatorStatus},
+        repositories::{CreatorQuery, CreatorRepository},
+        value_objects::{CreatorId, TenantId, WalletAddress},
+    },
+    error::Result,
+};
 use async_trait::async_trait;
-use std::collections::HashMap;
-use std::sync::RwLock;
+use std::{collections::HashMap, sync::RwLock};
 
 /// In-memory implementation of CreatorRepository
 ///
@@ -203,8 +206,7 @@ impl CreatorRepository for InMemoryCreatorRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::CreatorTier;
-    use crate::domain::value_objects::WalletAddress;
+    use crate::domain::{entities::CreatorTier, value_objects::WalletAddress};
 
     const VALID_WALLETS: [&str; 8] = [
         "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",

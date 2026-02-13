@@ -9,21 +9,20 @@
 
 #[cfg(feature = "keyword-search")]
 use tantivy::{
+    Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument,
     collector::TopDocs,
     doc,
     query::QueryParser,
     schema::{
-        Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, STORED, STRING,
-        TEXT,
+        Field, IndexRecordOption, STORED, STRING, Schema, TEXT, TextFieldIndexing, TextOptions,
+        Value,
     },
-    Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument,
 };
 
 use crate::error::{AllSourceError, Result};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 /// Configuration for the KeywordSearchEngine
@@ -585,11 +584,11 @@ impl KeywordSearchEngine {
     /// Extract searchable text from a JSON payload
     fn extract_text_from_payload(&self, payload: &serde_json::Value) -> String {
         let mut text_parts = Vec::new();
-        self.collect_text_recursive(payload, &mut text_parts);
+        Self::collect_text_recursive(payload, &mut text_parts);
         text_parts.join(" ")
     }
 
-    fn collect_text_recursive(&self, value: &serde_json::Value, parts: &mut Vec<String>) {
+    fn collect_text_recursive(value: &serde_json::Value, parts: &mut Vec<String>) {
         match value {
             serde_json::Value::String(s) => {
                 if !s.is_empty() {
@@ -600,13 +599,13 @@ impl KeywordSearchEngine {
                 for (key, val) in map {
                     // Skip internal/metadata fields
                     if !key.starts_with('_') && key != "id" && key != "timestamp" {
-                        self.collect_text_recursive(val, parts);
+                        Self::collect_text_recursive(val, parts);
                     }
                 }
             }
             serde_json::Value::Array(arr) => {
                 for item in arr {
-                    self.collect_text_recursive(item, parts);
+                    Self::collect_text_recursive(item, parts);
                 }
             }
             serde_json::Value::Number(n) => {

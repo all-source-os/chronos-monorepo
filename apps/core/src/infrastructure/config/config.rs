@@ -8,11 +8,13 @@ use crate::error::{AllSourceError, Result};
 /// - Hot-reloading support (via file watcher)
 /// - Secure credential handling
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 /// Main application configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     pub server: ServerConfig,
     pub storage: StorageConfig,
@@ -21,20 +23,6 @@ pub struct Config {
     pub backup: BackupConfigFile,
     pub metrics: MetricsConfig,
     pub logging: LoggingConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            storage: StorageConfig::default(),
-            auth: AuthConfig::default(),
-            rate_limit: RateLimitConfigFile::default(),
-            backup: BackupConfigFile::default(),
-            metrics: MetricsConfig::default(),
-            logging: LoggingConfig::default(),
-        }
-    }
 }
 
 /// Server configuration

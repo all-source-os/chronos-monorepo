@@ -1,13 +1,19 @@
-use crate::domain::entities::{Transaction, TransactionStatus};
-use crate::domain::repositories::{
-    RevenueDataPoint, RevenueGranularity, TransactionQuery, TransactionRepository,
+use crate::{
+    domain::{
+        entities::{Transaction, TransactionStatus},
+        repositories::{
+            RevenueDataPoint, RevenueGranularity, TransactionQuery, TransactionRepository,
+        },
+        value_objects::{ArticleId, CreatorId, TransactionId, WalletAddress},
+    },
+    error::Result,
 };
-use crate::domain::value_objects::{ArticleId, CreatorId, TransactionId, WalletAddress};
-use crate::error::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
-use std::collections::{HashMap, HashSet};
-use std::sync::RwLock;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::RwLock,
+};
 
 /// In-memory implementation of TransactionRepository
 ///
@@ -361,8 +367,10 @@ impl InMemoryTransactionRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::Blockchain;
-    use crate::domain::value_objects::{Money, TenantId};
+    use crate::domain::{
+        entities::Blockchain,
+        value_objects::{Money, TenantId},
+    };
 
     const VALID_WALLETS: [&str; 8] = [
         "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",

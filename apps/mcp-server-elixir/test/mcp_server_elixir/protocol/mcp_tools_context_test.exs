@@ -44,9 +44,9 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
       assert "get_session_context" in tool_names
     end
 
-    test "returns 27 tools total (14 original + 2 exploration + 3 context + 8 event management tools)" do
+    test "returns 61 tools total" do
       tools = McpTools.list_tools()
-      assert length(tools) == 27
+      assert length(tools) == 61
     end
   end
 

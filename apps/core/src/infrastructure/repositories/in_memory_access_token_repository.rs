@@ -1,11 +1,14 @@
-use crate::domain::entities::{AccessToken, AccessTokenId};
-use crate::domain::repositories::{AccessTokenQuery, AccessTokenRepository};
-use crate::domain::value_objects::{ArticleId, CreatorId, TransactionId, WalletAddress};
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{AccessToken, AccessTokenId},
+        repositories::{AccessTokenQuery, AccessTokenRepository},
+        value_objects::{ArticleId, CreatorId, TransactionId, WalletAddress},
+    },
+    error::Result,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
-use std::sync::RwLock;
+use std::{collections::HashMap, sync::RwLock};
 
 /// In-memory implementation of AccessTokenRepository
 ///
@@ -329,9 +332,9 @@ impl AccessTokenRepository for InMemoryAccessTokenRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::AccessMethod;
-    use crate::domain::value_objects::{
-        ArticleId, CreatorId, TenantId, TransactionId, WalletAddress,
+    use crate::domain::{
+        entities::AccessMethod,
+        value_objects::{ArticleId, CreatorId, TenantId, TransactionId, WalletAddress},
     };
 
     const VALID_WALLETS: [&str; 8] = [

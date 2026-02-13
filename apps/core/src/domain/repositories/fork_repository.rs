@@ -1,6 +1,10 @@
-use crate::domain::entities::{EventStoreFork, ForkStatus};
-use crate::domain::value_objects::{ForkId, TenantId};
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{EventStoreFork, ForkStatus},
+        value_objects::{ForkId, TenantId},
+    },
+    error::Result,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 

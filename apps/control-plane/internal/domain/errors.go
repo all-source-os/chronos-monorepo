@@ -22,6 +22,9 @@ var (
 	// ErrPolicyNotFound is returned when a policy is not found
 	ErrPolicyNotFound = errors.New("policy not found")
 
+	// ErrOperationNotFound is returned when an operation is not found
+	ErrOperationNotFound = errors.New("operation not found")
+
 	// ErrUnauthorized is returned when a user is not authorized
 	ErrUnauthorized = errors.New("unauthorized")
 
@@ -30,4 +33,13 @@ var (
 
 	// ErrInvalidInput is returned when input validation fails
 	ErrInvalidInput = errors.New("invalid input")
+
+	// ErrConfigNotFound is returned when a config entry is not found
+	ErrConfigNotFound = errors.New("config entry not found")
+
+	// ErrConfigAlreadyExists is returned when a config entry already exists
+	ErrConfigAlreadyExists = errors.New("config entry already exists")
+
+	// ErrCoreNotAvailable is returned when the Core service is not configured
+	ErrCoreNotAvailable = errors.New("core service not available")
 )

@@ -1,25 +1,20 @@
-use crate::domain::value_objects::{
-    ArticleId, CreatorId, Money, TenantId, TransactionId, WalletAddress,
+use crate::{
+    domain::value_objects::{ArticleId, CreatorId, Money, TenantId, TransactionId, WalletAddress},
+    error::Result,
 };
-use crate::error::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Blockchain network for the transaction
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Blockchain {
     /// Solana mainnet
+    #[default]
     Solana,
     /// Base (Coinbase L2)
     Base,
     /// Polygon
     Polygon,
-}
-
-impl Default for Blockchain {
-    fn default() -> Self {
-        Self::Solana
-    }
 }
 
 impl std::fmt::Display for Blockchain {
@@ -33,9 +28,10 @@ impl std::fmt::Display for Blockchain {
 }
 
 /// Transaction status
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionStatus {
     /// Transaction is pending verification
+    #[default]
     Pending,
     /// Transaction has been verified on-chain
     Confirmed,
@@ -45,12 +41,6 @@ pub enum TransactionStatus {
     Refunded,
     /// Transaction is disputed
     Disputed,
-}
-
-impl Default for TransactionStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
 }
 
 /// Domain Entity: Transaction

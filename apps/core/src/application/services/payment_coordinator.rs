@@ -1,14 +1,20 @@
-use crate::application::dto::{
-    AccessTokenDto, CheckAccessRequest, CheckAccessResponse, ConfirmTransactionRequest,
-    ConfirmTransactionResponse, InitiatePaymentRequest, InitiatePaymentResponse, TransactionDto,
+use crate::{
+    application::{
+        dto::{
+            AccessTokenDto, CheckAccessRequest, CheckAccessResponse, ConfirmTransactionRequest,
+            ConfirmTransactionResponse, InitiatePaymentRequest, InitiatePaymentResponse,
+            TransactionDto,
+        },
+        use_cases::{
+            CheckAccessUseCase, ConfirmTransactionUseCase, GrantFreeAccessUseCase,
+            InitiatePaymentUseCase,
+        },
+    },
+    domain::repositories::{
+        AccessTokenRepository, ArticleRepository, CreatorRepository, TransactionRepository,
+    },
+    error::Result,
 };
-use crate::application::use_cases::{
-    CheckAccessUseCase, ConfirmTransactionUseCase, GrantFreeAccessUseCase, InitiatePaymentUseCase,
-};
-use crate::domain::repositories::{
-    AccessTokenRepository, ArticleRepository, CreatorRepository, TransactionRepository,
-};
-use crate::error::Result;
 use std::sync::Arc;
 
 /// Coordinator service for payment operations.

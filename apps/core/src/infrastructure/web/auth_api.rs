@@ -1,6 +1,8 @@
-use crate::infrastructure::security::auth::{Permission, Role, User};
-use crate::infrastructure::security::middleware::{Admin, Authenticated, OptionalAuth};
-use axum::{extract::State, http::StatusCode, Json};
+use crate::infrastructure::security::{
+    auth::{Permission, Role, User},
+    middleware::{Admin, Authenticated, OptionalAuth},
+};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

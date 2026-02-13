@@ -4,13 +4,19 @@
 //! a fully configured ServiceContainer.
 
 use super::ServiceContainer;
-use crate::domain::repositories::{
-    AccessTokenRepository, ArticleRepository, CreatorRepository, EventStreamRepository,
-    ForkRepository, TransactionRepository,
-};
-use crate::infrastructure::repositories::{
-    InMemoryAccessTokenRepository, InMemoryArticleRepository, InMemoryCreatorRepository,
-    InMemoryEventStreamRepository, InMemoryForkRepository, InMemoryTransactionRepository,
+use crate::{
+    domain::repositories::{
+        AccessTokenRepository, ArticleRepository, AuditEventRepository, CreatorRepository,
+        EventStreamRepository, ForkRepository, TenantRepository, TransactionRepository,
+    },
+    infrastructure::{
+        persistence::{SystemMetadataStore, SystemRepositories},
+        repositories::{
+            EventSourcedConfigRepository, InMemoryAccessTokenRepository, InMemoryArticleRepository,
+            InMemoryCreatorRepository, InMemoryEventStreamRepository, InMemoryForkRepository,
+            InMemoryTransactionRepository,
+        },
+    },
 };
 use std::sync::Arc;
 
@@ -42,6 +48,12 @@ pub struct ContainerBuilder {
     access_token_repository: Option<Arc<dyn AccessTokenRepository>>,
     fork_repository: Option<Arc<dyn ForkRepository>>,
     event_stream_repository: Option<Arc<dyn EventStreamRepository>>,
+
+    // System metadata (event-sourced)
+    tenant_repository: Option<Arc<dyn TenantRepository>>,
+    audit_repository: Option<Arc<dyn AuditEventRepository>>,
+    config_repository: Option<Arc<EventSourcedConfigRepository>>,
+    system_store: Option<Arc<SystemMetadataStore>>,
 }
 
 impl ContainerBuilder {
@@ -109,6 +121,33 @@ impl ContainerBuilder {
         self
     }
 
+    /// Wire event-sourced system repositories from a `SystemRepositories` instance.
+    ///
+    /// This replaces in-memory metadata storage with durable, event-sourced
+    /// repositories backed by AllSource's own WAL. Call this after
+    /// `SystemBootstrap::initialize()` succeeds.
+    ///
+    /// If not called, the container will have no system repositories (backward-compatible).
+    pub fn with_system_repositories(mut self, repos: SystemRepositories) -> Self {
+        self.system_store = Some(repos.system_store);
+        self.tenant_repository = Some(repos.tenant_repository);
+        self.audit_repository = Some(repos.audit_repository);
+        self.config_repository = Some(repos.config_repository);
+        self
+    }
+
+    /// Set a custom tenant repository.
+    pub fn with_tenant_repository(mut self, repository: Arc<dyn TenantRepository>) -> Self {
+        self.tenant_repository = Some(repository);
+        self
+    }
+
+    /// Set a custom audit repository.
+    pub fn with_audit_repository(mut self, repository: Arc<dyn AuditEventRepository>) -> Self {
+        self.audit_repository = Some(repository);
+        self
+    }
+
     /// Build the ServiceContainer.
     ///
     /// # Panics
@@ -117,7 +156,7 @@ impl ContainerBuilder {
     /// Use `with_in_memory_repositories()` to set all repositories at once,
     /// or set each one individually.
     pub fn build(self) -> ServiceContainer {
-        ServiceContainer::new(
+        let mut container = ServiceContainer::new(
             self.creator_repository
                 .expect("CreatorRepository not configured. Use with_in_memory_repositories() or with_creator_repository()"),
             self.article_repository
@@ -130,14 +169,21 @@ impl ContainerBuilder {
                 .expect("ForkRepository not configured. Use with_in_memory_repositories() or with_fork_repository()"),
             self.event_stream_repository
                 .expect("EventStreamRepository not configured. Use with_in_memory_repositories() or with_event_stream_repository()"),
-        )
+        );
+
+        container.tenant_repository = self.tenant_repository;
+        container.audit_repository = self.audit_repository;
+        container.config_repository = self.config_repository;
+        container.system_store = self.system_store;
+
+        container
     }
 
     /// Try to build the ServiceContainer, returning an error if any repository is missing.
     ///
     /// This is a safer alternative to `build()` that doesn't panic.
     pub fn try_build(self) -> Result<ServiceContainer, ContainerBuilderError> {
-        Ok(ServiceContainer::new(
+        let mut container = ServiceContainer::new(
             self.creator_repository
                 .ok_or(ContainerBuilderError::MissingRepository(
                     "CreatorRepository",
@@ -160,7 +206,14 @@ impl ContainerBuilder {
                 .ok_or(ContainerBuilderError::MissingRepository(
                     "EventStreamRepository",
                 ))?,
-        ))
+        );
+
+        container.tenant_repository = self.tenant_repository;
+        container.audit_repository = self.audit_repository;
+        container.config_repository = self.config_repository;
+        container.system_store = self.system_store;
+
+        Ok(container)
     }
 }
 

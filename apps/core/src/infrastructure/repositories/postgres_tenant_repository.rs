@@ -1,7 +1,16 @@
-/// PostgreSQL Tenant Repository
-///
-/// Production-grade persistent tenant management using PostgreSQL.
-/// Provides ACID guarantees, complex queries, and long-term storage.
+//! PostgreSQL Tenant Repository
+//!
+//! Production-grade persistent tenant management using PostgreSQL.
+//! Provides ACID guarantees, complex queries, and long-term storage.
+//!
+//! # Deprecated
+//!
+//! Use [`EventSourcedTenantRepository`](crate::infrastructure::repositories::EventSourcedTenantRepository)
+//! instead. Tenant metadata is now stored using AllSource's own event store
+//! (WAL + DashMap) via the system metadata layer. This eliminates the external
+//! PostgreSQL dependency for Core's operational metadata.
+//!
+//! The `postgres` feature flag will be removed in a future release.
 
 #[cfg(feature = "postgres")]
 use async_trait::async_trait;
@@ -22,6 +31,10 @@ use crate::domain::value_objects::TenantId;
 use crate::error::{AllSourceError, Result};
 
 #[cfg(feature = "postgres")]
+#[deprecated(
+    since = "0.10.0",
+    note = "Use EventSourcedTenantRepository instead. The postgres feature flag will be removed in a future release."
+)]
 /// PostgreSQL tenant repository
 pub struct PostgresTenantRepository {
     pool: PgPool,
@@ -473,7 +486,7 @@ impl TenantRepository for PostgresTenantRepository {
 mod tests {
     use super::*;
     use sqlx::postgres::PgPoolOptions;
-    use testcontainers::{runners::AsyncRunner, ContainerAsync, ImageExt};
+    use testcontainers::{ContainerAsync, ImageExt, runners::AsyncRunner};
     use testcontainers_modules::postgres::Postgres;
 
     struct TestDb {

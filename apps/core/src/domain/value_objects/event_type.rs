@@ -118,6 +118,15 @@ impl EventType {
         self.namespace() == Some(namespace)
     }
 
+    /// Check if this event type belongs to the system namespace (`_system.*`).
+    ///
+    /// System event types are reserved for operational metadata (tenants, config,
+    /// audit, schemas, policies) and must not be used by user applications.
+    pub fn is_system(&self) -> bool {
+        self.0
+            .starts_with(crate::domain::value_objects::system_stream::SYSTEM_EVENT_TYPE_PREFIX)
+    }
+
     /// Validate an event type string
     fn validate(value: &str) -> Result<()> {
         // Rule: Cannot be empty
@@ -140,9 +149,9 @@ impl EventType {
             .chars()
             .all(|c| c.is_lowercase() || c.is_numeric() || c == '.' || c == '_')
         {
-            return Err(crate::error::AllSourceError::InvalidInput(
-                format!("Event type '{value}' must be lowercase with dots/underscores. Convention: namespace.entity.action"),
-            ));
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "Event type '{value}' must be lowercase with dots/underscores. Convention: namespace.entity.action"
+            )));
         }
 
         // Rule: Cannot start or end with a dot

@@ -10,6 +10,7 @@ defmodule QueryServiceExWeb.TenantController do
   use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Accounts.Guardian
+  alias QueryServiceEx.DevMode
   alias QueryServiceEx.Tenants
   alias QueryServiceExWeb.Schemas.Common
   alias QueryServiceExWeb.Schemas.Tenant
@@ -36,19 +37,27 @@ defmodule QueryServiceExWeb.TenantController do
   GET /api/tenant
   """
   def show(conn, _params) do
-    user = Guardian.Plug.current_resource(conn)
-    tenant = Tenants.get_tenant(user.tenant_id)
+    if DevMode.auth_disabled?() do
+      tenant = conn.assigns[:current_tenant] || DevMode.dev_tenant()
 
-    case tenant do
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: %{code: "tenant_not_found", message: "Workspace not found"}})
+      conn
+      |> put_status(:ok)
+      |> json(%{data: serialize_tenant(tenant)})
+    else
+      user = Guardian.Plug.current_resource(conn)
+      tenant = Tenants.get_tenant(user.tenant_id)
 
-      tenant ->
-        conn
-        |> put_status(:ok)
-        |> json(%{data: serialize_tenant(tenant)})
+      case tenant do
+        nil ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: %{code: "tenant_not_found", message: "Workspace not found"}})
+
+        tenant ->
+          conn
+          |> put_status(:ok)
+          |> json(%{data: serialize_tenant(tenant)})
+      end
     end
   end
 
@@ -71,22 +80,31 @@ defmodule QueryServiceExWeb.TenantController do
   PUT /api/tenant
   """
   def update(conn, params) do
-    user = Guardian.Plug.current_resource(conn)
-    tenant = Tenants.get_tenant!(user.tenant_id)
+    if DevMode.auth_disabled?() do
+      # Dev/standalone mode: can't persist, return current tenant
+      tenant = conn.assigns[:current_tenant] || DevMode.dev_tenant()
 
-    # Only allow updating name and settings
-    update_attrs = Map.take(params, ["name", "settings"])
+      conn
+      |> put_status(:ok)
+      |> json(%{data: serialize_tenant(tenant)})
+    else
+      user = Guardian.Plug.current_resource(conn)
+      tenant = Tenants.get_tenant!(user.tenant_id)
 
-    case Tenants.update_tenant(tenant, update_attrs) do
-      {:ok, updated_tenant} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{data: serialize_tenant(updated_tenant)})
+      # Only allow updating name and settings
+      update_attrs = Map.take(params, ["name", "settings"])
 
-      {:error, changeset} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: format_changeset_errors(changeset)})
+      case Tenants.update_tenant(tenant, update_attrs) do
+        {:ok, updated_tenant} ->
+          conn
+          |> put_status(:ok)
+          |> json(%{data: serialize_tenant(updated_tenant)})
+
+        {:error, changeset} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: format_changeset_errors(changeset)})
+      end
     end
   end
 
@@ -105,24 +123,43 @@ defmodule QueryServiceExWeb.TenantController do
   GET /api/tenant/usage
   """
   def usage(conn, _params) do
-    user = Guardian.Plug.current_resource(conn)
-    tenant = Tenants.get_tenant!(user.tenant_id)
-    usage_stats = Tenants.get_usage_stats(user.tenant_id)
+    if DevMode.auth_disabled?() do
+      tenant = conn.assigns[:current_tenant] || DevMode.dev_tenant()
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      data: %{
-        tenant_id: tenant.id,
-        subscription_tier: tenant.subscription_tier,
-        subscription_status: tenant.subscription_status,
-        events: usage_stats.events,
-        queries: usage_stats.queries,
-        billing_period: %{
-          reset_at: usage_stats.reset_at
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        data: %{
+          tenant_id: tenant.id,
+          subscription_tier: tenant.subscription_tier,
+          subscription_status: tenant.subscription_status,
+          events: %{used: 0, quota: -1, remaining: -1},
+          queries: %{used: 0, quota: -1, remaining: -1},
+          billing_period: %{
+            reset_at: nil
+          }
         }
-      }
-    })
+      })
+    else
+      user = Guardian.Plug.current_resource(conn)
+      tenant = Tenants.get_tenant!(user.tenant_id)
+      usage_stats = Tenants.get_usage_stats(user.tenant_id)
+
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        data: %{
+          tenant_id: tenant.id,
+          subscription_tier: tenant.subscription_tier,
+          subscription_status: tenant.subscription_status,
+          events: usage_stats.events,
+          queries: usage_stats.queries,
+          billing_period: %{
+            reset_at: usage_stats.reset_at
+          }
+        }
+      })
+    end
   end
 
   # -------------------------------------------------------------------

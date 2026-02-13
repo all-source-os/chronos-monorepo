@@ -19,9 +19,13 @@
 //! cargo test --test seven_day_stress short_stress -- --nocapture
 //! ```
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 /// Stress test configuration
 #[derive(Debug, Clone)]

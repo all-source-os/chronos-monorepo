@@ -1,24 +1,27 @@
 // Fork HTTP handlers - delegate to fork use cases
 // Clean Architecture: Infrastructure Layer (HTTP) -> Application Layer (Use Cases)
 
-use crate::application::dto::{
-    AppendForkEventRequest, AppendForkEventResponse, BranchForkRequest, BranchForkResponse,
-    CleanupExpiredForksRequest, CleanupExpiredForksResponse, CreateForkRequest, CreateForkResponse,
-    DiscardForkRequest, DiscardForkResponse, ForkDto, ListForksRequest, ListForksResponse,
-    MergeForkRequest, MergeForkResponse, QueryForkEventsRequest, QueryForkEventsResponse,
-    UpdateForkRequest, UpdateForkResponse,
+use crate::{
+    application::{
+        dto::{
+            AppendForkEventRequest, AppendForkEventResponse, BranchForkRequest, BranchForkResponse,
+            CleanupExpiredForksRequest, CleanupExpiredForksResponse, CreateForkRequest,
+            CreateForkResponse, DiscardForkRequest, DiscardForkResponse, ForkDto, ListForksRequest,
+            ListForksResponse, MergeForkRequest, MergeForkResponse, QueryForkEventsRequest,
+            QueryForkEventsResponse, UpdateForkRequest, UpdateForkResponse,
+        },
+        use_cases::{
+            AppendForkEventUseCase, BranchForkUseCase, CleanupExpiredForksUseCase,
+            CreateForkUseCase, DiscardForkUseCase, GetForkUseCase, ListForksUseCase,
+            MergeForkUseCase, QueryForkEventsUseCase, UpdateForkUseCase,
+        },
+    },
+    domain::{repositories::ForkRepository, value_objects::ForkId},
+    error::Result,
 };
-use crate::application::use_cases::{
-    AppendForkEventUseCase, BranchForkUseCase, CleanupExpiredForksUseCase, CreateForkUseCase,
-    DiscardForkUseCase, GetForkUseCase, ListForksUseCase, MergeForkUseCase, QueryForkEventsUseCase,
-    UpdateForkUseCase,
-};
-use crate::domain::repositories::ForkRepository;
-use crate::domain::value_objects::ForkId;
-use crate::error::Result;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use std::sync::Arc;

@@ -1,6 +1,10 @@
-use crate::domain::entities::{AuditAction, AuditCategory, AuditEvent, AuditEventId};
-use crate::domain::value_objects::TenantId;
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{AuditAction, AuditCategory, AuditEvent, AuditEventId},
+        value_objects::TenantId,
+    },
+    error::Result,
+};
 /// Audit Event Repository Trait
 ///
 /// Defines the contract for persisting and querying audit events.

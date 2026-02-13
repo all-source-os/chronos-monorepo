@@ -31,6 +31,8 @@ defmodule QueryServiceExWeb.HealthController do
 
   require Logger
 
+  alias QueryServiceEx.DevMode
+  alias QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
   alias QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceExWeb.Schemas.Health
@@ -133,6 +135,7 @@ defmodule QueryServiceExWeb.HealthController do
       service: "query_service_ex",
       status: overall_status,
       checks: format_checks(checks),
+      core_nodes: CoreHealthChecker.node_health_states(),
       timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
       version: Application.spec(:query_service_ex, :vsn) |> to_string()
     }
@@ -148,13 +151,26 @@ defmodule QueryServiceExWeb.HealthController do
   # Private functions
 
   defp perform_readiness_checks do
-    # Run checks concurrently with timeouts
-    db_task = Task.async(fn -> {:database, check_database()} end)
+    # In standalone mode (no PostgreSQL), skip the database check entirely
+    db_result =
+      if DevMode.repo_available?() do
+        db_task = Task.async(fn -> {:database, check_database()} end)
+
+        db_timeout =
+          Application.get_env(
+            :query_service_ex,
+            :health_check_db_timeout_ms,
+            @default_db_timeout_ms
+          )
+
+        await_check(db_task, db_timeout, :database)
+      else
+        {:database, :healthy}
+      end
+
+    # Run remaining checks concurrently with timeouts
     backend_task = Task.async(fn -> {:backend, check_backend()} end)
     ws_task = Task.async(fn -> {:websocket, check_websocket()} end)
-
-    db_timeout =
-      Application.get_env(:query_service_ex, :health_check_db_timeout_ms, @default_db_timeout_ms)
 
     backend_timeout =
       Application.get_env(
@@ -163,10 +179,8 @@ defmodule QueryServiceExWeb.HealthController do
         @default_backend_timeout_ms
       )
 
-    # Collect results with timeouts
-    db_result = await_check(db_task, db_timeout, :database)
     backend_result = await_check(backend_task, backend_timeout, :backend)
-    ws_result = await_check(ws_task, db_timeout, :websocket)
+    ws_result = await_check(ws_task, @default_db_timeout_ms, :websocket)
 
     [db_result, backend_result, ws_result]
   end

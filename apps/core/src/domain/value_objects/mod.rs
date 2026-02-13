@@ -21,6 +21,7 @@ pub mod partition_key;
 pub mod projection_name;
 pub mod schema_subject;
 pub mod stream_name;
+pub mod system_stream;
 pub mod tenant_id;
 pub mod version;
 
@@ -41,6 +42,7 @@ pub use partition_key::PartitionKey;
 pub use projection_name::ProjectionName;
 pub use schema_subject::SchemaSubject;
 pub use stream_name::StreamName;
+pub use system_stream::SystemDomain;
 pub use tenant_id::TenantId;
 pub use version::Version;
 

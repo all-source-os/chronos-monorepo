@@ -1,5 +1,7 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::{Duration, Instant},
+};
 
 /// Lock-free metrics collector for high-performance monitoring
 ///
@@ -242,8 +244,7 @@ pub struct MetricsSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
-    use std::thread;
+    use std::{sync::Arc, thread};
 
     #[test]
     fn test_create_metrics() {

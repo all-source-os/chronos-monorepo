@@ -12,10 +12,14 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use std::sync::Arc;
 
-use crate::domain::entities::{AuditEvent, AuditEventId};
-use crate::domain::repositories::{AuditEventQuery, AuditEventRepository};
-use crate::domain::value_objects::TenantId;
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{AuditEvent, AuditEventId},
+        repositories::{AuditEventQuery, AuditEventRepository},
+        value_objects::TenantId,
+    },
+    error::Result,
+};
 use chrono::{DateTime, Utc};
 
 /// In-memory audit event repository
@@ -98,48 +102,48 @@ impl AuditEventRepository for InMemoryAuditRepository {
                 }
 
                 // Filter by time range
-                if let Some(start) = query.start_time {
-                    if event.timestamp() < &start {
-                        return false;
-                    }
+                if let Some(start) = query.start_time
+                    && event.timestamp() < &start
+                {
+                    return false;
                 }
-                if let Some(end) = query.end_time {
-                    if event.timestamp() > &end {
-                        return false;
-                    }
+                if let Some(end) = query.end_time
+                    && event.timestamp() > &end
+                {
+                    return false;
                 }
 
                 // Filter by action
-                if let Some(ref action) = query.action {
-                    if event.action() != action {
-                        return false;
-                    }
+                if let Some(ref action) = query.action
+                    && event.action() != action
+                {
+                    return false;
                 }
 
                 // Filter by category
-                if let Some(ref category) = query.category {
-                    if &event.category() != category {
-                        return false;
-                    }
+                if let Some(ref category) = query.category
+                    && &event.category() != category
+                {
+                    return false;
                 }
 
                 // Filter by actor
-                if let Some(ref actor_id) = query.actor_identifier {
-                    if event.actor().identifier() != *actor_id {
-                        return false;
-                    }
+                if let Some(ref actor_id) = query.actor_identifier
+                    && event.actor().identifier() != *actor_id
+                {
+                    return false;
                 }
 
                 // Filter by resource
-                if let Some(ref resource_type) = query.resource_type {
-                    if event.resource_type() != Some(resource_type.as_str()) {
-                        return false;
-                    }
+                if let Some(ref resource_type) = query.resource_type
+                    && event.resource_type() != Some(resource_type.as_str())
+                {
+                    return false;
                 }
-                if let Some(ref resource_id) = query.resource_id {
-                    if event.resource_id() != Some(resource_id.as_str()) {
-                        return false;
-                    }
+                if let Some(ref resource_id) = query.resource_id
+                    && event.resource_id() != Some(resource_id.as_str())
+                {
+                    return false;
                 }
 
                 // Filter security events
@@ -178,29 +182,29 @@ impl AuditEventRepository for InMemoryAuditRepository {
                 }
 
                 // Filter by time range
-                if let Some(start) = query.start_time {
-                    if event.timestamp() < &start {
-                        return false;
-                    }
+                if let Some(start) = query.start_time
+                    && event.timestamp() < &start
+                {
+                    return false;
                 }
-                if let Some(end) = query.end_time {
-                    if event.timestamp() > &end {
-                        return false;
-                    }
+                if let Some(end) = query.end_time
+                    && event.timestamp() > &end
+                {
+                    return false;
                 }
 
                 // Filter by action
-                if let Some(ref action) = query.action {
-                    if event.action() != action {
-                        return false;
-                    }
+                if let Some(ref action) = query.action
+                    && event.action() != action
+                {
+                    return false;
                 }
 
                 // Filter by category
-                if let Some(ref category) = query.category {
-                    if &event.category() != category {
-                        return false;
-                    }
+                if let Some(ref category) = query.category
+                    && &event.category() != category
+                {
+                    return false;
                 }
 
                 // Filter security events
@@ -275,8 +279,10 @@ impl AuditEventRepository for InMemoryAuditRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::{Actor, AuditAction, AuditOutcome};
-    use crate::domain::value_objects::TenantId;
+    use crate::domain::{
+        entities::{Actor, AuditAction, AuditOutcome},
+        value_objects::TenantId,
+    };
 
     fn create_test_event(tenant_id: TenantId, action: AuditAction, actor_name: &str) -> AuditEvent {
         let actor = Actor::user(format!("user-{}", actor_name), actor_name.to_string());
@@ -429,9 +435,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(results.len(), 2);
-        assert!(results
-            .iter()
-            .all(|e| e.actor().identifier() == "user:user-john"));
+        assert!(
+            results
+                .iter()
+                .all(|e| e.actor().identifier() == "user:user-john")
+        );
     }
 
     #[tokio::test]

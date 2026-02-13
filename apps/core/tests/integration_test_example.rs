@@ -6,12 +6,12 @@
 /// - Rate limiting
 /// - Event ingestion with auth
 use allsource_core::{
+    QueryEventsRequest,
     auth::{AuthManager, Permission, Role},
     domain::entities::Event,
     rate_limit::{RateLimitConfig, RateLimiter},
     store::EventStore,
     tenant::{TenantManager, TenantQuotas},
-    QueryEventsRequest,
 };
 use std::sync::Arc;
 

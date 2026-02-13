@@ -1,16 +1,17 @@
-# Shared rustfmt configuration for all Rust projects
+# Shared rustfmt configuration for all workspace crates
 # Uses only stable rustfmt options for CI compatibility
 
-edition = "2021"
+edition = "2024"
 max_width = 100
 hard_tabs = false
 tab_spaces = 4
 newline_style = "Unix"
 use_small_heuristics = "Default"
 
-# Import organization (stable)
+# Import organization
 reorder_imports = true
 reorder_modules = true
+imports_granularity = "Crate"
 
-# Formatting (stable)
+# Formatting
 remove_nested_parens = true

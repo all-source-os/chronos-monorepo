@@ -1,6 +1,8 @@
-use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
-use crate::store::EventStore;
+use crate::{
+    domain::entities::Event,
+    error::{AllSourceError, Result},
+    store::EventStore,
+};
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -305,7 +307,7 @@ impl AnalyticsEngine {
                     event_types: HashMap::new(),
                 });
             }
-            current = current + window.duration();
+            current += window.duration();
         }
 
         filled

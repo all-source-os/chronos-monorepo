@@ -1,5 +1,7 @@
-use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
+use crate::{
+    domain::entities::Event,
+    error::{AllSourceError, Result},
+};
 use crossbeam::queue::ArrayQueue;
 use std::sync::Arc;
 
@@ -121,8 +123,10 @@ impl LockFreeEventQueue {
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::thread;
+    use std::{
+        sync::atomic::{AtomicUsize, Ordering},
+        thread,
+    };
 
     fn create_test_event(id: u32) -> Event {
         Event::from_strings(

@@ -98,7 +98,7 @@ flowchart TB
 ```
 
 **Key Problems:**
-- **3 separate user stores** that never sync (red boxes = in-memory, lost on restart)
+- **3 separate user/tenant stores** that never sync (Core and Control Plane user/tenant metadata is in-memory, lost on restart — note: this refers to user/tenant data only, NOT event storage which is durable via WAL + Parquet)
 - **Email/password login is broken** — frontend forms exist, backend only handles OAuth
 - Core and Control Plane each maintain their own JWT signing with different secrets
 - No cross-service token validation possible
@@ -148,7 +148,7 @@ flowchart TB
 ```
 
 **Key Problems:**
-- **Query Service PostgreSQL** is the only persistent tenant store (green) — source of truth for billing
+- **Query Service PostgreSQL** is the only persistent user/tenant store (green) — source of truth for billing and auth
 - **Core has its own in-memory tenant store** (red) — not synced with Query Service
 - **Control Plane has its own tenant entity** (red) — not synced
 - When Query Service forwards events to Core, tenant_id is passed as a parameter but Core doesn't validate it against Query Service's tenant store
@@ -479,7 +479,7 @@ flowchart LR
 | Risk | Severity | Current Impact | Mitigation |
 |---|---|---|---|
 | Auth store divergence | **High** | Users can't log in with email/password | Phase 1: Better Auth |
-| In-memory data loss | **High** | Core/CP restart = lost users, tenants, API keys | Phase 2: Remove in-memory stores |
+| In-memory user/tenant metadata | **High** | Core/CP restart = lost user/tenant metadata (event data is durable via WAL) | Phase 2: Remove in-memory user/tenant stores |
 | No cross-service auth | **Medium** | Can't validate tokens across services | Phase 1: JWKS |
 | Tenant isolation gap | **Medium** | MCP bypasses quotas hitting Core directly | Phase 4: Route through QS |
 | Control Plane rot | **Low** | Unused code accumulates tech debt | Phase 3: Remove |

@@ -33,9 +33,14 @@ use crate::application::use_cases::{
     UpdateForkUseCase,
     ValidateTokenUseCase,
 };
-use crate::domain::repositories::{
-    AccessTokenRepository, ArticleRepository, CreatorRepository, EventStreamRepository,
-    ForkRepository, TransactionRepository,
+use crate::{
+    domain::repositories::{
+        AccessTokenRepository, ArticleRepository, AuditEventRepository, CreatorRepository,
+        EventStreamRepository, ForkRepository, TenantRepository, TransactionRepository,
+    },
+    infrastructure::{
+        persistence::SystemMetadataStore, repositories::EventSourcedConfigRepository,
+    },
 };
 use std::sync::Arc;
 
@@ -85,6 +90,12 @@ pub struct ServiceContainer {
     fork_repository: Arc<dyn ForkRepository>,
     // Core event sourcing repository
     event_stream_repository: Arc<dyn EventStreamRepository>,
+
+    // System metadata repositories (event-sourced, optional for backward compatibility)
+    pub(super) tenant_repository: Option<Arc<dyn TenantRepository>>,
+    pub(super) audit_repository: Option<Arc<dyn AuditEventRepository>>,
+    pub(super) config_repository: Option<Arc<EventSourcedConfigRepository>>,
+    pub(super) system_store: Option<Arc<SystemMetadataStore>>,
 }
 
 impl ServiceContainer {
@@ -106,6 +117,10 @@ impl ServiceContainer {
             access_token_repository,
             fork_repository,
             event_stream_repository,
+            tenant_repository: None,
+            audit_repository: None,
+            config_repository: None,
+            system_store: None,
         }
     }
 
@@ -141,6 +156,43 @@ impl ServiceContainer {
     /// Returns the event stream repository instance.
     pub fn event_stream_repository(&self) -> Arc<dyn EventStreamRepository> {
         self.event_stream_repository.clone()
+    }
+
+    // =========================================================================
+    // System Metadata Repository Accessors
+    // =========================================================================
+
+    /// Returns the event-sourced tenant repository, if configured.
+    ///
+    /// Returns `None` when system metadata is not configured (in-memory mode).
+    pub fn tenant_repository(&self) -> Option<Arc<dyn TenantRepository>> {
+        self.tenant_repository.clone()
+    }
+
+    /// Returns the event-sourced audit repository, if configured.
+    ///
+    /// Returns `None` when system metadata is not configured (in-memory mode).
+    pub fn audit_repository(&self) -> Option<Arc<dyn AuditEventRepository>> {
+        self.audit_repository.clone()
+    }
+
+    /// Returns the event-sourced config repository, if configured.
+    ///
+    /// Returns `None` when system metadata is not configured (in-memory mode).
+    pub fn config_repository(&self) -> Option<Arc<EventSourcedConfigRepository>> {
+        self.config_repository.clone()
+    }
+
+    /// Returns the system metadata store, if configured.
+    ///
+    /// Returns `None` when system metadata is not configured (in-memory mode).
+    pub fn system_store(&self) -> Option<Arc<SystemMetadataStore>> {
+        self.system_store.clone()
+    }
+
+    /// Returns true if event-sourced system repositories are configured.
+    pub fn has_system_repositories(&self) -> bool {
+        self.system_store.is_some()
     }
 
     // =========================================================================
@@ -305,6 +357,14 @@ impl std::fmt::Debug for ServiceContainer {
             .field("access_token_repository", &"Arc<dyn AccessTokenRepository>")
             .field("fork_repository", &"Arc<dyn ForkRepository>")
             .field("event_stream_repository", &"Arc<dyn EventStreamRepository>")
+            .field(
+                "system_repositories",
+                &if self.has_system_repositories() {
+                    "event-sourced"
+                } else {
+                    "not configured"
+                },
+            )
             .finish()
     }
 }

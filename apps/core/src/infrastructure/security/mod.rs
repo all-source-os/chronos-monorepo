@@ -10,7 +10,7 @@ pub mod rate_limit;
 pub use auth::{ApiKey, AuthManager, Claims, Permission, Role, User};
 pub use ip_filter::{FilterAction, FilterResult, IpFilter, IpFilterStats};
 pub use middleware::{
-    auth_middleware, rate_limit_middleware, Admin, AuthContext, AuthState, Authenticated,
-    OptionalAuth, RateLimitState, RequestId, SecurityConfig, TenantContext,
+    Admin, AuthContext, AuthState, Authenticated, OptionalAuth, RateLimitState, RequestId,
+    SecurityConfig, TenantContext, auth_middleware, rate_limit_middleware,
 };
 pub use rate_limit::{RateLimitResult, RateLimiter};

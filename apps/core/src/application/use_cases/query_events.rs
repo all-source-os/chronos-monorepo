@@ -1,6 +1,8 @@
-use crate::application::dto::{EventDto, QueryEventsRequest, QueryEventsResponse};
-use crate::domain::repositories::EventRepository;
-use crate::error::Result;
+use crate::{
+    application::dto::{EventDto, QueryEventsRequest, QueryEventsResponse},
+    domain::repositories::EventRepository,
+    error::Result,
+};
 use std::sync::Arc;
 
 /// Use Case: Query Events

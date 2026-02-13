@@ -1,13 +1,16 @@
-use crate::application::dto::QueryEventsRequest;
-use crate::application::services::projection::Projection;
-use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
-use crate::store::EventStore;
+use crate::{
+    application::{dto::QueryEventsRequest, services::projection::Projection},
+    domain::entities::Event,
+    error::{AllSourceError, Result},
+    store::EventStore,
+};
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+};
 use uuid::Uuid;
 
 /// Status of a replay operation
@@ -265,10 +268,10 @@ impl ReplayManager {
             // Check if cancelled
             {
                 let replays_lock = replays.read();
-                if let Some(state) = replays_lock.get(replay_idx) {
-                    if state.cancelled.load(Ordering::Relaxed) {
-                        return Ok(());
-                    }
+                if let Some(state) = replays_lock.get(replay_idx)
+                    && state.cancelled.load(Ordering::Relaxed)
+                {
+                    return Ok(());
                 }
             }
 

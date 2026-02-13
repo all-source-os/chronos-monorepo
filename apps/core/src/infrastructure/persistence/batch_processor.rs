@@ -10,15 +10,23 @@
 //! - Sub-millisecond p99 latency
 //! - Linear scalability with CPU cores
 
-use crate::domain::entities::Event;
-use crate::error::Result;
-use crate::infrastructure::persistence::lock_free::{LockFreeMetrics, ShardedEventQueue};
-use crate::infrastructure::persistence::simd_json::{SimdJsonParser, SimdJsonStats};
+use crate::{
+    domain::entities::Event,
+    error::Result,
+    infrastructure::persistence::{
+        lock_free::{LockFreeMetrics, ShardedEventQueue},
+        simd_json::{SimdJsonParser, SimdJsonStats},
+    },
+};
 use bumpalo::Bump;
 use serde::Deserialize;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 /// Configuration for batch processor
 #[derive(Debug, Clone)]

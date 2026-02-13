@@ -1,6 +1,10 @@
-use crate::domain::entities::{ArticleStatus, PaywallArticle};
-use crate::domain::value_objects::{ArticleId, CreatorId, TenantId};
-use crate::error::Result;
+use crate::{
+    domain::{
+        entities::{ArticleStatus, PaywallArticle},
+        value_objects::{ArticleId, CreatorId, TenantId},
+    },
+    error::Result,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
@@ -194,9 +198,10 @@ pub struct ArticleQuery {
 }
 
 /// Ordering options for article queries
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ArticleOrderBy {
     /// Order by creation date (newest first)
+    #[default]
     CreatedAtDesc,
     /// Order by creation date (oldest first)
     CreatedAtAsc,
@@ -212,12 +217,6 @@ pub enum ArticleOrderBy {
     PriceAsc,
     /// Order by title alphabetically
     TitleAsc,
-}
-
-impl Default for ArticleOrderBy {
-    fn default() -> Self {
-        Self::CreatedAtDesc
-    }
 }
 
 impl ArticleQuery {

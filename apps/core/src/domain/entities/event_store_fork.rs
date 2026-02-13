@@ -1,14 +1,19 @@
-use crate::domain::entities::Event;
-use crate::domain::value_objects::{EntityId, ForkId, TenantId};
-use crate::error::{AllSourceError, Result};
+use crate::{
+    domain::{
+        entities::Event,
+        value_objects::{EntityId, ForkId, TenantId},
+    },
+    error::{AllSourceError, Result},
+};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Fork status indicating the lifecycle stage
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ForkStatus {
     /// Fork is active and can receive events
+    #[default]
     Active,
     /// Fork has been merged into parent
     Merged,
@@ -18,27 +23,16 @@ pub enum ForkStatus {
     Expired,
 }
 
-impl Default for ForkStatus {
-    fn default() -> Self {
-        Self::Active
-    }
-}
-
 /// Fork isolation level determining what's shared with parent
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ForkIsolationLevel {
     /// Fork sees parent events but cannot modify them
+    #[default]
     ReadParent,
     /// Fork has complete isolation, no parent visibility
     Complete,
     /// Fork can see parent events added after fork creation
     LiveParent,
-}
-
-impl Default for ForkIsolationLevel {
-    fn default() -> Self {
-        Self::ReadParent
-    }
 }
 
 /// Domain Entity: EventStoreFork

@@ -4,28 +4,22 @@ use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 /// Compatibility mode for schema evolution
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CompatibilityMode {
     /// No compatibility checking
     None,
     /// New schema must be backward compatible (new fields optional)
+    #[default]
     Backward,
     /// New schema must be forward compatible (old fields preserved)
     Forward,
     /// New schema must be both backward and forward compatible
     Full,
-}
-
-impl Default for CompatibilityMode {
-    fn default() -> Self {
-        Self::Backward
-    }
 }
 
 /// Schema definition with versioning
@@ -194,18 +188,18 @@ impl SchemaRegistry {
         // Check compatibility with previous version if it exists
         if next_version > 1 {
             let prev_version = next_version - 1;
-            if let Some(subject_schemas) = self.schemas.get(&subject) {
-                if let Some(prev_schema) = subject_schemas.get(&prev_version) {
-                    let compatibility = self.get_compatibility_mode(&subject);
-                    let check_result =
-                        self.check_compatibility(&prev_schema.schema, &schema, compatibility)?;
+            if let Some(subject_schemas) = self.schemas.get(&subject)
+                && let Some(prev_schema) = subject_schemas.get(&prev_version)
+            {
+                let compatibility = self.get_compatibility_mode(&subject);
+                let check_result =
+                    self.check_compatibility(&prev_schema.schema, &schema, compatibility)?;
 
-                    if !check_result.compatible {
-                        return Err(AllSourceError::ValidationError(format!(
-                            "Schema compatibility check failed: {}",
-                            check_result.issues.join(", ")
-                        )));
-                    }
+                if !check_result.compatible {
+                    return Err(AllSourceError::ValidationError(format!(
+                        "Schema compatibility check failed: {}",
+                        check_result.issues.join(", ")
+                    )));
                 }
             }
         }
@@ -297,7 +291,7 @@ impl SchemaRegistry {
     ) -> Result<ValidateEventResponse> {
         let schema = self.get_schema(subject, version)?;
 
-        let validation_result = self.validate_json(payload, &schema.schema);
+        let validation_result = Self::validate_json(payload, &schema.schema);
 
         // Update stats
         let mut stats = self.stats.write();
@@ -314,21 +308,21 @@ impl SchemaRegistry {
     }
 
     /// Internal JSON Schema validation
-    fn validate_json(&self, data: &JsonValue, schema: &JsonValue) -> Vec<String> {
+    fn validate_json(data: &JsonValue, schema: &JsonValue) -> Vec<String> {
         let mut errors = Vec::new();
 
         // Basic JSON Schema validation
         // In production, use jsonschema crate, but implementing basic checks here
 
         // Check required fields
-        if let Some(required) = schema.get("required").and_then(|r| r.as_array()) {
-            if let Some(obj) = data.as_object() {
-                for req_field in required {
-                    if let Some(field_name) = req_field.as_str() {
-                        if !obj.contains_key(field_name) {
-                            errors.push(format!("Missing required field: {field_name}"));
-                        }
-                    }
+        if let Some(required) = schema.get("required").and_then(|r| r.as_array())
+            && let Some(obj) = data.as_object()
+        {
+            for req_field in required {
+                if let Some(field_name) = req_field.as_str()
+                    && !obj.contains_key(field_name)
+                {
+                    errors.push(format!("Missing required field: {field_name}"));
                 }
             }
         }
@@ -359,7 +353,7 @@ impl SchemaRegistry {
         ) {
             for (key, value) in data_obj {
                 if let Some(prop_schema) = properties.get(key) {
-                    let nested_errors = self.validate_json(value, prop_schema);
+                    let nested_errors = Self::validate_json(value, prop_schema);
                     for err in nested_errors {
                         errors.push(format!("{key}.{err}"));
                     }
@@ -425,13 +419,13 @@ impl SchemaRegistry {
                 .unwrap_or_default();
 
             for old_req in old_required {
-                if let Some(field_name) = old_req.as_str() {
-                    if !new_required.contains(&field_name) {
-                        issues.push(format!(
-                            "Backward compatibility: required field '{}' removed",
-                            field_name
-                        ));
-                    }
+                if let Some(field_name) = old_req.as_str()
+                    && !new_required.contains(&field_name)
+                {
+                    issues.push(format!(
+                        "Backward compatibility: required field '{}' removed",
+                        field_name
+                    ));
                 }
             }
         }
@@ -455,13 +449,13 @@ impl SchemaRegistry {
                 .unwrap_or_default();
 
             for new_req in new_required {
-                if let Some(field_name) = new_req.as_str() {
-                    if !old_required.contains(&field_name) {
-                        issues.push(format!(
-                            "Forward compatibility: new required field '{}' added",
-                            field_name
-                        ));
-                    }
+                if let Some(field_name) = new_req.as_str()
+                    && !old_required.contains(&field_name)
+                {
+                    issues.push(format!(
+                        "Forward compatibility: new required field '{}' added",
+                        field_name
+                    ));
                 }
             }
         }
@@ -484,16 +478,16 @@ impl SchemaRegistry {
 
     /// Delete a specific schema version
     pub fn delete_schema(&self, subject: &str, version: u32) -> Result<bool> {
-        if let Some(mut subject_schemas) = self.schemas.get_mut(subject) {
-            if subject_schemas.remove(&version).is_some() {
-                tracing::info!("🗑️  Deleted schema v{} for subject '{}'", version, subject);
+        if let Some(mut subject_schemas) = self.schemas.get_mut(subject)
+            && subject_schemas.remove(&version).is_some()
+        {
+            tracing::info!("🗑️  Deleted schema v{} for subject '{}'", version, subject);
 
-                // Update stats
-                let mut stats = self.stats.write();
-                stats.total_schemas = stats.total_schemas.saturating_sub(1);
+            // Update stats
+            let mut stats = self.stats.write();
+            stats.total_schemas = stats.total_schemas.saturating_sub(1);
 
-                return Ok(true);
-            }
+            return Ok(true);
         }
 
         Ok(false)

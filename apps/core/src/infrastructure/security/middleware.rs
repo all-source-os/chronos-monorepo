@@ -1,6 +1,10 @@
-use crate::error::AllSourceError;
-use crate::infrastructure::security::auth::{AuthManager, Claims, Permission, Role};
-use crate::infrastructure::security::rate_limit::RateLimiter;
+use crate::{
+    error::AllSourceError,
+    infrastructure::security::{
+        auth::{AuthManager, Claims, Permission, Role},
+        rate_limit::RateLimiter,
+    },
+};
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode},
@@ -9,13 +13,27 @@ use axum::{
 };
 use std::sync::{Arc, LazyLock};
 
-/// Paths that bypass authentication
+/// Paths that bypass authentication (exact match)
 pub const AUTH_SKIP_PATHS: &[&str] = &[
     "/health",
     "/metrics",
     "/api/v1/auth/register",
     "/api/v1/auth/login",
 ];
+
+/// Path prefixes that bypass authentication and rate limiting.
+///
+/// Internal endpoints are used by the sentinel process for automated failover
+/// (promote, repoint). They must not require API keys or be rate-limited,
+/// otherwise failover can timeout or fail when credentials are unavailable.
+pub const AUTH_SKIP_PREFIXES: &[&str] = &["/internal/"];
+
+/// Check if a path should skip authentication and rate limiting.
+#[inline]
+pub fn should_skip_auth(path: &str) -> bool {
+    AUTH_SKIP_PATHS.contains(&path)
+        || AUTH_SKIP_PREFIXES.iter().any(|pfx| path.starts_with(pfx))
+}
 
 /// Check if development mode is enabled via environment variable.
 /// When enabled, authentication and rate limiting are bypassed for local development.
@@ -127,9 +145,9 @@ pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, AuthError> {
-    // Skip authentication for public paths
+    // Skip authentication for public and internal paths
     let path = request.uri().path();
-    if AUTH_SKIP_PATHS.contains(&path) {
+    if should_skip_auth(path) {
         return Ok(next.run(request).await);
     }
 
@@ -280,9 +298,9 @@ pub async fn rate_limit_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, RateLimitError> {
-    // Skip rate limiting for public paths
+    // Skip rate limiting for public and internal paths
     let path = request.uri().path();
-    if AUTH_SKIP_PATHS.contains(&path) {
+    if should_skip_auth(path) {
         return Ok(next.run(request).await);
     }
 
@@ -375,9 +393,7 @@ macro_rules! require_permission {
 // Tenant Isolation Middleware (Phase 5B)
 // ============================================================================
 
-use crate::domain::entities::Tenant;
-use crate::domain::repositories::TenantRepository;
-use crate::domain::value_objects::TenantId;
+use crate::domain::{entities::Tenant, repositories::TenantRepository, value_objects::TenantId};
 
 /// Tenant isolation state for middleware
 #[derive(Clone)]
@@ -1021,14 +1037,20 @@ mod tests {
     #[test]
     fn test_auth_skip_paths_contains_expected() {
         // Verify public paths are configured for auth/rate-limit skipping
-        assert!(AUTH_SKIP_PATHS.contains(&"/health"));
-        assert!(AUTH_SKIP_PATHS.contains(&"/metrics"));
-        assert!(AUTH_SKIP_PATHS.contains(&"/api/v1/auth/register"));
-        assert!(AUTH_SKIP_PATHS.contains(&"/api/v1/auth/login"));
+        assert!(should_skip_auth("/health"));
+        assert!(should_skip_auth("/metrics"));
+        assert!(should_skip_auth("/api/v1/auth/register"));
+        assert!(should_skip_auth("/api/v1/auth/login"));
+
+        // Verify internal endpoints bypass auth (sentinel failover)
+        assert!(should_skip_auth("/internal/promote"));
+        assert!(should_skip_auth("/internal/repoint"));
+        assert!(should_skip_auth("/internal/anything"));
 
         // Verify protected paths are NOT in skip list
-        assert!(!AUTH_SKIP_PATHS.contains(&"/api/v1/events"));
-        assert!(!AUTH_SKIP_PATHS.contains(&"/api/v1/auth/me"));
+        assert!(!should_skip_auth("/api/v1/events"));
+        assert!(!should_skip_auth("/api/v1/auth/me"));
+        assert!(!should_skip_auth("/api/v1/tenants"));
     }
 
     #[test]

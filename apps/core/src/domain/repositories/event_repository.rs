@@ -1,5 +1,4 @@
-use crate::domain::entities::Event;
-use crate::error::Result;
+use crate::{domain::entities::Event, error::Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;

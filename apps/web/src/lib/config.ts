@@ -45,7 +45,7 @@ export const siteConfig = {
           {
             href: "#",
             title: "AI-Native Tools",
-            description: "27 MCP tools for Claude Desktop integration.",
+            description: "43 MCP tools for Claude Desktop integration.",
           },
           {
             href: "/solutions/quant-intelligence",
@@ -171,7 +171,7 @@ export const siteConfig = {
     {
       question: "What is the MCP Server integration?",
       answer:
-        "AllSource includes a 27-tool MCP (Model Context Protocol) Server that integrates directly with Claude Desktop. This allows AI agents to manage events, run analytics, detect anomalies, and perform complex operations autonomously - making it truly AI-native from the ground up.",
+        "AllSource includes a 43-tool MCP (Model Context Protocol) Server that integrates directly with Claude Desktop. This allows AI agents to manage events, run analytics, detect anomalies, manage backups, monitor health, and perform complex operations autonomously - making it truly AI-native from the ground up.",
     },
     {
       question: "How secure is my data?",
@@ -213,9 +213,9 @@ export const siteConfig = {
       title: "Company",
       links: [
         { href: "#", text: "About", icon: null },
-        { href: "#", text: "Blog", icon: null },
-        { href: "#", text: "Careers", icon: null },
-        { href: "#", text: "Contact", icon: null },
+        { href: "/blog", text: "Blog", icon: null },
+        { href: "/privacy", text: "Privacy Policy", icon: null },
+        { href: "/terms", text: "Terms of Service", icon: null },
       ],
     },
     {

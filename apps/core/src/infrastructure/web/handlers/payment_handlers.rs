@@ -1,24 +1,30 @@
 // Payment HTTP handlers - delegate to PaymentCoordinator
 // Clean Architecture: Infrastructure Layer (HTTP) -> Application Layer (Coordinator)
 
-use crate::application::dto::{
-    AccessTokenDto, BlockchainDto, CheckAccessRequest, CheckAccessResponse,
-    ConfirmTransactionRequest, ConfirmTransactionResponse, GrantAccessResponse,
-    GrantFreeAccessRequest, InitiatePaymentRequest, InitiatePaymentResponse,
-    ListAccessTokensResponse, ListTransactionsResponse, RefundTransactionRequest,
-    RefundTransactionResponse, TransactionDto,
+use crate::{
+    application::{
+        dto::{
+            AccessTokenDto, BlockchainDto, CheckAccessRequest, CheckAccessResponse,
+            ConfirmTransactionRequest, ConfirmTransactionResponse, GrantAccessResponse,
+            GrantFreeAccessRequest, InitiatePaymentRequest, InitiatePaymentResponse,
+            ListAccessTokensResponse, ListTransactionsResponse, RefundTransactionRequest,
+            RefundTransactionResponse, TransactionDto,
+        },
+        services::PaymentCoordinator,
+        use_cases::{ListTransactionsUseCase, RefundTransactionUseCase},
+    },
+    domain::{
+        entities::AccessToken,
+        repositories::{
+            AccessTokenRepository, ArticleRepository, CreatorRepository, TransactionRepository,
+        },
+        value_objects::{ArticleId, TransactionId, WalletAddress},
+    },
+    error::Result,
 };
-use crate::application::services::PaymentCoordinator;
-use crate::application::use_cases::{ListTransactionsUseCase, RefundTransactionUseCase};
-use crate::domain::entities::AccessToken;
-use crate::domain::repositories::{
-    AccessTokenRepository, ArticleRepository, CreatorRepository, TransactionRepository,
-};
-use crate::domain::value_objects::{ArticleId, TransactionId, WalletAddress};
-use crate::error::Result;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

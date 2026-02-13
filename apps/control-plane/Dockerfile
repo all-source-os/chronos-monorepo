@@ -6,7 +6,7 @@
 # No shell, no package manager, no unnecessary utilities
 # =============================================================================
 
-ARG GO_VERSION=1.24.13
+ARG GO_VERSION=1.25.6
 
 # =============================================================================
 # Stage 1: Build
@@ -72,6 +72,9 @@ WORKDIR /app
 # Copy binary from builder
 # distroless:nonroot runs as UID 65534 by default
 COPY --from=builder /app/control-plane /app/control-plane
+
+# Copy migration files for database setup on startup
+COPY --from=builder /app/internal/infrastructure/database/migrations /app/migrations
 
 # Expose metrics and API port
 EXPOSE 8080

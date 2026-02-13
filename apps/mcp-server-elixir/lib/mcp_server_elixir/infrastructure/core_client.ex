@@ -175,4 +175,332 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
         {:error, reason}
     end
   end
+
+  # ============================================================================
+  # Operational Endpoints
+  # ============================================================================
+
+  @doc "Trigger manual storage compaction"
+  def compact_storage(_client, params \\ %{}) do
+    case post("/api/v1/ops/compact", params) do
+      {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 202] ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get storage statistics and disk usage analytics"
+  def storage_stats(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/ops/storage/stats", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get partition health and distribution info"
+  def partition_info(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/ops/partitions", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get WAL statistics and lag information"
+  def wal_status(_client) do
+    case get("/api/v1/ops/wal/status") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Create a backup snapshot"
+  def backup_create(_client, params \\ %{}) do
+    case post("/api/v1/ops/backups", params) do
+      {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 201, 202] ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Restore from a backup snapshot"
+  def backup_restore(_client, params) do
+    case post("/api/v1/ops/backups/restore", params) do
+      {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 202] ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "List available backup snapshots"
+  def backup_list(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/ops/backups", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Deep health check across all components"
+  def health_deep(_client) do
+    case get("/api/v1/ops/health/deep") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get performance metrics summary"
+  def performance_report(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/ops/performance", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Query the audit trail"
+  def audit_log(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/ops/audit", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # ============================================================================
+  # Schema Endpoints
+  # ============================================================================
+
+  @doc "Register a new event type schema"
+  def register_schema(_client, params) when is_map(params) do
+    case post("/api/v1/schemas", params) do
+      {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 201] ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Validate an event payload against a registered schema"
+  def validate_schema(_client, params) when is_map(params) do
+    case post("/api/v1/schemas/validate", params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "List all registered schema subjects"
+  def list_schemas(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/schemas", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get a specific schema by subject and optional version"
+  def get_schema(_client, subject, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/schemas/#{subject}", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "List schema versions for a subject"
+  def list_schema_versions(_client, subject) do
+    case get("/api/v1/schemas/#{subject}/versions") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Set compatibility mode for a schema subject"
+  def set_compatibility(_client, subject, params) when is_map(params) do
+    case put("/api/v1/schemas/#{subject}/compatibility", params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # ============================================================================
+  # Analytics Endpoints
+  # ============================================================================
+
+  @doc "Get event frequency analytics"
+  def analytics_frequency(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/analytics/frequency", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get analytics summary statistics"
+  def analytics_summary(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/analytics/summary", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get correlation analysis between event types"
+  def analytics_correlation(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case get("/api/v1/analytics/correlation", query: query_params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 end

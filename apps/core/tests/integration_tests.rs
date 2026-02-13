@@ -1,8 +1,8 @@
 use allsource_core::{
+    QueryEventsRequest,
     domain::entities::Event,
     infrastructure::persistence::{CompactionConfig, SnapshotConfig, SnapshotType, WALConfig},
     store::{EventStore, EventStoreConfig},
-    QueryEventsRequest,
 };
 use chrono::Utc;
 use serde_json::json;
@@ -481,9 +481,11 @@ fn test_full_production_config() {
 
     // Snapshot should exist
     let snapshot_manager = store.snapshot_manager();
-    assert!(snapshot_manager
-        .get_latest_snapshot("production-entity")
-        .is_some());
+    assert!(
+        snapshot_manager
+            .get_latest_snapshot("production-entity")
+            .is_some()
+    );
 
     // Flush storage
     store.flush_storage().unwrap();

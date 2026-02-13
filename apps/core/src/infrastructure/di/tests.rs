@@ -141,3 +141,40 @@ fn test_container_send_sync() {
     fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<ServiceContainer>();
 }
+
+#[test]
+fn test_container_without_system_repos() {
+    let container = ContainerBuilder::new()
+        .with_in_memory_repositories()
+        .build();
+
+    assert!(!container.has_system_repositories());
+    assert!(container.tenant_repository().is_none());
+    assert!(container.audit_repository().is_none());
+    assert!(container.config_repository().is_none());
+    assert!(container.system_store().is_none());
+}
+
+#[tokio::test]
+async fn test_container_with_system_repos() {
+    use crate::infrastructure::persistence::SystemBootstrap;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let system_dir = temp_dir.path().join("__system");
+
+    let repos = SystemBootstrap::initialize(system_dir, Some("test-tenant".to_string()))
+        .await
+        .unwrap();
+
+    let container = ContainerBuilder::new()
+        .with_in_memory_repositories()
+        .with_system_repositories(repos)
+        .build();
+
+    assert!(container.has_system_repositories());
+    assert!(container.tenant_repository().is_some());
+    assert!(container.audit_repository().is_some());
+    assert!(container.config_repository().is_some());
+    assert!(container.system_store().is_some());
+}

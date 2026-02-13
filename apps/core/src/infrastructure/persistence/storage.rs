@@ -1,18 +1,25 @@
-use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
-use arrow::array::{
-    Array, ArrayRef, StringBuilder, TimestampMicrosecondArray, TimestampMicrosecondBuilder,
-    UInt64Builder,
+use crate::{
+    domain::entities::Event,
+    error::{AllSourceError, Result},
 };
-use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
-use arrow::record_batch::RecordBatch;
-use parquet::arrow::ArrowWriter;
-use parquet::file::properties::WriterProperties;
-use std::fs::{self, File};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use arrow::{
+    array::{
+        Array, ArrayRef, StringBuilder, TimestampMicrosecondArray, TimestampMicrosecondBuilder,
+        UInt64Builder,
+    },
+    datatypes::{DataType, Field, Schema, TimeUnit},
+    record_batch::RecordBatch,
+};
+use parquet::{arrow::ArrowWriter, file::properties::WriterProperties};
+use std::{
+    fs::{self, File},
+    path::{Path, PathBuf},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 /// Default batch size for Parquet writes (10,000 events as per US-023)
 pub const DEFAULT_BATCH_SIZE: usize = 10_000;
@@ -582,6 +589,35 @@ impl ParquetStorage {
         }
 
         Ok(events)
+    }
+
+    /// List all Parquet file paths in the storage directory, sorted by name.
+    ///
+    /// Used by the replication catch-up protocol to stream snapshot files
+    /// to followers that are too far behind for WAL-only catch-up.
+    pub fn list_parquet_files(&self) -> Result<Vec<PathBuf>> {
+        let entries = fs::read_dir(&self.storage_dir).map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to read storage directory: {e}"))
+        })?;
+
+        let mut parquet_files: Vec<PathBuf> = entries
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| ext == "parquet")
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        parquet_files.sort();
+        Ok(parquet_files)
+    }
+
+    /// Get the storage directory path.
+    pub fn storage_dir(&self) -> &Path {
+        &self.storage_dir
     }
 
     /// Get storage statistics

@@ -1,6 +1,88 @@
 [workspace]
-resolver = "2"
-members = [
-    "apps/core",
-    "tooling/performance",
-]
+resolver = "3"
+members = ["apps/core", "tooling/performance"]
+
+[workspace.dependencies]
+
+# Security & Crypto
+aes-gcm = "0.10"
+# Internal crates
+allsource-core = { path = "apps/core" }
+
+# Error handling
+anyhow = "1.0"
+argon2 = "0.5"
+
+# Data / Arrow / Parquet
+arrow = { version = "53.4", features = ["ipc", "json"] }
+arrow-flight = "53.4"
+async-trait = "0.1"
+
+# Web framework
+axum = { version = "0.8", features = ["json", "ws"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
+base64 = "0.22"
+bumpalo = { version = "3.16", features = ["collections"] }
+bytes = "1.11.1"
+
+# Common utilities
+chrono = { version = "0.4", features = ["serde"] }
+crc32fast = "1.4"
+
+# Dev / Test
+criterion = "0.5"
+crossbeam = "0.8"
+crossbeam-queue = "0.3"
+ctrlc = "3.4"
+
+# Storage & Concurrency
+dashmap = "6.1"
+datafusion = "44.0"
+
+# Optional features
+fastembed = { version = "4" }
+
+# Compression
+flate2 = "1.0"
+futures = "0.3"
+http = "1.0"
+instant-distance = { version = "0.6" }
+jsonschema = "0.40"
+jsonwebtoken = "9.3"
+lz4 = "1.28"
+parking_lot = "0.12"
+parquet = { version = "53.4", features = ["arrow", "async"] }
+prometheus = "0.14"
+rand = "0.9"
+rocksdb = { version = "0.24" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+simd-json = "0.17"
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json", "chrono", "uuid"] }
+tantivy = { version = "0.22" }
+tempfile = "3.23"
+testcontainers = "0.23"
+testcontainers-modules = { version = "0.11", features = ["postgres"] }
+thiserror = "2.0"
+time = "0.3.47"
+
+# Async runtime
+tokio = { version = "1.48", features = ["full"] }
+tokio-stream = "0.1"
+toml = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.19", features = ["v4", "serde"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true

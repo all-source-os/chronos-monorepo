@@ -1,14 +1,18 @@
-use crate::application::dto::{
-    BlockchainDto, ConfirmTransactionRequest, ConfirmTransactionResponse, InitiatePaymentRequest,
-    InitiatePaymentResponse, ListTransactionsResponse, RefundTransactionRequest,
-    RefundTransactionResponse, TransactionDto,
+use crate::{
+    application::dto::{
+        BlockchainDto, ConfirmTransactionRequest, ConfirmTransactionResponse,
+        InitiatePaymentRequest, InitiatePaymentResponse, ListTransactionsResponse,
+        RefundTransactionRequest, RefundTransactionResponse, TransactionDto,
+    },
+    domain::{
+        entities::{AccessToken, Transaction},
+        repositories::{
+            AccessTokenRepository, ArticleRepository, CreatorRepository, TransactionRepository,
+        },
+        value_objects::{ArticleId, Money, TenantId, TransactionId, WalletAddress},
+    },
+    error::Result,
 };
-use crate::domain::entities::{AccessToken, Transaction};
-use crate::domain::repositories::{
-    AccessTokenRepository, ArticleRepository, CreatorRepository, TransactionRepository,
-};
-use crate::domain::value_objects::{ArticleId, Money, TenantId, TransactionId, WalletAddress};
-use crate::error::Result;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
@@ -327,14 +331,16 @@ fn generate_token_hash(transaction: &Transaction) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::{
-        AccessTokenId, Blockchain, Creator, CreatorStatus, PaywallArticle, TransactionStatus,
+    use crate::domain::{
+        entities::{
+            AccessTokenId, Blockchain, Creator, CreatorStatus, PaywallArticle, TransactionStatus,
+        },
+        repositories::{
+            AccessTokenQuery, ArticleQuery, CreatorQuery, RevenueDataPoint, RevenueGranularity,
+            TransactionQuery,
+        },
+        value_objects::CreatorId,
     };
-    use crate::domain::repositories::{
-        AccessTokenQuery, ArticleQuery, CreatorQuery, RevenueDataPoint, RevenueGranularity,
-        TransactionQuery,
-    };
-    use crate::domain::value_objects::CreatorId;
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
     use std::sync::Mutex;
@@ -807,17 +813,19 @@ mod tests {
         let creator_id = CreatorId::new();
         let wallet = WalletAddress::new(VALID_WALLET.to_string()).unwrap();
 
-        let transactions = vec![Transaction::new(
-            tenant_id,
-            article_id,
-            creator_id,
-            wallet,
-            Money::usd_cents(50),
-            10,
-            Blockchain::Solana,
-            VALID_SIGNATURE.to_string(),
-        )
-        .unwrap()];
+        let transactions = vec![
+            Transaction::new(
+                tenant_id,
+                article_id,
+                creator_id,
+                wallet,
+                Money::usd_cents(50),
+                10,
+                Blockchain::Solana,
+                VALID_SIGNATURE.to_string(),
+            )
+            .unwrap(),
+        ];
 
         let response = ListTransactionsUseCase::execute(transactions);
         assert_eq!(response.count, 1);

@@ -9,8 +9,7 @@
 use crate::error::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::process::Command;
+use std::{collections::HashMap, process::Command};
 
 /// Security scan configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -381,7 +380,7 @@ impl SecurityScanner {
         let findings = Vec::new();
 
         // Restricted licenses (example list)
-        let restricted_licenses = vec!["GPL-3.0", "AGPL-3.0", "SSPL"];
+        let restricted_licenses = ["GPL-3.0", "AGPL-3.0", "SSPL"];
 
         // In production, use cargo-license or similar tool
         // For now, this is a placeholder

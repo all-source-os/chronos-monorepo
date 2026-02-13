@@ -74,16 +74,16 @@ impl WebSocketManager {
                     .unwrap_or_default();
 
                 // Apply filters
-                if let Some(ref entity_id) = filters.entity_id {
-                    if event.entity_id_str() != entity_id {
-                        continue;
-                    }
+                if let Some(ref entity_id) = filters.entity_id
+                    && event.entity_id_str() != entity_id
+                {
+                    continue;
                 }
 
-                if let Some(ref event_type) = filters.event_type {
-                    if event.event_type_str() != event_type {
-                        continue;
-                    }
+                if let Some(ref event_type) = filters.event_type
+                    && event.event_type_str() != event_type
+                {
+                    continue;
                 }
 
                 // Serialize event to JSON

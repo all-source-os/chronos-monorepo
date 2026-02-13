@@ -10,11 +10,13 @@ use crate::domain::entities::Event;
 /// - Support for filesystem and S3-compatible storage
 use crate::error::{AllSourceError, Result};
 use chrono::{DateTime, Utc};
-use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File};
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::{
+    fs::{self, File},
+    io::{Read, Write},
+    path::{Path, PathBuf},
+};
 use uuid::Uuid;
 
 /// Backup metadata
@@ -211,14 +213,12 @@ impl BackupManager {
             let entry = entry.map_err(|e| AllSourceError::StorageError(e.to_string()))?;
             let path = entry.path();
 
-            if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    if let Some(backup_id) = stem.strip_suffix("_metadata") {
-                        if let Ok(metadata) = self.load_metadata(backup_id) {
-                            backups.push(metadata);
-                        }
-                    }
-                }
+            if path.extension().and_then(|s| s.to_str()) == Some("json")
+                && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+                && let Some(backup_id) = stem.strip_suffix("_metadata")
+                && let Ok(metadata) = self.load_metadata(backup_id)
+            {
+                backups.push(metadata);
             }
         }
 

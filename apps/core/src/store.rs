@@ -1,24 +1,31 @@
-use crate::application::dto::QueryEventsRequest;
-use crate::application::services::pipeline::PipelineManager;
-use crate::application::services::projection::{
-    EntitySnapshotProjection, EventCounterProjection, ProjectionManager,
+use crate::{
+    application::{
+        dto::QueryEventsRequest,
+        services::{
+            pipeline::PipelineManager,
+            projection::{EntitySnapshotProjection, EventCounterProjection, ProjectionManager},
+            replay::ReplayManager,
+            schema::{SchemaRegistry, SchemaRegistryConfig},
+        },
+    },
+    domain::entities::Event,
+    error::{AllSourceError, Result},
+    infrastructure::{
+        observability::metrics::MetricsRegistry,
+        persistence::{
+            compaction::{CompactionConfig, CompactionManager},
+            index::{EventIndex, IndexEntry},
+            snapshot::{SnapshotConfig, SnapshotManager, SnapshotType},
+            storage::ParquetStorage,
+            wal::{WALConfig, WriteAheadLog},
+        },
+        web::websocket::WebSocketManager,
+    },
 };
-use crate::application::services::replay::ReplayManager;
-use crate::application::services::schema::{SchemaRegistry, SchemaRegistryConfig};
-use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
-use crate::infrastructure::observability::metrics::MetricsRegistry;
-use crate::infrastructure::persistence::compaction::{CompactionConfig, CompactionManager};
-use crate::infrastructure::persistence::index::{EventIndex, IndexEntry};
-use crate::infrastructure::persistence::snapshot::{SnapshotConfig, SnapshotManager, SnapshotType};
-use crate::infrastructure::persistence::storage::ParquetStorage;
-use crate::infrastructure::persistence::wal::{WALConfig, WriteAheadLog};
-use crate::infrastructure::web::websocket::WebSocketManager;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use parking_lot::RwLock;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 /// High-performance event store with columnar storage
 pub struct EventStore {
@@ -212,37 +219,36 @@ impl EventStore {
 
         // Load persisted events from Parquet only if we didn't recover from WAL
         // (to avoid loading the same events twice after WAL checkpoint)
-        if !wal_recovered {
-            if let Some(ref storage) = store.storage {
-                if let Ok(persisted_events) = storage.read().load_all_events() {
-                    tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
+        if !wal_recovered
+            && let Some(ref storage) = store.storage
+            && let Ok(persisted_events) = storage.read().load_all_events()
+        {
+            tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
 
-                    for event in persisted_events {
-                        // Re-index loaded events
-                        let offset = store.events.read().len();
-                        if let Err(e) = store.index.index_event(
-                            event.id,
-                            event.entity_id_str(),
-                            event.event_type_str(),
-                            event.timestamp,
-                            offset,
-                        ) {
-                            tracing::error!("Failed to re-index event {}: {}", event.id, e);
-                        }
-
-                        // Re-process through projections
-                        if let Err(e) = store.projections.read().process_event(&event) {
-                            tracing::error!("Failed to re-process event {}: {}", event.id, e);
-                        }
-
-                        store.events.write().push(event);
-                    }
-
-                    let total = store.events.read().len();
-                    *store.total_ingested.write() = total as u64;
-                    tracing::info!("✅ Successfully loaded {} events from storage", total);
+            for event in persisted_events {
+                // Re-index loaded events
+                let offset = store.events.read().len();
+                if let Err(e) = store.index.index_event(
+                    event.id,
+                    event.entity_id_str(),
+                    event.event_type_str(),
+                    event.timestamp,
+                    offset,
+                ) {
+                    tracing::error!("Failed to re-index event {}: {}", event.id, e);
                 }
+
+                // Re-process through projections
+                if let Err(e) = store.projections.read().process_event(&event) {
+                    tracing::error!("Failed to re-process event {}: {}", event.id, e);
+                }
+
+                store.events.write().push(event);
             }
+
+            let total = store.events.read().len();
+            *store.total_ingested.write() = total as u64;
+            tracing::info!("✅ Successfully loaded {} events from storage", total);
         }
 
         store
@@ -264,12 +270,12 @@ impl EventStore {
 
         // Write to WAL FIRST for durability (v0.2 feature)
         // This ensures event is persisted before processing
-        if let Some(ref wal) = self.wal {
-            if let Err(e) = wal.append(event.clone()) {
-                self.metrics.ingestion_errors_total.inc();
-                timer.observe_duration();
-                return Err(e);
-            }
+        if let Some(ref wal) = self.wal
+            && let Err(e) = wal.append(event.clone())
+        {
+            self.metrics.ingestion_errors_total.inc();
+            timer.observe_duration();
+            return Err(e);
         }
 
         let mut events = self.events.write();
@@ -338,6 +344,73 @@ impl EventStore {
         timer.observe_duration();
 
         tracing::debug!("Event ingested: {} (offset: {})", event.id, offset);
+
+        Ok(())
+    }
+
+    /// Ingest a replicated event from the leader (follower mode).
+    ///
+    /// Unlike `ingest()`, this method:
+    /// - Skips WAL writing (the follower's WalReceiver manages its own local WAL)
+    /// - Skips schema validation (the leader already validated)
+    /// - Still indexes, processes projections/pipelines, and broadcasts to WebSocket clients
+    pub fn ingest_replicated(&self, event: Event) -> Result<()> {
+        let timer = self.metrics.ingestion_duration_seconds.start_timer();
+
+        let mut events = self.events.write();
+        let offset = events.len();
+
+        // Index the event
+        self.index.index_event(
+            event.id,
+            event.entity_id_str(),
+            event.event_type_str(),
+            event.timestamp,
+            offset,
+        )?;
+
+        // Process through projections
+        let projections = self.projections.read();
+        projections.process_event(&event)?;
+        drop(projections);
+
+        // Process through pipelines
+        let pipeline_results = self.pipeline_manager.process_event(&event);
+        if !pipeline_results.is_empty() {
+            tracing::debug!(
+                "Replicated event {} processed by {} pipeline(s)",
+                event.id,
+                pipeline_results.len()
+            );
+        }
+
+        // Store the event in memory
+        events.push(event.clone());
+        let total_events = events.len();
+        drop(events);
+
+        // Broadcast to WebSocket clients
+        self.websocket_manager
+            .broadcast_event(Arc::new(event.clone()));
+
+        // Update metrics
+        self.metrics.events_ingested_total.inc();
+        self.metrics
+            .events_ingested_by_type
+            .with_label_values(&[event.event_type_str()])
+            .inc();
+        self.metrics.storage_events_total.set(total_events as i64);
+
+        let mut total = self.total_ingested.write();
+        *total += 1;
+
+        timer.observe_duration();
+
+        tracing::debug!(
+            "Replicated event ingested: {} (offset: {})",
+            event.id,
+            offset
+        );
 
         Ok(())
     }
@@ -418,11 +491,11 @@ impl EventStore {
         // Build current state
         let mut state = serde_json::json!({});
         for event in &events {
-            if let serde_json::Value::Object(ref mut state_map) = state {
-                if let serde_json::Value::Object(ref payload_map) = event.payload {
-                    for (key, value) in payload_map {
-                        state_map.insert(key.clone(), value.clone());
-                    }
+            if let serde_json::Value::Object(ref mut state_map) = state
+                && let serde_json::Value::Object(ref payload_map) = event.payload
+            {
+                for (key, value) in payload_map {
+                    state_map.insert(key.clone(), value.clone());
                 }
             }
         }
@@ -477,6 +550,14 @@ impl EventStore {
         if event.event_type_str().is_empty() {
             return Err(AllSourceError::ValidationError(
                 "event_type cannot be empty".to_string(),
+            ));
+        }
+
+        // Reject system namespace events from user-facing ingestion.
+        // System events are written exclusively via SystemMetadataStore.
+        if event.event_type().is_system() {
+            return Err(AllSourceError::ValidationError(
+                "Event types starting with '_system.' are reserved for internal use".to_string(),
             ));
         }
 
@@ -559,20 +640,20 @@ impl EventStore {
             .into_iter()
             .filter(|entry| {
                 // Time filters
-                if let Some(as_of) = request.as_of {
-                    if entry.timestamp > as_of {
-                        return false;
-                    }
+                if let Some(as_of) = request.as_of
+                    && entry.timestamp > as_of
+                {
+                    return false;
                 }
-                if let Some(since) = request.since {
-                    if entry.timestamp < since {
-                        return false;
-                    }
+                if let Some(since) = request.since
+                    && entry.timestamp < since
+                {
+                    return false;
                 }
-                if let Some(until) = request.until {
-                    if entry.timestamp > until {
-                        return false;
-                    }
+                if let Some(until) = request.until
+                    && entry.timestamp > until
+                {
+                    return false;
                 }
                 true
             })
@@ -583,12 +664,11 @@ impl EventStore {
     /// Apply filters to an event
     fn apply_filters(&self, event: &Event, request: &QueryEventsRequest) -> bool {
         // Additional type filter if entity was primary
-        if request.entity_id.is_some() {
-            if let Some(ref event_type) = request.event_type {
-                if event.event_type_str() != event_type {
-                    return false;
-                }
-            }
+        if request.entity_id.is_some()
+            && let Some(ref event_type) = request.event_type
+            && event.event_type_str() != event_type
+        {
+            return false;
         }
 
         true
@@ -651,11 +731,11 @@ impl EventStore {
         // Merge events on top of snapshot (or from scratch if no snapshot)
         let mut merged_state = merged_state;
         for event in &events {
-            if let serde_json::Value::Object(ref mut state_map) = merged_state {
-                if let serde_json::Value::Object(ref payload_map) = event.payload {
-                    for (key, value) in payload_map {
-                        state_map.insert(key.clone(), value.clone());
-                    }
+            if let serde_json::Value::Object(ref mut state_map) = merged_state
+                && let serde_json::Value::Object(ref payload_map) = event.payload
+            {
+                for (key, value) in payload_map {
+                    state_map.insert(key.clone(), value.clone());
                 }
             }
         }
@@ -684,14 +764,14 @@ impl EventStore {
     pub fn get_snapshot(&self, entity_id: &str) -> Result<serde_json::Value> {
         let projections = self.projections.read();
 
-        if let Some(snapshot_projection) = projections.get_projection("entity_snapshots") {
-            if let Some(state) = snapshot_projection.get_state(entity_id) {
-                return Ok(serde_json::json!({
-                    "entity_id": entity_id,
-                    "snapshot": state,
-                    "from_projection": "entity_snapshots"
-                }));
-            }
+        if let Some(snapshot_projection) = projections.get_projection("entity_snapshots")
+            && let Some(state) = snapshot_projection.get_state(entity_id)
+        {
+            return Ok(serde_json::json!({
+                "entity_id": entity_id,
+                "snapshot": state,
+                "from_projection": "entity_snapshots"
+            }));
         }
 
         Err(AllSourceError::EntityNotFound(entity_id.to_string()))
@@ -757,10 +837,40 @@ impl EventStore {
             })
             .collect()
     }
+
+    /// Attach a broadcast sender to the WAL for replication.
+    ///
+    /// Thread-safe: can be called through `Arc<EventStore>` at runtime.
+    /// Used during initial setup and during follower → leader promotion.
+    /// When set, every WAL append publishes the entry to the broadcast
+    /// channel so the WAL shipper can stream it to followers.
+    pub fn enable_wal_replication(
+        &self,
+        tx: tokio::sync::broadcast::Sender<crate::infrastructure::persistence::wal::WALEntry>,
+    ) {
+        if let Some(ref wal_arc) = self.wal {
+            wal_arc.set_replication_tx(tx);
+            tracing::info!("WAL replication broadcast enabled");
+        } else {
+            tracing::warn!("Cannot enable WAL replication: WAL is not configured");
+        }
+    }
+
+    /// Get a reference to the WAL (if configured).
+    /// Used by the replication catch-up protocol to determine oldest available offset.
+    pub fn wal(&self) -> Option<&Arc<WriteAheadLog>> {
+        self.wal.as_ref()
+    }
+
+    /// Get a reference to the Parquet storage (if configured).
+    /// Used by the replication catch-up protocol to stream snapshot files to followers.
+    pub fn parquet_storage(&self) -> Option<&Arc<RwLock<ParquetStorage>>> {
+        self.storage.as_ref()
+    }
 }
 
 /// Configuration for EventStore
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EventStoreConfig {
     /// Optional directory for persistent Parquet storage (v0.2 feature)
     pub storage_dir: Option<PathBuf>,
@@ -779,19 +889,15 @@ pub struct EventStoreConfig {
 
     /// Schema registry configuration (v0.5 feature)
     pub schema_registry_config: SchemaRegistryConfig,
-}
 
-impl Default for EventStoreConfig {
-    fn default() -> Self {
-        Self {
-            storage_dir: None,
-            snapshot_config: SnapshotConfig::default(),
-            wal_dir: None,
-            wal_config: WALConfig::default(),
-            compaction_config: CompactionConfig::default(),
-            schema_registry_config: SchemaRegistryConfig::default(),
-        }
-    }
+    /// Optional directory for system metadata storage (dogfood feature).
+    /// When set, operational metadata (tenants, config, audit) is stored
+    /// using AllSource's own event store rather than an external database.
+    /// Defaults to `{storage_dir}/__system/` when storage_dir is set.
+    pub system_data_dir: Option<PathBuf>,
+
+    /// Name of the default tenant to auto-create on first boot.
+    pub bootstrap_tenant: Option<String>,
 }
 
 impl EventStoreConfig {
@@ -799,35 +905,24 @@ impl EventStoreConfig {
     pub fn with_persistence(storage_dir: impl Into<PathBuf>) -> Self {
         Self {
             storage_dir: Some(storage_dir.into()),
-            snapshot_config: SnapshotConfig::default(),
-            wal_dir: None,
-            wal_config: WALConfig::default(),
-            compaction_config: CompactionConfig::default(),
-            schema_registry_config: SchemaRegistryConfig::default(),
+            ..Self::default()
         }
     }
 
     /// Create config with custom snapshot settings
     pub fn with_snapshots(snapshot_config: SnapshotConfig) -> Self {
         Self {
-            storage_dir: None,
             snapshot_config,
-            wal_dir: None,
-            wal_config: WALConfig::default(),
-            compaction_config: CompactionConfig::default(),
-            schema_registry_config: SchemaRegistryConfig::default(),
+            ..Self::default()
         }
     }
 
     /// Create config with WAL enabled
     pub fn with_wal(wal_dir: impl Into<PathBuf>, wal_config: WALConfig) -> Self {
         Self {
-            storage_dir: None,
-            snapshot_config: SnapshotConfig::default(),
             wal_dir: Some(wal_dir.into()),
             wal_config,
-            compaction_config: CompactionConfig::default(),
-            schema_registry_config: SchemaRegistryConfig::default(),
+            ..Self::default()
         }
     }
 
@@ -836,10 +931,7 @@ impl EventStoreConfig {
         Self {
             storage_dir: Some(storage_dir.into()),
             snapshot_config,
-            wal_dir: None,
-            wal_config: WALConfig::default(),
-            compaction_config: CompactionConfig::default(),
-            schema_registry_config: SchemaRegistryConfig::default(),
+            ..Self::default()
         }
     }
 
@@ -851,14 +943,27 @@ impl EventStoreConfig {
         wal_config: WALConfig,
         compaction_config: CompactionConfig,
     ) -> Self {
+        let storage_dir = storage_dir.into();
+        let system_data_dir = storage_dir.join("__system");
         Self {
-            storage_dir: Some(storage_dir.into()),
+            storage_dir: Some(storage_dir),
             snapshot_config,
             wal_dir: Some(wal_dir.into()),
             wal_config,
             compaction_config,
-            schema_registry_config: SchemaRegistryConfig::default(),
+            system_data_dir: Some(system_data_dir),
+            ..Self::default()
         }
+    }
+
+    /// Resolve the effective system data directory.
+    ///
+    /// If explicitly set, returns that. Otherwise, derives from storage_dir.
+    /// Returns None if neither is configured (in-memory mode).
+    pub fn effective_system_data_dir(&self) -> Option<PathBuf> {
+        self.system_data_dir
+            .clone()
+            .or_else(|| self.storage_dir.as_ref().map(|d| d.join("__system")))
     }
 }
 
@@ -1333,5 +1438,31 @@ mod tests {
         // The state is wrapped with metadata
         assert_eq!(state["current_state"]["name"], "Alice");
         assert_eq!(state["current_state"]["age"], 26);
+    }
+
+    #[test]
+    fn test_reject_system_event_types() {
+        let store = EventStore::new();
+
+        // System event types should be rejected via user-facing ingestion
+        let event = Event::reconstruct_from_strings(
+            uuid::Uuid::new_v4(),
+            "_system.tenant.created".to_string(),
+            "_system:tenant:acme".to_string(),
+            "_system".to_string(),
+            serde_json::json!({"name": "ACME"}),
+            chrono::Utc::now(),
+            None,
+            1,
+        );
+
+        let result = store.ingest(event);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("reserved for internal use"),
+            "Expected system namespace rejection, got: {}",
+            err
+        );
     }
 }

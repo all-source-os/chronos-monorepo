@@ -4,59 +4,10 @@ import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui"
 import { cn } from "@allsource/ui/utils";
 import { Activity, ArrowRight, Clock } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-
-interface RecentEvent {
-  id: string;
-  entity_id: string;
-  event_type: string;
-  timestamp: string;
-}
+import { useEvents } from "@/hooks/use-events";
 
 export function RecentEvents() {
-  const [events, setEvents] = useState<RecentEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Simulate fetching recent events
-  useEffect(() => {
-    const sampleEvents: RecentEvent[] = [
-      {
-        id: "evt_1",
-        entity_id: "user-123",
-        event_type: "user.signed_up",
-        timestamp: new Date(Date.now() - 1000 * 30).toISOString(),
-      },
-      {
-        id: "evt_2",
-        entity_id: "order-456",
-        event_type: "order.placed",
-        timestamp: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
-      },
-      {
-        id: "evt_3",
-        entity_id: "payment-789",
-        event_type: "payment.completed",
-        timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-      },
-      {
-        id: "evt_4",
-        entity_id: "user-234",
-        event_type: "user.profile_updated",
-        timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-      },
-      {
-        id: "evt_5",
-        entity_id: "inventory-567",
-        event_type: "inventory.updated",
-        timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-      },
-    ];
-
-    setTimeout(() => {
-      setEvents(sampleEvents);
-      setIsLoading(false);
-    }, 500);
-  }, []);
+  const { events, isLoading } = useEvents({ limit: 5 });
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -64,10 +15,12 @@ export function RecentEvents() {
     const diffMs = now.getTime() - date.getTime();
     const diffSec = Math.floor(diffMs / 1000);
     const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
 
     if (diffSec < 60) return `${diffSec}s ago`;
     if (diffMin < 60) return `${diffMin}m ago`;
-    return date.toLocaleTimeString();
+    if (diffHour < 24) return `${diffHour}h ago`;
+    return date.toLocaleDateString();
   };
 
   const getEventTypeColor = (eventType: string) => {

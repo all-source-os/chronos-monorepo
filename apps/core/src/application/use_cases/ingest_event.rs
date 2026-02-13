@@ -1,7 +1,8 @@
-use crate::application::dto::{IngestEventRequest, IngestEventResponse};
-use crate::domain::entities::Event;
-use crate::domain::repositories::EventRepository;
-use crate::error::Result;
+use crate::{
+    application::dto::{IngestEventRequest, IngestEventResponse},
+    domain::{entities::Event, repositories::EventRepository},
+    error::Result,
+};
 use std::sync::Arc;
 
 /// Use Case: Ingest Event

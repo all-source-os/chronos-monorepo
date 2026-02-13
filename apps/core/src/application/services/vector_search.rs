@@ -1,9 +1,13 @@
-use crate::domain::entities::Event;
-use crate::domain::repositories::{
-    EventRepository, SearchResult, VectorEntry, VectorSearchQuery, VectorSearchRepository,
+use crate::{
+    domain::{
+        entities::Event,
+        repositories::{
+            EventRepository, SearchResult, VectorEntry, VectorSearchQuery, VectorSearchRepository,
+        },
+        value_objects::{DistanceMetric, EmbeddingVector},
+    },
+    error::{AllSourceError, Result},
 };
-use crate::domain::value_objects::{DistanceMetric, EmbeddingVector};
-use crate::error::{AllSourceError, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -45,7 +49,7 @@ pub struct IndexEventRequest {
 }
 
 /// Request for semantic search
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SemanticSearchRequest {
     /// The query embedding vector
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -71,21 +75,6 @@ pub struct SemanticSearchRequest {
     /// Whether to include full event data in results
     #[serde(default)]
     pub include_events: bool,
-}
-
-impl Default for SemanticSearchRequest {
-    fn default() -> Self {
-        Self {
-            query_embedding: None,
-            k: None,
-            tenant_id: None,
-            event_type: None,
-            min_similarity: None,
-            max_distance: None,
-            metric: None,
-            include_events: false,
-        }
-    }
 }
 
 /// A single semantic search result

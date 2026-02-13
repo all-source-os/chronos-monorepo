@@ -1,13 +1,17 @@
-use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
-use crate::infrastructure::observability::metrics::MetricsRegistry;
+use crate::{
+    domain::entities::Event,
+    error::{AllSourceError, Result},
+    infrastructure::observability::metrics::MetricsRegistry,
+};
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 use uuid::Uuid;
 
 /// Window type for time-based aggregations
@@ -615,14 +619,14 @@ impl Pipeline {
     ) -> Result<Option<JsonValue>> {
         let field_value = self.get_field(value, field);
 
-        if let Some(JsonValue::String(val)) = field_value {
-            if let Some(route) = branches.get(val) {
-                let mut result = value.clone();
-                if let JsonValue::Object(ref mut obj) = result {
-                    obj.insert("_route".to_string(), JsonValue::String(route.clone()));
-                }
-                return Ok(Some(result));
+        if let Some(JsonValue::String(val)) = field_value
+            && let Some(route) = branches.get(val)
+        {
+            let mut result = value.clone();
+            if let JsonValue::Object(ref mut obj) = result {
+                obj.insert("_route".to_string(), JsonValue::String(route.clone()));
             }
+            return Ok(Some(result));
         }
 
         Ok(Some(value.clone()))
@@ -645,7 +649,7 @@ impl Pipeline {
         let parts: Vec<&str> = field.split('.').collect();
 
         if parts.len() == 1 {
-            if let JsonValue::Object(ref mut obj) = value {
+            if let JsonValue::Object(obj) = value {
                 obj.insert(field.to_string(), new_value);
             }
             return;
@@ -654,7 +658,7 @@ impl Pipeline {
         // Navigate to parent
         let mut current = value;
         for part in &parts[..parts.len() - 1] {
-            if let JsonValue::Object(ref mut obj) = current {
+            if let JsonValue::Object(obj) = current {
                 current = obj
                     .entry(part.to_string())
                     .or_insert(JsonValue::Object(Default::default()));
@@ -662,7 +666,7 @@ impl Pipeline {
         }
 
         // Set final value
-        if let JsonValue::Object(ref mut obj) = current {
+        if let JsonValue::Object(obj) = current {
             obj.insert(parts.last().unwrap().to_string(), new_value);
         }
     }

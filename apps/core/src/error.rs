@@ -1,5 +1,7 @@
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 
 /// AllSource error types
 #[derive(Debug, thiserror::Error)]
@@ -48,6 +50,19 @@ pub enum AllSourceError {
 
     #[error("Internal error: {0}")]
     InternalError(String),
+}
+
+impl AllSourceError {
+    /// Returns true for transient errors that may succeed on retry
+    /// (storage I/O, concurrency conflicts, queue pressure).
+    pub fn is_retryable(&self) -> bool {
+        matches!(
+            self,
+            AllSourceError::StorageError(_)
+                | AllSourceError::ConcurrencyError(_)
+                | AllSourceError::QueueFull(_)
+        )
+    }
 }
 
 // Alias for domain layer convenience
@@ -248,5 +263,22 @@ mod tests {
         let err = AllSourceError::EventNotFound("test".to_string());
         let debug_str = format!("{:?}", err);
         assert!(debug_str.contains("EventNotFound"));
+    }
+
+    #[test]
+    fn test_is_retryable() {
+        // Retryable errors
+        assert!(AllSourceError::StorageError("io".to_string()).is_retryable());
+        assert!(AllSourceError::ConcurrencyError("conflict".to_string()).is_retryable());
+        assert!(AllSourceError::QueueFull("backpressure".to_string()).is_retryable());
+
+        // Non-retryable errors
+        assert!(!AllSourceError::EventNotFound("e1".to_string()).is_retryable());
+        assert!(!AllSourceError::InvalidEvent("bad".to_string()).is_retryable());
+        assert!(!AllSourceError::InvalidQuery("bad".to_string()).is_retryable());
+        assert!(!AllSourceError::ValidationError("bad".to_string()).is_retryable());
+        assert!(!AllSourceError::TenantNotFound("t1".to_string()).is_retryable());
+        assert!(!AllSourceError::TenantAlreadyExists("t1".to_string()).is_retryable());
+        assert!(!AllSourceError::InternalError("bug".to_string()).is_retryable());
     }
 }

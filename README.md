@@ -14,7 +14,8 @@ version: "0.9.1"
 [![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.9.0-green.svg)](apps/core/)
 [![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v0.9.0-blue.svg)](apps/control-plane/)
 [![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-v0.9.0-purple.svg)](apps/query-service/)
-[![MCP Server](https://img.shields.io/badge/MCP%20Server-27%20Tools-orange.svg)](apps/mcp-server-elixir/)
+[![MCP Server](https://img.shields.io/badge/MCP%20Server-43%20Tools-orange.svg)](apps/mcp-server-elixir/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 High-performance event sourcing platform with distributed architecture and AI-native tooling.
 
@@ -59,7 +60,7 @@ docker pull ghcr.io/all-source-os/allsource-web:0.9.0
 
 ## Project Status
 
-### Current Release: v0.9.0 (February 2026)
+### Current Release: v0.9.1 (February 2026)
 
 **Rust Core**
 - Event store with 469K events/sec throughput
@@ -83,13 +84,14 @@ docker pull ghcr.io/all-source-os/allsource-web:0.9.0
 - WebSocket channels for real-time updates
 - Prometheus metrics and APM integration
 
-**MCP Server (27 Tools)**
+**MCP Server (43 Tools)**
 - AI-native interface via Claude Desktop
-- **Event Management Tools**: delete, archive, restore, export, import, clone, merge, split
-- **Query Tools**: advanced queries, time series, funnel analysis, anomaly detection
-- **Projection Tools**: create, query, list materialized views
+- **Core Tools** (19): queries, time series, funnel analysis, anomaly detection, projections, schemas, snapshots
+- **Event Management** (8): delete, archive, restore, export, import, clone, merge, split
+- **Operational** (10): storage compaction, WAL status, backups, deep health checks, performance reports, audit logs
+- **Tenant Management** (6): create, update, usage, quotas, suspend, export
 - Dry-run preview mode and audit trails on all operations
-- 309 tests passing
+- 429 tests passing
 
 **Web Dashboard**
 - Modern login/signup with OAuth (Google, GitHub)
@@ -192,22 +194,25 @@ cd apps/mcp-server-elixir && mix test
 
 ## Roadmap
 
-### Completed (v0.9.0)
-- Event Management Tools (8 new tools)
-- Web dashboard UX improvements
+### Completed (v0.9.1)
+- 43 MCP tools (19 core + 8 event management + 10 operational + 6 tenant)
+- Event Management Tools (delete, archive, restore, export, import, clone, merge, split)
+- Operational Tools (storage, WAL, backups, health, performance, audit)
+- Tenant Management Tools (CRUD, usage, quotas, suspend, export)
+- Web dashboard with OAuth, onboarding, billing UI
 - Consistent versioning across all services
 - OpenAPI specification for Query Service
 - WebSocket channels and real-time updates
 
 ### In Progress
-- SaaS launch preparation
-- Multi-region deployment
-- Enhanced analytics and reporting
+- SaaS launch (self-service signup, billing integration)
+- Core WAL-based replication (leader-follower)
+- Go Control Plane PostgreSQL migration
 
 ### Planned
-- GraphQL API layer
 - Event sourcing SDK for popular languages
-- Self-service onboarding flow
+- Multi-region deployment
+- GraphQL API layer
 
 **Detailed Roadmaps**:
 - [SaaS Launch Roadmap](docs/roadmaps/SAAS_LAUNCH_ROADMAP.md)
@@ -254,5 +259,5 @@ make bump-version      # Interactive bump
 
 ---
 
-**Last Updated**: February 11, 2026
-**Version**: v0.9.0
+**Last Updated**: February 12, 2026
+**Version**: v0.9.1

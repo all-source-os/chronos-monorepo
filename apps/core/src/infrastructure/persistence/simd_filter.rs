@@ -19,8 +19,10 @@
 
 use crate::domain::entities::Event;
 use chrono::{DateTime, Utc};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::Instant,
+};
 
 /// Statistics for SIMD filtering operations
 #[derive(Debug, Default)]
@@ -70,11 +72,7 @@ impl SimdFilterStats {
         let simd = self.simd_operations.load(Ordering::Relaxed) as f64;
         let scalar = self.scalar_operations.load(Ordering::Relaxed) as f64;
         let total = simd + scalar;
-        if total > 0.0 {
-            simd / total
-        } else {
-            0.0
-        }
+        if total > 0.0 { simd / total } else { 0.0 }
     }
 
     /// Reset all statistics

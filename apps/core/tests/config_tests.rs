@@ -1,8 +1,6 @@
 /// Configuration tests for allsource-core
 use allsource_core::config::{AuthConfig, Config, ServerConfig, StorageConfig};
-use std::env;
-use std::io::Write;
-use std::path::PathBuf;
+use std::{env, io::Write, path::PathBuf};
 use tempfile::NamedTempFile;
 
 #[test]
@@ -75,11 +73,13 @@ fn test_config_defaults() {
 
 #[test]
 fn test_config_env_override() {
-    // Set environment variables
-    env::set_var("ALLSOURCE_HOST", "192.168.1.1");
-    env::set_var("ALLSOURCE_PORT", "8888");
-    env::set_var("ALLSOURCE_JWT_SECRET", "env-secret");
-    env::set_var("ALLSOURCE_DATA_DIR", "/custom/path");
+    // SAFETY: This test runs single-threaded and cleans up after itself.
+    unsafe {
+        env::set_var("ALLSOURCE_HOST", "192.168.1.1");
+        env::set_var("ALLSOURCE_PORT", "8888");
+        env::set_var("ALLSOURCE_JWT_SECRET", "env-secret");
+        env::set_var("ALLSOURCE_DATA_DIR", "/custom/path");
+    }
 
     let config = Config::from_env().unwrap();
 
@@ -89,10 +89,12 @@ fn test_config_env_override() {
     assert_eq!(config.storage.data_dir, PathBuf::from("/custom/path"));
 
     // Clean up
-    env::remove_var("ALLSOURCE_HOST");
-    env::remove_var("ALLSOURCE_PORT");
-    env::remove_var("ALLSOURCE_JWT_SECRET");
-    env::remove_var("ALLSOURCE_DATA_DIR");
+    unsafe {
+        env::remove_var("ALLSOURCE_HOST");
+        env::remove_var("ALLSOURCE_PORT");
+        env::remove_var("ALLSOURCE_JWT_SECRET");
+        env::remove_var("ALLSOURCE_DATA_DIR");
+    }
 }
 
 #[test]

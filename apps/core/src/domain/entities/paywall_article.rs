@@ -1,25 +1,22 @@
-use crate::domain::value_objects::{ArticleId, CreatorId, Money, TenantId};
-use crate::error::Result;
+use crate::{
+    domain::value_objects::{ArticleId, CreatorId, Money, TenantId},
+    error::Result,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Article status in the paywall system
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArticleStatus {
     /// Article is a draft, not yet published
     Draft,
     /// Article is active and available for purchase
+    #[default]
     Active,
     /// Article has been archived (no new purchases)
     Archived,
     /// Article has been deleted
     Deleted,
-}
-
-impl Default for ArticleStatus {
-    fn default() -> Self {
-        Self::Active
-    }
 }
 
 /// Article statistics
@@ -301,12 +298,12 @@ impl PaywallArticle {
 
     /// Update the preview content
     pub fn update_preview(&mut self, preview: Option<String>) -> Result<()> {
-        if let Some(ref p) = preview {
-            if p.len() > 1000 {
-                return Err(crate::error::AllSourceError::ValidationError(
-                    "Preview content cannot exceed 1000 characters".to_string(),
-                ));
-            }
+        if let Some(ref p) = preview
+            && p.len() > 1000
+        {
+            return Err(crate::error::AllSourceError::ValidationError(
+                "Preview content cannot exceed 1000 characters".to_string(),
+            ));
         }
         self.preview_content = preview;
         self.updated_at = Utc::now();

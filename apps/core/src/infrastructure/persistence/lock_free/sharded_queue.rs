@@ -9,12 +9,18 @@
 //! - Better cache locality through sharding by hash
 //! - Batch operations for reduced atomic operation overhead
 
-use crate::domain::entities::Event;
-use crate::error::{AllSourceError, Result};
+use crate::{
+    domain::entities::Event,
+    error::{AllSourceError, Result},
+};
 use crossbeam::queue::ArrayQueue;
-use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::{
+    hash::{Hash, Hasher},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+    },
+};
 
 /// Number of shards - should be power of 2 for efficient modulo
 const DEFAULT_SHARD_COUNT: usize = 16;

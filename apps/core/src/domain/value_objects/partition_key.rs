@@ -1,7 +1,9 @@
 use crate::error::{AllSourceError, Result};
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::hash::{Hash, Hasher};
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+};
 
 /// Partition key for distributing events across fixed partitions
 ///

@@ -1,6 +1,10 @@
-use crate::domain::entities::Event;
-use crate::domain::value_objects::{EntityId, PartitionKey};
-use crate::error::{AllSourceError, Result};
+use crate::{
+    domain::{
+        entities::Event,
+        value_objects::{EntityId, PartitionKey},
+    },
+    error::{AllSourceError, Result},
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -124,13 +128,13 @@ impl EventStream {
     /// - Ensures gapless version sequence
     pub fn append_event(&mut self, event: Event) -> Result<u64> {
         // Optimistic locking check
-        if let Some(expected) = self.expected_version {
-            if expected != self.current_version {
-                return Err(AllSourceError::ConcurrencyError(format!(
-                    "Version conflict: expected {}, got {}",
-                    expected, self.current_version
-                )));
-            }
+        if let Some(expected) = self.expected_version
+            && expected != self.current_version
+        {
+            return Err(AllSourceError::ConcurrencyError(format!(
+                "Version conflict: expected {}, got {}",
+                expected, self.current_version
+            )));
         }
 
         // Increment version
@@ -248,14 +252,14 @@ impl EventStream {
     ///
     /// This ensures tenant isolation at the stream level.
     pub fn validate_event_tenant(&self, event: &Event) -> Result<()> {
-        if let Some(stream_tenant) = self.tenant_id() {
-            if event.tenant_id() != stream_tenant {
-                return Err(AllSourceError::ValidationError(format!(
-                    "Tenant mismatch: stream belongs to '{}', but event belongs to '{}'",
-                    stream_tenant.as_str(),
-                    event.tenant_id().as_str()
-                )));
-            }
+        if let Some(stream_tenant) = self.tenant_id()
+            && event.tenant_id() != stream_tenant
+        {
+            return Err(AllSourceError::ValidationError(format!(
+                "Tenant mismatch: stream belongs to '{}', but event belongs to '{}'",
+                stream_tenant.as_str(),
+                event.tenant_id().as_str()
+            )));
         }
         Ok(())
     }

@@ -11,14 +11,15 @@ use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 #[cfg(feature = "vector-search")]
 use instant_distance::{Builder, HnswMap, Search};
 
-use crate::domain::value_objects::DistanceMetric;
 #[cfg(not(feature = "vector-search"))]
 use crate::domain::value_objects::EmbeddingVector;
-use crate::error::{AllSourceError, Result};
+use crate::{
+    domain::value_objects::DistanceMetric,
+    error::{AllSourceError, Result},
+};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -267,7 +268,7 @@ impl VectorSearchEngine {
     /// Extracts text content from the event payload and generates an embedding.
     /// Handles various payload structures by extracting relevant text fields.
     pub fn embed_event(&self, payload: &serde_json::Value) -> Result<Vec<f32>> {
-        let text = self.extract_text_from_payload(payload);
+        let text = Self::extract_text_from_payload(payload);
         if text.is_empty() {
             return Err(AllSourceError::InvalidInput(
                 "Event payload contains no text content for embedding".to_string(),
@@ -277,7 +278,7 @@ impl VectorSearchEngine {
     }
 
     /// Extract text content from a JSON payload for embedding
-    fn extract_text_from_payload(&self, payload: &serde_json::Value) -> String {
+    fn extract_text_from_payload(payload: &serde_json::Value) -> String {
         let mut text_parts = Vec::new();
 
         match payload {
@@ -318,7 +319,7 @@ impl VectorSearchEngine {
             }
             serde_json::Value::Array(arr) => {
                 for item in arr {
-                    let item_text = self.extract_text_from_payload(item);
+                    let item_text = Self::extract_text_from_payload(item);
                     if !item_text.is_empty() {
                         text_parts.push(item_text);
                     }
@@ -441,12 +442,11 @@ impl VectorSearchEngine {
             }
 
             // Apply tenant filter if specified
-            if let Some(ref tenant_filter) = query.tenant_id {
-                if let Some(vec) = vectors.get(&event_id) {
-                    if vec.tenant_id != *tenant_filter {
-                        continue;
-                    }
-                }
+            if let Some(ref tenant_filter) = query.tenant_id
+                && let Some(vec) = vectors.get(&event_id)
+                && vec.tenant_id != *tenant_filter
+            {
+                continue;
             }
 
             let source_text = vectors.get(&event_id).and_then(|v| v.source_text.clone());
@@ -483,10 +483,10 @@ impl VectorSearchEngine {
 
         for (event_id, indexed) in vectors.iter() {
             // Apply tenant filter
-            if let Some(ref tenant_filter) = query.tenant_id {
-                if indexed.tenant_id != *tenant_filter {
-                    continue;
-                }
+            if let Some(ref tenant_filter) = query.tenant_id
+                && indexed.tenant_id != *tenant_filter
+            {
+                continue;
             }
 
             let vec_embedding = EmbeddingVector::new(indexed.embedding.clone())?;
@@ -715,33 +715,33 @@ mod tests {
 
     #[test]
     fn test_extract_text_from_string_payload() {
-        let engine = create_test_engine();
+        let _engine = create_test_engine();
         let payload = json!("Hello world");
-        let text = engine.extract_text_from_payload(&payload);
+        let text = VectorSearchEngine::extract_text_from_payload(&payload);
         assert_eq!(text, "Hello world");
     }
 
     #[test]
     fn test_extract_text_from_object_payload() {
-        let engine = create_test_engine();
+        let _engine = create_test_engine();
         let payload = json!({
             "title": "Test Title",
             "content": "Test content here",
             "id": "123"
         });
-        let text = engine.extract_text_from_payload(&payload);
+        let text = VectorSearchEngine::extract_text_from_payload(&payload);
         assert!(text.contains("Test content here"));
         assert!(text.contains("Test Title"));
     }
 
     #[test]
     fn test_extract_text_priority_fields() {
-        let engine = create_test_engine();
+        let _engine = create_test_engine();
         let payload = json!({
             "content": "Priority content",
             "random_field": "Should not appear first"
         });
-        let text = engine.extract_text_from_payload(&payload);
+        let text = VectorSearchEngine::extract_text_from_payload(&payload);
         assert!(text.starts_with("Priority content"));
     }
 

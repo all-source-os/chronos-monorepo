@@ -4,8 +4,7 @@ use parking_lot::RwLock;
 /// Provides allowlist/blocklist functionality for IP-based access control.
 /// Supports both global and per-tenant IP restrictions.
 use std::collections::HashSet;
-use std::net::IpAddr;
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc};
 
 use crate::domain::value_objects::TenantId;
 
@@ -195,31 +194,31 @@ impl IpFilter {
 
         // Check tenant-specific blocklist
         let tenant_blocklists = self.tenant_blocklists.read();
-        if let Some(blocklist) = tenant_blocklists.get(tenant_id.as_str()) {
-            if blocklist.contains(ip) {
-                return FilterResult {
-                    allowed: false,
-                    reason: format!("IP is in blocklist for tenant {}", tenant_id.as_str()),
-                };
-            }
+        if let Some(blocklist) = tenant_blocklists.get(tenant_id.as_str())
+            && blocklist.contains(ip)
+        {
+            return FilterResult {
+                allowed: false,
+                reason: format!("IP is in blocklist for tenant {}", tenant_id.as_str()),
+            };
         }
 
         // Check tenant-specific allowlist
         let tenant_allowlists = self.tenant_allowlists.read();
-        if let Some(allowlist) = tenant_allowlists.get(tenant_id.as_str()) {
-            if !allowlist.is_empty() {
-                // Tenant has allowlist, IP must be in it
-                if allowlist.contains(ip) {
-                    return FilterResult {
-                        allowed: true,
-                        reason: format!("IP is in allowlist for tenant {}", tenant_id.as_str()),
-                    };
-                } else {
-                    return FilterResult {
-                        allowed: false,
-                        reason: format!("IP not in allowlist for tenant {}", tenant_id.as_str()),
-                    };
-                }
+        if let Some(allowlist) = tenant_allowlists.get(tenant_id.as_str())
+            && !allowlist.is_empty()
+        {
+            // Tenant has allowlist, IP must be in it
+            if allowlist.contains(ip) {
+                return FilterResult {
+                    allowed: true,
+                    reason: format!("IP is in allowlist for tenant {}", tenant_id.as_str()),
+                };
+            } else {
+                return FilterResult {
+                    allowed: false,
+                    reason: format!("IP not in allowlist for tenant {}", tenant_id.as_str()),
+                };
             }
         }
 

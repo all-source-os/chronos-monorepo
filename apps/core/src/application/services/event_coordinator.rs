@@ -1,11 +1,14 @@
-use crate::application::dto::{
-    EventDto, IngestEventRequest, IngestEventResponse, QueryEventsRequest, QueryEventsResponse,
+use crate::{
+    application::{
+        dto::{
+            EventDto, IngestEventRequest, IngestEventResponse, QueryEventsRequest,
+            QueryEventsResponse,
+        },
+        use_cases::{IngestEventUseCase, IngestEventsBatchUseCase, QueryEventsUseCase},
+    },
+    domain::repositories::EventRepository,
+    error::Result,
 };
-use crate::application::use_cases::{
-    IngestEventUseCase, IngestEventsBatchUseCase, QueryEventsUseCase,
-};
-use crate::domain::repositories::EventRepository;
-use crate::error::Result;
 use std::sync::Arc;
 
 /// Coordinator service for event operations.

@@ -319,6 +319,11 @@ export class ApiClient {
     });
   }
 
+  // Metrics endpoints
+  async getMetrics(): Promise<ApiResponse<MetricsResponse>> {
+    return this.request<MetricsResponse>("/api/metrics");
+  }
+
   // Analytics endpoints
   async getAnalyticsStats(params?: { as_of?: string }): Promise<ApiResponse<AnalyticsStats>> {
     const queryString = params?.as_of ? `?as_of=${encodeURIComponent(params.as_of)}` : "";
@@ -598,6 +603,18 @@ export interface CreateProjectionRequest {
   version: number;
   initial_state: Record<string, unknown>;
   definition: string;
+}
+
+export interface MetricsResponse {
+  service: string;
+  timestamp: string;
+  elixir: {
+    processes: number;
+    memory: Record<string, number>;
+    uptime_seconds: number;
+    schedulers: number;
+  };
+  backend: Record<string, unknown>;
 }
 
 export interface AnalyticsStats {
