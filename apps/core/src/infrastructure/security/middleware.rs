@@ -31,8 +31,7 @@ pub const AUTH_SKIP_PREFIXES: &[&str] = &["/internal/"];
 /// Check if a path should skip authentication and rate limiting.
 #[inline]
 pub fn should_skip_auth(path: &str) -> bool {
-    AUTH_SKIP_PATHS.contains(&path)
-        || AUTH_SKIP_PREFIXES.iter().any(|pfx| path.starts_with(pfx))
+    AUTH_SKIP_PATHS.contains(&path) || AUTH_SKIP_PREFIXES.iter().any(|pfx| path.starts_with(pfx))
 }
 
 /// Check if development mode is enabled via environment variable.

@@ -17,8 +17,7 @@ use allsource_core::{
     infrastructure::{
         persistence::SystemMetadataStore,
         repositories::{
-            EventSourcedAuditRepository, EventSourcedConfigRepository,
-            EventSourcedTenantRepository,
+            EventSourcedAuditRepository, EventSourcedConfigRepository, EventSourcedTenantRepository,
         },
     },
 };
@@ -130,7 +129,11 @@ async fn stress_concurrent_tenant_create_delete_cycle() {
         let id = TenantId::new(format!("cd-tenant-{}", i)).unwrap();
         let found = repo.find_by_id(&id).await.unwrap();
         if i % 2 == 0 {
-            assert!(found.is_none(), "even tenant cd-tenant-{} should be deleted", i);
+            assert!(
+                found.is_none(),
+                "even tenant cd-tenant-{} should be deleted",
+                i
+            );
         } else {
             assert!(found.is_some(), "odd tenant cd-tenant-{} should exist", i);
         }
@@ -461,7 +464,12 @@ async fn stress_high_volume_audit_then_query() {
     let tid = TenantId::new("hv-audit-tenant".to_string()).unwrap();
     let query = AuditEventQuery::new(tid);
     let results = repo.query(query).await.unwrap();
-    assert_eq!(results.len(), count, "all {} audit events must be queryable", count);
+    assert_eq!(
+        results.len(),
+        count,
+        "all {} audit events must be queryable",
+        count
+    );
 }
 
 #[tokio::test]
@@ -678,11 +686,7 @@ async fn stress_mixed_operations_across_repositories() {
 
         let cr = Arc::clone(&config_repo);
         handles.push(tokio::spawn(async move {
-            cr.set(
-                &format!("mixed-cfg-{}", i),
-                serde_json::json!(i),
-                None,
-            )
+            cr.set(&format!("mixed-cfg-{}", i), serde_json::json!(i), None)
         }));
     }
 

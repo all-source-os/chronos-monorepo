@@ -1,7 +1,7 @@
 ---
 title: "MCP Server"
 status: CURRENT
-version: 0.9.0
+version: 0.10.0
 last_updated: 2026-02-10
 category: service
 port: 4000

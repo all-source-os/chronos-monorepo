@@ -313,8 +313,8 @@ impl WalReceiver {
                 continue;
             }
 
-            let msg: LeaderMessage = serde_json::from_str(trimmed)
-                .context("parsing WAL LeaderMessage JSON")?;
+            let msg: LeaderMessage =
+                serde_json::from_str(trimmed).context("parsing WAL LeaderMessage JSON")?;
 
             match msg {
                 LeaderMessage::CaughtUp { current_offset } => {
@@ -388,8 +388,8 @@ impl WalReceiver {
                 continue;
             }
 
-            let msg: LeaderMessage = serde_json::from_str(trimmed)
-                .context("parsing snapshot LeaderMessage JSON")?;
+            let msg: LeaderMessage =
+                serde_json::from_str(trimmed).context("parsing snapshot LeaderMessage JSON")?;
 
             match msg {
                 LeaderMessage::SnapshotChunk {
@@ -570,10 +570,7 @@ impl WalReceiver {
             .write_all(json.as_bytes())
             .await
             .context("sending ACK to leader")?;
-        writer
-            .flush()
-            .await
-            .context("flushing ACK to leader")?;
+        writer.flush().await.context("flushing ACK to leader")?;
         Ok(())
     }
 }

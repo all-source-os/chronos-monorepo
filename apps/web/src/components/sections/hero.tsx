@@ -76,7 +76,7 @@ function HeroPill() {
       transition={{ duration: 0.8, ease }}
     >
       <div className="w-fit rounded-full bg-accent px-2 py-0.5 text-center text-xs font-medium text-primary sm:text-sm">
-        v0.9.0
+        v0.10.0
       </div>
       <p className="text-xs font-medium text-primary sm:text-sm">469K events/sec achieved</p>
       <svg

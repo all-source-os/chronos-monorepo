@@ -24,7 +24,7 @@ import (
 // Control plane configuration constants.
 const (
 	// Version is the current version of the control plane.
-	Version = "0.9.1"
+	Version = "0.10.0"
 	// DefaultPort is the default port the control plane listens on.
 	DefaultPort = "3901"
 	// CoreServiceURL is the URL of the core event store service.

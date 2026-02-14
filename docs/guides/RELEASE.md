@@ -216,10 +216,51 @@ make release
 
 **Warning**: Only do this if the release hasn't been announced/used.
 
+## Version Locations
+
+All files that contain version numbers and must be updated for each release:
+
+### Service Versions (checked by `scripts/check-versions.sh`)
+
+| File | Field | Description |
+|------|-------|-------------|
+| `apps/core/Cargo.toml` | `version = "X.Y.Z"` | Rust Core crate version |
+| `apps/control-plane/main.go` | `Version = "X.Y.Z"` | Go control plane constant |
+| `apps/control-plane/tracing.go` | `serviceVersion = "X.Y.Z"` | OpenTelemetry service version |
+| `apps/query-service/mix.exs` | `version: "X.Y.Z"` | Query Service Elixir version |
+| `apps/mcp-server-elixir/mix.exs` | `version: "X.Y.Z"` | MCP Server Elixir version |
+| `deploy/k8s/core.yaml` | `image: allsource/core:X.Y.Z` | K8s Core image tag |
+| `deploy/k8s/query-service.yaml` | `image: allsource/query-service:X.Y.Z` | K8s Query Service image tag |
+
+### Documentation and UI (manual update)
+
+| File | Field | Description |
+|------|-------|-------------|
+| `README.md` | Frontmatter `version`, badges, docker pull commands, version table, roadmap | Main repository README |
+| `apps/mcp-server-elixir/README.md` | Frontmatter `version` | MCP Server README |
+| `apps/web/src/components/sections/hero.tsx` | Version badge text | Web dashboard hero section |
+| `docs/launch/MARKETING_MATERIALS.md` | `**Version:**` header | Marketing docs |
+| `docs/launch/LAUNCH_READINESS_ASSESSMENT.md` | `**Version:**` header | Launch readiness |
+| `docs/sales/evaluation/SAAS_EVALUATION.md` | `**Version**:` header | Sales evaluation |
+| `docs/sales/SUMMARY.md` | `**Version**:` header | Sales summary |
+
+### Quick Update Command
+
+```bash
+# Verify current state
+./scripts/check-versions.sh
+
+# Search for remaining old version references
+grep -rn "0\.9\.0\|0\.9\.1" --include="*.md" --include="*.tsx" --include="*.go" --include="*.toml" --include="*.exs" --include="*.yaml" --exclude-dir=node_modules --exclude-dir=target --exclude-dir=_build --exclude-dir=deps --exclude-dir=.git
+```
+
 ## Version History
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| v0.10.0 | 2026-02-13 | Leader-follower replication, event-sourced metadata, control plane v2 |
+| v0.9.1 | 2026-02-12 | Stream & event type discovery APIs |
+| v0.9.0 | 2026-02-10 | Dashboard, auth & logger fixes |
 | v0.8.1 | 2026-02-08 | SIMD filter refactoring, Elixir test fixes |
 | v0.8.0 | 2026-02-03 | Clean Architecture release |
 | v0.7.3 | 2026-02-02 | Quality improvements |

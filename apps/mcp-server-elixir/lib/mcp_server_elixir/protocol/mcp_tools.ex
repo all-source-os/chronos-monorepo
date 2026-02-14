@@ -7934,7 +7934,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         do: lines ++ ["  ⚠️ BREAKING CHANGES detected"],
         else: lines ++ ["  ✅ No breaking changes"]
 
-    if lines == [], do: "  No changes detected", else: Enum.join(lines, "\n")
+    Enum.join(lines, "\n")
   end
 
   defp infer_schema_from_events(events) do

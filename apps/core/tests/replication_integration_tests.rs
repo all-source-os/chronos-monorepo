@@ -77,12 +77,8 @@ async fn test_leader_follower_wal_replication() {
     let leader_addr = format!("127.0.0.1:{}", replication_port);
     let follower_wal_dir = follower_dir.path().join("follower-wal");
 
-    let receiver = WalReceiver::new(
-        leader_addr,
-        &follower_wal_dir,
-        Arc::clone(&follower_store),
-    )
-    .expect("WalReceiver should initialize successfully");
+    let receiver = WalReceiver::new(leader_addr, &follower_wal_dir, Arc::clone(&follower_store))
+        .expect("WalReceiver should initialize successfully");
 
     let receiver = Arc::new(receiver);
 
@@ -105,7 +101,9 @@ async fn test_leader_follower_wal_replication() {
             "test.replicated",
             serde_json::json!({"index": i, "source": "leader"}),
         );
-        leader_store.ingest(event).expect("leader ingest should succeed");
+        leader_store
+            .ingest(event)
+            .expect("leader ingest should succeed");
     }
 
     // ---------------------------------------------------------------
@@ -122,8 +120,7 @@ async fn test_leader_follower_wal_replication() {
         if tokio::time::Instant::now() >= deadline {
             panic!(
                 "Timed out waiting for follower replication. Expected {} events, got {}",
-                num_events,
-                follower_stats.total_events,
+                num_events, follower_stats.total_events,
             );
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -237,11 +234,7 @@ async fn test_late_follower_catches_up_from_live_wal() {
     // Ingest events BEFORE the follower connects.
     let num_events = 3;
     for i in 0..num_events {
-        let event = test_event(
-            "late-entity",
-            "test.late",
-            serde_json::json!({"seq": i}),
-        );
+        let event = test_event("late-entity", "test.late", serde_json::json!({"seq": i}));
         leader_store.ingest(event).unwrap();
     }
 
@@ -250,12 +243,8 @@ async fn test_late_follower_catches_up_from_live_wal() {
     let leader_addr = format!("127.0.0.1:{}", replication_port);
     let follower_wal_dir = follower_dir.path().join("follower-wal");
 
-    let receiver = WalReceiver::new(
-        leader_addr,
-        &follower_wal_dir,
-        Arc::clone(&follower_store),
-    )
-    .unwrap();
+    let receiver =
+        WalReceiver::new(leader_addr, &follower_wal_dir, Arc::clone(&follower_store)).unwrap();
 
     let receiver = Arc::new(receiver);
     let receiver_clone = Arc::clone(&receiver);
@@ -289,8 +278,7 @@ async fn test_late_follower_catches_up_from_live_wal() {
         if tokio::time::Instant::now() >= deadline {
             panic!(
                 "Timed out waiting for late follower. Expected at least {} events, got {}",
-                additional,
-                stats.total_events,
+                additional, stats.total_events,
             );
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -327,7 +315,9 @@ async fn test_replication_preserves_event_data_fidelity() {
 
     let shipper_handle = {
         let s = Arc::clone(&shipper);
-        tokio::spawn(async move { let _ = s.serve(replication_port).await; })
+        tokio::spawn(async move {
+            let _ = s.serve(replication_port).await;
+        })
     };
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -336,23 +326,33 @@ async fn test_replication_preserves_event_data_fidelity() {
     let leader_addr = format!("127.0.0.1:{}", replication_port);
     let follower_wal_dir = follower_dir.path().join("follower-wal");
 
-    let receiver = WalReceiver::new(
-        leader_addr,
-        &follower_wal_dir,
-        Arc::clone(&follower_store),
-    )
-    .unwrap();
+    let receiver =
+        WalReceiver::new(leader_addr, &follower_wal_dir, Arc::clone(&follower_store)).unwrap();
     let receiver = Arc::new(receiver);
     let rc = Arc::clone(&receiver);
-    let receiver_handle = tokio::spawn(async move { rc.run().await; });
+    let receiver_handle = tokio::spawn(async move {
+        rc.run().await;
+    });
 
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
     // Ingest events with diverse payloads.
     let payloads = vec![
-        ("user-42", "user.registered", serde_json::json!({"email": "test@example.com", "plan": "pro"})),
-        ("order-99", "order.placed", serde_json::json!({"items": [{"sku": "A1", "qty": 3}], "total": 59.97})),
-        ("metric-1", "metric.recorded", serde_json::json!({"cpu": 0.87, "memory_mb": 2048, "tags": ["prod", "us-east"]})),
+        (
+            "user-42",
+            "user.registered",
+            serde_json::json!({"email": "test@example.com", "plan": "pro"}),
+        ),
+        (
+            "order-99",
+            "order.placed",
+            serde_json::json!({"items": [{"sku": "A1", "qty": 3}], "total": 59.97}),
+        ),
+        (
+            "metric-1",
+            "metric.recorded",
+            serde_json::json!({"cpu": 0.87, "memory_mb": 2048, "tags": ["prod", "us-east"]}),
+        ),
     ];
 
     for (entity_id, event_type, payload) in &payloads {

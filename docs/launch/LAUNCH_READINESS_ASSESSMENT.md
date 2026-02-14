@@ -1,7 +1,7 @@
 # AllSource Launch Readiness Assessment
 
 **Date:** 2026-02-11
-**Version:** 0.9.0
+**Version:** 0.10.0
 **Overall Score:** 7/10 - MVP Ready with Caveats
 
 ---

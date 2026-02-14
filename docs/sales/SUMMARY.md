@@ -1,7 +1,7 @@
 # AllSource SaaS Evaluation Summary
 
 **Date**: February 11, 2026
-**Version**: 0.9.0
+**Version**: 0.10.0
 **Status**: Ready for Beta Launch
 
 ---

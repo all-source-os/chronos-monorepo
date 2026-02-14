@@ -1,6 +1,6 @@
 # AllSource Marketing Materials
 
-**Version:** 0.9.0
+**Version:** 0.10.0
 **Last Updated:** 2026-02-11
 
 ---

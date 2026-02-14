@@ -151,4 +151,4 @@ These materials should be updated when:
 - Competitive landscape shifts
 
 Last updated: February 2026
-Version: 0.9.0
+Version: 0.10.0
