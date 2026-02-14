@@ -16,11 +16,7 @@ ARG ALPINE_VERSION=3.23
 # =============================================================================
 FROM rust:${RUST_VERSION}-alpine AS chef
 
-RUN apk add --no-cache \
-    musl-dev \
-    openssl-dev \
-    openssl-libs-static \
-    pkgconf && \
+RUN apk add --no-cache musl-dev && \
     cargo install cargo-chef --locked
 
 WORKDIR /app
@@ -30,14 +26,20 @@ WORKDIR /app
 # =============================================================================
 FROM chef AS planner
 
-# Copy only what's needed for dependency analysis
+# Copy workspace root manifests first
 COPY Cargo.toml Cargo.lock ./
-COPY src ./src
 
-# Create minimal stubs for optional targets (referenced in Cargo.toml but not needed for main binary)
-RUN mkdir -p benches tests/stress_tests && \
-    echo 'fn main() {}' > benches/performance_benchmarks.rs && \
-    echo 'fn main() {}' > tests/stress_tests/seven_day_stress.rs && \
+# Copy the core app source
+COPY apps/core/Cargo.toml apps/core/Cargo.lock* apps/core/
+COPY apps/core/src apps/core/src
+
+# Create stubs for workspace members and optional targets
+COPY tooling/performance/Cargo.toml tooling/performance/Cargo.toml
+RUN mkdir -p tooling/performance/src && \
+    echo 'fn main() {}' > tooling/performance/src/main.rs && \
+    mkdir -p apps/core/benches apps/core/tests/stress_tests && \
+    echo 'fn main() {}' > apps/core/benches/performance_benchmarks.rs && \
+    echo 'fn main() {}' > apps/core/tests/stress_tests/seven_day_stress.rs && \
     cargo chef prepare --recipe-path recipe.json
 
 # =============================================================================
@@ -49,19 +51,24 @@ ARG VERSION=dev
 ARG REVISION=unknown
 ARG BUILDTIME=unknown
 
-# Copy dependency recipe and build dependencies (cached layer)
+# Set up workspace structure for dependency caching
+COPY Cargo.toml Cargo.lock ./
+COPY apps/core/Cargo.toml apps/core/
+COPY tooling/performance/Cargo.toml tooling/performance/
+RUN mkdir -p apps/core/src tooling/performance/src && \
+    echo 'fn main() {}' > apps/core/src/main.rs && \
+    echo 'fn main() {}' > tooling/performance/src/main.rs
+
+# Cook dependencies from recipe (cached layer)
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
-# Copy source files needed for binary build
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
-
-# Create minimal stubs and build in single layer for cache efficiency
-RUN mkdir -p benches tests/stress_tests && \
-    echo 'fn main() {}' > benches/performance_benchmarks.rs && \
-    echo 'fn main() {}' > tests/stress_tests/seven_day_stress.rs && \
-    CARGO_BUILD_JOBS=4 cargo build --release --bin allsource-core && \
+# Copy actual source files for binary build
+COPY apps/core/src apps/core/src
+RUN mkdir -p apps/core/benches apps/core/tests/stress_tests && \
+    echo 'fn main() {}' > apps/core/benches/performance_benchmarks.rs && \
+    echo 'fn main() {}' > apps/core/tests/stress_tests/seven_day_stress.rs && \
+    CARGO_BUILD_JOBS=4 cargo build --release -p allsource-core --bin allsource-core && \
     strip /app/target/release/allsource-core
 
 # =============================================================================

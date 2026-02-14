@@ -7,10 +7,10 @@ version: "0.10.0"
 
 # AllSource Event Store - AllSource Monorepo
 
-[![CI](https://github.com/all-source-os/allsource-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/allsource-monorepo/actions/workflows/ci.yml)
-[![Container CI](https://github.com/all-source-os/allsource-monorepo/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/allsource-monorepo/actions/workflows/container-ci.yml)
-[![Docker Build](https://github.com/all-source-os/allsource-monorepo/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/allsource-monorepo/actions/workflows/docker-build.yml)
-[![Release](https://img.shields.io/github/v/release/all-source-os/allsource-monorepo?label=release)](https://github.com/all-source-os/allsource-monorepo/releases/latest)
+[![CI](https://github.com/all-source-os/all-source/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/ci.yml)
+[![Container CI](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml)
+[![Docker Build](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml)
+[![Release](https://img.shields.io/github/v/release/all-source-os/all-source?label=release)](https://github.com/all-source-os/all-source/releases/latest)
 [![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.10.0-green.svg)](apps/core/)
 [![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v0.10.0-blue.svg)](apps/control-plane/)
 [![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-v0.10.0-purple.svg)](apps/query-service/)
@@ -38,10 +38,10 @@ Production-optimized containers with minimal footprint:
 
 | Service | Image | Version | Size | Base |
 |---------|-------|:-------:|:----:|------|
-| **Core** | `ghcr.io/all-source-os/allsource-core` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/allsource-monorepo/pkgs/container/allsource-core) | **15.7 MB** | Distroless |
-| **Control Plane** | `ghcr.io/all-source-os/allsource-control-plane` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/allsource-monorepo/pkgs/container/allsource-control-plane) | **27.9 MB** | Distroless |
-| **Query Service** | `ghcr.io/all-source-os/allsource-query-service` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/allsource-monorepo/pkgs/container/allsource-query-service) | **35.1 MB** | Alpine |
-| **Web** | `ghcr.io/all-source-os/allsource-web` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/allsource-monorepo/pkgs/container/allsource-web) | **~50 MB** | Alpine |
+| **Core** | `ghcr.io/all-source-os/allsource-core` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-core) | **15.7 MB** | Distroless |
+| **Control Plane** | `ghcr.io/all-source-os/allsource-control-plane` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-control-plane) | **27.9 MB** | Distroless |
+| **Query Service** | `ghcr.io/all-source-os/allsource-query-service` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-query-service) | **35.1 MB** | Alpine |
+| **Web** | `ghcr.io/all-source-os/allsource-web` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-web) | **~50 MB** | Alpine |
 
 **Total production footprint: ~129 MB** (excluding database)
 
@@ -164,7 +164,7 @@ Use `docker-compose.override.yml` for isolated local development with override p
 
 ```bash
 # Clone and start all services
-git clone https://github.com/all-source-os/allsource-monorepo.git
+git clone https://github.com/all-source-os/all-source.git
 cd allsource-monorepo
 docker compose up -d
 
@@ -257,8 +257,8 @@ make bump-version      # Interactive bump
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/all-source-os/allsource-monorepo/issues)
-- **Releases**: [GitHub Releases](https://github.com/all-source-os/allsource-monorepo/releases)
+- **Issues**: [GitHub Issues](https://github.com/all-source-os/all-source/issues)
+- **Releases**: [GitHub Releases](https://github.com/all-source-os/all-source/releases)
 - **Documentation**: [Docs Hub](docs/README.md)
 
 ---

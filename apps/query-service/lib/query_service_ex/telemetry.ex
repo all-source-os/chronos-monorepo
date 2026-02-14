@@ -129,7 +129,11 @@ defmodule QueryServiceEx.Telemetry do
   def handle_phoenix_stop(_event, measurements, metadata, _config) do
     duration_ms = System.convert_time_unit(measurements.duration, :native, :millisecond)
 
-    Logger.info(
+    level =
+      if health_check_path?(metadata.conn.request_path), do: :debug, else: :info
+
+    Logger.log(
+      level,
       "HTTP request completed",
       method: metadata.conn.method,
       path: metadata.conn.request_path,
@@ -138,6 +142,10 @@ defmodule QueryServiceEx.Telemetry do
       telemetry_event: "phoenix.endpoint.stop"
     )
   end
+
+  defp health_check_path?("/api/health" <> _), do: true
+  defp health_check_path?("/health" <> _), do: true
+  defp health_check_path?(_), do: false
 
   # Ecto query handler
   def handle_ecto_query(_event, measurements, metadata, _config) do

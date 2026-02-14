@@ -7,14 +7,12 @@ import (
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 	httphandlers "github.com/allsource/control-plane/internal/interfaces/http"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Container holds all application dependencies
 type Container struct {
 	// Repositories
 	TenantRepo    repositories.TenantRepository
-	UserRepo      repositories.UserRepository
 	PolicyRepo    repositories.PolicyRepository
 	AuditRepo     repositories.AuditRepository
 	OperationRepo repositories.OperationRepository
@@ -75,48 +73,42 @@ type Container struct {
 
 // ContainerConfig holds configuration for dependency injection.
 type ContainerConfig struct {
-	DatabaseURL string
-	Pool        *pgxpool.Pool
-	CoreClient  clients.CoreClient
+	CoreClient clients.CoreClient
 }
 
 // NewContainerWithConfig creates and wires up all dependencies using the provided config.
-// If a Pool is provided or DatabaseURL is set, PostgreSQL repositories are used.
-// Otherwise, in-memory repositories are used.
+// Tenants, audit, and config are backed by Core via REST when CoreClient is provided.
+// Falls back to in-memory repos when CoreClient is nil (for testing).
+// Policies and operations remain in-memory (CP-local concerns).
 func NewContainerWithConfig(cfg ContainerConfig) *Container {
-	var (
-		tenantRepo    repositories.TenantRepository
-		userRepo      repositories.UserRepository
-		policyRepo    repositories.PolicyRepository
-		auditRepo     repositories.AuditRepository
-		operationRepo repositories.OperationRepository
-		configRepo    repositories.ConfigRepository
-	)
-
-	if cfg.Pool != nil {
-		tenantRepo = persistence.NewPgTenantRepository(cfg.Pool)
-		userRepo = persistence.NewPgUserRepository(cfg.Pool)
-		policyRepo = persistence.NewPgPolicyRepository(cfg.Pool)
-		auditRepo = persistence.NewPgAuditRepository(cfg.Pool)
-		operationRepo = persistence.NewPgOperationRepository(cfg.Pool)
-		configRepo = persistence.NewPgConfigRepository(cfg.Pool)
+	// Choose repositories based on whether CoreClient is available
+	var tenantRepo repositories.TenantRepository
+	var auditRepo repositories.AuditRepository
+	var configRepo repositories.ConfigRepository
+	if cfg.CoreClient != nil {
+		// Production: Core-backed repositories (single source of truth = Core)
+		tenantRepo = persistence.NewCoreTenantRepository(cfg.CoreClient)
+		auditRepo = persistence.NewCoreAuditRepository(cfg.CoreClient)
+		configRepo = persistence.NewCoreConfigRepository(cfg.CoreClient)
 	} else {
+		// Testing: in-memory repositories
 		tenantRepo = persistence.NewMemoryTenantRepository()
-		userRepo = persistence.NewMemoryUserRepository()
-		policyRepo = persistence.NewMemoryPolicyRepository()
 		auditRepo = persistence.NewMemoryAuditRepository()
-		operationRepo = persistence.NewMemoryOperationRepository()
 		configRepo = persistence.NewMemoryConfigRepository()
 	}
 
-	// Initialize use cases — Tenants (Layer 2)
+	// In-memory repositories (CP-local concerns)
+	policyRepo := persistence.NewMemoryPolicyRepository()
+	operationRepo := persistence.NewMemoryOperationRepository()
+
+	// Initialize use cases — Tenants (no coreClient needed, repo delegates directly)
 	createTenantUC := usecases.NewCreateTenantUseCase(tenantRepo, auditRepo)
 	getTenantUC := usecases.NewGetTenantUseCase(tenantRepo)
 	listTenantsUC := usecases.NewListTenantsUseCase(tenantRepo)
 	updateTenantUC := usecases.NewUpdateTenantUseCase(tenantRepo, auditRepo)
-	suspendTenantUC := usecases.NewSuspendTenantUseCase(tenantRepo, auditRepo, cfg.CoreClient)
-	activateTenantUC := usecases.NewActivateTenantUseCase(tenantRepo, auditRepo, cfg.CoreClient)
-	deleteTenantUC := usecases.NewDeleteTenantUseCase(tenantRepo, auditRepo, cfg.CoreClient)
+	suspendTenantUC := usecases.NewSuspendTenantUseCase(tenantRepo, auditRepo)
+	activateTenantUC := usecases.NewActivateTenantUseCase(tenantRepo, auditRepo)
+	deleteTenantUC := usecases.NewDeleteTenantUseCase(tenantRepo, auditRepo)
 
 	// Initialize use cases — Policies (Layer 2)
 	evaluatePolicyUC := usecases.NewEvaluatePolicyUseCase(policyRepo)
@@ -174,7 +166,6 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 
 	return &Container{
 		TenantRepo:          tenantRepo,
-		UserRepo:            userRepo,
 		PolicyRepo:          policyRepo,
 		AuditRepo:           auditRepo,
 		OperationRepo:       operationRepo,

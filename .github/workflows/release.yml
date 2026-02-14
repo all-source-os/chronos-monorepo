@@ -79,7 +79,8 @@ jobs:
       matrix:
         service:
           - name: core
-            context: apps/core
+            context: .
+            dockerfile: apps/core/Dockerfile
           - name: control-plane
             context: apps/control-plane
           - name: query-service
@@ -106,6 +107,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.dockerfile || format('{0}/Dockerfile', matrix.service.context) }}
           # Only amd64 - arm64 via QEMU is too slow for Rust (10-20x slower)
           # ARM users can build locally or use native ARM runners in separate workflow
           platforms: linux/amd64
@@ -149,7 +151,7 @@ jobs:
           - os: ubuntu-latest
             target: aarch64-unknown-linux-musl
             artifact: allsource-core-linux-aarch64
-          - os: macos-latest
+          - os: macos-13
             target: x86_64-apple-darwin
             artifact: allsource-core-macos-x86_64
           - os: macos-latest
@@ -167,7 +169,6 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "apps/core -> target"
           key: ${{ matrix.target }}
 
       - name: Install musl tools
@@ -181,12 +182,11 @@ jobs:
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build
-        working-directory: apps/core
         run: |
           if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
-            cross build --release --locked --target ${{ matrix.target }} --bin allsource-core
+            cross build --release --locked --target ${{ matrix.target }} -p allsource-core --bin allsource-core
           else
-            cargo build --release --locked --target ${{ matrix.target }} --bin allsource-core
+            cargo build --release --locked --target ${{ matrix.target }} -p allsource-core --bin allsource-core
           fi
 
       - name: Package binary
@@ -244,7 +244,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.6"
+          go-version: "1.26.0"
           cache-dependency-path: apps/control-plane/go.sum
 
       - name: Build

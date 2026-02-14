@@ -211,7 +211,7 @@ CGO_ENABLED=0 go build -ldflags="-s -w" -o control-plane main_v1.go
 
 #### Docker (Example Dockerfile)
 ```dockerfile
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download

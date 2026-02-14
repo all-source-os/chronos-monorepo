@@ -148,7 +148,7 @@ jobs:
         run: |
           case "${{ matrix.container }}" in
             core)
-              echo "context=apps/core" >> "$GITHUB_OUTPUT"
+              echo "context=." >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/core/Dockerfile" >> "$GITHUB_OUTPUT"
               echo "image=allsource-core" >> "$GITHUB_OUTPUT"
               echo "port=3900" >> "$GITHUB_OUTPUT"

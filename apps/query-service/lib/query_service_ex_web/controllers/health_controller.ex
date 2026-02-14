@@ -1,18 +1,16 @@
 defmodule QueryServiceExWeb.HealthController do
   @moduledoc """
-  Health check endpoints for Fly.io instance lifecycle management.
+  Health check endpoints for instance lifecycle management.
 
   Provides three types of health checks:
 
   ## Liveness Probe (`/api/health/live`)
   Indicates whether the application process is running.
-  Used by Fly.io to determine if an instance needs to be restarted.
   Only fails if the Elixir VM itself is unhealthy.
 
   ## Readiness Probe (`/api/health/ready`)
   Indicates whether the application is ready to accept traffic.
-  Checks database connectivity and core service availability.
-  Used by Fly.io to determine if an instance should receive traffic.
+  Checks Core backend and WebSocket connectivity.
 
   ## Combined Health (`/api/health`)
   Comprehensive health check combining liveness and readiness.
@@ -22,7 +20,6 @@ defmodule QueryServiceExWeb.HealthController do
 
       config :query_service_ex,
         health_check_timeout_ms: 5_000,
-        health_check_db_timeout_ms: 2_000,
         health_check_backend_timeout_ms: 3_000
   """
 
@@ -31,13 +28,11 @@ defmodule QueryServiceExWeb.HealthController do
 
   require Logger
 
-  alias QueryServiceEx.DevMode
   alias QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
   alias QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceExWeb.Schemas.Health
 
-  @default_db_timeout_ms 2_000
   @default_backend_timeout_ms 3_000
 
   tags(["Health"])
@@ -81,8 +76,8 @@ defmodule QueryServiceExWeb.HealthController do
   Readiness probe - checks if the service is ready to accept traffic.
 
   Verifies:
-  - Database connectivity (via Ecto)
   - Backend Core service availability
+  - WebSocket connectivity to Core
 
   Returns HTTP 503 if any dependency is unavailable.
   """
@@ -151,24 +146,7 @@ defmodule QueryServiceExWeb.HealthController do
   # Private functions
 
   defp perform_readiness_checks do
-    # In standalone mode (no PostgreSQL), skip the database check entirely
-    db_result =
-      if DevMode.repo_available?() do
-        db_task = Task.async(fn -> {:database, check_database()} end)
-
-        db_timeout =
-          Application.get_env(
-            :query_service_ex,
-            :health_check_db_timeout_ms,
-            @default_db_timeout_ms
-          )
-
-        await_check(db_task, db_timeout, :database)
-      else
-        {:database, :healthy}
-      end
-
-    # Run remaining checks concurrently with timeouts
+    # Run checks concurrently with timeouts
     backend_task = Task.async(fn -> {:backend, check_backend()} end)
     ws_task = Task.async(fn -> {:websocket, check_websocket()} end)
 
@@ -180,9 +158,9 @@ defmodule QueryServiceExWeb.HealthController do
       )
 
     backend_result = await_check(backend_task, backend_timeout, :backend)
-    ws_result = await_check(ws_task, @default_db_timeout_ms, :websocket)
+    ws_result = await_check(ws_task, @default_backend_timeout_ms, :websocket)
 
-    [db_result, backend_result, ws_result]
+    [backend_result, ws_result]
   end
 
   defp await_check(task, timeout, check_name) do
@@ -203,35 +181,6 @@ defmodule QueryServiceExWeb.HealthController do
 
         {check_name, :timeout}
     end
-  end
-
-  defp check_database do
-    start_time = System.monotonic_time()
-
-    result =
-      case QueryServiceEx.Repo.query("SELECT 1") do
-        {:ok, _result} ->
-          :healthy
-
-        {:error, reason} ->
-          Logger.warning("[HealthController] Database check failed: #{inspect(reason)}")
-          :unhealthy
-      end
-
-    duration_ms =
-      System.convert_time_unit(System.monotonic_time() - start_time, :native, :millisecond)
-
-    :telemetry.execute(
-      [:query_service_ex, :health_check, :completed],
-      %{duration_ms: duration_ms},
-      %{check: :database, status: result}
-    )
-
-    result
-  rescue
-    error ->
-      Logger.warning("[HealthController] Database check exception: #{inspect(error)}")
-      :unhealthy
   end
 
   defp check_backend do

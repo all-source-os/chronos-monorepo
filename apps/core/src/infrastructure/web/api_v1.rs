@@ -9,7 +9,7 @@ use crate::{
             middleware::{AuthState, RateLimitState, auth_middleware, rate_limit_middleware},
             rate_limit::RateLimiter,
         },
-        web::{auth_api::*, tenant_api::*},
+        web::{audit_api::*, auth_api::*, config_api::*, tenant_api::*},
     },
     store::EventStore,
 };
@@ -196,6 +196,15 @@ pub async fn serve_v1(
             post(activate_tenant_handler),
         )
         .route("/api/v1/tenants/{id}", delete(delete_tenant_handler))
+        // Audit endpoints (admin only)
+        .route("/api/v1/audit/events", post(log_audit_event))
+        .route("/api/v1/audit/events", get(query_audit_events))
+        // Config endpoints (admin only)
+        .route("/api/v1/config", get(list_configs))
+        .route("/api/v1/config", post(set_config))
+        .route("/api/v1/config/{key}", get(get_config))
+        .route("/api/v1/config/{key}", put(update_config))
+        .route("/api/v1/config/{key}", delete(delete_config))
         // Event and data routes (protected by auth)
         .route("/api/v1/events", post(super::api::ingest_event_v1))
         .route(
@@ -369,6 +378,8 @@ const WRITE_PATHS: &[&str] = &[
     "/api/v1/replay",
     "/api/v1/pipelines",
     "/api/v1/compaction/trigger",
+    "/api/v1/audit/events",
+    "/api/v1/config",
 ];
 
 /// Returns true if this request is a write operation that should be blocked on followers.

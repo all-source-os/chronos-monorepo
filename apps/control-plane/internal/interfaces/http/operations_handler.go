@@ -163,7 +163,7 @@ func (h *OperationsHandler) CancelReplay(c *gin.Context) {
 
 // ListOperations handles GET /api/v1/operations/history
 func (h *OperationsHandler) ListOperations(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50")) //nolint:errcheck // safe: default is valid int
 	opType := c.Query("type")
 	status := c.Query("status")
 	tenantID := c.Query("tenant_id")

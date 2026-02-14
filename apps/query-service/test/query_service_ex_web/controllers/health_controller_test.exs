@@ -41,7 +41,7 @@ defmodule QueryServiceExWeb.HealthControllerTest do
       assert response["checks"]["websocket"] in ["healthy", "degraded", "unhealthy", "timeout"]
     end
 
-    test "includes all required dependency checks" do
+    test "includes only backend and websocket dependency checks" do
       conn =
         :get
         |> conn("/api/health")
@@ -50,10 +50,20 @@ defmodule QueryServiceExWeb.HealthControllerTest do
       response = Jason.decode!(conn.resp_body)
       checks = response["checks"]
 
-      # All three checks should be present
-      assert Map.has_key?(checks, "database")
+      # Only backend and websocket checks - no database (Query Service has no DB)
       assert Map.has_key?(checks, "backend")
       assert Map.has_key?(checks, "websocket")
+      assert map_size(checks) == 2
+    end
+
+    test "does not include database check" do
+      conn =
+        :get
+        |> conn("/api/health")
+        |> Router.call(@opts)
+
+      response = Jason.decode!(conn.resp_body)
+      refute Map.has_key?(response["checks"], "database")
     end
 
     test "includes timestamp in ISO8601 format" do

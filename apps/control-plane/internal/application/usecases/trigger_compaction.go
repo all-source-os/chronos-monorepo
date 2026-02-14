@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
-	"github.com/google/uuid"
 )
 
 // TriggerCompactionUseCase orchestrates triggering compaction via Core with local operation tracking.

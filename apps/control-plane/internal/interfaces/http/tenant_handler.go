@@ -73,8 +73,8 @@ func (h *TenantHandler) Create(c *gin.Context) {
 
 // List handles GET /api/v1/tenants
 func (h *TenantHandler) List(c *gin.Context) {
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "0"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0")) //nolint:errcheck // default is valid int
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "0"))   //nolint:errcheck // default is valid int
 	status := c.Query("status")
 
 	req := usecases.ListTenantsRequest{

@@ -1,3 +1,4 @@
+// Package clients provides typed HTTP clients for communicating with external services.
 package clients
 
 import (
@@ -38,6 +39,17 @@ type CoreClient interface {
 	ListSchemas(ctx context.Context) (*ListSchemasResponse, error)
 	ValidateEvent(ctx context.Context, req ValidateEventRequest) (*ValidationResponse, error)
 
+	// Audit
+	LogAuditEvent(ctx context.Context, req AuditEventRequest) error
+	QueryAuditEvents(ctx context.Context, params AuditQueryParams) (*AuditEventsResponse, error)
+
+	// Config
+	SetConfig(ctx context.Context, req SetConfigRequest) error
+	GetConfig(ctx context.Context, key string) (*ConfigEntryResponse, error)
+	ListConfigs(ctx context.Context) (*ListConfigsResponse, error)
+	UpdateConfig(ctx context.Context, key string, req UpdateConfigEntryRequest) (*ConfigEntryResponse, error)
+	DeleteConfig(ctx context.Context, key string) error
+
 	// Health
 	HealthCheck(ctx context.Context) (*HealthResponse, error)
 	GetStats(ctx context.Context) (*StatsResponse, error)
@@ -45,37 +57,44 @@ type CoreClient interface {
 
 // --- Request types ---
 
+// CreateTenantRequest is the request body for creating a tenant in Core.
 type CreateTenantRequest struct {
 	ID       string         `json:"id"`
 	Name     string         `json:"name"`
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+// UpdateQuotasRequest is the request body for updating tenant quotas.
 type UpdateQuotasRequest struct {
 	MaxEventsPerSecond int64 `json:"max_events_per_second,omitempty"`
 	MaxStorageBytes    int64 `json:"max_storage_bytes,omitempty"`
 	MaxStreams         int64 `json:"max_streams,omitempty"`
 }
 
+// CreateSnapshotRequest is the request body for creating a snapshot.
 type CreateSnapshotRequest struct {
 	TenantID string `json:"tenant_id,omitempty"`
 }
 
+// CompactionRequest is the request body for triggering compaction.
 type CompactionRequest struct {
 	Force bool `json:"force,omitempty"`
 }
 
+// ReplayRequest is the request body for starting a replay.
 type ReplayRequest struct {
 	EntityID string     `json:"entity_id"`
 	AsOf     *time.Time `json:"as_of,omitempty"`
 }
 
+// RegisterSchemaRequest is the request body for registering a schema.
 type RegisterSchemaRequest struct {
 	EventType string `json:"event_type"`
 	Schema    any    `json:"schema"`
 	Version   string `json:"version,omitempty"`
 }
 
+// ValidateEventRequest is the request body for validating an event against a schema.
 type ValidateEventRequest struct {
 	EventType string `json:"event_type"`
 	Data      any    `json:"data"`
@@ -83,6 +102,7 @@ type ValidateEventRequest struct {
 
 // --- Response types ---
 
+// TenantResponse represents a tenant from Core.
 type TenantResponse struct {
 	ID       string         `json:"id"`
 	Name     string         `json:"name"`
@@ -90,11 +110,13 @@ type TenantResponse struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+// ListTenantsResponse wraps a list of tenants from Core.
 type ListTenantsResponse struct {
 	Tenants []TenantResponse `json:"tenants"`
 	Total   int              `json:"total"`
 }
 
+// TenantStatsResponse contains tenant usage statistics.
 type TenantStatsResponse struct {
 	TenantID    string `json:"tenant_id"`
 	EventCount  int64  `json:"event_count"`
@@ -102,60 +124,150 @@ type TenantStatsResponse struct {
 	StreamCount int64  `json:"stream_count"`
 }
 
+// SnapshotResponse represents a snapshot operation result.
 type SnapshotResponse struct {
 	SnapshotID string `json:"snapshot_id"`
 	Status     string `json:"status"`
 }
 
+// CompactionResponse represents a compaction operation result.
 type CompactionResponse struct {
 	Status string `json:"status"`
 }
 
+// CompactionStatsResponse contains compaction statistics.
 type CompactionStatsResponse struct {
 	LastRun        *time.Time `json:"last_run,omitempty"`
 	TotalRuns      int64      `json:"total_runs"`
 	SpaceReclaimed int64      `json:"space_reclaimed"`
 }
 
+// ReplayResponse represents a replay operation result.
 type ReplayResponse struct {
 	ReplayID string `json:"replay_id"`
 	Status   string `json:"status"`
 }
 
+// ReplayProgressResponse contains replay progress information.
 type ReplayProgressResponse struct {
 	ReplayID string  `json:"replay_id"`
 	Status   string  `json:"status"`
 	Progress float64 `json:"progress"`
 }
 
+// SchemaResponse represents a registered schema.
 type SchemaResponse struct {
 	EventType string `json:"event_type"`
 	Schema    any    `json:"schema"`
 	Version   string `json:"version"`
 }
 
+// ListSchemasResponse wraps a list of schemas from Core.
 type ListSchemasResponse struct {
 	Schemas []SchemaResponse `json:"schemas"`
 	Total   int              `json:"total"`
 }
 
+// ValidationResponse contains schema validation results.
 type ValidationResponse struct {
 	Valid  bool     `json:"valid"`
 	Errors []string `json:"errors,omitempty"`
 }
 
+// HealthResponse contains Core health check results.
 type HealthResponse struct {
 	Status  string         `json:"status"`
 	Version string         `json:"version,omitempty"`
 	Details map[string]any `json:"details,omitempty"`
 }
 
+// StatsResponse contains Core statistics.
 type StatsResponse struct {
 	EventCount    int64          `json:"event_count"`
 	StreamCount   int64          `json:"stream_count"`
 	StorageBytes  int64          `json:"storage_bytes"`
 	UptimeSeconds float64        `json:"uptime_seconds"`
 	Extra         map[string]any `json:"extra,omitempty"`
+}
+
+// --- Audit types ---
+
+// AuditEventRequest is the request body for logging an audit event.
+type AuditEventRequest struct {
+	TenantID     string         `json:"tenant_id"`
+	Action       string         `json:"action"`
+	ActorType    string         `json:"actor_type"`
+	ActorID      string         `json:"actor_id"`
+	ActorName    string         `json:"actor_name"`
+	Outcome      string         `json:"outcome,omitempty"`
+	ResourceType string         `json:"resource_type,omitempty"`
+	ResourceID   string         `json:"resource_id,omitempty"`
+	IPAddress    string         `json:"ip_address,omitempty"`
+	UserAgent    string         `json:"user_agent,omitempty"`
+	ErrorMessage string         `json:"error_message,omitempty"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+}
+
+// AuditQueryParams contains query parameters for audit event searches.
+type AuditQueryParams struct {
+	TenantID     string `json:"tenant_id,omitempty"`
+	UserID       string `json:"user_id,omitempty"`
+	Action       string `json:"action,omitempty"`
+	Start        string `json:"start,omitempty"`
+	End          string `json:"end,omitempty"`
+	SecurityOnly bool   `json:"security_only,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
+	Offset       int    `json:"offset,omitempty"`
+}
+
+// AuditEventItem represents a single audit event from Core.
+type AuditEventItem struct {
+	ID           string         `json:"id"`
+	TenantID     string         `json:"tenant_id"`
+	Timestamp    string         `json:"timestamp"`
+	Action       string         `json:"action"`
+	Actor        map[string]any `json:"actor"`
+	Outcome      string         `json:"outcome"`
+	ResourceType string         `json:"resource_type,omitempty"`
+	ResourceID   string         `json:"resource_id,omitempty"`
+	IPAddress    string         `json:"ip_address,omitempty"`
+	ErrorMessage string         `json:"error_message,omitempty"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+}
+
+// AuditEventsResponse wraps a list of audit events from Core.
+type AuditEventsResponse struct {
+	Events []AuditEventItem `json:"events"`
+	Total  int              `json:"total"`
+}
+
+// --- Config types ---
+
+// SetConfigRequest is the request body for setting a config entry.
+type SetConfigRequest struct {
+	Key       string `json:"key"`
+	Value     any    `json:"value"`
+	ChangedBy string `json:"changed_by,omitempty"`
+}
+
+// UpdateConfigEntryRequest is the request body for updating a config entry.
+type UpdateConfigEntryRequest struct {
+	Value     any    `json:"value"`
+	ChangedBy string `json:"changed_by,omitempty"`
+}
+
+// ConfigEntryResponse represents a config entry from Core.
+type ConfigEntryResponse struct {
+	Key       string `json:"key"`
+	Value     any    `json:"value"`
+	UpdatedAt string `json:"updated_at"`
+	UpdatedBy string `json:"updated_by,omitempty"`
+}
+
+// ListConfigsResponse wraps a list of config entries from Core.
+type ListConfigsResponse struct {
+	Configs []ConfigEntryResponse `json:"configs"`
+	Total   int                   `json:"total"`
 }
 
 // --- Implementation ---
@@ -499,6 +611,130 @@ func (c *coreClient) ValidateEvent(ctx context.Context, req ValidateEventRequest
 		return nil, err
 	}
 	return &result, nil
+}
+
+// --- Audit methods ---
+
+func (c *coreClient) LogAuditEvent(ctx context.Context, req AuditEventRequest) error {
+	ctx, span := c.startSpan(ctx, "LogAuditEvent")
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		SetBody(req).
+		Post("/api/v1/audit/events")
+
+	return c.handleError(span, resp, err)
+}
+
+func (c *coreClient) QueryAuditEvents(ctx context.Context, params AuditQueryParams) (*AuditEventsResponse, error) {
+	var result AuditEventsResponse
+	ctx, span := c.startSpan(ctx, "QueryAuditEvents")
+	defer span.End()
+
+	req := c.request(ctx).SetResult(&result)
+
+	queryParams := map[string]string{}
+	if params.TenantID != "" {
+		queryParams["tenant_id"] = params.TenantID
+	}
+	if params.UserID != "" {
+		queryParams["user_id"] = params.UserID
+	}
+	if params.Action != "" {
+		queryParams["action"] = params.Action
+	}
+	if params.Start != "" {
+		queryParams["start"] = params.Start
+	}
+	if params.End != "" {
+		queryParams["end"] = params.End
+	}
+	if params.SecurityOnly {
+		queryParams["security_only"] = "true"
+	}
+	if params.Limit > 0 {
+		queryParams["limit"] = fmt.Sprintf("%d", params.Limit)
+	}
+	if params.Offset > 0 {
+		queryParams["offset"] = fmt.Sprintf("%d", params.Offset)
+	}
+	req.SetQueryParams(queryParams)
+
+	resp, err := req.Get("/api/v1/audit/events")
+
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// --- Config methods ---
+
+func (c *coreClient) SetConfig(ctx context.Context, req SetConfigRequest) error {
+	ctx, span := c.startSpan(ctx, "SetConfig", attribute.String("config.key", req.Key))
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		SetBody(req).
+		Post("/api/v1/config")
+
+	return c.handleError(span, resp, err)
+}
+
+func (c *coreClient) GetConfig(ctx context.Context, key string) (*ConfigEntryResponse, error) {
+	var result ConfigEntryResponse
+	ctx, span := c.startSpan(ctx, "GetConfig", attribute.String("config.key", key))
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		SetResult(&result).
+		Get("/api/v1/config/" + key)
+
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *coreClient) ListConfigs(ctx context.Context) (*ListConfigsResponse, error) {
+	var result ListConfigsResponse
+	ctx, span := c.startSpan(ctx, "ListConfigs")
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		SetResult(&result).
+		Get("/api/v1/config")
+
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *coreClient) UpdateConfig(ctx context.Context, key string, req UpdateConfigEntryRequest) (*ConfigEntryResponse, error) {
+	var result ConfigEntryResponse
+	ctx, span := c.startSpan(ctx, "UpdateConfig", attribute.String("config.key", key))
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		SetBody(req).
+		SetResult(&result).
+		Put("/api/v1/config/" + key)
+
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *coreClient) DeleteConfig(ctx context.Context, key string) error {
+	ctx, span := c.startSpan(ctx, "DeleteConfig", attribute.String("config.key", key))
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		Delete("/api/v1/config/" + key)
+
+	return c.handleError(span, resp, err)
 }
 
 // --- Health methods ---

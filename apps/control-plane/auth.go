@@ -91,13 +91,22 @@ func ExtractToken(c *gin.Context) (string, error) {
 	return parts[1], nil
 }
 
-// RoleHasPermission checks if a role has a specific permission
+// RoleHasPermission checks if a role has a specific permission.
 func RoleHasPermission(role entities.Role, perm entities.Permission) bool {
-	user, err := entities.NewUser("temp", "temp", "temp", role)
-	if err != nil {
+	switch role {
+	case entities.RoleAdmin:
+		return true
+	case entities.RoleDeveloper:
+		return perm == entities.PermissionRead || perm == entities.PermissionWrite ||
+			perm == entities.PermissionMetrics || perm == entities.PermissionManageSchemas ||
+			perm == entities.PermissionManagePipelines
+	case entities.RoleReadOnly:
+		return perm == entities.PermissionRead || perm == entities.PermissionMetrics
+	case entities.RoleServiceAccount:
+		return perm == entities.PermissionRead || perm == entities.PermissionWrite
+	default:
 		return false
 	}
-	return user.HasPermission(perm)
 }
 
 // AuthMiddleware validates JWT tokens and adds auth context to requests

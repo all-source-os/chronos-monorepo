@@ -22,7 +22,7 @@ const (
 	OperationRunning   OperationStatus = "running"
 	OperationCompleted OperationStatus = "completed"
 	OperationFailed    OperationStatus = "failed"
-	OperationCancelled OperationStatus = "cancelled"
+	OperationCanceled  OperationStatus = "canceled"
 )
 
 // Operation represents a long-running operation in the system

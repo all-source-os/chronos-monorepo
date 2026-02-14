@@ -3,7 +3,9 @@
 
 pub mod api;
 pub mod api_v1;
+pub mod audit_api;
 pub mod auth_api;
+pub mod config_api;
 pub mod handlers;
 pub mod tenant_api;
 pub mod websocket;

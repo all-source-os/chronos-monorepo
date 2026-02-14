@@ -186,5 +186,62 @@ defmodule QueryServiceExWeb.Plugs.RequestLoggerTest do
 
       assert log =~ "GET"
     end
+
+    test "logs health check paths at debug level even when status is 503" do
+      conn = conn(:get, "/api/health")
+      processed_conn = RequestLogger.call(conn, [])
+
+      # At info level, health check debug logs should NOT appear
+      info_log =
+        capture_log([level: :info], fn ->
+          processed_conn
+          |> put_status(503)
+          |> send_resp(503, "Service Unavailable")
+        end)
+
+      assert info_log == ""
+
+      # At debug level, health check logs SHOULD appear
+      conn2 = conn(:get, "/api/health")
+      processed_conn2 = RequestLogger.call(conn2, [])
+
+      debug_log =
+        capture_log([level: :debug], fn ->
+          processed_conn2
+          |> put_status(503)
+          |> send_resp(503, "Service Unavailable")
+        end)
+
+      assert debug_log =~ "/api/health"
+    end
+
+    test "non-health 503 paths still log at error level" do
+      conn = conn(:get, "/api/events")
+      processed_conn = RequestLogger.call(conn, [])
+
+      log =
+        capture_log([level: :error], fn ->
+          processed_conn
+          |> put_status(503)
+          |> send_resp(503, "Service Unavailable")
+        end)
+
+      assert log =~ "503"
+      assert log =~ "/api/events"
+    end
+
+    test "logs /health path at debug level" do
+      conn = conn(:get, "/health")
+      processed_conn = RequestLogger.call(conn, [])
+
+      info_log =
+        capture_log([level: :info], fn ->
+          processed_conn
+          |> put_status(200)
+          |> send_resp(200, "OK")
+        end)
+
+      assert info_log == ""
+    end
   end
 end

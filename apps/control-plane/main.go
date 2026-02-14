@@ -18,7 +18,6 @@ import (
 	"github.com/allsource/control-plane/internal"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
-	"github.com/allsource/control-plane/internal/infrastructure/database"
 )
 
 // Control plane configuration constants.
@@ -65,8 +64,7 @@ type ControlPlane struct {
 	authClient   *AuthClient
 	auditLogger  *AuditLogger
 	policyEngine *PolicyEngine
-	db           *database.Postgres
-	persistence  string // "postgresql" or "memory"
+	coreClient   clients.CoreClient
 }
 
 // NewControlPlane creates a new control plane instance with full middleware stack.
@@ -121,39 +119,10 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	// Initialize typed CoreClient for Clean Architecture use cases
 	coreClient := clients.NewCoreClient()
 
-	// Initialize database (optional — falls back to in-memory if DATABASE_URL not set)
-	var db *database.Postgres
-	var containerCfg internal.ContainerConfig
-	persistence := "memory"
-
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL != "" {
-		db, err = database.New(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to database: %w", err)
-		}
-
-		// Run migrations
-		if err := db.RunMigrations(ctx, "migrations"); err != nil {
-			db.Close()
-			return nil, fmt.Errorf("failed to run migrations: %w", err)
-		}
-		log.Println("PostgreSQL connected, migrations applied")
-
-		containerCfg = internal.ContainerConfig{
-			DatabaseURL: databaseURL,
-			Pool:        db.Pool,
-			CoreClient:  coreClient,
-		}
-		persistence = "postgresql"
-	} else {
-		log.Println("DATABASE_URL not set, using in-memory repositories")
-		containerCfg = internal.ContainerConfig{
-			CoreClient: coreClient,
-		}
+	// Initialize Clean Architecture container (Core-backed repos, no PostgreSQL)
+	containerCfg := internal.ContainerConfig{
+		CoreClient: coreClient,
 	}
-
-	// Initialize Clean Architecture container
 	container := internal.NewContainerWithConfig(containerCfg)
 
 	// Initialize tracing
@@ -180,8 +149,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		authClient:   authClient,
 		auditLogger:  auditLogger,
 		policyEngine: policyEngine,
-		db:           db,
-		persistence:  persistence,
+		coreClient:   coreClient,
 	}
 
 	cp.setupMiddleware()
@@ -303,24 +271,31 @@ func (cp *ControlPlane) setupRoutes() {
 	config.DELETE("/:key", RequireAdmin(), cp.container.ConfigHandler.Delete)
 }
 
-// Health handler reports persistence type
+// Health handler reports Core connectivity status
 func (cp *ControlPlane) healthHandler(c *gin.Context) {
+	coreStatus := resourceUnknown
+	if cp.coreClient != nil {
+		_, err := cp.coreClient.HealthCheck(c.Request.Context())
+		if err != nil {
+			coreStatus = "unreachable"
+		} else {
+			coreStatus = "healthy"
+		}
+	}
+
 	health := gin.H{
 		"status":      "healthy",
 		"service":     "allsource-control-plane",
 		"version":     Version,
-		"persistence": cp.persistence,
+		"persistence": "core",
 		"timestamp":   time.Now().UTC(),
+		"core_status": coreStatus,
 		"features": gin.H{
 			"authentication": true,
 			"audit_logging":  cp.auditLogger.enabled,
 			"rbac":           true,
 			"tracing":        os.Getenv("OTEL_ENDPOINT") != "",
 		},
-	}
-
-	if cp.db != nil {
-		health["database"] = cp.db.HealthCheck()
 	}
 
 	c.JSON(http.StatusOK, health)
@@ -486,10 +461,6 @@ func (cp *ControlPlane) Shutdown() {
 			log.Printf("Error closing audit logger: %v", err)
 		}
 	}
-	if cp.db != nil {
-		cp.db.Close()
-		log.Println("PostgreSQL connection pool closed")
-	}
 }
 
 var startTime time.Time
@@ -520,7 +491,7 @@ func main() {
 
 	go func() {
 		log.Printf("Control Plane v%s listening on port %s", Version, port)
-		log.Printf("Persistence: %s", cp.persistence)
+		log.Println("Persistence: core (no PostgreSQL)")
 		log.Println("Authentication enabled")
 		log.Println("RBAC enabled")
 		log.Println("Audit logging enabled")
@@ -539,7 +510,7 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+		log.Printf("Server forced to shutdown: %v", err)
 	}
 
 	// Cleanup resources

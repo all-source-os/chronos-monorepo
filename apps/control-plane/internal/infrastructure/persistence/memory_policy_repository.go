@@ -49,6 +49,43 @@ func (r *MemoryPolicyRepository) addDefaultPolicies() {
 	_ = policy2.AddCondition("operation", "eq", "create") //nolint:errcheck // default policy initialization
 	_ = policy2.AddCondition("role", "ne", "Admin")       //nolint:errcheck // default policy initialization
 	_ = r.Save(policy2)                                   //nolint:errcheck // default policy initialization
+
+	// Policy 3: Warn on large operations
+	policy3, _ := entities.NewPolicy( //nolint:errcheck // default policy initialization
+		"warn-large-operations",
+		"Warn on Large Operations",
+		"Warn when operations affect more than 10000 records",
+		"operation",
+		entities.ActionWarn,
+		80,
+	)
+	_ = policy3.AddCondition("record_count", "gt", "10000") //nolint:errcheck // default policy initialization
+	_ = r.Save(policy3)                                     //nolint:errcheck // default policy initialization
+
+	// Policy 4: Prevent self-deletion
+	policy4, _ := entities.NewPolicy( //nolint:errcheck // default policy initialization
+		"prevent-self-deletion",
+		"Prevent Self Deletion",
+		"Users cannot delete their own account",
+		"user",
+		entities.ActionDeny,
+		95,
+	)
+	_ = policy4.AddCondition("target_id", "eq", "actor_id") //nolint:errcheck // default policy initialization
+	_ = policy4.AddCondition("operation", "eq", "delete")   //nolint:errcheck // default policy initialization
+	_ = r.Save(policy4)                                     //nolint:errcheck // default policy initialization
+
+	// Policy 5: Rate-limit expensive operations
+	policy5, _ := entities.NewPolicy( //nolint:errcheck // default policy initialization
+		"rate-limit-expensive-ops",
+		"Rate Limit Expensive Operations",
+		"Warn on snapshot, backup, and restore operations",
+		"operation",
+		entities.ActionWarn,
+		70,
+	)
+	_ = policy5.AddCondition("type", "in", "snapshot,backup,restore") //nolint:errcheck // default policy initialization
+	_ = r.Save(policy5)                                               //nolint:errcheck // default policy initialization
 }
 
 // Save persists a policy

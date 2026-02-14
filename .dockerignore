@@ -60,7 +60,6 @@ Thumbs.db
 **/*.tsbuildinfo
 
 # Rust specific
-**/Cargo.lock
 **/*.rs.bk
 
 # Elixir specific
@@ -80,10 +79,11 @@ docs/
 deploy/
 scripts/
 
-# Tooling - exclude contents but keep package.jsons and typescript configs
+# Tooling - exclude contents but keep Cargo.toml for workspace builds
 tooling/**
 !tooling/typescript/
 !tooling/e2e/package.json
+!tooling/performance/Cargo.toml
 *.yml
 *.yaml
 !**/fly.toml

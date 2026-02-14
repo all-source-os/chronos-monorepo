@@ -34,7 +34,7 @@ func (uc *GetReplayProgressUseCase) Execute(ctx context.Context, operationID str
 	}
 
 	// Extract replay ID from operation result
-	replayID, _ := op.Result["replay_id"].(string)
+	replayID, _ := op.Result["replay_id"].(string) //nolint:errcheck // safe: zero value "" handled below
 	if replayID == "" {
 		return op, nil
 	}

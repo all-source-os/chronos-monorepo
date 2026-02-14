@@ -38,6 +38,8 @@ func (uc *ListTenantsUseCase) Execute(req ListTenantsRequest) (*ListTenantsRespo
 	switch entities.TenantStatus(req.Status) {
 	case entities.TenantStatusActive:
 		tenants, err = uc.tenantRepo.FindActive()
+	case entities.TenantStatusSuspended, entities.TenantStatusDeleted:
+		tenants, err = uc.tenantRepo.FindAll()
 	default:
 		tenants, err = uc.tenantRepo.FindAll()
 	}

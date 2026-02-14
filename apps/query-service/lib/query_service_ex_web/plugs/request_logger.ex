@@ -45,7 +45,12 @@ defmodule QueryServiceExWeb.Plugs.RequestLogger do
 
     Logger.metadata(metadata)
 
-    level = status_to_level(conn.status)
+    level =
+      if health_check_path?(conn.request_path) do
+        :debug
+      else
+        status_to_level(conn.status)
+      end
 
     Logger.log(
       level,
@@ -83,6 +88,10 @@ defmodule QueryServiceExWeb.Plugs.RequestLogger do
       [] -> nil
     end
   end
+
+  defp health_check_path?("/api/health" <> _), do: true
+  defp health_check_path?("/health" <> _), do: true
+  defp health_check_path?(_), do: false
 
   defp status_to_level(status) when status >= 500, do: :error
   defp status_to_level(status) when status >= 400, do: :warning

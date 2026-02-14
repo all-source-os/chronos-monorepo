@@ -484,8 +484,8 @@ func PolicyMiddleware(policyEngine *PolicyEngine, auditLogger *AuditLogger) gin.
 
 // extractResourceAndOperation extracts resource and operation from HTTP method and path
 func extractResourceAndOperation(method, path string) (resource, operation string) {
-	resource = "unknown"
-	operation = "unknown"
+	resource = resourceUnknown
+	operation = resourceUnknown
 
 	// Determine resource
 	switch {

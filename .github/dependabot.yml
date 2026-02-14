@@ -1,14 +1,27 @@
 # Dependabot configuration for automated dependency updates
 # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+#
+# Strategy: ~10 PRs/week max across all ecosystems
+# - GitHub Actions: 1 grouped PR
+# - Rust (Core): 2 PRs (security/major separate, minor+patch grouped)
+# - Go (Control Plane): 1 grouped PR
+# - NPM (Web): 2 PRs (security/major separate, minor+patch grouped)
+# - Elixir Query Service: 1 grouped PR
+# - Elixir MCP Server: 1 grouped PR
+# - Docker: 1 grouped PR (all Dockerfiles)
+# Total worst case: ~9 PRs/week
 
 version: 2
 updates:
-  # GitHub Actions
+  # ──────────────────────────────────────────────
+  # GitHub Actions — 1 PR max
+  # ──────────────────────────────────────────────
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "ci(deps)"
     labels:
@@ -16,133 +29,205 @@ updates:
       - "ci"
     reviewers:
       - "all-source-os/maintainers"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
-  # Rust (Core)
+  # ──────────────────────────────────────────────
+  # Rust (Core + tooling workspace) — 2 PRs max
+  # Major/security bumps get their own PR,
+  # minor+patch grouped together
+  # ──────────────────────────────────────────────
   - package-ecosystem: "cargo"
-    directory: "/apps/core"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "deps(rust)"
     labels:
       - "dependencies"
       - "rust"
     ignore:
-      # Arrow/Parquet pinned to ~57.1 due to edition2024 requirements
+      # Arrow/Parquet pinned to ~53.x due to edition2024 requirements
       - dependency-name: "arrow"
         versions: [">=58.0.0"]
       - dependency-name: "parquet"
         versions: [">=58.0.0"]
+      - dependency-name: "arrow-flight"
+        versions: [">=58.0.0"]
       - dependency-name: "datafusion"
         versions: [">=52.0.0"]
     groups:
-      rust-minor:
+      rust-minor-patch:
         patterns:
           - "*"
         update-types:
           - "minor"
           - "patch"
 
-  # Go (Control Plane)
+  # ──────────────────────────────────────────────
+  # Go (Control Plane) — 1 PR max
+  # ──────────────────────────────────────────────
   - package-ecosystem: "gomod"
     directory: "/apps/control-plane"
     schedule:
       interval: "weekly"
       day: "monday"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "deps(go)"
     labels:
       - "dependencies"
       - "go"
     groups:
-      go-minor:
+      go-all:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
-  # NPM/Bun (Web, packages)
+  # ──────────────────────────────────────────────
+  # NPM/Bun (Web dashboard + root) — 2 PRs max
+  # Security/major separate, minor+patch grouped
+  # ──────────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "deps(npm)"
     labels:
       - "dependencies"
       - "javascript"
     groups:
-      npm-minor:
+      npm-minor-patch:
         patterns:
           - "*"
         update-types:
           - "minor"
           - "patch"
 
-  # Mix (Query Service)
+  # ──────────────────────────────────────────────
+  # Elixir (Query Service) — 1 PR max
+  # ──────────────────────────────────────────────
   - package-ecosystem: "mix"
     directory: "/apps/query-service"
     schedule:
       interval: "weekly"
       day: "monday"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "deps(elixir)"
     labels:
       - "dependencies"
       - "elixir"
+    groups:
+      elixir-query-service:
+        patterns:
+          - "*"
 
-  # Mix (MCP Server)
+  # ──────────────────────────────────────────────
+  # Elixir (MCP Server) — 1 PR max
+  # ──────────────────────────────────────────────
   - package-ecosystem: "mix"
     directory: "/apps/mcp-server-elixir"
     schedule:
       interval: "weekly"
       day: "monday"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "deps(elixir)"
     labels:
       - "dependencies"
       - "elixir"
+    groups:
+      elixir-mcp-server:
+        patterns:
+          - "*"
 
-  # Docker
+  # ──────────────────────────────────────────────
+  # Docker — 1 PR max (all Dockerfiles grouped)
+  # Only need one entry per unique Dockerfile path
+  # ──────────────────────────────────────────────
   - package-ecosystem: "docker"
     directory: "/apps/core"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "deps(docker)"
     labels:
       - "dependencies"
       - "docker"
-
-  - package-ecosystem: "docker"
-    directory: "/apps/control-plane"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "deps(docker)"
-    labels:
-      - "dependencies"
-      - "docker"
-
-  - package-ecosystem: "docker"
-    directory: "/apps/web"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "deps(docker)"
-    labels:
-      - "dependencies"
-      - "docker"
+    groups:
+      docker-core:
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/apps/query-service"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "deps(docker)"
     labels:
       - "dependencies"
       - "docker"
+    groups:
+      docker-query-service:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/web"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "deps(docker)"
+    labels:
+      - "dependencies"
+      - "docker"
+    groups:
+      docker-web:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/control-plane"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "deps(docker)"
+    labels:
+      - "dependencies"
+      - "docker"
+    groups:
+      docker-control-plane:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/mcp-server-elixir"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "deps(docker)"
+    labels:
+      - "dependencies"
+      - "docker"
+    groups:
+      docker-mcp-server:
+        patterns:
+          - "*"

@@ -6,26 +6,22 @@ import (
 	"github.com/allsource/control-plane/internal/domain"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
-	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
 // DeleteTenantUseCase handles soft-deleting a tenant (Admin only).
 type DeleteTenantUseCase struct {
 	tenantRepo repositories.TenantRepository
 	auditRepo  repositories.AuditRepository
-	coreClient clients.CoreClient
 }
 
 // NewDeleteTenantUseCase creates a new DeleteTenantUseCase.
 func NewDeleteTenantUseCase(
 	tenantRepo repositories.TenantRepository,
 	auditRepo repositories.AuditRepository,
-	coreClient clients.CoreClient,
 ) *DeleteTenantUseCase {
 	return &DeleteTenantUseCase{
 		tenantRepo: tenantRepo,
 		auditRepo:  auditRepo,
-		coreClient: coreClient,
 	}
 }
 
@@ -47,20 +43,15 @@ func (uc *DeleteTenantUseCase) Execute(ctx context.Context, id string, role enti
 		return err
 	}
 
-	// Persist the soft-delete status
+	// Persist — CoreTenantRepository.Update() delegates to Core directly (single write)
 	if err := uc.tenantRepo.Update(tenant); err != nil {
 		return err
 	}
 
-	// Notify Core to delete tenant
-	if uc.coreClient != nil {
-		_ = uc.coreClient.DeleteTenant(ctx, id) //nolint:errcheck // Core notification is best-effort
-	}
-
 	// Log audit event
-	auditEvent, _ := entities.NewAuditEvent("tenant.deleted", "delete", "DELETE", "/tenants/"+id) //nolint:errcheck // audit event creation is non-critical
+	auditEvent, _ := entities.NewAuditEvent("tenant.deleted", "delete", "DELETE", "/tenants/"+id) //nolint:errcheck
 	auditEvent.WithResource("tenant", tenant.ID).WithTenant(tenant.ID)
-	_ = uc.auditRepo.Log(auditEvent) //nolint:errcheck // audit logging is non-critical
+	_ = uc.auditRepo.Log(auditEvent) //nolint:errcheck
 
 	return nil
 }
