@@ -1,11 +1,14 @@
 defmodule QueryServiceExWeb.IntegrationsControllerTest do
   use QueryServiceExWeb.ConnCase
 
-  alias QueryServiceEx.Accounts
-  alias QueryServiceEx.Accounts.Guardian
-  alias QueryServiceEx.Tenants
+  alias QueryServiceEx.AuthHelpers
+  alias QueryServiceEx.TenantCache
 
-  @moduletag :database
+  setup do
+    System.put_env("JWT_SECRET", AuthHelpers.test_jwt_secret())
+    on_exit(fn -> System.delete_env("JWT_SECRET") end)
+    :ok
+  end
 
   describe "GET /api/integrations (all_status) - public" do
     test "returns status of all integrations", %{conn: conn} do
@@ -185,22 +188,31 @@ defmodule QueryServiceExWeb.IntegrationsControllerTest do
 
   # Helper to set up authentication
   defp setup_auth(conn) do
-    {:ok, tenant} =
-      Tenants.create_tenant(%{
-        name: "Test Workspace",
-        slug: "test-workspace-#{:rand.uniform(100_000)}"
-      })
+    tenant_id = "tenant-integ-#{:rand.uniform(100_000)}"
 
-    {:ok, user} =
-      Accounts.create_user(%{
-        email: "test-#{:rand.uniform(100_000)}@example.com",
-        name: "Test User",
-        provider: "google",
-        google_id: "google_#{:rand.uniform(100_000)}",
-        tenant_id: tenant.id
-      })
+    tenant = %{
+      "id" => tenant_id,
+      "name" => "Test Workspace",
+      "status" => "active",
+      "metadata" => %{
+        "subscription" => %{
+          "status" => "active",
+          "tier" => "free",
+          "trial_ends_at" => nil,
+          "subscription_ends_at" => nil
+        },
+        "quotas" => %{
+          "events_quota" => 10_000,
+          "queries_quota" => 1_000,
+          "events_used" => 0,
+          "queries_used" => 0
+        }
+      }
+    }
 
-    {:ok, token, _claims} = Guardian.encode_and_sign(user)
+    TenantCache.put(tenant_id, tenant)
+
+    {_user, token} = AuthHelpers.create_test_user_with_token(%{tenant_id: tenant_id})
 
     conn
     |> Plug.Conn.put_req_header("authorization", "Bearer #{token}")

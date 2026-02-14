@@ -2,57 +2,80 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
   @moduledoc """
   Tests for the TenantContext plug.
 
-  Verifies tenant isolation is properly enforced:
-  - Users can only access their own tenant's data
-  - Subscription status is validated
-  - Tenant context is properly set for downstream operations
+  Verifies tenant isolation is properly enforced using TenantCache (ETS)
+  backed by Core tenant data — no PostgreSQL dependency for tenant lookups.
   """
-  use QueryServiceEx.DataCase
+  use ExUnit.Case, async: true
 
   import Plug.Conn
   import Plug.Test
 
-  alias QueryServiceEx.Accounts
-  alias QueryServiceEx.Accounts.Guardian
-  alias QueryServiceEx.Tenants
+  alias QueryServiceEx.TenantCache
   alias QueryServiceExWeb.Plugs.TenantContext
 
-  @moduletag :database
-
   setup do
-    # Create two tenants for isolation testing
-    {:ok, tenant_a} =
-      Tenants.create_tenant(%{
-        name: "Tenant A",
-        slug: "tenant-a-#{System.unique_integer([:positive])}"
-      })
+    # Ensure TenantCache ETS table exists (started by supervision tree)
+    # Clear it before each test for isolation
+    TenantCache.clear()
 
-    {:ok, tenant_b} =
-      Tenants.create_tenant(%{
-        name: "Tenant B",
-        slug: "tenant-b-#{System.unique_integer([:positive])}"
-      })
+    tenant_a_id = generate_uuid()
+    tenant_b_id = generate_uuid()
 
-    # Create users for each tenant with required OAuth fields
-    {:ok, user_a} =
-      Accounts.create_user(%{
-        email: "user-a-#{System.unique_integer([:positive])}@example.com",
-        name: "User A",
-        provider: "google",
-        google_id: "google_a_#{System.unique_integer([:positive])}",
-        tenant_id: tenant_a.id
-      })
+    # Core-format tenant maps (as returned by GET /api/v1/tenants/:id)
+    tenant_a = %{
+      "id" => tenant_a_id,
+      "name" => "Tenant A",
+      "status" => "active",
+      "metadata" => %{
+        "subscription" => %{
+          "status" => "active",
+          "tier" => "pro",
+          "trial_ends_at" => nil,
+          "subscription_ends_at" => nil
+        },
+        "quotas" => %{
+          "events_quota" => 1_000_000,
+          "queries_quota" => 100_000,
+          "events_used" => 0,
+          "queries_used" => 0
+        }
+      }
+    }
 
-    {:ok, user_b} =
-      Accounts.create_user(%{
-        email: "user-b-#{System.unique_integer([:positive])}@example.com",
-        name: "User B",
-        provider: "google",
-        google_id: "google_b_#{System.unique_integer([:positive])}",
-        tenant_id: tenant_b.id
-      })
+    tenant_b = %{
+      "id" => tenant_b_id,
+      "name" => "Tenant B",
+      "status" => "active",
+      "metadata" => %{
+        "subscription" => %{
+          "status" => "trialing",
+          "tier" => "free",
+          "trial_ends_at" => "2026-03-01T00:00:00Z",
+          "subscription_ends_at" => nil
+        },
+        "quotas" => %{
+          "events_quota" => 10_000,
+          "queries_quota" => 1_000,
+          "events_used" => 0,
+          "queries_used" => 0
+        }
+      }
+    }
 
-    {:ok, tenant_a: tenant_a, tenant_b: tenant_b, user_a: user_a, user_b: user_b}
+    # Pre-populate cache with Core tenant data
+    TenantCache.put(tenant_a_id, tenant_a)
+    TenantCache.put(tenant_b_id, tenant_b)
+
+    user_a = %{id: generate_uuid(), tenant_id: tenant_a_id, email: "a@example.com"}
+    user_b = %{id: generate_uuid(), tenant_id: tenant_b_id, email: "b@example.com"}
+
+    {:ok,
+     tenant_a: tenant_a,
+     tenant_b: tenant_b,
+     tenant_a_id: tenant_a_id,
+     tenant_b_id: tenant_b_id,
+     user_a: user_a,
+     user_b: user_b}
   end
 
   describe "call/2 tenant isolation" do
@@ -64,34 +87,34 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
       result = TenantContext.call(conn, TenantContext.init([]))
 
       refute result.halted
-      assert result.assigns[:current_tenant].id == tenant_a.id
-      assert result.assigns[:tenant_id] == tenant_a.id
-      assert result.private[:allsource_tenant_id] == tenant_a.id
+      assert result.assigns[:current_tenant]["id"] == tenant_a["id"]
+      assert result.assigns[:tenant_id] == tenant_a["id"]
+      assert result.private[:allsource_tenant_id] == tenant_a["id"]
     end
 
-    test "user from tenant A gets tenant A context", %{tenant_a: tenant_a, user_a: user_a} do
+    test "user from tenant A gets tenant A context", %{tenant_a_id: tid, user_a: user_a} do
       conn =
         conn(:get, "/api/events")
         |> assign_user(user_a)
 
       result = TenantContext.call(conn, TenantContext.init([]))
 
-      assert result.assigns[:tenant_id] == tenant_a.id
+      assert result.assigns[:tenant_id] == tid
     end
 
-    test "user from tenant B gets tenant B context", %{tenant_b: tenant_b, user_b: user_b} do
+    test "user from tenant B gets tenant B context", %{tenant_b_id: tid, user_b: user_b} do
       conn =
         conn(:get, "/api/events")
         |> assign_user(user_b)
 
       result = TenantContext.call(conn, TenantContext.init([]))
 
-      assert result.assigns[:tenant_id] == tenant_b.id
+      assert result.assigns[:tenant_id] == tid
     end
 
     test "tenant contexts are isolated between users", %{
-      tenant_a: tenant_a,
-      tenant_b: tenant_b,
+      tenant_a_id: tid_a,
+      tenant_b_id: tid_b,
       user_a: user_a,
       user_b: user_b
     } do
@@ -105,11 +128,8 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
         |> assign_user(user_b)
         |> TenantContext.call(TenantContext.init([]))
 
-      # Verify each user gets their own tenant
-      assert conn_a.assigns[:tenant_id] == tenant_a.id
-      assert conn_b.assigns[:tenant_id] == tenant_b.id
-
-      # Verify tenants are different
+      assert conn_a.assigns[:tenant_id] == tid_a
+      assert conn_b.assigns[:tenant_id] == tid_b
       refute conn_a.assigns[:tenant_id] == conn_b.assigns[:tenant_id]
     end
   end
@@ -127,8 +147,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
 
   describe "call/2 with user without tenant" do
     test "returns error when user has no tenant_id" do
-      # Create user struct with nil tenant_id
-      user = %{id: Ecto.UUID.generate(), tenant_id: nil, email: "no-tenant@example.com"}
+      user = %{id: generate_uuid(), tenant_id: nil, email: "no-tenant@example.com"}
 
       conn =
         conn(:get, "/api/events")
@@ -145,14 +164,13 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
     end
   end
 
-  describe "call/2 with deleted tenant" do
-    test "returns error when tenant no longer exists", %{user_a: user_a, tenant_a: tenant_a} do
-      # Delete the tenant
-      Tenants.delete_tenant(tenant_a)
+  describe "call/2 with missing tenant" do
+    test "returns error when tenant is not in cache or Core" do
+      user = %{id: generate_uuid(), tenant_id: generate_uuid(), email: "orphan@example.com"}
 
       conn =
         conn(:get, "/api/events")
-        |> assign_user(user_a)
+        |> assign_user(user)
         |> put_private(:phoenix_format, "json")
 
       result = TenantContext.call(conn, TenantContext.init([]))
@@ -166,7 +184,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
   end
 
   describe "call/2 subscription validation" do
-    test "allows trialing subscription", %{user_a: user_a} do
+    test "allows active subscription", %{user_a: user_a} do
       conn =
         conn(:get, "/api/events")
         |> assign_user(user_a)
@@ -176,24 +194,34 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
       refute result.halted
     end
 
-    test "allows active subscription", %{user_a: user_a, tenant_a: tenant_a} do
-      {:ok, _} = Tenants.update_subscription(tenant_a, %{subscription_status: :active})
-
+    test "allows trialing subscription", %{user_b: user_b} do
       conn =
         conn(:get, "/api/events")
-        |> assign_user(user_a)
+        |> assign_user(user_b)
 
       result = TenantContext.call(conn, TenantContext.init([]))
 
       refute result.halted
     end
 
-    test "blocks cancelled subscription", %{user_a: user_a, tenant_a: tenant_a} do
-      {:ok, _} = Tenants.update_subscription(tenant_a, %{subscription_status: :cancelled})
+    test "blocks cancelled subscription" do
+      tenant_id = generate_uuid()
+
+      tenant = %{
+        "id" => tenant_id,
+        "name" => "Cancelled Tenant",
+        "status" => "active",
+        "metadata" => %{
+          "subscription" => %{"status" => "cancelled", "tier" => "pro"}
+        }
+      }
+
+      TenantCache.put(tenant_id, tenant)
+      user = %{id: generate_uuid(), tenant_id: tenant_id, email: "cancelled@example.com"}
 
       conn =
         conn(:get, "/api/events")
-        |> assign_user(user_a)
+        |> assign_user(user)
         |> put_private(:phoenix_format, "json")
 
       result = TenantContext.call(conn, TenantContext.init([]))
@@ -205,12 +233,24 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
       assert response["error"]["code"] == "subscription_required"
     end
 
-    test "blocks expired subscription", %{user_a: user_a, tenant_a: tenant_a} do
-      {:ok, _} = Tenants.update_subscription(tenant_a, %{subscription_status: :expired})
+    test "blocks expired subscription" do
+      tenant_id = generate_uuid()
+
+      tenant = %{
+        "id" => tenant_id,
+        "name" => "Expired Tenant",
+        "status" => "active",
+        "metadata" => %{
+          "subscription" => %{"status" => "expired", "tier" => "free"}
+        }
+      }
+
+      TenantCache.put(tenant_id, tenant)
+      user = %{id: generate_uuid(), tenant_id: tenant_id, email: "expired@example.com"}
 
       conn =
         conn(:get, "/api/events")
-        |> assign_user(user_a)
+        |> assign_user(user)
         |> put_private(:phoenix_format, "json")
 
       result = TenantContext.call(conn, TenantContext.init([]))
@@ -219,12 +259,24 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
       assert result.status == 402
     end
 
-    test "blocks past_due subscription", %{user_a: user_a, tenant_a: tenant_a} do
-      {:ok, _} = Tenants.update_subscription(tenant_a, %{subscription_status: :past_due})
+    test "blocks past_due subscription" do
+      tenant_id = generate_uuid()
+
+      tenant = %{
+        "id" => tenant_id,
+        "name" => "Past Due Tenant",
+        "status" => "active",
+        "metadata" => %{
+          "subscription" => %{"status" => "past_due", "tier" => "starter"}
+        }
+      }
+
+      TenantCache.put(tenant_id, tenant)
+      user = %{id: generate_uuid(), tenant_id: tenant_id, email: "pastdue@example.com"}
 
       conn =
         conn(:get, "/api/events")
-        |> assign_user(user_a)
+        |> assign_user(user)
         |> put_private(:phoenix_format, "json")
 
       result = TenantContext.call(conn, TenantContext.init([]))
@@ -234,16 +286,42 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
     end
   end
 
+  describe "call/2 with Core tenant without subscription metadata" do
+    test "treats tenant without subscription metadata as active" do
+      tenant_id = generate_uuid()
+
+      # Core tenant with no subscription metadata (freshly created, no billing yet)
+      tenant = %{
+        "id" => tenant_id,
+        "name" => "New Tenant",
+        "status" => "active",
+        "metadata" => %{}
+      }
+
+      TenantCache.put(tenant_id, tenant)
+      user = %{id: generate_uuid(), tenant_id: tenant_id, email: "new@example.com"}
+
+      conn =
+        conn(:get, "/api/events")
+        |> assign_user(user)
+
+      result = TenantContext.call(conn, TenantContext.init([]))
+
+      # Defaults to "active" when no subscription metadata present
+      refute result.halted
+    end
+  end
+
   describe "tenant_id consistency" do
-    test "tenant_id in assigns matches current_tenant.id", %{user_a: user_a, tenant_a: tenant_a} do
+    test "tenant_id in assigns matches current_tenant id", %{user_a: user_a, tenant_a_id: tid} do
       conn =
         conn(:get, "/api/events")
         |> assign_user(user_a)
 
       result = TenantContext.call(conn, TenantContext.init([]))
 
-      assert result.assigns[:tenant_id] == result.assigns[:current_tenant].id
-      assert result.assigns[:tenant_id] == tenant_a.id
+      assert result.assigns[:tenant_id] == result.assigns[:current_tenant]["id"]
+      assert result.assigns[:tenant_id] == tid
     end
 
     test "private allsource_tenant_id matches assigns", %{user_a: user_a} do
@@ -257,9 +335,52 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
     end
   end
 
-  # Helper to simulate Guardian setting current_resource
+  describe "subscription_required response includes metadata" do
+    test "includes trial_ends_at and subscription_ends_at from metadata" do
+      tenant_id = generate_uuid()
+
+      tenant = %{
+        "id" => tenant_id,
+        "name" => "Cancelled With Dates",
+        "status" => "active",
+        "metadata" => %{
+          "subscription" => %{
+            "status" => "cancelled",
+            "tier" => "pro",
+            "trial_ends_at" => "2026-01-15T00:00:00Z",
+            "subscription_ends_at" => "2026-02-15T00:00:00Z"
+          }
+        }
+      }
+
+      TenantCache.put(tenant_id, tenant)
+      user = %{id: generate_uuid(), tenant_id: tenant_id, email: "dates@example.com"}
+
+      conn =
+        conn(:get, "/api/events")
+        |> assign_user(user)
+        |> put_private(:phoenix_format, "json")
+
+      result = TenantContext.call(conn, TenantContext.init([]))
+
+      assert result.halted
+      response = Jason.decode!(result.resp_body)
+      assert response["error"]["trial_ends_at"] == "2026-01-15T00:00:00Z"
+      assert response["error"]["subscription_ends_at"] == "2026-02-15T00:00:00Z"
+    end
+  end
+
   defp assign_user(conn, user) do
-    conn
-    |> Guardian.Plug.put_current_resource(user)
+    Plug.Conn.assign(conn, :current_user, user)
+  end
+
+  defp generate_uuid do
+    <<a::32, b::16, c::16, d::16, e::48>> = :crypto.strong_rand_bytes(16)
+    <<a::32, b::16, 4::4, c::12, 2::2, d::14, e::48>>
+    |> Base.encode16(case: :lower)
+    |> then(fn hex ->
+      <<a::binary-8, b::binary-4, c::binary-4, d::binary-4, e::binary-12>> = hex
+      "#{a}-#{b}-#{c}-#{d}-#{e}"
+    end)
   end
 end

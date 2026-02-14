@@ -3,6 +3,7 @@ package internal
 
 import (
 	"github.com/allsource/control-plane/internal/application/usecases"
+	"github.com/allsource/control-plane/internal/application/usecases/billing"
 	"github.com/allsource/control-plane/internal/domain/repositories"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
@@ -59,6 +60,21 @@ type Container struct {
 	UpdateConfigUC *usecases.UpdateConfigUseCase
 	DeleteConfigUC *usecases.DeleteConfigUseCase
 
+	// Use Cases — Billing
+	CreateCheckoutUC      *usecases.CreateCheckoutUseCase
+	GetPortalUC           *usecases.GetPortalUseCase
+	GetOverageSummaryUC   *usecases.GetOverageSummaryUseCase
+	SetOverageEnabledUC   *usecases.SetOverageEnabledUseCase
+	GetProjectedChargesUC *usecases.GetProjectedChargesUseCase
+
+	// Use Cases — Billing (overage)
+	CalculateOverageUC *billing.CalculateOverageUseCase
+	ReportUsageUC      *billing.ReportUsageUseCase
+
+	// Use Cases — Webhooks
+	ProcessLSWebhookUC     *usecases.ProcessLemonSqueezyWebhookUseCase
+	UpdateSubscriptionUC   *usecases.UpdateSubscriptionMetadataUseCase
+
 	// Scheduler
 	Scheduler *usecases.OperationScheduler
 
@@ -69,11 +85,14 @@ type Container struct {
 	SchemaHandler     *httphandlers.SchemaHandler
 	AuditHandler      *httphandlers.AuditHandler
 	ConfigHandler     *httphandlers.ConfigHandler
+	BillingHandler    *httphandlers.BillingHandler
+	WebhookHandler    *httphandlers.WebhookHandler
 }
 
 // ContainerConfig holds configuration for dependency injection.
 type ContainerConfig struct {
 	CoreClient clients.CoreClient
+	LSClient   clients.LemonSqueezyClient
 }
 
 // NewContainerWithConfig creates and wires up all dependencies using the provided config.
@@ -142,8 +161,34 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	updateConfigUC := usecases.NewUpdateConfigUseCase(configRepo, auditRepo)
 	deleteConfigUC := usecases.NewDeleteConfigUseCase(configRepo, auditRepo)
 
+	// Initialize use cases — Billing (Layer 2)
+	// Billing use cases that require LemonSqueezy are nil-safe (handler checks)
+	var createCheckoutUC *usecases.CreateCheckoutUseCase
+	var getPortalUC *usecases.GetPortalUseCase
+	if cfg.LSClient != nil {
+		createCheckoutUC = usecases.NewCreateCheckoutUseCase(tenantRepo, cfg.LSClient, auditRepo)
+		getPortalUC = usecases.NewGetPortalUseCase(tenantRepo, cfg.LSClient)
+	}
+	getOverageSummaryUC := usecases.NewGetOverageSummaryUseCase(tenantRepo)
+	setOverageEnabledUC := usecases.NewSetOverageEnabledUseCase(tenantRepo, auditRepo)
+	getProjectedChargesUC := usecases.NewGetProjectedChargesUseCase(tenantRepo)
+
+	// Initialize use cases — Webhooks
+	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
+	processLSWebhookUC := usecases.NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC)
+
+	// Initialize use cases — Billing (overage reporting)
+	calculateOverageUC := billing.NewCalculateOverageUseCase(tenantRepo)
+	var reportUsageUC *billing.ReportUsageUseCase
+	if cfg.LSClient != nil {
+		reportUsageUC = billing.NewReportUsageUseCase(tenantRepo, auditRepo, cfg.LSClient, calculateOverageUC)
+	}
+
 	// Initialize scheduler
 	scheduler := usecases.NewOperationScheduler(operationRepo, auditRepo, cfg.CoreClient)
+	if reportUsageUC != nil {
+		scheduler.SetReportUsageUseCase(reportUsageUC)
+	}
 
 	// Initialize HTTP handlers (Layer 4)
 	tenantHandler := httphandlers.NewTenantHandler(
@@ -163,6 +208,10 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	configHandler := httphandlers.NewConfigHandler(
 		createConfigUC, getConfigUC, listConfigsUC, updateConfigUC, deleteConfigUC,
 	)
+	billingHandler := httphandlers.NewBillingHandler(
+		createCheckoutUC, getPortalUC, getOverageSummaryUC, setOverageEnabledUC, getProjectedChargesUC,
+	)
+	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC)
 
 	return &Container{
 		TenantRepo:          tenantRepo,
@@ -198,14 +247,25 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		GetConfigUC:         getConfigUC,
 		ListConfigsUC:       listConfigsUC,
 		UpdateConfigUC:      updateConfigUC,
-		DeleteConfigUC:      deleteConfigUC,
-		Scheduler:           scheduler,
+		DeleteConfigUC:        deleteConfigUC,
+		CreateCheckoutUC:      createCheckoutUC,
+		GetPortalUC:           getPortalUC,
+		GetOverageSummaryUC:   getOverageSummaryUC,
+		SetOverageEnabledUC:   setOverageEnabledUC,
+		GetProjectedChargesUC: getProjectedChargesUC,
+		CalculateOverageUC:    calculateOverageUC,
+		ReportUsageUC:         reportUsageUC,
+		Scheduler:             scheduler,
 		TenantHandler:       tenantHandler,
 		PolicyHandler:       policyHandler,
 		OperationsHandler:   operationsHandler,
 		SchemaHandler:       schemaHandler,
 		AuditHandler:        auditHandler,
 		ConfigHandler:       configHandler,
+		BillingHandler:        billingHandler,
+		WebhookHandler:        webhookHandler,
+		ProcessLSWebhookUC:    processLSWebhookUC,
+		UpdateSubscriptionUC:  updateSubscriptionUC,
 	}
 }
 

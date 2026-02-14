@@ -1,9 +1,5 @@
 import Config
 
-# Configure Ecto Repo
-config :query_service_ex,
-  ecto_repos: [QueryServiceEx.Repo]
-
 # Configure structured logging defaults
 # Include all metadata keys used across the application
 config :logger, :console,
@@ -104,20 +100,7 @@ config :tesla,
 # Configure JSON encoding
 config :phoenix, :json_library, Jason
 
-# Configure Ueberauth for OAuth
-config :ueberauth, Ueberauth,
-  providers: [
-    google: {Ueberauth.Strategy.Google, [default_scope: "email profile"]},
-    github: {Ueberauth.Strategy.Github, [default_scope: "user:email"]}
-  ]
-
-# Configure Guardian for JWT authentication
-config :query_service_ex, QueryServiceEx.Accounts.Guardian,
-  issuer: "query_service_ex",
-  # Default TTL: 1 hour for access tokens
-  ttl: {1, :hour},
-  allowed_algos: ["HS512"],
-  verify_issuer: true
+# JWT shared secret is configured via JWT_SECRET env var (see runtime.exs)
 
 # Configure rate limiting (requests per second)
 config :query_service_ex, QueryServiceEx.RateLimiter,

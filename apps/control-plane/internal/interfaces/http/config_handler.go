@@ -2,6 +2,7 @@ package http //nolint:revive // package name intentionally matches directory
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -37,6 +38,27 @@ func NewConfigHandler(
 	}
 }
 
+// configHALResponse wraps a ConfigResponse with HAL _links.
+type configHALResponse struct {
+	HALResource
+	*dto.ConfigResponse
+}
+
+// configSelfLinks returns a self link for the given config key.
+func configSelfLinks(key string) map[string]Link {
+	return map[string]Link{
+		"self": SelfLink(fmt.Sprintf("/api/v1/config/%s", key)),
+	}
+}
+
+// wrapConfigWithSelfLink wraps a ConfigResponse with a self link.
+func wrapConfigWithSelfLink(resp *dto.ConfigResponse) configHALResponse {
+	return configHALResponse{
+		HALResource:    HALResource{Links: configSelfLinks(resp.Key)},
+		ConfigResponse: resp,
+	}
+}
+
 // Create handles POST /api/v1/config
 func (h *ConfigHandler) Create(c *gin.Context) {
 	var req dto.CreateConfigRequest
@@ -52,7 +74,7 @@ func (h *ConfigHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, wrapConfigWithSelfLink(resp))
 }
 
 // Get handles GET /api/v1/config/:key
@@ -65,7 +87,7 @@ func (h *ConfigHandler) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, wrapConfigWithSelfLink(resp))
 }
 
 // List handles GET /api/v1/config
@@ -78,7 +100,12 @@ func (h *ConfigHandler) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"configs": resp, "total": len(resp)})
+	halConfigs := make([]configHALResponse, len(resp))
+	for i, cfg := range resp {
+		halConfigs[i] = wrapConfigWithSelfLink(cfg)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"configs": halConfigs, "total": len(halConfigs)})
 }
 
 // Update handles PUT /api/v1/config/:key
@@ -98,7 +125,7 @@ func (h *ConfigHandler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, wrapConfigWithSelfLink(resp))
 }
 
 // Delete handles DELETE /api/v1/config/:key

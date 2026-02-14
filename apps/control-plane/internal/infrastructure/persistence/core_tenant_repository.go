@@ -24,8 +24,9 @@ func NewCoreTenantRepository(client clients.CoreClient) *CoreTenantRepository {
 func (r *CoreTenantRepository) Save(tenant *entities.Tenant) error {
 	ctx := context.Background()
 	_, err := r.client.CreateTenant(ctx, clients.CreateTenantRequest{
-		ID:   tenant.ID,
-		Name: tenant.Name,
+		ID:       tenant.ID,
+		Name:     tenant.Name,
+		Metadata: tenant.Metadata,
 	})
 	return err
 }
@@ -71,9 +72,16 @@ func (r *CoreTenantRepository) FindActive() ([]*entities.Tenant, error) {
 	return result, nil
 }
 
-// Update updates a tenant's status in Core.
+// Update updates a tenant in Core. Handles status changes and metadata updates.
 func (r *CoreTenantRepository) Update(tenant *entities.Tenant) error {
 	ctx := context.Background()
+
+	// Update metadata if present
+	if len(tenant.Metadata) > 0 {
+		if _, err := r.client.UpdateTenantMetadata(ctx, tenant.ID, tenant.Metadata); err != nil {
+			return err
+		}
+	}
 
 	switch tenant.Status {
 	case entities.TenantStatusSuspended:

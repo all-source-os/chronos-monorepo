@@ -108,10 +108,6 @@ defmodule QueryServiceExWeb.Plugs.ErrorHandler do
     {400, "json_decode_error", "Invalid JSON in request body"}
   end
 
-  defp exception_to_error(%DBConnection.ConnectionError{}) do
-    {503, "database_unavailable", "Database connection unavailable"}
-  end
-
   defp exception_to_error(_exception) do
     {500, "internal_server_error", "An unexpected error occurred"}
   end

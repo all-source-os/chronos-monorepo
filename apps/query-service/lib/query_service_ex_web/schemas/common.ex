@@ -99,6 +99,38 @@ defmodule QueryServiceExWeb.Schemas.Common do
     })
   end
 
+  defmodule HALLink do
+    @moduledoc "HAL hypermedia link"
+    OpenApiSpex.schema(%{
+      title: "HALLink",
+      description: "A HAL hypermedia link",
+      type: :object,
+      properties: %{
+        href: %Schema{type: :string, description: "Link URL"},
+        title: %Schema{type: :string, description: "Human-readable link title"},
+        templated: %Schema{type: :boolean, description: "Whether the href is a URI template"}
+      },
+      required: [:href],
+      example: %{href: "/api/events", title: "Events"}
+    })
+  end
+
+  defmodule HALLinks do
+    @moduledoc "HAL _links map — keys are relation names (self, tenant, billing, etc.)"
+    OpenApiSpex.schema(%{
+      title: "HALLinks",
+      description:
+        "HAL hypermedia links. Keys are relation names (e.g. self, tenant, billing). " <>
+          "Values are HALLink objects.",
+      type: :object,
+      additionalProperties: HALLink,
+      example: %{
+        "self" => %{href: "/api/events"},
+        "tenant" => %{href: "/api/tenant", title: "Tenant"}
+      }
+    })
+  end
+
   defmodule SimpleSuccess do
     @moduledoc "Simple success response"
     OpenApiSpex.schema(%{

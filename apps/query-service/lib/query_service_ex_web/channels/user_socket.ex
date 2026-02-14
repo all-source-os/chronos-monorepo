@@ -37,8 +37,6 @@ defmodule QueryServiceExWeb.UserSocket do
   use Phoenix.Socket
   require Logger
 
-  alias QueryServiceEx.Accounts.Guardian
-
   # Channels
   channel("events:*", QueryServiceExWeb.EventChannel)
   channel("projections:*", QueryServiceExWeb.ProjectionChannel)
@@ -90,12 +88,50 @@ defmodule QueryServiceExWeb.UserSocket do
   # Private functions
 
   defp verify_token(token) do
-    case Guardian.decode_and_verify(token) do
-      {:ok, claims} ->
-        Guardian.resource_from_claims(claims)
+    case jwt_secret() do
+      nil ->
+        {:error, :jwt_secret_not_configured}
 
-      {:error, reason} ->
-        {:error, reason}
+      secret ->
+        jwk = JOSE.JWK.from_oct(secret)
+
+        case JOSE.JWT.verify_strict(jwk, ["HS256"], token) do
+          {true, %JOSE.JWT{fields: claims}, _jws} ->
+            validate_and_build_user(claims)
+
+          {false, _jwt, _jws} ->
+            {:error, :invalid_signature}
+
+          {:error, _reason} ->
+            {:error, :malformed_token}
+        end
     end
+  end
+
+  defp validate_and_build_user(claims) do
+    now = System.system_time(:second)
+
+    cond do
+      not is_integer(claims["exp"]) or claims["exp"] <= now ->
+        {:error, :token_expired}
+
+      is_nil(claims["sub"]) ->
+        {:error, :missing_sub}
+
+      true ->
+        user = %{
+          id: claims["sub"],
+          email: claims["email"],
+          name: claims["name"],
+          tenant_id: claims["tenant_id"],
+          role: claims["role"]
+        }
+
+        {:ok, user}
+    end
+  end
+
+  defp jwt_secret do
+    System.get_env("JWT_SECRET")
   end
 end

@@ -2,6 +2,7 @@ package http //nolint:revive // package name intentionally matches directory
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -77,7 +78,7 @@ func (h *OperationsHandler) ListSnapshots(c *gin.Context) {
 		return
 	}
 
-	responses := make([]dto.OperationResponse, len(ops))
+	responses := make([]operationHALResponse, len(ops))
 	for i, op := range ops {
 		responses[i] = h.toOperationResponse(op)
 	}
@@ -179,7 +180,7 @@ func (h *OperationsHandler) ListOperations(c *gin.Context) {
 		return
 	}
 
-	responses := make([]dto.OperationResponse, len(ops))
+	responses := make([]operationHALResponse, len(ops))
 	for i, op := range ops {
 		responses[i] = h.toOperationResponse(op)
 	}
@@ -256,19 +257,41 @@ func (h *OperationsHandler) handleOperationError(c *gin.Context, err error) {
 	}
 }
 
-// toOperationResponse converts an Operation entity to an OperationResponse DTO.
-func (h *OperationsHandler) toOperationResponse(op *entities.Operation) dto.OperationResponse {
-	return dto.OperationResponse{
-		ID:          op.ID,
-		Type:        string(op.Type),
-		Status:      string(op.Status),
-		TenantID:    op.TenantID,
-		Parameters:  op.Parameters,
-		Result:      op.Result,
-		InitiatedBy: op.InitiatedBy,
-		StartedAt:   op.StartedAt,
-		CompletedAt: op.CompletedAt,
-		Error:       op.Error,
-		CreatedAt:   op.CreatedAt,
+// operationHALResponse wraps an OperationResponse with HAL _links.
+type operationHALResponse struct {
+	HALResource
+	dto.OperationResponse
+}
+
+// operationLinks returns HAL links for an operation response.
+// Links: self, tenant (if present), cluster.
+func operationLinks(op *entities.Operation) map[string]Link {
+	links := map[string]Link{
+		"self":    SelfLink(fmt.Sprintf("/api/v1/operations/history?type=%s", string(op.Type))),
+		"cluster": NewLink("/api/v1/cluster/status", WithTitle("Cluster Status")),
+	}
+	if op.TenantID != "" {
+		links["tenant"] = NewLink(fmt.Sprintf("/api/v1/tenants/%s", op.TenantID), WithTitle("Tenant"))
+	}
+	return links
+}
+
+// toOperationResponse converts an Operation entity to an OperationResponse DTO with HAL links.
+func (h *OperationsHandler) toOperationResponse(op *entities.Operation) operationHALResponse {
+	return operationHALResponse{
+		HALResource: HALResource{Links: operationLinks(op)},
+		OperationResponse: dto.OperationResponse{
+			ID:          op.ID,
+			Type:        string(op.Type),
+			Status:      string(op.Status),
+			TenantID:    op.TenantID,
+			Parameters:  op.Parameters,
+			Result:      op.Result,
+			InitiatedBy: op.InitiatedBy,
+			StartedAt:   op.StartedAt,
+			CompletedAt: op.CompletedAt,
+			Error:       op.Error,
+			CreatedAt:   op.CreatedAt,
+		},
 	}
 }

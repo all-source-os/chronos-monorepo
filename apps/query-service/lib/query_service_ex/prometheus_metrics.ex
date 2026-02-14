@@ -97,7 +97,8 @@ defmodule QueryServiceEx.PrometheusMetrics do
       websocket_metrics() ++
       database_metrics() ++
       circuit_breaker_metrics() ++
-      vm_metrics()
+      vm_metrics() ++
+      usage_reporter_metrics()
   end
 
   # HTTP/Phoenix request metrics
@@ -270,34 +271,9 @@ defmodule QueryServiceEx.PrometheusMetrics do
     ]
   end
 
-  # Database query metrics
+  # Database query metrics (Ecto Repo removed — no longer applicable)
   defp database_metrics do
-    [
-      # Query duration
-      distribution(
-        "query_service_ex.repo.query.total_time",
-        unit: {:native, :second},
-        reporter_options: [buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5]],
-        description: "Database query duration in seconds",
-        tags: [:source]
-      ),
-
-      # Query count
-      counter(
-        "query_service_ex.repo.query.count",
-        description: "Total database queries",
-        tags: [:source]
-      ),
-
-      # Queue time
-      distribution(
-        "query_service_ex.repo.query.queue_time",
-        unit: {:native, :second},
-        reporter_options: [buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1]],
-        description: "Database connection queue time in seconds",
-        tags: [:source]
-      )
-    ]
+    []
   end
 
   # Circuit breaker metrics
@@ -343,6 +319,22 @@ defmodule QueryServiceEx.PrometheusMetrics do
         "query_service_ex.health_check.timeout.count",
         description: "Total health check timeouts",
         tags: [:check]
+      )
+    ]
+  end
+
+  # Usage reporter metrics (async Core usage increments)
+  defp usage_reporter_metrics do
+    [
+      counter(
+        "query_service_ex.usage_reporter.flushed.count",
+        description: "Total usage increments successfully flushed to Core",
+        tags: [:tenant_id]
+      ),
+      counter(
+        "query_service_ex.usage_reporter.dropped.count",
+        description: "Total usage increments dropped after max retries",
+        tags: [:tenant_id]
       )
     ]
   end

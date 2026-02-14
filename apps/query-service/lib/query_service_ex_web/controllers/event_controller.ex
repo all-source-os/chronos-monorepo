@@ -10,9 +10,8 @@ defmodule QueryServiceExWeb.EventController do
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
-  alias QueryServiceEx.DevMode
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
-  alias QueryServiceEx.UsageMeter
+  alias QueryServiceExWeb.HAL
   alias QueryServiceExWeb.Schemas.Common
   alias QueryServiceExWeb.Schemas.Events
 
@@ -60,7 +59,13 @@ defmodule QueryServiceExWeb.EventController do
 
     case RustCoreClient.query_events(tenant_id, query_params, consistency: consistency) do
       {:ok, events} ->
-        json(conn, %{data: events, count: length(events)})
+        self_link = list_self_link("/api/events", Map.take(params, ["entity_id", "event_type", "limit", "offset"]))
+
+        response =
+          %{data: Enum.map(events, &wrap_event/1), count: length(events)}
+          |> HAL.wrap(self_link)
+
+        json(conn, response)
 
       {:error, reason} ->
         conn
@@ -139,7 +144,7 @@ defmodule QueryServiceExWeb.EventController do
 
         conn
         |> put_status(:created)
-        |> json(%{data: created_event})
+        |> json(%{data: wrap_event(created_event)})
 
       {:error, reason} ->
         conn
@@ -188,9 +193,13 @@ defmodule QueryServiceExWeb.EventController do
           event_count: event_count
         })
 
+        response =
+          %{data: Enum.map(created_events, &wrap_event/1), count: event_count}
+          |> HAL.wrap(HAL.self("/api/events/batch"))
+
         conn
         |> put_status(:created)
-        |> json(%{data: created_events, count: event_count})
+        |> json(response)
 
       {:error, reason} ->
         conn
@@ -229,7 +238,11 @@ defmodule QueryServiceExWeb.EventController do
 
     case RustCoreClient.get_events_by_entity(tenant_id, entity_id, consistency: consistency) do
       {:ok, events} ->
-        json(conn, %{data: events, count: length(events), entity_id: entity_id})
+        response =
+          %{data: Enum.map(events, &wrap_event/1), count: length(events), entity_id: entity_id}
+          |> HAL.wrap(HAL.self("/api/events/entity/#{entity_id}"))
+
+        json(conn, response)
 
       {:error, reason} ->
         conn
@@ -262,7 +275,11 @@ defmodule QueryServiceExWeb.EventController do
 
     case RustCoreClient.get_events_by_type(tenant_id, event_type, consistency: consistency) do
       {:ok, events} ->
-        json(conn, %{data: events, count: length(events), event_type: event_type})
+        response =
+          %{data: Enum.map(events, &wrap_event/1), count: length(events), event_type: event_type}
+          |> HAL.wrap(HAL.self("/api/events/type/#{event_type}"))
+
+        json(conn, response)
 
       {:error, reason} ->
         conn
@@ -289,7 +306,11 @@ defmodule QueryServiceExWeb.EventController do
 
     case RustCoreClient.query_events(tenant_id, query_params, consistency: consistency) do
       {:ok, events} ->
-        json(conn, %{data: events, count: length(events)})
+        response =
+          %{data: Enum.map(events, &wrap_event/1), count: length(events)}
+          |> HAL.wrap(list_self_link("/api/v1/events/recent", Map.take(params, ["limit"])))
+
+        json(conn, response)
 
       {:error, reason} ->
         conn
@@ -329,15 +350,26 @@ defmodule QueryServiceExWeb.EventController do
       consistency: consistency
     ]
 
+    self_link = list_self_link("/api/streams", Map.take(params, ["limit", "offset"]))
+
     case RustCoreClient.list_streams(opts) do
       {:ok, %{"streams" => streams, "total" => total}} ->
-        json(conn, %{data: streams, count: length(streams), total: total})
+        response =
+          %{data: Enum.map(streams, &wrap_stream/1), count: length(streams), total: total}
+          |> HAL.wrap(self_link)
+
+        json(conn, response)
 
       {:ok, response} when is_map(response) ->
         # Handle alternative response formats
         streams = Map.get(response, "streams", [])
         total = Map.get(response, "total", length(streams))
-        json(conn, %{data: streams, count: length(streams), total: total})
+
+        resp =
+          %{data: Enum.map(streams, &wrap_stream/1), count: length(streams), total: total}
+          |> HAL.wrap(self_link)
+
+        json(conn, resp)
 
       {:error, reason} ->
         conn
@@ -381,21 +413,102 @@ defmodule QueryServiceExWeb.EventController do
       consistency: consistency
     ]
 
+    self_link = list_self_link("/api/event-types", Map.take(params, ["limit", "offset"]))
+
     case RustCoreClient.list_event_types(opts) do
       {:ok, %{"event_types" => event_types, "total" => total}} ->
-        json(conn, %{data: event_types, count: length(event_types), total: total})
+        response =
+          %{data: Enum.map(event_types, &wrap_event_type/1), count: length(event_types), total: total}
+          |> HAL.wrap(self_link)
+
+        json(conn, response)
 
       {:ok, response} when is_map(response) ->
         # Handle alternative response formats
         types = Map.get(response, "event_types", [])
         total = Map.get(response, "total", length(types))
-        json(conn, %{data: types, count: length(types), total: total})
+
+        resp =
+          %{data: Enum.map(types, &wrap_event_type/1), count: length(types), total: total}
+          |> HAL.wrap(self_link)
+
+        json(conn, resp)
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
         |> json(%{error: to_string(reason)})
     end
+  end
+
+  # -- HAL link helpers --
+
+  defp event_links(event) do
+    id = event["id"] || event[:id]
+    entity_id = event["entity_id"] || event[:entity_id]
+    event_type = event["event_type"] || event[:event_type]
+
+    HAL.self("/api/events/#{id}")
+    |> maybe_merge_link(entity_id, fn eid ->
+      HAL.merge(
+        HAL.link("stream", "/api/events/entity/#{eid}"),
+        HAL.link("entity", "/api/events/entity/#{eid}")
+      )
+    end)
+    |> maybe_merge_link(event_type, fn et ->
+      HAL.merge(
+        HAL.link("event_type", "/api/events/type/#{et}"),
+        HAL.link("schema", "/api/schemas/#{et}")
+      )
+    end)
+    |> HAL.merge(HAL.mgmt_plane_link("tenant", "/api/v1/tenants/{tenant_id}", templated: true))
+  end
+
+  defp wrap_event(event), do: HAL.wrap(event, event_links(event))
+
+  defp maybe_merge_link(links, nil, _fun), do: links
+  defp maybe_merge_link(links, value, fun), do: HAL.merge(links, fun.(value))
+
+  defp wrap_stream(stream) when is_binary(stream) do
+    links =
+      HAL.self("/api/streams")
+      |> HAL.merge(HAL.link("events", "/api/events/entity/#{stream}"))
+
+    %{"entity_id" => stream, "_links" => links}
+  end
+
+  defp wrap_stream(stream) when is_map(stream) do
+    entity_id = stream["entity_id"] || stream[:entity_id]
+
+    links =
+      HAL.self("/api/streams")
+      |> HAL.merge(HAL.link("events", "/api/events/entity/#{entity_id}"))
+
+    HAL.wrap(stream, links)
+  end
+
+  defp wrap_event_type(et) when is_binary(et) do
+    links =
+      HAL.self("/api/event-types")
+      |> HAL.merge(HAL.link("events", "/api/events/type/#{et}"))
+
+    %{"event_type" => et, "_links" => links}
+  end
+
+  defp wrap_event_type(et) when is_map(et) do
+    event_type = et["event_type"] || et[:event_type]
+
+    links =
+      HAL.self("/api/event-types")
+      |> HAL.merge(HAL.link("events", "/api/events/type/#{event_type}"))
+
+    HAL.wrap(et, links)
+  end
+
+  defp list_self_link(path, params) do
+    qs = URI.encode_query(params)
+    full = if qs == "", do: path, else: "#{path}?#{qs}"
+    HAL.self(full)
   end
 
   # Helper to parse integer parameters with defaults
@@ -427,24 +540,10 @@ defmodule QueryServiceExWeb.EventController do
     end
   end
 
-  # Records event usage for the current tenant (skipped in standalone mode)
-  defp record_event_usage(conn, count, metadata) do
-    if DevMode.repo_available?() do
-      case conn.assigns[:current_tenant] do
-        nil ->
-          :ok
-
-        tenant ->
-          if Application.get_env(:query_service_ex, :sql_sandbox, false) do
-            UsageMeter.record_events(tenant.id, count: count, metadata: metadata)
-          else
-            Task.start(fn ->
-              UsageMeter.record_events(tenant.id, count: count, metadata: metadata)
-            end)
-          end
-      end
-    else
-      :ok
+  defp record_event_usage(conn, count, _metadata) do
+    case conn.assigns[:tenant_id] do
+      nil -> :ok
+      tenant_id -> QueryServiceEx.UsageReporter.record(tenant_id, count)
     end
   end
 end

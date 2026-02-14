@@ -134,26 +134,6 @@ defmodule QueryServiceExWeb.Plugs.ErrorHandlerTest do
       assert response["error"]["message"] == "Invalid JSON in request body"
     end
 
-    test "handles DBConnection.ConnectionError with 503 status" do
-      conn =
-        conn(:get, "/test")
-        |> assign(:correlation_id, "db-conn-123")
-
-      exception = %DBConnection.ConnectionError{
-        message: "connection refused",
-        severity: :error,
-        reason: :closed
-      }
-
-      result = ErrorHandler.handle_exception(conn, exception, [])
-
-      assert result.status == 503
-
-      response = Jason.decode!(result.resp_body)
-      assert response["error"]["code"] == "database_unavailable"
-      assert response["error"]["message"] == "Database connection unavailable"
-    end
-
     test "handles unknown exceptions with 500 status" do
       conn =
         conn(:get, "/test")

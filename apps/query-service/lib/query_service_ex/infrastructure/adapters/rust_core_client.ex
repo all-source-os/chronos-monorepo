@@ -681,6 +681,99 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
+  ## API Key Verification
+
+  @doc """
+  Verify an API key by calling Core's `/api/v1/auth/me` with the key as Authorization header.
+
+  Core validates the key (hash lookup, expiry, revocation) and returns the authenticated
+  user/claims. We extract the tenant_id from the response and fetch the tenant from Core.
+
+  Returns `{:ok, {tenant_map, api_key_info}}` or `{:error, reason}`.
+  """
+  def verify_api_key(raw_key) when is_binary(raw_key) do
+    # Build a one-off client with the API key as Authorization header
+    base_url =
+      Application.get_env(:query_service_ex, :core_write_url) ||
+        Application.get_env(:query_service_ex, :core_url, @default_base_url)
+
+    client =
+      Tesla.client([
+        {Tesla.Middleware.BaseUrl, base_url},
+        Tesla.Middleware.JSON,
+        {Tesla.Middleware.Timeout, timeout: @default_timeout},
+        {Tesla.Middleware.Headers, [{"authorization", raw_key}]}
+      ])
+
+    case Tesla.get(client, "/api/v1/auth/me") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        tenant_id = body["tenant_id"]
+
+        if tenant_id do
+          case get_tenant(tenant_id) do
+            {:ok, tenant} ->
+              api_key_info = %{
+                "id" => body["id"],
+                "name" => body["name"] || body["username"],
+                "tenant_id" => tenant_id,
+                "role" => body["role"],
+                "scopes" => body["scopes"] || []
+              }
+
+              {:ok, {tenant, api_key_info}}
+
+            {:error, :not_found} ->
+              {:error, :invalid_key}
+
+            {:error, _reason} ->
+              {:error, :invalid_key}
+          end
+        else
+          {:error, :invalid_key}
+        end
+
+      {:ok, %Tesla.Env{status: 401}} ->
+        {:error, :invalid_key}
+
+      {:ok, %Tesla.Env{status: 403}} ->
+        {:error, :key_revoked}
+
+      {:ok, %Tesla.Env{status: _status}} ->
+        {:error, :invalid_key}
+
+      {:error, _reason} ->
+        {:error, :invalid_key}
+    end
+  end
+
+  ## Tenants
+
+  @doc """
+  Get a tenant from Core by ID.
+
+  Returns the tenant as a map with `"id"`, `"name"`, `"status"`, and `"metadata"` keys.
+
+  ## Returns
+    * `{:ok, tenant}` - Tenant map from Core
+    * `{:error, :not_found}` - Tenant does not exist
+    * `{:error, reason}` - Error details
+  """
+  def get_tenant(tenant_id) when is_binary(tenant_id) do
+    case Tesla.get(read_client(), "/api/v1/tenants/#{tenant_id}") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   ## Metrics & Health
 
   @doc "Get system metrics"

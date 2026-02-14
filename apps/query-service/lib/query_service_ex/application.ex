@@ -21,24 +21,10 @@ defmodule QueryServiceEx.Application do
     # Initialize ETS cache for projections
     ProjectionSync.init_cache()
 
-    # Skip Repo start if:
-    # 1. Explicitly disabled via config (test mode with testcontainers)
-    # 2. In prod without DATABASE_URL (container health checks, image testing)
-    is_prod? = Application.get_env(:query_service_ex, :env) == :prod
-    no_database_url? = is_nil(System.get_env("DATABASE_URL"))
-
-    skip_repo? =
-      Application.get_env(:query_service_ex, :skip_repo_start, false) ||
-        (is_prod? and no_database_url?)
-
-    repo_children = if skip_repo?, do: [], else: [QueryServiceEx.Repo]
-
     # Get cluster topology child_spec (nil if clustering disabled)
     cluster_children = cluster_children()
 
-    children =
-      repo_children ++
-        [
+    children = [
           # PubSub for event broadcasting (must start before cluster components)
           {Phoenix.PubSub, name: QueryServiceEx.PubSub},
 
@@ -50,6 +36,15 @@ defmodule QueryServiceEx.Application do
 
           # Circuit breaker for Core backend calls
           {QueryServiceEx.CircuitBreaker, name: QueryServiceEx.CircuitBreaker},
+
+          # ETS cache for tenant data (invalidated by Control Plane webhooks)
+          QueryServiceEx.TenantCache,
+
+          # ETS cache for verified API key lookups (120s TTL)
+          QueryServiceEx.ApiKeyCache,
+
+          # Async usage increment reporter (buffers and flushes to Core)
+          QueryServiceEx.UsageReporter,
 
           # ETS cache for analytics results
           QueryServiceEx.Infrastructure.Adapters.AnalyticsCache,

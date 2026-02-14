@@ -8,6 +8,7 @@ defmodule QueryServiceExWeb.ProjectionController do
   use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+  alias QueryServiceExWeb.HAL
   alias QueryServiceExWeb.Schemas.Common
   alias QueryServiceExWeb.Schemas.Projections
 
@@ -31,7 +32,11 @@ defmodule QueryServiceExWeb.ProjectionController do
   def index(conn, _params) do
     case RustCoreClient.list_projections() do
       {:ok, projections} ->
-        json(conn, %{data: projections, count: length(projections)})
+        response =
+          %{data: Enum.map(projections, &wrap_projection/1), count: length(projections)}
+          |> HAL.wrap(HAL.self("/api/projections"))
+
+        json(conn, response)
 
       {:error, reason} ->
         conn
@@ -60,7 +65,7 @@ defmodule QueryServiceExWeb.ProjectionController do
   def show(conn, %{"name" => name}) do
     case RustCoreClient.get_projection(name) do
       {:ok, projection} ->
-        json(conn, %{data: projection})
+        json(conn, %{data: wrap_projection(projection)})
 
       {:error, :not_found} ->
         conn
@@ -110,7 +115,7 @@ defmodule QueryServiceExWeb.ProjectionController do
       {:ok, created} ->
         conn
         |> put_status(:created)
-        |> json(%{data: created})
+        |> json(%{data: wrap_projection(created)})
 
       {:error, reason} ->
         conn
@@ -218,4 +223,16 @@ defmodule QueryServiceExWeb.ProjectionController do
         |> json(%{error: to_string(reason)})
     end
   end
+
+  # -- HAL link helpers --
+
+  defp projection_links(projection) do
+    name = projection["name"] || projection[:name]
+
+    HAL.self("/api/projections/#{name}")
+    |> HAL.merge(HAL.link("events", "/api/events?event_type={event_type}", templated: true))
+    |> HAL.merge(HAL.link("snapshot", "/api/snapshots?entity_id={entity_id}", templated: true))
+  end
+
+  defp wrap_projection(projection), do: HAL.wrap(projection, projection_links(projection))
 end

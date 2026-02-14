@@ -2,26 +2,25 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
   @moduledoc """
   Plug that sets the tenant context for authenticated requests.
 
-  This plug extracts the tenant from the authenticated user and stores it
-  in the connection assigns for use by downstream plugs and controllers.
+  This plug extracts the tenant from the authenticated user and loads it
+  from TenantCache (backed by Core) — not from PostgreSQL.
 
-  It also validates that the tenant has an active subscription (or is in trial).
+  It validates that the tenant has an active subscription (or is in trial)
+  using metadata from Core's tenant record.
 
   When AUTH_DISABLED=true (dev mode), uses the dev tenant context instead.
   """
 
   import Plug.Conn
-  alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.DevMode
-  alias QueryServiceEx.Tenants
-  alias QueryServiceEx.Tenants.Tenant
+  alias QueryServiceEx.TenantCache
+  alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
 
   require Logger
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    # Check for dev mode first
     if DevMode.auth_disabled?() do
       set_dev_tenant_context(conn)
     else
@@ -39,15 +38,13 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
   end
 
   defp set_user_tenant_context(conn) do
-    user = Guardian.Plug.current_resource(conn)
+    user = conn.assigns[:current_user]
 
     cond do
       is_nil(user) ->
-        # No authenticated user - let auth pipeline handle it
         conn
 
       is_nil(user.tenant_id) ->
-        # User has no tenant - this shouldn't happen but handle gracefully
         Logger.warning("[TenantContext] User #{user.id} has no tenant_id")
         send_error(conn, :unprocessable_entity, "no_tenant", "User has no associated workspace")
 
@@ -57,27 +54,56 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
   end
 
   defp set_tenant_context(conn, user) do
-    tenant = Tenants.get_tenant(user.tenant_id)
+    tenant = TenantCache.fetch(user.tenant_id, fn -> load_tenant_from_core(user.tenant_id) end)
 
     cond do
       is_nil(tenant) ->
         Logger.warning("[TenantContext] Tenant #{user.tenant_id} not found for user #{user.id}")
         send_error(conn, :not_found, "tenant_not_found", "Workspace not found")
 
-      not Tenant.subscription_active?(tenant) ->
+      not subscription_active?(tenant) ->
+        status = get_subscription_status(tenant)
+
         Logger.info(
-          "[TenantContext] Tenant #{tenant.id} subscription not active: #{tenant.subscription_status}"
+          "[TenantContext] Tenant #{tenant_id(tenant)} subscription not active: #{status}"
         )
 
         send_subscription_required(conn, tenant)
 
       true ->
+        tid = tenant_id(tenant)
+
         conn
         |> assign(:current_tenant, tenant)
-        |> assign(:tenant_id, tenant.id)
-        |> put_private(:allsource_tenant_id, tenant.id)
+        |> assign(:tenant_id, tid)
+        |> put_private(:allsource_tenant_id, tid)
     end
   end
+
+  defp load_tenant_from_core(tenant_id) do
+    case RustCoreClient.get_tenant(tenant_id) do
+      {:ok, tenant} -> tenant
+      {:error, _reason} -> nil
+    end
+  end
+
+  # Subscription status helpers that work with both Ecto Tenant structs and Core maps
+
+  defp subscription_active?(tenant) do
+    get_subscription_status(tenant) in ~w(trialing active)a ++ ["trialing", "active"]
+  end
+
+  defp get_subscription_status(%{subscription_status: status}) when not is_nil(status), do: status
+
+  defp get_subscription_status(tenant) when is_map(tenant) do
+    get_in(tenant, ["metadata", "subscription", "status"]) ||
+      get_in(tenant, [:metadata, :subscription, :status]) ||
+      tenant["status"] ||
+      "active"
+  end
+
+  defp tenant_id(%{id: id}), do: id
+  defp tenant_id(%{"id" => id}), do: id
 
   defp send_error(conn, status, code, message) do
     conn
@@ -92,18 +118,34 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
   end
 
   defp send_subscription_required(conn, tenant) do
+    status = get_subscription_status(tenant)
+    trial_ends_at = get_metadata_field(tenant, "trial_ends_at")
+    subscription_ends_at = get_metadata_field(tenant, "subscription_ends_at")
+
     conn
     |> put_status(:payment_required)
     |> Phoenix.Controller.json(%{
       error: %{
         code: "subscription_required",
         message:
-          "Your subscription has #{tenant.subscription_status}. Please update your billing.",
-        subscription_status: tenant.subscription_status,
-        trial_ends_at: tenant.trial_ends_at,
-        subscription_ends_at: tenant.subscription_ends_at
+          "Your subscription has #{status}. Please update your billing.",
+        subscription_status: status,
+        trial_ends_at: trial_ends_at,
+        subscription_ends_at: subscription_ends_at
       }
     })
     |> halt()
   end
+
+  defp get_metadata_field(%{trial_ends_at: v}, "trial_ends_at"), do: v
+  defp get_metadata_field(%{subscription_ends_at: v}, "subscription_ends_at"), do: v
+
+  defp get_metadata_field(tenant, field) when is_map(tenant) do
+    get_in(tenant, ["metadata", "subscription", field]) ||
+      get_in(tenant, [:metadata, :subscription, String.to_existing_atom(field)])
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp get_metadata_field(_, _), do: nil
 end

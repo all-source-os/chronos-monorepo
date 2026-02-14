@@ -3,15 +3,16 @@ defmodule QueryServiceExWeb.TenantController do
   Controller for tenant management operations.
 
   Provides endpoints for viewing and managing tenant information,
-  usage statistics, and settings.
+  usage statistics, and settings. Tenant data is fetched from Core
+  and cached locally via TenantCache.
   """
 
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
-  alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.DevMode
-  alias QueryServiceEx.Tenants
+  alias QueryServiceEx.TenantCache
+  alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceExWeb.Schemas.Common
   alias QueryServiceExWeb.Schemas.Tenant
 
@@ -44,19 +45,19 @@ defmodule QueryServiceExWeb.TenantController do
       |> put_status(:ok)
       |> json(%{data: serialize_tenant(tenant)})
     else
-      user = Guardian.Plug.current_resource(conn)
-      tenant = Tenants.get_tenant(user.tenant_id)
+      user = conn.assigns[:current_user]
+      tenant_id = user["tenant_id"] || user.tenant_id
 
-      case tenant do
-        nil ->
-          conn
-          |> put_status(:not_found)
-          |> json(%{error: %{code: "tenant_not_found", message: "Workspace not found"}})
-
-        tenant ->
+      case fetch_tenant(tenant_id) do
+        {:ok, tenant} ->
           conn
           |> put_status(:ok)
           |> json(%{data: serialize_tenant(tenant)})
+
+        {:error, _reason} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: %{code: "tenant_not_found", message: "Workspace not found"}})
       end
     end
   end
@@ -78,8 +79,12 @@ defmodule QueryServiceExWeb.TenantController do
   Updates the current user's tenant settings.
 
   PUT /api/tenant
+
+  Note: Tenant updates (name, settings) are now managed by the Control Plane.
+  This endpoint returns the current cached tenant state. To update tenant
+  settings, use the Control Plane's tenant update endpoint.
   """
-  def update(conn, params) do
+  def update(conn, _params) do
     if DevMode.auth_disabled?() do
       # Dev/standalone mode: can't persist, return current tenant
       tenant = conn.assigns[:current_tenant] || DevMode.dev_tenant()
@@ -88,22 +93,19 @@ defmodule QueryServiceExWeb.TenantController do
       |> put_status(:ok)
       |> json(%{data: serialize_tenant(tenant)})
     else
-      user = Guardian.Plug.current_resource(conn)
-      tenant = Tenants.get_tenant!(user.tenant_id)
+      user = conn.assigns[:current_user]
+      tenant_id = user["tenant_id"] || user.tenant_id
 
-      # Only allow updating name and settings
-      update_attrs = Map.take(params, ["name", "settings"])
-
-      case Tenants.update_tenant(tenant, update_attrs) do
-        {:ok, updated_tenant} ->
+      case fetch_tenant(tenant_id) do
+        {:ok, tenant} ->
           conn
           |> put_status(:ok)
-          |> json(%{data: serialize_tenant(updated_tenant)})
+          |> json(%{data: serialize_tenant(tenant)})
 
-        {:error, changeset} ->
+        {:error, _reason} ->
           conn
-          |> put_status(:unprocessable_entity)
-          |> json(%{error: format_changeset_errors(changeset)})
+          |> put_status(:not_found)
+          |> json(%{error: %{code: "tenant_not_found", message: "Workspace not found"}})
       end
     end
   end
@@ -129,36 +131,23 @@ defmodule QueryServiceExWeb.TenantController do
       conn
       |> put_status(:ok)
       |> json(%{
-        data: %{
-          tenant_id: tenant.id,
-          subscription_tier: tenant.subscription_tier,
-          subscription_status: tenant.subscription_status,
-          events: %{used: 0, quota: -1, remaining: -1},
-          queries: %{used: 0, quota: -1, remaining: -1},
-          billing_period: %{
-            reset_at: nil
-          }
-        }
+        data: build_usage_response(tenant)
       })
     else
-      user = Guardian.Plug.current_resource(conn)
-      tenant = Tenants.get_tenant!(user.tenant_id)
-      usage_stats = Tenants.get_usage_stats(user.tenant_id)
+      user = conn.assigns[:current_user]
+      tenant_id = user["tenant_id"] || user.tenant_id
 
-      conn
-      |> put_status(:ok)
-      |> json(%{
-        data: %{
-          tenant_id: tenant.id,
-          subscription_tier: tenant.subscription_tier,
-          subscription_status: tenant.subscription_status,
-          events: usage_stats.events,
-          queries: usage_stats.queries,
-          billing_period: %{
-            reset_at: usage_stats.reset_at
-          }
-        }
-      })
+      case fetch_tenant(tenant_id) do
+        {:ok, tenant} ->
+          conn
+          |> put_status(:ok)
+          |> json(%{data: build_usage_response(tenant)})
+
+        {:error, _reason} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: %{code: "tenant_not_found", message: "Workspace not found"}})
+      end
     end
   end
 
@@ -166,37 +155,81 @@ defmodule QueryServiceExWeb.TenantController do
   # Private Helpers
   # -------------------------------------------------------------------
 
-  defp serialize_tenant(tenant) do
+  @doc false
+  def fetch_tenant(tenant_id) do
+    TenantCache.fetch(tenant_id, fn ->
+      case RustCoreClient.get_tenant(tenant_id) do
+        {:ok, tenant} -> tenant
+        {:error, _} -> nil
+      end
+    end)
+    |> case do
+      nil -> {:error, :not_found}
+      tenant -> {:ok, tenant}
+    end
+  end
+
+  defp serialize_tenant(tenant) when is_map(tenant) do
+    # Handle Core-format tenant maps (string keys like "id", "name", etc.)
+    metadata = tenant["metadata"] || %{}
+    subscription = metadata["subscription"] || %{}
+    quotas = metadata["quotas"] || %{}
+
     %{
-      id: tenant.id,
-      name: tenant.name,
-      slug: tenant.slug,
-      subscription_status: tenant.subscription_status,
-      subscription_tier: tenant.subscription_tier,
-      trial_ends_at: tenant.trial_ends_at,
-      subscription_ends_at: tenant.subscription_ends_at,
-      events_quota: tenant.events_quota,
-      queries_quota: tenant.queries_quota,
-      events_used: tenant.events_used,
-      queries_used: tenant.queries_used,
-      settings: tenant.settings,
-      created_at: tenant.inserted_at,
-      updated_at: tenant.updated_at
+      id: tenant["id"],
+      name: tenant["name"],
+      slug: tenant["slug"],
+      status: tenant["status"],
+      subscription_status: subscription["status"],
+      subscription_tier: subscription["tier"],
+      events_quota: quotas["events_quota"],
+      queries_quota: quotas["queries_quota"],
+      events_used: quotas["events_used"] || 0,
+      queries_used: quotas["queries_used"] || 0,
+      created_at: tenant["inserted_at"],
+      updated_at: tenant["updated_at"]
     }
   end
 
-  defp format_changeset_errors(changeset) do
-    errors =
-      Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-        Enum.reduce(opts, msg, fn {key, value}, acc ->
-          String.replace(acc, "%{#{key}}", to_string(value))
-        end)
-      end)
+  defp build_usage_response(tenant) when is_map(tenant) do
+    metadata = tenant["metadata"] || %{}
+    subscription = metadata["subscription"] || %{}
+    quotas = metadata["quotas"] || %{}
+
+    events_quota = quotas["events_quota"] || -1
+    events_used = quotas["events_used"] || 0
+    queries_quota = quotas["queries_quota"] || -1
+    queries_used = quotas["queries_used"] || 0
+
+    events_remaining =
+      case events_quota do
+        -1 -> -1
+        quota when is_integer(quota) -> max(0, quota - events_used)
+      end
+
+    queries_remaining =
+      case queries_quota do
+        -1 -> -1
+        quota when is_integer(quota) -> max(0, quota - queries_used)
+      end
 
     %{
-      code: "validation_error",
-      message: "Validation failed",
-      details: errors
+      tenant_id: tenant["id"],
+      subscription_tier: subscription["tier"],
+      subscription_status: subscription["status"],
+      events: %{
+        used: events_used,
+        quota: events_quota,
+        remaining: events_remaining
+      },
+      queries: %{
+        used: queries_used,
+        quota: queries_quota,
+        remaining: queries_remaining
+      },
+      billing_period: %{
+        reset_at: nil
+      }
     }
   end
 end

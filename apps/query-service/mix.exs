@@ -4,7 +4,7 @@ defmodule QueryServiceEx.MixProject do
   def project do
     [
       app: :query_service_ex,
-      version: "0.10.0",
+      version: "0.10.1",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -57,10 +57,6 @@ defmodule QueryServiceEx.MixProject do
       # WebSocket Client for real-time event streaming from Core
       {:websockex, "~> 0.4"},
 
-      # Database & State Management
-      {:ecto_sql, "~> 3.11"},
-      {:postgrex, "~> 0.18"},
-
       # Redis for caching
       {:redix, "~> 1.5"},
       {:castore, "~> 1.0"},
@@ -94,20 +90,14 @@ defmodule QueryServiceEx.MixProject do
       # Structured Logging
       {:logger_json, "~> 7.0"},
 
-      # OAuth Authentication
-      {:ueberauth, "~> 0.10"},
-      {:ueberauth_google, "~> 0.12"},
-      {:ueberauth_github, "~> 0.8"},
-      {:guardian, "~> 2.3"},
+      # JWT Authentication
+      {:jose, "~> 1.11"},
 
       # Development & Testing
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
-
-      # Testcontainers for database testing
-      {:testcontainers, "~> 1.13", only: :test},
 
       # Mocking
       {:mox, "~> 1.1", only: :test},
@@ -129,11 +119,7 @@ defmodule QueryServiceEx.MixProject do
 
   defp aliases do
     [
-      # Setup task runs migrations
-      setup: ["deps.get", "ecto.setup"],
-      "ecto.setup": ["ecto.create", "ecto.migrate"],
-      "ecto.reset": ["ecto.drop", "ecto.setup"]
-      # Tests use testcontainers - no ecto.create needed before mix test
+      setup: ["deps.get"]
     ]
   end
 end

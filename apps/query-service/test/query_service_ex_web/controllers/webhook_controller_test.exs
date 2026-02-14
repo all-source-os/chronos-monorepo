@@ -2,33 +2,33 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
   @moduledoc """
   Tests for WebhookController LemonSqueezy webhooks.
 
-  These tests require a running PostgreSQL database.
-  Run with: mix test --include database
+  The webhook controller now only verifies signatures, logs events, and acknowledges.
+  Subscription management is owned by the Control Plane (Go service).
+  No database required.
   """
   use QueryServiceExWeb.ConnCase
-
-  alias QueryServiceEx.Tenants
-
-  @moduletag :database
 
   @webhook_secret "test_webhook_secret_for_testing"
 
   setup %{conn: conn} do
-    {:ok, tenant} =
-      Tenants.create_tenant(%{name: "Webhook Test Workspace", slug: "webhook-test"})
+    # Configure webhook secret for signature verification
+    Application.put_env(:query_service_ex, :lemon_squeezy, webhook_secret: @webhook_secret)
+
+    on_exit(fn ->
+      Application.put_env(:query_service_ex, :lemon_squeezy, webhook_secret: nil)
+    end)
 
     conn =
       conn
       |> put_req_header("content-type", "application/json")
       |> put_req_header("accept", "application/json")
 
-    {:ok, conn: conn, tenant: tenant}
+    {:ok, conn: conn}
   end
 
   describe "POST /api/webhooks/lemonsqueezy" do
     test "returns unauthorized for invalid signature", %{conn: conn} do
       payload = subscription_created_payload("tenant-123")
-      body = Jason.encode!(payload)
 
       conn =
         conn
@@ -46,8 +46,8 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
       assert json_response(conn, 401)["error"] == "Invalid signature"
     end
 
-    test "handles subscription_created event", %{conn: conn, tenant: tenant} do
-      payload = subscription_created_payload(tenant.id)
+    test "acknowledges subscription_created event with valid signature", %{conn: conn} do
+      payload = subscription_created_payload("tenant-123")
       body = Jason.encode!(payload)
       signature = compute_signature(body)
 
@@ -58,21 +58,10 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
         |> post("/api/webhooks/lemonsqueezy", payload)
 
       assert json_response(conn, 200)["received"] == true
-
-      updated_tenant = Tenants.get_tenant!(tenant.id)
-      assert updated_tenant.lemon_squeezy_customer_id == "12345"
-      assert updated_tenant.lemon_squeezy_subscription_id == "sub_67890"
-      assert updated_tenant.subscription_status == :active
     end
 
-    test "handles subscription_updated event", %{conn: conn, tenant: tenant} do
-      {:ok, tenant} =
-        Tenants.update_subscription(tenant, %{
-          lemon_squeezy_subscription_id: "sub_67890",
-          subscription_status: :active
-        })
-
-      payload = subscription_updated_payload(tenant.lemon_squeezy_subscription_id)
+    test "acknowledges subscription_updated event with valid signature", %{conn: conn} do
+      payload = subscription_updated_payload("sub_67890")
       body = Jason.encode!(payload)
       signature = compute_signature(body)
 
@@ -83,19 +72,10 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
         |> post("/api/webhooks/lemonsqueezy", payload)
 
       assert json_response(conn, 200)["received"] == true
-
-      updated_tenant = Tenants.get_tenant!(tenant.id)
-      assert updated_tenant.subscription_status == :active
     end
 
-    test "handles subscription_cancelled event", %{conn: conn, tenant: tenant} do
-      {:ok, tenant} =
-        Tenants.update_subscription(tenant, %{
-          lemon_squeezy_subscription_id: "sub_67890",
-          subscription_status: :active
-        })
-
-      payload = subscription_cancelled_payload(tenant.lemon_squeezy_subscription_id)
+    test "acknowledges subscription_cancelled event", %{conn: conn} do
+      payload = subscription_cancelled_payload("sub_67890")
       body = Jason.encode!(payload)
       signature = compute_signature(body)
 
@@ -106,19 +86,10 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
         |> post("/api/webhooks/lemonsqueezy", payload)
 
       assert json_response(conn, 200)["received"] == true
-
-      updated_tenant = Tenants.get_tenant!(tenant.id)
-      assert updated_tenant.subscription_status == :cancelled
     end
 
-    test "handles subscription_resumed event", %{conn: conn, tenant: tenant} do
-      {:ok, tenant} =
-        Tenants.update_subscription(tenant, %{
-          lemon_squeezy_subscription_id: "sub_67890",
-          subscription_status: :cancelled
-        })
-
-      payload = subscription_resumed_payload(tenant.lemon_squeezy_subscription_id)
+    test "acknowledges subscription_resumed event", %{conn: conn} do
+      payload = subscription_resumed_payload("sub_67890")
       body = Jason.encode!(payload)
       signature = compute_signature(body)
 
@@ -129,19 +100,10 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
         |> post("/api/webhooks/lemonsqueezy", payload)
 
       assert json_response(conn, 200)["received"] == true
-
-      updated_tenant = Tenants.get_tenant!(tenant.id)
-      assert updated_tenant.subscription_status == :active
     end
 
-    test "handles subscription_expired event", %{conn: conn, tenant: tenant} do
-      {:ok, tenant} =
-        Tenants.update_subscription(tenant, %{
-          lemon_squeezy_subscription_id: "sub_67890",
-          subscription_status: :cancelled
-        })
-
-      payload = subscription_expired_payload(tenant.lemon_squeezy_subscription_id)
+    test "acknowledges subscription_expired event", %{conn: conn} do
+      payload = subscription_expired_payload("sub_67890")
       body = Jason.encode!(payload)
       signature = compute_signature(body)
 
@@ -152,22 +114,10 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
         |> post("/api/webhooks/lemonsqueezy", payload)
 
       assert json_response(conn, 200)["received"] == true
-
-      updated_tenant = Tenants.get_tenant!(tenant.id)
-      assert updated_tenant.subscription_status == :expired
     end
 
-    test "handles subscription_payment_success event", %{conn: conn, tenant: tenant} do
-      {:ok, tenant} =
-        Tenants.update_subscription(tenant, %{
-          lemon_squeezy_subscription_id: "sub_67890",
-          subscription_status: :active
-        })
-
-      {:ok, _} = Tenants.increment_events_usage(tenant.id, 5000)
-      {:ok, _} = Tenants.increment_queries_usage(tenant.id, 500)
-
-      payload = subscription_payment_success_payload(tenant.lemon_squeezy_subscription_id)
+    test "acknowledges subscription_payment_success event", %{conn: conn} do
+      payload = subscription_payment_success_payload("sub_67890")
       body = Jason.encode!(payload)
       signature = compute_signature(body)
 
@@ -178,20 +128,10 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
         |> post("/api/webhooks/lemonsqueezy", payload)
 
       assert json_response(conn, 200)["received"] == true
-
-      updated_tenant = Tenants.get_tenant!(tenant.id)
-      assert updated_tenant.events_used == 0
-      assert updated_tenant.queries_used == 0
     end
 
-    test "handles subscription_payment_failed event", %{conn: conn, tenant: tenant} do
-      {:ok, tenant} =
-        Tenants.update_subscription(tenant, %{
-          lemon_squeezy_subscription_id: "sub_67890",
-          subscription_status: :active
-        })
-
-      payload = subscription_payment_failed_payload(tenant.lemon_squeezy_subscription_id)
+    test "acknowledges subscription_payment_failed event", %{conn: conn} do
+      payload = subscription_payment_failed_payload("sub_67890")
       body = Jason.encode!(payload)
       signature = compute_signature(body)
 
@@ -202,9 +142,6 @@ defmodule QueryServiceExWeb.WebhookControllerTest do
         |> post("/api/webhooks/lemonsqueezy", payload)
 
       assert json_response(conn, 200)["received"] == true
-
-      updated_tenant = Tenants.get_tenant!(tenant.id)
-      assert updated_tenant.subscription_status == :past_due
     end
 
     test "ignores unknown event types", %{conn: conn} do

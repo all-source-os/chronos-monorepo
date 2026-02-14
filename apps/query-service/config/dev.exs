@@ -1,15 +1,5 @@
 import Config
 
-# Configure your database
-config :query_service_ex, QueryServiceEx.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "query_service_dev",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
-
 # For development, we enable code reloading
 config :query_service_ex, QueryServiceExWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
@@ -35,18 +25,6 @@ config :phoenix, :stacktrace_depth, 20
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
 
-# Google OAuth configuration for development
-# Set these environment variables: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-config :ueberauth, Ueberauth.Strategy.Google.OAuth,
-  client_id: System.get_env("GOOGLE_CLIENT_ID") || "dev_client_id",
-  client_secret: System.get_env("GOOGLE_CLIENT_SECRET") || "dev_client_secret"
-
-# GitHub OAuth configuration for development
-# Set these environment variables: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
-config :ueberauth, Ueberauth.Strategy.Github.OAuth,
-  client_id: System.get_env("GITHUB_CLIENT_ID") || "dev_github_client_id",
-  client_secret: System.get_env("GITHUB_CLIENT_SECRET") || "dev_github_client_secret"
-
 # LemonSqueezy configuration for development (optional)
 # Set LEMON_SQUEEZY_VARIANT_TIERS="variant_id:tier,..." to map variants to tiers
 config :query_service_ex, :lemon_squeezy,
@@ -54,7 +32,3 @@ config :query_service_ex, :lemon_squeezy,
   store_id: System.get_env("LEMON_SQUEEZY_STORE_ID"),
   webhook_secret: System.get_env("LEMON_SQUEEZY_WEBHOOK_SECRET"),
   variant_tiers: %{}
-
-# Guardian secret key for development
-config :query_service_ex, QueryServiceEx.Accounts.Guardian,
-  secret_key: "dev_guardian_secret_key_at_least_64_bytes_long_for_development_purposes_only"

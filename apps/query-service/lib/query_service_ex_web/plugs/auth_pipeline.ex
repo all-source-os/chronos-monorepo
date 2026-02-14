@@ -1,72 +1,252 @@
 defmodule QueryServiceExWeb.Plugs.AuthPipeline do
   @moduledoc """
-  Guardian authentication pipeline for protected routes.
+  Unified authentication pipeline for protected routes.
 
-  This pipeline verifies JWT tokens from the Authorization header
-  and loads the associated user resource.
+  Tries authentication methods in order:
+  1. API key via `X-API-Key` header
+  2. Shared-secret JWT via `Authorization: Bearer <token>` header
+  3. Dev mode bypass when `AUTH_DISABLED=true`
 
-  When AUTH_DISABLED=true is set (development mode), authentication
-  is bypassed and a dev user context is injected instead.
+  On success, sets `conn.assigns.current_user` (for JWT auth, built from claims)
+  and `conn.assigns.auth_method` (`:api_key`, `:jwt`, or `:dev`).
+
+  API key auth also sets `current_tenant`, `tenant_id`, `api_key` via ApiKeyAuth.
+  JWT auth sets `user_id`, `tenant_id`, `role` and builds the user resource from claims.
   """
 
   @behaviour Plug
 
-  alias Guardian.Plug.{EnsureAuthenticated, LoadResource, VerifyHeader}
-  alias QueryServiceEx.DevMode
+  import Plug.Conn
 
-  # Guardian module for this app
-  @guardian_module QueryServiceEx.Accounts.Guardian
-  @error_handler QueryServiceExWeb.Plugs.AuthErrorHandler
+  alias QueryServiceEx.ApiKeyCache
+  alias QueryServiceEx.DevMode
+  alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+
+  require Logger
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    if DevMode.auth_disabled?() do
-      # Dev mode: bypass authentication entirely
-      bypass_auth(conn)
-    else
-      # Normal mode: run Guardian authentication pipeline
-      run_guardian_pipeline(conn)
+    cond do
+      has_api_key_header?(conn) ->
+        authenticate_api_key(conn)
+
+      has_bearer_token?(conn) ->
+        authenticate_jwt(conn)
+
+      DevMode.auth_disabled?() ->
+        bypass_auth(conn)
+
+      true ->
+        reject(conn, "missing authentication credentials")
     end
   end
 
-  # Bypass authentication and inject dev user/tenant context
+  # -------------------------------------------------------------------
+  # API Key Authentication
+  # -------------------------------------------------------------------
+
+  defp has_api_key_header?(conn) do
+    case get_req_header(conn, "x-api-key") |> List.first() do
+      nil -> false
+      "" -> false
+      _ -> true
+    end
+  end
+
+  defp authenticate_api_key(conn) do
+    raw_key = get_req_header(conn, "x-api-key") |> List.first()
+
+    case ApiKeyCache.fetch(raw_key, fn -> RustCoreClient.verify_api_key(raw_key) end) do
+      {:ok, {tenant, api_key}} ->
+        tid = tenant["id"] || tenant[:id]
+
+        if subscription_active?(tenant) do
+          conn
+          |> assign(:tenant_id, tid)
+          |> assign(:current_tenant, tenant)
+          |> assign(:api_key, api_key)
+          |> assign(:auth_method, :api_key)
+          |> put_private(:allsource_tenant_id, tid)
+        else
+          reject_subscription(conn, tenant)
+        end
+
+      {:error, :invalid_key} ->
+        reject(conn, "invalid API key")
+
+      {:error, :key_revoked} ->
+        reject(conn, "API key has been revoked")
+
+      {:error, :key_expired} ->
+        reject(conn, "API key has expired")
+
+      {:error, _reason} ->
+        reject(conn, "API key verification failed")
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # JWT Authentication
+  # -------------------------------------------------------------------
+
+  defp has_bearer_token?(conn) do
+    case get_req_header(conn, "authorization") |> List.first() do
+      "Bearer " <> token when byte_size(token) > 0 -> true
+      _ -> false
+    end
+  end
+
+  defp authenticate_jwt(conn) do
+    with {:ok, token} <- extract_bearer_token(conn),
+         {:ok, claims} <- verify_and_decode(token) do
+      user = %{
+        id: claims["sub"],
+        email: claims["email"],
+        name: claims["name"],
+        tenant_id: claims["tenant_id"],
+        role: claims["role"]
+      }
+
+      conn
+      |> assign(:current_user, user)
+      |> assign(:tenant_id, claims["tenant_id"])
+      |> assign(:user_id, claims["sub"])
+      |> assign(:role, claims["role"])
+      |> assign(:auth_method, :jwt)
+      |> put_private(:allsource_tenant_id, claims["tenant_id"])
+    else
+      {:error, message} ->
+        reject(conn, message)
+    end
+  end
+
+  defp extract_bearer_token(conn) do
+    case get_req_header(conn, "authorization") |> List.first() do
+      "Bearer " <> token when byte_size(token) > 0 ->
+        {:ok, token}
+
+      "Bearer " ->
+        {:error, "empty Bearer token"}
+
+      nil ->
+        {:error, "missing Authorization header"}
+
+      _ ->
+        {:error, "invalid Authorization header format"}
+    end
+  end
+
+  defp verify_and_decode(token) do
+    case jwt_secret() do
+      nil ->
+        Logger.error("[AuthPipeline] JWT_SECRET not configured")
+        {:error, "JWT authentication not configured"}
+
+      secret ->
+        jwk = JOSE.JWK.from_oct(secret)
+
+        case JOSE.JWT.verify_strict(jwk, ["HS256"], token) do
+          {true, %JOSE.JWT{fields: claims}, _jws} ->
+            validate_claims(claims)
+
+          {false, _jwt, _jws} ->
+            {:error, "invalid JWT signature"}
+
+          {:error, _reason} ->
+            {:error, "malformed JWT"}
+        end
+    end
+  end
+
+  defp validate_claims(claims) do
+    now = System.system_time(:second)
+
+    cond do
+      not is_integer(claims["exp"]) ->
+        {:error, "missing exp claim"}
+
+      claims["exp"] <= now ->
+        {:error, "token has expired"}
+
+      is_nil(claims["sub"]) ->
+        {:error, "missing sub claim"}
+
+      is_nil(claims["tenant_id"]) ->
+        {:error, "missing tenant_id claim"}
+
+      true ->
+        {:ok, claims}
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Dev Mode Bypass
+  # -------------------------------------------------------------------
+
   defp bypass_auth(conn) do
     dev_user = DevMode.dev_user()
 
     conn
-    |> Plug.Conn.assign(:current_user, dev_user)
-    |> Plug.Conn.put_private(:guardian_default_resource, dev_user)
-    |> Plug.Conn.put_private(:allsource_dev_mode, true)
+    |> assign(:current_user, dev_user)
+    |> assign(:tenant_id, dev_user.tenant_id)
+    |> assign(:user_id, dev_user.id)
+    |> assign(:auth_method, :dev)
+    |> put_private(:allsource_dev_mode, true)
+    |> put_private(:allsource_tenant_id, dev_user.tenant_id)
   end
 
-  # Run the standard Guardian authentication pipeline
-  defp run_guardian_pipeline(conn) do
-    verify_opts = [
-      module: @guardian_module,
-      error_handler: @error_handler,
-      claims: %{"typ" => "access"}
-    ]
+  # -------------------------------------------------------------------
+  # Error Responses
+  # -------------------------------------------------------------------
 
-    ensure_opts = [
-      module: @guardian_module,
-      error_handler: @error_handler
-    ]
-
-    load_opts = [
-      module: @guardian_module,
-      error_handler: @error_handler
-    ]
+  defp reject(conn, message) do
+    Logger.warning("[AuthPipeline] Rejected: #{message}")
 
     conn
-    |> VerifyHeader.call(VerifyHeader.init(verify_opts))
-    |> EnsureAuthenticated.call(EnsureAuthenticated.init(ensure_opts))
-    |> maybe_load_resource(load_opts)
+    |> put_status(:unauthorized)
+    |> Phoenix.Controller.json(%{
+      error: %{
+        code: "unauthorized",
+        message: message,
+        correlation_id: conn.assigns[:correlation_id] || "unknown",
+        timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+      }
+    })
+    |> halt()
   end
 
-  defp maybe_load_resource(%Plug.Conn{halted: true} = conn, _opts), do: conn
+  defp reject_subscription(conn, tenant) do
+    status = get_subscription_status(tenant)
 
-  defp maybe_load_resource(conn, opts) do
-    LoadResource.call(conn, LoadResource.init(opts))
+    conn
+    |> put_status(:payment_required)
+    |> Phoenix.Controller.json(%{
+      error: %{
+        code: "subscription_required",
+        message: "Your subscription has #{status}. Please update your billing.",
+        subscription_status: status
+      }
+    })
+    |> halt()
+  end
+
+  # Subscription status helpers that work with Core maps
+
+  defp subscription_active?(tenant) do
+    get_subscription_status(tenant) in ~w(trialing active)a ++ ["trialing", "active"]
+  end
+
+  defp get_subscription_status(%{subscription_status: status}) when not is_nil(status), do: status
+
+  defp get_subscription_status(tenant) when is_map(tenant) do
+    get_in(tenant, ["metadata", "subscription", "status"]) ||
+      get_in(tenant, [:metadata, :subscription, :status]) ||
+      tenant["status"] ||
+      "active"
+  end
+
+  defp jwt_secret do
+    System.get_env("JWT_SECRET")
   end
 end

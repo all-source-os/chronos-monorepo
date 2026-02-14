@@ -11,23 +11,19 @@ defmodule QueryServiceExWeb.Schemas.Auth do
     @moduledoc "User entity"
     OpenApiSpex.schema(%{
       title: "User",
-      description: "Authenticated user",
+      description: "Authenticated user (from JWT claims)",
       type: :object,
       properties: %{
         id: %Schema{type: :string, format: :uuid},
         email: %Schema{type: :string, format: :email},
         name: %Schema{type: :string},
-        avatar_url: %Schema{type: :string, format: :uri, nullable: true},
-        provider: %Schema{type: :string, enum: ["google", "github"]},
         tenant_id: %Schema{type: :string, format: :uuid}
       },
-      required: [:id, :email, :provider, :tenant_id],
+      required: [:id, :email, :tenant_id],
       example: %{
         id: "123e4567-e89b-12d3-a456-426614174000",
         email: "user@example.com",
         name: "John Doe",
-        avatar_url: "https://lh3.googleusercontent.com/...",
-        provider: "google",
         tenant_id: "987fcdeb-51a2-43e1-b2c4-123456789000"
       }
     })
@@ -65,11 +61,11 @@ defmodule QueryServiceExWeb.Schemas.Auth do
     })
   end
 
-  defmodule AuthCallbackResponse do
-    @moduledoc "OAuth callback success response"
+  defmodule DevTokenResponse do
+    @moduledoc "Development token response"
     OpenApiSpex.schema(%{
-      title: "AuthCallbackResponse",
-      description: "Response after successful OAuth authentication",
+      title: "DevTokenResponse",
+      description: "Response containing a development JWT token (only available when AUTH_DISABLED=true)",
       type: :object,
       properties: %{
         data: %Schema{
@@ -77,7 +73,8 @@ defmodule QueryServiceExWeb.Schemas.Auth do
           properties: %{
             token: %Schema{type: :string, description: "JWT access token"},
             user: User,
-            tenant: Tenant
+            tenant: Tenant,
+            warning: %Schema{type: :string, description: "Development-only warning"}
           },
           required: [:token, :user, :tenant]
         }
@@ -88,15 +85,15 @@ defmodule QueryServiceExWeb.Schemas.Auth do
           token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
           user: %{
             id: "123e4567-e89b-12d3-a456-426614174000",
-            email: "user@example.com",
-            name: "John Doe",
-            provider: "google"
+            email: "dev@localhost",
+            name: "Dev User"
           },
           tenant: %{
             id: "987fcdeb-51a2-43e1-b2c4-123456789000",
-            name: "Acme Corp",
-            slug: "acme-corp"
-          }
+            name: "Dev Tenant",
+            slug: "dev"
+          },
+          warning: "This is a development token. Do not use in production."
         }
       }
     })
@@ -126,7 +123,7 @@ defmodule QueryServiceExWeb.Schemas.Auth do
     @moduledoc "Logout response"
     OpenApiSpex.schema(%{
       title: "LogoutResponse",
-      description: "Response after successful logout",
+      description: "Response after successful logout (client should discard JWT)",
       type: :object,
       properties: %{
         data: %Schema{
@@ -144,29 +141,27 @@ defmodule QueryServiceExWeb.Schemas.Auth do
     })
   end
 
-  defmodule OAuthFailureResponse do
-    @moduledoc "OAuth failure response"
+  defmodule AuthErrorResponse do
+    @moduledoc "Authentication error response"
     OpenApiSpex.schema(%{
-      title: "OAuthFailureResponse",
-      description: "Response when OAuth authentication fails",
+      title: "AuthErrorResponse",
+      description: "Response when authentication fails",
       type: :object,
       properties: %{
         error: %Schema{
           type: :object,
           properties: %{
             code: %Schema{type: :string},
-            message: %Schema{type: :string},
-            provider: %Schema{type: :string}
+            message: %Schema{type: :string}
           },
-          required: [:code, :message, :provider]
+          required: [:code, :message]
         }
       },
       required: [:error],
       example: %{
         error: %{
-          code: "oauth_failed",
-          message: "Authentication failed",
-          provider: "google"
+          code: "unauthorized",
+          message: "Invalid or expired token"
         }
       }
     })

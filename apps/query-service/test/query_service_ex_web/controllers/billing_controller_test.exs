@@ -1,94 +1,86 @@
 defmodule QueryServiceExWeb.BillingControllerTest do
   @moduledoc """
-  Tests for BillingController.
-
-  These tests require a running PostgreSQL database.
-  Run with: mix test --include database
+  Tests for BillingController 301 redirects to Control Plane.
   """
   use QueryServiceExWeb.ConnCase
 
-  alias QueryServiceEx.Accounts
-  alias QueryServiceEx.Accounts.Guardian
-  alias QueryServiceEx.Tenants
-
-  @moduletag :database
+  @mgmt_url "https://cp.allsource.dev"
 
   setup %{conn: conn} do
-    {:ok, tenant} = Tenants.create_tenant(%{name: "Test Workspace", slug: "billing-test"})
+    System.put_env("MGMT_PLANE_URL", @mgmt_url)
+    on_exit(fn -> System.delete_env("MGMT_PLANE_URL") end)
 
-    {:ok, user} =
-      Accounts.create_user(%{
-        email: "billing@example.com",
-        name: "Billing User",
-        provider: "google",
-        google_id: "google_billing_123",
-        tenant_id: tenant.id
-      })
-
-    user = QueryServiceEx.Repo.preload(user, :tenant)
-    {:ok, token, _claims} = Guardian.encode_and_sign(user)
-
-    conn =
-      conn
-      |> put_req_header("authorization", "Bearer #{token}")
-      |> put_req_header("accept", "application/json")
-
-    {:ok, conn: conn, tenant: tenant, user: user}
+    conn = put_req_header(conn, "accept", "application/json")
+    {:ok, conn: conn}
   end
 
   describe "POST /api/billing/checkout" do
-    test "returns error when LemonSqueezy not configured", %{conn: conn} do
-      conn = post(conn, "/api/billing/checkout", %{"variant_id" => "variant_123"})
-
-      assert json_response(conn, 422)["error"]["code"] == "checkout_failed"
-    end
-
-    test "returns bad request without variant_id", %{conn: conn} do
+    test "returns 301 with Location header to CP", %{conn: conn} do
       conn = post(conn, "/api/billing/checkout", %{})
 
-      assert json_response(conn, 400)["error"]["code"] == "missing_variant_id"
-    end
-
-    test "returns 401 without auth token", %{conn: conn} do
-      conn =
-        conn
-        |> delete_req_header("authorization")
-        |> post("/api/billing/checkout", %{"variant_id" => "variant_123"})
-
-      assert json_response(conn, 401)
+      assert conn.status == 301
+      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/checkout"]
+      assert json_response(conn, 301)["error"]["code"] == "moved_permanently"
     end
   end
 
   describe "GET /api/billing/portal" do
-    test "returns no subscription message for new tenant", %{conn: conn} do
-      conn = get(conn, "/api/billing/portal")
-      response = json_response(conn, 200)["data"]
-
-      assert response["has_subscription"] == false
-      assert response["message"] =~ "No active subscription"
-    end
-
-    test "returns error when tenant has customer_id but portal fetch fails", %{
-      conn: conn,
-      tenant: tenant
-    } do
-      {:ok, _tenant} =
-        Tenants.update_subscription(tenant, %{
-          lemon_squeezy_customer_id: "cust_123"
-        })
-
+    test "returns 301 with Location header to CP", %{conn: conn} do
       conn = get(conn, "/api/billing/portal")
 
-      assert json_response(conn, 422)["error"]["code"] == "portal_failed"
+      assert conn.status == 301
+      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/portal"]
+      assert json_response(conn, 301)["error"]["location"] =~ "/api/v1/billing/portal"
     end
+  end
 
-    test "returns 401 without auth token", %{conn: conn} do
-      conn =
-        conn
-        |> delete_req_header("authorization")
-        |> get("/api/billing/portal")
+  describe "GET /api/billing/overage" do
+    test "returns 301 with Location header to CP", %{conn: conn} do
+      conn = get(conn, "/api/billing/overage")
 
-      assert json_response(conn, 401)
+      assert conn.status == 301
+      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/overage"]
+    end
+  end
+
+  describe "POST /api/billing/overage/enable" do
+    test "returns 301 with Location header to CP", %{conn: conn} do
+      conn = post(conn, "/api/billing/overage/enable", %{})
+
+      assert conn.status == 301
+      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/overage/enable"]
+    end
+  end
+
+  describe "POST /api/billing/overage/disable" do
+    test "returns 301 with Location header to CP", %{conn: conn} do
+      conn = post(conn, "/api/billing/overage/disable", %{})
+
+      assert conn.status == 301
+      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/overage/disable"]
+    end
+  end
+
+  describe "GET /api/billing/projected-charges" do
+    test "returns 301 with Location header to CP", %{conn: conn} do
+      conn = get(conn, "/api/billing/projected-charges")
+
+      assert conn.status == 301
+
+      assert get_resp_header(conn, "location") == [
+               "#{@mgmt_url}/api/v1/billing/projected-charges"
+             ]
+    end
+  end
+
+  describe "redirect without MGMT_PLANE_URL" do
+    test "returns 301 with relative path when env var not set", %{conn: conn} do
+      System.delete_env("MGMT_PLANE_URL")
+
+      conn = get(conn, "/api/billing/portal")
+
+      assert conn.status == 301
+      assert get_resp_header(conn, "location") == ["/api/v1/billing/portal"]
     end
   end
 end

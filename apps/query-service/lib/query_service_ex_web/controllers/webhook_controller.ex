@@ -4,12 +4,14 @@ defmodule QueryServiceExWeb.WebhookController do
 
   Currently supports:
   - LemonSqueezy billing webhooks
+
+  Note: Subscription management is now handled by the Control Plane (Go service).
+  This controller verifies signatures, logs webhook events, and acknowledges them.
   """
 
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
-  alias QueryServiceEx.Tenants
   alias QueryServiceExWeb.Schemas.Webhooks
 
   require Logger
@@ -45,14 +47,8 @@ defmodule QueryServiceExWeb.WebhookController do
 
   POST /api/webhooks/lemonsqueezy
 
-  LemonSqueezy sends webhooks for:
-  - subscription_created
-  - subscription_updated
-  - subscription_cancelled
-  - subscription_resumed
-  - subscription_expired
-  - subscription_payment_success
-  - subscription_payment_failed
+  Subscription management is owned by the Control Plane.
+  This endpoint verifies the signature, logs the event, and acknowledges receipt.
   """
   def lemonsqueezy(conn, params) do
     correlation_id = conn.assigns[:correlation_id] || "unknown"
@@ -116,197 +112,81 @@ defmodule QueryServiceExWeb.WebhookController do
   end
 
   # -------------------------------------------------------------------
-  # Webhook Processing
+  # Webhook Processing (log-only, Control Plane owns subscriptions)
   # -------------------------------------------------------------------
 
   defp process_webhook(%{"meta" => %{"event_name" => event_name}, "data" => data}, correlation_id) do
+    attrs = data["attributes"] || %{}
+
     Logger.info("[WebhookController] Processing event: #{event_name}",
-      correlation_id: correlation_id
+      correlation_id: correlation_id,
+      subscription_id: data["id"],
+      status: map_status(attrs["status"]),
+      tier: map_tier(attrs["variant_id"])
     )
 
     case event_name do
       "subscription_created" ->
-        handle_subscription_created(data, correlation_id)
+        tenant_id = get_in(attrs, ["custom_data", "tenant_id"])
+
+        Logger.info("[WebhookController] Subscription created",
+          correlation_id: correlation_id,
+          tenant_id: tenant_id,
+          subscription_id: data["id"],
+          status: attrs["status"]
+        )
 
       "subscription_updated" ->
-        handle_subscription_updated(data, correlation_id)
+        Logger.info("[WebhookController] Subscription updated",
+          correlation_id: correlation_id,
+          subscription_id: data["id"],
+          status: attrs["status"]
+        )
 
       "subscription_cancelled" ->
-        handle_subscription_cancelled(data, correlation_id)
+        Logger.info("[WebhookController] Subscription cancelled",
+          correlation_id: correlation_id,
+          subscription_id: data["id"],
+          ends_at: attrs["ends_at"]
+        )
 
       "subscription_resumed" ->
-        handle_subscription_resumed(data, correlation_id)
+        Logger.info("[WebhookController] Subscription resumed",
+          correlation_id: correlation_id,
+          subscription_id: data["id"]
+        )
 
       "subscription_expired" ->
-        handle_subscription_expired(data, correlation_id)
+        Logger.info("[WebhookController] Subscription expired",
+          correlation_id: correlation_id,
+          subscription_id: data["id"]
+        )
 
       "subscription_payment_success" ->
-        handle_payment_success(data, correlation_id)
+        Logger.info("[WebhookController] Payment succeeded",
+          correlation_id: correlation_id,
+          subscription_id: attrs["subscription_id"]
+        )
 
       "subscription_payment_failed" ->
-        handle_payment_failed(data, correlation_id)
+        Logger.warning("[WebhookController] Payment failed",
+          correlation_id: correlation_id,
+          subscription_id: attrs["subscription_id"]
+        )
 
       _ ->
         Logger.info("[WebhookController] Ignoring unhandled event: #{event_name}",
           correlation_id: correlation_id
         )
-
-        :ok
     end
+
+    :ok
   end
 
   defp process_webhook(_params, _correlation_id), do: {:error, :invalid_payload}
 
   # -------------------------------------------------------------------
-  # Event Handlers
-  # -------------------------------------------------------------------
-
-  defp handle_subscription_created(data, correlation_id) do
-    attrs = data["attributes"]
-    tenant_id = get_in(attrs, ["custom_data", "tenant_id"])
-
-    Logger.info("[WebhookController] Subscription created for tenant #{tenant_id}",
-      correlation_id: correlation_id,
-      subscription_id: data["id"],
-      status: attrs["status"]
-    )
-
-    if tenant_id do
-      tenant = Tenants.get_tenant(tenant_id)
-
-      if tenant do
-        Tenants.update_subscription(tenant, %{
-          lemon_squeezy_customer_id: to_string(attrs["customer_id"]),
-          lemon_squeezy_subscription_id: to_string(data["id"]),
-          subscription_status: map_status(attrs["status"]),
-          subscription_tier: map_tier(attrs["variant_id"])
-        })
-      else
-        Logger.warning("[WebhookController] Tenant not found: #{tenant_id}",
-          correlation_id: correlation_id
-        )
-      end
-    end
-
-    :ok
-  end
-
-  defp handle_subscription_updated(data, correlation_id) do
-    attrs = data["attributes"]
-    subscription_id = to_string(data["id"])
-
-    Logger.info("[WebhookController] Subscription updated: #{subscription_id}",
-      correlation_id: correlation_id,
-      status: attrs["status"]
-    )
-
-    tenant = Tenants.get_tenant_by_subscription_id(subscription_id)
-
-    if tenant do
-      Tenants.update_subscription(tenant, %{
-        subscription_status: map_status(attrs["status"]),
-        subscription_tier: map_tier(attrs["variant_id"]),
-        subscription_ends_at: parse_datetime(attrs["ends_at"])
-      })
-    end
-
-    :ok
-  end
-
-  defp handle_subscription_cancelled(data, correlation_id) do
-    subscription_id = to_string(data["id"])
-
-    Logger.info("[WebhookController] Subscription cancelled: #{subscription_id}",
-      correlation_id: correlation_id
-    )
-
-    tenant = Tenants.get_tenant_by_subscription_id(subscription_id)
-
-    if tenant do
-      attrs = data["attributes"]
-
-      Tenants.update_subscription(tenant, %{
-        subscription_status: :cancelled,
-        subscription_ends_at: parse_datetime(attrs["ends_at"])
-      })
-    end
-
-    :ok
-  end
-
-  defp handle_subscription_resumed(data, correlation_id) do
-    subscription_id = to_string(data["id"])
-
-    Logger.info("[WebhookController] Subscription resumed: #{subscription_id}",
-      correlation_id: correlation_id
-    )
-
-    tenant = Tenants.get_tenant_by_subscription_id(subscription_id)
-
-    if tenant do
-      Tenants.update_subscription(tenant, %{
-        subscription_status: :active
-      })
-    end
-
-    :ok
-  end
-
-  defp handle_subscription_expired(data, correlation_id) do
-    subscription_id = to_string(data["id"])
-
-    Logger.info("[WebhookController] Subscription expired: #{subscription_id}",
-      correlation_id: correlation_id
-    )
-
-    tenant = Tenants.get_tenant_by_subscription_id(subscription_id)
-
-    if tenant do
-      Tenants.update_subscription(tenant, %{
-        subscription_status: :expired
-      })
-    end
-
-    :ok
-  end
-
-  defp handle_payment_success(data, correlation_id) do
-    subscription_id = to_string(data["attributes"]["subscription_id"])
-
-    Logger.info("[WebhookController] Payment succeeded for subscription: #{subscription_id}",
-      correlation_id: correlation_id
-    )
-
-    # Reset usage counters on successful payment (new billing period)
-    tenant = Tenants.get_tenant_by_subscription_id(subscription_id)
-
-    if tenant do
-      Tenants.reset_usage(tenant.id)
-    end
-
-    :ok
-  end
-
-  defp handle_payment_failed(data, correlation_id) do
-    subscription_id = to_string(data["attributes"]["subscription_id"])
-
-    Logger.warning("[WebhookController] Payment failed for subscription: #{subscription_id}",
-      correlation_id: correlation_id
-    )
-
-    tenant = Tenants.get_tenant_by_subscription_id(subscription_id)
-
-    if tenant do
-      Tenants.update_subscription(tenant, %{
-        subscription_status: :past_due
-      })
-    end
-
-    :ok
-  end
-
-  # -------------------------------------------------------------------
-  # Helpers
+  # Helpers (kept for structured logging)
   # -------------------------------------------------------------------
 
   defp map_status("active"), do: :active
@@ -325,15 +205,4 @@ defmodule QueryServiceExWeb.WebhookController do
       tier -> tier
     end
   end
-
-  defp parse_datetime(nil), do: nil
-
-  defp parse_datetime(datetime_string) when is_binary(datetime_string) do
-    case DateTime.from_iso8601(datetime_string) do
-      {:ok, datetime, _offset} -> DateTime.truncate(datetime, :second)
-      _ -> nil
-    end
-  end
-
-  defp parse_datetime(_), do: nil
 end

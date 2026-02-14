@@ -5,7 +5,7 @@ defmodule QueryServiceExWeb.ApiSpec do
   This module defines the OpenAPI 3.0 specification including:
   - API metadata (title, version, description)
   - Server information
-  - Security schemes (Bearer JWT)
+  - Security schemes (Bearer JWT, API Key)
   - Tags for grouping operations
 
   ## Usage
@@ -16,11 +16,17 @@ defmodule QueryServiceExWeb.ApiSpec do
 
   ## Security
 
-  Most endpoints require authentication via Bearer JWT token:
+  Endpoints support two authentication methods:
 
-      Authorization: Bearer <your_jwt_token>
+  1. **API Key** (recommended for programmatic access):
 
-  Public endpoints (health, metrics, OAuth callbacks) do not require authentication.
+         X-API-Key: <your_api_key>
+
+  2. **Bearer JWT** (for user sessions):
+
+         Authorization: Bearer <your_jwt_token>
+
+  Public endpoints (health, metrics, dev-token) do not require authentication.
   """
 
   alias OpenApiSpex.{Components, Info, OpenApi, Paths, SecurityScheme, Server, Tag}
@@ -46,12 +52,20 @@ defmodule QueryServiceExWeb.ApiSpec do
 
         ## Authentication
 
-        Most endpoints require a valid JWT token obtained via OAuth (Google or GitHub).
-        Include the token in the `Authorization` header:
+        The API supports two authentication methods:
 
+        **API Key** (recommended for programmatic access):
+        ```
+        X-API-Key: <your_api_key>
+        ```
+
+        **Bearer JWT** (for user sessions):
         ```
         Authorization: Bearer <your_jwt_token>
         ```
+
+        API keys are managed via the Control Plane. JWTs are issued by the Control Plane
+        auth endpoints or the dev-token endpoint (local development only).
 
         ## Rate Limiting
 
@@ -79,7 +93,7 @@ defmodule QueryServiceExWeb.ApiSpec do
             type: "http",
             scheme: "bearer",
             bearerFormat: "JWT",
-            description: "JWT token obtained from OAuth callback"
+            description: "JWT token issued by the Control Plane or dev-token endpoint"
           },
           "api_key" => %SecurityScheme{
             type: "apiKey",
@@ -100,7 +114,7 @@ defmodule QueryServiceExWeb.ApiSpec do
         },
         %Tag{
           name: "Authentication",
-          description: "OAuth authentication and user management"
+          description: "JWT-based user info and dev token endpoint"
         },
         %Tag{
           name: "Events",
@@ -123,16 +137,8 @@ defmodule QueryServiceExWeb.ApiSpec do
           description: "Tenant workspace management"
         },
         %Tag{
-          name: "Onboarding",
-          description: "Customer onboarding flow"
-        },
-        %Tag{
-          name: "API Keys",
-          description: "API key self-service management"
-        },
-        %Tag{
           name: "Billing",
-          description: "Subscription and billing management"
+          description: "Deprecated — 301 redirects to Control Plane billing endpoints"
         },
         %Tag{
           name: "Webhooks",

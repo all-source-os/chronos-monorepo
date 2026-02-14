@@ -3,7 +3,7 @@ defmodule QueryServiceExWeb.Router do
   Phoenix router for Query Service API endpoints.
 
   Routes are organized into:
-  - Public routes (health checks, OAuth callbacks)
+  - Public routes (health checks, dev token)
   - Authenticated routes (require JWT token)
   - Tenant-scoped routes (require auth + active subscription)
   """
@@ -52,6 +52,19 @@ defmodule QueryServiceExWeb.Router do
     plug(QueryServiceExWeb.Plugs.RateLimiting)
   end
 
+  # API key authentication (X-API-Key header) — replaces AuthPipeline + TenantContext
+  pipeline :api_key_authenticated do
+    plug(:accepts, ["json"])
+    plug(QueryServiceExWeb.Plugs.CorrelationId)
+    plug(QueryServiceExWeb.Plugs.ApiKeyAuth)
+    plug(QueryServiceExWeb.Plugs.ConsistencyRouting)
+  end
+
+  # Internal service-to-service auth via shared INTERNAL_API_KEY
+  pipeline :internal_authenticated do
+    plug(QueryServiceExWeb.Plugs.InternalApiKey)
+  end
+
   # -------------------------------------------------------------------
   # Public Routes
   # -------------------------------------------------------------------
@@ -97,15 +110,12 @@ defmodule QueryServiceExWeb.Router do
     get("/hash-ring", ClusterController, :hash_ring)
   end
 
-  # OAuth routes (public, handles provider redirects and callbacks)
+  # Public auth routes (no authentication required)
   scope "/api/auth", QueryServiceExWeb do
     pipe_through(:api)
 
     # Dev token endpoint (only works when AUTH_DISABLED=true)
     get("/dev-token", AuthController, :dev_token)
-
-    get("/:provider", AuthController, :request)
-    get("/:provider/callback", AuthController, :callback)
   end
 
   # -------------------------------------------------------------------
@@ -238,65 +248,14 @@ defmodule QueryServiceExWeb.Router do
   end
 
   # -------------------------------------------------------------------
-  # Onboarding Routes
-  # -------------------------------------------------------------------
-
-  scope "/api/onboarding", QueryServiceExWeb do
-    pipe_through(:authenticated)
-
-    # Onboarding status and progress
-    get("/", OnboardingController, :show)
-    get("/steps", OnboardingController, :steps)
-
-    # Step completion
-    post("/steps/:step/complete", OnboardingController, :complete_step)
-
-    # Skip or reset onboarding
-    post("/skip", OnboardingController, :skip)
-    post("/reset", OnboardingController, :reset)
-  end
-
-  # -------------------------------------------------------------------
-  # API Key Management Routes
-  # -------------------------------------------------------------------
-
-  scope "/api/api-keys", QueryServiceExWeb do
-    pipe_through(:authenticated)
-
-    # List available scopes
-    get("/scopes", ApiKeyController, :scopes)
-
-    # List all API keys for current tenant
-    get("/", ApiKeyController, :index)
-
-    # Create a new API key
-    post("/", ApiKeyController, :create)
-
-    # Get a specific API key
-    get("/:id", ApiKeyController, :show)
-
-    # Update API key metadata
-    put("/:id", ApiKeyController, :update)
-
-    # Rotate API key (revoke old, create new)
-    post("/:id/rotate", ApiKeyController, :rotate)
-
-    # Revoke API key
-    delete("/:id", ApiKeyController, :delete)
-  end
-
-  # -------------------------------------------------------------------
-  # Billing Routes
+  # Billing Routes (deprecated — 301 redirects to Control Plane)
   # -------------------------------------------------------------------
 
   scope "/api/billing", QueryServiceExWeb do
-    pipe_through(:authenticated)
+    pipe_through(:api)
 
-    # LemonSqueezy checkout and portal
     get("/portal", BillingController, :portal)
     post("/checkout", BillingController, :checkout)
-
-    # Hybrid pricing / overage billing
     get("/overage", BillingController, :overage)
     post("/overage/enable", BillingController, :enable_overage)
     post("/overage/disable", BillingController, :disable_overage)
@@ -319,6 +278,13 @@ defmodule QueryServiceExWeb.Router do
     pipe_through(:api)
 
     post("/update-leader", InternalController, :update_leader)
+  end
+
+  # Authenticated internal endpoints (require INTERNAL_API_KEY)
+  scope "/internal", QueryServiceExWeb do
+    pipe_through([:api, :internal_authenticated])
+
+    post("/tenant-updated", InternalController, :tenant_updated)
   end
 
   # -------------------------------------------------------------------

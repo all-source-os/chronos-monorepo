@@ -8,6 +8,7 @@ defmodule QueryServiceExWeb.SchemaController do
   use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+  alias QueryServiceExWeb.HAL
   alias QueryServiceExWeb.Schemas.Common
   alias QueryServiceExWeb.Schemas.Schemas
 
@@ -31,7 +32,11 @@ defmodule QueryServiceExWeb.SchemaController do
   def index(conn, _params) do
     case RustCoreClient.list_schemas() do
       {:ok, schemas} ->
-        json(conn, %{data: schemas, count: length(schemas)})
+        response =
+          %{data: Enum.map(schemas, &wrap_schema/1), count: length(schemas)}
+          |> HAL.wrap(HAL.self("/api/schemas"))
+
+        json(conn, response)
 
       {:error, reason} ->
         conn
@@ -71,7 +76,7 @@ defmodule QueryServiceExWeb.SchemaController do
 
     case result do
       {:ok, schema} ->
-        json(conn, %{data: schema})
+        json(conn, %{data: wrap_schema(schema)})
 
       {:error, :not_found} ->
         conn
@@ -121,7 +126,7 @@ defmodule QueryServiceExWeb.SchemaController do
       {:ok, registered} ->
         conn
         |> put_status(:created)
-        |> json(%{data: registered})
+        |> json(%{data: wrap_schema(registered)})
 
       {:error, reason} ->
         conn
@@ -129,4 +134,13 @@ defmodule QueryServiceExWeb.SchemaController do
         |> json(%{error: to_string(reason)})
     end
   end
+
+  # -- HAL link helpers --
+
+  defp schema_links(schema) do
+    event_type = schema["event_type"] || schema[:event_type]
+    HAL.self("/api/schemas/#{event_type}")
+  end
+
+  defp wrap_schema(schema), do: HAL.wrap(schema, schema_links(schema))
 end

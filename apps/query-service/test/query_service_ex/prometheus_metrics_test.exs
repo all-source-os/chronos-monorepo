@@ -52,13 +52,6 @@ defmodule QueryServiceEx.PrometheusMetricsTest do
       assert Enum.any?(metric_names, &String.contains?(&1, "websocket"))
     end
 
-    test "includes database metrics" do
-      metrics = PrometheusMetrics.metrics()
-      metric_names = Enum.map(metrics, &metric_name_to_string(&1.name))
-
-      assert Enum.any?(metric_names, &String.contains?(&1, "repo.query"))
-    end
-
     test "includes circuit breaker metrics" do
       metrics = PrometheusMetrics.metrics()
       metric_names = Enum.map(metrics, &metric_name_to_string(&1.name))

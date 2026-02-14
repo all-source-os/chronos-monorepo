@@ -1,0 +1,46 @@
+# docker-compose.auth-test.yml — Auth integration test stack
+#
+# Extends docker-compose.yml with auth-enabled QS for testing auth flows.
+# Unlike docker-compose.test.yml, QS has AUTH_DISABLED=false and JWT_SECRET shared.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.auth-test.yml up -d core control-plane query-service
+#   ./scripts/test-auth-flows.sh
+#   docker compose -f docker-compose.yml -f docker-compose.auth-test.yml down -v
+
+services:
+  core:
+    container_name: allsource-authtest-core
+    environment:
+      ALLSOURCE_DEV_MODE: "true"
+    volumes:
+      - authtest-core-data:/app/data
+
+  control-plane:
+    container_name: allsource-authtest-control-plane
+    ports:
+      - "3901:8080"
+    environment:
+      CORE_SERVICE_URL: http://core:3900
+      JWT_SECRET: test-jwt-secret-for-integration-tests-min-32
+      DATA_PLANE_URL: http://query-service:3902
+      QUERY_SERVICE_INTERNAL_URL: http://query-service:3902
+      INTERNAL_API_KEY: test-internal-key-for-integration
+
+  query-service:
+    container_name: allsource-authtest-query-service
+    environment:
+      CORE_URL: http://core:3900
+      # Auth ENABLED — this is the key difference from docker-compose.test.yml
+      AUTH_DISABLED: "false"
+      JWT_SECRET: test-jwt-secret-for-integration-tests-min-32
+      INTERNAL_API_KEY: test-internal-key-for-integration
+      MGMT_PLANE_URL: http://control-plane:8080
+
+networks:
+  allsource:
+    name: allsource-authtest-network
+
+volumes:
+  authtest-core-data:
+    name: allsource-authtest-core-data

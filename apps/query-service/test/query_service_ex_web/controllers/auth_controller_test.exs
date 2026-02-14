@@ -4,10 +4,15 @@ defmodule QueryServiceExWeb.AuthControllerTest do
   import Plug.Test
   import Plug.Conn
 
-  alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceExWeb.Router
 
   @opts Router.init([])
+
+  setup do
+    System.put_env("JWT_SECRET", QueryServiceEx.AuthHelpers.test_jwt_secret())
+    on_exit(fn -> System.delete_env("JWT_SECRET") end)
+    :ok
+  end
 
   describe "GET /api/auth/me" do
     test "returns 401 when not authenticated" do
@@ -17,14 +22,9 @@ defmodule QueryServiceExWeb.AuthControllerTest do
         |> put_req_header("content-type", "application/json")
         |> Router.call(@opts)
 
-      # When not authenticated, Guardian pipeline should return 401
-      # In test mode without full HTTP stack, conn may be halted or status nil
-      assert conn.status == 401 or conn.halted == true or conn.status == nil
-
-      if conn.status == 401 do
-        response = Jason.decode!(conn.resp_body)
-        assert response["error"]["code"] == "unauthenticated"
-      end
+      assert conn.status == 401
+      response = Jason.decode!(conn.resp_body)
+      assert response["error"]["code"] == "unauthorized"
     end
 
     test "returns 401 with invalid token" do
@@ -35,14 +35,9 @@ defmodule QueryServiceExWeb.AuthControllerTest do
         |> put_req_header("authorization", "Bearer invalid_token")
         |> Router.call(@opts)
 
-      # Invalid token should result in 401
-      # In test mode without full HTTP stack, conn may be halted or status nil
-      assert conn.status == 401 or conn.halted == true or conn.status == nil
-
-      if conn.status == 401 do
-        response = Jason.decode!(conn.resp_body)
-        assert response["error"]["code"] == "invalid_token"
-      end
+      assert conn.status == 401
+      response = Jason.decode!(conn.resp_body)
+      assert response["error"]["code"] == "unauthorized"
     end
   end
 
@@ -54,54 +49,45 @@ defmodule QueryServiceExWeb.AuthControllerTest do
         |> put_req_header("content-type", "application/json")
         |> Router.call(@opts)
 
-      # In test mode without full HTTP stack, conn may be halted or status nil
-      assert conn.status == 401 or conn.halted == true or conn.status == nil
+      assert conn.status == 401
     end
   end
 
-  describe "GET /api/auth/google" do
-    test "routes to auth controller request action" do
-      # The actual OAuth redirect is handled by Ueberauth which requires
-      # a full HTTP stack. Here we verify the route is properly registered
-      # and the controller action is invoked.
-      conn =
+  describe "OAuth routes removed" do
+    test "GET /api/auth/google raises NoRouteError" do
+      assert_raise Phoenix.Router.NoRouteError, fn ->
         :get
         |> conn("/api/auth/google")
         |> put_req_header("content-type", "application/json")
         |> Router.call(@opts)
-
-      # When Ueberauth successfully redirects, it halts the connection
-      # In test mode without full HTTP stack, it may not complete the redirect
-      # but the route should be processed
-      assert conn.halted == true or conn.status in [302, nil]
+      end
     end
-  end
 
-  describe "GET /api/auth/github" do
-    test "routes to auth controller request action for GitHub" do
-      # The actual OAuth redirect is handled by Ueberauth which requires
-      # a full HTTP stack. Here we verify the route is properly registered
-      # and the controller action is invoked.
-      conn =
+    test "GET /api/auth/github raises NoRouteError" do
+      assert_raise Phoenix.Router.NoRouteError, fn ->
         :get
         |> conn("/api/auth/github")
         |> put_req_header("content-type", "application/json")
         |> Router.call(@opts)
-
-      # When Ueberauth successfully redirects, it halts the connection
-      # In test mode without full HTTP stack, it may not complete the redirect
-      # but the route should be processed
-      assert conn.halted == true or conn.status in [302, nil]
-    end
-  end
-
-  describe "Guardian token validation" do
-    test "returns error for invalid token" do
-      assert {:error, _reason} = Guardian.decode_and_verify("invalid_token")
+      end
     end
 
-    test "returns error for malformed token" do
-      assert {:error, _reason} = Guardian.decode_and_verify("not.a.valid.jwt")
+    test "GET /api/auth/google/callback raises NoRouteError" do
+      assert_raise Phoenix.Router.NoRouteError, fn ->
+        :get
+        |> conn("/api/auth/google/callback")
+        |> put_req_header("content-type", "application/json")
+        |> Router.call(@opts)
+      end
+    end
+
+    test "GET /api/auth/github/callback raises NoRouteError" do
+      assert_raise Phoenix.Router.NoRouteError, fn ->
+        :get
+        |> conn("/api/auth/github/callback")
+        |> put_req_header("content-type", "application/json")
+        |> Router.call(@opts)
+      end
     end
   end
 end

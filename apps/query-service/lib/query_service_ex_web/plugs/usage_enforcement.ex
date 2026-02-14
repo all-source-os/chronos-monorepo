@@ -2,23 +2,23 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
   @moduledoc """
   Plug that enforces usage quotas for tenant operations.
 
-  This plug checks if the tenant has exceeded their quota before
-  allowing operations that consume usage (events, queries).
+  Reads quota and usage data from the cached Core tenant metadata
+  (via TenantCache) — no PostgreSQL dependency.
 
-  Usage is tracked and enforced per billing period.
+  ## Hard Limit Mode (default)
 
-  ## Hybrid Pricing Mode
+  Returns 402 when `events_used >= events_quota` and overage is disabled.
 
-  When overage billing is enabled for a tenant, the plug operates in
-  "soft limit" mode - it allows the request but adds headers indicating
-  the tenant is in overage. This enables the hybrid pricing model where
-  customers pay base subscription + usage overage.
+  ## Soft Limit Mode
+
+  When overage billing is enabled for a tenant, allows the request through
+  but adds headers indicating the tenant is in overage. Calls
+  `UsageReporter.record/2` to increment usage asynchronously.
   """
 
   import Plug.Conn
-  alias QueryServiceEx.Billing.HybridPricing
-  alias QueryServiceEx.Tenants
-  alias QueryServiceEx.Tenants.Tenant
+
+  alias QueryServiceEx.UsageReporter
 
   require Logger
 
@@ -43,64 +43,116 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
 
     cond do
       is_nil(tenant) ->
-        # No tenant context - let other plugs handle auth
         conn
 
-      quota_exceeded?(tenant, type) ->
-        handle_quota_exceeded(conn, tenant, type)
+      not quota_exceeded?(tenant, type) ->
+        # Under quota — increment usage async and pass through
+        increment_usage(tenant, type)
+        conn
+
+      overage_enabled?(tenant) ->
+        # Soft limit: allow with overage headers, increment async
+        increment_usage(tenant, type)
+        allow_with_overage_warning(conn, tenant, type)
 
       true ->
-        conn
+        # Hard limit: block
+        send_quota_exceeded(conn, tenant, type)
     end
   end
 
-  defp quota_exceeded?(tenant, :events) do
-    Tenant.events_quota_exceeded?(tenant)
-  end
+  # Quota checking — reads from Core tenant metadata
 
-  defp quota_exceeded?(tenant, :queries) do
-    Tenant.queries_quota_exceeded?(tenant)
-  end
+  defp quota_exceeded?(tenant, type) do
+    quota = get_quota(tenant, type)
+    used = get_used(tenant, type)
 
-  defp handle_quota_exceeded(conn, tenant, type) do
-    if Tenant.overage_enabled?(tenant) do
-      # Soft limit mode: allow request but add overage headers
-      allow_with_overage_warning(conn, tenant, type)
-    else
-      # Hard limit mode: block request
-      send_quota_exceeded(conn, tenant, type)
+    cond do
+      quota < 0 -> false  # unlimited (-1)
+      true -> used >= quota
     end
   end
+
+  defp get_quota(tenant, :events), do: get_quota_field(tenant, "events_quota")
+  defp get_quota(tenant, :queries), do: get_quota_field(tenant, "queries_quota")
+
+  defp get_used(tenant, :events), do: get_quota_field(tenant, "events_used")
+  defp get_used(tenant, :queries), do: get_quota_field(tenant, "queries_used")
+
+  defp get_quota_field(tenant, field) do
+    val =
+      get_in_metadata(tenant, ["quotas", field]) ||
+        get_in_metadata(tenant, [:quotas, String.to_existing_atom(field)])
+
+    to_integer(val)
+  rescue
+    ArgumentError -> 0
+  end
+
+  defp get_in_metadata(%{"metadata" => metadata}, path) when is_map(metadata) do
+    get_in(metadata, path)
+  end
+
+  defp get_in_metadata(%{metadata: metadata}, path) when is_map(metadata) do
+    get_in(metadata, path)
+  end
+
+  defp get_in_metadata(_, _), do: nil
+
+  defp to_integer(nil), do: 0
+  defp to_integer(v) when is_integer(v), do: v
+  defp to_integer(v) when is_float(v), do: trunc(v)
+  defp to_integer(v) when is_binary(v), do: String.to_integer(v)
+
+  # Overage checking
+
+  defp overage_enabled?(tenant) do
+    val =
+      get_in_metadata(tenant, ["overage", "enabled"]) ||
+        get_in_metadata(tenant, [:overage, :enabled])
+
+    val == true
+  end
+
+  # Usage increment — async via UsageReporter
+
+  defp increment_usage(tenant, _type) do
+    tid = tenant_id(tenant)
+
+    if tid do
+      UsageReporter.record(tid)
+    end
+  end
+
+  # Soft limit mode: allow through with overage headers
 
   defp allow_with_overage_warning(conn, tenant, type) do
-    usage_stats = Tenants.get_usage_stats(tenant.id)
-    stats = Map.get(usage_stats, type)
-    overage_summary = HybridPricing.get_overage_summary(tenant.id)
+    quota = get_quota(tenant, type)
+    used = get_used(tenant, type)
+    overage_units = max(used - quota, 0)
 
     Logger.info(
-      "[UsageEnforcement] Tenant #{tenant.id} in overage for #{type}: #{stats.used}/#{stats.quota} (overage billing enabled)"
+      "[UsageEnforcement] Tenant #{tenant_id(tenant)} in overage for #{type}: #{used}/#{quota} (overage billing enabled)"
     )
 
     conn
     |> put_resp_header("x-usage-overage", "true")
     |> put_resp_header("x-usage-type", to_string(type))
-    |> put_resp_header("x-usage-used", to_string(stats.used))
-    |> put_resp_header("x-usage-quota", to_string(stats.quota))
-    |> put_resp_header("x-overage-units", to_string(overage_summary[type].overage))
-    |> put_resp_header(
-      "x-projected-charge-cents",
-      to_string(overage_summary.total_projected_cents)
-    )
+    |> put_resp_header("x-usage-used", to_string(used))
+    |> put_resp_header("x-usage-quota", to_string(quota))
+    |> put_resp_header("x-overage-units", to_string(overage_units))
     |> assign(:in_overage, true)
     |> assign(:overage_type, type)
   end
 
+  # Hard limit mode: block with 402
+
   defp send_quota_exceeded(conn, tenant, type) do
-    usage_stats = Tenants.get_usage_stats(tenant.id)
-    stats = Map.get(usage_stats, type)
+    quota = get_quota(tenant, type)
+    used = get_used(tenant, type)
 
     Logger.info(
-      "[UsageEnforcement] Tenant #{tenant.id} exceeded #{type} quota: #{stats.used}/#{stats.quota}"
+      "[UsageEnforcement] Tenant #{tenant_id(tenant)} exceeded #{type} quota: #{used}/#{quota}"
     )
 
     conn
@@ -110,14 +162,16 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
         code: "quota_exceeded",
         message: "You have exceeded your #{type} quota for this billing period.",
         usage_type: type,
-        used: stats.used,
-        quota: stats.quota,
-        percentage: stats.percentage,
-        reset_at: usage_stats.reset_at,
+        used: used,
+        quota: quota,
         upgrade_url: "/billing/upgrade",
         enable_overage_url: "/billing/enable-overage"
       }
     })
     |> halt()
   end
+
+  defp tenant_id(%{id: id}), do: id
+  defp tenant_id(%{"id" => id}), do: id
+  defp tenant_id(_), do: nil
 end

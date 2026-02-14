@@ -26,7 +26,6 @@ defmodule QueryServiceExWeb.Plugs.RateLimiting do
   import Plug.Conn
 
   alias QueryServiceEx.RateLimiter
-  alias QueryServiceEx.Tenants.Tenant
 
   require Logger
 
@@ -58,18 +57,30 @@ defmodule QueryServiceExWeb.Plugs.RateLimiting do
 
   defp check_and_enforce_rate_limit(conn, tenant) do
     tier = get_subscription_tier(tenant)
+    tenant_id = get_tenant_id(tenant)
 
-    case RateLimiter.check_rate(tenant.id, tier) do
+    case RateLimiter.check_rate(tenant_id, tier) do
       {:allow, remaining} ->
-        add_rate_limit_headers(conn, tenant.id, tier, remaining)
+        add_rate_limit_headers(conn, tenant_id, tier, remaining)
 
       {:deny, retry_after_ms} ->
         send_rate_limited_response(conn, retry_after_ms, tier)
     end
   end
 
-  defp get_subscription_tier(%Tenant{subscription_tier: tier}) when is_atom(tier), do: tier
+  defp get_subscription_tier(%{subscription_tier: tier}) when is_atom(tier), do: tier
+  defp get_subscription_tier(tenant) when is_map(tenant) do
+    case get_in(tenant, ["metadata", "subscription", "tier"]) do
+      nil -> :free
+      tier when is_atom(tier) -> tier
+      tier when is_binary(tier) -> String.to_existing_atom(tier)
+    end
+  end
   defp get_subscription_tier(_), do: :free
+
+  defp get_tenant_id(%{id: id}), do: id
+  defp get_tenant_id(%{"id" => id}), do: id
+  defp get_tenant_id(_), do: nil
 
   defp add_rate_limit_headers(conn, _tenant_id, tier, remaining) do
     {rate, burst} = RateLimiter.get_tier_limits(tier)

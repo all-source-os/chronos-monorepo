@@ -15,11 +15,6 @@ services:
     ports:
       - "3902:3902"
 
-  postgres:
-    container_name: allsource-monorepo-postgres
-    ports:
-      - "3903:5432"
-
   web:
     container_name: allsource-monorepo-web
     ports:
@@ -47,8 +42,6 @@ networks:
 volumes:
   core-data:
     name: allsource-monorepo-core-data
-  postgres-data:
-    name: allsource-monorepo-postgres-data
   redis-data:
     name: allsource-monorepo-redis-data
   prometheus-data:

@@ -71,10 +71,11 @@ defmodule QueryServiceExWeb.Schemas.Projections do
     @moduledoc "Single projection response"
     OpenApiSpex.schema(%{
       title: "ProjectionResponse",
-      description: "Response containing a single projection",
+      description: "Response containing a single projection with HAL links",
       type: :object,
       properties: %{
-        data: Projection
+        data: Projection,
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data]
     })
@@ -84,11 +85,12 @@ defmodule QueryServiceExWeb.Schemas.Projections do
     @moduledoc "List of projections response"
     OpenApiSpex.schema(%{
       title: "ProjectionListResponse",
-      description: "Response containing a list of projections",
+      description: "Response containing a list of projections with HAL links",
       type: :object,
       properties: %{
         data: %Schema{type: :array, items: Projection},
-        count: %Schema{type: :integer}
+        count: %Schema{type: :integer},
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data, :count],
       example: %{
@@ -126,10 +128,11 @@ defmodule QueryServiceExWeb.Schemas.Projections do
     @moduledoc "Projection state response"
     OpenApiSpex.schema(%{
       title: "ProjectionStateResponse",
-      description: "Response containing projection state",
+      description: "Response containing projection state with HAL links",
       type: :object,
       properties: %{
-        data: ProjectionState
+        data: ProjectionState,
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data]
     })

@@ -1,21 +1,17 @@
 defmodule QueryServiceExWeb.AuthController do
   @moduledoc """
-  Controller for OAuth authentication flows.
+  Controller for authentication endpoints.
 
-  Handles OAuth callbacks from Google and GitHub, issues JWT tokens
-  for authenticated users, and auto-creates tenant workspaces.
-
-  Also provides a dev-token endpoint for local development when
-  AUTH_DISABLED is set.
+  Provides JWT-based authentication info. OAuth has been removed —
+  auth responsibility is handled externally. This controller provides:
+  - `/me` — returns user info from JWT claims (no DB lookup)
+  - `/logout` — stateless logout (client discards token)
+  - `/dev-token` — development token for local testing
   """
 
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
-  plug(Ueberauth, [] when action not in [:dev_token])
-
-  alias QueryServiceEx.Accounts
-  alias QueryServiceEx.Accounts.Guardian
   alias QueryServiceEx.DevMode
   alias QueryServiceExWeb.Schemas.Auth
 
@@ -25,118 +21,37 @@ defmodule QueryServiceExWeb.AuthController do
 
   tags(["Authentication"])
 
-  operation(:request,
-    summary: "Initiate OAuth flow",
-    description: "Redirects to the OAuth provider for authentication.",
-    parameters: [
-      provider: [
-        in: :path,
-        schema: %OpenApiSpex.Schema{type: :string, enum: ["google", "github"]},
-        required: true,
-        description: "OAuth provider (google or github)"
-      ]
-    ],
-    responses: [
-      found: {"Redirect to OAuth provider", "text/html", nil}
-    ]
-  )
-
-  @doc """
-  Initiates the OAuth flow by redirecting to the provider.
-
-  GET /api/auth/:provider (google, github)
-  """
-  def request(conn, _params) do
-    # Ueberauth plug handles the redirect
-    conn
-  end
-
-  operation(:callback,
-    summary: "OAuth callback",
-    description: "Handles OAuth callback from providers and returns JWT token.",
-    parameters: [
-      provider: [
-        in: :path,
-        schema: %OpenApiSpex.Schema{type: :string, enum: ["google", "github"]},
-        required: true,
-        description: "OAuth provider (google or github)"
-      ]
-    ],
-    responses: [
-      ok: {"Authentication successful", "application/json", Auth.AuthCallbackResponse},
-      unauthorized: {"Authentication failed", "application/json", Auth.OAuthFailureResponse},
-      unprocessable_entity:
-        {"User creation failed", "application/json", Auth.OAuthFailureResponse}
-    ]
-  )
-
-  @doc """
-  Handles OAuth callback from providers.
-
-  Handles:
-  - GET /api/auth/google/callback
-  - GET /api/auth/github/callback
-  """
-  def callback(conn, params)
-
-  def callback(%{assigns: %{ueberauth_failure: failure}} = conn, %{"provider" => provider}) do
-    correlation_id = conn.assigns[:correlation_id] || "unknown"
-
-    Logger.warning("[AuthController] #{provider} OAuth failure: #{inspect(failure)}",
-      correlation_id: correlation_id,
-      provider: provider
-    )
-
-    conn
-    |> put_status(:unauthorized)
-    |> json(%{
-      error: %{
-        code: "oauth_failed",
-        message: "Authentication failed",
-        provider: provider
-      }
-    })
-  end
-
-  def callback(%{assigns: %{ueberauth_auth: auth}} = conn, %{"provider" => "google"}) do
-    handle_oauth_callback(conn, auth, :google, &Accounts.find_or_create_from_google/1)
-  end
-
-  def callback(%{assigns: %{ueberauth_auth: auth}} = conn, %{"provider" => "github"}) do
-    handle_oauth_callback(conn, auth, :github, &Accounts.find_or_create_from_github/1)
-  end
-
   operation(:me,
     summary: "Get current user",
-    description: "Returns the current authenticated user's information including tenant.",
+    description:
+      "Returns the current authenticated user's information from JWT claims. No DB lookup.",
     security: [%{"bearer_auth" => []}],
     responses: [
       ok: {"Current user info", "application/json", Auth.MeResponse},
-      unauthorized: {"Not authenticated", "application/json", Auth.OAuthFailureResponse}
+      unauthorized: {"Not authenticated", "application/json", Auth.AuthErrorResponse}
     ]
   )
 
   @doc """
-  Returns the current authenticated user's information including tenant.
+  Returns the current authenticated user's information from JWT claims.
 
   GET /api/auth/me
   """
   def me(conn, _params) do
-    user = Guardian.Plug.current_resource(conn)
+    user = conn.assigns[:current_user]
 
     conn
     |> put_status(:ok)
     |> json(%{
       data: %{
-        user: serialize_user(user),
-        tenant: serialize_tenant(user.tenant)
+        user: serialize_user(user)
       }
     })
   end
 
   operation(:logout,
     summary: "Logout",
-    description: "Logs out the current user by revoking the JWT token.",
+    description: "Logs out the current user. Stateless — client should discard the JWT.",
     security: [%{"bearer_auth" => []}],
     responses: [
       ok: {"Logged out", "application/json", Auth.LogoutResponse}
@@ -144,34 +59,23 @@ defmodule QueryServiceExWeb.AuthController do
   )
 
   @doc """
-  Logs out the current user by revoking the token.
+  Logs out the current user.
 
   POST /api/auth/logout
+
+  With shared-secret JWTs, tokens are stateless and cannot be revoked server-side.
+  The client should discard the token.
   """
   def logout(conn, _params) do
     correlation_id = conn.assigns[:correlation_id] || "unknown"
-    token = Guardian.Plug.current_token(conn)
 
-    case Guardian.revoke(token) do
-      {:ok, _claims} ->
-        Logger.info("[AuthController] User logged out",
-          correlation_id: correlation_id
-        )
+    Logger.info("[AuthController] User logged out",
+      correlation_id: correlation_id
+    )
 
-        conn
-        |> put_status(:ok)
-        |> json(%{data: %{message: "Successfully logged out"}})
-
-      {:error, reason} ->
-        Logger.warning("[AuthController] Logout failed: #{inspect(reason)}",
-          correlation_id: correlation_id
-        )
-
-        # Still return success - token might already be invalid
-        conn
-        |> put_status(:ok)
-        |> json(%{data: %{message: "Successfully logged out"}})
-    end
+    conn
+    |> put_status(:ok)
+    |> json(%{data: %{message: "Successfully logged out"}})
   end
 
   # -------------------------------------------------------------------
@@ -189,8 +93,8 @@ defmodule QueryServiceExWeb.AuthController do
     without going through OAuth, useful for MCP integrations and CLI tools.
     """,
     responses: [
-      ok: {"Development token", "application/json", Auth.AuthCallbackResponse},
-      forbidden: {"Dev mode not enabled", "application/json", Auth.OAuthFailureResponse}
+      ok: {"Development token", "application/json", Auth.DevTokenResponse},
+      forbidden: {"Dev mode not enabled", "application/json", Auth.AuthErrorResponse}
     ]
   )
 
@@ -206,11 +110,13 @@ defmodule QueryServiceExWeb.AuthController do
     if DevMode.auth_disabled?() do
       dev_user = DevMode.dev_user()
 
-      case Guardian.encode_and_sign(dev_user, %{}, ttl: {24, :hours}) do
-        {:ok, token, _claims} ->
+      case encode_and_sign(dev_user, ttl_seconds: 86_400) do
+        {:ok, token} ->
           Logger.info("[AuthController] Dev token issued",
             correlation_id: conn.assigns[:correlation_id] || "unknown"
           )
+
+          dev_tenant = DevMode.dev_tenant()
 
           conn
           |> put_status(:ok)
@@ -218,7 +124,7 @@ defmodule QueryServiceExWeb.AuthController do
             data: %{
               token: token,
               user: serialize_user(dev_user),
-              tenant: serialize_tenant(dev_user.tenant),
+              tenant: serialize_tenant(dev_tenant),
               warning: "This is a development token. Do not use in production."
             }
           })
@@ -251,72 +157,53 @@ defmodule QueryServiceExWeb.AuthController do
   # Private Helpers
   # -------------------------------------------------------------------
 
-  defp handle_oauth_callback(conn, auth, provider, find_or_create_fn) do
-    correlation_id = conn.assigns[:correlation_id] || "unknown"
-    email = auth.info.email || "unknown"
+  @default_ttl_seconds 3600
 
-    Logger.info("[AuthController] #{provider} OAuth callback for: #{email}",
-      correlation_id: correlation_id,
-      provider: provider
-    )
+  defp encode_and_sign(user, opts) do
+    case System.get_env("JWT_SECRET") do
+      nil ->
+        {:error, "JWT_SECRET not configured"}
 
-    with {:ok, user} <- find_or_create_fn.(auth),
-         {:ok, token, _claims} <- Guardian.encode_and_sign(user) do
-      Logger.info("[AuthController] User authenticated: #{user.id}",
-        correlation_id: correlation_id,
-        user_id: user.id,
-        tenant_id: user.tenant_id,
-        provider: provider
-      )
+      secret ->
+        ttl = Keyword.get(opts, :ttl_seconds, @default_ttl_seconds)
+        now = System.system_time(:second)
 
-      conn
-      |> put_status(:ok)
-      |> json(%{
-        data: %{
-          token: token,
-          user: serialize_user(user),
-          tenant: serialize_tenant(user.tenant)
+        claims = %{
+          "sub" => to_string(user.id),
+          "tenant_id" => user.tenant_id,
+          "role" => "user",
+          "iat" => now,
+          "exp" => now + ttl
         }
-      })
-    else
-      {:error, changeset} ->
-        Logger.error("[AuthController] Failed to create user: #{inspect(changeset)}",
-          correlation_id: correlation_id,
-          provider: provider
-        )
 
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{
-          error: %{
-            code: "user_creation_failed",
-            message: "Failed to create user account"
-          }
-        })
+        jwk = JOSE.JWK.from_oct(secret)
+        jws = %{"alg" => "HS256"}
+        jwt = JOSE.JWT.from_map(claims)
+
+        {_alg, token} = JOSE.JWT.sign(jwk, jws, jwt) |> JOSE.JWS.compact()
+        {:ok, token}
     end
   end
 
   defp serialize_user(user) do
     %{
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatar_url: user.avatar_url,
-      provider: user.provider,
-      tenant_id: user.tenant_id
+      id: user[:id] || user["id"],
+      email: user[:email] || user["email"],
+      name: user[:name] || user["name"],
+      tenant_id: user[:tenant_id] || user["tenant_id"]
     }
   end
 
-  defp serialize_tenant(nil), do: nil
-
   defp serialize_tenant(tenant) do
+    metadata = tenant["metadata"] || %{}
+    subscription = metadata["subscription"] || %{}
+
     %{
-      id: tenant.id,
-      name: tenant.name,
-      slug: tenant.slug,
-      subscription_status: tenant.subscription_status,
-      subscription_tier: tenant.subscription_tier,
-      trial_ends_at: tenant.trial_ends_at
+      id: tenant["id"] || tenant[:id],
+      name: tenant["name"] || tenant[:name],
+      slug: tenant["slug"] || tenant[:slug],
+      subscription_status: subscription["status"],
+      subscription_tier: subscription["tier"]
     }
   end
 end

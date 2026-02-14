@@ -3,95 +3,57 @@ defmodule QueryServiceEx.AuthHelpers do
   Test helpers for authentication-related tests.
   """
 
-  alias QueryServiceEx.Accounts.Guardian
+  @test_jwt_secret "test_jwt_secret_for_testing_purposes_only_at_least_32_bytes"
+
+  def test_jwt_secret, do: @test_jwt_secret
 
   @doc """
-  Creates a mock Ueberauth auth struct for Google testing.
+  Creates a test user map and returns {user, token}.
+  No database required.
   """
-  def mock_google_auth(attrs \\ %{}) do
-    %Ueberauth.Auth{
-      uid: attrs[:uid] || "google_#{:rand.uniform(100_000)}",
-      provider: :google,
-      info: %Ueberauth.Auth.Info{
-        email: attrs[:email] || "test@example.com",
-        name: attrs[:name] || "Test User",
-        image: attrs[:avatar_url] || "https://example.com/avatar.jpg"
-      },
-      credentials: %Ueberauth.Auth.Credentials{
-        token: attrs[:token] || "mock_google_token",
-        refresh_token: attrs[:refresh_token] || "mock_refresh_token",
-        expires: true,
-        expires_at: System.system_time(:second) + 3600
-      }
-    }
-  end
-
-  @doc """
-  Creates a mock Ueberauth auth struct for GitHub testing.
-  """
-  def mock_github_auth(attrs \\ %{}) do
-    defaults = github_auth_defaults()
-    merged = Map.merge(defaults, Map.new(attrs))
-
-    %Ueberauth.Auth{
-      uid: merged.uid,
-      provider: :github,
-      info: %Ueberauth.Auth.Info{
-        email: merged.email,
-        name: merged.name,
-        nickname: merged.nickname,
-        image: merged.avatar_url
-      },
-      credentials: %Ueberauth.Auth.Credentials{
-        token: merged.token,
-        refresh_token: merged[:refresh_token],
-        expires: false
-      },
-      extra: %Ueberauth.Auth.Extra{
-        raw_info: %{
-          "user" => %{
-            "login" => merged.nickname,
-            "id" => merged.uid,
-            "email" => merged.email
-          }
-        }
-      }
-    }
-  end
-
-  defp github_auth_defaults do
-    %{
-      uid: :rand.uniform(100_000),
-      email: "ghuser@example.com",
-      name: "GitHub User",
-      nickname: "ghuser",
-      avatar_url: "https://avatars.githubusercontent.com/u/12345",
-      token: "mock_github_token"
-    }
-  end
-
-  @doc """
-  Creates a test user and returns a valid JWT token.
-  """
-  def create_user_with_token(attrs \\ %{}) do
-    user_attrs = %{
-      email: attrs[:email] || "test@example.com",
+  def create_test_user_with_token(attrs \\ %{}) do
+    user = %{
+      id: attrs[:id] || "user-#{:rand.uniform(100_000)}",
+      email: attrs[:email] || "test#{:rand.uniform(100_000)}@example.com",
       name: attrs[:name] || "Test User",
-      avatar_url: attrs[:avatar_url] || "https://example.com/avatar.jpg",
-      google_id: attrs[:google_id] || "google_#{:rand.uniform(100_000)}",
-      google_token: attrs[:google_token] || "mock_token",
-      google_refresh_token: attrs[:google_refresh_token]
+      tenant_id: attrs[:tenant_id] || "tenant-#{:rand.uniform(100_000)}",
+      role: attrs[:role] || "user"
     }
 
-    {:ok, user} = QueryServiceEx.Accounts.create_user(user_attrs)
-    {:ok, token, _claims} = Guardian.encode_and_sign(user)
-
+    token = encode_jwt(user)
     {user, token}
   end
 
   @doc """
-  Adds an authorization header with the given token to a connection.
+  Generates a JWT token for the given user map using JOSE.
   """
+  def encode_jwt(user, opts \\ []) do
+    ttl = Keyword.get(opts, :ttl_seconds, 3600)
+    now = System.system_time(:second)
+
+    user_id = Map.get(user, :id) || Map.get(user, "id")
+    tenant_id = Map.get(user, :tenant_id) || Map.get(user, "tenant_id")
+    email = Map.get(user, :email) || Map.get(user, "email")
+    name = Map.get(user, :name) || Map.get(user, "name")
+
+    claims = %{
+      "sub" => to_string(user_id),
+      "tenant_id" => tenant_id,
+      "email" => email,
+      "name" => name,
+      "role" => "user",
+      "iat" => now,
+      "exp" => now + ttl
+    }
+
+    jwk = JOSE.JWK.from_oct(@test_jwt_secret)
+    jws = %{"alg" => "HS256"}
+    jwt = JOSE.JWT.from_map(claims)
+
+    {_alg, token} = JOSE.JWT.sign(jwk, jws, jwt) |> JOSE.JWS.compact()
+    token
+  end
+
   def with_auth_token(conn, token) do
     Plug.Conn.put_req_header(conn, "authorization", "Bearer #{token}")
   end

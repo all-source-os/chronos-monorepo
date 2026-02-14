@@ -17,10 +17,9 @@
 # │  core               │  3900   │   15.7 MB    │  Rust event store engine     │
 # │  control-plane      │  8080   │   27.9 MB    │  Go auth & orchestration     │
 # │  query-service      │  3902   │   35.1 MB    │  Elixir API & real-time      │
-# │  postgres           │  5432   │   ~80 MB     │  PostgreSQL database         │
 # └─────────────────────┴─────────┴──────────────┴──────────────────────────────┘
 #
-# Total production footprint: ~79 MB (excluding database)
+# Total production footprint: ~79 MB
 
 services:
   # ═══════════════════════════════════════════════════════════════════════════
@@ -74,8 +73,16 @@ services:
     environment:
       GIN_MODE: release
       PORT: 8080
-      CORE_URL: http://core:3900
+      CORE_SERVICE_URL: http://core:3900
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production-minimum-32-chars}
+      # Cross-service communication
+      DATA_PLANE_URL: http://query-service:3902
+      QUERY_SERVICE_INTERNAL_URL: http://query-service:3902
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-api-key-change-in-production}
+      # LemonSqueezy billing (optional)
+      LEMON_SQUEEZY_API_KEY: ${LEMON_SQUEEZY_API_KEY:-}
+      LEMON_SQUEEZY_STORE_ID: ${LEMON_SQUEEZY_STORE_ID:-}
+      LEMON_SQUEEZY_WEBHOOK_SECRET: ${LEMON_SQUEEZY_WEBHOOK_SECRET:-}
     depends_on:
       core:
         condition: service_healthy
@@ -99,24 +106,20 @@ services:
     ports:
       - "3902:3902"
     environment:
-      DATABASE_URL: ecto://postgres:postgres@postgres:5432/allsource
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev-secret-key-base-must-be-at-least-64-characters-long-for-security}
       PORT: 3902
       PHX_HOST: localhost
-      RUST_CORE_URL: http://core:3900
+      # Core connection (no PostgreSQL required)
+      CORE_URL: http://core:3900
       CORE_WS_URL: ws://core:3900/api/v1/events/stream
       CORE_WS_ENABLED: "true"
-      POOL_SIZE: 10
+      # Cross-service communication
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-api-key-change-in-production}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production-minimum-32-chars}
+      MGMT_PLANE_URL: http://control-plane:8080
       # Dev mode bypasses auth for local development - NEVER use in production
       AUTH_DISABLED: "true"
-      # OAuth (optional)
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
     depends_on:
-      postgres:
-        condition: service_healthy
       core:
         condition: service_healthy
     healthcheck:
@@ -125,29 +128,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
-    restart: unless-stopped
-    networks:
-      - allsource
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # POSTGRESQL - Query Service Database
-  # ═══════════════════════════════════════════════════════════════════════════
-  postgres:
-    image: postgres:16-alpine
-    container_name: allsource-postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: allsource
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     restart: unless-stopped
     networks:
       - allsource
@@ -257,8 +237,6 @@ services:
 volumes:
   core-data:
     name: allsource-core-data
-  postgres-data:
-    name: allsource-postgres-data
   redis-data:
     name: allsource-redis-data
   prometheus-data:

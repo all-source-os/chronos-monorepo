@@ -3,6 +3,7 @@ package http //nolint:revive // package name intentionally matches directory
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -14,6 +15,48 @@ import (
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
+
+// tenantHALResponse wraps a TenantResponse with HAL _links.
+type tenantHALResponse struct {
+	HALResource
+	*dto.TenantResponse
+}
+
+// tenantSelfLinks returns a self link for the given tenant ID.
+func tenantSelfLinks(tenantID string) map[string]Link {
+	return map[string]Link{
+		"self": SelfLink(fmt.Sprintf("/api/v1/tenants/%s", tenantID)),
+	}
+}
+
+// tenantDetailLinks returns the full set of HAL links for a single tenant detail response.
+func tenantDetailLinks(tenantID string) map[string]Link {
+	return map[string]Link{
+		"self":    SelfLink(fmt.Sprintf("/api/v1/tenants/%s", tenantID)),
+		"stats":   NewLink(fmt.Sprintf("/api/v1/tenants/%s/stats", tenantID), WithTitle("Tenant Statistics")),
+		"usage":   NewLink(fmt.Sprintf("/api/v1/tenants/%s/usage", tenantID), WithTitle("Tenant Usage")),
+		"billing": NewLink(fmt.Sprintf("/api/v1/tenants/%s/billing", tenantID), WithTitle("Tenant Billing")),
+		"audit":   NewLink(fmt.Sprintf("/api/v1/tenants/%s/audit", tenantID), WithTitle("Tenant Audit Log")),
+		"events":  DataPlaneLink("/api/v1/events{?stream_id,event_type}", WithTitle("Tenant Events")),
+		"schemas": DataPlaneLink("/api/v1/schemas{?name}", WithTitle("Tenant Schemas")),
+	}
+}
+
+// wrapTenantWithSelfLink wraps a TenantResponse with a self link.
+func wrapTenantWithSelfLink(resp *dto.TenantResponse) tenantHALResponse {
+	return tenantHALResponse{
+		HALResource:    HALResource{Links: tenantSelfLinks(resp.ID)},
+		TenantResponse: resp,
+	}
+}
+
+// wrapTenantWithDetailLinks wraps a TenantResponse with full detail links.
+func wrapTenantWithDetailLinks(resp *dto.TenantResponse) tenantHALResponse {
+	return tenantHALResponse{
+		HALResource:    HALResource{Links: tenantDetailLinks(resp.ID)},
+		TenantResponse: resp,
+	}
+}
 
 // TenantHandler handles tenant-related HTTP requests
 type TenantHandler struct {
@@ -68,7 +111,7 @@ func (h *TenantHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, wrapTenantWithSelfLink(resp))
 }
 
 // List handles GET /api/v1/tenants
@@ -89,7 +132,15 @@ func (h *TenantHandler) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	halTenants := make([]tenantHALResponse, len(resp.Tenants))
+	for i, t := range resp.Tenants {
+		halTenants[i] = wrapTenantWithSelfLink(t)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tenants": halTenants,
+		"total":   resp.Total,
+	})
 }
 
 // Get handles GET /api/v1/tenants/:id
@@ -106,7 +157,7 @@ func (h *TenantHandler) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, wrapTenantWithDetailLinks(resp))
 }
 
 // Update handles PUT /api/v1/tenants/:id

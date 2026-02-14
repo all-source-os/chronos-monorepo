@@ -75,10 +75,11 @@ defmodule QueryServiceExWeb.Schemas.Tenant do
     @moduledoc "Tenant response"
     OpenApiSpex.schema(%{
       title: "TenantResponse",
-      description: "Response containing tenant details",
+      description: "Response containing tenant details with HAL links",
       type: :object,
       properties: %{
-        data: TenantFull
+        data: TenantFull,
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data]
     })
@@ -116,9 +117,10 @@ defmodule QueryServiceExWeb.Schemas.Tenant do
     @moduledoc "Usage statistics response"
     OpenApiSpex.schema(%{
       title: "UsageResponse",
-      description: "Response containing usage statistics",
+      description: "Response containing usage statistics with HAL links",
       type: :object,
       properties: %{
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks,
         data: %Schema{
           type: :object,
           properties: %{

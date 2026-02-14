@@ -2,55 +2,60 @@ defmodule QueryServiceExWeb.TenantControllerTest do
   @moduledoc """
   Tests for TenantController.
 
-  These tests require a running PostgreSQL database.
-  Run with: mix test --include database
+  No external database required - uses plain maps and TenantCache.
   """
   use QueryServiceExWeb.ConnCase
 
-  import Plug.Conn
-  import Plug.Test
-
-  alias QueryServiceEx.Accounts
-  alias QueryServiceEx.Accounts.Guardian
-  alias QueryServiceEx.Tenants
-
-  @moduletag :database
+  alias QueryServiceEx.AuthHelpers
+  alias QueryServiceEx.TenantCache
 
   setup %{conn: conn} do
-    # Create a tenant and user for testing
-    {:ok, tenant} = Tenants.create_tenant(%{name: "Test Workspace", slug: "test-workspace"})
+    System.put_env("JWT_SECRET", AuthHelpers.test_jwt_secret())
+    on_exit(fn -> System.delete_env("JWT_SECRET") end)
 
-    {:ok, user} =
-      Accounts.create_user(%{
-        email: "test@example.com",
-        name: "Test User",
-        provider: "google",
-        google_id: "google_123",
-        tenant_id: tenant.id
-      })
+    tenant_id = "tenant-test-#{:rand.uniform(100_000)}"
 
-    user = QueryServiceEx.Repo.preload(user, :tenant)
+    tenant = %{
+      "id" => tenant_id,
+      "name" => "Test Workspace",
+      "slug" => "test-workspace",
+      "status" => "active",
+      "metadata" => %{
+        "subscription" => %{
+          "status" => "active",
+          "tier" => "free",
+          "trial_ends_at" => nil,
+          "subscription_ends_at" => nil
+        },
+        "quotas" => %{
+          "events_quota" => 10_000,
+          "queries_quota" => 1_000,
+          "events_used" => 0,
+          "queries_used" => 0
+        }
+      }
+    }
 
-    # Create a valid JWT token
-    {:ok, token, _claims} = Guardian.encode_and_sign(user)
+    TenantCache.put(tenant_id, tenant)
+    on_exit(fn -> TenantCache.clear() end)
+
+    {user, token} = AuthHelpers.create_test_user_with_token(%{tenant_id: tenant_id})
 
     conn =
       conn
       |> put_req_header("authorization", "Bearer #{token}")
       |> put_req_header("accept", "application/json")
 
-    {:ok, conn: conn, tenant: tenant, user: user}
+    {:ok, conn: conn, tenant: tenant, user: user, tenant_id: tenant_id}
   end
 
   describe "GET /api/tenant" do
     test "returns current tenant info", %{conn: conn, tenant: tenant} do
       conn = get(conn, "/api/tenant")
+      response = json_response(conn, 200)["data"]
 
-      assert json_response(conn, 200)["data"]["id"] == tenant.id
-      assert json_response(conn, 200)["data"]["name"] == tenant.name
-      assert json_response(conn, 200)["data"]["slug"] == tenant.slug
-      assert json_response(conn, 200)["data"]["subscription_status"] == "trialing"
-      assert json_response(conn, 200)["data"]["subscription_tier"] == "free"
+      assert response["id"] == tenant["id"]
+      assert response["name"] == tenant["name"]
     end
 
     test "returns 401 without auth token", %{conn: conn} do
@@ -64,32 +69,24 @@ defmodule QueryServiceExWeb.TenantControllerTest do
   end
 
   describe "PUT /api/tenant" do
-    test "updates tenant name", %{conn: conn} do
+    test "returns current tenant data (writes go to Control Plane)", %{conn: conn, tenant: tenant} do
       conn = put(conn, "/api/tenant", %{"name" => "Updated Workspace"})
+      response = json_response(conn, 200)["data"]
 
-      assert json_response(conn, 200)["data"]["name"] == "Updated Workspace"
-    end
-
-    test "updates tenant settings", %{conn: conn} do
-      settings = %{"theme" => "dark", "notifications" => true}
-      conn = put(conn, "/api/tenant", %{"settings" => settings})
-
-      assert json_response(conn, 200)["data"]["settings"] == settings
+      # Update is read-only in QS — returns cached tenant data
+      assert response["id"] == tenant["id"]
+      assert response["name"] == tenant["name"]
     end
   end
 
   describe "GET /api/tenant/usage" do
-    test "returns usage statistics", %{conn: conn, tenant: tenant} do
-      # Add some usage
-      {:ok, _} = Tenants.increment_events_usage(tenant.id, 500)
-      {:ok, _} = Tenants.increment_queries_usage(tenant.id, 50)
-
+    test "returns usage statistics", %{conn: conn} do
       conn = get(conn, "/api/tenant/usage")
       response = json_response(conn, 200)["data"]
 
-      assert response["events"]["used"] == 500
+      assert response["events"]["used"] == 0
       assert response["events"]["quota"] == 10_000
-      assert response["queries"]["used"] == 50
+      assert response["queries"]["used"] == 0
       assert response["queries"]["quota"] == 1_000
     end
   end

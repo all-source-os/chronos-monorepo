@@ -111,10 +111,11 @@ defmodule QueryServiceExWeb.Schemas.Events do
     @moduledoc "Single event response"
     OpenApiSpex.schema(%{
       title: "EventResponse",
-      description: "Response containing a single event",
+      description: "Response containing a single event with HAL links",
       type: :object,
       properties: %{
-        data: Event
+        data: Event,
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data]
     })
@@ -124,7 +125,7 @@ defmodule QueryServiceExWeb.Schemas.Events do
     @moduledoc "List of events response"
     OpenApiSpex.schema(%{
       title: "EventListResponse",
-      description: "Response containing a list of events",
+      description: "Response containing a list of events with HAL links",
       type: :object,
       properties: %{
         data: %Schema{
@@ -132,7 +133,8 @@ defmodule QueryServiceExWeb.Schemas.Events do
           items: Event,
           description: "List of events"
         },
-        count: %Schema{type: :integer, description: "Number of events returned"}
+        count: %Schema{type: :integer, description: "Number of events returned"},
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data, :count],
       example: %{
@@ -154,12 +156,13 @@ defmodule QueryServiceExWeb.Schemas.Events do
     @moduledoc "Events for a specific entity"
     OpenApiSpex.schema(%{
       title: "EntityEventsResponse",
-      description: "Response containing events for a specific entity",
+      description: "Response containing events for a specific entity with HAL links",
       type: :object,
       properties: %{
         data: %Schema{type: :array, items: Event},
         count: %Schema{type: :integer},
-        entity_id: %Schema{type: :string, description: "The entity ID"}
+        entity_id: %Schema{type: :string, description: "The entity ID"},
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data, :count, :entity_id]
     })
@@ -169,12 +172,13 @@ defmodule QueryServiceExWeb.Schemas.Events do
     @moduledoc "Events of a specific type"
     OpenApiSpex.schema(%{
       title: "TypeEventsResponse",
-      description: "Response containing events of a specific type",
+      description: "Response containing events of a specific type with HAL links",
       type: :object,
       properties: %{
         data: %Schema{type: :array, items: Event},
         count: %Schema{type: :integer},
-        event_type: %Schema{type: :string, description: "The event type"}
+        event_type: %Schema{type: :string, description: "The event type"},
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data, :count, :event_type]
     })
@@ -184,11 +188,12 @@ defmodule QueryServiceExWeb.Schemas.Events do
     @moduledoc "Batch creation response"
     OpenApiSpex.schema(%{
       title: "BatchCreateResponse",
-      description: "Response after creating multiple events",
+      description: "Response after creating multiple events with HAL links",
       type: :object,
       properties: %{
         data: %Schema{type: :array, items: Event},
-        count: %Schema{type: :integer, description: "Number of events created"}
+        count: %Schema{type: :integer, description: "Number of events created"},
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data, :count]
     })
@@ -223,7 +228,7 @@ defmodule QueryServiceExWeb.Schemas.Events do
     @moduledoc "List of streams response"
     OpenApiSpex.schema(%{
       title: "StreamsResponse",
-      description: "Response containing a list of streams (entity_ids)",
+      description: "Response containing a list of streams (entity_ids) with HAL links",
       type: :object,
       properties: %{
         data: %Schema{
@@ -232,7 +237,8 @@ defmodule QueryServiceExWeb.Schemas.Events do
           description: "List of streams with metadata"
         },
         count: %Schema{type: :integer, description: "Number of streams returned"},
-        total: %Schema{type: :integer, description: "Total number of streams"}
+        total: %Schema{type: :integer, description: "Total number of streams"},
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data, :count, :total],
       example: %{
@@ -275,7 +281,7 @@ defmodule QueryServiceExWeb.Schemas.Events do
     @moduledoc "List of event types response"
     OpenApiSpex.schema(%{
       title: "EventTypesResponse",
-      description: "Response containing a list of event types",
+      description: "Response containing a list of event types with HAL links",
       type: :object,
       properties: %{
         data: %Schema{
@@ -284,7 +290,8 @@ defmodule QueryServiceExWeb.Schemas.Events do
           description: "List of event types with metadata"
         },
         count: %Schema{type: :integer, description: "Number of event types returned"},
-        total: %Schema{type: :integer, description: "Total number of event types"}
+        total: %Schema{type: :integer, description: "Total number of event types"},
+        _links: QueryServiceExWeb.Schemas.Common.HALLinks
       },
       required: [:data, :count, :total],
       example: %{

@@ -1,0 +1,920 @@
+openapi: 3.0.3
+info:
+  title: Control Plane API
+  version: 0.10.1
+  description: |
+    The Control Plane provides management, billing, and governance APIs
+    for AllSource Chronos.
+
+    ## Authentication
+
+    All endpoints (except health, webhooks) require a Bearer JWT token:
+
+    ```
+    Authorization: Bearer <your_jwt_token>
+    ```
+
+    JWTs are issued via the `/api/v1/auth/login` or `/api/v1/auth/register`
+    endpoints using email/password credentials.
+
+    ## HAL Hypermedia
+
+    All responses include `_links` for discoverability (HAL format).
+    The `self` link points to the current resource. Cross-service links
+    to the Query Service (Data Plane) use the `DATA_PLANE_URL` base.
+  contact:
+    name: AllSource Support
+    email: support@allsource.dev
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3901
+    description: Local development
+  - url: https://cp.allsource.dev
+    description: Production
+
+components:
+  securitySchemes:
+    bearer_auth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /api/v1/auth/login
+
+  schemas:
+    HALLink:
+      type: object
+      required: [href]
+      properties:
+        href:
+          type: string
+          description: Link URL
+        title:
+          type: string
+          description: Human-readable link title
+        templated:
+          type: boolean
+          description: Whether the href is a URI template
+
+    HALLinks:
+      type: object
+      description: "HAL hypermedia links. Keys are relation names."
+      additionalProperties:
+        $ref: "#/components/schemas/HALLink"
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended, deleted]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+        _links:
+          $ref: "#/components/schemas/HALLinks"
+
+    TenantList:
+      type: object
+      properties:
+        tenants:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tenant"
+        total:
+          type: integer
+        _links:
+          $ref: "#/components/schemas/HALLinks"
+
+    TenantStats:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        event_count:
+          type: integer
+        stream_count:
+          type: integer
+        storage_bytes:
+          type: integer
+        _links:
+          $ref: "#/components/schemas/HALLinks"
+
+    CheckoutResult:
+      type: object
+      properties:
+        checkout_id:
+          type: string
+        checkout_url:
+          type: string
+          format: uri
+        tenant_id:
+          type: string
+        tier:
+          type: string
+        _links:
+          $ref: "#/components/schemas/HALLinks"
+
+    PortalResult:
+      type: object
+      properties:
+        portal_url:
+          type: string
+          format: uri
+        tenant_id:
+          type: string
+        _links:
+          $ref: "#/components/schemas/HALLinks"
+
+    OverageSummary:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+        enabled:
+          type: boolean
+        event_rate:
+          type: number
+        query_rate:
+          type: number
+        events_overage:
+          type: integer
+        queries_overage:
+          type: integer
+        events_quota:
+          type: integer
+        queries_quota:
+          type: integer
+        events_used:
+          type: integer
+        queries_used:
+          type: integer
+        _links:
+          $ref: "#/components/schemas/HALLinks"
+
+    ProjectedCharges:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+        tier:
+          type: string
+        events_quota:
+          type: integer
+        queries_quota:
+          type: integer
+        events_used:
+          type: integer
+        queries_used:
+          type: integer
+        projected_events:
+          type: integer
+        projected_queries:
+          type: integer
+        projected_overage_events:
+          type: integer
+        projected_overage_queries:
+          type: integer
+        estimated_charge_cents:
+          type: integer
+        overage_enabled:
+          type: boolean
+        _links:
+          $ref: "#/components/schemas/HALLinks"
+
+    WebhookResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: processed
+
+    AuthCredentials:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT access token
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+            role:
+              type: string
+
+security:
+  - bearer_auth: []
+
+tags:
+  - name: Health
+    description: Health checks and liveness probes
+  - name: Authentication
+    description: Login, registration, and JWT token management
+  - name: Tenants
+    description: Tenant lifecycle management
+  - name: Billing
+    description: LemonSqueezy checkout, portal, overage, and projected charges
+  - name: Webhooks
+    description: LemonSqueezy subscription webhooks (HMAC-verified, no JWT)
+  - name: Operations
+    description: Snapshot, compaction, replay, and backup operations
+  - name: Audit
+    description: Audit trail queries
+  - name: Config
+    description: Dynamic configuration management
+  - name: Policies
+    description: Policy engine for RBAC and governance
+  - name: Schemas
+    description: Event schema governance
+  - name: Users
+    description: User management (admin only)
+  - name: Cluster
+    description: Cluster status and health
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Healthy
+
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthCredentials"
+      responses:
+        "200":
+          description: JWT token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /api/v1/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthCredentials"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  # --- Tenants ---
+
+  /api/v1/tenants:
+    get:
+      tags: [Tenants]
+      summary: List tenants
+      responses:
+        "200":
+          description: Tenant list with HAL links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantList"
+    post:
+      tags: [Tenants]
+      summary: Create tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+
+  /api/v1/tenants/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Tenants]
+      summary: Get tenant
+      responses:
+        "200":
+          description: Tenant details with HAL links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+    put:
+      tags: [Tenants]
+      summary: Update tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "200":
+          description: Tenant updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+    delete:
+      tags: [Tenants]
+      summary: Delete tenant (admin)
+      responses:
+        "204":
+          description: Tenant deleted
+
+  /api/v1/tenants/{id}/suspend:
+    post:
+      tags: [Tenants]
+      summary: Suspend tenant (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tenant suspended
+
+  /api/v1/tenants/{id}/activate:
+    post:
+      tags: [Tenants]
+      summary: Activate tenant (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tenant activated
+
+  /api/v1/tenants/{id}/stats:
+    get:
+      tags: [Tenants]
+      summary: Get tenant statistics
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tenant stats with HAL links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantStats"
+
+  # --- Billing ---
+
+  /api/v1/billing/checkout:
+    post:
+      tags: [Billing]
+      summary: Create checkout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, tier]
+              properties:
+                tenant_id:
+                  type: string
+                tier:
+                  type: string
+                  enum: [starter, growth, enterprise]
+      responses:
+        "200":
+          description: Checkout URL with HAL links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResult"
+
+  /api/v1/billing/portal:
+    get:
+      tags: [Billing]
+      summary: Get customer portal URL
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Portal URL with HAL links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalResult"
+
+  /api/v1/billing/overage:
+    get:
+      tags: [Billing]
+      summary: Get overage summary
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Overage summary with HAL links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverageSummary"
+
+  /api/v1/billing/overage/enable:
+    post:
+      tags: [Billing]
+      summary: Enable overage billing
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Overage enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverageSummary"
+
+  /api/v1/billing/overage/disable:
+    post:
+      tags: [Billing]
+      summary: Disable overage billing
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Overage disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverageSummary"
+
+  /api/v1/billing/projected-charges:
+    get:
+      tags: [Billing]
+      summary: Get projected charges
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Projected charges with HAL links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectedCharges"
+
+  # --- Webhooks ---
+
+  /api/v1/webhooks/lemonsqueezy:
+    post:
+      tags: [Webhooks]
+      summary: LemonSqueezy webhook
+      description: |
+        Handles subscription lifecycle events from LemonSqueezy.
+        Authenticated via HMAC-SHA256 signature (X-Signature header),
+        not JWT.
+      security: []
+      parameters:
+        - name: X-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: HMAC-SHA256 signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: LemonSqueezy webhook payload
+      responses:
+        "200":
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+
+  # --- Audit ---
+
+  /api/v1/audit:
+    get:
+      tags: [Audit]
+      summary: Query audit trail
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit events with HAL links
+
+  # --- Config ---
+
+  /api/v1/config:
+    get:
+      tags: [Config]
+      summary: List dynamic config entries
+      responses:
+        "200":
+          description: Config entries with HAL links
+    post:
+      tags: [Config]
+      summary: Create config entry (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, value]
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Config created
+
+  /api/v1/config/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Config]
+      summary: Get config entry
+      responses:
+        "200":
+          description: Config entry with HAL links
+    put:
+      tags: [Config]
+      summary: Update config entry (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "200":
+          description: Config updated
+    delete:
+      tags: [Config]
+      summary: Delete config entry (admin)
+      responses:
+        "204":
+          description: Config deleted
+
+  # --- Operations ---
+
+  /api/v1/operations/snapshots:
+    get:
+      tags: [Operations]
+      summary: List snapshots
+      responses:
+        "200":
+          description: Snapshot list with HAL links
+    post:
+      tags: [Operations]
+      summary: Create snapshot (admin)
+      responses:
+        "200":
+          description: Snapshot created
+
+  /api/v1/operations/compaction:
+    post:
+      tags: [Operations]
+      summary: Trigger compaction (admin)
+      responses:
+        "200":
+          description: Compaction triggered
+
+  /api/v1/operations/compaction/stats:
+    get:
+      tags: [Operations]
+      summary: Get compaction statistics
+      responses:
+        "200":
+          description: Compaction stats
+
+  /api/v1/operations/replay:
+    post:
+      tags: [Operations]
+      summary: Start replay (admin)
+      responses:
+        "200":
+          description: Replay started
+
+  /api/v1/operations/replay/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Operations]
+      summary: Get replay progress
+      responses:
+        "200":
+          description: Replay progress
+
+  /api/v1/operations/replay/{id}/cancel:
+    post:
+      tags: [Operations]
+      summary: Cancel replay (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Replay cancelled
+
+  /api/v1/operations/history:
+    get:
+      tags: [Operations]
+      summary: List operation history
+      responses:
+        "200":
+          description: Operation history
+
+  /api/v1/operations/backup:
+    post:
+      tags: [Operations]
+      summary: Create backup (admin)
+      responses:
+        "200":
+          description: Backup created
+
+  # --- Schemas ---
+
+  /api/v1/schemas:
+    get:
+      tags: [Schemas]
+      summary: List registered schemas
+      responses:
+        "200":
+          description: Schema list
+    post:
+      tags: [Schemas]
+      summary: Register schema
+      responses:
+        "201":
+          description: Schema registered
+
+  /api/v1/schemas/validate:
+    post:
+      tags: [Schemas]
+      summary: Validate event against schema
+      responses:
+        "200":
+          description: Validation result
+
+  # --- Policies ---
+
+  /api/v1/policies:
+    get:
+      tags: [Policies]
+      summary: List policies
+      responses:
+        "200":
+          description: Policy list
+    post:
+      tags: [Policies]
+      summary: Create policy (admin)
+      responses:
+        "201":
+          description: Policy created
+
+  /api/v1/policies/evaluate:
+    post:
+      tags: [Policies]
+      summary: Evaluate policy
+      responses:
+        "200":
+          description: Evaluation result
+
+  /api/v1/policies/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Policies]
+      summary: Get policy
+      responses:
+        "200":
+          description: Policy details
+    put:
+      tags: [Policies]
+      summary: Update policy (admin)
+      responses:
+        "200":
+          description: Policy updated
+    delete:
+      tags: [Policies]
+      summary: Delete policy (admin)
+      responses:
+        "204":
+          description: Policy deleted
+
+  /api/v1/policies/{id}/enable:
+    post:
+      tags: [Policies]
+      summary: Enable policy (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Policy enabled
+
+  /api/v1/policies/{id}/disable:
+    post:
+      tags: [Policies]
+      summary: Disable policy (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Policy disabled
+
+  # --- Cluster ---
+
+  /api/v1/cluster/status:
+    get:
+      tags: [Cluster]
+      summary: Get cluster status
+      responses:
+        "200":
+          description: Cluster status
+
+  /api/v1/cluster/health:
+    get:
+      tags: [Cluster]
+      summary: Cluster health (public)
+      security: []
+      responses:
+        "200":
+          description: Cluster health
+
+  # --- Users ---
+
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: List users (admin)
+      responses:
+        "200":
+          description: User list
+
+  /api/v1/users/{id}:
+    delete:
+      tags: [Users]
+      summary: Delete user (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: User deleted

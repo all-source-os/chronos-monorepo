@@ -25,6 +25,7 @@ type CoreClient interface {
 	DeleteTenant(ctx context.Context, tenantID string) error
 	GetTenantStats(ctx context.Context, tenantID string) (*TenantStatsResponse, error)
 	UpdateTenantQuotas(ctx context.Context, tenantID string, req UpdateQuotasRequest) (*TenantResponse, error)
+	UpdateTenantMetadata(ctx context.Context, tenantID string, metadata map[string]any) (*TenantResponse, error)
 
 	// Operations (stubs for Phase 3)
 	CreateSnapshot(ctx context.Context, req CreateSnapshotRequest) (*SnapshotResponse, error)
@@ -467,6 +468,23 @@ func (c *coreClient) UpdateTenantQuotas(ctx context.Context, tenantID string, re
 		SetBody(req).
 		SetResult(&result).
 		Put("/api/v1/tenants/" + tenantID + "/quotas")
+
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *coreClient) UpdateTenantMetadata(ctx context.Context, tenantID string, metadata map[string]any) (*TenantResponse, error) {
+	var result TenantResponse
+	ctx, span := c.startSpan(ctx, "UpdateTenantMetadata", attribute.String("tenant.id", tenantID))
+	defer span.End()
+
+	body := map[string]any{"metadata": metadata}
+	resp, err := c.request(ctx).
+		SetBody(body).
+		SetResult(&result).
+		Patch("/api/v1/tenants/" + tenantID)
 
 	if err := c.handleError(span, resp, err); err != nil {
 		return nil, err

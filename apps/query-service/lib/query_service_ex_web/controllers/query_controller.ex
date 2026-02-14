@@ -8,10 +8,9 @@ defmodule QueryServiceExWeb.QueryController do
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
-  alias QueryServiceEx.DevMode
   alias QueryServiceEx.Domain.Entities.Query
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
-  alias QueryServiceEx.UsageMeter
+  alias QueryServiceExWeb.HAL
   alias QueryServiceExWeb.Schemas.Common
   alias QueryServiceExWeb.Schemas.Query, as: QuerySchemas
 
@@ -89,11 +88,16 @@ defmodule QueryServiceExWeb.QueryController do
               result_count: length(events)
             })
 
-            json(conn, %{
-              data: events,
-              count: length(events),
-              query: summarize_query(q)
-            })
+            links =
+              HAL.self("/api/query")
+              |> maybe_add_next_link(q, length(events))
+              |> HAL.merge(HAL.mgmt_plane_link("tenant", "/api/v1/tenants/{tenant_id}", templated: true))
+
+            response =
+              %{data: events, count: length(events), query: summarize_query(q)}
+              |> HAL.wrap(links)
+
+            json(conn, response)
 
           {:error, reason} ->
             conn
@@ -178,6 +182,27 @@ defmodule QueryServiceExWeb.QueryController do
     }
   end
 
+  # Adds a "next" link when results may have more pages
+  defp maybe_add_next_link(links, %Query{limit: limit, offset: offset}, result_count)
+       when is_integer(limit) and result_count >= limit do
+    next_offset = (offset || 0) + limit
+    HAL.merge(links, HAL.link("next", "/api/query?offset=#{next_offset}&limit=#{limit}"))
+  end
+
+  defp maybe_add_next_link(links, params, result_count) when is_map(params) do
+    limit = params["limit"] || params[:limit]
+    offset = params["offset"] || params[:offset] || 0
+
+    if is_integer(limit) and result_count >= limit do
+      next_offset = offset + limit
+      HAL.merge(links, HAL.link("next", "/api/query?offset=#{next_offset}&limit=#{limit}"))
+    else
+      links
+    end
+  end
+
+  defp maybe_add_next_link(links, _q, _count), do: links
+
   # Determines the query type for metadata
   defp query_type(%Query{}), do: "dsl"
   defp query_type(_), do: "simple"
@@ -193,24 +218,10 @@ defmodule QueryServiceExWeb.QueryController do
     end
   end
 
-  # Records query usage for the current tenant (skipped in standalone mode)
-  defp record_query_usage(conn, metadata) do
-    if DevMode.repo_available?() do
-      case conn.assigns[:current_tenant] do
-        nil ->
-          :ok
-
-        tenant ->
-          if Application.get_env(:query_service_ex, :sql_sandbox, false) do
-            UsageMeter.record_queries(tenant.id, count: 1, metadata: metadata)
-          else
-            Task.start(fn ->
-              UsageMeter.record_queries(tenant.id, count: 1, metadata: metadata)
-            end)
-          end
-      end
-    else
-      :ok
+  defp record_query_usage(conn, _metadata) do
+    case conn.assigns[:tenant_id] do
+      nil -> :ok
+      tenant_id -> QueryServiceEx.UsageReporter.record(tenant_id, 1)
     end
   end
 end

@@ -1,0 +1,48 @@
+# docker-compose.test.yml — Integration test stack (stateless QS)
+#
+# Extends docker-compose.yml with test-specific configuration:
+# - Shared INTERNAL_API_KEY for cross-service webhooks
+# - Shared JWT_SECRET across CP and QS
+# - CP and QS both in dev mode (auth disabled)
+# - No web/redis/monitoring services
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d core control-plane query-service
+#   ./scripts/test-qs-stateless.sh
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml down -v
+
+services:
+  core:
+    container_name: allsource-test-core
+    environment:
+      ALLSOURCE_DEV_MODE: "true"
+    volumes:
+      - test-core-data:/app/data
+
+  control-plane:
+    container_name: allsource-test-control-plane
+    ports:
+      - "3901:8080"
+    environment:
+      CORE_SERVICE_URL: http://core:3900
+      JWT_SECRET: test-jwt-secret-for-integration-tests-min-32
+      DATA_PLANE_URL: http://query-service:3902
+      QUERY_SERVICE_INTERNAL_URL: http://query-service:3902
+      INTERNAL_API_KEY: test-internal-key-for-integration
+
+  query-service:
+    container_name: allsource-test-query-service
+    environment:
+      CORE_URL: http://core:3900
+      AUTH_DISABLED: "true"
+      JWT_SECRET: test-jwt-secret-for-integration-tests-min-32
+      INTERNAL_API_KEY: test-internal-key-for-integration
+      MGMT_PLANE_URL: http://control-plane:8080
+
+networks:
+  allsource:
+    name: allsource-test-network
+
+volumes:
+  test-core-data:
+    name: allsource-test-core-data

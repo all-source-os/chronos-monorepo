@@ -119,9 +119,20 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	// Initialize typed CoreClient for Clean Architecture use cases
 	coreClient := clients.NewCoreClient()
 
+	// Initialize LemonSqueezy client (optional — billing features require it)
+	var lsClient clients.LemonSqueezyClient
+	if os.Getenv("LEMON_SQUEEZY_API_KEY") != "" {
+		var lsErr error
+		lsClient, lsErr = clients.NewLemonSqueezyClient()
+		if lsErr != nil {
+			log.Printf("LemonSqueezy client initialization failed: %v (billing endpoints will be unavailable)", lsErr)
+		}
+	}
+
 	// Initialize Clean Architecture container (Core-backed repos, no PostgreSQL)
 	containerCfg := internal.ContainerConfig{
 		CoreClient: coreClient,
+		LSClient:   lsClient,
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
 
@@ -258,6 +269,18 @@ func (cp *ControlPlane) setupRoutes() {
 	schemas.POST("", RequirePermission(entities.PermissionManageSchemas), cp.container.SchemaHandler.Register)
 	schemas.GET("", RequirePermission(entities.PermissionRead), cp.container.SchemaHandler.List)
 	schemas.POST("/validate", RequirePermission(entities.PermissionRead), cp.container.SchemaHandler.Validate)
+
+	// Billing management (Clean Architecture handlers with per-route RBAC)
+	billing := api.Group("/billing")
+	billing.POST("/checkout", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.CreateCheckout)
+	billing.GET("/portal", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.GetPortal)
+	billing.GET("/overage", RequirePermission(entities.PermissionRead), cp.container.BillingHandler.GetOverage)
+	billing.POST("/overage/enable", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.EnableOverage)
+	billing.POST("/overage/disable", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.DisableOverage)
+	billing.GET("/projected-charges", RequirePermission(entities.PermissionRead), cp.container.BillingHandler.GetProjectedCharges)
+
+	// Webhooks (public — no JWT auth, HMAC signature verification instead)
+	api.POST("/webhooks/lemonsqueezy", cp.container.WebhookHandler.LemonSqueezy)
 
 	// Audit trail (Clean Architecture handlers)
 	api.GET("/audit", RequirePermission(entities.PermissionRead), cp.container.AuditHandler.Query)
