@@ -166,6 +166,9 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Ensure target is installed
+        run: rustup target add ${{ matrix.target }}
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
