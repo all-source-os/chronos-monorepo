@@ -151,7 +151,7 @@ jobs:
           - os: ubuntu-latest
             target: aarch64-unknown-linux-musl
             artifact: allsource-core-linux-aarch64
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             artifact: allsource-core-macos-x86_64
           - os: macos-latest
