@@ -7,7 +7,7 @@ defmodule McpServerElixir.Protocol.McpToolsAdviceTest do
 
   describe "list_tools/0" do
     test "includes get_query_advice tool" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
       assert "get_query_advice" in tool_names
     end
@@ -15,7 +15,7 @@ defmodule McpServerElixir.Protocol.McpToolsAdviceTest do
 
   describe "get_query_advice tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "get_query_advice"))
       {:ok, tool: tool}
     end
@@ -202,7 +202,7 @@ defmodule McpServerElixir.Protocol.McpToolsAdviceTest do
 
   describe "tool count" do
     test "list_tools returns 61 tools" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end

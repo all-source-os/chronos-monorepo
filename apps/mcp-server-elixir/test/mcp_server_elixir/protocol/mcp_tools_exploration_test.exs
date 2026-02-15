@@ -11,13 +11,13 @@ defmodule McpServerElixir.Protocol.McpToolsExplorationTest do
 
   describe "list_tools/0" do
     test "includes sample_events tool" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
       assert "sample_events" in tool_names
     end
 
     test "includes quick_stats tool" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
       assert "quick_stats" in tool_names
     end
@@ -25,7 +25,7 @@ defmodule McpServerElixir.Protocol.McpToolsExplorationTest do
 
   describe "sample_events tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "sample_events"))
       {:ok, tool: tool}
     end
@@ -111,7 +111,7 @@ defmodule McpServerElixir.Protocol.McpToolsExplorationTest do
 
   describe "quick_stats tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "quick_stats"))
       {:ok, tool: tool}
     end
@@ -187,7 +187,7 @@ defmodule McpServerElixir.Protocol.McpToolsExplorationTest do
 
   describe "sample_events description quality" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "sample_events"))
       {:ok, tool: tool}
     end
@@ -227,7 +227,7 @@ defmodule McpServerElixir.Protocol.McpToolsExplorationTest do
 
   describe "quick_stats description quality" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "quick_stats"))
       {:ok, tool: tool}
     end
@@ -267,7 +267,7 @@ defmodule McpServerElixir.Protocol.McpToolsExplorationTest do
 
   describe "tool count" do
     test "list_tools returns 61 tools" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end
@@ -278,21 +278,21 @@ defmodule McpServerElixir.Protocol.McpToolsExplorationTest do
 
   describe "exploration tools in decision workflow" do
     test "sample_events mentions quick_stats as alternative for stats-only" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "sample_events"))
 
       assert tool.description =~ "quick_stats"
     end
 
     test "quick_stats mentions sample_events for getting actual events" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "quick_stats"))
 
       assert tool.description =~ "sample_events"
     end
 
     test "both tools reference get_stats for comparison" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
 
       sample_tool = Enum.find(tools, &(&1.name == "sample_events"))
       stats_tool = Enum.find(tools, &(&1.name == "quick_stats"))

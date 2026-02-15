@@ -11,7 +11,7 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
 
   describe "list_tools/0" do
     test "includes all 6 schema tools" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
 
       assert "register_schema" in tool_names
@@ -23,7 +23,7 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
     end
 
     test "returns 61 tools total (43 previous + 6 schema + 8 analytics + 4 developer)" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end
@@ -34,7 +34,7 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
 
   describe "register_schema tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "register_schema"))
       {:ok, tool: tool}
     end
@@ -95,7 +95,7 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
 
   describe "validate_schema tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "validate_schema"))
       {:ok, tool: tool}
     end
@@ -140,7 +140,7 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
 
   describe "migrate_schema tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "migrate_schema"))
       {:ok, tool: tool}
     end
@@ -190,7 +190,7 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
 
   describe "list_schemas tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "list_schemas"))
       {:ok, tool: tool}
     end
@@ -234,7 +234,7 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
 
   describe "infer_schema tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "infer_schema"))
       {:ok, tool: tool}
     end
@@ -278,7 +278,7 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
 
   describe "schema_diff tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "schema_diff"))
       {:ok, tool: tool}
     end
@@ -334,7 +334,7 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
     ]
 
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       {:ok, tools: tools}
     end
 

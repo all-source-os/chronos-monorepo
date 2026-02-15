@@ -11,7 +11,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
   describe "list_tools/0" do
     test "includes all 8 analytics tools" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
 
       assert "cohort_analysis" in tool_names
@@ -25,7 +25,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
     end
 
     test "returns 61 tools total" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end
@@ -36,7 +36,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
   describe "cohort_analysis tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "cohort_analysis"))
       {:ok, tool: tool}
     end
@@ -96,7 +96,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
   describe "correlation_analysis tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "correlation_analysis"))
       {:ok, tool: tool}
     end
@@ -141,7 +141,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
   describe "forecast_events tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "forecast_events"))
       {:ok, tool: tool}
     end
@@ -194,7 +194,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
   describe "segment_analysis tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "segment_analysis"))
       {:ok, tool: tool}
     end
@@ -245,7 +245,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
   describe "path_analysis tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "path_analysis"))
       {:ok, tool: tool}
     end
@@ -296,7 +296,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
   describe "attribution_analysis tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "attribution_analysis"))
       {:ok, tool: tool}
     end
@@ -355,7 +355,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
   describe "churn_prediction tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "churn_prediction"))
       {:ok, tool: tool}
     end
@@ -411,7 +411,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
   describe "ltv_calculation tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "ltv_calculation"))
       {:ok, tool: tool}
     end
@@ -473,7 +473,7 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
     ]
 
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       {:ok, tools: tools}
     end
 

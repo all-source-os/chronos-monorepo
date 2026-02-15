@@ -11,7 +11,7 @@ defmodule McpServerElixir.Protocol.McpToolsTenantTest do
 
   describe "list_tools/0" do
     test "includes all 6 tenant management tools" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
 
       assert "tenant_create" in tool_names
@@ -23,7 +23,7 @@ defmodule McpServerElixir.Protocol.McpToolsTenantTest do
     end
 
     test "returns 61 tools total" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end
@@ -34,7 +34,7 @@ defmodule McpServerElixir.Protocol.McpToolsTenantTest do
 
   describe "tenant_create tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "tenant_create"))
       {:ok, tool: tool}
     end
@@ -103,7 +103,7 @@ defmodule McpServerElixir.Protocol.McpToolsTenantTest do
 
   describe "tenant_update tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "tenant_update"))
       {:ok, tool: tool}
     end
@@ -159,7 +159,7 @@ defmodule McpServerElixir.Protocol.McpToolsTenantTest do
 
   describe "tenant_usage tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "tenant_usage"))
       {:ok, tool: tool}
     end
@@ -214,7 +214,7 @@ defmodule McpServerElixir.Protocol.McpToolsTenantTest do
 
   describe "tenant_quotas tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "tenant_quotas"))
       {:ok, tool: tool}
     end
@@ -259,7 +259,7 @@ defmodule McpServerElixir.Protocol.McpToolsTenantTest do
 
   describe "tenant_suspend tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "tenant_suspend"))
       {:ok, tool: tool}
     end
@@ -314,7 +314,7 @@ defmodule McpServerElixir.Protocol.McpToolsTenantTest do
 
   describe "tenant_export tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "tenant_export"))
       {:ok, tool: tool}
     end

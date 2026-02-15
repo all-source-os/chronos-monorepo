@@ -11,7 +11,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "list_tools/0" do
     test "includes all 10 operational tools" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
 
       assert "compact_storage" in tool_names
@@ -27,7 +27,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
     end
 
     test "returns 61 tools total" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end
@@ -38,7 +38,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "compact_storage tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "compact_storage"))
       {:ok, tool: tool}
     end
@@ -93,7 +93,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "storage_stats tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "storage_stats"))
       {:ok, tool: tool}
     end
@@ -139,7 +139,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "partition_info tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "partition_info"))
       {:ok, tool: tool}
     end
@@ -178,7 +178,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "wal_status tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "wal_status"))
       {:ok, tool: tool}
     end
@@ -210,7 +210,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "backup_create tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "backup_create"))
       {:ok, tool: tool}
     end
@@ -259,7 +259,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "backup_restore tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "backup_restore"))
       {:ok, tool: tool}
     end
@@ -316,7 +316,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "backup_list tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "backup_list"))
       {:ok, tool: tool}
     end
@@ -354,7 +354,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "health_deep tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "health_deep"))
       {:ok, tool: tool}
     end
@@ -391,7 +391,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "performance_report tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "performance_report"))
       {:ok, tool: tool}
     end
@@ -432,7 +432,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
 
   describe "audit_log tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "audit_log"))
       {:ok, tool: tool}
     end
@@ -506,7 +506,7 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
     ]
 
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       {:ok, tools: tools}
     end
 

@@ -41,10 +41,18 @@ defmodule McpServerElixir.Server do
     # Start reading from stdin using a Task
     {:ok, _pid} = Task.start_link(fn -> stdin_reader_loop() end)
 
+    read_only = Application.get_env(:mcp_server_elixir, :read_only, false)
+    control_plane_enabled = System.get_env("ALLSOURCE_CONTROL_URL") != nil
+
+    if read_only, do: Logger.info("🔒 Read-only mode enabled")
+    unless control_plane_enabled, do: Logger.info("ℹ️  Control plane not configured (set ALLSOURCE_CONTROL_URL to enable tenant tools)")
+
     {:ok,
      %{
        core_client: CoreClient.new(),
-       control_client: ControlPlaneClient.new()
+       control_client: ControlPlaneClient.new(),
+       read_only: read_only,
+       control_plane_enabled: control_plane_enabled
      }}
   end
 
@@ -112,7 +120,12 @@ defmodule McpServerElixir.Server do
   end
 
   defp process_request(%{method: "tools/list", id: id}, state) do
-    tools = McpTools.list_tools()
+    config = %{
+      read_only: Map.get(state, :read_only, false),
+      control_plane_enabled: Map.get(state, :control_plane_enabled, false)
+    }
+
+    tools = McpTools.list_tools(config)
 
     response = %{
       jsonrpc: "2.0",

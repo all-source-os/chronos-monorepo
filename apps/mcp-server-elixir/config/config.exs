@@ -4,6 +4,7 @@ import Config
 config :mcp_server_elixir,
   core_url: System.get_env("ALLSOURCE_CORE_URL", "http://localhost:3900"),
   control_url: System.get_env("ALLSOURCE_CONTROL_URL", "http://localhost:3901"),
+  read_only: System.get_env("ALLSOURCE_READ_ONLY", "false") == "true",
   # WebSocket client configuration
   core_ws_url: System.get_env("ALLSOURCE_CORE_WS_URL", "ws://localhost:3900/api/v1/events/stream"),
   core_ws_enabled: true,

@@ -7,13 +7,13 @@ defmodule McpServerElixir.Protocol.McpToolsSearchTest do
 
   describe "list_tools/0" do
     test "includes semantic_search_events tool" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
       assert "semantic_search_events" in tool_names
     end
 
     test "includes hybrid_search tool" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
       assert "hybrid_search" in tool_names
     end
@@ -21,7 +21,7 @@ defmodule McpServerElixir.Protocol.McpToolsSearchTest do
 
   describe "semantic_search_events tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "semantic_search_events"))
       {:ok, tool: tool}
     end
@@ -70,7 +70,7 @@ defmodule McpServerElixir.Protocol.McpToolsSearchTest do
 
   describe "hybrid_search tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "hybrid_search"))
       {:ok, tool: tool}
     end
@@ -155,7 +155,7 @@ defmodule McpServerElixir.Protocol.McpToolsSearchTest do
 
   describe "tool count" do
     test "list_tools returns 61 tools (43 previous + 6 schema + 8 analytics + 4 developer tools)" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end

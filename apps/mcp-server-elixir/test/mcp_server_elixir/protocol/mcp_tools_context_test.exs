@@ -36,7 +36,7 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
 
   describe "list_tools/0" do
     test "includes conversation context tools" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
 
       assert "start_session" in tool_names
@@ -45,14 +45,14 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
     end
 
     test "returns 61 tools total" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end
 
   describe "start_session tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "start_session"))
       {:ok, tool: tool}
     end
@@ -89,7 +89,7 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
 
   describe "refine_query tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "refine_query"))
       {:ok, tool: tool}
     end
@@ -120,7 +120,7 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
 
   describe "get_session_context tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "get_session_context"))
       {:ok, tool: tool}
     end

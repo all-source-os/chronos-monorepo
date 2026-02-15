@@ -11,7 +11,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "list_tools/0" do
     test "includes all 8 event management tools" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
 
       assert "delete_events" in tool_names
@@ -25,7 +25,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
     end
 
     test "returns 61 tools total" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end
@@ -36,7 +36,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "delete_events tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "delete_events"))
       {:ok, tool: tool}
     end
@@ -102,7 +102,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "archive_events tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "archive_events"))
       {:ok, tool: tool}
     end
@@ -156,7 +156,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "restore_events tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "restore_events"))
       {:ok, tool: tool}
     end
@@ -208,7 +208,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "export_events tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "export_events"))
       {:ok, tool: tool}
     end
@@ -271,7 +271,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "import_events tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "import_events"))
       {:ok, tool: tool}
     end
@@ -344,7 +344,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "clone_entity tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "clone_entity"))
       {:ok, tool: tool}
     end
@@ -417,7 +417,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "merge_entities tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "merge_entities"))
       {:ok, tool: tool}
     end
@@ -481,7 +481,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "split_entity tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "split_entity"))
       {:ok, tool: tool}
     end
@@ -569,7 +569,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
     ]
 
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       {:ok, tools: tools}
     end
 
@@ -627,7 +627,7 @@ defmodule McpServerElixir.Protocol.McpToolsEventManagementTest do
 
   describe "event management tools decision tree" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       {:ok, tools: tools}
     end
 

@@ -11,7 +11,7 @@ defmodule McpServerElixir.Protocol.McpToolsDeveloperTest do
 
   describe "list_tools/0" do
     test "includes all 4 developer experience tools" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool_names = Enum.map(tools, & &1.name)
 
       assert "generate_client" in tool_names
@@ -21,7 +21,7 @@ defmodule McpServerElixir.Protocol.McpToolsDeveloperTest do
     end
 
     test "returns 61 tools total" do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       assert length(tools) == 61
     end
   end
@@ -32,7 +32,7 @@ defmodule McpServerElixir.Protocol.McpToolsDeveloperTest do
 
   describe "generate_client tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "generate_client"))
       {:ok, tool: tool}
     end
@@ -91,7 +91,7 @@ defmodule McpServerElixir.Protocol.McpToolsDeveloperTest do
 
   describe "mock_events tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "mock_events"))
       {:ok, tool: tool}
     end
@@ -164,7 +164,7 @@ defmodule McpServerElixir.Protocol.McpToolsDeveloperTest do
 
   describe "debug_query tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "debug_query"))
       {:ok, tool: tool}
     end
@@ -217,7 +217,7 @@ defmodule McpServerElixir.Protocol.McpToolsDeveloperTest do
 
   describe "benchmark_query tool definition" do
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       tool = Enum.find(tools, &(&1.name == "benchmark_query"))
       {:ok, tool: tool}
     end
@@ -276,7 +276,7 @@ defmodule McpServerElixir.Protocol.McpToolsDeveloperTest do
     ]
 
     setup do
-      tools = McpTools.list_tools()
+      tools = McpTools.list_tools(%{control_plane_enabled: true})
       {:ok, tools: tools}
     end
 

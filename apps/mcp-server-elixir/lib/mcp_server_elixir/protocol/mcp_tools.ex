@@ -13,66 +13,118 @@ defmodule McpServerElixir.Protocol.McpTools do
   alias McpServerElixir.Protocol.ToonEncoder
 
   @doc """
-  List all available MCP tools.
+  List all available MCP tools, filtered by configuration.
+
+  Accepts a config map with:
+  - `:read_only` — when true, excludes mutation tools
+  - `:control_plane_enabled` — when false, excludes tenant management tools
   """
-  def list_tools do
-    [
-      tool_query_events(),
-      tool_reconstruct_state(),
-      tool_get_snapshot(),
-      tool_analyze_changes(),
-      tool_find_patterns(),
-      tool_compare_entities(),
-      tool_event_timeline(),
-      tool_explain_entity(),
-      tool_ingest_event(),
+  def list_tools(config \\ %{}) do
+    # Phase 1: Discover (what data exists?) — START HERE
+    discover_tools = [
+      tool_quick_stats(),
+      tool_sample_events(),
       tool_get_stats(),
       tool_get_cluster_status(),
+      tool_list_schemas()
+    ]
+
+    # Phase 2: Search (find relevant data)
+    search_tools = [
+      tool_query_events(),
       tool_semantic_search_events(),
       tool_hybrid_search(),
-      tool_get_query_advice(),
-      # Quick exploration tools
-      tool_sample_events(),
-      tool_quick_stats(),
-      # Conversation context tools
+      tool_get_query_advice()
+    ]
+
+    # Phase 3: Drill down (deep analysis)
+    drill_down_tools = [
+      tool_get_snapshot(),
+      tool_reconstruct_state(),
+      tool_analyze_changes(),
+      tool_event_timeline(),
+      tool_explain_entity(),
+      tool_find_patterns(),
+      tool_compare_entities()
+    ]
+
+    # Phase 4: Context (multi-turn conversation)
+    context_tools = [
       tool_start_session(),
       tool_refine_query(),
-      tool_get_session_context(),
-      # Event management tools (v2.0)
-      tool_delete_events(),
-      tool_archive_events(),
+      tool_get_session_context()
+    ]
+
+    # Phase 5: Mutate (write operations) — gated by read_only
+    mutate_tools =
+      if config[:read_only] do
+        []
+      else
+        [
+          tool_ingest_event(),
+          tool_delete_events(),
+          tool_archive_events(),
+          tool_import_events(),
+          tool_clone_entity(),
+          tool_merge_entities(),
+          tool_split_entity()
+        ]
+      end
+
+    # Phase 6: Read-only event management (always available)
+    event_read_tools = [
       tool_restore_events(),
-      tool_export_events(),
-      tool_import_events(),
-      tool_clone_entity(),
-      tool_merge_entities(),
-      tool_split_entity(),
-      # Operational tools (v2.0)
-      tool_compact_storage(),
+      tool_export_events()
+    ]
+
+    # Phase 7: Operations — mutation ops gated by read_only
+    ops_read_tools = [
       tool_storage_stats(),
       tool_partition_info(),
       tool_wal_status(),
-      tool_backup_create(),
-      tool_backup_restore(),
       tool_backup_list(),
       tool_health_deep(),
       tool_performance_report(),
-      tool_audit_log(),
-      # Multi-tenancy tools (v2.0)
-      tool_tenant_create(),
-      tool_tenant_update(),
-      tool_tenant_usage(),
-      tool_tenant_quotas(),
-      tool_tenant_suspend(),
-      tool_tenant_export(),
-      # Schema & validation tools (v2.0)
+      tool_audit_log()
+    ]
+
+    ops_mutate_tools =
+      if config[:read_only] do
+        []
+      else
+        [
+          tool_compact_storage(),
+          tool_backup_create(),
+          tool_backup_restore()
+        ]
+      end
+
+    # Phase 8: Tenants — gated by control_plane_enabled
+    tenant_tools =
+      if config[:control_plane_enabled] do
+        [
+          tool_tenant_create(),
+          tool_tenant_update(),
+          tool_tenant_usage(),
+          tool_tenant_quotas(),
+          tool_tenant_suspend(),
+          tool_tenant_export()
+        ]
+      else
+        []
+      end
+
+    # Phase 9: Schema & validation
+    schema_tools = [
       tool_register_schema(),
       tool_validate_schema(),
       tool_migrate_schema(),
-      tool_list_schemas(),
       tool_infer_schema(),
-      tool_schema_diff(),
-      # Advanced analytics tools (v2.0)
+      tool_schema_diff()
+    ]
+
+    # Phase 10: Analytics
+    analytics_tools = [
       tool_cohort_analysis(),
       tool_correlation_analysis(),
       tool_forecast_events(),
@@ -80,13 +132,29 @@ defmodule McpServerElixir.Protocol.McpTools do
       tool_path_analysis(),
       tool_attribution_analysis(),
       tool_churn_prediction(),
-      tool_ltv_calculation(),
-      # Developer experience tools (v2.0)
+      tool_ltv_calculation()
+    ]
+
+    # Phase 11: Developer tools
+    developer_tools = [
       tool_generate_client(),
       tool_mock_events(),
       tool_debug_query(),
       tool_benchmark_query()
     ]
+
+    discover_tools ++
+      search_tools ++
+      drill_down_tools ++
+      context_tools ++
+      mutate_tools ++
+      event_read_tools ++
+      ops_mutate_tools ++
+      ops_read_tools ++
+      tenant_tools ++
+      schema_tools ++
+      analytics_tools ++
+      developer_tools
   end
 
   @tool_handlers %{
@@ -200,11 +268,57 @@ defmodule McpServerElixir.Protocol.McpTools do
   - `"json"` - Force JSON format
   - Omitted - Auto-detect (default: TOON for tabular data)
   """
+  # Tools gated by read_only mode
+  @read_only_gated_tools MapSet.new([
+    "ingest_event",
+    "delete_events",
+    "archive_events",
+    "import_events",
+    "clone_entity",
+    "merge_entities",
+    "split_entity",
+    "compact_storage",
+    "backup_create",
+    "backup_restore"
+  ])
+
+  # Tools gated by control_plane_enabled
+  @control_plane_gated_tools MapSet.new([
+    "tenant_create",
+    "tenant_update",
+    "tenant_usage",
+    "tenant_quotas",
+    "tenant_suspend",
+    "tenant_export"
+  ])
+
   def call_tool(tool_name, args, state) do
     format = Map.get(args, "format", nil)
     args_without_format = Map.delete(args, "format")
 
-    dispatch_tool(tool_name, args_without_format, state, format)
+    # Check gating before dispatch
+    cond do
+      MapSet.member?(@read_only_gated_tools, tool_name) and Map.get(state, :read_only, false) ->
+        {:ok,
+         %{
+           content: [
+             %{type: "text", text: "Tool disabled: read-only mode is active. Unset ALLSOURCE_READ_ONLY to enable mutation tools."}
+           ],
+           isError: true
+         }}
+
+      MapSet.member?(@control_plane_gated_tools, tool_name) and not Map.get(state, :control_plane_enabled, false) ->
+        {:ok,
+         %{
+           content: [
+             %{type: "text", text: "Tool disabled: control plane not configured. Set ALLSOURCE_CONTROL_URL to enable tenant management tools."}
+           ],
+           isError: true
+         }}
+
+      true ->
+        dispatch_tool(tool_name, args_without_format, state, format)
+    end
   end
 
   defp dispatch_tool(tool_name, args, state, format) do
@@ -254,38 +368,28 @@ defmodule McpServerElixir.Protocol.McpTools do
   # DECISION TREE: Choosing the Right Tool
   # ======================================
   #
-  # 1. "What is the current state of entity X?"
-  #    → get_snapshot (fastest) OR reconstruct_state (if you need time-travel)
+  # ★ START HERE: quick_stats → sample_events → then drill down
   #
-  # 2. "What happened to entity X?" / "Show me the history"
-  #    → event_timeline (chronological view) OR query_events (raw events)
+  # Phase 1 — DISCOVER (what data exists?)
+  #   quick_stats      → fast approximate counts, entity/type overview
+  #   sample_events    → see example events, understand structure
+  #   get_stats        → detailed statistics
+  #   list_schemas     → discover event type schemas
   #
-  # 3. "What did entity X look like on date Y?"
-  #    → reconstruct_state with as_of parameter
+  # Phase 2 — SEARCH (find relevant data)
+  #   query_events             → exact filters (entity_id, event_type, time range)
+  #   semantic_search_events   → natural language concept search
+  #   hybrid_search            → combine semantic + keyword + metadata filters
+  #   get_query_advice         → unsure which tool? start here
   #
-  # 4. "What changed between date A and date B?"
-  #    → analyze_changes
-  #
-  # 5. "Find events related to [concept/topic]"
-  #    → semantic_search_events (natural language) OR query_events (exact filters)
-  #
-  # 6. "Complex search with filters AND semantic understanding"
-  #    → hybrid_search (combines semantic + keyword + metadata filters)
-  #
-  # 7. "Tell me everything about entity X"
-  #    → explain_entity (comprehensive overview)
-  #
-  # 8. "Compare entities A, B, C"
-  #    → compare_entities
-  #
-  # 9. "What patterns exist in the data?"
-  #    → find_patterns
-  #
-  # 10. "Store a new event"
-  #     → ingest_event
-  #
-  # 11. "System health / statistics"
-  #     → get_stats (data stats) OR get_cluster_status (infrastructure health)
+  # Phase 3 — DRILL DOWN (deep analysis)
+  #   get_snapshot       → current state of entity (fastest)
+  #   reconstruct_state  → state at any point in time (time-travel)
+  #   analyze_changes    → diff between two points in time
+  #   event_timeline     → chronological view of entity events
+  #   explain_entity     → comprehensive entity overview
+  #   find_patterns      → detect patterns in event data
+  #   compare_entities   → side-by-side entity comparison
   #
   # PERFORMANCE CONSIDERATIONS:
   # - get_snapshot is 10-100x faster than reconstruct_state for current state
@@ -324,6 +428,21 @@ defmodule McpServerElixir.Protocol.McpTools do
       - Need current state? → get_snapshot (faster)
       - Need state at point in time? → reconstruct_state
       - Don't know exact filters? → semantic_search_events or hybrid_search
+
+      **Recommended workflow:** Call `quick_stats` or `sample_events` first to discover \
+      available entity_ids and event_types, then use those values here.
+
+      **Query parameter reference:**
+      - `entity_id`: Exact match, e.g., "user-123", "order-456"
+      - `event_type`: Exact match with dot notation, e.g., "user.created", "order.completed", "payment.failed"
+      - `since`/`until`: ISO-8601 timestamps. Supports full datetime ("2024-01-15T14:30:00Z") or date-only ("2024-01-15")
+      - `as_of`: Time-travel parameter — returns events as if queried at that timestamp (excludes events ingested after)
+      - `limit`: Integer, defaults to all. Start with 10-50 for exploration
+
+      **Example combinations:**
+      - Recent failures: `event_type: "payment.failed", since: "2024-01-01T00:00:00Z", limit: 20`
+      - Entity audit: `entity_id: "user-123", limit: 100`
+      - Time-travel snapshot: `entity_id: "order-456", as_of: "2024-06-15T00:00:00Z"`
       """,
       inputSchema: %{
         type: "object",
@@ -382,6 +501,9 @@ defmodule McpServerElixir.Protocol.McpTools do
       - Need state at specific time? → reconstruct_state
       - Need diff between two times? → analyze_changes (uses reconstruct internally)
       - Need full history? → event_timeline
+
+      **Recommended workflow:** Call `get_snapshot` first for current state. Only use \
+      this tool if you need historical state at a specific `as_of` timestamp.
       """,
       inputSchema: %{
         type: "object",
@@ -468,6 +590,9 @@ defmodule McpServerElixir.Protocol.McpTools do
       - Need to see the events that caused changes? → event_timeline
       - Need state at one point? → reconstruct_state
       - Need to compare multiple entities? → compare_entities
+
+      **Recommended workflow:** Use `event_timeline` first to identify interesting time \
+      ranges, then call this tool with `from_time`/`to_time` from those ranges.
       """,
       inputSchema: %{
         type: "object",
@@ -519,6 +644,9 @@ defmodule McpServerElixir.Protocol.McpTools do
       - Want to understand workflows? → find_patterns with sequence
       - Looking for unusual activity? → find_patterns with anomaly
       - Need specific events? → query_events or semantic_search_events
+
+      **Recommended workflow:** Call `quick_stats` first to understand data volume, \
+      then run pattern detection with appropriate time windows.
       """,
       inputSchema: %{
         type: "object",
@@ -854,6 +982,15 @@ defmodule McpServerElixir.Protocol.McpTools do
       - Combine with query_events for exact matches when you know the event type
 
       Returns events ranked by semantic similarity score (0.0-1.0).
+
+      **Recommended workflow:** If results are too broad, refine with `hybrid_search` \
+      which adds metadata filters. If you know the entity, use `query_events` instead.
+
+      **Example queries:**
+      - "user authentication failures in the last week"
+      - "payment processing errors"
+      - "account suspension events"
+      - "order fulfillment delays"
       """,
       inputSchema: %{
         type: "object",
@@ -910,6 +1047,11 @@ defmodule McpServerElixir.Protocol.McpTools do
       - Results are ranked by combined RRF score from all active search strategies
 
       Returns events with combined relevance scores and individual strategy scores.
+
+      **Example combinations:**
+      - Semantic + filter: `semantic_query: "payment issues", filters: {event_type: "payment.failed"}`
+      - Keywords + time: `keywords: "timeout OR error", filters: {time_from: "2024-01-01T00:00:00Z"}`
+      - Full hybrid: `semantic_query: "user churn signals", keywords: "cancel unsubscribe", filters: {entity_id: "user-123"}`
       """,
       inputSchema: %{
         type: "object",
@@ -1992,17 +2134,14 @@ defmodule McpServerElixir.Protocol.McpTools do
     case CoreClient.query_events(state.core_client, params) do
       {:ok, data} ->
         count = Map.get(data, "count", 0)
-        summary = "📊 Found #{count} events\n"
+        summary = "📊 Found #{count} events"
         formatted_data = ToonEncoder.format_response(data, format)
-        text = summary <> formatted_data
 
         {:ok,
          %{
            content: [
-             %{
-               type: "text",
-               text: text
-             }
+             %{type: "text", text: summary},
+             %{type: "text", text: formatted_data}
            ]
          }}
 
@@ -2026,20 +2165,16 @@ defmodule McpServerElixir.Protocol.McpTools do
         🔄 Reconstructed state for "#{entity_id}"
         📅 As of: #{as_of_str}
         📊 Events processed: #{event_count}
-        ⏰ Last updated: #{last_updated}
-
+        ⏰ Last updated: #{last_updated}\
         """
 
         formatted_data = ToonEncoder.format_response(state_data, format)
-        text = summary <> formatted_data
 
         {:ok,
          %{
            content: [
-             %{
-               type: "text",
-               text: text
-             }
+             %{type: "text", text: summary},
+             %{type: "text", text: formatted_data}
            ]
          }}
 
@@ -2054,17 +2189,14 @@ defmodule McpServerElixir.Protocol.McpTools do
 
     case CoreClient.get_snapshot(state.core_client, entity_id) do
       {:ok, snapshot} ->
-        summary = "⚡ Fast snapshot for \"#{entity_id}\"\n\n"
+        summary = "⚡ Fast snapshot for \"#{entity_id}\""
         formatted_data = ToonEncoder.format_response(snapshot, format)
-        text = summary <> formatted_data
 
         {:ok,
          %{
            content: [
-             %{
-               type: "text",
-               text: text
-             }
+             %{type: "text", text: summary},
+             %{type: "text", text: formatted_data}
            ]
          }}
 
@@ -2096,20 +2228,16 @@ defmodule McpServerElixir.Protocol.McpTools do
             📅 To: #{to_time || "now"}
             ➕ Added fields: #{length(changes.added)}
             ✏️  Modified fields: #{length(changes.modified)}
-            ➖ Removed fields: #{length(changes.removed)}
-
+            ➖ Removed fields: #{length(changes.removed)}\
             """
 
             formatted_data = ToonEncoder.format_response(changes, format)
-            text = summary <> formatted_data
 
             {:ok,
              %{
                content: [
-                 %{
-                   type: "text",
-                   text: text
-                 }
+                 %{type: "text", text: summary},
+                 %{type: "text", text: formatted_data}
                ]
              }}
 
@@ -2136,20 +2264,16 @@ defmodule McpServerElixir.Protocol.McpTools do
         summary = """
         🔎 Pattern Analysis
         📊 Events analyzed: #{length(events)}
-        🎯 Pattern type: #{pattern_type || "all"}
-
+        🎯 Pattern type: #{pattern_type || "all"}\
         """
 
         formatted_data = ToonEncoder.format_response(analysis, format)
-        text = summary <> formatted_data
 
         {:ok,
          %{
            content: [
-             %{
-               type: "text",
-               text: text
-             }
+             %{type: "text", text: summary},
+             %{type: "text", text: formatted_data}
            ]
          }}
 
@@ -2191,20 +2315,16 @@ defmodule McpServerElixir.Protocol.McpTools do
     summary = """
     🔬 Entity Comparison
     📊 Entities compared: #{length(entity_ids)}
-    ⏰ Timeframe: #{timeframe || "all time"}
-
+    ⏰ Timeframe: #{timeframe || "all time"}\
     """
 
     formatted_data = ToonEncoder.format_response(comparisons, format)
-    text = summary <> formatted_data
 
     {:ok,
      %{
        content: [
-         %{
-           type: "text",
-           text: text
-         }
+         %{type: "text", text: summary},
+         %{type: "text", text: formatted_data}
        ]
      }}
   end
@@ -2240,20 +2360,16 @@ defmodule McpServerElixir.Protocol.McpTools do
         summary = """
         📅 Timeline for "#{entity_id}"
         📊 Events: #{length(events)}
-        ⏰ Period: #{Map.get(args, "since", "start")} to #{Map.get(args, "until", "now")}
-
+        ⏰ Period: #{Map.get(args, "since", "start")} to #{Map.get(args, "until", "now")}\
         """
 
         formatted_data = ToonEncoder.format_response(timeline, format)
-        text = summary <> formatted_data
 
         {:ok,
          %{
            content: [
-             %{
-               type: "text",
-               text: text
-             }
+             %{type: "text", text: summary},
+             %{type: "text", text: formatted_data}
            ]
          }}
 
@@ -2293,24 +2409,19 @@ defmodule McpServerElixir.Protocol.McpTools do
 
             summary = """
             📋 Entity Explanation: "#{entity_id}"
-
             🔹 Total Events: #{length(events)}
             🔹 Event Types: #{length(event_types)}
             🔹 Created: #{List.first(events) |> Map.get("timestamp", "unknown")}
-            🔹 Last Updated: #{Map.get(state_data, "last_updated", "unknown")}
-
+            🔹 Last Updated: #{Map.get(state_data, "last_updated", "unknown")}\
             """
 
             formatted_data = ToonEncoder.format_response(explanation, format)
-            text = summary <> formatted_data
 
             {:ok,
              %{
                content: [
-                 %{
-                   type: "text",
-                   text: text
-                 }
+                 %{type: "text", text: summary},
+                 %{type: "text", text: formatted_data}
                ]
              }}
 
@@ -2429,20 +2540,16 @@ defmodule McpServerElixir.Protocol.McpTools do
         🔍 Semantic Search Results
         📝 Query: "#{query}"
         📊 Found: #{count} matching events
-        🎯 Threshold: #{threshold}
-
+        🎯 Threshold: #{threshold}\
         """
 
         formatted_data = ToonEncoder.format_response(data, format)
-        text = summary <> formatted_data
 
         {:ok,
          %{
            content: [
-             %{
-               type: "text",
-               text: text
-             }
+             %{type: "text", text: summary},
+             %{type: "text", text: formatted_data}
            ]
          }}
 
@@ -2517,20 +2624,16 @@ defmodule McpServerElixir.Protocol.McpTools do
         summary = """
         🔀 Hybrid Search Results
         📝 #{search_desc}
-        #{filter_line}📊 Found: #{count} matching events
-
+        #{filter_line}📊 Found: #{count} matching events\
         """
 
         formatted_data = ToonEncoder.format_response(data, format)
-        text = summary <> formatted_data
 
         {:ok,
          %{
            content: [
-             %{
-               type: "text",
-               text: text
-             }
+             %{type: "text", text: summary},
+             %{type: "text", text: formatted_data}
            ]
          }}
 
@@ -6377,6 +6480,9 @@ defmodule McpServerElixir.Protocol.McpTools do
       - Limit periods to reduce computation (default: 8)
       - Narrow time range with since/until for faster results
       - Large datasets may take several seconds — consider sampling
+
+      **Recommended workflow:** Call `list_schemas` to discover event types available, \
+      then call `quick_stats` to understand data volume before running analysis.
       """,
       inputSchema: %{
         type: "object",
@@ -6581,6 +6687,9 @@ defmodule McpServerElixir.Protocol.McpTools do
       - "Who are my power users?" → segment_analysis with metric: "frequency"
       - "Which users might churn?" → churn_prediction (more sophisticated)
       - "How do segments change over time?" → cohort_analysis
+
+      **Recommended workflow:** Call `list_schemas` to discover event types available, \
+      then call `quick_stats` to understand data volume before running analysis.
       """,
       inputSchema: %{
         type: "object",
