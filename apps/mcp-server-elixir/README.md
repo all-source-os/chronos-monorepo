@@ -1,82 +1,59 @@
 ---
 title: "MCP Server"
 status: CURRENT
-version: 0.10.0
-last_updated: 2026-02-10
+version: 0.10.1
+last_updated: 2026-02-15
 category: service
 port: 4000
 technology: Elixir
 ---
 
-# AllSource MCP Server (Elixir)
+# AllSource MCP Server
 
-> AI-Native Temporal Event Store Interface via Model Context Protocol
+> Turn your event store into an AI-queryable knowledge base. 61 tools for natural language event exploration, time-travel analysis, and real-time insights — all via Model Context Protocol.
 
-Transform your event store into an AI-queryable knowledge base. Ask questions in natural language, time-travel through data, and get instant insights from your temporal event stream.
+[![CI](https://github.com/all-source-os/all-source/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/ci.yml)
+[![Elixir](https://img.shields.io/badge/elixir-1.17%2B-purple.svg)](https://elixir-lang.org/)
+[![Tools](https://img.shields.io/badge/MCP%20tools-61-orange.svg)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 
-## 🌟 Overview
+**Current Version**: v0.10.1
 
-This is the Elixir implementation of the AllSource MCP Server, replacing the TypeScript version to better align with the stack (Go, Rust, Elixir). It provides the same functionality with improved performance, fault tolerance via OTP supervision, and better integration with the existing Elixir query service.
+## What Can It Do?
 
-## 🎯 Features
+Connect Claude Desktop (or any MCP client) to your AllSource event store and ask questions like:
 
-- **27 MCP Tools** for comprehensive event operations
-- **8 Event Management Tools** - delete, archive, restore, export, import, clone, merge, split
-- **AI-Native Guidance** - embedded best practices, decision trees, performance tips
-- **TOON Format** by default (~50% fewer tokens than JSON)
-- **JSON Fallback** available via `format: "json"` parameter
-- **JSON-RPC 2.0** protocol over stdio
-- **OTP Supervision** for fault tolerance
-- **Tesla HTTP Client** with automatic retries
-- **Pattern Matching** for elegant JSON-RPC handling
+- *"What changed for user-123 yesterday?"*
+- *"Show me the signup-to-purchase funnel for the last 30 days"*
+- *"Which entities have anomalous activity patterns?"*
+- *"Forecast event volume for next week"*
+- *"Compare user-123 and user-456 side by side"*
 
-## 🚀 Quick Start
+The MCP server translates natural language into precise event store queries, returns results in a token-efficient format, and maintains conversation context across multi-turn interactions.
 
-### 1. Install Dependencies
+## Quick Start
+
+### 1. Start AllSource Services
+
+```bash
+# Core Event Store
+cd apps/core && cargo run --release
+
+# Control Plane (optional, needed for tenant management)
+cd apps/control-plane && go run .
+```
+
+### 2. Start MCP Server
 
 ```bash
 cd apps/mcp-server-elixir
 mix deps.get
-```
-
-### 2. Configure Environment Variables (Optional)
-
-```bash
-export ALLSOURCE_CORE_URL="http://localhost:3900"
-export ALLSOURCE_CONTROL_URL="http://localhost:3901"
-```
-
-### 3. Start AllSource Services
-
-Make sure the Core and Control Plane services are running:
-
-```bash
-# Terminal 1 - Core Event Store
-cd apps/core
-cargo run --release
-
-# Terminal 2 - Control Plane
-cd apps/control-plane
-go run main.go
-```
-
-### 4. Start MCP Server
-
-```bash
-cd apps/mcp-server-elixir
 mix run --no-halt
 ```
 
-Or compile and run as a release:
+### 3. Connect Claude Desktop
 
-```bash
-mix release
-_build/dev/rel/mcp_server_elixir/bin/mcp_server_elixir start
-```
-
-### 5. Connect Claude Desktop
-
-Update your Claude Desktop configuration:
+Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
@@ -84,83 +61,163 @@ Update your Claude Desktop configuration:
     "allsource": {
       "command": "mix",
       "args": ["run", "--no-halt"],
-      "cwd": "/path/to/allsource-monorepo/apps/mcp-server-elixir"
+      "cwd": "/path/to/all-source/apps/mcp-server-elixir"
     }
   }
 }
 ```
 
-Or use the compiled release:
+Or with a compiled release:
 
 ```json
 {
   "mcpServers": {
     "allsource": {
-      "command": "/path/to/allsource-monorepo/apps/mcp-server-elixir/_build/dev/rel/mcp_server_elixir/bin/mcp_server_elixir",
+      "command": "/path/to/apps/mcp-server-elixir/_build/dev/rel/mcp_server_elixir/bin/mcp_server_elixir",
       "args": ["start"]
     }
   }
 }
 ```
 
-## 📋 Available Tools
+## 61 Tools Across 11 Categories
 
-The server exposes 27 tools across multiple categories:
+Tools follow a guided workflow from discovery to deep analysis. Each phase builds on the previous one.
 
-### Core Tools (11 tools)
-1. **query_events** - Query events with flexible filters
-2. **reconstruct_state** - Time-travel state reconstruction
-3. **get_snapshot** - Fast current state retrieval
-4. **analyze_changes** - Temporal diff analysis
-5. **find_patterns** - Event pattern detection
-6. **compare_entities** - Multi-entity comparison
-7. **event_timeline** - Chronological timeline
-8. **explain_entity** - Comprehensive entity analysis
-9. **ingest_event** - Event creation
-10. **get_stats** - Store statistics
-11. **get_cluster_status** - Cluster health
+### Phase 1: Discover — *What data exists? Start here.*
+| Tool | Description |
+|------|-------------|
+| `quick_stats` | Rapid approximate statistics for fast orientation |
+| `sample_events` | Stratified sampling for data exploration |
+| `get_stats` | Detailed store statistics |
+| `get_cluster_status` | Cluster health and node status |
+| `list_schemas` | Available event schemas |
 
-### Search Tools (2 tools)
-12. **semantic_search_events** - Vector similarity search
-13. **hybrid_search** - Combined vector + keyword search
+### Phase 2: Search — *Find relevant data*
+| Tool | Description |
+|------|-------------|
+| `query_events` | Flexible event queries with filters, time ranges, pagination |
+| `semantic_search_events` | Vector similarity search across event payloads |
+| `hybrid_search` | Combined vector + keyword search |
+| `get_query_advice` | AI-guided query recommendations for your use case |
 
-### AI-Native Tools (4 tools)
-14. **get_query_advice** - Use-case specific recommendations
-15. **sample_events** - Fast data exploration with stratified sampling
-16. **quick_stats** - Rapid approximate statistics
-17. **start_session** / **refine_query** / **get_session_context** - Multi-turn conversation context
+### Phase 3: Drill Down — *Deep analysis*
+| Tool | Description |
+|------|-------------|
+| `get_snapshot` | Fast current state retrieval |
+| `reconstruct_state` | Time-travel state reconstruction at any timestamp |
+| `analyze_changes` | Temporal diff between two points in time |
+| `event_timeline` | Chronological event timeline for an entity |
+| `explain_entity` | Comprehensive entity analysis with context |
+| `find_patterns` | Event pattern detection and anomalies |
+| `compare_entities` | Side-by-side multi-entity comparison |
 
-### Event Management Tools (8 tools) - NEW in v0.9.0
-18. **delete_events** - Soft delete with audit trail (GDPR/CCPA compliant)
-19. **archive_events** - Move to cold storage with retention policies
-20. **restore_events** - Restore deleted or archived events
-21. **export_events** - Export to JSON/JSONL/CSV/Parquet formats
-22. **import_events** - Bulk import with validation and deduplication
-23. **clone_entity** - Deep copy entity with all events
-24. **merge_entities** - Combine event streams from multiple entities
-25. **split_entity** - Partition entity event stream by criteria
+### Phase 4: Context — *Multi-turn conversations*
+| Tool | Description |
+|------|-------------|
+| `start_session` | Begin a conversation session with context |
+| `refine_query` | Iteratively refine queries based on results |
+| `get_session_context` | Retrieve accumulated session context |
 
-### Response Format
+### Phase 5: Mutate — *Write operations*
+| Tool | Description |
+|------|-------------|
+| `ingest_event` | Create new events |
+| `delete_events` | Soft delete with audit trail (GDPR/CCPA compliant) |
+| `archive_events` | Move to cold storage with retention policies |
+| `import_events` | Bulk import with validation and deduplication |
+| `clone_entity` | Deep copy entity with all events |
+| `merge_entities` | Combine event streams from multiple entities |
+| `split_entity` | Partition entity event stream by criteria |
 
-All tools return responses in **TOON format** by default, which uses approximately **50% fewer tokens** than JSON. This reduces LLM API costs and improves processing speed.
+### Phase 6: Event Lifecycle — *Always available*
+| Tool | Description |
+|------|-------------|
+| `restore_events` | Restore deleted or archived events |
+| `export_events` | Export to JSON, JSONL, CSV, or Parquet |
 
-**Format Options:**
-- Default: Auto-detects tabular data and uses TOON, falls back to JSON for complex structures
-- `format: "toon"` - Force TOON format
-- `format: "json"` - Force JSON format
+### Phase 7: Operations — *System inspection & admin*
 
-**Example:**
-```json
-{
-  "name": "query_events",
-  "arguments": {
-    "entity_id": "user-123",
-    "format": "toon"  // Optional: "toon" or "json"
-  }
-}
-```
+**Read (always available):**
 
-## 🏗️ Architecture
+| Tool | Description |
+|------|-------------|
+| `storage_stats` | Storage utilization and file details |
+| `partition_info` | Partition distribution and balance |
+| `wal_status` | Write-Ahead Log health and segment info |
+| `backup_list` | Available backups |
+| `health_deep` | Deep health check across all subsystems |
+| `performance_report` | Performance metrics and bottleneck detection |
+| `audit_log` | Audit trail inspection |
+
+**Write (gated by read-only mode):**
+
+| Tool | Description |
+|------|-------------|
+| `compact_storage` | Trigger storage compaction |
+| `backup_create` | Create point-in-time backup |
+| `backup_restore` | Restore from backup |
+
+### Phase 8: Tenants — *Multi-tenancy management*
+| Tool | Description |
+|------|-------------|
+| `tenant_create` | Create new tenant with quotas |
+| `tenant_update` | Update tenant configuration |
+| `tenant_usage` | Usage statistics and billing data |
+| `tenant_quotas` | Manage quotas and rate limits |
+| `tenant_suspend` | Suspend/reactivate tenant |
+| `tenant_export` | Export all tenant data |
+
+### Phase 9: Schema & Validation — *Event type governance*
+| Tool | Description |
+|------|-------------|
+| `register_schema` | Register event schema with versioning |
+| `validate_schema` | Validate events against schema |
+| `migrate_schema` | Migrate to new schema version |
+| `infer_schema` | Auto-infer schema from existing events |
+| `schema_diff` | Compare schema versions for breaking changes |
+
+### Phase 10: Analytics — *Business intelligence*
+| Tool | Description |
+|------|-------------|
+| `cohort_analysis` | Analyze user cohorts over time |
+| `correlation_analysis` | Find correlations between event types |
+| `forecast_events` | Forecast future event volumes |
+| `segment_analysis` | User segment analysis |
+| `path_analysis` | User journey and conversion path analysis |
+| `attribution_analysis` | Attribution modeling for conversions |
+| `churn_prediction` | Predict churn risk |
+| `ltv_calculation` | Calculate customer lifetime value |
+
+### Phase 11: Developer Experience — *Productivity & testing*
+| Tool | Description |
+|------|-------------|
+| `generate_client` | Generate client code for your language |
+| `mock_events` | Generate realistic mock events for testing |
+| `debug_query` | Debug query performance with explain plans |
+| `benchmark_query` | Benchmark query execution |
+
+## Token-Efficient Responses
+
+All tools return responses in **TOON format** by default — approximately **50% fewer tokens** than JSON for tabular data. This directly reduces LLM API costs and speeds up processing.
+
+| Format | Tokens (typical) | Use Case |
+|--------|:----------------:|----------|
+| TOON (default) | ~500 | Tabular data, lists, summaries |
+| JSON | ~1,000 | Complex nested structures |
+
+Override per-request with `format: "json"` or `format: "toon"`.
+
+## Access Control
+
+Tools are gated by configuration to prevent unintended modifications:
+
+| Gate | Tools Affected | Default |
+|------|---------------|---------|
+| **Read-only mode** | All write operations (ingest, delete, archive, import, clone, merge, split, compact, backup create/restore) | Off |
+| **Control Plane** | All tenant management tools | Enabled when Control Plane URL is configured |
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────┐
@@ -168,130 +225,102 @@ All tools return responses in **TOON format** by default, which uses approximate
 │                                         │
 │  "What changed for user-123 yesterday?" │
 └────────────────┬────────────────────────┘
-                 │
                  │ JSON-RPC 2.0 over stdio
                  ▼
 ┌────────────────────────────────────────────┐
-│      MCP Server (Elixir)                  │
+│      MCP Server (Elixir/OTP)              │
 │                                            │
-│  • JSON-RPC Handler                       │
-│  • Tool Router                            │
-│  • OTP Supervision                       │
+│  • JSON-RPC Handler (pattern matching)    │
+│  • Tool Router (61 tools)                 │
+│  • Session Manager (multi-turn context)   │
+│  • TOON Formatter (token optimization)    │
+│  • OTP Supervision (fault tolerance)      │
 └────────────────┬──────────────────────────┘
-                 │
+                 │ Tesla HTTP Client
       ┌──────────┴──────────┐
-      │                     │
       ▼                     ▼
 ┌──────────────┐   ┌─────────────────┐
 │  Core API    │   │  Control Plane  │
-│  (Rust)      │   │  (Go)            │
-│              │   │                 │
+│  (Rust)      │   │  (Go)           │
 │  :3900       │   │  :3901          │
 └──────────────┘   └─────────────────┘
 ```
 
-## 🔧 Development
+## Performance
 
-### Running Tests
+| Metric | Value |
+|--------|-------|
+| Tool call latency | <100ms (local network) |
+| Query execution | <10ms (indexed queries) |
+| Time-travel reconstruction | <50ms (typical entity) |
+| Pattern analysis | <500ms (thousands of events) |
+| Token reduction | ~50% fewer tokens vs JSON |
+
+## Development
 
 ```bash
+# Install dependencies
+mix deps.get
+
+# Run tests
 mix test
-```
 
-### Code Formatting
-
-```bash
+# Code formatting
 mix format
-```
 
-### Static Analysis
-
-```bash
+# Static analysis
 mix credo
 mix dialyzer
-```
 
-### Building Release
-
-```bash
+# Build release
 MIX_ENV=prod mix release
 ```
 
-## 📊 Performance
+## Configuration
 
-- **Tool latency:** <100ms (local network)
-- **Query execution:** <10ms (indexed queries)
-- **Time-travel reconstruction:** <50ms (typical entity)
-- **Pattern analysis:** <500ms (1000s of events)
-- **Token reduction:** ~50% fewer tokens with TOON vs JSON for tabular data
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `ALLSOURCE_CORE_URL` | `http://localhost:3900` | Core event store URL |
+| `ALLSOURCE_CONTROL_URL` | `http://localhost:3901` | Control Plane URL (enables tenant tools) |
+| `MCP_READ_ONLY` | `false` | Disable all write operations |
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### MCP Server Won't Start
-
 ```bash
-# Check Elixir is installed
-elixir --version
-
-# Check AllSource is running
-curl http://localhost:3900/health
-curl http://localhost:3901/health
-
-# Check for port conflicts
-lsof -i :3900
-lsof -i :3901
+elixir --version           # Check Elixir is installed
+curl localhost:3900/health # Check Core is running
+curl localhost:3901/health # Check Control Plane is running
 ```
 
-### Tool Calls Failing
-
-- Check entity exists before querying
-- Use ISO timestamps (YYYY-MM-DDTHH:mm:ssZ)
-- Verify AllSource logs for errors
-- Test API directly with curl first
-
 ### Claude Desktop Not Connecting
-
 - Restart Claude Desktop completely
 - Check config path is absolute
-- Verify Mix path in config
-- Check MCP logs in `~/Library/Logs/Claude/`
+- Verify MCP logs in `~/Library/Logs/Claude/`
 
-## 🚢 Production Considerations
+### Tool Calls Failing
+- Use ISO timestamps (`YYYY-MM-DDTHH:mm:ssZ`)
+- Check entity exists before querying
+- Test the underlying API directly with curl
 
-### Security
-
-- Add authentication to API endpoints
-- Validate all tool inputs
-- Rate limit tool calls
-- Audit MCP usage
-
-### Scalability
-
-- MCP server is stateless (scales horizontally)
-- AllSource Core handles heavy lifting
-- Consider caching frequent queries
-- Use read replicas for high traffic
-
-### Monitoring
-
-- Log all tool calls
-- Track query latency
-- Monitor API errors
-- Alert on anomalies
-
-## 📚 Resources
+## Resources
 
 - [Model Context Protocol Spec](https://spec.modelcontextprotocol.io/)
-- [Claude Desktop MCP Guide](https://docs.anthropic.com/claude/docs/model-context-protocol)
 - [AllSource Documentation](../../README.md)
+- [Core API Reference](../core/README.md)
+
+## License
+
+[MIT](../../LICENSE)
 
 ---
 
 <div align="center">
 
-**AllSource MCP Server (Elixir)** - *Where AI meets temporal data*
+**AllSource MCP Server** — 61 AI-native tools for your event store
 
-Built with ❤️ and Elixir
+Query, analyze, and manage temporal data through natural language
+
+[GitHub](https://github.com/all-source-os/all-source) | [AllSource Core](../core/README.md)
 
 </div>
-

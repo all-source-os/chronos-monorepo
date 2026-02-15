@@ -14,7 +14,7 @@ version: "0.10.1"
 [![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.10.1-green.svg)](apps/core/)
 [![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v0.10.1-blue.svg)](apps/control-plane/)
 [![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-v0.10.1-purple.svg)](apps/query-service/)
-[![MCP Server](https://img.shields.io/badge/MCP%20Server-43%20Tools-orange.svg)](apps/mcp-server-elixir/)
+[![MCP Server](https://img.shields.io/badge/MCP%20Server-61%20Tools-orange.svg)](apps/mcp-server-elixir/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 High-performance event sourcing platform with distributed architecture and AI-native tooling.
@@ -87,13 +87,17 @@ docker pull ghcr.io/all-source-os/allsource-web:0.10.1
 - WebSocket channels for real-time updates
 - Prometheus metrics and APM integration
 
-**MCP Server (43 Tools)**
-- AI-native interface via Claude Desktop
-- **Core Tools** (19): queries, time series, funnel analysis, anomaly detection, projections, schemas, snapshots
-- **Event Management** (8): delete, archive, restore, export, import, clone, merge, split
-- **Operational** (10): storage compaction, WAL status, backups, deep health checks, performance reports, audit logs
-- **Tenant Management** (6): create, update, usage, quotas, suspend, export
-- Dry-run preview mode and audit trails on all operations
+**MCP Server (61 Tools)**
+- AI-native interface via Claude Desktop or any MCP client
+- **Discover & Search** (9): quick stats, sampling, queries, semantic search, hybrid search
+- **Deep Analysis** (10): time-travel, snapshots, diffs, timelines, patterns, comparisons, multi-turn sessions
+- **Event Management** (9): ingest, delete, archive, restore, export, import, clone, merge, split
+- **Operations** (10): storage, WAL, backups, deep health, performance reports, audit, compaction
+- **Tenants** (6): create, update, usage, quotas, suspend, export
+- **Schema & Validation** (5): register, validate, migrate, infer, diff
+- **Analytics** (8): cohorts, correlations, forecasting, segments, paths, attribution, churn, LTV
+- **Developer Experience** (4): client generation, mock events, query debugging, benchmarks
+- TOON format responses (~50% fewer tokens than JSON)
 - 429 tests passing
 
 **Web Dashboard**
@@ -210,7 +214,7 @@ cd apps/mcp-server-elixir && mix test
 - Event-sourced system metadata (tenants, audit, config)
 - Control Plane v2 with Core-backed persistence and operations management
 - Sentinel failover binary for automated leader election
-- 43 MCP tools (19 core + 8 event management + 10 operational + 6 tenant)
+- 61 MCP tools across 11 categories (discover, search, analysis, mutations, operations, tenants, schemas, analytics, dev tools)
 - Event Management Tools (delete, archive, restore, export, import, clone, merge, split)
 - Operational Tools (storage, WAL, backups, health, performance, audit)
 - Tenant Management Tools (CRUD, usage, quotas, suspend, export)
