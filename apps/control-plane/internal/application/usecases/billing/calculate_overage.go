@@ -1,3 +1,4 @@
+// Package billing provides use cases for computing tenant billing overage.
 package billing
 
 import (

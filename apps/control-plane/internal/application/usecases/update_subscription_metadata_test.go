@@ -88,9 +88,14 @@ func TestUpdateSubscriptionMetadataUseCase_Execute(t *testing.T) {
 
 	t.Run("preserves non-billing metadata", func(t *testing.T) {
 		// First set some non-billing metadata
-		tenant, _ := tenantRepo.FindByID("tenant-sub-1")
+		tenant, err := tenantRepo.FindByID("tenant-sub-1")
+		if err != nil {
+			t.Fatalf("find tenant: %v", err)
+		}
 		tenant.Metadata["custom_key"] = "custom_value"
-		_ = tenantRepo.Update(tenant)
+		if err := tenantRepo.Update(tenant); err != nil {
+			t.Fatalf("update tenant: %v", err)
+		}
 
 		// Now update subscription
 		billing := &entities.TenantBillingMetadata{

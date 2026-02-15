@@ -5,6 +5,7 @@ import "time"
 // SubscriptionTier represents a billing tier.
 type SubscriptionTier string
 
+// Subscription tier constants.
 const (
 	TierFree       SubscriptionTier = "free"
 	TierStarter    SubscriptionTier = "starter"
@@ -17,7 +18,7 @@ type SubscriptionMetadata struct {
 	CustomerID         string     `json:"customer_id,omitempty"`
 	SubscriptionID     string     `json:"subscription_id,omitempty"`
 	SubscriptionItemID string     `json:"subscription_item_id,omitempty"` // LemonSqueezy subscription item for metered billing
-	Status             string     `json:"status,omitempty"`               // active, past_due, cancelled, trialing, expired
+	Status             string     `json:"status,omitempty"`               // active, past_due, canceled, trialing, expired
 	Tier               string     `json:"tier"`
 	TrialEndsAt        *time.Time `json:"trial_ends_at,omitempty"`
 	SubscriptionEndsAt *time.Time `json:"subscription_ends_at,omitempty"`

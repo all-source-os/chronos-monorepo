@@ -150,17 +150,23 @@ func TestWrapTenantWithDetailLinksJSON(t *testing.T) {
 	// All 7 links should be present
 	expectedNames := []string{"self", "stats", "usage", "billing", "audit", "events", "schemas"}
 	for _, name := range expectedNames {
-		if _, ok := links[name]; !ok {
+		if _, exists := links[name]; !exists {
 			t.Errorf("missing link: %s", name)
 		}
 	}
 
 	// Verify templated links have templated=true
-	eventsLink := links["events"].(map[string]interface{})
+	eventsLink, ok := links["events"].(map[string]interface{})
+	if !ok {
+		t.Fatal("events link not found or wrong type")
+	}
 	if eventsLink["templated"] != true {
 		t.Error("expected events link to be templated")
 	}
-	schemasLink := links["schemas"].(map[string]interface{})
+	schemasLink, ok := links["schemas"].(map[string]interface{})
+	if !ok {
+		t.Fatal("schemas link not found or wrong type")
+	}
 	if schemasLink["templated"] != true {
 		t.Error("expected schemas link to be templated")
 	}

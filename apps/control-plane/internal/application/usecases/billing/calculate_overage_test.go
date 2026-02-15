@@ -18,7 +18,9 @@ func TestCalculateOverage_Disabled(t *testing.T) {
 			"quotas":  &entities.QuotaMetadata{EventsQuota: 1000, EventsUsed: 2000},
 		},
 	}
-	_ = repo.Save(tenant)
+	if err := repo.Save(tenant); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	uc := NewCalculateOverageUseCase(repo)
 	result, err := uc.Execute("t1")
@@ -45,7 +47,9 @@ func TestCalculateOverage_EventsOnly(t *testing.T) {
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
 		},
 	}
-	_ = repo.Save(tenant)
+	if err := repo.Save(tenant); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	uc := NewCalculateOverageUseCase(repo)
 	result, err := uc.Execute("t1")
@@ -75,7 +79,9 @@ func TestCalculateOverage_QueriesOnly(t *testing.T) {
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
 		},
 	}
-	_ = repo.Save(tenant)
+	if err := repo.Save(tenant); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	uc := NewCalculateOverageUseCase(repo)
 	result, err := uc.Execute("t1")
@@ -102,7 +108,9 @@ func TestCalculateOverage_Both(t *testing.T) {
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
 		},
 	}
-	_ = repo.Save(tenant)
+	if err := repo.Save(tenant); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	uc := NewCalculateOverageUseCase(repo)
 	result, err := uc.Execute("t1")
@@ -129,7 +137,9 @@ func TestCalculateOverage_NoOverage(t *testing.T) {
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
 		},
 	}
-	_ = repo.Save(tenant)
+	if err := repo.Save(tenant); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	uc := NewCalculateOverageUseCase(repo)
 	result, err := uc.Execute("t1")
@@ -156,7 +166,9 @@ func TestCalculateOverage_UnlimitedTier(t *testing.T) {
 			"subscription": &entities.SubscriptionMetadata{Tier: "enterprise"},
 		},
 	}
-	_ = repo.Save(tenant)
+	if err := repo.Save(tenant); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	uc := NewCalculateOverageUseCase(repo)
 	result, err := uc.Execute("t1")
@@ -172,7 +184,7 @@ func TestCalculateOverage_ExecuteAll(t *testing.T) {
 	repo := persistence.NewMemoryTenantRepository()
 
 	// Tenant with overage
-	_ = repo.Save(&entities.Tenant{
+	if err := repo.Save(&entities.Tenant{
 		ID:     "t1",
 		Name:   "tenant-with-overage",
 		Status: entities.TenantStatusActive,
@@ -181,10 +193,12 @@ func TestCalculateOverage_ExecuteAll(t *testing.T) {
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 1000, QueriesQuota: 500, EventsUsed: 2000, QueriesUsed: 100},
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	// Tenant without overage
-	_ = repo.Save(&entities.Tenant{
+	if err := repo.Save(&entities.Tenant{
 		ID:     "t2",
 		Name:   "tenant-no-overage",
 		Status: entities.TenantStatusActive,
@@ -193,10 +207,12 @@ func TestCalculateOverage_ExecuteAll(t *testing.T) {
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 100, QueriesUsed: 50},
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	// Tenant with overage disabled
-	_ = repo.Save(&entities.Tenant{
+	if err := repo.Save(&entities.Tenant{
 		ID:     "t3",
 		Name:   "tenant-disabled",
 		Status: entities.TenantStatusActive,
@@ -204,7 +220,9 @@ func TestCalculateOverage_ExecuteAll(t *testing.T) {
 			"overage": &entities.OverageMetadata{Enabled: false},
 			"quotas":  &entities.QuotaMetadata{EventsQuota: 1000, EventsUsed: 5000},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	uc := NewCalculateOverageUseCase(repo)
 	results, err := uc.ExecuteAll()

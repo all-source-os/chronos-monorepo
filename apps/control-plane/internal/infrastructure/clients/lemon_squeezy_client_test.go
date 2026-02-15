@@ -51,7 +51,7 @@ func TestCreateCheckout_Success(t *testing.T) {
 				}),
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp) //nolint:errcheck // test handler
 	}))
 	defer server.Close()
 
@@ -76,7 +76,7 @@ func TestCreateCheckout_Success(t *testing.T) {
 func TestCreateCheckout_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		w.Write([]byte(`{"errors":[{"detail":"Variant not found"}]}`))
+		_, _ = w.Write([]byte(`{"errors":[{"detail":"Variant not found"}]}`)) //nolint:errcheck // test handler
 	}))
 	defer server.Close()
 
@@ -119,7 +119,7 @@ func TestGetSubscription_Success(t *testing.T) {
 				}),
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp) //nolint:errcheck // test handler
 	}))
 	defer server.Close()
 
@@ -149,7 +149,7 @@ func TestGetSubscription_Success(t *testing.T) {
 func TestGetSubscription_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"errors":[{"detail":"Not found"}]}`))
+		_, _ = w.Write([]byte(`{"errors":[{"detail":"Not found"}]}`)) //nolint:errcheck // test handler
 	}))
 	defer server.Close()
 
@@ -176,7 +176,7 @@ func TestGetCustomerPortalURL_Success(t *testing.T) {
 				}),
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp) //nolint:errcheck // test handler
 	}))
 	defer server.Close()
 
@@ -199,11 +199,11 @@ func TestGetCustomerPortalURL_NoURL(t *testing.T) {
 				Type: "subscriptions",
 				ID:   "sub-300",
 				Attributes: mustJSON(t, subscriptionAttributes{
-					Status: "cancelled",
+					Status: "canceled",
 				}),
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp) //nolint:errcheck // test handler
 	}))
 	defer server.Close()
 
@@ -254,7 +254,7 @@ func TestReportUsage_Success(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"data":{"type":"usage-records","id":"ur-1"}}`))
+		_, _ = w.Write([]byte(`{"data":{"type":"usage-records","id":"ur-1"}}`)) //nolint:errcheck // test handler
 	}))
 	defer server.Close()
 
@@ -272,7 +272,7 @@ func TestReportUsage_Success(t *testing.T) {
 func TestReportUsage_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"errors":[{"detail":"Invalid quantity"}]}`))
+		_, _ = w.Write([]byte(`{"errors":[{"detail":"Invalid quantity"}]}`)) //nolint:errcheck // test handler
 	}))
 	defer server.Close()
 

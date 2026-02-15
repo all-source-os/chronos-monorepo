@@ -45,7 +45,7 @@ func TestReportUsage_NoOverage(t *testing.T) {
 	auditRepo := persistence.NewMemoryAuditRepository()
 	lsClient := &mockLSClient{}
 
-	_ = repo.Save(&entities.Tenant{
+	if err := repo.Save(&entities.Tenant{
 		ID:     "t1",
 		Name:   "test-tenant",
 		Status: entities.TenantStatusActive,
@@ -54,7 +54,9 @@ func TestReportUsage_NoOverage(t *testing.T) {
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 5000, QueriesUsed: 2000},
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	calcUC := NewCalculateOverageUseCase(repo)
 	uc := NewReportUsageUseCase(repo, auditRepo, lsClient, calcUC)
@@ -76,7 +78,7 @@ func TestReportUsage_EventsOverage(t *testing.T) {
 	auditRepo := persistence.NewMemoryAuditRepository()
 	lsClient := &mockLSClient{}
 
-	_ = repo.Save(&entities.Tenant{
+	if err := repo.Save(&entities.Tenant{
 		ID:     "t1",
 		Name:   "test-tenant",
 		Status: entities.TenantStatusActive,
@@ -85,7 +87,9 @@ func TestReportUsage_EventsOverage(t *testing.T) {
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 15000, QueriesUsed: 3000},
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	calcUC := NewCalculateOverageUseCase(repo)
 	uc := NewReportUsageUseCase(repo, auditRepo, lsClient, calcUC)
@@ -108,7 +112,10 @@ func TestReportUsage_EventsOverage(t *testing.T) {
 	}
 
 	// Verify last_reported was updated in metadata
-	tenant, _ := repo.FindByID("t1")
+	tenant, err := repo.FindByID("t1")
+	if err != nil {
+		t.Fatalf("find tenant: %v", err)
+	}
 	overage := extractOverage(tenant.Metadata)
 	if overage.LastReportedEvents != 5000 {
 		t.Errorf("expected last_reported_events=5000, got %d", overage.LastReportedEvents)
@@ -120,7 +127,7 @@ func TestReportUsage_DoubleReportPrevention(t *testing.T) {
 	auditRepo := persistence.NewMemoryAuditRepository()
 	lsClient := &mockLSClient{}
 
-	_ = repo.Save(&entities.Tenant{
+	if err := repo.Save(&entities.Tenant{
 		ID:     "t1",
 		Name:   "test-tenant",
 		Status: entities.TenantStatusActive,
@@ -134,7 +141,9 @@ func TestReportUsage_DoubleReportPrevention(t *testing.T) {
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 15000, QueriesUsed: 3000},
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	calcUC := NewCalculateOverageUseCase(repo)
 	uc := NewReportUsageUseCase(repo, auditRepo, lsClient, calcUC)
@@ -157,7 +166,7 @@ func TestReportUsage_IncrementalReport(t *testing.T) {
 	lsClient := &mockLSClient{}
 
 	// Previously reported 3000 events overage, now at 5000
-	_ = repo.Save(&entities.Tenant{
+	if err := repo.Save(&entities.Tenant{
 		ID:     "t1",
 		Name:   "test-tenant",
 		Status: entities.TenantStatusActive,
@@ -170,7 +179,9 @@ func TestReportUsage_IncrementalReport(t *testing.T) {
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 15000, QueriesUsed: 3000},
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	calcUC := NewCalculateOverageUseCase(repo)
 	uc := NewReportUsageUseCase(repo, auditRepo, lsClient, calcUC)
@@ -196,7 +207,7 @@ func TestReportUsage_NoSubscriptionItemID(t *testing.T) {
 	auditRepo := persistence.NewMemoryAuditRepository()
 	lsClient := &mockLSClient{}
 
-	_ = repo.Save(&entities.Tenant{
+	if err := repo.Save(&entities.Tenant{
 		ID:     "t1",
 		Name:   "test-tenant",
 		Status: entities.TenantStatusActive,
@@ -205,7 +216,9 @@ func TestReportUsage_NoSubscriptionItemID(t *testing.T) {
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 15000, QueriesUsed: 3000},
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter"}, // no SubscriptionItemID
 		},
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	calcUC := NewCalculateOverageUseCase(repo)
 	uc := NewReportUsageUseCase(repo, auditRepo, lsClient, calcUC)
@@ -224,7 +237,7 @@ func TestReportUsage_BothOverage(t *testing.T) {
 	auditRepo := persistence.NewMemoryAuditRepository()
 	lsClient := &mockLSClient{}
 
-	_ = repo.Save(&entities.Tenant{
+	if err := repo.Save(&entities.Tenant{
 		ID:     "t1",
 		Name:   "test-tenant",
 		Status: entities.TenantStatusActive,
@@ -233,7 +246,9 @@ func TestReportUsage_BothOverage(t *testing.T) {
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 12000, QueriesUsed: 7000},
 			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	calcUC := NewCalculateOverageUseCase(repo)
 	uc := NewReportUsageUseCase(repo, auditRepo, lsClient, calcUC)

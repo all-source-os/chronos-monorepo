@@ -36,13 +36,15 @@ func setupWebhookHandler(t *testing.T) (*WebhookHandler, *gin.Engine) {
 	auditRepo := persistence.NewMemoryAuditRepository()
 
 	// Create a tenant to work with
-	_ = tenantRepo.Save(&entities.Tenant{
+	if err := tenantRepo.Save(&entities.Tenant{
 		ID:        "tenant-123",
 		Name:      "Test Tenant",
 		Status:    entities.TenantStatusActive,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	})
+	}); err != nil {
+		t.Fatalf("save tenant: %v", err)
+	}
 
 	updateSubUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
 	suspendUC := usecases.NewSuspendTenantUseCase(tenantRepo, auditRepo)
@@ -70,7 +72,9 @@ func TestWebhook_MissingSignature(t *testing.T) {
 	}
 
 	var resp map[string]string
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
 	if resp["error"] != "missing X-Signature header" {
 		t.Errorf("unexpected error: %s", resp["error"])
 	}
@@ -94,7 +98,9 @@ func TestWebhook_InvalidSignature(t *testing.T) {
 	}
 
 	var resp map[string]string
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
 	if resp["error"] != "invalid signature" {
 		t.Errorf("unexpected error: %s", resp["error"])
 	}
@@ -143,7 +149,10 @@ func TestWebhook_ValidSignature_SubscriptionCreated(t *testing.T) {
 		},
 	}
 
-	body, _ := json.Marshal(event)
+	body, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("marshal event: %v", err)
+	}
 	sig := signPayload(body, secret)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(string(body)))
@@ -165,13 +174,13 @@ func TestWebhook_ValidSignature_SubscriptionCancelled(t *testing.T) {
 	t.Setenv("LEMON_SQUEEZY_WEBHOOK_SECRET", secret)
 
 	event := map[string]interface{}{
-		"event_name": "subscription_cancelled",
+		"event_name": "subscription_cancelled", //nolint:misspell // LemonSqueezy API event name
 		"data": map[string]interface{}{
 			"id":   "sub-456",
 			"type": "subscriptions",
 			"attributes": map[string]interface{}{
 				"customer_id":  789,
-				"status":       "cancelled",
+				"status":       "cancelled", //nolint:misspell // LemonSqueezy API status value
 				"variant_name": "Pro",
 			},
 		},
@@ -182,7 +191,10 @@ func TestWebhook_ValidSignature_SubscriptionCancelled(t *testing.T) {
 		},
 	}
 
-	body, _ := json.Marshal(event)
+	body, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("marshal event: %v", err)
+	}
 	sig := signPayload(body, secret)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(string(body)))

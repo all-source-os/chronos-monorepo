@@ -72,8 +72,8 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) Execute(ctx context.Context, event 
 		err = uc.handleSubscriptionCreated(tenantID, event)
 	case "subscription_updated":
 		err = uc.handleSubscriptionUpdated(tenantID, event)
-	case "subscription_cancelled":
-		err = uc.handleSubscriptionCancelled(ctx, tenantID, event)
+	case "subscription_cancelled": //nolint:misspell // LemonSqueezy API event name
+		err = uc.handleSubscriptionCanceled(ctx, tenantID, event)
 	case "subscription_expired":
 		err = uc.handleSubscriptionExpired(ctx, tenantID, event)
 	case "subscription_payment_failed":
@@ -128,13 +128,13 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionUpdated(tenantID 
 	return err
 }
 
-func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCancelled(ctx context.Context, tenantID string, event LemonSqueezyWebhookEvent) error {
-	// Update subscription status to cancelled
+func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCanceled(ctx context.Context, tenantID string, event LemonSqueezyWebhookEvent) error {
+	// Update subscription status to canceled
 	billing := &entities.TenantBillingMetadata{
 		Subscription: &entities.SubscriptionMetadata{
 			SubscriptionID: event.Data.ID,
 			CustomerID:     fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
-			Status:         "cancelled",
+			Status:         "canceled",
 			Tier:           resolveTierFromVariantName(event.Data.Attributes.VariantName),
 		},
 	}
