@@ -24,13 +24,13 @@ type ScheduledTask struct {
 
 // OperationScheduler manages background operations (compaction, snapshots, etc.)
 type OperationScheduler struct {
-	operationRepo  repositories.OperationRepository
-	auditRepo      repositories.AuditRepository
-	coreClient     clients.CoreClient
-	reportUsageUC  *billing.ReportUsageUseCase
-	tasks          []ScheduledTask
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
+	operationRepo repositories.OperationRepository
+	auditRepo     repositories.AuditRepository
+	coreClient    clients.CoreClient
+	reportUsageUC *billing.ReportUsageUseCase
+	tasks         []ScheduledTask
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 // NewOperationScheduler creates a new OperationScheduler.

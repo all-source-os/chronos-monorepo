@@ -17,31 +17,31 @@ type LemonSqueezyWebhookEvent struct {
 
 // LemonSqueezyEventData holds the data object from a LemonSqueezy webhook.
 type LemonSqueezyEventData struct {
-	ID         string                          `json:"id"`
-	Type       string                          `json:"type"`
-	Attributes LemonSqueezySubscriptionAttrs   `json:"attributes"`
+	ID         string                        `json:"id"`
+	Type       string                        `json:"type"`
+	Attributes LemonSqueezySubscriptionAttrs `json:"attributes"`
 }
 
 // LemonSqueezySubscriptionAttrs holds subscription attributes from LemonSqueezy.
 type LemonSqueezySubscriptionAttrs struct {
-	StoreID        int    `json:"store_id"`
-	CustomerID     int    `json:"customer_id"`
-	ProductID      int    `json:"product_id"`
-	VariantID      int    `json:"variant_id"`
-	Status         string `json:"status"`
+	StoreID         int    `json:"store_id"`
+	CustomerID      int    `json:"customer_id"`
+	ProductID       int    `json:"product_id"`
+	VariantID       int    `json:"variant_id"`
+	Status          string `json:"status"`
 	StatusFormatted string `json:"status_formatted"`
-	ProductName    string `json:"product_name"`
-	VariantName    string `json:"variant_name"`
-	UserName       string `json:"user_name"`
-	UserEmail      string `json:"user_email"`
+	ProductName     string `json:"product_name"`
+	VariantName     string `json:"variant_name"`
+	UserName        string `json:"user_name"`
+	UserEmail       string `json:"user_email"`
 }
 
 // ProcessLemonSqueezyWebhookUseCase processes incoming LemonSqueezy webhook events.
 type ProcessLemonSqueezyWebhookUseCase struct {
-	tenantRepo    repositories.TenantRepository
-	auditRepo     repositories.AuditRepository
-	updateSubUC   *UpdateSubscriptionMetadataUseCase
-	suspendUC     *SuspendTenantUseCase
+	tenantRepo  repositories.TenantRepository
+	auditRepo   repositories.AuditRepository
+	updateSubUC *UpdateSubscriptionMetadataUseCase
+	suspendUC   *SuspendTenantUseCase
 }
 
 // NewProcessLemonSqueezyWebhookUseCase creates a new ProcessLemonSqueezyWebhookUseCase.

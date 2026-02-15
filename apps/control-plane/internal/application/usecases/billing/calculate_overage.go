@@ -49,12 +49,12 @@ func (uc *CalculateOverageUseCase) Execute(tenantID string) (*OverageResult, err
 	tierQuotas := entities.QuotasForTier(extractSubscriptionTier(tenant.Metadata))
 	if tierQuotas.IsUnlimited() {
 		return &OverageResult{
-			TenantID:    tenantID,
-			Enabled:     true,
-			EventsQuota: quotas.EventsQuota,
+			TenantID:     tenantID,
+			Enabled:      true,
+			EventsQuota:  quotas.EventsQuota,
 			QueriesQuota: quotas.QueriesQuota,
-			EventsUsed:  quotas.EventsUsed,
-			QueriesUsed: quotas.QueriesUsed,
+			EventsUsed:   quotas.EventsUsed,
+			QueriesUsed:  quotas.QueriesUsed,
 		}, nil
 	}
 

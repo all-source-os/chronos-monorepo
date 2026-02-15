@@ -57,16 +57,16 @@ type CheckoutResponse struct {
 
 // SubscriptionResponse contains subscription details from LemonSqueezy.
 type SubscriptionResponse struct {
-	ID                    string `json:"id"`
-	Status                string `json:"status"`
-	VariantID             int    `json:"variant_id"`
-	ProductID             int    `json:"product_id"`
-	CustomerID            int    `json:"customer_id"`
-	CardBrand             string `json:"card_brand,omitempty"`
-	CardLastFour          string `json:"card_last_four,omitempty"`
-	RenewsAt              string `json:"renews_at,omitempty"`
-	EndsAt                string `json:"ends_at,omitempty"`
-	CustomerPortalURL     string `json:"customer_portal_url,omitempty"`
+	ID                     string `json:"id"`
+	Status                 string `json:"status"`
+	VariantID              int    `json:"variant_id"`
+	ProductID              int    `json:"product_id"`
+	CustomerID             int    `json:"customer_id"`
+	CardBrand              string `json:"card_brand,omitempty"`
+	CardLastFour           string `json:"card_last_four,omitempty"`
+	RenewsAt               string `json:"renews_at,omitempty"`
+	EndsAt                 string `json:"ends_at,omitempty"`
+	CustomerPortalURL      string `json:"customer_portal_url,omitempty"`
 	UpdatePaymentMethodURL string `json:"update_payment_method_url,omitempty"`
 }
 
@@ -84,9 +84,9 @@ type jsonAPIData struct {
 }
 
 type checkoutAttributes struct {
-	StoreID  int    `json:"store_id,omitempty"`
-	URL      string `json:"url,omitempty"`
-	CheckoutData *checkoutDataAttrs `json:"checkout_data,omitempty"`
+	StoreID        int                  `json:"store_id,omitempty"`
+	URL            string               `json:"url,omitempty"`
+	CheckoutData   *checkoutDataAttrs   `json:"checkout_data,omitempty"`
 	ProductOptions *productOptionsAttrs `json:"product_options,omitempty"`
 }
 
@@ -101,17 +101,17 @@ type productOptionsAttrs struct {
 }
 
 type subscriptionAttributes struct {
-	Status                 string `json:"status"`
-	StoreID                int    `json:"store_id"`
-	CustomerID             int    `json:"customer_id"`
-	OrderID                int    `json:"order_id"`
-	ProductID              int    `json:"product_id"`
-	VariantID              int    `json:"variant_id"`
-	CardBrand              string `json:"card_brand"`
-	CardLastFour           string `json:"card_last_four"`
-	RenewsAt               string `json:"renews_at"`
-	EndsAt                 string `json:"ends_at"`
-	URLs                   subscriptionURLs `json:"urls"`
+	Status       string           `json:"status"`
+	StoreID      int              `json:"store_id"`
+	CustomerID   int              `json:"customer_id"`
+	OrderID      int              `json:"order_id"`
+	ProductID    int              `json:"product_id"`
+	VariantID    int              `json:"variant_id"`
+	CardBrand    string           `json:"card_brand"`
+	CardLastFour string           `json:"card_last_four"`
+	RenewsAt     string           `json:"renews_at"`
+	EndsAt       string           `json:"ends_at"`
+	URLs         subscriptionURLs `json:"urls"`
 }
 
 type subscriptionURLs struct {

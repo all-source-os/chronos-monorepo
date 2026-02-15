@@ -38,10 +38,10 @@ type projectedChargesHALResponse struct {
 func billingLinks(tenantID string) map[string]Link {
 	return map[string]Link{
 		"self":              SelfLink("/api/v1/billing/checkout"),
-		"portal":           NewLink("/api/v1/billing/portal", WithTitle("Customer Portal")),
-		"overage":          NewLink(fmt.Sprintf("/api/v1/billing/overage?tenant_id=%s", tenantID), WithTitle("Overage Summary")),
+		"portal":            NewLink("/api/v1/billing/portal", WithTitle("Customer Portal")),
+		"overage":           NewLink(fmt.Sprintf("/api/v1/billing/overage?tenant_id=%s", tenantID), WithTitle("Overage Summary")),
 		"projected-charges": NewLink(fmt.Sprintf("/api/v1/billing/projected-charges?tenant_id=%s", tenantID), WithTitle("Projected Charges")),
-		"tenant":           NewLink(fmt.Sprintf("/api/v1/tenants/%s", tenantID), WithTitle("Tenant")),
+		"tenant":            NewLink(fmt.Sprintf("/api/v1/tenants/%s", tenantID), WithTitle("Tenant")),
 	}
 }
 
@@ -56,10 +56,10 @@ func portalLinks(tenantID string) map[string]Link {
 func overageLinks(tenantID string) map[string]Link {
 	return map[string]Link{
 		"self":              SelfLink(fmt.Sprintf("/api/v1/billing/overage?tenant_id=%s", tenantID)),
-		"enable":           NewLink("/api/v1/billing/overage/enable", WithTitle("Enable Overage")),
-		"disable":          NewLink("/api/v1/billing/overage/disable", WithTitle("Disable Overage")),
+		"enable":            NewLink("/api/v1/billing/overage/enable", WithTitle("Enable Overage")),
+		"disable":           NewLink("/api/v1/billing/overage/disable", WithTitle("Disable Overage")),
 		"projected-charges": NewLink(fmt.Sprintf("/api/v1/billing/projected-charges?tenant_id=%s", tenantID), WithTitle("Projected Charges")),
-		"tenant":           NewLink(fmt.Sprintf("/api/v1/tenants/%s", tenantID), WithTitle("Tenant")),
+		"tenant":            NewLink(fmt.Sprintf("/api/v1/tenants/%s", tenantID), WithTitle("Tenant")),
 	}
 }
 

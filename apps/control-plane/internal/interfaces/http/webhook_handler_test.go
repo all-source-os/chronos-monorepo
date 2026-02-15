@@ -130,9 +130,9 @@ func TestWebhook_ValidSignature_SubscriptionCreated(t *testing.T) {
 			"id":   "sub-456",
 			"type": "subscriptions",
 			"attributes": map[string]interface{}{
-				"store_id":    1,
-				"customer_id": 789,
-				"status":      "active",
+				"store_id":     1,
+				"customer_id":  789,
+				"status":       "active",
 				"variant_name": "Pro",
 			},
 		},

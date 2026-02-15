@@ -34,13 +34,13 @@ type QuotaMetadata struct {
 
 // OverageMetadata holds overage billing data stored in Core tenant metadata.
 type OverageMetadata struct {
-	Enabled              bool    `json:"enabled"`
-	EventRate            float64 `json:"event_rate,omitempty"`              // cost per event over quota
-	QueryRate            float64 `json:"query_rate,omitempty"`              // cost per query over quota
-	EventsOverage        int64   `json:"events_overage"`
-	QueriesOverage       int64   `json:"queries_overage"`
-	LastReportedEvents   int64   `json:"last_reported_events,omitempty"`    // last reported overage to prevent double-reporting
-	LastReportedQueries  int64   `json:"last_reported_queries,omitempty"`   // last reported overage to prevent double-reporting
+	Enabled             bool    `json:"enabled"`
+	EventRate           float64 `json:"event_rate,omitempty"` // cost per event over quota
+	QueryRate           float64 `json:"query_rate,omitempty"` // cost per query over quota
+	EventsOverage       int64   `json:"events_overage"`
+	QueriesOverage      int64   `json:"queries_overage"`
+	LastReportedEvents  int64   `json:"last_reported_events,omitempty"`  // last reported overage to prevent double-reporting
+	LastReportedQueries int64   `json:"last_reported_queries,omitempty"` // last reported overage to prevent double-reporting
 }
 
 // TenantBillingMetadata is the top-level structure for all billing-related

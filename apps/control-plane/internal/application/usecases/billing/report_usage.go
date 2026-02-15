@@ -36,11 +36,11 @@ func NewReportUsageUseCase(
 
 // ReportResult holds the result of a single tenant's overage report.
 type ReportResult struct {
-	TenantID       string
-	EventsReported int64
+	TenantID        string
+	EventsReported  int64
 	QueriesReported int64
-	Skipped        bool
-	Error          error
+	Skipped         bool
+	Error           error
 }
 
 // Execute reports overage for a single tenant, computing the delta since the last report.

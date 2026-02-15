@@ -6,16 +6,16 @@ import (
 
 func TestQuotasForTier(t *testing.T) {
 	tests := []struct {
-		tier         string
-		wantEvents   int64
-		wantQueries  int64
+		tier        string
+		wantEvents  int64
+		wantQueries int64
 	}{
 		{"free", 10_000, 5_000},
 		{"starter", 100_000, 50_000},
 		{"pro", 1_000_000, 100_000},
 		{"enterprise", -1, -1},
-		{"unknown", 10_000, 5_000},   // defaults to free
-		{"", 10_000, 5_000},           // defaults to free
+		{"unknown", 10_000, 5_000}, // defaults to free
+		{"", 10_000, 5_000},        // defaults to free
 	}
 
 	for _, tt := range tests {
