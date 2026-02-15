@@ -1,8 +1,8 @@
 ---
 title: "AllSource Event Store - AllSource Monorepo"
 status: CURRENT
-last_updated: 2026-02-11
-version: "0.10.0"
+last_updated: 2026-02-15
+version: "0.10.1"
 ---
 
 # AllSource Event Store - AllSource Monorepo
@@ -11,9 +11,9 @@ version: "0.10.0"
 [![Container CI](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml)
 [![Docker Build](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml)
 [![Release](https://img.shields.io/github/v/release/all-source-os/all-source?label=release)](https://github.com/all-source-os/all-source/releases/latest)
-[![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.10.0-green.svg)](apps/core/)
-[![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v0.10.0-blue.svg)](apps/control-plane/)
-[![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-v0.10.0-purple.svg)](apps/query-service/)
+[![Rust Core](https://img.shields.io/badge/Rust%20Core-v0.10.1-green.svg)](apps/core/)
+[![Go Control Plane](https://img.shields.io/badge/Go%20Control%20Plane-v0.10.1-blue.svg)](apps/control-plane/)
+[![Elixir Query Service](https://img.shields.io/badge/Elixir%20Query-v0.10.1-purple.svg)](apps/query-service/)
 [![MCP Server](https://img.shields.io/badge/MCP%20Server-43%20Tools-orange.svg)](apps/mcp-server-elixir/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -38,10 +38,10 @@ Production-optimized containers with minimal footprint:
 
 | Service | Image | Version | Size | Base |
 |---------|-------|:-------:|:----:|------|
-| **Core** | `ghcr.io/all-source-os/allsource-core` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-core) | **15.7 MB** | Distroless |
-| **Control Plane** | `ghcr.io/all-source-os/allsource-control-plane` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-control-plane) | **27.9 MB** | Distroless |
-| **Query Service** | `ghcr.io/all-source-os/allsource-query-service` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-query-service) | **35.1 MB** | Alpine |
-| **Web** | `ghcr.io/all-source-os/allsource-web` | [![v0.10.0](https://img.shields.io/badge/ghcr-v0.10.0-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-web) | **~50 MB** | Alpine |
+| **Core** | `ghcr.io/all-source-os/allsource-core` | [![v0.10.1](https://img.shields.io/badge/ghcr-v0.10.1-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-core) | **15.7 MB** | Distroless |
+| **Control Plane** | `ghcr.io/all-source-os/allsource-control-plane` | [![v0.10.1](https://img.shields.io/badge/ghcr-v0.10.1-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-control-plane) | **27.9 MB** | Distroless |
+| **Query Service** | `ghcr.io/all-source-os/allsource-query-service` | [![v0.10.1](https://img.shields.io/badge/ghcr-v0.10.1-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-query-service) | **35.1 MB** | Alpine |
+| **Web** | `ghcr.io/all-source-os/allsource-web` | [![v0.10.1](https://img.shields.io/badge/ghcr-v0.10.1-blue?logo=github)](https://github.com/all-source-os/all-source/pkgs/container/allsource-web) | **~50 MB** | Alpine |
 
 **Total production footprint: ~129 MB** (excluding database)
 
@@ -50,17 +50,17 @@ Production-optimized containers with minimal footprint:
 docker compose up -d
 
 # Or pull specific version from GHCR
-docker pull ghcr.io/all-source-os/allsource-core:0.10.0
-docker pull ghcr.io/all-source-os/allsource-control-plane:0.10.0
-docker pull ghcr.io/all-source-os/allsource-query-service:0.10.0
-docker pull ghcr.io/all-source-os/allsource-web:0.10.0
+docker pull ghcr.io/all-source-os/allsource-core:0.10.1
+docker pull ghcr.io/all-source-os/allsource-control-plane:0.10.1
+docker pull ghcr.io/all-source-os/allsource-query-service:0.10.1
+docker pull ghcr.io/all-source-os/allsource-web:0.10.1
 ```
 
 ---
 
 ## Project Status
 
-### Current Release: v0.10.0 (February 2026)
+### Current Release: v0.10.1 (February 2026)
 
 **Rust Core**
 - Event store with 469K events/sec throughput
@@ -75,11 +75,14 @@ docker pull ghcr.io/all-source-os/allsource-web:0.10.0
 - Policy enforcement engine
 - OpenTelemetry distributed tracing
 - Authenticated proxying to Core
+- Billing integration with LemonSqueezy webhooks
+- HAL hypermedia API responses
+- OpenAPI specification
 
-**Elixir Query Service**
-- Query DSL with fluent Elixir pipes
-- GenServer-based projections with OTP supervision
-- Event pipelines (Filter, Transform, Enrich, Validate, Route, Aggregate)
+**Elixir Query Service** (stateless API gateway)
+- Stateless design — no PostgreSQL dependency
+- JWT & API key authentication via Control Plane
+- Tenant cache and usage reporting to Control Plane
 - Phoenix HTTP API with OpenAPI spec
 - WebSocket channels for real-time updates
 - Prometheus metrics and APM integration
@@ -194,10 +197,18 @@ cd apps/mcp-server-elixir && mix test
 
 ## Roadmap
 
+### Completed (v0.10.1)
+- Query Service refactored to stateless API gateway (PostgreSQL removed)
+- JWT & API key auth delegated to Control Plane
+- Tenant cache and usage reporting in Query Service
+- Control Plane billing integration (LemonSqueezy webhooks)
+- HAL hypermedia responses across Control Plane API
+- OpenAPI specification for Control Plane
+
 ### Completed (v0.10.0)
 - Leader-follower replication via WAL shipping
 - Event-sourced system metadata (tenants, audit, config)
-- Control Plane v2 with PostgreSQL persistence and operations management
+- Control Plane v2 with Core-backed persistence and operations management
 - Sentinel failover binary for automated leader election
 - 43 MCP tools (19 core + 8 event management + 10 operational + 6 tenant)
 - Event Management Tools (delete, archive, restore, export, import, clone, merge, split)
@@ -225,17 +236,17 @@ cd apps/mcp-server-elixir && mix test
 
 ## Version Management
 
-All services maintain consistent versioning at **v0.10.0**.
+All services maintain consistent versioning at **v0.10.1**.
 
 ### Version Reference
 
 | Service | File | Current |
 |---------|------|:-------:|
-| Core | `apps/core/Cargo.toml` | 0.10.0 |
-| Control Plane | `apps/control-plane/main.go` | 0.10.0 |
-| Query Service | `apps/query-service/mix.exs` | 0.10.0 |
-| MCP Server | `apps/mcp-server-elixir/mix.exs` | 0.10.0 |
-| K8s Manifests | `deploy/k8s/*.yaml` | 0.10.0 |
+| Core | `apps/core/Cargo.toml` | 0.10.1 |
+| Control Plane | `apps/control-plane/main.go` | 0.10.1 |
+| Query Service | `apps/query-service/mix.exs` | 0.10.1 |
+| MCP Server | `apps/mcp-server-elixir/mix.exs` | 0.10.1 |
+| K8s Manifests | `deploy/k8s/*.yaml` | 0.10.1 |
 
 See [Release Guide](docs/guides/RELEASE.md#version-locations) for the full list of version locations including docs and UI.
 
@@ -243,7 +254,7 @@ See [Release Guide](docs/guides/RELEASE.md#version-locations) for the full list 
 
 ```bash
 make check-versions    # Verify consistency
-make set-version VERSION=0.10.0  # Update all
+make set-version VERSION=0.10.1  # Update all
 make bump-version      # Interactive bump
 ```
 
@@ -263,5 +274,5 @@ make bump-version      # Interactive bump
 
 ---
 
-**Last Updated**: February 12, 2026
-**Version**: v0.10.0
+**Last Updated**: February 15, 2026
+**Version**: v0.10.1
