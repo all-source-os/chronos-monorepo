@@ -19,7 +19,8 @@ control-plane
 # Documentation
 *.md
 !README.md
-docs/
+docs/*.md
+!docs/openapi.yaml
 
 # Test artifacts
 *_test.go
