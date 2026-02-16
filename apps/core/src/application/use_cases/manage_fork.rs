@@ -240,11 +240,25 @@ impl AppendForkEventUseCase {
 /// Marks a fork as merged and optionally commits its events to the parent store.
 pub struct MergeForkUseCase {
     repository: Arc<dyn ForkRepository>,
+    event_store: Option<Arc<crate::store::EventStore>>,
 }
 
 impl MergeForkUseCase {
     pub fn new(repository: Arc<dyn ForkRepository>) -> Self {
-        Self { repository }
+        Self {
+            repository,
+            event_store: None,
+        }
+    }
+
+    pub fn with_event_store(
+        repository: Arc<dyn ForkRepository>,
+        event_store: Arc<crate::store::EventStore>,
+    ) -> Self {
+        Self {
+            repository,
+            event_store: Some(event_store),
+        }
     }
 
     pub async fn execute(&self, request: MergeForkRequest) -> Result<MergeForkResponse> {
@@ -257,10 +271,23 @@ impl MergeForkUseCase {
         })?;
 
         let events_count = fork.event_count();
+        let mut events_committed = 0u64;
 
-        // TODO: If commit_events is true, apply events to parent/main store
-        // This would require injecting an EventRepository and implementing
-        // the actual event commit logic
+        // If commit_events is true, apply fork events to the main store
+        if request.commit_events {
+            if let Some(ref store) = self.event_store {
+                let fork_events = fork.all_events();
+                for event in fork_events {
+                    store.ingest(event.clone())?;
+                    events_committed += 1;
+                }
+            } else {
+                return Err(crate::error::AllSourceError::InternalError(
+                    "Cannot commit events: event store not configured for merge use case"
+                        .to_string(),
+                ));
+            }
+        }
 
         // Mark as merged
         fork.mark_merged()?;
@@ -268,11 +295,7 @@ impl MergeForkUseCase {
 
         Ok(MergeForkResponse {
             fork: ForkDto::from(&fork),
-            events_committed: if request.commit_events {
-                events_count
-            } else {
-                0
-            },
+            events_committed,
         })
     }
 }

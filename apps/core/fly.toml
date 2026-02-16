@@ -1,5 +1,6 @@
 # Fly.io Configuration for AllSource Core
-# Deploy: flyctl deploy --app allsource-core
+# Deploy from monorepo root (Core Dockerfile needs workspace context):
+#   flyctl deploy --config apps/core/fly.toml --dockerfile apps/core/Dockerfile
 # Scale: flyctl scale count 2 --app allsource-core
 
 app = "allsource-core"
@@ -10,7 +11,7 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
 
 [env]
   RUST_LOG = "allsource_core=info,tower_http=info"
-  ALLSOURCE_HOST = "0.0.0.0"
+  ALLSOURCE_HOST = "::"
   # PORT is automatically set by Fly.io
 
 [http_service]
@@ -18,7 +19,7 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
   force_https = true
   auto_stop_machines = true
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["app"]
 
   [http_service.concurrency]
@@ -38,8 +39,6 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
   cpus = 1
   memory_mb = 512
 
-# For persistent storage (optional - AllSource uses in-memory by default)
-# Uncomment and configure if you need data persistence across restarts
-# [mounts]
-#   source = "allsource_data"
-#   destination = "/app/data"
+[mounts]
+  source = "allsource_data"
+  destination = "/app/data"

@@ -116,6 +116,10 @@ defmodule QueryServiceExWeb.Router do
 
     # Dev token endpoint (only works when AUTH_DISABLED=true)
     get("/dev-token", AuthController, :dev_token)
+
+    # OAuth provider routes (redirect to Google/GitHub, handle callback)
+    get("/:provider", OAuthController, :authorize)
+    get("/:provider/callback", OAuthController, :callback)
   end
 
   # -------------------------------------------------------------------
@@ -172,6 +176,18 @@ defmodule QueryServiceExWeb.Router do
     delete("/projections/:name", ProjectionController, :delete)
     get("/projections/:name/state", ProjectionController, :get_state)
     post("/projections/:name/reset", ProjectionController, :reset)
+  end
+
+  # Webhook subscription management endpoints
+  scope "/api", QueryServiceExWeb do
+    pipe_through([:tenant_scoped, :rate_limited])
+
+    get("/webhooks", WebhookSubscriptionController, :index)
+    post("/webhooks", WebhookSubscriptionController, :create)
+    get("/webhooks/:id", WebhookSubscriptionController, :show)
+    put("/webhooks/:id", WebhookSubscriptionController, :update)
+    delete("/webhooks/:id", WebhookSubscriptionController, :delete)
+    get("/webhooks/:id/deliveries", WebhookSubscriptionController, :deliveries)
   end
 
   # Schema endpoints

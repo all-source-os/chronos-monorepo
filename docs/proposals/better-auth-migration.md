@@ -157,7 +157,7 @@ Better Auth runs inside the Next.js app (API route handler). It manages its own 
 - `DATABASE_URL` — Better Auth needs direct Postgres access (may reuse Query Service's DB or separate)
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — reuse existing
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` — reuse existing
-- `JWKS_URL` — for Query Service config (e.g., `https://app.allsource.io/api/auth/.well-known/jwks.json`)
+- `JWKS_URL` — for Query Service config (e.g., `https://all-source.xyz/api/auth/.well-known/jwks.json`)
 
 ---
 

@@ -14,7 +14,11 @@ defmodule QueryServiceExWeb.HAL do
       %{"tenant" => %{href: "/api/v1/tenants/{tenant_id}", templated: true, title: "Tenant"}}
   """
 
-  @type link :: %{required(:href) => String.t(), optional(:templated) => boolean(), optional(:title) => String.t()}
+  @type link :: %{
+          required(:href) => String.t(),
+          optional(:templated) => boolean(),
+          optional(:title) => String.t()
+        }
   @type links :: %{optional(String.t()) => link()}
 
   @doc """

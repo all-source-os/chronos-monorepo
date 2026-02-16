@@ -33,8 +33,8 @@ All images are published to GitHub Container Registry (GHCR):
 | Image | Description | Port |
 |-------|-------------|------|
 | `ghcr.io/all-source-os/allsource-core` | High-performance Rust event store | 3900 |
-| `ghcr.io/all-source-os/allsource-query-service` | Elixir query service with SQL interface | 4000 |
-| `ghcr.io/all-source-os/allsource-control-plane` | Go enterprise orchestration | 8080 |
+| `ghcr.io/all-source-os/allsource-query-service` | Elixir API gateway (stateless) | 3902 |
+| `ghcr.io/all-source-os/allsource-control-plane` | Go auth, billing, operations | 3901 |
 | `ghcr.io/all-source-os/allsource-web` | Next.js web dashboard | 3000 |
 | `ghcr.io/all-source-os/allsource-mcp-server` | Model Context Protocol server for AI integration | 4001 |
 
@@ -69,46 +69,39 @@ services:
       timeout: 10s
       retries: 3
 
+  allsource-control-plane:
+    image: ghcr.io/all-source-os/allsource-control-plane:latest
+    ports:
+      - "3901:3901"
+    environment:
+      - CORE_URL=http://allsource-core:3900
+      - JWT_SECRET=your-jwt-secret
+    depends_on:
+      - allsource-core
+
   allsource-query:
     image: ghcr.io/all-source-os/allsource-query-service:latest
     ports:
-      - "4000:4000"
+      - "3902:3902"
     environment:
-      - ALLSOURCE_CORE_URL=http://allsource-core:3900
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/allsource
-      - REDIS_URL=redis://redis:6379
+      - CORE_URL=http://allsource-core:3900
+      - CONTROL_PLANE_URL=http://allsource-control-plane:3901
+      - SECRET_KEY_BASE=generate-with-mix-phx-gen-secret
     depends_on:
       - allsource-core
-      - postgres
-      - redis
+      - allsource-control-plane
 
   allsource-web:
     image: ghcr.io/all-source-os/allsource-web:latest
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - NEXT_PUBLIC_API_URL=http://localhost:3902
     depends_on:
       - allsource-query
 
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_DB=allsource
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis-data:/data
-
 volumes:
   allsource-data:
-  postgres-data:
-  redis-data:
 ```
 
 Start the stack:
@@ -143,17 +136,19 @@ docker run -d \
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ALLSOURCE_CORE_URL` | URL of allsource-core | Required |
-| `DATABASE_URL` | PostgreSQL connection string | Required |
-| `REDIS_URL` | Redis connection string | Required |
-| `PORT` | HTTP server port | `4000` |
+| `CORE_URL` | URL of allsource-core | Required |
+| `CONTROL_PLANE_URL` | URL of control plane | `http://localhost:3901` |
+| `PORT` | HTTP server port | `3902` |
 | `SECRET_KEY_BASE` | Phoenix secret key | Required for prod |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | Optional |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Optional |
 
 ### allsource-control-plane
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PORT` | HTTP server port | `8080` |
+| `PORT` | HTTP server port | `3901` |
+| `CORE_URL` | URL of allsource-core | Required |
 | `JWT_SECRET` | JWT signing secret | Required |
 | `JAEGER_ENDPOINT` | Jaeger tracing endpoint | Optional |
 

@@ -5,7 +5,7 @@ last_updated: 2026-02-15
 category: service
 port: 3900
 technology: Rust
-version: "0.10.1"
+version: "0.10.3"
 ---
 
 # AllSource Core - High-Performance Event Store
@@ -20,7 +20,7 @@ version: "0.10.1"
 [![Performance](https://img.shields.io/badge/throughput-469K%20events%2Fsec-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 
-**Current Version**: v0.10.1 | [crates.io](https://crates.io/crates/allsource-core) | [docs.rs](https://docs.rs/allsource-core)
+**Current Version**: v0.10.3 | [crates.io](https://crates.io/crates/allsource-core) | [docs.rs](https://docs.rs/allsource-core)
 
 ## What is AllSource Core?
 
@@ -44,7 +44,7 @@ AllSource Core is a Rust-native event store that replaces the traditional "app +
 
 ```bash
 # Start the server
-docker run -p 3900:3900 ghcr.io/all-source-os/allsource-core:0.10.1
+docker run -p 3900:3900 ghcr.io/all-source-os/allsource-core:0.10.3
 
 # Ingest an event
 curl -X POST http://localhost:3900/api/v1/events \

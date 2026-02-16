@@ -131,38 +131,67 @@ mod tests {
             Ok(())
         }
 
-        async fn find_by_id(&self, _id: Uuid) -> Result<Option<Event>> {
-            unimplemented!()
+        async fn find_by_id(&self, id: Uuid) -> Result<Option<Event>> {
+            let events = self.events.lock().unwrap();
+            Ok(events.iter().find(|e| e.id() == id).cloned())
         }
 
-        async fn find_by_entity(&self, _entity_id: &str, _tenant_id: &str) -> Result<Vec<Event>> {
-            unimplemented!()
+        async fn find_by_entity(&self, entity_id: &str, tenant_id: &str) -> Result<Vec<Event>> {
+            let events = self.events.lock().unwrap();
+            Ok(events
+                .iter()
+                .filter(|e| e.entity_id_str() == entity_id && e.tenant_id_str() == tenant_id)
+                .cloned()
+                .collect())
         }
 
-        async fn find_by_type(&self, _event_type: &str, _tenant_id: &str) -> Result<Vec<Event>> {
-            unimplemented!()
+        async fn find_by_type(&self, event_type: &str, tenant_id: &str) -> Result<Vec<Event>> {
+            let events = self.events.lock().unwrap();
+            Ok(events
+                .iter()
+                .filter(|e| e.event_type_str() == event_type && e.tenant_id_str() == tenant_id)
+                .cloned()
+                .collect())
         }
 
         async fn find_by_time_range(
             &self,
-            _tenant_id: &str,
-            _start: chrono::DateTime<Utc>,
-            _end: chrono::DateTime<Utc>,
+            tenant_id: &str,
+            start: chrono::DateTime<Utc>,
+            end: chrono::DateTime<Utc>,
         ) -> Result<Vec<Event>> {
-            unimplemented!()
+            let events = self.events.lock().unwrap();
+            Ok(events
+                .iter()
+                .filter(|e| e.tenant_id_str() == tenant_id && e.occurred_between(start, end))
+                .cloned()
+                .collect())
         }
 
         async fn find_by_entity_as_of(
             &self,
-            _entity_id: &str,
-            _tenant_id: &str,
-            _as_of: chrono::DateTime<Utc>,
+            entity_id: &str,
+            tenant_id: &str,
+            as_of: chrono::DateTime<Utc>,
         ) -> Result<Vec<Event>> {
-            unimplemented!()
+            let events = self.events.lock().unwrap();
+            Ok(events
+                .iter()
+                .filter(|e| {
+                    e.entity_id_str() == entity_id
+                        && e.tenant_id_str() == tenant_id
+                        && e.occurred_before(as_of)
+                })
+                .cloned()
+                .collect())
         }
 
-        async fn count(&self, _tenant_id: &str) -> Result<usize> {
-            unimplemented!()
+        async fn count(&self, tenant_id: &str) -> Result<usize> {
+            let events = self.events.lock().unwrap();
+            Ok(events
+                .iter()
+                .filter(|e| e.tenant_id_str() == tenant_id)
+                .count())
         }
 
         async fn health_check(&self) -> Result<()> {

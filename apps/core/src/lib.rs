@@ -96,6 +96,9 @@ pub mod security;
 /// Shared test fixture builders for integration tests and cross-crate use
 pub mod test_utils;
 
+/// Async webhook delivery worker
+pub mod webhook_worker;
+
 // =============================================================================
 // Public API - Commonly Used Types
 // =============================================================================
@@ -107,8 +110,9 @@ pub use domain::{entities, entities::Event, repositories};
 pub use application::{
     dto::{IngestEventRequest, QueryEventsRequest},
     services::{
-        AnalyticsEngine, Pipeline, PipelineConfig, PipelineManager, ProjectionManager,
-        ReplayManager, SchemaRegistry, TenantManager,
+        AnalyticsEngine, ExactlyOnceConfig, ExactlyOnceRegistry, Pipeline, PipelineConfig,
+        PipelineManager, ProjectionManager, ReplayManager, SchemaEvolutionManager, SchemaRegistry,
+        TenantManager,
     },
 };
 
@@ -166,6 +170,37 @@ pub mod api_v1 {
 pub mod replication {
     pub use crate::infrastructure::replication::{
         FollowerReplicationStatus, ReplicationMode, ReplicationStatus, WalReceiver, WalShipper,
+    };
+}
+
+/// Cluster module re-export
+pub mod cluster {
+    pub use crate::infrastructure::cluster::{
+        ClusterManager, ClusterMember, ClusterStatus, ConflictResolution, CrdtResolver,
+        GeoReplicationConfig, GeoReplicationManager, GeoReplicationStatus, GeoSyncRequest,
+        GeoSyncResponse, HlcTimestamp, HybridLogicalClock, MemberRole, Node, NodeRegistry,
+        PeerHealth, PeerRegion, PeerStatus, ReplicatedEvent, RequestRouter, VersionVector,
+        VoteRequest, VoteResponse,
+    };
+}
+
+/// RESP3 (Redis wire protocol) server re-export
+pub mod resp {
+    pub use crate::infrastructure::resp::RespServer;
+}
+
+/// Advanced query features re-export (v2.0)
+pub mod query {
+    pub use crate::infrastructure::query::{
+        eventql::{EventQLRequest, EventQLResponse, execute_eventql},
+        geospatial::{
+            BoundingBox, Coordinate, GeoEventResult, GeoIndex, GeoQueryRequest, RadiusQuery,
+            execute_geo_query, haversine_distance,
+        },
+        graphql::{
+            GraphQLError, GraphQLRequest, GraphQLResponse, QueryField, event_to_json,
+            introspection_schema, parse_query,
+        },
     };
 }
 

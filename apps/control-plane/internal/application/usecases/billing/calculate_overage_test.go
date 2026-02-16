@@ -44,7 +44,7 @@ func TestCalculateOverage_EventsOnly(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true, EventRate: 0.001},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 15000, QueriesUsed: 3000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro"},
 		},
 	}
 	if err := repo.Save(tenant); err != nil {
@@ -76,7 +76,7 @@ func TestCalculateOverage_QueriesOnly(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true, QueryRate: 0.002},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 8000, QueriesUsed: 7000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro"},
 		},
 	}
 	if err := repo.Save(tenant); err != nil {
@@ -105,7 +105,7 @@ func TestCalculateOverage_Both(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true, EventRate: 0.001, QueryRate: 0.002},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 12000, QueriesUsed: 6000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro"},
 		},
 	}
 	if err := repo.Save(tenant); err != nil {
@@ -134,7 +134,7 @@ func TestCalculateOverage_NoOverage(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 5000, QueriesUsed: 2000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro"},
 		},
 	}
 	if err := repo.Save(tenant); err != nil {
@@ -163,7 +163,7 @@ func TestCalculateOverage_UnlimitedTier(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: -1, QueriesQuota: -1, EventsUsed: 999999},
-			"subscription": &entities.SubscriptionMetadata{Tier: "enterprise"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "team"},
 		},
 	}
 	if err := repo.Save(tenant); err != nil {
@@ -191,7 +191,7 @@ func TestCalculateOverage_ExecuteAll(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 1000, QueriesQuota: 500, EventsUsed: 2000, QueriesUsed: 100},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro"},
 		},
 	}); err != nil {
 		t.Fatalf("save tenant: %v", err)
@@ -205,7 +205,7 @@ func TestCalculateOverage_ExecuteAll(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 100, QueriesUsed: 50},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro"},
 		},
 	}); err != nil {
 		t.Fatalf("save tenant: %v", err)

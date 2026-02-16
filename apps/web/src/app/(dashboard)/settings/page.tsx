@@ -205,7 +205,7 @@ export default function SettingsPage() {
                       <Label htmlFor="workspace-slug">Workspace URL</Label>
                       <div className="mt-1.5 flex">
                         <span className="flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-sm text-muted-foreground">
-                          allsource.dev/
+                          all-source.xyz/
                         </span>
                         <Input
                           id="workspace-slug"

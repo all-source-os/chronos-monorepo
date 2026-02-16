@@ -110,7 +110,7 @@ defmodule QueryServiceExWeb.Plugs.ApiKeyAuth do
   # Subscription status helpers that work with both Ecto Tenant structs and Core maps
 
   defp subscription_active?(tenant) do
-    get_subscription_status(tenant) in ~w(trialing active)a ++ ["trialing", "active"]
+    get_subscription_status(tenant) in (~w(trialing active)a ++ ["trialing", "active"])
   end
 
   defp get_subscription_status(%{subscription_status: status}) when not is_nil(status), do: status

@@ -32,7 +32,8 @@ defmodule QueryServiceEx.UsageReporter do
   @doc """
   Record a usage increment for a tenant. Buffered and flushed asynchronously.
   """
-  def record(tenant_id, count \\ 1) when is_binary(tenant_id) and is_integer(count) and count > 0 do
+  def record(tenant_id, count \\ 1)
+      when is_binary(tenant_id) and is_integer(count) and count > 0 do
     GenServer.cast(__MODULE__, {:record, tenant_id, count})
   end
 
@@ -111,7 +112,10 @@ defmodule QueryServiceEx.UsageReporter do
   @impl true
   def terminate(_reason, state) do
     if map_size(state.buffer) > 0 do
-      Logger.info("[UsageReporter] Flushing #{map_size(state.buffer)} pending increments on shutdown")
+      Logger.info(
+        "[UsageReporter] Flushing #{map_size(state.buffer)} pending increments on shutdown"
+      )
+
       do_flush(state)
     end
 

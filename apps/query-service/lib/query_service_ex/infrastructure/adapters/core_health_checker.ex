@@ -116,11 +116,14 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker do
 
   defp probe_health(url) do
     client =
-      Tesla.client([
-        {Tesla.Middleware.BaseUrl, url},
-        Tesla.Middleware.JSON,
-        {Tesla.Middleware.Timeout, timeout: @health_timeout_ms}
-      ])
+      Tesla.client(
+        [
+          {Tesla.Middleware.BaseUrl, url},
+          Tesla.Middleware.JSON,
+          {Tesla.Middleware.Timeout, timeout: @health_timeout_ms}
+        ],
+        {Tesla.Adapter.Hackney, [connect_options: [:inet6]]}
+      )
 
     case Tesla.get(client, "/health") do
       {:ok, %Tesla.Env{status: 200, body: body}} when is_map(body) ->

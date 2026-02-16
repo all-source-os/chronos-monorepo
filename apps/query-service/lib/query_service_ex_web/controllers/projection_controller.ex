@@ -126,74 +126,102 @@ defmodule QueryServiceExWeb.ProjectionController do
 
   operation(:delete,
     summary: "Delete projection",
-    description: "Delete a projection by name. (Not yet implemented)",
+    description:
+      "Delete (clear) a projection by name. The projection definition remains but its state is cleared.",
     security: [%{"bearer_auth" => []}],
     parameters: [
       name: [in: :path, type: :string, description: "Projection name", required: true]
     ],
     responses: [
       ok: {"Projection deleted", "application/json", Common.SimpleError},
-      not_found: {"Projection not found", "application/json", Common.SimpleError},
-      not_implemented: {"Not implemented", "application/json", Common.SimpleError}
+      not_found: {"Projection not found", "application/json", Common.SimpleError}
     ]
   )
 
   @doc """
-  Delete a projection.
+  Delete (clear) a projection.
   """
-  def delete(conn, %{"name" => _name}) do
-    # Note: RustCoreClient doesn't have delete_projection yet
-    conn
-    |> put_status(:not_implemented)
-    |> json(%{error: "Projection deletion not yet implemented"})
+  def delete(conn, %{"name" => name}) do
+    case RustCoreClient.delete_projection(name) do
+      {:ok, result} ->
+        json(conn, %{data: result})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Projection not found"})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
   end
 
   operation(:get_state,
     summary: "Get projection state",
-    description: "Get the current state of a projection. (Not yet implemented)",
+    description: "Get the aggregate state of a projection across all entities.",
     security: [%{"bearer_auth" => []}],
     parameters: [
       name: [in: :path, type: :string, description: "Projection name", required: true]
     ],
     responses: [
       ok: {"Projection state", "application/json", Projections.ProjectionStateResponse},
-      not_found: {"Projection not found", "application/json", Common.SimpleError},
-      not_implemented: {"Not implemented", "application/json", Common.SimpleError}
+      not_found: {"Projection not found", "application/json", Common.SimpleError}
     ]
   )
 
   @doc """
-  Get projection state.
+  Get projection state summary.
   """
-  def get_state(conn, %{"name" => _name}) do
-    # Note: This would query the projection state from storage
-    conn
-    |> put_status(:not_implemented)
-    |> json(%{error: "Projection state query not yet implemented"})
+  def get_state(conn, %{"name" => name}) do
+    case RustCoreClient.get_projection_state_summary(name) do
+      {:ok, state} ->
+        json(conn, %{data: state})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Projection not found"})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
   end
 
   operation(:reset,
     summary: "Reset projection",
-    description: "Reset a projection to its initial state. (Not yet implemented)",
+    description: "Reset a projection to its initial state and reprocess all events.",
     security: [%{"bearer_auth" => []}],
     parameters: [
       name: [in: :path, type: :string, description: "Projection name", required: true]
     ],
     responses: [
       ok: {"Projection reset", "application/json", Projections.ProjectionResponse},
-      not_found: {"Projection not found", "application/json", Common.SimpleError},
-      not_implemented: {"Not implemented", "application/json", Common.SimpleError}
+      not_found: {"Projection not found", "application/json", Common.SimpleError}
     ]
   )
 
   @doc """
   Reset a projection to initial state.
   """
-  def reset(conn, %{"name" => _name}) do
-    # Note: This would trigger projection reset
-    conn
-    |> put_status(:not_implemented)
-    |> json(%{error: "Projection reset not yet implemented"})
+  def reset(conn, %{"name" => name}) do
+    case RustCoreClient.reset_projection(name) do
+      {:ok, result} ->
+        json(conn, %{data: result})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Projection not found"})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
   end
 
   @doc """

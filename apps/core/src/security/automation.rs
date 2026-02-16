@@ -376,14 +376,121 @@ impl SecurityScanner {
     }
 
     /// Check dependency licenses
+    ///
+    /// Runs `cargo license --json` and flags dependencies with restricted licenses
+    /// (GPL-3.0, AGPL-3.0, SSPL). Falls back to `cargo metadata` parsing if
+    /// cargo-license is not installed.
     fn check_licenses(&self) -> Result<Vec<SecurityFinding>> {
-        let findings = Vec::new();
-
-        // Restricted licenses (example list)
         let restricted_licenses = ["GPL-3.0", "AGPL-3.0", "SSPL"];
 
-        // In production, use cargo-license or similar tool
-        // For now, this is a placeholder
+        // Try cargo-license first (produces clean JSON output)
+        let output = Command::new("cargo").args(["license", "--json"]).output();
+
+        match output {
+            Ok(output) if output.status.success() => {
+                Self::parse_license_findings(&output.stdout, &restricted_licenses)
+            }
+            _ => {
+                // Fallback: parse cargo metadata for license fields
+                let output = Command::new("cargo")
+                    .args(["metadata", "--format-version", "1", "--no-deps"])
+                    .output();
+
+                match output {
+                    Ok(output) if output.status.success() => {
+                        Self::parse_metadata_license_findings(&output.stdout, &restricted_licenses)
+                    }
+                    _ => {
+                        eprintln!(
+                            "License check unavailable - install with: cargo install cargo-license"
+                        );
+                        Ok(Vec::new())
+                    }
+                }
+            }
+        }
+    }
+
+    /// Parse `cargo license --json` output for restricted licenses
+    fn parse_license_findings(stdout: &[u8], restricted: &[&str]) -> Result<Vec<SecurityFinding>> {
+        let mut findings = Vec::new();
+
+        let output_str = String::from_utf8_lossy(stdout);
+        // cargo-license --json returns an array of objects with "name", "version", "license"
+        if let Ok(entries) = serde_json::from_str::<Vec<serde_json::Value>>(&output_str) {
+            for entry in entries {
+                let license = entry.get("license").and_then(|v| v.as_str()).unwrap_or("");
+                let name = entry
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let version = entry.get("version").and_then(|v| v.as_str()).unwrap_or("?");
+
+                for restricted_license in restricted {
+                    if license.contains(restricted_license) {
+                        findings.push(SecurityFinding {
+                            id: format!("LIC-{:03}", findings.len() + 1),
+                            title: format!("Restricted license: {license}"),
+                            description: format!(
+                                "Dependency {name}@{version} uses {license} which is restricted"
+                            ),
+                            severity: Severity::High,
+                            category: FindingCategory::LicenseIssue,
+                            component: format!("{name}@{version}"),
+                            fix: Some(format!(
+                                "Replace {name} with an alternative under a permissive license"
+                            )),
+                            cve: None,
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(findings)
+    }
+
+    /// Parse `cargo metadata` output as fallback for license scanning
+    fn parse_metadata_license_findings(
+        stdout: &[u8],
+        restricted: &[&str],
+    ) -> Result<Vec<SecurityFinding>> {
+        let mut findings = Vec::new();
+
+        let output_str = String::from_utf8_lossy(stdout);
+        if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&output_str)
+            && let Some(packages) = metadata.get("packages").and_then(|v| v.as_array())
+        {
+            for pkg in packages {
+                let license = pkg.get("license").and_then(|v| v.as_str()).unwrap_or("");
+                let name = pkg
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let version = pkg.get("version").and_then(|v| v.as_str()).unwrap_or("?");
+
+                for restricted_license in restricted {
+                    if license.contains(restricted_license) {
+                        findings.push(SecurityFinding {
+                            id: format!("LIC-{:03}", findings.len() + 1),
+                            title: format!("Restricted license: {license}"),
+                            description: format!(
+                                "Dependency {name}@{version} uses {license} which is restricted"
+                            ),
+                            severity: Severity::High,
+                            category: FindingCategory::LicenseIssue,
+                            component: format!("{name}@{version}"),
+                            fix: Some(format!(
+                                "Replace {name} with an alternative under a permissive license"
+                            )),
+                            cve: None,
+                        });
+                        break;
+                    }
+                }
+            }
+        }
 
         Ok(findings)
     }
@@ -801,6 +908,96 @@ mod tests {
     fn test_get_last_result_none() {
         let scanner = SecurityScanner::new(SecurityScanConfig::default());
         assert!(scanner.get_last_result().is_none());
+    }
+
+    #[test]
+    fn test_parse_license_findings_detects_gpl3() {
+        let json = r#"[
+            {"name": "safe-lib", "version": "1.0.0", "license": "MIT"},
+            {"name": "gpl-lib", "version": "2.0.0", "license": "GPL-3.0"},
+            {"name": "dual-lib", "version": "0.5.0", "license": "MIT/Apache-2.0"}
+        ]"#;
+        let restricted = ["GPL-3.0", "AGPL-3.0", "SSPL"];
+        let findings =
+            SecurityScanner::parse_license_findings(json.as_bytes(), &restricted).unwrap();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].component, "gpl-lib@2.0.0");
+        assert!(findings[0].title.contains("GPL-3.0"));
+        assert_eq!(findings[0].severity, Severity::High);
+    }
+
+    #[test]
+    fn test_parse_license_findings_detects_agpl() {
+        let json = r#"[
+            {"name": "agpl-thing", "version": "3.1.0", "license": "AGPL-3.0-only"}
+        ]"#;
+        let restricted = ["GPL-3.0", "AGPL-3.0", "SSPL"];
+        let findings =
+            SecurityScanner::parse_license_findings(json.as_bytes(), &restricted).unwrap();
+        assert_eq!(findings.len(), 1);
+        assert!(findings[0].description.contains("agpl-thing"));
+    }
+
+    #[test]
+    fn test_parse_license_findings_detects_sspl() {
+        let json = r#"[
+            {"name": "sspl-db", "version": "1.0.0", "license": "SSPL-1.0"}
+        ]"#;
+        let restricted = ["GPL-3.0", "AGPL-3.0", "SSPL"];
+        let findings =
+            SecurityScanner::parse_license_findings(json.as_bytes(), &restricted).unwrap();
+        assert_eq!(findings.len(), 1);
+        assert!(findings[0].title.contains("SSPL"));
+    }
+
+    #[test]
+    fn test_parse_license_findings_no_restricted() {
+        let json = r#"[
+            {"name": "lib-a", "version": "1.0.0", "license": "MIT"},
+            {"name": "lib-b", "version": "2.0.0", "license": "Apache-2.0"},
+            {"name": "lib-c", "version": "3.0.0", "license": "BSD-3-Clause"}
+        ]"#;
+        let restricted = ["GPL-3.0", "AGPL-3.0", "SSPL"];
+        let findings =
+            SecurityScanner::parse_license_findings(json.as_bytes(), &restricted).unwrap();
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_license_findings_empty_input() {
+        let json = r#"[]"#;
+        let restricted = ["GPL-3.0", "AGPL-3.0", "SSPL"];
+        let findings =
+            SecurityScanner::parse_license_findings(json.as_bytes(), &restricted).unwrap();
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_metadata_license_findings() {
+        let json = r#"{
+            "packages": [
+                {"name": "ok-lib", "version": "1.0.0", "license": "MIT"},
+                {"name": "bad-lib", "version": "0.1.0", "license": "GPL-3.0-or-later"}
+            ]
+        }"#;
+        let restricted = ["GPL-3.0", "AGPL-3.0", "SSPL"];
+        let findings =
+            SecurityScanner::parse_metadata_license_findings(json.as_bytes(), &restricted).unwrap();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].component, "bad-lib@0.1.0");
+    }
+
+    #[test]
+    fn test_parse_license_findings_multiple_restricted() {
+        let json = r#"[
+            {"name": "gpl-lib", "version": "1.0.0", "license": "GPL-3.0"},
+            {"name": "agpl-lib", "version": "2.0.0", "license": "AGPL-3.0"},
+            {"name": "sspl-lib", "version": "3.0.0", "license": "SSPL-1.0"}
+        ]"#;
+        let restricted = ["GPL-3.0", "AGPL-3.0", "SSPL"];
+        let findings =
+            SecurityScanner::parse_license_findings(json.as_bytes(), &restricted).unwrap();
+        assert_eq!(findings.len(), 3);
     }
 
     #[test]

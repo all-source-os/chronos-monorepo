@@ -89,7 +89,7 @@ Transform AllSource from infrastructure tooling into a complete SaaS platform th
 │  (Substack, Medium, WordPress, Ghost, Custom HTML)      │
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
-│  <script src="https://paywall.allsource.dev/widget.js">  │
+│  <script src="https://paywall.all-source.xyz/widget.js">  │
 │  <div data-allsource-paywall                              │
 │       data-price="0.50"                                  │
 │       data-article-id="my-article-slug">                │
@@ -168,7 +168,7 @@ Add block → AllSource Paywall → Set price → Add content
 **Ghost Integration:**
 ```html
 <!-- Settings > Code Injection -->
-<script src="https://paywall.allsource.dev/widget.js"
+<script src="https://paywall.all-source.xyz/widget.js"
         data-creator-id="{{@site.uuid}}"></script>
 
 <!-- In posts -->
@@ -261,7 +261,7 @@ Features:
 ```
 LinkedIn Post:
 "I just wrote about scaling to 1M users.
-Read it here: https://pay.allsource.dev/sarah/scaling-guide"
+Read it here: https://pay.all-source.xyz/sarah/scaling-guide"
 
 ↓ Click
 
@@ -284,7 +284,7 @@ POST /api/landing-pages
   redirect_url: "https://myblog.com/article" // optional
 }
 
-Response: { url: "https://pay.allsource.dev/sarah/scaling-guide" }
+Response: { url: "https://pay.all-source.xyz/sarah/scaling-guide" }
 ```
 
 **Benefits:**
@@ -1178,7 +1178,7 @@ Add micropayments to any blog in 2 minutes."
 3. Done
 
 [Show code simplicity]
-<script src="paywall.allsource.dev/widget.js"></script>
+<script src="paywall.all-source.xyz/widget.js"></script>
 
 "Works on WordPress, Ghost, even Substack via extension."
 ```
@@ -1273,7 +1273,7 @@ Only event sourcing enables this."
 
 [Screen: Landing page URL]
 
-Join the waitlist: paywall.allsource.dev
+Join the waitlist: paywall.all-source.xyz
 
 Built on AllSource event store."
 ```

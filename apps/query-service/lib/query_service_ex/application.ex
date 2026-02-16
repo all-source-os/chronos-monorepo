@@ -24,34 +24,35 @@ defmodule QueryServiceEx.Application do
     # Get cluster topology child_spec (nil if clustering disabled)
     cluster_children = cluster_children()
 
-    children = [
-          # PubSub for event broadcasting (must start before cluster components)
-          {Phoenix.PubSub, name: QueryServiceEx.PubSub},
+    children =
+      [
+        # PubSub for event broadcasting (must start before cluster components)
+        {Phoenix.PubSub, name: QueryServiceEx.PubSub},
 
-          # Prometheus metrics exporter (must start before other services emit telemetry)
-          QueryServiceEx.PrometheusMetrics,
+        # Prometheus metrics exporter (must start before other services emit telemetry)
+        QueryServiceEx.PrometheusMetrics,
 
-          # Rate limiter for per-tenant request throttling
-          QueryServiceEx.RateLimiter,
+        # Rate limiter for per-tenant request throttling
+        QueryServiceEx.RateLimiter,
 
-          # Circuit breaker for Core backend calls
-          {QueryServiceEx.CircuitBreaker, name: QueryServiceEx.CircuitBreaker},
+        # Circuit breaker for Core backend calls
+        {QueryServiceEx.CircuitBreaker, name: QueryServiceEx.CircuitBreaker},
 
-          # ETS cache for tenant data (invalidated by Control Plane webhooks)
-          QueryServiceEx.TenantCache,
+        # ETS cache for tenant data (invalidated by Control Plane webhooks)
+        QueryServiceEx.TenantCache,
 
-          # ETS cache for verified API key lookups (120s TTL)
-          QueryServiceEx.ApiKeyCache,
+        # ETS cache for verified API key lookups (120s TTL)
+        QueryServiceEx.ApiKeyCache,
 
-          # Async usage increment reporter (buffers and flushes to Core)
-          QueryServiceEx.UsageReporter,
+        # Async usage increment reporter (buffers and flushes to Core)
+        QueryServiceEx.UsageReporter,
 
-          # ETS cache for analytics results
-          QueryServiceEx.Infrastructure.Adapters.AnalyticsCache,
+        # ETS cache for analytics results
+        QueryServiceEx.Infrastructure.Adapters.AnalyticsCache,
 
-          # Health checker for Core read nodes (polls /health, tracks lag in ETS)
-          QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
-        ] ++
+        # Health checker for Core read nodes (polls /health, tracks lag in ETS)
+        QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
+      ] ++
         cluster_children ++
         integration_children() ++
         [

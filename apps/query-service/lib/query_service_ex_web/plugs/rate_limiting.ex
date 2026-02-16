@@ -69,6 +69,7 @@ defmodule QueryServiceExWeb.Plugs.RateLimiting do
   end
 
   defp get_subscription_tier(%{subscription_tier: tier}) when is_atom(tier), do: tier
+
   defp get_subscription_tier(tenant) when is_map(tenant) do
     case get_in(tenant, ["metadata", "subscription", "tier"]) do
       nil -> :free
@@ -76,6 +77,7 @@ defmodule QueryServiceExWeb.Plugs.RateLimiting do
       tier when is_binary(tier) -> String.to_existing_atom(tier)
     end
   end
+
   defp get_subscription_tier(_), do: :free
 
   defp get_tenant_id(%{id: id}), do: id

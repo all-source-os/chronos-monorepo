@@ -1,5 +1,7 @@
 # AllSource C4 Architecture Diagrams (Mermaid)
 
+> **Updated 2026-02-16**: Corrected for v0.10.3. Removed PostgreSQL and Redis (not used in current architecture). Fixed MCP Server tool count (61, not 27). Query Service is stateless.
+
 These diagrams follow the C4 model for visualizing software architecture.
 Render in any Mermaid-compatible tool (GitHub, Notion, VS Code, etc.)
 
@@ -56,11 +58,9 @@ C4Container
         Container(controlPlane, "Control Plane", "Go 1.24, Gin", "Authentication, RBAC, audit logging, request routing")
         Container(core, "Event Store Core", "Rust 1.92, Axum", "High-performance event storage, indexing, schemas, projections")
         Container(queryService, "Query Service", "Elixir 1.17, Phoenix", "Advanced queries, real-time subscriptions, pipeline processing")
-        Container(mcpServer, "MCP Server", "Elixir, JSON-RPC", "27 AI-native tools for natural language interaction")
+        Container(mcpServer, "MCP Server", "Elixir, JSON-RPC", "61 AI-native tools for natural language interaction")
 
         ContainerDb(storage, "Event Storage", "Parquet + WAL", "Columnar storage with write-ahead log for durability")
-        ContainerDb(postgres, "PostgreSQL", "PostgreSQL 15", "Audit logs, metadata, user accounts")
-        ContainerDb(redis, "Redis", "Redis 7", "Caching, session management")
     }
 
     Rel(user, web, "Uses", "HTTPS")
@@ -73,9 +73,6 @@ C4Container
     Rel(mcpServer, queryService, "Executes queries", "HTTP/Internal")
 
     Rel(core, storage, "Reads/writes events")
-    Rel(controlPlane, postgres, "Stores audit logs")
-    Rel(queryService, redis, "Caches results")
-    Rel(queryService, postgres, "Stores projections")
 
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
@@ -320,9 +317,7 @@ C4Deployment
         }
 
         Deployment_Node(dataNs, "data namespace") {
-            ContainerDb(pgPod, "PostgreSQL", "StatefulSet", "Audit logs, metadata")
-            ContainerDb(redisPod, "Redis", "StatefulSet", "Caching")
-            ContainerDb(pvcs, "Persistent Volumes", "SSD", "Event storage")
+            ContainerDb(pvcs, "Persistent Volumes", "SSD", "Event storage (WAL + Parquet)")
         }
 
         Deployment_Node(monitorNs, "monitoring namespace") {
@@ -338,8 +333,6 @@ C4Deployment
     Rel(cpPod, qsPod, "Internal")
     Rel(mcpPod, corePod, "Internal")
     Rel(corePod, pvcs, "Reads/Writes")
-    Rel(cpPod, pgPod, "Stores logs")
-    Rel(qsPod, redisPod, "Caches")
 ```
 
 ---

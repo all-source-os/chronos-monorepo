@@ -49,7 +49,7 @@ export default function BillingPage() {
 
   const handleUpgrade = async (planTier: string) => {
     if (planTier === "enterprise") {
-      window.open("mailto:sales@allsource.co?subject=Enterprise%20Plan%20Inquiry", "_blank");
+      window.open("mailto:sales@all-source.xyz?subject=Enterprise%20Plan%20Inquiry", "_blank");
       return;
     }
     try {

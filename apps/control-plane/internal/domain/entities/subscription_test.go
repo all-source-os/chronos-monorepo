@@ -11,9 +11,8 @@ func TestQuotasForTier(t *testing.T) {
 		wantQueries int64
 	}{
 		{"free", 10_000, 5_000},
-		{"starter", 100_000, 50_000},
-		{"pro", 1_000_000, 100_000},
-		{"enterprise", -1, -1},
+		{"pro", 500_000, 100_000},
+		{"team", 5_000_000, 1_000_000},
 		{"unknown", 10_000, 5_000}, // defaults to free
 		{"", 10_000, 5_000},        // defaults to free
 	}
@@ -37,9 +36,10 @@ func TestTierQuotas_IsUnlimited(t *testing.T) {
 		q    TierQuotas
 		want bool
 	}{
-		{"enterprise", TierQuotaMap[TierEnterprise], true},
 		{"free", TierQuotaMap[TierFree], false},
 		{"pro", TierQuotaMap[TierPro], false},
+		{"team", TierQuotaMap[TierTeam], false},
+		{"custom_unlimited", TierQuotas{EventsQuota: -1, QueriesQuota: -1}, true},
 	}
 
 	for _, tt := range tests {

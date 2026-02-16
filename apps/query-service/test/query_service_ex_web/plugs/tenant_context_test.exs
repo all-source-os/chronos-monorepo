@@ -335,6 +335,48 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
     end
   end
 
+  describe "call/2 dev mode (AUTH_DISABLED)" do
+    setup do
+      # Enable dev mode for these tests
+      System.put_env("AUTH_DISABLED", "true")
+
+      on_exit(fn ->
+        System.delete_env("AUTH_DISABLED")
+      end)
+    end
+
+    test "sets dev tenant context with string-keyed map" do
+      conn = conn(:get, "/api/events")
+
+      result = TenantContext.call(conn, TenantContext.init([]))
+
+      refute result.halted
+      assert result.assigns[:current_tenant]["id"] == "00000000-0000-0000-0000-000000000002"
+      assert result.assigns[:tenant_id] == "00000000-0000-0000-0000-000000000002"
+      assert result.private[:allsource_tenant_id] == "00000000-0000-0000-0000-000000000002"
+    end
+
+    test "dev tenant has active subscription status" do
+      conn = conn(:get, "/api/events")
+
+      result = TenantContext.call(conn, TenantContext.init([]))
+
+      tenant = result.assigns[:current_tenant]
+      assert tenant["status"] == "active"
+      assert get_in(tenant, ["metadata", "subscription", "status"]) == "active"
+    end
+
+    test "dev tenant context works without current_user assigned" do
+      # In dev mode, no user is needed — the plug should not crash
+      conn = conn(:get, "/api/events")
+
+      result = TenantContext.call(conn, TenantContext.init([]))
+
+      refute result.halted
+      assert is_binary(result.assigns[:tenant_id])
+    end
+  end
+
   describe "subscription_required response includes metadata" do
     test "includes trial_ends_at and subscription_ends_at from metadata" do
       tenant_id = generate_uuid()
@@ -376,6 +418,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
 
   defp generate_uuid do
     <<a::32, b::16, c::16, d::16, e::48>> = :crypto.strong_rand_bytes(16)
+
     <<a::32, b::16, 4::4, c::12, 2::2, d::14, e::48>>
     |> Base.encode16(case: :lower)
     |> then(fn hex ->

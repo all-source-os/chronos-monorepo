@@ -4,7 +4,7 @@ pub mod adaptive_rate_limit;
 /// Comprehensive security features including:
 /// - ML-based anomaly detection
 /// - Field-level encryption
-/// - HSM/KMS integration
+/// - Local KMS key management
 /// - Adaptive rate limiting
 /// - Security automation and CI/CD scanning
 pub mod anomaly_detection;

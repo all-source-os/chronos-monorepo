@@ -132,7 +132,15 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
   end
 
   defp attempt_connection(url, name, extra_headers, state) do
-    case WebSockex.start_link(url, __MODULE__, state, name: name, extra_headers: extra_headers) do
+    # Enable IPv6 for Fly.io .internal DNS (resolves to fdaa:: addresses)
+    ws_opts = [
+      name: name,
+      extra_headers: extra_headers,
+      socket_connect_timeout: 10_000,
+      conn_opts: [transport_opts: [:inet6]]
+    ]
+
+    case WebSockex.start_link(url, __MODULE__, state, ws_opts) do
       {:ok, pid} ->
         {:ok, pid}
 
@@ -183,7 +191,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
 
     case WebSockex.start_link(url, __MODULE__, %{state | reconnect_attempts: attempt},
            name: name,
-           extra_headers: extra_headers
+           extra_headers: extra_headers,
+           socket_connect_timeout: 10_000,
+           conn_opts: [transport_opts: [:inet6]]
          ) do
       {:ok, _pid} ->
         Logger.info("[CoreWebSocketClient] Connected after #{attempt} retries")

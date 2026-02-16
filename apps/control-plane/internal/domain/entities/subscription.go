@@ -5,12 +5,11 @@ import "time"
 // SubscriptionTier represents a billing tier.
 type SubscriptionTier string
 
-// Subscription tier constants.
+// Subscription tier constants matching LemonSqueezy products.
 const (
-	TierFree       SubscriptionTier = "free"
-	TierStarter    SubscriptionTier = "starter"
-	TierPro        SubscriptionTier = "pro"
-	TierEnterprise SubscriptionTier = "enterprise"
+	TierFree SubscriptionTier = "free" // 10K events/mo
+	TierPro  SubscriptionTier = "pro"  // $29/mo, 500K events/mo
+	TierTeam SubscriptionTier = "team" // $99/mo, 5M events/mo
 )
 
 // SubscriptionMetadata holds billing/subscription data stored in Core tenant metadata.
@@ -20,6 +19,7 @@ type SubscriptionMetadata struct {
 	SubscriptionItemID string     `json:"subscription_item_id,omitempty"` // LemonSqueezy subscription item for metered billing
 	Status             string     `json:"status,omitempty"`               // active, past_due, canceled, trialing, expired
 	Tier               string     `json:"tier"`
+	PaymentProvider    string     `json:"payment_provider,omitempty"` // "lemonsqueezy" or "stripe"
 	TrialEndsAt        *time.Time `json:"trial_ends_at,omitempty"`
 	SubscriptionEndsAt *time.Time `json:"subscription_ends_at,omitempty"`
 }
@@ -60,10 +60,9 @@ type TierQuotas struct {
 
 // TierQuotaMap maps tiers to their quota limits.
 var TierQuotaMap = map[SubscriptionTier]TierQuotas{
-	TierFree:       {EventsQuota: 10_000, QueriesQuota: 5_000},
-	TierStarter:    {EventsQuota: 100_000, QueriesQuota: 50_000},
-	TierPro:        {EventsQuota: 1_000_000, QueriesQuota: 100_000},
-	TierEnterprise: {EventsQuota: -1, QueriesQuota: -1}, // -1 = unlimited
+	TierFree: {EventsQuota: 10_000, QueriesQuota: 5_000},
+	TierPro:  {EventsQuota: 500_000, QueriesQuota: 100_000},
+	TierTeam: {EventsQuota: 5_000_000, QueriesQuota: 1_000_000},
 }
 
 // QuotasForTier returns the quota limits for the given tier.

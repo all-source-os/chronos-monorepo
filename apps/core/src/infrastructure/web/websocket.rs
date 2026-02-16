@@ -43,6 +43,11 @@ impl WebSocketManager {
         let _ = self.event_tx.send(event);
     }
 
+    /// Subscribe to the event broadcast channel (used by RESP3 SUBSCRIBE).
+    pub fn subscribe_events(&self) -> broadcast::Receiver<Arc<Event>> {
+        self.event_tx.subscribe()
+    }
+
     /// Handle a new WebSocket connection
     pub async fn handle_socket(&self, socket: WebSocket) {
         let client_id = Uuid::new_v4();

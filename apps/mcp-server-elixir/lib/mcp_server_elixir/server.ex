@@ -45,7 +45,12 @@ defmodule McpServerElixir.Server do
     control_plane_enabled = System.get_env("ALLSOURCE_CONTROL_URL") != nil
 
     if read_only, do: Logger.info("🔒 Read-only mode enabled")
-    unless control_plane_enabled, do: Logger.info("ℹ️  Control plane not configured (set ALLSOURCE_CONTROL_URL to enable tenant tools)")
+
+    unless control_plane_enabled,
+      do:
+        Logger.info(
+          "ℹ️  Control plane not configured (set ALLSOURCE_CONTROL_URL to enable tenant tools)"
+        )
 
     {:ok,
      %{

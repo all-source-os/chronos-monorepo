@@ -83,15 +83,22 @@ defmodule QueryServiceExWeb.HealthController do
   """
   def ready(conn, _params) do
     checks = perform_readiness_checks()
-    all_healthy = Enum.all?(checks, fn {_name, status} -> status == :healthy end)
+
+    # Readiness requires backend (Core HTTP) to be healthy.
+    # WebSocket is optional — degraded WS doesn't block traffic routing.
+    backend_healthy =
+      Enum.all?(checks, fn
+        {:websocket, _status} -> true
+        {_name, status} -> status == :healthy
+      end)
 
     response = %{
-      status: if(all_healthy, do: "ready", else: "not_ready"),
+      status: if(backend_healthy, do: "ready", else: "not_ready"),
       checks: format_checks(checks),
       timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
     }
 
-    status_code = if all_healthy, do: :ok, else: :service_unavailable
+    status_code = if backend_healthy, do: :ok, else: :service_unavailable
 
     conn
     |> put_status(status_code)

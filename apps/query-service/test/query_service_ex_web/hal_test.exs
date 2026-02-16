@@ -29,7 +29,10 @@ defmodule QueryServiceExWeb.HALTest do
 
     test "creates a link with both templated and title" do
       result = HAL.link("events", "/events/{id}", templated: true, title: "Event detail")
-      assert result == %{"events" => %{href: "/events/{id}", templated: true, title: "Event detail"}}
+
+      assert result == %{
+               "events" => %{href: "/events/{id}", templated: true, title: "Event detail"}
+             }
     end
 
     test "omits templated when false" do
@@ -47,7 +50,11 @@ defmodule QueryServiceExWeb.HALTest do
     test "merges two link maps" do
       a = HAL.self("/events/1")
       b = HAL.link("tenant", "/tenants/t1")
-      assert HAL.merge(a, b) == %{"self" => %{href: "/events/1"}, "tenant" => %{href: "/tenants/t1"}}
+
+      assert HAL.merge(a, b) == %{
+               "self" => %{href: "/events/1"},
+               "tenant" => %{href: "/tenants/t1"}
+             }
     end
 
     test "later map overrides duplicate keys" do
@@ -109,10 +116,11 @@ defmodule QueryServiceExWeb.HALTest do
 
   describe "JSON output format" do
     test "links serialize correctly to JSON" do
-      links = HAL.merge(
-        HAL.self("/api/v1/events/42"),
-        HAL.link("tenant", "/api/v1/tenants/{id}", templated: true, title: "Parent tenant")
-      )
+      links =
+        HAL.merge(
+          HAL.self("/api/v1/events/42"),
+          HAL.link("tenant", "/api/v1/tenants/{id}", templated: true, title: "Parent tenant")
+        )
 
       response = HAL.wrap(%{id: "42", type: "click"}, links)
       json = Jason.encode!(response)

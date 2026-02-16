@@ -122,7 +122,7 @@ EXAMPLES:
     # Show configuration
     allsource-admin config show
 
-For more information, visit: https://docs.allsource.io
+For more information, visit: https://docs.all-source.xyz
 "#
     );
 }

@@ -93,42 +93,33 @@ defmodule QueryServiceExWeb.ProjectionControllerTest do
   end
 
   describe "delete/2" do
-    test "returns not implemented status" do
+    test "returns error when Core is unavailable" do
       conn = build_json_conn(:delete, "/api/projections/some_projection")
 
-      # Call the controller action directly
       result = ProjectionController.delete(conn, %{"name" => "some_projection"})
 
-      assert result.status == 501
-
-      response = Jason.decode!(result.resp_body)
-      assert response["error"] =~ "not yet implemented"
+      # Core is not running in test — expect an error status
+      assert result.status in [400, 502, 503]
     end
   end
 
   describe "get_state/2" do
-    test "returns not implemented status" do
+    test "returns error when Core is unavailable" do
       conn = build_json_conn(:get, "/api/projections/some_projection/state")
 
       result = ProjectionController.get_state(conn, %{"name" => "some_projection"})
 
-      assert result.status == 501
-
-      response = Jason.decode!(result.resp_body)
-      assert response["error"] =~ "not yet implemented"
+      assert result.status in [400, 502, 503]
     end
   end
 
   describe "reset/2" do
-    test "returns not implemented status" do
+    test "returns error when Core is unavailable" do
       conn = build_json_conn(:post, "/api/projections/some_projection/reset")
 
       result = ProjectionController.reset(conn, %{"name" => "some_projection"})
 
-      assert result.status == 501
-
-      response = Jason.decode!(result.resp_body)
-      assert response["error"] =~ "not yet implemented"
+      assert result.status in [400, 502, 503]
     end
   end
 end

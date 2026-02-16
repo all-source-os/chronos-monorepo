@@ -18,10 +18,10 @@
 **Commands:**
 ```bash
 # Google OAuth: https://console.cloud.google.com/apis/credentials
-# Callback: https://allsource.allsource.dev/api/auth/google/callback
+# Callback: https://all-source.xyz/api/auth/google/callback
 
 # GitHub OAuth: https://github.com/settings/developers
-# Callback: https://allsource.allsource.dev/api/auth/github/callback
+# Callback: https://all-source.xyz/api/auth/github/callback
 
 # Fly.io setup
 fly apps create allsource-core
@@ -130,7 +130,7 @@ fly secrets set GITHUB_CLIENT_SECRET=xxx --app allsource-query-service
 
 # App secrets
 fly secrets set SECRET_KEY_BASE=$(mix phx.gen.secret) --app allsource-query-service
-fly secrets set PHX_HOST=allsource.allsource.dev --app allsource-query-service
+fly secrets set PHX_HOST=all-source.xyz --app allsource-query-service
 
 # Billing (for Day 3-5)
 fly secrets set LEMON_SQUEEZY_API_KEY=xxx --app allsource-query-service

@@ -52,7 +52,7 @@ func TestReportUsage_NoOverage(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 5000, QueriesUsed: 2000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro", SubscriptionItemID: "si_1"},
 		},
 	}); err != nil {
 		t.Fatalf("save tenant: %v", err)
@@ -85,7 +85,7 @@ func TestReportUsage_EventsOverage(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true, EventRate: 0.001},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 15000, QueriesUsed: 3000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro", SubscriptionItemID: "si_1"},
 		},
 	}); err != nil {
 		t.Fatalf("save tenant: %v", err)
@@ -139,7 +139,7 @@ func TestReportUsage_DoubleReportPrevention(t *testing.T) {
 				LastReportedQueries: 0,
 			},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 15000, QueriesUsed: 3000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro", SubscriptionItemID: "si_1"},
 		},
 	}); err != nil {
 		t.Fatalf("save tenant: %v", err)
@@ -177,7 +177,7 @@ func TestReportUsage_IncrementalReport(t *testing.T) {
 				LastReportedEvents: 3000,
 			},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 15000, QueriesUsed: 3000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro", SubscriptionItemID: "si_1"},
 		},
 	}); err != nil {
 		t.Fatalf("save tenant: %v", err)
@@ -214,7 +214,7 @@ func TestReportUsage_NoSubscriptionItemID(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 15000, QueriesUsed: 3000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter"}, // no SubscriptionItemID
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro"}, // no SubscriptionItemID
 		},
 	}); err != nil {
 		t.Fatalf("save tenant: %v", err)
@@ -244,7 +244,7 @@ func TestReportUsage_BothOverage(t *testing.T) {
 		Metadata: map[string]interface{}{
 			"overage":      &entities.OverageMetadata{Enabled: true, EventRate: 0.001, QueryRate: 0.002},
 			"quotas":       &entities.QuotaMetadata{EventsQuota: 10000, QueriesQuota: 5000, EventsUsed: 12000, QueriesUsed: 7000},
-			"subscription": &entities.SubscriptionMetadata{Tier: "starter", SubscriptionItemID: "si_1"},
+			"subscription": &entities.SubscriptionMetadata{Tier: "pro", SubscriptionItemID: "si_1"},
 		},
 	}); err != nil {
 		t.Fatalf("save tenant: %v", err)

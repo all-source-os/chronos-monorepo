@@ -152,11 +152,11 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
       assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
+      assert tool.description =~ "How it works"
     end
 
-    test "description mentions schema evolution", %{tool: tool} do
-      assert tool.description =~ "evolution" or tool.description =~ "Evolving"
+    test "description mentions client-side computation", %{tool: tool} do
+      assert tool.description =~ "client-side"
     end
 
     test "has required subject parameter", %{tool: tool} do
@@ -246,11 +246,12 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
       assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
+      assert tool.description =~ "Limitations"
     end
 
-    test "description mentions auto-generation", %{tool: tool} do
-      assert tool.description =~ "Auto-generate" or tool.description =~ "infer"
+    test "description mentions client-side inference", %{tool: tool} do
+      assert tool.description =~ "client-side"
+      assert tool.description =~ "Auto-generate"
     end
 
     test "has required event_type parameter", %{tool: tool} do
@@ -288,14 +289,14 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
     end
 
     test "has description with agent guidance", %{tool: tool} do
-      assert tool.description =~ "When to use this tool"
+      assert tool.description =~ "How it works"
       assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
+      assert tool.description =~ "Important"
     end
 
-    test "description mentions comparing versions", %{tool: tool} do
-      assert tool.description =~ "Compare" or tool.description =~ "compare"
-      assert tool.description =~ "version"
+    test "description mentions client-side diff", %{tool: tool} do
+      assert tool.description =~ "client-side"
+      assert tool.description =~ "Compare"
     end
 
     test "has required subject parameter", %{tool: tool} do
@@ -338,12 +339,13 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
       {:ok, tools: tools}
     end
 
-    test "all tools have descriptions with 'When to use this tool' section", %{tools: tools} do
+    test "all tools have descriptions with usage guidance section", %{tools: tools} do
       for tool_name <- @schema_tools do
         tool = Enum.find(tools, &(&1.name == tool_name))
 
-        assert tool.description =~ "When to use this tool",
-               "#{tool_name} missing 'When to use this tool' section"
+        assert tool.description =~ "When to use this tool" or
+                 tool.description =~ "How it works",
+               "#{tool_name} missing usage guidance section"
       end
     end
 
@@ -356,12 +358,12 @@ defmodule McpServerElixir.Protocol.McpToolsSchemaTest do
       end
     end
 
-    test "all tools have descriptions with 'Performance tips' section", %{tools: tools} do
+    test "all tools have descriptions with decision guide", %{tools: tools} do
       for tool_name <- @schema_tools do
         tool = Enum.find(tools, &(&1.name == tool_name))
 
-        assert tool.description =~ "Performance tips",
-               "#{tool_name} missing 'Performance tips' section"
+        assert tool.description =~ "Decision guide",
+               "#{tool_name} missing 'Decision guide' section"
       end
     end
   end

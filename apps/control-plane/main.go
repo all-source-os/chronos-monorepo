@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,16 +15,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"gopkg.in/yaml.v3"
 
 	"github.com/allsource/control-plane/internal"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
+//go:embed docs/openapi.yaml
+var openAPIYAML []byte
+
 // Control plane configuration constants.
 const (
 	// Version is the current version of the control plane.
-	Version = "0.10.1"
+	Version = "0.10.3"
 	// DefaultPort is the default port the control plane listens on.
 	DefaultPort = "3901"
 	// CoreServiceURL is the URL of the core event store service.
@@ -129,10 +134,32 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		}
 	}
 
+	// Initialize Stripe client (optional — Stripe billing features require it)
+	var stripeClient clients.StripeClient
+	if os.Getenv("STRIPE_SECRET_KEY") != "" {
+		var stripeErr error
+		stripeClient, stripeErr = clients.NewStripeClient()
+		if stripeErr != nil {
+			log.Printf("Stripe client initialization failed: %v (Stripe billing endpoints will be unavailable)", stripeErr)
+		}
+	}
+
+	// Initialize email client (optional — usage warning emails require it)
+	var emailClient clients.EmailClient
+	if os.Getenv("SMTP_HOST") != "" {
+		var emailErr error
+		emailClient, emailErr = clients.NewEmailClientFromEnv()
+		if emailErr != nil {
+			log.Printf("Email client initialization failed: %v (usage warning emails will be unavailable)", emailErr)
+		}
+	}
+
 	// Initialize Clean Architecture container (Core-backed repos, no PostgreSQL)
 	containerCfg := internal.ContainerConfig{
-		CoreClient: coreClient,
-		LSClient:   lsClient,
+		CoreClient:   coreClient,
+		LSClient:     lsClient,
+		StripeClient: stripeClient,
+		EmailClient:  emailClient,
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
 
@@ -207,11 +234,18 @@ func (cp *ControlPlane) setupRoutes() {
 	// Public endpoints (no auth required — skipped by AuthMiddleware)
 	cp.router.GET("/health", cp.healthHandler)
 	cp.router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	cp.router.GET("/docs", cp.docsHandler)
+	cp.router.GET("/openapi", cp.openAPIHandler)
 
 	// Authentication endpoints
 	auth := cp.router.Group("/api/v1/auth")
 	auth.POST("/login", cp.LoginHandler)
 	auth.POST("/register", cp.RegisterHandler)
+	auth.POST("/oauth", cp.OAuthHandler)
+
+	// Onboarding endpoint (public, no auth required)
+	onboard := cp.router.Group("/api/v1/onboard")
+	onboard.POST("/start", cp.OnboardHandler)
 
 	// Protected API endpoints
 	api := cp.router.Group("/api/v1")
@@ -279,8 +313,9 @@ func (cp *ControlPlane) setupRoutes() {
 	billing.POST("/overage/disable", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.DisableOverage)
 	billing.GET("/projected-charges", RequirePermission(entities.PermissionRead), cp.container.BillingHandler.GetProjectedCharges)
 
-	// Webhooks (public — no JWT auth, HMAC signature verification instead)
+	// Webhooks (public — no JWT auth, signature verification instead)
 	api.POST("/webhooks/lemonsqueezy", cp.container.WebhookHandler.LemonSqueezy)
+	api.POST("/webhooks/stripe", cp.container.WebhookHandler.Stripe)
 
 	// Audit trail (Clean Architecture handlers)
 	api.GET("/audit", RequirePermission(entities.PermissionRead), cp.container.AuditHandler.Query)
@@ -424,6 +459,65 @@ func (cp *ControlPlane) backupHandler(c *gin.Context) {
 	var result map[string]any
 	_ = json.Unmarshal(resp.Body(), &result) //nolint:errcheck // best effort parsing
 	c.JSON(http.StatusOK, result)
+}
+
+// openAPIHandler serves the OpenAPI specification as JSON.
+func (cp *ControlPlane) openAPIHandler(c *gin.Context) {
+	var spec interface{}
+	if err := yaml.Unmarshal(openAPIYAML, &spec); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse OpenAPI spec"})
+		return
+	}
+	c.JSON(http.StatusOK, spec)
+}
+
+// docsHandler serves Swagger UI for interactive API documentation.
+func (cp *ControlPlane) docsHandler(c *gin.Context) {
+	html := `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control Plane API Documentation</title>
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    html { box-sizing: border-box; overflow-y: scroll; }
+    *, *:before, *:after { box-sizing: inherit; }
+    body { margin: 0; background: #fafafa; }
+    .swagger-ui .topbar { display: none; }
+    .swagger-ui .info { margin-top: 20px; }
+    .swagger-ui .info .title { font-size: 36px; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.onload = function() {
+      window.ui = SwaggerUIBundle({
+        url: "/openapi",
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "StandaloneLayout",
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        filter: true,
+        tryItOutEnabled: true
+      });
+    };
+  </script>
+</body>
+</html>`
+
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
 // User handlers (proxied to core)

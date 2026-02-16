@@ -1,4 +1,6 @@
-# AllSource Post-v0.10.0: C4 Architecture Analysis
+# AllSource Post-v0.10.3: C4 Architecture Analysis
+
+> **Updated 2026-02-16**: Corrected to reflect v0.10.3 architecture. Query Service is stateless (no PostgreSQL). Tenants are managed by Core (DashMap) and Control Plane (in-memory). See `docs/proposals/SERVICE_RESPONSIBILITY_REALIGNMENT.md` for the plan to unify tenant authority.
 
 ## C4 Level 1 — System Context
 
@@ -53,7 +55,7 @@
 │  │ └──────────────────┘ │          │ └──────────────────┘ │            │
 │  │ ┌──────────────────┐ │          │ ┌──────────────────┐ │            │
 │  │ │ Tenant Context   │◄┼── GAP ──┼►│ Tenant CRUD      │ │            │
-│  │ │ (own PG tenants) │ │  No sync │ │ (delegates Core) │ │            │
+│  │ │ (stateless)      │ │  No sync │ │ (delegates Core) │ │            │
 │  │ └──────────────────┘ │          │ └──────────────────┘ │            │
 │  │ ┌──────────────────┐ │          │ ┌──────────────────┐ │            │
 │  │ │ Usage Metering   │ │          │ │ Policy Engine    │ │            │
@@ -92,12 +94,11 @@
 │             │  └─ Analytics       │    └─ /api/v1/snapshots  ◄─ CP   │
 │             └──────────────────────┘                                   │
 │                                                                         │
-│  ┌──────────────────────┐                                              │
-│  │   PostgreSQL         │  ◄── Query Service ONLY                     │
-│  │   (users, tenants,   │      Control Plane removed PG in v0.10.0   │
-│  │    subscriptions,    │                                              │
-│  │    billing, usage)   │                                              │
-│  └──────────────────────┘                                              │
+│  NOTE: No PostgreSQL in v0.10.3. Query Service is stateless.           │
+│  Control Plane removed PG in v0.10.0. QS never had PG.                │
+│  Tenants: Core DashMap + CP in-memory. Users: Core DashMap.            │
+│  Future: PostgreSQL may be added for billing/subscription metadata     │
+│  only (see SERVICE_RESPONSIBILITY_REALIGNMENT.md).                     │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -109,21 +110,21 @@
                     TENANT LIFECYCLE (THE BIG GAP)
     ╔═══════════════════════════════════════════════════════════╗
     ║                                                           ║
-    ║   Query Service (PG)         Control Plane (→Core)       ║
+    ║   Core (DashMap)              Control Plane (in-memory)   ║
     ║   ─────────────────          ──────────────────────      ║
     ║   Tenant model:              Tenant model:               ║
-    ║   • name, slug               • ID, Name, Description    ║
-    ║   • subscription_id          • Status (active/susp/del) ║
-    ║   • tier (free→enterprise)   • Metadata map             ║
-    ║   • usage counters           • CreatedAt, UpdatedAt     ║
-    ║   • overage billing                                      ║
-    ║   • trial dates              NO billing fields           ║
-    ║   • LemonSqueezy IDs        NO usage tracking            ║
-    ║                              NO subscription tier        ║
+    ║   • TenantId, Name           • ID, Name, Description    ║
+    ║   • Status (active/susp)     • Status (active/susp/del) ║
+    ║   • Metadata map             • Metadata map             ║
+    ║   • Quotas, rate limits      • CreatedAt, UpdatedAt     ║
+    ║   • CreatedAt, UpdatedAt                                 ║
+    ║                              NO billing fields           ║
+    ║   NO billing fields          NO usage tracking            ║
+    ║   NO subscription tier       NO subscription tier        ║
     ║                                                           ║
-    ║   ⚠️  NO SYNC BETWEEN THESE TWO TENANT STORES            ║
-    ║   ⚠️  Creating tenant in CP does NOT create in QS         ║
-    ║   ⚠️  Creating tenant in QS does NOT create in CP/Core    ║
+    ║   ⚠️  BOTH ARE IN-MEMORY (lost on restart for metadata)  ║
+    ║   ⚠️  CP delegates to Core, but no canonical persistent   ║
+    ║      store for tenant billing/subscription data           ║
     ╚═══════════════════════════════════════════════════════════╝
 
                     AUTH (THE SECOND GAP)
@@ -132,9 +133,9 @@
     ║   Query Service              Control Plane     Core      ║
     ║   ─────────────              ──────────────    ────      ║
     ║   OAuth (Google/GH)          JWT validation    Auth API  ║
-    ║   Guardian JWT (HS512)       own JWT signing   register  ║
-    ║   User model in PG           proxies to Core   login     ║
-    ║   auto-creates tenant        RBAC (4 roles)    API keys  ║
+    ║   JOSE JWT (HS256)           own JWT signing   register  ║
+    ║   stateless (no user DB)     proxies to Core   login     ║
+    ║   delegates to CP for auth   RBAC (4 roles)    API keys  ║
     ║                                                           ║
     ║   ⚠️  THREE separate auth systems, no SSO                 ║
     ║   ⚠️  QS users ≠ CP users ≠ Core users                   ║
@@ -165,7 +166,7 @@
 │ └─ Pipelines           │    ✅    │          │          │ GOOD     │
 ├────────────────────────┼──────────┼──────────┼──────────┼──────────┤
 │ MULTI-TENANCY          │          │          │          │          │
-│ ├─ Tenant CRUD         │    ✅    │  ✅ PG   │  ✅→Core │ ⚠️ DUAL  │
+│ ├─ Tenant CRUD         │    ✅    │  proxy   │  ✅→Core │ ⚠️ DUAL  │
 │ ├─ Tenant isolation    │  by key  │  by ctx  │          │ GOOD     │
 │ ├─ Tenant billing      │          │    ✅    │          │ QS only  │
 │ ├─ Tenant quotas       │  stores  │ enforces │  proxy   │ SPLIT    │
@@ -211,31 +212,31 @@ Legend: ✅ = owns/implements, proxy = passes through, →Core = delegates to Co
 
 ## Critical Gaps Identified
 
-### Gap 1: Dual Tenant Store (HIGH)
+### Gap 1: In-Memory Tenant Store (HIGH)
 
 ```
                    ┌─────────────┐
-  OAuth signup ──► │ Query Svc   │──► PostgreSQL tenant row
-                   │ (port 3902) │    (billing, usage, tier)
+  OAuth signup ──► │ Query Svc   │──► calls CP POST /api/v1/auth/oauth
+                   │ (port 3902) │    (CP creates user, returns JWT)
                    └─────────────┘
-                         ✗ no notification to ──►  Core tenant store
+                         CP may create tenant in Core DashMap (in-memory)
 
                    ┌─────────────┐
   Admin API ────► │ Control Pln │──► Core /api/v1/tenants
-                   │ (port 3901) │    (ID, status, metadata)
+                   │ (port 3901) │    (DashMap — in-memory, lost on restart)
                    └─────────────┘
-                         ✗ no notification to ──►  QS PostgreSQL
 
-  RESULT: A tenant can exist in QS but not Core, or in Core but not QS.
-  Quotas set via CP don't propagate to QS enforcement.
-  Suspension via CP doesn't block QS requests.
+  RESULT: Tenant metadata is in-memory only (Core DashMap + CP sync.RWMutex).
+  No persistent store for billing/subscription data.
+  Tenant metadata lost on Core restart.
+  Event data is durable (WAL+Parquet), but tenant metadata is not.
 ```
 
 ### Gap 2: Auth Fragmentation (MEDIUM)
 
 ```
-  Core:     /api/v1/auth/register + /login → issues token (algo?)
-  QS:      OAuth → Guardian JWT (HS512, 1hr TTL) → stored in PG
+  Core:     /api/v1/auth/register + /login → issues token (HS256)
+  QS:      OAuth → JOSE JWT (HS256, 7d TTL) → stateless (no DB)
   CP:      validates JWT with own secret → RBAC roles
 
   No shared identity provider. No token exchange.
@@ -315,10 +316,10 @@ Legend: ✅ = owns/implements, proxy = passes through, →Core = delegates to Co
 
 | # | Gap | Severity | Impact |
 |---|-----|----------|--------|
-| 1 | **Dual tenant store** — QS (PG) and CP (Core) don't sync | HIGH | Tenant created via OAuth doesn't exist in Core; CP suspension doesn't affect QS |
+| 1 | **In-memory tenant store** — Core DashMap + CP in-memory, no persistence | HIGH | Tenant metadata lost on restart; no billing/subscription persistence |
 | 2 | **Auth fragmentation** — 3 separate JWT/auth systems | MEDIUM | No SSO; tokens aren't portable across services |
 | 3 | **No CP->QS eventing** — CP state changes don't propagate | MEDIUM | Quota changes, suspensions, policy updates invisible to QS |
 | 4 | **Operation history in-memory** — CP MemoryOperationRepo | LOW | Op history lost on restart; inconsistent with audit/config being Core-backed |
 | 5 | **Backup is a stub** — CP exposes `/backup` route but no implementation | LOW | Admin API promises backup but doesn't deliver |
 
-The v0.10.0 changes correctly moved CP off PostgreSQL toward Core-as-source-of-truth, but the **Query Service still maintains a parallel tenant/user store in PostgreSQL** that isn't synchronized. The next architectural milestone should unify tenant identity through Core, with QS keeping only billing-specific columns (LemonSqueezy IDs, usage counters) as a thin cache that subscribes to Core tenant events.
+As of v0.10.3, **no service uses PostgreSQL**. Query Service is fully stateless, Control Plane uses in-memory stores, and Core uses DashMap. The primary gap is that tenant/user metadata is entirely in-memory — durable for events (WAL+Parquet) but ephemeral for operational metadata. The next architectural milestone should add PostgreSQL for billing/subscription metadata only (LemonSqueezy IDs, usage counters), with Core remaining the source of truth for event data. See `docs/proposals/SERVICE_RESPONSIBILITY_REALIGNMENT.md`.

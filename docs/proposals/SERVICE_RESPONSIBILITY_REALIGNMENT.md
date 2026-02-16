@@ -350,11 +350,11 @@ Services resolve `{data_plane}`, `{mgmt_plane}`, `{core}` from environment:
 
 ```
 # Control Plane
-DATA_PLANE_URL=https://api.allsource.io       # QS public URL
+DATA_PLANE_URL=https://api.all-source.xyz       # QS public URL
 CORE_SERVICE_URL=http://core:3900              # Core internal URL
 
 # Query Service
-MGMT_PLANE_URL=https://admin.allsource.io     # CP public URL
+MGMT_PLANE_URL=https://all-source.xyz     # CP public URL
 CORE_URL=http://core:3900                      # Core internal URL
 ```
 
@@ -554,8 +554,8 @@ Response:
     "stats":     { "href": "/api/v1/tenants/t-123/stats" },
     "billing":   { "href": "/api/v1/billing/portal?tenant_id=t-123" },
     "audit":     { "href": "/api/v1/audit?tenant_id=t-123" },
-    "events":    { "href": "https://api.allsource.io/events?tenant_id=t-123" },
-    "schemas":   { "href": "https://api.allsource.io/schemas?tenant_id=t-123" },
+    "events":    { "href": "https://api.all-source.xyz/events?tenant_id=t-123" },
+    "schemas":   { "href": "https://api.all-source.xyz/schemas?tenant_id=t-123" },
     "config":    { "href": "/api/v1/config" }
   }
 }

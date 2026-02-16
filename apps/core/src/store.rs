@@ -2,10 +2,13 @@ use crate::{
     application::{
         dto::QueryEventsRequest,
         services::{
+            exactly_once::{ExactlyOnceConfig, ExactlyOnceRegistry},
             pipeline::PipelineManager,
             projection::{EntitySnapshotProjection, EventCounterProjection, ProjectionManager},
             replay::ReplayManager,
             schema::{SchemaRegistry, SchemaRegistryConfig},
+            schema_evolution::SchemaEvolutionManager,
+            webhook::WebhookRegistry,
         },
     },
     domain::entities::Event,
@@ -19,6 +22,7 @@ use crate::{
             storage::ParquetStorage,
             wal::{WALConfig, WriteAheadLog},
         },
+        query::geospatial::GeoIndex,
         web::websocket::WebSocketManager,
     },
 };
@@ -26,6 +30,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::{path::PathBuf, sync::Arc};
+use tokio::sync::mpsc;
 
 /// High-performance event store with columnar storage
 pub struct EventStore {
@@ -72,6 +77,28 @@ pub struct EventStore {
     /// Key format: "{projection_name}:{entity_id}"
     /// This DashMap provides O(1) access with ~11.9 μs latency
     projection_state_cache: Arc<DashMap<String, serde_json::Value>>,
+
+    /// Webhook registry for outbound event delivery (v0.11 feature)
+    webhook_registry: Arc<WebhookRegistry>,
+
+    /// Channel sender for async webhook delivery tasks
+    webhook_tx: Arc<RwLock<Option<mpsc::UnboundedSender<WebhookDeliveryTask>>>>,
+
+    /// Geospatial index for coordinate-based queries (v2.0 feature)
+    geo_index: Arc<GeoIndex>,
+
+    /// Exactly-once processing registry (v2.0 feature)
+    exactly_once: Arc<ExactlyOnceRegistry>,
+
+    /// Autonomous schema evolution manager (v2.0 feature)
+    schema_evolution: Arc<SchemaEvolutionManager>,
+}
+
+/// A task queued for async webhook delivery
+#[derive(Debug, Clone)]
+pub struct WebhookDeliveryTask {
+    pub webhook: crate::application::services::webhook::WebhookSubscription,
+    pub event: Event,
 }
 
 impl EventStore {
@@ -143,6 +170,10 @@ impl EventStore {
         let projection_state_cache = Arc::new(DashMap::new());
         tracing::info!("✅ Projection state cache initialized");
 
+        // Initialize webhook registry (v0.11 feature)
+        let webhook_registry = Arc::new(WebhookRegistry::new());
+        tracing::info!("✅ Webhook registry initialized");
+
         let store = Self {
             events: Arc::new(RwLock::new(Vec::new())),
             index: Arc::new(EventIndex::new()),
@@ -158,6 +189,11 @@ impl EventStore {
             metrics,
             total_ingested: Arc::new(RwLock::new(0)),
             projection_state_cache,
+            webhook_registry,
+            webhook_tx: Arc::new(RwLock::new(None)),
+            geo_index: Arc::new(GeoIndex::new()),
+            exactly_once: Arc::new(ExactlyOnceRegistry::new(ExactlyOnceConfig::default())),
+            schema_evolution: Arc::new(SchemaEvolutionManager::new()),
         };
 
         // Recover from WAL first (most recent data)
@@ -326,6 +362,16 @@ impl EventStore {
         self.websocket_manager
             .broadcast_event(Arc::new(event.clone()));
 
+        // Dispatch to matching webhook subscriptions (v0.11 feature)
+        self.dispatch_webhooks(&event);
+
+        // Update geospatial index (v2.0 feature)
+        self.geo_index.index_event(&event);
+
+        // Autonomous schema evolution (v2.0 feature)
+        self.schema_evolution
+            .analyze_event(event.event_type_str(), &event.payload);
+
         // Check if automatic snapshot should be created (v0.2 feature)
         self.check_auto_snapshot(event.entity_id_str(), &event);
 
@@ -461,6 +507,59 @@ impl EventStore {
         Arc::clone(&self.projection_state_cache)
     }
 
+    /// Get the webhook registry for this store (v0.11 feature)
+    /// Geospatial index for coordinate-based queries (v2.0 feature)
+    pub fn geo_index(&self) -> Arc<GeoIndex> {
+        self.geo_index.clone()
+    }
+
+    /// Exactly-once processing registry (v2.0 feature)
+    pub fn exactly_once(&self) -> Arc<ExactlyOnceRegistry> {
+        self.exactly_once.clone()
+    }
+
+    /// Schema evolution manager (v2.0 feature)
+    pub fn schema_evolution(&self) -> Arc<SchemaEvolutionManager> {
+        self.schema_evolution.clone()
+    }
+
+    /// Get a read-locked snapshot of all events (for EventQL/GraphQL queries)
+    pub fn snapshot_events(&self) -> Vec<Event> {
+        self.events.read().clone()
+    }
+
+    pub fn webhook_registry(&self) -> Arc<WebhookRegistry> {
+        Arc::clone(&self.webhook_registry)
+    }
+
+    /// Set the channel for async webhook delivery.
+    /// Called during server startup to wire the delivery worker.
+    pub fn set_webhook_tx(&self, tx: mpsc::UnboundedSender<WebhookDeliveryTask>) {
+        *self.webhook_tx.write() = Some(tx);
+        tracing::info!("Webhook delivery channel connected");
+    }
+
+    /// Dispatch matching webhooks for a given event (non-blocking).
+    fn dispatch_webhooks(&self, event: &Event) {
+        let matching = self.webhook_registry.find_matching(event);
+        if matching.is_empty() {
+            return;
+        }
+
+        let tx_guard = self.webhook_tx.read();
+        if let Some(ref tx) = *tx_guard {
+            for webhook in matching {
+                let task = WebhookDeliveryTask {
+                    webhook,
+                    event: event.clone(),
+                };
+                if let Err(e) = tx.send(task) {
+                    tracing::warn!("Failed to queue webhook delivery: {}", e);
+                }
+            }
+        }
+    }
+
     /// Manually flush any pending events to persistent storage
     pub fn flush_storage(&self) -> Result<()> {
         if let Some(ref storage) = self.storage {
@@ -562,6 +661,50 @@ impl EventStore {
         }
 
         Ok(())
+    }
+
+    /// Reset a projection by clearing its state and reprocessing all events
+    pub fn reset_projection(&self, name: &str) -> Result<usize> {
+        let projection_manager = self.projections.read();
+        let projection = projection_manager.get_projection(name).ok_or_else(|| {
+            AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
+        })?;
+
+        // Clear existing state
+        projection.clear();
+
+        // Clear cached state for this projection
+        let prefix = format!("{name}:");
+        let keys_to_remove: Vec<String> = self
+            .projection_state_cache
+            .iter()
+            .filter(|entry| entry.key().starts_with(&prefix))
+            .map(|entry| entry.key().clone())
+            .collect();
+        for key in keys_to_remove {
+            self.projection_state_cache.remove(&key);
+        }
+
+        // Reprocess all events through this projection
+        let events = self.events.read();
+        let mut reprocessed = 0usize;
+        for event in events.iter() {
+            if projection.process(event).is_ok() {
+                reprocessed += 1;
+            }
+        }
+
+        Ok(reprocessed)
+    }
+
+    /// Get a single event by its UUID
+    pub fn get_event_by_id(&self, event_id: &uuid::Uuid) -> Result<Option<Event>> {
+        if let Some(offset) = self.index.get_by_id(event_id) {
+            let events = self.events.read();
+            Ok(events.get(offset).cloned())
+        } else {
+            Ok(None)
+        }
     }
 
     /// Query events based on filters (optimized with indices)

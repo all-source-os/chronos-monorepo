@@ -1,8 +1,10 @@
 # Critical Bugs Fixed - AllSource Core
 
-**Date**: November 30, 2025  
-**Status**: ✅ RESOLVED  
-**Impact**: AllFrame integration **UNBLOCKED**  
+> **Note (2026-02-16)**: The PostgreSQL (`postgres_event_stream_repository.rs`) and RocksDB (`rocksdb_event_stream_repository.rs`) storage backends referenced below are **feature-gated** and not used in the default build. The default storage backend is WAL + Parquet + DashMap. These feature-gated repos exist for the AllFrame embedded integration use case.
+
+**Date**: November 30, 2025
+**Status**: ✅ RESOLVED
+**Impact**: AllFrame integration **UNBLOCKED**
 **Commit**: Latest (November 30, 2025)
 
 ---

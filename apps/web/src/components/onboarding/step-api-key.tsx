@@ -143,7 +143,7 @@ export function StepApiKey({ onNext }: StepApiKeyProps) {
               <div>
                 <Label>Quick Start</Label>
                 <pre className="mt-1.5 overflow-x-auto rounded-lg bg-muted p-4 text-xs">
-                  <code>{`curl -X POST https://api.allsource.dev/api/events \\
+                  <code>{`curl -X POST https://api.all-source.xyz/api/events \\
   -H "Authorization: Bearer ${apiKey.slice(0, 20)}..." \\
   -H "Content-Type: application/json" \\
   -d '{"entity_id": "user-1", "event_type": "user.created", "payload": {}}'`}</code>

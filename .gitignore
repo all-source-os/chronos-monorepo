@@ -56,6 +56,7 @@ coverage
 *.so
 *.dylib
 apps/control-plane/bin/
+apps/control-plane/control-plane
 
 # Ralph tui
 .ralph-tui

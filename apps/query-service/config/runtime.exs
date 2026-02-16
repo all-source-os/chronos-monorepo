@@ -55,6 +55,18 @@ if config_env() == :prod do
     core_max_replication_lag_ms: core_max_replication_lag_ms,
     core_health_check_interval_ms: core_health_check_interval_ms
 
+  # OAuth configuration - optional (OAuth login disabled without these)
+  config :query_service_ex, :oauth,
+    google_client_id: System.get_env("GOOGLE_CLIENT_ID"),
+    google_client_secret: System.get_env("GOOGLE_CLIENT_SECRET"),
+    github_client_id: System.get_env("GITHUB_CLIENT_ID"),
+    github_client_secret: System.get_env("GITHUB_CLIENT_SECRET")
+
+  # Frontend URL for OAuth redirect callbacks
+  if frontend_url = System.get_env("FRONTEND_URL") do
+    config :query_service_ex, frontend_url: frontend_url
+  end
+
   # LemonSqueezy configuration for billing - optional
   # Variant tier mapping: maps LemonSqueezy variant IDs to Chronos subscription tiers.
   # Set LEMON_SQUEEZY_VARIANT_TIERS as comma-separated "variant_id:tier" pairs.
@@ -83,5 +95,4 @@ if config_env() == :prod do
     store_id: System.get_env("LEMON_SQUEEZY_STORE_ID"),
     webhook_secret: System.get_env("LEMON_SQUEEZY_WEBHOOK_SECRET"),
     variant_tiers: variant_tiers
-
 end

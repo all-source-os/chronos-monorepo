@@ -50,7 +50,9 @@ defmodule QueryServiceExWeb.Plugs.ApiKeyAuthTest do
 
       refute conn.halted
 
-      if original, do: System.put_env("AUTH_DISABLED", original), else: System.delete_env("AUTH_DISABLED")
+      if original,
+        do: System.put_env("AUTH_DISABLED", original),
+        else: System.delete_env("AUTH_DISABLED")
     end
 
     test "sets assigns on successful verification via cache" do
@@ -71,7 +73,11 @@ defmodule QueryServiceExWeb.Plugs.ApiKeyAuthTest do
       # Pre-populate the cache with a verified result
       raw_key = "allsource_test_fakekeyfortest1234567890ab"
       cache_key = :crypto.hash(:sha256, raw_key) |> Base.encode16(case: :lower)
-      :ets.insert(:api_key_cache, {cache_key, {tenant, api_key}, System.system_time(:second) + 120})
+
+      :ets.insert(
+        :api_key_cache,
+        {cache_key, {tenant, api_key}, System.system_time(:second) + 120}
+      )
 
       conn =
         build_conn()
@@ -103,7 +109,11 @@ defmodule QueryServiceExWeb.Plugs.ApiKeyAuthTest do
 
       raw_key = "allsource_test_suspendedkey12345678901234"
       cache_key = :crypto.hash(:sha256, raw_key) |> Base.encode16(case: :lower)
-      :ets.insert(:api_key_cache, {cache_key, {tenant, api_key}, System.system_time(:second) + 120})
+
+      :ets.insert(
+        :api_key_cache,
+        {cache_key, {tenant, api_key}, System.system_time(:second) + 120}
+      )
 
       conn =
         build_conn()
@@ -142,19 +152,21 @@ defmodule QueryServiceExWeb.Plugs.ApiKeyAuthTest do
       raw_key = "allsource_test_cachetest123456789012345"
 
       # First call should invoke the function
-      result1 = ApiKeyCache.fetch(raw_key, fn ->
-        :counters.add(call_count, 1, 1)
-        {:ok, {tenant, api_key}}
-      end)
+      result1 =
+        ApiKeyCache.fetch(raw_key, fn ->
+          :counters.add(call_count, 1, 1)
+          {:ok, {tenant, api_key}}
+        end)
 
       assert {:ok, {^tenant, ^api_key}} = result1
       assert :counters.get(call_count, 1) == 1
 
       # Second call should use cache
-      result2 = ApiKeyCache.fetch(raw_key, fn ->
-        :counters.add(call_count, 1, 1)
-        {:ok, {tenant, api_key}}
-      end)
+      result2 =
+        ApiKeyCache.fetch(raw_key, fn ->
+          :counters.add(call_count, 1, 1)
+          {:ok, {tenant, api_key}}
+        end)
 
       assert {:ok, {^tenant, ^api_key}} = result2
       assert :counters.get(call_count, 1) == 1
@@ -164,19 +176,21 @@ defmodule QueryServiceExWeb.Plugs.ApiKeyAuthTest do
       call_count = :counters.new(1, [:atomics])
       raw_key = "allsource_test_errorkey1234567890123456"
 
-      result1 = ApiKeyCache.fetch(raw_key, fn ->
-        :counters.add(call_count, 1, 1)
-        {:error, :invalid_key}
-      end)
+      result1 =
+        ApiKeyCache.fetch(raw_key, fn ->
+          :counters.add(call_count, 1, 1)
+          {:error, :invalid_key}
+        end)
 
       assert result1 == {:error, :invalid_key}
       assert :counters.get(call_count, 1) == 1
 
       # Should call again since errors aren't cached
-      result2 = ApiKeyCache.fetch(raw_key, fn ->
-        :counters.add(call_count, 1, 1)
-        {:error, :invalid_key}
-      end)
+      result2 =
+        ApiKeyCache.fetch(raw_key, fn ->
+          :counters.add(call_count, 1, 1)
+          {:error, :invalid_key}
+        end)
 
       assert result2 == {:error, :invalid_key}
       assert :counters.get(call_count, 1) == 2

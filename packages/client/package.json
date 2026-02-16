@@ -1,0 +1,44 @@
+{
+  "name": "@allsource/client",
+  "version": "0.1.0",
+  "description": "JavaScript/TypeScript client for the AllSource event store API",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node && bun run build:types",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "type-check": "tsc --noEmit",
+    "test": "bun test",
+    "clean": "rm -rf dist .turbo",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.13",
+    "typescript": "^5.8.3"
+  },
+  "keywords": [
+    "allsource",
+    "event-store",
+    "event-sourcing",
+    "typescript",
+    "api-client"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/all-source-os/chronos-monorepo",
+    "directory": "packages/client"
+  }
+}

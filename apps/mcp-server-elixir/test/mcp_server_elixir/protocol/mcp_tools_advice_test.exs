@@ -30,8 +30,8 @@ defmodule McpServerElixir.Protocol.McpToolsAdviceTest do
       # Check for agent guidance sections
       assert description =~ "When to use this tool"
       assert description =~ "Common patterns"
-      assert description =~ "Performance tips"
-      assert description =~ "Decision guide"
+      assert description =~ "How it works"
+      assert description =~ "Context keywords"
     end
 
     test "has required use_case parameter", %{tool: tool} do

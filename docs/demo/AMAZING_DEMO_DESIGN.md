@@ -350,7 +350,7 @@ make demo-setup  # Seeds data, starts services
 make demo-run    # Opens browser with guided tour
 ```
 
-### 2. Staging (demo.allsource.dev)
+### 2. Staging (demo.all-source.xyz)
 - Pre-seeded with demo data
 - Reset nightly
 - Public read-only access

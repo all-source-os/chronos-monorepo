@@ -30,6 +30,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct ForkHandlerState<F: ForkRepository> {
     pub fork_repo: Arc<F>,
+    pub event_store: Option<Arc<crate::store::EventStore>>,
 }
 
 /// Query parameters for listing forks
@@ -239,7 +240,11 @@ where
     // Ensure the fork ID matches the path parameter
     request.fork_id = fork_id.clone();
 
-    let use_case = MergeForkUseCase::new(state.fork_repo.clone());
+    let use_case = if let Some(ref event_store) = state.event_store {
+        MergeForkUseCase::with_event_store(state.fork_repo.clone(), Arc::clone(event_store))
+    } else {
+        MergeForkUseCase::new(state.fork_repo.clone())
+    };
     let response = use_case.execute(request).await?;
 
     tracing::info!(

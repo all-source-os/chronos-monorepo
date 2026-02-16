@@ -3,6 +3,9 @@ use crate::infrastructure::di::ServiceContainer;
 use crate::{
     application::services::tenant_service::TenantManager,
     infrastructure::{
+        cluster::{
+            ClusterManager, ClusterMember, GeoReplicationManager, GeoSyncRequest, VoteRequest,
+        },
         replication::{WalReceiver, WalShipper},
         security::{
             auth::AuthManager,
@@ -15,7 +18,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{Path, State},
     middleware,
     response::IntoResponse,
     routing::{delete, get, post, put},
@@ -129,6 +132,10 @@ pub struct AppState {
     pub wal_receiver: Option<Arc<WalReceiver>>,
     /// Replication port used by the WAL shipper (needed for runtime promotion)
     pub replication_port: u16,
+    /// Cluster manager for multi-node consensus and membership (optional)
+    pub cluster_manager: Option<Arc<ClusterManager>>,
+    /// Geo-replication manager for cross-region replication (optional)
+    pub geo_replication: Option<Arc<GeoReplicationManager>>,
 }
 
 // Enable extracting Arc<EventStore> from AppState
@@ -150,6 +157,8 @@ pub async fn serve_v1(
     wal_shipper: Option<Arc<WalShipper>>,
     wal_receiver: Option<Arc<WalReceiver>>,
     replication_port: u16,
+    cluster_manager: Option<Arc<ClusterManager>>,
+    geo_replication: Option<Arc<GeoReplicationManager>>,
 ) -> anyhow::Result<()> {
     let app_state = AppState {
         store,
@@ -160,6 +169,8 @@ pub async fn serve_v1(
         wal_shipper: Arc::new(tokio::sync::RwLock::new(wal_shipper)),
         wal_receiver,
         replication_port,
+        cluster_manager,
+        geo_replication,
     };
 
     let auth_state = AuthState {
@@ -212,6 +223,10 @@ pub async fn serve_v1(
             post(super::api::ingest_events_batch_v1),
         )
         .route("/api/v1/events/query", get(super::api::query_events))
+        .route(
+            "/api/v1/events/{event_id}",
+            get(super::api::get_event_by_id),
+        )
         .route("/api/v1/events/stream", get(super::api::events_websocket))
         .route(
             "/api/v1/entities/{entity_id}/state",
@@ -315,6 +330,18 @@ pub async fn serve_v1(
             get(super::api::get_projection),
         )
         .route(
+            "/api/v1/projections/{name}",
+            delete(super::api::delete_projection),
+        )
+        .route(
+            "/api/v1/projections/{name}/state",
+            get(super::api::get_projection_state_summary),
+        )
+        .route(
+            "/api/v1/projections/{name}/reset",
+            post(super::api::reset_projection),
+        )
+        .route(
             "/api/v1/projections/{name}/{entity_id}/state",
             get(super::api::get_projection_state),
         )
@@ -334,6 +361,69 @@ pub async fn serve_v1(
             "/api/v1/projections/{name}/bulk/save",
             post(super::api::bulk_save_projection_states),
         )
+        // v0.11: Webhook management
+        .route("/api/v1/webhooks", post(super::api::register_webhook))
+        .route("/api/v1/webhooks", get(super::api::list_webhooks))
+        .route(
+            "/api/v1/webhooks/{webhook_id}",
+            get(super::api::get_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/{webhook_id}",
+            put(super::api::update_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/{webhook_id}",
+            delete(super::api::delete_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/{webhook_id}/deliveries",
+            get(super::api::list_webhook_deliveries),
+        )
+        // v1.8: Cluster membership management API
+        .route("/api/v1/cluster/status", get(cluster_status_handler))
+        .route("/api/v1/cluster/members", get(cluster_list_members_handler))
+        .route("/api/v1/cluster/members", post(cluster_add_member_handler))
+        .route(
+            "/api/v1/cluster/members/{node_id}",
+            delete(cluster_remove_member_handler),
+        )
+        .route(
+            "/api/v1/cluster/members/{node_id}/heartbeat",
+            post(cluster_heartbeat_handler),
+        )
+        .route("/api/v1/cluster/vote", post(cluster_vote_handler))
+        .route("/api/v1/cluster/election", post(cluster_election_handler))
+        .route(
+            "/api/v1/cluster/partitions",
+            get(cluster_partitions_handler),
+        )
+        // v2.0: Advanced query features
+        .route("/api/v1/eventql", post(super::api::eventql_query))
+        .route("/api/v1/graphql", post(super::api::graphql_query))
+        .route("/api/v1/geospatial/query", post(super::api::geo_query))
+        .route("/api/v1/geospatial/stats", get(super::api::geo_stats))
+        .route(
+            "/api/v1/exactly-once/stats",
+            get(super::api::exactly_once_stats),
+        )
+        .route(
+            "/api/v1/schema-evolution/history/{event_type}",
+            get(super::api::schema_evolution_history),
+        )
+        .route(
+            "/api/v1/schema-evolution/schema/{event_type}",
+            get(super::api::schema_evolution_schema),
+        )
+        .route(
+            "/api/v1/schema-evolution/stats",
+            get(super::api::schema_evolution_stats),
+        )
+        // v1.9: Geo-replication API
+        .route("/api/v1/geo/status", get(geo_status_handler))
+        .route("/api/v1/geo/sync", post(geo_sync_handler))
+        .route("/api/v1/geo/peers", get(geo_peers_handler))
+        .route("/api/v1/geo/failover", post(geo_failover_handler))
         // Internal endpoints for sentinel-driven failover (not exposed publicly)
         .route("/internal/promote", post(promote_handler))
         .route("/internal/repoint", post(repoint_handler))
@@ -380,6 +470,7 @@ const WRITE_PATHS: &[&str] = &[
     "/api/v1/compaction/trigger",
     "/api/v1/audit/events",
     "/api/v1/config",
+    "/api/v1/webhooks",
 ];
 
 /// Returns true if this request is a write operation that should be blocked on followers.
@@ -394,9 +485,11 @@ fn is_write_request(method: &axum::http::Method, path: &str) -> bool {
         .any(|write_path| path.starts_with(write_path))
 }
 
-/// Returns true if the request targets an internal endpoint (not subject to read-only checks).
+/// Returns true if the request targets an internal or cluster endpoint (not subject to read-only checks).
 fn is_internal_request(path: &str) -> bool {
     path.starts_with("/internal/")
+        || path.starts_with("/api/v1/cluster/")
+        || path.starts_with("/api/v1/geo/")
 }
 
 /// Middleware that rejects write requests when the node is a follower.
@@ -596,6 +689,362 @@ async fn repoint_handler(
             "new_leader": new_leader,
         })),
     )
+}
+
+// =============================================================================
+// Cluster Management Handlers (v1.8)
+// =============================================================================
+
+/// GET /api/v1/cluster/status — Get cluster status including term, leader, and members
+async fn cluster_status_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let Some(ref cm) = state.cluster_manager else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "cluster_not_enabled",
+                "message": "Cluster mode is not enabled on this node"
+            })),
+        );
+    };
+
+    let status = cm.status().await;
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::to_value(status).unwrap()),
+    )
+}
+
+/// GET /api/v1/cluster/members — List all cluster members
+async fn cluster_list_members_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let Some(ref cm) = state.cluster_manager else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "cluster_not_enabled",
+                "message": "Cluster mode is not enabled on this node"
+            })),
+        );
+    };
+
+    let members = cm.all_members();
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::json!({
+            "members": members,
+            "count": members.len(),
+        })),
+    )
+}
+
+/// POST /api/v1/cluster/members — Add a member to the cluster
+async fn cluster_add_member_handler(
+    State(state): State<AppState>,
+    Json(member): Json<ClusterMember>,
+) -> impl IntoResponse {
+    let Some(ref cm) = state.cluster_manager else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "cluster_not_enabled",
+                "message": "Cluster mode is not enabled on this node"
+            })),
+        );
+    };
+
+    let node_id = member.node_id;
+    cm.add_member(member).await;
+
+    tracing::info!("Cluster member {} added", node_id);
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "added",
+            "node_id": node_id,
+        })),
+    )
+}
+
+/// DELETE /api/v1/cluster/members/{node_id} — Remove a member from the cluster
+async fn cluster_remove_member_handler(
+    State(state): State<AppState>,
+    Path(node_id): Path<u32>,
+) -> impl IntoResponse {
+    let Some(ref cm) = state.cluster_manager else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "cluster_not_enabled",
+                "message": "Cluster mode is not enabled on this node"
+            })),
+        );
+    };
+
+    match cm.remove_member(node_id).await {
+        Some(_) => {
+            tracing::info!("Cluster member {} removed", node_id);
+            (
+                axum::http::StatusCode::OK,
+                Json(serde_json::json!({
+                    "status": "removed",
+                    "node_id": node_id,
+                })),
+            )
+        }
+        None => (
+            axum::http::StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": "not_found",
+                "message": format!("Node {} not found in cluster", node_id),
+            })),
+        ),
+    }
+}
+
+/// POST /api/v1/cluster/members/{node_id}/heartbeat — Update member heartbeat
+#[derive(serde::Deserialize)]
+struct HeartbeatRequest {
+    wal_offset: u64,
+    #[serde(default = "default_true")]
+    healthy: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+async fn cluster_heartbeat_handler(
+    State(state): State<AppState>,
+    Path(node_id): Path<u32>,
+    Json(req): Json<HeartbeatRequest>,
+) -> impl IntoResponse {
+    let Some(ref cm) = state.cluster_manager else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "cluster_not_enabled",
+                "message": "Cluster mode is not enabled on this node"
+            })),
+        );
+    };
+
+    cm.update_member_heartbeat(node_id, req.wal_offset, req.healthy);
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "updated",
+            "node_id": node_id,
+        })),
+    )
+}
+
+/// POST /api/v1/cluster/vote — Handle a vote request (simplified Raft RequestVote)
+async fn cluster_vote_handler(
+    State(state): State<AppState>,
+    Json(request): Json<VoteRequest>,
+) -> impl IntoResponse {
+    let Some(ref cm) = state.cluster_manager else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "cluster_not_enabled",
+                "message": "Cluster mode is not enabled on this node"
+            })),
+        );
+    };
+
+    let response = cm.handle_vote_request(&request).await;
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::to_value(response).unwrap()),
+    )
+}
+
+/// POST /api/v1/cluster/election — Trigger a leader election (manual failover)
+async fn cluster_election_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let Some(ref cm) = state.cluster_manager else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "cluster_not_enabled",
+                "message": "Cluster mode is not enabled on this node"
+            })),
+        );
+    };
+
+    // Select best candidate deterministically
+    let candidate = cm.select_leader_candidate();
+
+    match candidate {
+        Some(candidate_id) => {
+            let new_term = cm.start_election().await;
+            tracing::info!(
+                "Cluster election started: term={}, candidate={}",
+                new_term,
+                candidate_id,
+            );
+
+            // If this node is the candidate, become leader immediately
+            // (In a full Raft, we'd collect votes from a majority first)
+            if candidate_id == cm.self_id() {
+                cm.become_leader(new_term).await;
+                tracing::info!("Node {} became leader at term {}", candidate_id, new_term);
+            }
+
+            (
+                axum::http::StatusCode::OK,
+                Json(serde_json::json!({
+                    "status": "election_started",
+                    "term": new_term,
+                    "candidate_id": candidate_id,
+                    "self_is_leader": candidate_id == cm.self_id(),
+                })),
+            )
+        }
+        None => (
+            axum::http::StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "no_candidates",
+                "message": "No healthy members available for leader election",
+            })),
+        ),
+    }
+}
+
+/// GET /api/v1/cluster/partitions — Get partition distribution across nodes
+async fn cluster_partitions_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let Some(ref cm) = state.cluster_manager else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "cluster_not_enabled",
+                "message": "Cluster mode is not enabled on this node"
+            })),
+        );
+    };
+
+    let registry = cm.registry();
+    let distribution = registry.partition_distribution();
+    let total_partitions: usize = distribution.values().map(|v| v.len()).sum();
+
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::json!({
+            "total_partitions": total_partitions,
+            "node_count": registry.node_count(),
+            "healthy_node_count": registry.healthy_node_count(),
+            "distribution": distribution,
+        })),
+    )
+}
+
+// =============================================================================
+// Geo-Replication Handlers (v1.9)
+// =============================================================================
+
+/// GET /api/v1/geo/status — Get geo-replication status
+async fn geo_status_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let Some(ref geo) = state.geo_replication else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "geo_replication_not_enabled",
+                "message": "Geo-replication is not enabled on this node"
+            })),
+        );
+    };
+
+    let status = geo.status();
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::to_value(status).unwrap()),
+    )
+}
+
+/// POST /api/v1/geo/sync — Receive replicated events from a peer region
+async fn geo_sync_handler(
+    State(state): State<AppState>,
+    Json(request): Json<GeoSyncRequest>,
+) -> impl IntoResponse {
+    let Some(ref geo) = state.geo_replication else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "geo_replication_not_enabled",
+                "message": "Geo-replication is not enabled on this node"
+            })),
+        );
+    };
+
+    tracing::info!(
+        "Geo-sync received from region '{}': {} events",
+        request.source_region,
+        request.events.len(),
+    );
+
+    let response = geo.receive_sync(&request);
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::to_value(response).unwrap()),
+    )
+}
+
+/// GET /api/v1/geo/peers — List peer regions and their health
+async fn geo_peers_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let Some(ref geo) = state.geo_replication else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "geo_replication_not_enabled",
+                "message": "Geo-replication is not enabled on this node"
+            })),
+        );
+    };
+
+    let status = geo.status();
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::json!({
+            "region_id": status.region_id,
+            "peers": status.peers,
+        })),
+    )
+}
+
+/// POST /api/v1/geo/failover — Trigger regional failover
+async fn geo_failover_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let Some(ref geo) = state.geo_replication else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "geo_replication_not_enabled",
+                "message": "Geo-replication is not enabled on this node"
+            })),
+        );
+    };
+
+    match geo.select_failover_region() {
+        Some(failover_region) => {
+            tracing::info!(
+                "Geo-failover: selected region '{}' as failover target",
+                failover_region,
+            );
+            (
+                axum::http::StatusCode::OK,
+                Json(serde_json::json!({
+                    "status": "failover_target_selected",
+                    "failover_region": failover_region,
+                    "message": "Region selected for failover. DNS/routing update required externally.",
+                })),
+            )
+        }
+        None => (
+            axum::http::StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "no_healthy_peers",
+                "message": "No healthy peer regions available for failover",
+            })),
+        ),
+    }
 }
 
 /// Listen for shutdown signals (SIGTERM for serverless, SIGINT for local dev)

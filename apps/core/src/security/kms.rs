@@ -1,11 +1,7 @@
 /// Key Management System (KMS) Integration
 ///
-/// Provides integration with external KMS/HSM for secure key storage:
-/// - AWS KMS
-/// - Google Cloud KMS
-/// - Azure Key Vault
-/// - HashiCorp Vault
-/// - Local HSM via PKCS#11
+/// Provides local key management for encryption operations.
+/// Uses in-process key storage with AES-GCM encryption.
 use crate::error::{AllSourceError, Result};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -14,12 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 /// KMS provider type
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum KmsProvider {
-    AwsKms,
-    GoogleCloudKms,
-    AzureKeyVault,
-    HashicorpVault,
-    Pkcs11,
-    Local, // For development/testing only
+    Local,
 }
 
 /// KMS configuration
@@ -354,12 +345,6 @@ impl KmsManager {
     pub fn new(config: KmsConfig) -> Result<Self> {
         let client: Arc<dyn KmsClient> = match config.provider {
             KmsProvider::Local => Arc::new(LocalKms::new(config.clone())),
-            _ => {
-                return Err(AllSourceError::ValidationError(format!(
-                    "KMS provider {:?} not yet implemented",
-                    config.provider
-                )));
-            }
         };
 
         Ok(Self { client, config })

@@ -122,7 +122,9 @@ defmodule QueryServiceExWeb.EventHALTest do
     test "query response includes self and tenant links" do
       links =
         HAL.self("/api/query")
-        |> HAL.merge(HAL.mgmt_plane_link("tenant", "/api/v1/tenants/{tenant_id}", templated: true))
+        |> HAL.merge(
+          HAL.mgmt_plane_link("tenant", "/api/v1/tenants/{tenant_id}", templated: true)
+        )
 
       assert links["self"] == %{href: "/api/query"}
       assert links["tenant"][:templated] == true
@@ -145,7 +147,13 @@ defmodule QueryServiceExWeb.EventHALTest do
 
   describe "JSON serialization of event with HAL" do
     test "full event with links serializes correctly" do
-      event = %{"id" => "e5", "entity_id" => "ent1", "event_type" => "click", "payload" => %{"x" => 1}}
+      event = %{
+        "id" => "e5",
+        "entity_id" => "ent1",
+        "event_type" => "click",
+        "payload" => %{"x" => 1}
+      }
+
       wrapped = HAL.wrap(event, event_links(event))
       json = Jason.encode!(wrapped)
       decoded = Jason.decode!(json)

@@ -47,16 +47,12 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
-      assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
+      assert tool.description =~ "What it actually returns"
     end
 
-    test "description mentions retention", %{tool: tool} do
-      assert tool.description =~ "retention"
-    end
-
-    test "description includes methodology", %{tool: tool} do
-      assert tool.description =~ "Methodology"
+    test "has honest description about limitations", %{tool: tool} do
+      assert tool.description =~ "NOT"
+      assert tool.description =~ "frequency"
     end
 
     test "has required event_type parameter", %{tool: tool} do
@@ -107,13 +103,12 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
-      assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
-      assert tool.description =~ "Decision guide"
+      assert tool.description =~ "Methodology"
     end
 
-    test "description mentions causal relationships", %{tool: tool} do
-      assert tool.description =~ "causal" or tool.description =~ "correlat"
+    test "has honest description about methodology", %{tool: tool} do
+      assert tool.description =~ "co-occurrence"
+      assert tool.description =~ "not a statistical correlation coefficient"
     end
 
     test "has required event_type_a parameter", %{tool: tool} do
@@ -152,16 +147,12 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
-      assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
+      assert tool.description =~ "What it actually computes"
     end
 
-    test "description mentions capacity planning", %{tool: tool} do
-      assert tool.description =~ "Capacity planning" or tool.description =~ "capacity planning"
-    end
-
-    test "description includes methodology", %{tool: tool} do
-      assert tool.description =~ "Methodology"
+    test "has honest description about limitations", %{tool: tool} do
+      assert tool.description =~ "basic linear regression"
+      assert tool.description =~ "Limitations"
     end
 
     test "has granularity parameter with correct enum", %{tool: tool} do
@@ -205,13 +196,12 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
-      assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
-      assert tool.description =~ "Decision guide"
+      assert tool.description =~ "What it actually returns"
     end
 
-    test "description mentions segmentation", %{tool: tool} do
-      assert tool.description =~ "segment" or tool.description =~ "Segment"
+    test "has honest description about limitations", %{tool: tool} do
+      assert tool.description =~ "NOT"
+      assert tool.description =~ "summary statistics"
     end
 
     test "has required event_type parameter", %{tool: tool} do
@@ -256,13 +246,12 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
-      assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
-      assert tool.description =~ "Decision guide"
+      assert tool.description =~ "What it actually returns"
     end
 
-    test "description mentions funnel analysis", %{tool: tool} do
-      assert tool.description =~ "funnel" or tool.description =~ "Conversion funnel"
+    test "has honest description about limitations", %{tool: tool} do
+      assert tool.description =~ "NOT"
+      assert tool.description =~ "funnel"
     end
 
     test "has steps parameter as array", %{tool: tool} do
@@ -307,15 +296,12 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
-      assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
+      assert tool.description =~ "What it actually returns"
     end
 
-    test "description mentions attribution models", %{tool: tool} do
-      assert tool.description =~ "first_touch"
-      assert tool.description =~ "last_touch"
-      assert tool.description =~ "linear"
-      assert tool.description =~ "time_decay"
+    test "has honest description about limitations", %{tool: tool} do
+      assert tool.description =~ "NOT"
+      assert tool.description =~ "attribution"
     end
 
     test "has required target_event parameter", %{tool: tool} do
@@ -366,18 +352,12 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
-      assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
-      assert tool.description =~ "Decision guide"
+      assert tool.description =~ "What it actually returns"
     end
 
-    test "description mentions churn risk", %{tool: tool} do
-      assert tool.description =~ "churn" or tool.description =~ "Churn"
-      assert tool.description =~ "risk"
-    end
-
-    test "description includes methodology", %{tool: tool} do
-      assert tool.description =~ "Methodology"
+    test "has honest description about limitations", %{tool: tool} do
+      assert tool.description =~ "NOT"
+      assert tool.description =~ "churn"
     end
 
     test "has required activity_event parameter", %{tool: tool} do
@@ -422,13 +402,12 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
 
     test "has description with agent guidance", %{tool: tool} do
       assert tool.description =~ "When to use this tool"
-      assert tool.description =~ "Common patterns"
-      assert tool.description =~ "Performance tips"
-      assert tool.description =~ "Decision guide"
+      assert tool.description =~ "What it actually returns"
     end
 
-    test "description mentions lifetime value", %{tool: tool} do
-      assert tool.description =~ "lifetime value" or tool.description =~ "LTV"
+    test "has honest description about limitations", %{tool: tool} do
+      assert tool.description =~ "NOT"
+      assert tool.description =~ "LTV"
     end
 
     test "has required value_event parameter", %{tool: tool} do
@@ -486,21 +465,13 @@ defmodule McpServerElixir.Protocol.McpToolsAnalyticsTest do
       end
     end
 
-    test "all tools have descriptions with 'Common patterns' section", %{tools: tools} do
+    test "all tools have honest descriptions about actual capabilities", %{tools: tools} do
       for tool_name <- @analytics_tools do
         tool = Enum.find(tools, &(&1.name == tool_name))
 
-        assert tool.description =~ "Common patterns",
-               "#{tool_name} missing 'Common patterns' section"
-      end
-    end
-
-    test "all tools have descriptions with 'Performance tips' section", %{tools: tools} do
-      for tool_name <- @analytics_tools do
-        tool = Enum.find(tools, &(&1.name == tool_name))
-
-        assert tool.description =~ "Performance tips",
-               "#{tool_name} missing 'Performance tips' section"
+        assert tool.description =~ "actually" or tool.description =~ "Important" or
+                 tool.description =~ "Note:",
+               "#{tool_name} missing honest description of actual capabilities"
       end
     end
 

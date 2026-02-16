@@ -59,7 +59,11 @@ defmodule QueryServiceExWeb.EventController do
 
     case RustCoreClient.query_events(tenant_id, query_params, consistency: consistency) do
       {:ok, events} ->
-        self_link = list_self_link("/api/events", Map.take(params, ["entity_id", "event_type", "limit", "offset"]))
+        self_link =
+          list_self_link(
+            "/api/events",
+            Map.take(params, ["entity_id", "event_type", "limit", "offset"])
+          )
 
         response =
           %{data: Enum.map(events, &wrap_event/1), count: length(events)}
@@ -76,27 +80,35 @@ defmodule QueryServiceExWeb.EventController do
 
   operation(:show,
     summary: "Get event by ID",
-    description: "Retrieve a specific event by its ID. (Not yet implemented)",
+    description: "Retrieve a specific event by its ID.",
     security: [%{"bearer_auth" => []}],
     parameters: [
       id: [in: :path, type: :string, description: "Event ID", required: true]
     ],
     responses: [
       ok: {"Event details", "application/json", Events.EventResponse},
-      not_found: {"Event not found", "application/json", Common.SimpleError},
-      not_implemented: {"Not implemented", "application/json", Common.SimpleError}
+      not_found: {"Event not found", "application/json", Common.SimpleError}
     ]
   )
 
   @doc """
   Get a specific event by ID.
   """
-  def show(conn, %{"id" => _id}) do
-    # Note: RustCoreClient doesn't have get_event_by_id, so we query by entity_id
-    # This is a limitation that should be addressed in the backend
-    conn
-    |> put_status(:not_implemented)
-    |> json(%{error: "Direct event ID lookup not yet implemented"})
+  def show(conn, %{"id" => id}) do
+    case RustCoreClient.get_event_by_id(id) do
+      {:ok, event} ->
+        json(conn, %{data: wrap_event(event)})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Event not found"})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
   end
 
   operation(:create,
@@ -418,7 +430,11 @@ defmodule QueryServiceExWeb.EventController do
     case RustCoreClient.list_event_types(opts) do
       {:ok, %{"event_types" => event_types, "total" => total}} ->
         response =
-          %{data: Enum.map(event_types, &wrap_event_type/1), count: length(event_types), total: total}
+          %{
+            data: Enum.map(event_types, &wrap_event_type/1),
+            count: length(event_types),
+            total: total
+          }
           |> HAL.wrap(self_link)
 
         json(conn, response)

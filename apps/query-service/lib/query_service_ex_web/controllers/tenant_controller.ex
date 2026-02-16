@@ -11,8 +11,8 @@ defmodule QueryServiceExWeb.TenantController do
   use OpenApiSpex.ControllerSpecs
 
   alias QueryServiceEx.DevMode
-  alias QueryServiceEx.TenantCache
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+  alias QueryServiceEx.TenantCache
   alias QueryServiceExWeb.Schemas.Common
   alias QueryServiceExWeb.Schemas.Tenant
 
@@ -191,6 +191,7 @@ defmodule QueryServiceExWeb.TenantController do
     }
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp build_usage_response(tenant) when is_map(tenant) do
     metadata = tenant["metadata"] || %{}
     subscription = metadata["subscription"] || %{}
@@ -201,18 +202,6 @@ defmodule QueryServiceExWeb.TenantController do
     queries_quota = quotas["queries_quota"] || -1
     queries_used = quotas["queries_used"] || 0
 
-    events_remaining =
-      case events_quota do
-        -1 -> -1
-        quota when is_integer(quota) -> max(0, quota - events_used)
-      end
-
-    queries_remaining =
-      case queries_quota do
-        -1 -> -1
-        quota when is_integer(quota) -> max(0, quota - queries_used)
-      end
-
     %{
       tenant_id: tenant["id"],
       subscription_tier: subscription["tier"],
@@ -220,16 +209,19 @@ defmodule QueryServiceExWeb.TenantController do
       events: %{
         used: events_used,
         quota: events_quota,
-        remaining: events_remaining
+        remaining: remaining(events_quota, events_used)
       },
       queries: %{
         used: queries_used,
         quota: queries_quota,
-        remaining: queries_remaining
+        remaining: remaining(queries_quota, queries_used)
       },
       billing_period: %{
         reset_at: nil
       }
     }
   end
+
+  defp remaining(-1, _used), do: -1
+  defp remaining(quota, used) when is_integer(quota), do: max(0, quota - used)
 end

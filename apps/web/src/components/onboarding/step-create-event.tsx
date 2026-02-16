@@ -55,7 +55,7 @@ export function StepCreateEvent({ onNext }: StepCreateEventProps) {
   };
 
   const codeSnippet = `// Create an event using the REST API
-const response = await fetch('https://api.allsource.dev/api/events', {
+const response = await fetch('https://api.all-source.xyz/api/events', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',

@@ -4,7 +4,7 @@ defmodule QueryServiceEx.MixProject do
   def project do
     [
       app: :query_service_ex,
-      version: "0.10.1",
+      version: "0.10.3",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -19,7 +19,8 @@ defmodule QueryServiceEx.MixProject do
   defp dialyzer do
     [
       plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
-      plt_add_apps: [:mix, :ex_unit]
+      plt_add_apps: [:mix, :ex_unit],
+      ignore_warnings: ".dialyzer_ignore.exs"
     ]
   end
 

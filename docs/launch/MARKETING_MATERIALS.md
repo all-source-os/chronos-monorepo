@@ -72,7 +72,7 @@ Total production footprint: ~129 MB
 
 Create event:
 ```bash
-curl -X POST https://api.allsource.dev/events \
+curl -X POST https://api.all-source.xyz/events \
   -d '{"type": "order.placed", "data": {"id": 123}}'
 ```
 
@@ -104,7 +104,7 @@ We're opening early access today.
 
 Sign up, poke around, break things, tell us what sucks.
 
-👉 allsource.allsource.dev
+👉 all-source.xyz
 
 What would you build with time-travel for your data?
 
@@ -223,7 +223,7 @@ An event sourcing platform that stores every state change and lets you query any
 MIT licensed, self-host anywhere. No phone call required.
 
 GitHub: https://github.com/all-source-os/allsource-monorepo
-Try it: https://allsource.allsource.dev
+Try it: https://all-source.xyz
 
 Looking for feedback on:
 1. Is the time-travel query syntax intuitive?

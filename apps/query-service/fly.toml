@@ -1,9 +1,9 @@
 # Fly.io Configuration for AllSource Query Service
-# Deploy: flyctl deploy --app allsource-query-service
-# Scale: flyctl scale count 3 --app allsource-query-service
+# Deploy: flyctl deploy --app allsource-query
+# Scale: flyctl scale count 3 --app allsource-query
 # Secrets: flyctl secrets set SECRET_KEY_BASE=... GOOGLE_CLIENT_ID=... etc
 
-app = "allsource-query-service"
+app = "allsource-query"
 primary_region = "iad"  # US East (Virginia)
 
 [build]
@@ -11,18 +11,16 @@ primary_region = "iad"  # US East (Virginia)
 
 [env]
   MIX_ENV = "prod"
-  PHX_HOST = "allsource-query-service.fly.dev"
+  PHX_HOST = "allsource-query.fly.dev"
   CORE_URL = "http://allsource-core.internal:3900"
   CORE_WS_URL = "ws://allsource-core.internal:3900/api/v1/events/stream"
   ECTO_IPV6 = "true"
-  # Use port 3902 to match application config
+  ERL_AFLAGS = "-proto_dist inet6_tcp"
   PORT = "3902"
-  # Enable structured JSON logging in production
   LOGGER_LEVEL = "info"
 
 # Required secrets (set via flyctl secrets set):
 # - SECRET_KEY_BASE: mix phx.gen.secret
-# - DATABASE_URL: auto-set when attaching Fly Postgres
 # - GOOGLE_CLIENT_ID: from Google Cloud Console
 # - GOOGLE_CLIENT_SECRET: from Google Cloud Console
 # - GITHUB_CLIENT_ID: from GitHub Developer Settings
@@ -66,13 +64,6 @@ primary_region = "iad"  # US East (Virginia)
   cpu_kind = "shared"
   cpus = 1
   memory_mb = 512  # Increased for production workload
-
-# Database: Attach Fly Postgres
-# flyctl postgres create --name allsource-db
-# flyctl postgres attach allsource-db --app allsource-query-service
-
-# Metrics: Prometheus-compatible endpoint available at /api/metrics
-# Configure Fly.io Prometheus scraping if needed
 
 [metrics]
   port = 9091

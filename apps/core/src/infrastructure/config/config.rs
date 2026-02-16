@@ -51,6 +51,26 @@ impl Default for ServerConfig {
     }
 }
 
+impl ServerConfig {
+    /// Create ServerConfig from environment variables.
+    /// Reads ALLSOURCE_HOST (or HOST), ALLSOURCE_PORT (or PORT), falling back to defaults.
+    pub fn from_env() -> Self {
+        let mut config = Self::default();
+
+        if let Ok(host) = std::env::var("ALLSOURCE_HOST").or_else(|_| std::env::var("HOST")) {
+            config.host = host;
+        }
+
+        if let Ok(port) = std::env::var("ALLSOURCE_PORT").or_else(|_| std::env::var("PORT"))
+            && let Ok(p) = port.parse::<u16>()
+        {
+            config.port = p;
+        }
+
+        config
+    }
+}
+
 /// Storage configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageConfig {

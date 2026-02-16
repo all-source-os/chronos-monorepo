@@ -68,12 +68,14 @@ type Container struct {
 	GetProjectedChargesUC *usecases.GetProjectedChargesUseCase
 
 	// Use Cases — Billing (overage)
-	CalculateOverageUC *billing.CalculateOverageUseCase
-	ReportUsageUC      *billing.ReportUsageUseCase
+	CalculateOverageUC   *billing.CalculateOverageUseCase
+	ReportUsageUC        *billing.ReportUsageUseCase
+	CheckUsageWarningsUC *billing.CheckUsageWarningsUseCase
 
 	// Use Cases — Webhooks
-	ProcessLSWebhookUC   *usecases.ProcessLemonSqueezyWebhookUseCase
-	UpdateSubscriptionUC *usecases.UpdateSubscriptionMetadataUseCase
+	ProcessLSWebhookUC     *usecases.ProcessLemonSqueezyWebhookUseCase
+	ProcessStripeWebhookUC *usecases.ProcessStripeWebhookUseCase
+	UpdateSubscriptionUC   *usecases.UpdateSubscriptionMetadataUseCase
 
 	// Scheduler
 	Scheduler *usecases.OperationScheduler
@@ -91,8 +93,10 @@ type Container struct {
 
 // ContainerConfig holds configuration for dependency injection.
 type ContainerConfig struct {
-	CoreClient clients.CoreClient
-	LSClient   clients.LemonSqueezyClient
+	CoreClient   clients.CoreClient
+	LSClient     clients.LemonSqueezyClient
+	StripeClient clients.StripeClient
+	EmailClient  clients.EmailClient
 }
 
 // NewContainerWithConfig creates and wires up all dependencies using the provided config.
@@ -162,12 +166,12 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	deleteConfigUC := usecases.NewDeleteConfigUseCase(configRepo, auditRepo)
 
 	// Initialize use cases — Billing (Layer 2)
-	// Billing use cases that require LemonSqueezy are nil-safe (handler checks)
+	// Checkout/portal require at least one payment provider (LS or Stripe)
 	var createCheckoutUC *usecases.CreateCheckoutUseCase
 	var getPortalUC *usecases.GetPortalUseCase
-	if cfg.LSClient != nil {
-		createCheckoutUC = usecases.NewCreateCheckoutUseCase(tenantRepo, cfg.LSClient, auditRepo)
-		getPortalUC = usecases.NewGetPortalUseCase(tenantRepo, cfg.LSClient)
+	if cfg.LSClient != nil || cfg.StripeClient != nil {
+		createCheckoutUC = usecases.NewCreateCheckoutUseCase(tenantRepo, cfg.LSClient, cfg.StripeClient, auditRepo)
+		getPortalUC = usecases.NewGetPortalUseCase(tenantRepo, cfg.LSClient, cfg.StripeClient)
 	}
 	getOverageSummaryUC := usecases.NewGetOverageSummaryUseCase(tenantRepo)
 	setOverageEnabledUC := usecases.NewSetOverageEnabledUseCase(tenantRepo, auditRepo)
@@ -176,6 +180,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	// Initialize use cases — Webhooks
 	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
 	processLSWebhookUC := usecases.NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC)
+	processStripeWebhookUC := usecases.NewProcessStripeWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC)
 
 	// Initialize use cases — Billing (overage reporting)
 	calculateOverageUC := billing.NewCalculateOverageUseCase(tenantRepo)
@@ -184,10 +189,19 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		reportUsageUC = billing.NewReportUsageUseCase(tenantRepo, auditRepo, cfg.LSClient, calculateOverageUC)
 	}
 
+	// Initialize use cases — Billing (usage warnings)
+	var checkUsageWarningsUC *billing.CheckUsageWarningsUseCase
+	if cfg.EmailClient != nil {
+		checkUsageWarningsUC = billing.NewCheckUsageWarningsUseCase(tenantRepo, auditRepo, cfg.EmailClient)
+	}
+
 	// Initialize scheduler
 	scheduler := usecases.NewOperationScheduler(operationRepo, auditRepo, cfg.CoreClient)
 	if reportUsageUC != nil {
 		scheduler.SetReportUsageUseCase(reportUsageUC)
+	}
+	if checkUsageWarningsUC != nil {
+		scheduler.SetCheckUsageWarningsUseCase(checkUsageWarningsUC)
 	}
 
 	// Initialize HTTP handlers (Layer 4)
@@ -211,61 +225,63 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	billingHandler := httphandlers.NewBillingHandler(
 		createCheckoutUC, getPortalUC, getOverageSummaryUC, setOverageEnabledUC, getProjectedChargesUC,
 	)
-	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC)
+	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC, processStripeWebhookUC)
 
 	return &Container{
-		TenantRepo:            tenantRepo,
-		PolicyRepo:            policyRepo,
-		AuditRepo:             auditRepo,
-		OperationRepo:         operationRepo,
-		ConfigRepo:            configRepo,
-		CreateTenantUC:        createTenantUC,
-		GetTenantUC:           getTenantUC,
-		ListTenantsUC:         listTenantsUC,
-		UpdateTenantUC:        updateTenantUC,
-		SuspendTenantUC:       suspendTenantUC,
-		ActivateTenantUC:      activateTenantUC,
-		DeleteTenantUC:        deleteTenantUC,
-		EvaluatePolicyUC:      evaluatePolicyUC,
-		CreatePolicyUC:        createPolicyUC,
-		GetPolicyUC:           getPolicyUC,
-		ListPoliciesUC:        listPoliciesUC,
-		UpdatePolicyUC:        updatePolicyUC,
-		DeletePolicyUC:        deletePolicyUC,
-		CreateSnapshotUC:      createSnapshotUC,
-		TriggerCompactionUC:   triggerCompactionUC,
-		StartReplayUC:         startReplayUC,
-		GetReplayProgressUC:   getReplayProgressUC,
-		CancelReplayUC:        cancelReplayUC,
-		ListOperationsUC:      listOperationsUC,
-		GetClusterStatusUC:    getClusterStatusUC,
-		RegisterSchemaUC:      registerSchemaUC,
-		ListSchemasUC:         listSchemasUC,
-		ValidateEventUC:       validateEventUC,
-		QueryAuditUC:          queryAuditUC,
-		CreateConfigUC:        createConfigUC,
-		GetConfigUC:           getConfigUC,
-		ListConfigsUC:         listConfigsUC,
-		UpdateConfigUC:        updateConfigUC,
-		DeleteConfigUC:        deleteConfigUC,
-		CreateCheckoutUC:      createCheckoutUC,
-		GetPortalUC:           getPortalUC,
-		GetOverageSummaryUC:   getOverageSummaryUC,
-		SetOverageEnabledUC:   setOverageEnabledUC,
-		GetProjectedChargesUC: getProjectedChargesUC,
-		CalculateOverageUC:    calculateOverageUC,
-		ReportUsageUC:         reportUsageUC,
-		Scheduler:             scheduler,
-		TenantHandler:         tenantHandler,
-		PolicyHandler:         policyHandler,
-		OperationsHandler:     operationsHandler,
-		SchemaHandler:         schemaHandler,
-		AuditHandler:          auditHandler,
-		ConfigHandler:         configHandler,
-		BillingHandler:        billingHandler,
-		WebhookHandler:        webhookHandler,
-		ProcessLSWebhookUC:    processLSWebhookUC,
-		UpdateSubscriptionUC:  updateSubscriptionUC,
+		TenantRepo:             tenantRepo,
+		PolicyRepo:             policyRepo,
+		AuditRepo:              auditRepo,
+		OperationRepo:          operationRepo,
+		ConfigRepo:             configRepo,
+		CreateTenantUC:         createTenantUC,
+		GetTenantUC:            getTenantUC,
+		ListTenantsUC:          listTenantsUC,
+		UpdateTenantUC:         updateTenantUC,
+		SuspendTenantUC:        suspendTenantUC,
+		ActivateTenantUC:       activateTenantUC,
+		DeleteTenantUC:         deleteTenantUC,
+		EvaluatePolicyUC:       evaluatePolicyUC,
+		CreatePolicyUC:         createPolicyUC,
+		GetPolicyUC:            getPolicyUC,
+		ListPoliciesUC:         listPoliciesUC,
+		UpdatePolicyUC:         updatePolicyUC,
+		DeletePolicyUC:         deletePolicyUC,
+		CreateSnapshotUC:       createSnapshotUC,
+		TriggerCompactionUC:    triggerCompactionUC,
+		StartReplayUC:          startReplayUC,
+		GetReplayProgressUC:    getReplayProgressUC,
+		CancelReplayUC:         cancelReplayUC,
+		ListOperationsUC:       listOperationsUC,
+		GetClusterStatusUC:     getClusterStatusUC,
+		RegisterSchemaUC:       registerSchemaUC,
+		ListSchemasUC:          listSchemasUC,
+		ValidateEventUC:        validateEventUC,
+		QueryAuditUC:           queryAuditUC,
+		CreateConfigUC:         createConfigUC,
+		GetConfigUC:            getConfigUC,
+		ListConfigsUC:          listConfigsUC,
+		UpdateConfigUC:         updateConfigUC,
+		DeleteConfigUC:         deleteConfigUC,
+		CreateCheckoutUC:       createCheckoutUC,
+		GetPortalUC:            getPortalUC,
+		GetOverageSummaryUC:    getOverageSummaryUC,
+		SetOverageEnabledUC:    setOverageEnabledUC,
+		GetProjectedChargesUC:  getProjectedChargesUC,
+		CalculateOverageUC:     calculateOverageUC,
+		ReportUsageUC:          reportUsageUC,
+		CheckUsageWarningsUC:   checkUsageWarningsUC,
+		Scheduler:              scheduler,
+		TenantHandler:          tenantHandler,
+		PolicyHandler:          policyHandler,
+		OperationsHandler:      operationsHandler,
+		SchemaHandler:          schemaHandler,
+		AuditHandler:           auditHandler,
+		ConfigHandler:          configHandler,
+		BillingHandler:         billingHandler,
+		WebhookHandler:         webhookHandler,
+		ProcessLSWebhookUC:     processLSWebhookUC,
+		ProcessStripeWebhookUC: processStripeWebhookUC,
+		UpdateSubscriptionUC:   updateSubscriptionUC,
 	}
 }
 

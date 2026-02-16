@@ -3,9 +3,16 @@ use allsource_core::{
     api_v1::NodeRole,
     auth::AuthManager,
     config::ServerConfig,
-    infrastructure::{di::ContainerBuilder, persistence::SystemBootstrap},
+    infrastructure::{
+        cluster::{
+            ClusterManager, ClusterMember, GeoReplicationConfig, GeoReplicationManager, MemberRole,
+        },
+        di::ContainerBuilder,
+        persistence::SystemBootstrap,
+    },
     rate_limit::{RateLimitConfig, RateLimiter},
     replication::{ReplicationMode, WalReceiver, WalShipper},
+    resp::RespServer,
     store::EventStore,
     tenant::TenantManager,
 };
@@ -164,6 +171,17 @@ async fn main() -> Result<()> {
     }
     let service_container = builder.build();
 
+    // Start webhook delivery worker (v0.11 feature)
+    {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        store.set_webhook_tx(tx);
+        let webhook_registry = store.webhook_registry();
+        tokio::spawn(allsource_core::webhook_worker::run_webhook_delivery_worker(
+            rx,
+            webhook_registry,
+        ));
+    }
+
     tracing::info!("✅ Event store initialized");
     tracing::info!("✅ Authentication manager initialized");
     tracing::info!("✅ Tenant manager initialized (default tenant created)");
@@ -182,9 +200,95 @@ async fn main() -> Result<()> {
         tracing::info!("✅ Bootstrap API key configured");
     }
 
+    // Start RESP3 (Redis wire protocol) server if configured
+    if let Ok(resp_port_str) = std::env::var("ALLSOURCE_RESP_PORT")
+        && let Ok(resp_port) = resp_port_str.parse::<u16>()
+    {
+        let resp_server = Arc::new(RespServer::new(Arc::clone(&store)));
+        tokio::spawn(async move {
+            if let Err(e) = resp_server.serve(resp_port).await {
+                tracing::error!("RESP3 server error: {}", e);
+            }
+        });
+        tracing::info!("✅ RESP3 server enabled on port {}", resp_port);
+    }
+
+    // Initialize cluster manager if cluster mode is enabled
+    let cluster_manager = if std::env::var("ALLSOURCE_CLUSTER_ENABLED")
+        .map(|v| v == "true")
+        .unwrap_or(false)
+    {
+        let self_node_id: u32 = std::env::var("ALLSOURCE_NODE_ID")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0);
+        let partition_count: u32 = std::env::var("ALLSOURCE_PARTITION_COUNT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(32);
+
+        let cm = ClusterManager::new(self_node_id, partition_count);
+
+        // Self-register this node
+        let api_port: u16 = std::env::var("ALLSOURCE_PORT")
+            .or_else(|_| std::env::var("PORT"))
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(3900);
+        let host = std::env::var("ALLSOURCE_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+
+        let member_role = match role {
+            NodeRole::Leader => MemberRole::Leader,
+            NodeRole::Follower => MemberRole::Follower,
+        };
+
+        let self_member = ClusterMember {
+            node_id: self_node_id,
+            api_address: format!("{}:{}", host, api_port),
+            replication_address: format!("{}:{}", host, replication_port),
+            role: member_role,
+            last_wal_offset: 0,
+            last_heartbeat_ms: 0,
+            healthy: true,
+        };
+
+        // Use block_on to run the async add_member from sync context
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(cm.add_member(self_member));
+        });
+
+        tracing::info!(
+            "✅ Cluster mode enabled (node_id={}, partitions={})",
+            self_node_id,
+            partition_count,
+        );
+        Some(Arc::new(cm))
+    } else {
+        None
+    };
+
+    // Initialize geo-replication if configured
+    let geo_replication = GeoReplicationConfig::from_env().map(|config| {
+        let peer_count = config.peers.len();
+        let region_id = config.region_id.clone();
+        let mgr = Arc::new(GeoReplicationManager::new(config));
+        tracing::info!(
+            "✅ Geo-replication enabled (region='{}', peers={})",
+            region_id,
+            peer_count,
+        );
+        mgr
+    });
+
     // Start API server (v1.0 with auth & rate limiting)
-    let config = ServerConfig::default();
-    let addr = format!("{}:{}", config.host, config.port);
+    // Use Config::from_env() to pick up ALLSOURCE_HOST / ALLSOURCE_PORT / PORT env vars
+    // (Critical on Fly.io where ALLSOURCE_HOST="::" enables IPv6 6PN internal networking)
+    let config = ServerConfig::from_env();
+    let addr = if config.host.contains(':') {
+        format!("[{}]:{}", config.host, config.port)
+    } else {
+        format!("{}:{}", config.host, config.port)
+    };
     tracing::info!("🚀 AllSource Core listening on {}", addr);
     tracing::info!("📝 API: /health, /api/v1/events, /api/v1/events/query");
     tracing::info!(
@@ -205,6 +309,8 @@ async fn main() -> Result<()> {
         wal_shipper,
         wal_receiver,
         replication_port,
+        cluster_manager,
+        geo_replication,
     )
     .await?;
 

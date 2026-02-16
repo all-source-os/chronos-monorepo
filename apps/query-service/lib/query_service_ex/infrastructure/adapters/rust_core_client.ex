@@ -117,7 +117,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
         api_key -> [{Tesla.Middleware.Headers, [{"authorization", api_key}]} | middleware]
       end
 
-    Tesla.client(middleware)
+    Tesla.client(middleware, {Tesla.Adapter.Hackney, [connect_options: [:inet6]]})
   end
 
   defp pick_read_url([single_url]), do: single_url
@@ -463,6 +463,77 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
+  @doc "Get a single event by ID"
+  def get_event_by_id(event_id) do
+    case Tesla.get(read_client(), "/api/v1/events/#{event_id}") do
+      {:ok, %Tesla.Env{status: 200, body: %{"event" => event, "found" => true}}} ->
+        {:ok, event}
+
+      {:ok, %Tesla.Env{status: 200, body: %{"found" => false}}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Delete (clear) a projection by name"
+  def delete_projection(name) do
+    case Tesla.delete(write_client(), "/api/v1/projections/#{name}") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Get aggregate projection state (all entities)"
+  def get_projection_state_summary(name) do
+    case Tesla.get(read_client(), "/api/v1/projections/#{name}/state") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Reset a projection to initial state and reprocess events"
+  def reset_projection(name) do
+    case Tesla.post(write_client(), "/api/v1/projections/#{name}/reset", %{}) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   @doc "Create a new projection"
   def create_projection(projection) when is_map(projection) do
     case Tesla.post(write_client(), "/api/v1/projections", projection) do
@@ -691,6 +762,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   Returns `{:ok, {tenant_map, api_key_info}}` or `{:error, reason}`.
   """
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def verify_api_key(raw_key) when is_binary(raw_key) do
     # Build a one-off client with the API key as Authorization header
     base_url =
@@ -698,12 +770,15 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
         Application.get_env(:query_service_ex, :core_url, @default_base_url)
 
     client =
-      Tesla.client([
-        {Tesla.Middleware.BaseUrl, base_url},
-        Tesla.Middleware.JSON,
-        {Tesla.Middleware.Timeout, timeout: @default_timeout},
-        {Tesla.Middleware.Headers, [{"authorization", raw_key}]}
-      ])
+      Tesla.client(
+        [
+          {Tesla.Middleware.BaseUrl, base_url},
+          Tesla.Middleware.JSON,
+          {Tesla.Middleware.Timeout, timeout: @default_timeout},
+          {Tesla.Middleware.Headers, [{"authorization", raw_key}]}
+        ],
+        {Tesla.Adapter.Hackney, [connect_options: [:inet6]]}
+      )
 
     case Tesla.get(client, "/api/v1/auth/me") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
@@ -854,11 +929,14 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
       Application.get_env(:query_service_ex, :control_plane_url, "http://localhost:3901")
 
     cp_client =
-      Tesla.client([
-        {Tesla.Middleware.BaseUrl, cp_url},
-        Tesla.Middleware.JSON,
-        {Tesla.Middleware.Timeout, timeout: 5_000}
-      ])
+      Tesla.client(
+        [
+          {Tesla.Middleware.BaseUrl, cp_url},
+          Tesla.Middleware.JSON,
+          {Tesla.Middleware.Timeout, timeout: 5_000}
+        ],
+        {Tesla.Adapter.Hackney, [connect_options: [:inet6]]}
+      )
 
     case Tesla.get(cp_client, "/api/v1/cluster/health") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
@@ -899,4 +977,108 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
   defp extract_event_type(%{field: :event_type, operator: :eq, value: value}), do: value
   defp extract_event_type(_), do: nil
+
+  ## Webhook Management
+
+  @doc """
+  Register a new webhook subscription.
+  """
+  def register_webhook(tenant_id, params) when is_binary(tenant_id) and is_map(params) do
+    body = Map.put(params, :tenant_id, tenant_id)
+
+    case Tesla.post(write_client(), "/api/v1/webhooks", body) do
+      {:ok, %Tesla.Env{status: 200, body: %{"webhook" => webhook}}} ->
+        {:ok, webhook}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  List webhooks for a tenant.
+  """
+  def list_webhooks(tenant_id) when is_binary(tenant_id) do
+    case Tesla.get(read_client(), "/api/v1/webhooks", query: [tenant_id: tenant_id]) do
+      {:ok, %Tesla.Env{status: 200, body: %{"webhooks" => webhooks, "total" => total}}} ->
+        {:ok, %{webhooks: webhooks, total: total}}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Get a specific webhook by ID.
+  """
+  def get_webhook(webhook_id) when is_binary(webhook_id) do
+    case Tesla.get(read_client(), "/api/v1/webhooks/#{webhook_id}") do
+      {:ok, %Tesla.Env{status: 200, body: %{"webhook" => webhook}}} ->
+        {:ok, webhook}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Update a webhook subscription.
+  """
+  def update_webhook(webhook_id, params) when is_binary(webhook_id) and is_map(params) do
+    case Tesla.put(write_client(), "/api/v1/webhooks/#{webhook_id}", params) do
+      {:ok, %Tesla.Env{status: 200, body: %{"webhook" => webhook}}} ->
+        {:ok, webhook}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Delete a webhook subscription.
+  """
+  def delete_webhook(webhook_id) when is_binary(webhook_id) do
+    case Tesla.delete(write_client(), "/api/v1/webhooks/#{webhook_id}") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  List delivery history for a webhook.
+  """
+  def list_webhook_deliveries(webhook_id, opts \\ []) when is_binary(webhook_id) do
+    limit = Keyword.get(opts, :limit, 50)
+
+    case Tesla.get(read_client(), "/api/v1/webhooks/#{webhook_id}/deliveries",
+           query: [limit: limit]
+         ) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 end

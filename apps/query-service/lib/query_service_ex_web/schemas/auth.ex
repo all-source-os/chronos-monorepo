@@ -65,7 +65,8 @@ defmodule QueryServiceExWeb.Schemas.Auth do
     @moduledoc "Development token response"
     OpenApiSpex.schema(%{
       title: "DevTokenResponse",
-      description: "Response containing a development JWT token (only available when AUTH_DISABLED=true)",
+      description:
+        "Response containing a development JWT token (only available when AUTH_DISABLED=true)",
       type: :object,
       properties: %{
         data: %Schema{

@@ -67,9 +67,11 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
     quota = get_quota(tenant, type)
     used = get_used(tenant, type)
 
-    cond do
-      quota < 0 -> false  # unlimited (-1)
-      true -> used >= quota
+    if quota < 0 do
+      # unlimited (-1)
+      false
+    else
+      used >= quota
     end
   end
 

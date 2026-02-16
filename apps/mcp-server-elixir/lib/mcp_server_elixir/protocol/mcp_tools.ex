@@ -270,27 +270,27 @@ defmodule McpServerElixir.Protocol.McpTools do
   """
   # Tools gated by read_only mode
   @read_only_gated_tools MapSet.new([
-    "ingest_event",
-    "delete_events",
-    "archive_events",
-    "import_events",
-    "clone_entity",
-    "merge_entities",
-    "split_entity",
-    "compact_storage",
-    "backup_create",
-    "backup_restore"
-  ])
+                           "ingest_event",
+                           "delete_events",
+                           "archive_events",
+                           "import_events",
+                           "clone_entity",
+                           "merge_entities",
+                           "split_entity",
+                           "compact_storage",
+                           "backup_create",
+                           "backup_restore"
+                         ])
 
   # Tools gated by control_plane_enabled
   @control_plane_gated_tools MapSet.new([
-    "tenant_create",
-    "tenant_update",
-    "tenant_usage",
-    "tenant_quotas",
-    "tenant_suspend",
-    "tenant_export"
-  ])
+                               "tenant_create",
+                               "tenant_update",
+                               "tenant_usage",
+                               "tenant_quotas",
+                               "tenant_suspend",
+                               "tenant_export"
+                             ])
 
   def call_tool(tool_name, args, state) do
     format = Map.get(args, "format", nil)
@@ -302,16 +302,25 @@ defmodule McpServerElixir.Protocol.McpTools do
         {:ok,
          %{
            content: [
-             %{type: "text", text: "Tool disabled: read-only mode is active. Unset ALLSOURCE_READ_ONLY to enable mutation tools."}
+             %{
+               type: "text",
+               text:
+                 "Tool disabled: read-only mode is active. Unset ALLSOURCE_READ_ONLY to enable mutation tools."
+             }
            ],
            isError: true
          }}
 
-      MapSet.member?(@control_plane_gated_tools, tool_name) and not Map.get(state, :control_plane_enabled, false) ->
+      MapSet.member?(@control_plane_gated_tools, tool_name) and
+          not Map.get(state, :control_plane_enabled, false) ->
         {:ok,
          %{
            content: [
-             %{type: "text", text: "Tool disabled: control plane not configured. Set ALLSOURCE_CONTROL_URL to enable tenant management tools."}
+             %{
+               type: "text",
+               text:
+                 "Tool disabled: control plane not configured. Set ALLSOURCE_CONTROL_URL to enable tenant management tools."
+             }
            ],
            isError: true
          }}
@@ -1108,13 +1117,16 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "get_query_advice",
       description: """
-      Get expert recommendations for querying AllSource based on your specific use case. \
-      Returns recommended tool combinations, query patterns, performance tips, and \
-      common pitfalls to avoid.
+      Get recommendations for querying AllSource based on your use case. Returns \
+      recommended tool combinations, query patterns, performance tips, and pitfalls.
+
+      **How it works:** This is a stateless lookup table (no backend calls). It \
+      returns pre-written advice for 5 use cases, with additional domain-specific \
+      tips when you provide a `context` string. Context matching is keyword-based — \
+      include relevant domain terms for better recommendations.
 
       **When to use this tool:**
       - Starting a new investigation and unsure which tools to use
-      - Optimizing query performance for a specific use case
       - Learning best practices for common scenarios
       - Before building complex query workflows
 
@@ -1124,23 +1136,19 @@ defmodule McpServerElixir.Protocol.McpTools do
       - Debugging issues: `use_case: "debugging"`
       - Regulatory compliance: `use_case: "compliance"`
       - System optimization: `use_case: "performance_analysis"`
-      - Add `context` for domain-specific advice: `context: "e-commerce checkout flow"`
+      - Add `context` for domain-specific tips: `context: "e-commerce checkout flow"`
+
+      **Context keywords that trigger extra advice:**
+      - Payment/checkout/transaction, auth/login/session, user/customer/account
+      - API/endpoint/webhook, error/failure/crash, email/notification
+      - Subscription/billing, inventory/shipping, analytics/dashboard
+      - GDPR/privacy, retention/churn, conversion/funnel, performance/latency
 
       **What this tool returns:**
       - Recommended tools and their optimal order
       - Specific query patterns with example parameters
-      - Performance optimization strategies
+      - Performance tips (general + context-specific)
       - Common mistakes to avoid for your use case
-
-      **Performance tips:**
-      - This is a stateless advisory tool with no backend calls
-      - Use before complex investigations to plan your approach
-      - Re-query with different use cases to compare strategies
-
-      **Decision guide:**
-      - Not sure where to start? → get_query_advice (this tool!)
-      - Know what you need? → Use the recommended tools directly
-      - Need system overview first? → get_stats or get_cluster_status
       """,
       inputSchema: %{
         type: "object",
@@ -3431,39 +3439,208 @@ defmodule McpServerElixir.Protocol.McpTools do
     end)
   end
 
-  defp generate_context_tips(_use_case, context) do
+  defp generate_context_tips(use_case, context) do
     context_lower = String.downcase(context)
 
+    domain_tips = generate_domain_tips(context_lower)
+    use_case_tips = generate_use_case_context_tips(use_case, context_lower)
+    analytics_tips = generate_analytics_honesty_tips(context_lower)
+
+    domain_tips ++ use_case_tips ++ analytics_tips
+  end
+
+  defp generate_domain_tips(context_lower) do
     tips = []
 
     tips =
-      if String.contains?(context_lower, ["payment", "checkout", "transaction"]) do
+      if String.contains?(context_lower, ["payment", "checkout", "transaction", "order", "purchase"]) do
         tips ++
           [
             "For payment flows, always include correlation IDs in your queries",
-            "Consider using hybrid_search with 'payment' or 'transaction' semantic queries"
+            "Consider using hybrid_search with 'payment' or 'transaction' semantic queries",
+            "Query by entity_id to trace a specific order's complete lifecycle",
+            "Use event_timeline to see the exact sequence: cart → checkout → payment → fulfillment"
           ]
       else
         tips
       end
 
     tips =
-      if String.contains?(context_lower, ["auth", "login", "session"]) do
+      if String.contains?(context_lower, ["auth", "login", "session", "oauth", "sso"]) do
         tips ++
           [
-            "Authentication events often span multiple entities - use semantic_search_events",
-            "Consider querying by IP address or session ID patterns in metadata"
+            "Authentication events often span multiple entities — use semantic_search_events",
+            "Consider querying by IP address or session ID patterns in metadata",
+            "Use find_patterns with pattern_type: 'anomaly' to detect unusual login patterns",
+            "For failed login investigations, query by event_type with time bounds to spot brute force"
           ]
       else
         tips
       end
 
     tips =
-      if String.contains?(context_lower, ["user", "customer", "account"]) do
+      if String.contains?(context_lower, ["user", "customer", "account", "profile"]) do
         tips ++
           [
-            "Use explain_entity first to understand user's complete journey",
-            "Compare entities to identify behavior patterns across user segments"
+            "Use explain_entity first to understand a user's complete journey",
+            "Use compare_entities to spot behavioral differences between user groups",
+            "For activity trends, use cohort_analysis (returns frequency data per time bucket)"
+          ]
+      else
+        tips
+      end
+
+    tips =
+      if String.contains?(context_lower, ["api", "endpoint", "request", "response", "webhook"]) do
+        tips ++
+          [
+            "Use correlation_analysis to check if specific API calls tend to precede errors",
+            "Query by event_type to isolate specific endpoint activity",
+            "Use forecast_events for basic volume trending (note: linear regression only)"
+          ]
+      else
+        tips
+      end
+
+    tips =
+      if String.contains?(context_lower, ["error", "failure", "exception", "crash", "bug"]) do
+        tips ++
+          [
+            "Use event_timeline with time bounds around the incident for chronological trace",
+            "Use reconstruct_state to see entity state at moment of failure",
+            "Use semantic_search_events with error description to find similar past incidents",
+            "Use correlation_analysis to check if specific events precede failures"
+          ]
+      else
+        tips
+      end
+
+    tips =
+      if String.contains?(context_lower, ["email", "notification", "message", "sms", "push"]) do
+        tips ++
+          [
+            "Track notification delivery chain: sent → delivered → opened → clicked",
+            "Use correlation_analysis to measure time between send and engagement events",
+            "Query by entity_id to see all notifications received by a specific user"
+          ]
+      else
+        tips
+      end
+
+    tips =
+      if String.contains?(context_lower, ["subscription", "plan", "billing", "invoice", "renewal"]) do
+        tips ++
+          [
+            "Use event_timeline per entity to trace subscription lifecycle events",
+            "For revenue analysis, query value events and sum amounts in your application",
+            "Note: ltv_calculation returns summary stats only — compute actual LTV from raw events"
+          ]
+      else
+        tips
+      end
+
+    tips =
+      if String.contains?(context_lower, [
+           "inventory",
+           "stock",
+           "warehouse",
+           "shipping",
+           "fulfillment"
+         ]) do
+        tips ++
+          [
+            "Use reconstruct_state to see inventory levels at any point in time",
+            "Track fulfillment pipelines with event_timeline per order entity",
+            "Use find_patterns to detect common fulfillment sequences"
+          ]
+      else
+        tips
+      end
+
+    tips
+  end
+
+  defp generate_use_case_context_tips(use_case, context_lower) do
+    case use_case do
+      "audit_trail" ->
+        cond do
+          String.contains?(context_lower, ["gdpr", "privacy", "deletion", "data request"]) ->
+            [
+              "For GDPR data subject requests, use query_events with entity_id to find all related events",
+              "Use reconstruct_state to document what data existed at time of request"
+            ]
+
+          String.contains?(context_lower, ["permission", "role", "access", "admin"]) ->
+            [
+              "Filter by event_type patterns like 'role.*' or 'permission.*' to trace access changes",
+              "Use analyze_changes to compare state before and after permission modifications"
+            ]
+
+          true ->
+            []
+        end
+
+      "user_analytics" ->
+        cond do
+          String.contains?(context_lower, ["retention", "churn", "engagement"]) ->
+            [
+              "Note: churn_prediction and segment_analysis return summary stats, not actual scores",
+              "For real retention analysis, query events per entity and compute activity gaps yourself",
+              "Use cohort_analysis for time-bucketed frequency data as a starting point"
+            ]
+
+          String.contains?(context_lower, ["conversion", "funnel", "onboarding"]) ->
+            [
+              "Note: path_analysis returns summary stats, not actual funnel conversion rates",
+              "For real funnel analysis, query events per entity and compute step-to-step drop-off",
+              "Use correlation_analysis to check if specific events precede conversion"
+            ]
+
+          true ->
+            []
+        end
+
+      "debugging" ->
+        cond do
+          String.contains?(context_lower, ["performance", "latency", "slow", "timeout"]) ->
+            [
+              "Use query_events with tight time bounds to isolate slow periods",
+              "Check event timestamps to measure processing time between steps",
+              "Use forecast_events to see if volume spikes correlate with performance issues"
+            ]
+
+          String.contains?(context_lower, ["data", "corruption", "inconsistent", "mismatch"]) ->
+            [
+              "Use reconstruct_state at multiple timestamps to find when data diverged",
+              "Use event_timeline to trace the exact sequence of modifications",
+              "Use analyze_changes to compare expected vs actual state"
+            ]
+
+          true ->
+            []
+        end
+
+      _ ->
+        []
+    end
+  end
+
+  defp generate_analytics_honesty_tips(context_lower) do
+    tips = []
+
+    tips =
+      if String.contains?(context_lower, [
+           "analytics",
+           "analysis",
+           "insights",
+           "metrics",
+           "dashboard"
+         ]) do
+        tips ++
+          [
+            "Note: cohort_analysis, segment_analysis, path_analysis, attribution_analysis, churn_prediction, and ltv_calculation are basic wrappers around Core's summary/frequency endpoints",
+            "For sophisticated analytics, query raw events and compute in your application or BI tool",
+            "correlation_analysis and forecast_events have real (though basic) computation"
           ]
       else
         tips
@@ -6235,24 +6412,29 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "migrate_schema",
       description: """
-      Migrate a schema to a new version with transformation rules. Handles \
-      schema evolution by defining how data should be transformed between versions.
+      Register a new schema version with optional transformation metadata. \
+      Uses Core's schema registry API for storage, with client-side diff \
+      computation for dry-run previews.
+
+      **Important:** This tool does NOT transform existing events. It registers \
+      a new schema version in Core and records transformation metadata. The diff \
+      preview (dry_run mode) is computed client-side by comparing JSON Schema \
+      properties — it is a structural comparison, not a full compatibility check.
 
       **When to use this tool:**
-      - Evolving an event type schema (adding/removing/renaming fields)
-      - Ensuring backward compatibility during schema changes
-      - Planning data migrations before deploying schema updates
-      - Registering a new schema version with transformation metadata
+      - Registering a new schema version for an evolving event type
+      - Previewing what changed before registering (dry_run: true)
+      - Recording transformation intent as metadata alongside new versions
 
       **Common patterns:**
       - Add field: `subject: "user.created", new_definition: {...}, transformations: [{"op": "add", "path": "/email_verified", "value": false}]`
       - Rename field: `subject: "order.placed", new_definition: {...}, transformations: [{"op": "rename", "from": "/amount", "to": "/total_amount"}]`
-      - Dry run: `..., dry_run: true` to preview compatibility check
+      - Dry run: `..., dry_run: true` to preview structural diff
 
-      **Performance tips:**
-      - Always run with dry_run: true first to check compatibility
-      - Migration is a metadata operation — does not transform existing events
-      - Existing events remain stored in their original schema version
+      **How it works:**
+      - **dry_run: true** → Fetches current schema from Core, computes client-side diff (field additions/removals/modifications)
+      - **dry_run: false** → Calls Core's `POST /api/v1/schemas` to register the new version
+      - Transformation rules are stored as metadata — they do not auto-apply to existing events
 
       **Decision guide:**
       - "Evolve schema safely?" → migrate_schema
@@ -6351,24 +6533,29 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "infer_schema",
       description: """
-      Auto-generate a JSON Schema from sample events. Analyzes event payloads \
-      to infer field types, required fields, and common patterns.
+      Auto-generate a JSON Schema from sample events. Fetches events from \
+      Core, then performs client-side type inference on the payloads.
+
+      **How it works:** Queries Core for recent events of the given type, then \
+      analyzes their `data` fields client-side to infer JSON Schema properties, \
+      types, and required fields. The inference is basic: it collects value types \
+      per field and marks fields present in all samples as required.
 
       **When to use this tool:**
       - Bootstrapping schemas for existing event types without definitions
       - Understanding the structure of unfamiliar event data
       - Generating a starting point schema to refine manually
-      - Auditing data consistency across events of the same type
 
       **Common patterns:**
       - Infer from event type: `event_type: "user.created"` (samples recent events)
       - With sample size: `event_type: "order.placed", sample_size: 100`
       - From specific entity: `entity_id: "user-123", event_type: "user.updated"`
 
-      **Performance tips:**
-      - Inference quality improves with more samples (default: 50)
-      - Large sample sizes (>500) may be slow on high-cardinality event types
-      - Inferred schemas are suggestions — review before registering
+      **Limitations:**
+      - Inference is client-side — no Core endpoint involved beyond event fetching
+      - Type detection is basic (string/number/boolean/array/object/null)
+      - Does not detect patterns (email, UUID, date formats) or enum values
+      - Inferred schemas are suggestions — always review before registering
 
       **Decision guide:**
       - "No schema exists, want to create one?" → infer_schema then register_schema
@@ -6400,28 +6587,27 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "schema_diff",
       description: """
-      Compare two schema versions to see what changed. Shows field additions, \
-      removals, type changes, and compatibility assessment.
+      Compare two schema versions to see what changed. Fetches schema \
+      definitions from Core, then computes a structural diff client-side.
 
-      **When to use this tool:**
-      - Reviewing what changed between schema versions before deploying
-      - Auditing schema evolution history
-      - Checking if a proposed change is backward/forward compatible
-      - Understanding breaking vs non-breaking changes
+      **How it works:** Fetches schema definitions from Core's registry API, \
+      then compares JSON Schema properties client-side. Reports added/removed/ \
+      modified fields, required field changes, and flags breaking changes \
+      (removed fields or newly-required fields).
+
+      **Important:** The diff is a structural property comparison, not a full \
+      JSON Schema compatibility check. It compares top-level properties and \
+      required arrays — it does not analyze nested schemas, `allOf`/`anyOf` \
+      compositions, or semantic compatibility modes.
 
       **Common patterns:**
       - Compare versions: `subject: "user.created", version_a: 1, version_b: 2`
       - Compare latest with previous: `subject: "user.created"` (defaults to last two versions)
       - Compare with proposed: `subject: "user.created", version_a: 2, proposed: {...}`
 
-      **Performance tips:**
-      - Lightweight metadata operation
-      - Diff includes compatibility assessment (breaking/non-breaking)
-      - For full version history, use list_schemas with include_versions: true
-
       **Decision guide:**
       - "What changed between versions?" → schema_diff
-      - "Is this change safe?" → schema_diff (check compatibility field)
+      - "Is this change safe?" → schema_diff (check breaking_changes field)
       - "Evolve schema?" → migrate_schema
       """,
       inputSchema: %{
@@ -6457,29 +6643,28 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "cohort_analysis",
       description: """
-      Analyze user cohort retention and behavior over time. Groups entities by \
-      their first event (cohort date) and tracks activity in subsequent periods.
+      Get event frequency data grouped by time period. Returns time-bucketed \
+      event counts from Core's frequency analytics endpoint.
+
+      **Important:** This is a basic frequency analysis tool, not a true cohort \
+      retention analysis. It returns event counts per time bucket — it does NOT \
+      group entities by their first event, does NOT track retention rates, and \
+      does NOT compute cohort-over-cohort comparisons. For actual cohort analysis, \
+      query events directly and compute retention in your application.
 
       **When to use this tool:**
-      - Measuring user retention (Day 1, Day 7, Day 30 retention rates)
-      - Understanding how different signup cohorts behave over time
-      - Comparing cohort performance across product changes
-      - Identifying when users typically drop off
+      - Getting event volume over time for a specific event type
+      - Understanding activity trends across time periods
+      - Exploring whether event volume is growing or declining
 
-      **Methodology:**
-      - Entities are grouped into cohorts by their first event timestamp
-      - Activity is measured by event count in each subsequent period
-      - Retention = % of cohort entities active in period N vs period 0
+      **What it actually returns:**
+      - Time-bucketed event counts from Core's `/api/v1/analytics/frequency` endpoint
+      - Buckets at the requested granularity (day/week/month)
+      - Total event count across all buckets
 
       **Common patterns:**
-      - Weekly cohorts: `event_type: "user.active", granularity: "week", periods: 12`
-      - Monthly retention: `event_type: "session.start", granularity: "month", periods: 6`
-      - Filtered cohort: `event_type: "purchase", cohort_filter: {"plan": "premium"}`
-
-      **Performance tips:**
-      - Limit periods to reduce computation (default: 8)
-      - Narrow time range with since/until for faster results
-      - Large datasets may take several seconds — consider sampling
+      - Weekly activity: `event_type: "user.active", granularity: "week"`
+      - Daily volume: `event_type: "session.start", granularity: "day"`
 
       **Recommended workflow:** Call `list_schemas` to discover event types available, \
       then call `quick_stats` to understand data volume before running analysis.
@@ -6528,19 +6713,20 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "correlation_analysis",
       description: """
-      Analyze correlations between event types to discover causal relationships \
-      and behavioral patterns. Uses Core's correlation analytics endpoint.
+      Analyze temporal co-occurrence between two event types using Core's \
+      correlation analytics endpoint. Measures how often events of type B occur \
+      near events of type A for the same entity within a configurable time window.
 
       **When to use this tool:**
-      - Discovering which events frequently occur together
-      - Finding causal chains (event A leads to event B within N minutes)
-      - Identifying conversion triggers (what actions precede purchases)
-      - Understanding feature adoption patterns
+      - Discovering which events frequently occur together for the same entity
+      - Checking if event A tends to be followed by event B within a time window
+      - Understanding temporal proximity between event types
 
       **Methodology:**
-      - Temporal correlation: measures how often event B follows event A within a time window
-      - Co-occurrence: counts entities that have both event types
-      - Correlation coefficient: statistical measure of relationship strength
+      - Queries both event types from Core, groups by entity
+      - Counts pairs where event B occurs within `time_window` seconds of event A (for same entity)
+      - Returns: total counts, correlated pair count, correlation percentage, average time between, and up to 5 examples
+      - Note: this is temporal co-occurrence, not a statistical correlation coefficient
 
       **Common patterns:**
       - Basic correlation: `event_type_a: "page.viewed", event_type_b: "purchase.completed"`
@@ -6595,35 +6781,32 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "forecast_events",
       description: """
-      Predict future event volumes using time series analysis. Uses historical \
-      frequency data to project trends and seasonal patterns.
+      Basic linear trend forecast of future event volumes. Fetches historical \
+      frequency data from Core and applies simple linear regression to project ahead.
+
+      **Important:** This uses basic linear regression (y = mx + b), not sophisticated \
+      time series methods. It does NOT detect seasonality, does NOT use ARIMA/Prophet, \
+      and works best for roughly linear trends. Treat results as rough estimates.
 
       **When to use this tool:**
-      - Capacity planning: predicting storage and compute needs
-      - Business forecasting: projecting user growth or revenue events
-      - Anomaly context: understanding if current volumes are unusual
-      - SLA planning: estimating peak load periods
+      - Getting a rough directional forecast of event volume trends
+      - Quick capacity planning estimates
+      - Understanding if volume is trending up or down
 
-      **Methodology:**
-      - Uses Core's frequency analytics as input data
-      - Applies trend decomposition (level, trend, seasonality)
-      - Returns point estimates with confidence intervals
-      - Seasonal patterns detected automatically from historical data
+      **What it actually computes:**
+      - Fetches event counts per time bucket from Core's frequency endpoint
+      - Fits a linear regression (slope + intercept) to historical bucket counts
+      - Projects forward with 95% confidence intervals based on standard deviation
+      - Returns: trend direction, slope, historical mean, and per-period predictions
 
       **Common patterns:**
       - Volume forecast: `event_type: "user.created", horizon: 30, granularity: "day"`
       - Weekly forecast: `event_type: "order.placed", horizon: 12, granularity: "week"`
-      - With history: `event_type: "api.request", history_periods: 90, horizon: 30`
 
-      **Performance tips:**
-      - More history_periods improves accuracy but slows computation
-      - Default history is 3x the horizon
-      - Forecasts are approximations — use confidence intervals for planning
-
-      **Decision guide:**
-      - "How many events next month?" → forecast_events
-      - "Current event rates?" → analytics frequency via quick_stats
-      - "Is this volume normal?" → combine forecast_events with correlation_analysis
+      **Limitations:**
+      - Needs at least 2 historical data points; more data = better estimates
+      - Assumes linear trend — poor for seasonal or cyclical patterns
+      - Confidence intervals are based on overall variance, not prediction-specific
       """,
       inputSchema: %{
         type: "object",
@@ -6658,35 +6841,26 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "segment_analysis",
       description: """
-      Segment entities by behavioral patterns. Groups entities based on their \
-      event activity to identify distinct user/entity segments.
+      Get summary statistics for an event type. Returns aggregate counts, top \
+      entities, and top event types from Core's summary analytics endpoint.
+
+      **Important:** This is a basic summary statistics tool, not a behavioral \
+      segmentation engine. It does NOT group entities into segments, does NOT \
+      compute RFM scores, and does NOT apply clustering algorithms. The `metric` \
+      and `segments` parameters are accepted but not used in computation. \
+      For actual segmentation, query events directly and compute segments in \
+      your application.
 
       **When to use this tool:**
-      - Identifying power users vs casual users by activity level
-      - Segmenting customers by purchase frequency or value
-      - Finding at-risk entities with declining activity
-      - Understanding behavioral clusters for targeted actions
+      - Getting an overview of event activity for a specific event type
+      - Seeing which entities are most active (top entities by event count)
+      - Understanding event type distribution in your data
 
-      **Methodology:**
-      - Analyzes event frequency, recency, and diversity per entity
-      - Groups entities into segments based on configurable thresholds
-      - Default segments: active, engaged, at-risk, dormant, churned
-
-      **Common patterns:**
-      - Activity segments: `event_type: "session.start", metric: "frequency"`
-      - Purchase segments: `event_type: "purchase", metric: "monetary_value"`
-      - RFM analysis: `event_type: "purchase", metric: "rfm"`
-      - Custom thresholds: `..., thresholds: {"active": 10, "engaged": 5, "at_risk": 1}`
-
-      **Performance tips:**
-      - Results are computed on-demand from event data
-      - Limit with since/until for faster computation on large datasets
-      - Segment definitions are returned — cache for dashboard displays
-
-      **Decision guide:**
-      - "Who are my power users?" → segment_analysis with metric: "frequency"
-      - "Which users might churn?" → churn_prediction (more sophisticated)
-      - "How do segments change over time?" → cohort_analysis
+      **What it actually returns:**
+      - Total event count, unique entities, unique event types
+      - Top 10 event types by count (with percentages)
+      - Top 10 entities by event count (with percentages)
+      - Time range and events-per-day rate
 
       **Recommended workflow:** Call `list_schemas` to discover event types available, \
       then call `quick_stats` to understand data volume before running analysis.
@@ -6731,35 +6905,27 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "path_analysis",
       description: """
-      Map user journeys and event sequences (funnel analysis). Analyzes the \
-      paths entities take through a series of event types.
+      Get summary statistics for an event type, presented as path context. \
+      Returns aggregate statistics from Core's summary analytics endpoint.
+
+      **Important:** This is NOT a real funnel or path analysis tool. It does NOT \
+      track event sequences per entity, does NOT compute conversion rates between \
+      steps, does NOT identify drop-off points, and does NOT discover common paths. \
+      The `steps`, `depth`, and `max_duration` parameters are accepted but not used \
+      in computation. For actual funnel analysis, query events per entity and compute \
+      step-to-step conversion in your application.
 
       **When to use this tool:**
-      - Conversion funnel analysis (signup → activation → purchase)
-      - Understanding user navigation flows
-      - Identifying drop-off points in multi-step processes
-      - Comparing journey paths between successful and unsuccessful outcomes
+      - Getting summary statistics for an event type as context for path investigation
+      - Understanding overall event volume before manual path analysis
 
-      **Methodology:**
-      - Tracks sequences of events per entity ordered by timestamp
-      - Computes conversion rates between each step
-      - Identifies common paths and deviation points
-      - Shows median time between steps
+      **What it actually returns:**
+      - Same as segment_analysis: total event count, top entities, top event types, \
+        time range, and events-per-day rate from Core's summary endpoint
 
-      **Common patterns:**
-      - Conversion funnel: `steps: ["signup", "profile.completed", "first_purchase"]`
-      - With time limit: `steps: ["cart.created", "checkout.started", "order.placed"], max_duration: "24h"`
-      - Open path: `start_event: "signup", depth: 5` (discover common paths)
-
-      **Performance tips:**
-      - Fewer steps = faster analysis
-      - Use max_duration to limit analysis window
-      - Open path analysis (without predefined steps) is more expensive
-
-      **Decision guide:**
-      - "What's my conversion funnel?" → path_analysis with steps
-      - "Where do users go after X?" → path_analysis with start_event
-      - "How do events correlate?" → correlation_analysis (pairwise)
+      **For real path analysis, consider:**
+      - Use `query_events` with entity_id to trace a specific entity's journey
+      - Use `correlation_analysis` to check if two event types co-occur temporally
       """,
       inputSchema: %{
         type: "object",
@@ -6804,30 +6970,27 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "attribution_analysis",
       description: """
-      Multi-touch attribution modeling for conversion events. Determines which \
-      touchpoints (events) contribute most to a target outcome.
+      Get summary statistics for a target event type, presented as attribution \
+      context. Returns aggregate statistics from Core's summary analytics endpoint.
+
+      **Important:** This is NOT a real attribution modeling tool. It does NOT \
+      track touchpoints preceding conversions, does NOT apply attribution models \
+      (first-touch, last-touch, linear, time-decay), and does NOT distribute credit \
+      across events. The `model`, `touchpoint_types`, and `lookback` parameters are \
+      accepted but not used in computation. For actual attribution, query events \
+      per entity and compute attribution in your application.
 
       **When to use this tool:**
-      - Understanding which marketing touches drive conversions
-      - Attributing revenue to specific user actions or campaigns
-      - Comparing attribution models (first-touch, last-touch, linear, time-decay)
-      - Optimizing user experience by identifying high-impact touchpoints
+      - Getting summary statistics for a conversion event type
+      - Understanding event volume context before manual attribution analysis
 
-      **Methodology:**
-      - Tracks all events preceding the target conversion event per entity
-      - Applies selected attribution model to distribute credit
-      - Models: first_touch (100% to first), last_touch (100% to last),
-        linear (equal split), time_decay (recent events weighted higher)
+      **What it actually returns:**
+      - Total event count, top entities, top event types, time range, and \
+        events-per-day rate from Core's summary endpoint
 
-      **Common patterns:**
-      - Marketing attribution: `target_event: "purchase", model: "time_decay"`
-      - Feature attribution: `target_event: "upgrade", model: "linear", lookback: "30d"`
-      - Campaign comparison: `target_event: "signup", touchpoint_types: ["ad.clicked", "email.opened", "page.viewed"]`
-
-      **Performance tips:**
-      - Limit lookback window for faster computation
-      - Specify touchpoint_types to reduce noise from irrelevant events
-      - Time-decay model is most computationally expensive
+      **For real attribution analysis, consider:**
+      - Use `query_events` per entity to trace touchpoints before conversion
+      - Use `correlation_analysis` to check if specific event types precede conversions
       """,
       inputSchema: %{
         type: "object",
@@ -6873,35 +7036,28 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "churn_prediction",
       description: """
-      Predict entity churn risk based on behavioral patterns. Analyzes recent \
-      activity trends to identify entities likely to become inactive.
+      Get summary statistics for an activity event type, presented as churn \
+      context. Returns aggregate statistics from Core's summary analytics endpoint.
+
+      **Important:** This is NOT a real churn prediction tool. It does NOT compute \
+      churn risk scores (0.0-1.0), does NOT compare recent vs historical activity, \
+      does NOT identify at-risk entities, and does NOT analyze frequency decline. \
+      The `lookback`, `risk_threshold`, `include_factors`, and `limit` parameters \
+      are accepted but not used in computation. For actual churn analysis, query \
+      events per entity and compute activity trends in your application.
 
       **When to use this tool:**
-      - Identifying at-risk customers before they churn
-      - Prioritizing retention efforts on high-value entities
-      - Understanding churn indicators for your event patterns
-      - Building proactive engagement strategies
+      - Getting summary statistics for an activity event type
+      - Understanding overall activity volume as context for churn investigation
 
-      **Methodology:**
-      - Compares recent activity window vs historical baseline
-      - Scores entities 0.0-1.0 (0 = no risk, 1 = very likely to churn)
-      - Factors: activity frequency decline, session gaps, feature disengagement
-      - Churn threshold: entity with no activity in 2x their typical interval
+      **What it actually returns:**
+      - Total event count, top entities, top event types, time range, and \
+        events-per-day rate from Core's summary endpoint
 
-      **Common patterns:**
-      - User churn: `activity_event: "session.start", risk_threshold: 0.7`
-      - Customer churn: `activity_event: "purchase", lookback: "90d"`
-      - With segmentation: `..., include_factors: true` to see what drives churn risk
-
-      **Performance tips:**
-      - Computation scales with number of unique entities
-      - Narrow with tenant_id on large datasets
-      - include_factors adds detail but increases response size
-
-      **Decision guide:**
-      - "Who might churn?" → churn_prediction
-      - "Segment users by activity?" → segment_analysis
-      - "How do cohorts retain?" → cohort_analysis
+      **For real churn analysis, consider:**
+      - Use `query_events` per entity to check recent activity gaps
+      - Use `segment_analysis` for basic summary of most/least active entities
+      - Use `correlation_analysis` to check if disengagement events precede churn
       """,
       inputSchema: %{
         type: "object",
@@ -6940,35 +7096,28 @@ defmodule McpServerElixir.Protocol.McpTools do
     %{
       name: "ltv_calculation",
       description: """
-      Estimate customer lifetime value (LTV) from event data. Calculates \
-      historical and projected value based on revenue or engagement events.
+      Get summary statistics for a value event type, presented as LTV context. \
+      Returns aggregate statistics from Core's summary analytics endpoint.
+
+      **Important:** This is NOT a real LTV calculation tool. It does NOT sum \
+      monetary values per entity, does NOT use the `value_field` parameter to \
+      extract amounts from event data, does NOT project future value, and does \
+      NOT group by entity attributes. The `value_field`, `projection_months`, and \
+      `group_by` parameters are accepted but not used in computation. For actual \
+      LTV calculation, query events per entity and sum values in your application.
 
       **When to use this tool:**
-      - Estimating customer lifetime value for business planning
-      - Comparing LTV across segments, cohorts, or acquisition channels
-      - Identifying highest-value customer profiles
-      - Informing pricing and retention investment decisions
+      - Getting summary statistics for a value/revenue event type
+      - Understanding event volume context before manual LTV analysis
 
-      **Methodology:**
-      - Historical LTV: sum of value events per entity over their lifetime
-      - Projected LTV: extrapolates based on observed patterns and retention curve
-      - Uses monetizable event data (purchases, subscriptions, usage-based billing)
+      **What it actually returns:**
+      - Total event count, top entities, top event types, time range, and \
+        events-per-day rate from Core's summary endpoint
 
-      **Common patterns:**
-      - Purchase LTV: `value_event: "purchase", value_field: "amount"`
-      - Subscription LTV: `value_event: "subscription.renewed", value_field: "mrr"`
-      - Projected: `..., projection_months: 12` to estimate future value
-      - By segment: `..., group_by: "plan"` to compare across plans
-
-      **Performance tips:**
-      - Computation scales with number of entities and events
-      - Use since/until to limit analysis window
-      - Projected LTV requires sufficient historical data (3+ months recommended)
-
-      **Decision guide:**
-      - "What's the value of my customers?" → ltv_calculation
-      - "Who might leave?" → churn_prediction
-      - "Group customers by value?" → segment_analysis with metric: "monetary_value"
+      **For real LTV calculation, consider:**
+      - Use `query_events` with entity_id to get all value events for an entity
+      - Sum the `value_field` from event data to compute historical LTV
+      - Use `segment_analysis` to see which entities generate the most events
       """,
       inputSchema: %{
         type: "object",

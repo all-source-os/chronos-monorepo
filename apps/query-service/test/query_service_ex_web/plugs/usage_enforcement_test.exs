@@ -221,7 +221,8 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcementTest do
 
   describe "unlimited quota (enterprise tier)" do
     test "allows requests without quota check" do
-      tenant = core_tenant("t-enterprise", events_quota: -1, queries_quota: -1, events_used: 10_000_000)
+      tenant =
+        core_tenant("t-enterprise", events_quota: -1, queries_quota: -1, events_used: 10_000_000)
 
       conn =
         conn(:post, "/api/events")

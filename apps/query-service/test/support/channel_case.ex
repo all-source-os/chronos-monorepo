@@ -59,12 +59,19 @@ defmodule QueryServiceExWeb.ChannelCase do
   # Broadcast helpers for simulating Core WebSocket events in tests
   def broadcast_event(event) do
     Phoenix.PubSub.broadcast(QueryServiceEx.PubSub, "events:all", {:new_event, event})
+
     if entity_id = event["entity_id"] do
       Phoenix.PubSub.broadcast(QueryServiceEx.PubSub, "events:#{entity_id}", {:new_event, event})
     end
+
     if event_type = event["event_type"] do
-      Phoenix.PubSub.broadcast(QueryServiceEx.PubSub, "events:type:#{event_type}", {:new_event, event})
+      Phoenix.PubSub.broadcast(
+        QueryServiceEx.PubSub,
+        "events:type:#{event_type}",
+        {:new_event, event}
+      )
     end
+
     :ok
   end
 
@@ -75,7 +82,13 @@ defmodule QueryServiceExWeb.ChannelCase do
       version: Keyword.get(opts, :version, 1),
       updated_at: Keyword.get(opts, :updated_at, DateTime.utc_now() |> DateTime.to_iso8601())
     }
-    Phoenix.PubSub.broadcast(QueryServiceEx.PubSub, "projections:#{projection_name}", {:state_updated, update})
+
+    Phoenix.PubSub.broadcast(
+      QueryServiceEx.PubSub,
+      "projections:#{projection_name}",
+      {:state_updated, update}
+    )
+
     :ok
   end
 
@@ -86,7 +99,13 @@ defmodule QueryServiceExWeb.ChannelCase do
       event_id: Keyword.get(opts, :event_id),
       occurred_at: DateTime.utc_now() |> DateTime.to_iso8601()
     }
-    Phoenix.PubSub.broadcast(QueryServiceEx.PubSub, "projections:#{projection_name}", {:projection_error, error_msg})
+
+    Phoenix.PubSub.broadcast(
+      QueryServiceEx.PubSub,
+      "projections:#{projection_name}",
+      {:projection_error, error_msg}
+    )
+
     :ok
   end
 end

@@ -137,7 +137,7 @@ type lemonSqueezyClient struct {
 // NewLemonSqueezyClient creates a LemonSqueezyClient from environment variables:
 //   - LEMON_SQUEEZY_API_KEY (required)
 //   - LEMON_SQUEEZY_STORE_ID (required)
-//   - LEMON_SQUEEZY_VARIANT_MAP (optional JSON: {"free":"var_1","starter":"var_2",...})
+//   - LEMON_SQUEEZY_VARIANT_MAP (optional JSON: {"free":"var_1","pro":"var_2","team":"var_3"})
 func NewLemonSqueezyClient() (LemonSqueezyClient, error) {
 	apiKey := os.Getenv("LEMON_SQUEEZY_API_KEY")
 	if apiKey == "" {

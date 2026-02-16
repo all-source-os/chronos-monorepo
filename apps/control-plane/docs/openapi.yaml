@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Control Plane API
-  version: 0.10.1
+  version: 0.10.3
   description: |
     The Control Plane provides management, billing, and governance APIs
     for AllSource Chronos.
@@ -24,14 +24,14 @@ info:
     to the Query Service (Data Plane) use the `DATA_PLANE_URL` base.
   contact:
     name: AllSource Support
-    email: support@allsource.dev
+    email: support@all-source.xyz
   license:
     name: MIT
 
 servers:
   - url: http://localhost:3901
     description: Local development
-  - url: https://cp.allsource.dev
+  - url: https://cp.all-source.xyz
     description: Production
 
 components:

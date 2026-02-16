@@ -338,45 +338,73 @@ mod tests {
     #[async_trait]
     impl EventRepository for MockEventRepository {
         async fn save(&self, _event: &Event) -> Result<()> {
-            unimplemented!()
+            Ok(())
         }
 
         async fn save_batch(&self, _events: &[Event]) -> Result<()> {
-            unimplemented!()
+            Ok(())
         }
 
         async fn find_by_id(&self, id: Uuid) -> Result<Option<Event>> {
             Ok(self.events.iter().find(|e| e.id() == id).cloned())
         }
 
-        async fn find_by_entity(&self, _entity_id: &str, _tenant_id: &str) -> Result<Vec<Event>> {
-            unimplemented!()
+        async fn find_by_entity(&self, entity_id: &str, tenant_id: &str) -> Result<Vec<Event>> {
+            Ok(self
+                .events
+                .iter()
+                .filter(|e| e.entity_id_str() == entity_id && e.tenant_id_str() == tenant_id)
+                .cloned()
+                .collect())
         }
 
-        async fn find_by_type(&self, _event_type: &str, _tenant_id: &str) -> Result<Vec<Event>> {
-            unimplemented!()
+        async fn find_by_type(&self, event_type: &str, tenant_id: &str) -> Result<Vec<Event>> {
+            Ok(self
+                .events
+                .iter()
+                .filter(|e| e.event_type_str() == event_type && e.tenant_id_str() == tenant_id)
+                .cloned()
+                .collect())
         }
 
         async fn find_by_time_range(
             &self,
-            _tenant_id: &str,
-            _start: chrono::DateTime<Utc>,
-            _end: chrono::DateTime<Utc>,
+            tenant_id: &str,
+            start: chrono::DateTime<Utc>,
+            end: chrono::DateTime<Utc>,
         ) -> Result<Vec<Event>> {
-            unimplemented!()
+            Ok(self
+                .events
+                .iter()
+                .filter(|e| e.tenant_id_str() == tenant_id && e.occurred_between(start, end))
+                .cloned()
+                .collect())
         }
 
         async fn find_by_entity_as_of(
             &self,
-            _entity_id: &str,
-            _tenant_id: &str,
-            _as_of: chrono::DateTime<Utc>,
+            entity_id: &str,
+            tenant_id: &str,
+            as_of: chrono::DateTime<Utc>,
         ) -> Result<Vec<Event>> {
-            unimplemented!()
+            Ok(self
+                .events
+                .iter()
+                .filter(|e| {
+                    e.entity_id_str() == entity_id
+                        && e.tenant_id_str() == tenant_id
+                        && e.occurred_before(as_of)
+                })
+                .cloned()
+                .collect())
         }
 
-        async fn count(&self, _tenant_id: &str) -> Result<usize> {
-            unimplemented!()
+        async fn count(&self, tenant_id: &str) -> Result<usize> {
+            Ok(self
+                .events
+                .iter()
+                .filter(|e| e.tenant_id_str() == tenant_id)
+                .count())
         }
 
         async fn health_check(&self) -> Result<()> {
@@ -592,5 +620,237 @@ mod tests {
         let response = use_case.execute_batch(requests).await.unwrap();
         assert_eq!(response.indexed, 5);
         assert_eq!(response.failed, 0);
+    }
+
+    /// Integration test: ingest events -> embed -> semantic search -> verify results
+    #[tokio::test]
+    async fn test_ingest_embed_search_integration() {
+        use crate::application::{
+            dto::IngestEventRequest, use_cases::ingest_event::IngestEventUseCase,
+        };
+        use std::sync::Mutex;
+
+        // Mutable event repository shared between ingest and search
+        struct SharedEventRepository {
+            events: Mutex<Vec<Event>>,
+        }
+
+        impl SharedEventRepository {
+            fn new() -> Self {
+                Self {
+                    events: Mutex::new(Vec::new()),
+                }
+            }
+        }
+
+        #[async_trait]
+        impl EventRepository for SharedEventRepository {
+            async fn save(&self, event: &Event) -> Result<()> {
+                let mut events = self.events.lock().unwrap();
+                events.push(Event::reconstruct_from_strings(
+                    event.id(),
+                    event.event_type_str().to_string(),
+                    event.entity_id_str().to_string(),
+                    event.tenant_id_str().to_string(),
+                    event.payload().clone(),
+                    event.timestamp(),
+                    event.metadata().cloned(),
+                    event.version(),
+                ));
+                Ok(())
+            }
+
+            async fn save_batch(&self, events: &[Event]) -> Result<()> {
+                for event in events {
+                    self.save(event).await?;
+                }
+                Ok(())
+            }
+
+            async fn find_by_id(&self, id: Uuid) -> Result<Option<Event>> {
+                let events = self.events.lock().unwrap();
+                Ok(events.iter().find(|e| e.id() == id).cloned())
+            }
+
+            async fn find_by_entity(&self, entity_id: &str, tenant_id: &str) -> Result<Vec<Event>> {
+                let events = self.events.lock().unwrap();
+                Ok(events
+                    .iter()
+                    .filter(|e| e.entity_id_str() == entity_id && e.tenant_id_str() == tenant_id)
+                    .cloned()
+                    .collect())
+            }
+
+            async fn find_by_type(&self, event_type: &str, tenant_id: &str) -> Result<Vec<Event>> {
+                let events = self.events.lock().unwrap();
+                Ok(events
+                    .iter()
+                    .filter(|e| e.event_type_str() == event_type && e.tenant_id_str() == tenant_id)
+                    .cloned()
+                    .collect())
+            }
+
+            async fn find_by_time_range(
+                &self,
+                tenant_id: &str,
+                start: chrono::DateTime<Utc>,
+                end: chrono::DateTime<Utc>,
+            ) -> Result<Vec<Event>> {
+                let events = self.events.lock().unwrap();
+                Ok(events
+                    .iter()
+                    .filter(|e| e.tenant_id_str() == tenant_id && e.occurred_between(start, end))
+                    .cloned()
+                    .collect())
+            }
+
+            async fn find_by_entity_as_of(
+                &self,
+                entity_id: &str,
+                tenant_id: &str,
+                as_of: chrono::DateTime<Utc>,
+            ) -> Result<Vec<Event>> {
+                let events = self.events.lock().unwrap();
+                Ok(events
+                    .iter()
+                    .filter(|e| {
+                        e.entity_id_str() == entity_id
+                            && e.tenant_id_str() == tenant_id
+                            && e.occurred_before(as_of)
+                    })
+                    .cloned()
+                    .collect())
+            }
+
+            async fn count(&self, tenant_id: &str) -> Result<usize> {
+                let events = self.events.lock().unwrap();
+                Ok(events
+                    .iter()
+                    .filter(|e| e.tenant_id_str() == tenant_id)
+                    .count())
+            }
+
+            async fn health_check(&self) -> Result<()> {
+                Ok(())
+            }
+        }
+
+        // Step 1: Set up shared infrastructure
+        let event_repo = Arc::new(SharedEventRepository::new());
+        let vector_repo = Arc::new(InMemoryVectorSearchRepository::new());
+        let vector_service = Arc::new(VectorSearchService::new(vector_repo));
+
+        // Step 2: Ingest events
+        let ingest_use_case = IngestEventUseCase::new(event_repo.clone());
+
+        let response1 = ingest_use_case
+            .execute(IngestEventRequest {
+                event_type: "user.created".to_string(),
+                entity_id: "user-1".to_string(),
+                tenant_id: Some("tenant-1".to_string()),
+                payload: json!({"name": "Alice", "role": "admin"}),
+                metadata: None,
+            })
+            .await
+            .unwrap();
+
+        let response2 = ingest_use_case
+            .execute(IngestEventRequest {
+                event_type: "order.placed".to_string(),
+                entity_id: "order-1".to_string(),
+                tenant_id: Some("tenant-1".to_string()),
+                payload: json!({"amount": 99.99, "item": "widget"}),
+                metadata: None,
+            })
+            .await
+            .unwrap();
+
+        let response3 = ingest_use_case
+            .execute(IngestEventRequest {
+                event_type: "user.updated".to_string(),
+                entity_id: "user-1".to_string(),
+                tenant_id: Some("tenant-1".to_string()),
+                payload: json!({"name": "Alice", "role": "superadmin"}),
+                metadata: None,
+            })
+            .await
+            .unwrap();
+
+        // Verify events were ingested
+        assert_eq!(event_repo.events.lock().unwrap().len(), 3);
+
+        // Step 3: Embed events (simulate embedding generation)
+        let index_use_case = IndexEventEmbeddingUseCase::new(vector_service.clone());
+
+        // user.created -> embedding close to [1, 0, 0]
+        index_use_case
+            .execute(IndexEventEmbeddingRequest {
+                event_id: response1.event_id,
+                tenant_id: "tenant-1".to_string(),
+                embedding: vec![0.9, 0.1, 0.0],
+                source_text: Some("user created Alice admin".to_string()),
+            })
+            .await
+            .unwrap();
+
+        // order.placed -> embedding close to [0, 1, 0]
+        index_use_case
+            .execute(IndexEventEmbeddingRequest {
+                event_id: response2.event_id,
+                tenant_id: "tenant-1".to_string(),
+                embedding: vec![0.1, 0.9, 0.0],
+                source_text: Some("order placed widget".to_string()),
+            })
+            .await
+            .unwrap();
+
+        // user.updated -> embedding close to [1, 0, 0] (similar to user.created)
+        index_use_case
+            .execute(IndexEventEmbeddingRequest {
+                event_id: response3.event_id,
+                tenant_id: "tenant-1".to_string(),
+                embedding: vec![0.85, 0.15, 0.0],
+                source_text: Some("user updated Alice superadmin".to_string()),
+            })
+            .await
+            .unwrap();
+
+        // Step 4: Semantic search — query for user-related events
+        let search_use_case =
+            SemanticSearchUseCase::new(vector_service.clone(), event_repo.clone());
+
+        let search_response = search_use_case
+            .execute(SemanticSearchUseCaseRequest {
+                query_embedding: Some(vec![1.0, 0.0, 0.0]),
+                k: Some(3),
+                tenant_id: Some("tenant-1".to_string()),
+                include_events: Some(true),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        // Step 5: Verify results
+        assert_eq!(search_response.count, 3);
+
+        // First result should be the most similar to [1, 0, 0] — user.created (0.9, 0.1, 0.0)
+        assert_eq!(search_response.results[0].event_id, response1.event_id);
+        // Second should be user.updated (0.85, 0.15, 0.0)
+        assert_eq!(search_response.results[1].event_id, response3.event_id);
+        // Third should be order.placed (0.1, 0.9, 0.0) — least similar
+        assert_eq!(search_response.results[2].event_id, response2.event_id);
+
+        // Scores should be descending
+        assert!(search_response.results[0].score >= search_response.results[1].score);
+        assert!(search_response.results[1].score >= search_response.results[2].score);
+
+        // Events should be included in the response
+        let events = search_response.events.expect("events should be included");
+        assert_eq!(events.len(), 3);
+
+        // Verify find_by_id was used to enrich results — check event data is correct
+        assert_eq!(events[0].event_type, "user.created");
+        assert_eq!(events[1].event_type, "user.updated");
+        assert_eq!(events[2].event_type, "order.placed");
     }
 }

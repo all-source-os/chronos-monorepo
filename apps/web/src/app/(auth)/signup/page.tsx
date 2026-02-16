@@ -54,11 +54,16 @@ function SignUpContent() {
 
   const errorId = useId();
 
-  // Check for OAuth errors in URL
+  // Check for OAuth errors and prefilled email in URL
   useEffect(() => {
     const errorParam = searchParams.get("error");
     if (errorParam) {
       setError(ERROR_MESSAGES[errorParam] || "An error occurred. Please try again.");
+    }
+    const emailParam = searchParams.get("email");
+    if (emailParam) {
+      setEmail(emailParam);
+      setShowEmailForm(true);
     }
   }, [searchParams]);
 
@@ -372,7 +377,7 @@ function SignUpContent() {
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-center gap-2">
                         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        100K events/month
+                        10K events/month
                       </li>
                       <li className="flex items-center gap-2">
                         <span className="h-1.5 w-1.5 rounded-full bg-primary" />

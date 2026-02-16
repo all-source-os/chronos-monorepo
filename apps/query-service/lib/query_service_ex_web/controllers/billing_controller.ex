@@ -21,8 +21,7 @@ defmodule QueryServiceExWeb.BillingController do
     description:
       "**Moved to Control Plane.** Returns 301 redirect to `POST /api/v1/billing/checkout` on the Control Plane.",
     responses: [
-      moved_permanently:
-        {"Moved to Control Plane", "application/json", Common.Error}
+      moved_permanently: {"Moved to Control Plane", "application/json", Common.Error}
     ]
   )
 
@@ -35,8 +34,7 @@ defmodule QueryServiceExWeb.BillingController do
     description:
       "**Moved to Control Plane.** Returns 301 redirect to `GET /api/v1/billing/portal` on the Control Plane.",
     responses: [
-      moved_permanently:
-        {"Moved to Control Plane", "application/json", Common.Error}
+      moved_permanently: {"Moved to Control Plane", "application/json", Common.Error}
     ]
   )
 
@@ -49,8 +47,7 @@ defmodule QueryServiceExWeb.BillingController do
     description:
       "**Moved to Control Plane.** Returns 301 redirect to `GET /api/v1/billing/overage` on the Control Plane.",
     responses: [
-      moved_permanently:
-        {"Moved to Control Plane", "application/json", Common.Error}
+      moved_permanently: {"Moved to Control Plane", "application/json", Common.Error}
     ]
   )
 
@@ -63,8 +60,7 @@ defmodule QueryServiceExWeb.BillingController do
     description:
       "**Moved to Control Plane.** Returns 301 redirect to `POST /api/v1/billing/overage/enable` on the Control Plane.",
     responses: [
-      moved_permanently:
-        {"Moved to Control Plane", "application/json", Common.Error}
+      moved_permanently: {"Moved to Control Plane", "application/json", Common.Error}
     ]
   )
 
@@ -77,8 +73,7 @@ defmodule QueryServiceExWeb.BillingController do
     description:
       "**Moved to Control Plane.** Returns 301 redirect to `POST /api/v1/billing/overage/disable` on the Control Plane.",
     responses: [
-      moved_permanently:
-        {"Moved to Control Plane", "application/json", Common.Error}
+      moved_permanently: {"Moved to Control Plane", "application/json", Common.Error}
     ]
   )
 
@@ -91,8 +86,7 @@ defmodule QueryServiceExWeb.BillingController do
     description:
       "**Moved to Control Plane.** Returns 301 redirect to `GET /api/v1/billing/projected-charges` on the Control Plane.",
     responses: [
-      moved_permanently:
-        {"Moved to Control Plane", "application/json", Common.Error}
+      moved_permanently: {"Moved to Control Plane", "application/json", Common.Error}
     ]
   )
 

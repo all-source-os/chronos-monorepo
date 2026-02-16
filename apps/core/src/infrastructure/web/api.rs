@@ -15,6 +15,7 @@ use crate::{
                 CompatibilityMode, RegisterSchemaRequest, RegisterSchemaResponse,
                 ValidateEventRequest, ValidateEventResponse,
             },
+            webhook::{RegisterWebhookRequest, UpdateWebhookRequest},
         },
     },
     domain::entities::Event,
@@ -26,6 +27,11 @@ use crate::{
                 CreateSnapshotRequest, CreateSnapshotResponse, ListSnapshotsRequest,
                 ListSnapshotsResponse, SnapshotInfo,
             },
+        },
+        query::{
+            eventql::EventQLRequest,
+            geospatial::GeoQueryRequest,
+            graphql::{GraphQLError, GraphQLRequest, GraphQLResponse},
         },
         replication::ReplicationMode,
         web::api_v1::AppState,
@@ -95,6 +101,7 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         .route("/api/v1/events", post(ingest_event))
         .route("/api/v1/events/batch", post(ingest_events_batch))
         .route("/api/v1/events/query", get(query_events))
+        .route("/api/v1/events/{event_id}", get(get_event_by_id))
         .route("/api/v1/events/stream", get(events_websocket)) // v0.2: WebSocket streaming
         // v0.10: Stream and event type discovery endpoints
         .route("/api/v1/streams", get(list_streams))
@@ -159,6 +166,15 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         .route("/api/v1/projections", get(list_projections))
         .route("/api/v1/projections/{name}", get(get_projection))
         .route(
+            "/api/v1/projections/{name}",
+            axum::routing::delete(delete_projection),
+        )
+        .route(
+            "/api/v1/projections/{name}/state",
+            get(get_projection_state_summary),
+        )
+        .route("/api/v1/projections/{name}/reset", post(reset_projection))
+        .route(
             "/api/v1/projections/{name}/{entity_id}/state",
             get(get_projection_state),
         )
@@ -177,6 +193,37 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         .route(
             "/api/v1/projections/{name}/bulk/save",
             post(bulk_save_projection_states),
+        )
+        // v0.11: Webhook management endpoints
+        .route("/api/v1/webhooks", post(register_webhook))
+        .route("/api/v1/webhooks", get(list_webhooks))
+        .route("/api/v1/webhooks/{webhook_id}", get(get_webhook))
+        .route("/api/v1/webhooks/{webhook_id}", put(update_webhook))
+        .route(
+            "/api/v1/webhooks/{webhook_id}",
+            axum::routing::delete(delete_webhook),
+        )
+        .route(
+            "/api/v1/webhooks/{webhook_id}/deliveries",
+            get(list_webhook_deliveries),
+        )
+        // v2.0: Advanced query features
+        .route("/api/v1/eventql", post(eventql_query))
+        .route("/api/v1/graphql", post(graphql_query))
+        .route("/api/v1/geospatial/query", post(geo_query))
+        .route("/api/v1/geospatial/stats", get(geo_stats))
+        .route("/api/v1/exactly-once/stats", get(exactly_once_stats))
+        .route(
+            "/api/v1/schema-evolution/history/{event_type}",
+            get(schema_evolution_history),
+        )
+        .route(
+            "/api/v1/schema-evolution/schema/{event_type}",
+            get(schema_evolution_schema),
+        )
+        .route(
+            "/api/v1/schema-evolution/stats",
+            get(schema_evolution_stats),
         )
         .layer(
             CorsLayer::new()
@@ -1017,6 +1064,29 @@ pub async fn reset_pipeline(
 }
 
 // =============================================================================
+// v0.11: Single Event Lookup by ID
+// =============================================================================
+
+/// Get a single event by UUID
+pub async fn get_event_by_id(
+    State(store): State<SharedStore>,
+    Path(event_id): Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    let event = store.get_event_by_id(&event_id)?.ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Event '{}' not found", event_id))
+    })?;
+
+    let dto = EventDto::from(&event);
+
+    tracing::debug!("Event retrieved by ID: {}", event_id);
+
+    Ok(Json(serde_json::json!({
+        "event": dto,
+        "found": true
+    })))
+}
+
+// =============================================================================
 // v0.7: Projection State API for Query Service Integration
 // =============================================================================
 
@@ -1083,6 +1153,103 @@ pub async fn get_projection_state(
         "entity_id": entity_id,
         "state": state,
         "found": state.is_some()
+    })))
+}
+
+/// Delete (clear) a projection by name
+///
+/// Removes all state from the projection. The projection definition remains
+/// registered but its accumulated state is cleared.
+pub async fn delete_projection(
+    State(store): State<SharedStore>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let projection_manager = store.projection_manager();
+
+    let projection = projection_manager.get_projection(&name).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
+    })?;
+
+    projection.clear();
+
+    // Also clear any cached state for this projection
+    let cache = store.projection_state_cache();
+    let prefix = format!("{name}:");
+    let keys_to_remove: Vec<String> = cache
+        .iter()
+        .filter(|entry| entry.key().starts_with(&prefix))
+        .map(|entry| entry.key().clone())
+        .collect();
+    for key in keys_to_remove {
+        cache.remove(&key);
+    }
+
+    tracing::info!("Projection deleted (cleared): {}", name);
+
+    Ok(Json(serde_json::json!({
+        "projection": name,
+        "deleted": true
+    })))
+}
+
+/// Get aggregate projection state (all entities)
+///
+/// Returns summary information about a projection's state across all entities.
+pub async fn get_projection_state_summary(
+    State(store): State<SharedStore>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let projection_manager = store.projection_manager();
+
+    let _projection = projection_manager.get_projection(&name).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
+    })?;
+
+    // Collect cached states for this projection
+    let cache = store.projection_state_cache();
+    let prefix = format!("{name}:");
+    let states: Vec<serde_json::Value> = cache
+        .iter()
+        .filter(|entry| entry.key().starts_with(&prefix))
+        .map(|entry| {
+            let entity_id = entry.key().strip_prefix(&prefix).unwrap_or(entry.key());
+            serde_json::json!({
+                "entity_id": entity_id,
+                "state": entry.value().clone()
+            })
+        })
+        .collect();
+
+    let total = states.len();
+
+    tracing::debug!("Projection state summary: {} ({} entities)", name, total);
+
+    Ok(Json(serde_json::json!({
+        "projection": name,
+        "states": states,
+        "total": total
+    })))
+}
+
+/// Reset a projection to its initial state
+///
+/// Clears all accumulated state and reprocesses events from the beginning.
+pub async fn reset_projection(
+    State(store): State<SharedStore>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let reprocessed = store.reset_projection(&name)?;
+
+    tracing::info!(
+        "Projection reset: {} ({} events reprocessed)",
+        name,
+        reprocessed
+    );
+
+    Ok(Json(serde_json::json!({
+        "projection": name,
+        "reset": true,
+        "events_reprocessed": reprocessed
     })))
 }
 
@@ -1202,6 +1369,360 @@ pub async fn bulk_save_projection_states(
         "saved": saved_count,
         "total": req.states.len()
     })))
+}
+
+// =============================================================================
+// v0.11: Webhook Management API
+// =============================================================================
+
+/// Query parameters for listing webhooks
+#[derive(Debug, Deserialize)]
+pub struct ListWebhooksParams {
+    pub tenant_id: Option<String>,
+}
+
+/// Register a new webhook subscription
+pub async fn register_webhook(
+    State(store): State<SharedStore>,
+    Json(req): Json<RegisterWebhookRequest>,
+) -> Json<serde_json::Value> {
+    let registry = store.webhook_registry();
+    let webhook = registry.register(req);
+
+    tracing::info!("Webhook registered: {} -> {}", webhook.id, webhook.url);
+
+    Json(serde_json::json!({
+        "webhook": webhook,
+        "created": true
+    }))
+}
+
+/// List webhooks, optionally filtered by tenant_id
+pub async fn list_webhooks(
+    State(store): State<SharedStore>,
+    Query(params): Query<ListWebhooksParams>,
+) -> Json<serde_json::Value> {
+    let registry = store.webhook_registry();
+
+    let webhooks = if let Some(tenant_id) = params.tenant_id {
+        registry.list_by_tenant(&tenant_id)
+    } else {
+        // Without tenant filter, return empty (tenants should always filter)
+        vec![]
+    };
+
+    let total = webhooks.len();
+
+    Json(serde_json::json!({
+        "webhooks": webhooks,
+        "total": total
+    }))
+}
+
+/// Get a specific webhook by ID
+pub async fn get_webhook(
+    State(store): State<SharedStore>,
+    Path(webhook_id): Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    let registry = store.webhook_registry();
+
+    let webhook = registry.get(webhook_id).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{}' not found", webhook_id))
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "webhook": webhook,
+        "found": true
+    })))
+}
+
+/// Update a webhook subscription
+pub async fn update_webhook(
+    State(store): State<SharedStore>,
+    Path(webhook_id): Path<uuid::Uuid>,
+    Json(req): Json<UpdateWebhookRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let registry = store.webhook_registry();
+
+    let webhook = registry.update(webhook_id, req).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{}' not found", webhook_id))
+    })?;
+
+    tracing::info!("Webhook updated: {}", webhook_id);
+
+    Ok(Json(serde_json::json!({
+        "webhook": webhook,
+        "updated": true
+    })))
+}
+
+/// Delete a webhook subscription
+pub async fn delete_webhook(
+    State(store): State<SharedStore>,
+    Path(webhook_id): Path<uuid::Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    let registry = store.webhook_registry();
+
+    let webhook = registry.delete(webhook_id).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{}' not found", webhook_id))
+    })?;
+
+    tracing::info!("Webhook deleted: {} ({})", webhook_id, webhook.url);
+
+    Ok(Json(serde_json::json!({
+        "webhook_id": webhook_id,
+        "deleted": true
+    })))
+}
+
+/// Query parameters for listing webhook deliveries
+#[derive(Debug, Deserialize)]
+pub struct ListDeliveriesParams {
+    pub limit: Option<usize>,
+}
+
+/// List delivery history for a webhook
+pub async fn list_webhook_deliveries(
+    State(store): State<SharedStore>,
+    Path(webhook_id): Path<uuid::Uuid>,
+    Query(params): Query<ListDeliveriesParams>,
+) -> Result<Json<serde_json::Value>> {
+    let registry = store.webhook_registry();
+
+    // Verify webhook exists
+    registry.get(webhook_id).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{}' not found", webhook_id))
+    })?;
+
+    let limit = params.limit.unwrap_or(50);
+    let deliveries = registry.get_deliveries(webhook_id, limit);
+    let total = deliveries.len();
+
+    Ok(Json(serde_json::json!({
+        "webhook_id": webhook_id,
+        "deliveries": deliveries,
+        "total": total
+    })))
+}
+
+// =============================================================================
+// v2.0: Advanced Query Features
+// =============================================================================
+
+/// EventQL: Execute SQL queries over events using DataFusion
+pub async fn eventql_query(
+    State(store): State<SharedStore>,
+    Json(req): Json<EventQLRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let events = store.snapshot_events();
+    match crate::infrastructure::query::eventql::execute_eventql(&events, &req).await {
+        Ok(response) => Ok(Json(serde_json::json!({
+            "columns": response.columns,
+            "rows": response.rows,
+            "row_count": response.row_count,
+        }))),
+        Err(e) => Err(crate::error::AllSourceError::InvalidQuery(e)),
+    }
+}
+
+/// GraphQL: Execute GraphQL queries
+pub async fn graphql_query(
+    State(store): State<SharedStore>,
+    Json(req): Json<GraphQLRequest>,
+) -> Json<serde_json::Value> {
+    let fields = match crate::infrastructure::query::graphql::parse_query(&req.query) {
+        Ok(f) => f,
+        Err(e) => {
+            return Json(
+                serde_json::to_value(GraphQLResponse {
+                    data: None,
+                    errors: vec![GraphQLError { message: e }],
+                })
+                .unwrap(),
+            );
+        }
+    };
+
+    let mut data = serde_json::Map::new();
+    let mut errors = Vec::new();
+
+    for field in &fields {
+        match field.name.as_str() {
+            "events" => {
+                let request = crate::application::dto::QueryEventsRequest {
+                    entity_id: field.arguments.get("entity_id").cloned(),
+                    event_type: field.arguments.get("event_type").cloned(),
+                    tenant_id: field.arguments.get("tenant_id").cloned(),
+                    limit: field.arguments.get("limit").and_then(|l| l.parse().ok()),
+                    as_of: None,
+                    since: None,
+                    until: None,
+                };
+                match store.query(request) {
+                    Ok(events) => {
+                        let json_events: Vec<serde_json::Value> = events
+                            .iter()
+                            .map(|e| {
+                                crate::infrastructure::query::graphql::event_to_json(
+                                    e,
+                                    &field.fields,
+                                )
+                            })
+                            .collect();
+                        data.insert("events".to_string(), serde_json::Value::Array(json_events));
+                    }
+                    Err(e) => errors.push(GraphQLError {
+                        message: format!("events query failed: {e}"),
+                    }),
+                }
+            }
+            "event" => {
+                if let Some(id_str) = field.arguments.get("id") {
+                    if let Ok(id) = uuid::Uuid::parse_str(id_str) {
+                        match store.get_event_by_id(&id) {
+                            Ok(Some(event)) => {
+                                data.insert(
+                                    "event".to_string(),
+                                    crate::infrastructure::query::graphql::event_to_json(
+                                        &event,
+                                        &field.fields,
+                                    ),
+                                );
+                            }
+                            Ok(None) => {
+                                data.insert("event".to_string(), serde_json::Value::Null);
+                            }
+                            Err(e) => errors.push(GraphQLError {
+                                message: format!("event lookup failed: {e}"),
+                            }),
+                        }
+                    } else {
+                        errors.push(GraphQLError {
+                            message: format!("Invalid UUID: {id_str}"),
+                        });
+                    }
+                } else {
+                    errors.push(GraphQLError {
+                        message: "event query requires 'id' argument".to_string(),
+                    });
+                }
+            }
+            "projections" => {
+                let pm = store.projection_manager();
+                let names: Vec<serde_json::Value> = pm
+                    .list_projections()
+                    .iter()
+                    .map(|(name, _)| serde_json::Value::String(name.clone()))
+                    .collect();
+                data.insert("projections".to_string(), serde_json::Value::Array(names));
+            }
+            "stats" => {
+                let stats = store.stats();
+                data.insert(
+                    "stats".to_string(),
+                    serde_json::json!({
+                        "total_events": stats.total_events,
+                        "total_entities": stats.total_entities,
+                        "total_event_types": stats.total_event_types,
+                    }),
+                );
+            }
+            "__schema" => {
+                data.insert(
+                    "__schema".to_string(),
+                    crate::infrastructure::query::graphql::introspection_schema(),
+                );
+            }
+            other => {
+                errors.push(GraphQLError {
+                    message: format!("Unknown field: {other}"),
+                });
+            }
+        }
+    }
+
+    Json(
+        serde_json::to_value(GraphQLResponse {
+            data: Some(serde_json::Value::Object(data)),
+            errors,
+        })
+        .unwrap(),
+    )
+}
+
+/// Geospatial: Query events by location
+pub async fn geo_query(
+    State(store): State<SharedStore>,
+    Json(req): Json<GeoQueryRequest>,
+) -> Json<serde_json::Value> {
+    let events = store.snapshot_events();
+    let geo_index = store.geo_index();
+    let results =
+        crate::infrastructure::query::geospatial::execute_geo_query(&events, &geo_index, &req);
+    let total = results.len();
+    Json(serde_json::json!({
+        "results": results,
+        "total": total,
+    }))
+}
+
+/// Geospatial index stats
+pub async fn geo_stats(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+    let stats = store.geo_index().stats();
+    Json(serde_json::json!(stats))
+}
+
+/// Exactly-once processing stats
+pub async fn exactly_once_stats(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+    let stats = store.exactly_once().stats();
+    Json(serde_json::json!(stats))
+}
+
+/// Schema evolution history for an event type
+pub async fn schema_evolution_history(
+    State(store): State<SharedStore>,
+    Path(event_type): Path<String>,
+) -> Json<serde_json::Value> {
+    let mgr = store.schema_evolution();
+    let history = mgr.get_history(&event_type);
+    let version = mgr.get_version(&event_type);
+    Json(serde_json::json!({
+        "event_type": event_type,
+        "current_version": version,
+        "history": history,
+    }))
+}
+
+/// Current inferred schema for an event type
+pub async fn schema_evolution_schema(
+    State(store): State<SharedStore>,
+    Path(event_type): Path<String>,
+) -> Json<serde_json::Value> {
+    let mgr = store.schema_evolution();
+    if let Some(schema) = mgr.get_schema(&event_type) {
+        let json_schema = crate::application::services::schema_evolution::to_json_schema(&schema);
+        Json(serde_json::json!({
+            "event_type": event_type,
+            "version": mgr.get_version(&event_type),
+            "inferred_schema": schema,
+            "json_schema": json_schema,
+        }))
+    } else {
+        Json(serde_json::json!({
+            "event_type": event_type,
+            "error": "No schema inferred for this event type"
+        }))
+    }
+}
+
+/// Schema evolution stats
+pub async fn schema_evolution_stats(State(store): State<SharedStore>) -> Json<serde_json::Value> {
+    let stats = store.schema_evolution().stats();
+    let event_types = store.schema_evolution().list_event_types();
+    Json(serde_json::json!({
+        "stats": stats,
+        "tracked_event_types": event_types,
+    }))
 }
 
 #[cfg(test)]

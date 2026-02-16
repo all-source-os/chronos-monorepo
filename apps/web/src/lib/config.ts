@@ -15,7 +15,7 @@ export const siteConfig = {
     "Data Intelligence",
   ],
   links: {
-    email: "hello@allsource.dev",
+    email: "hello@all-source.xyz",
     twitter: "https://twitter.com/allsourcedev",
     discord: "https://discord.gg/allsource",
     github: "https://github.com/allsource/allsource",

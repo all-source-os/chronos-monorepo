@@ -91,7 +91,9 @@ defmodule QueryServiceExWeb.QueryController do
             links =
               HAL.self("/api/query")
               |> maybe_add_next_link(q, length(events))
-              |> HAL.merge(HAL.mgmt_plane_link("tenant", "/api/v1/tenants/{tenant_id}", templated: true))
+              |> HAL.merge(
+                HAL.mgmt_plane_link("tenant", "/api/v1/tenants/{tenant_id}", templated: true)
+              )
 
             response =
               %{data: events, count: length(events), query: summarize_query(q)}

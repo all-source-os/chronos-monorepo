@@ -74,24 +74,24 @@ WORKDIR /app
 COPY --from=builder /app/control-plane /app/control-plane
 
 # Expose metrics and API port
-EXPOSE 8080
+EXPOSE 3901
 
 # Environment
 ENV GIN_MODE=release
-ENV PORT=8080
+ENV PORT=3901
 
 # Note: HEALTHCHECK removed - distroless has no shell
 # Health checks should be configured in Kubernetes/orchestrator:
 #   livenessProbe:
 #     httpGet:
 #       path: /health
-#       port: 8080
+#       port: 3901
 #     initialDelaySeconds: 5
 #     periodSeconds: 30
 #   readinessProbe:
 #     httpGet:
 #       path: /health
-#       port: 8080
+#       port: 3901
 #     initialDelaySeconds: 5
 #     periodSeconds: 10
 

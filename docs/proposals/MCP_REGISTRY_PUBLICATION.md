@@ -59,7 +59,7 @@ The Elixir MCP server (`apps/mcp-server-elixir/`) is production-ready:
 | Option | Namespace | Setup |
 |--------|-----------|-------|
 | A (recommended) | `io.github.all-source-os/chronos-mcp` | GitHub OAuth — zero setup |
-| B (branded) | `io.allsource/chronos-mcp` | DNS TXT record on `allsource.io` |
+| B (branded) | `io.allsource/chronos-mcp` | DNS TXT record on `all-source.xyz` |
 
 ### 2. Dockerfile Label
 

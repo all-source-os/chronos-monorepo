@@ -18,7 +18,9 @@ defmodule QueryServiceExWeb.Plugs.JwtAuthTest do
     System.delete_env("AUTH_DISABLED")
 
     on_exit(fn ->
-      if original, do: System.put_env("JWT_SECRET", original), else: System.delete_env("JWT_SECRET")
+      if original,
+        do: System.put_env("JWT_SECRET", original),
+        else: System.delete_env("JWT_SECRET")
 
       if original_auth,
         do: System.put_env("AUTH_DISABLED", original_auth),
@@ -78,7 +80,12 @@ defmodule QueryServiceExWeb.Plugs.JwtAuthTest do
     test "returns 401 when JWT_SECRET is not configured" do
       System.delete_env("JWT_SECRET")
 
-      token = sign_jwt(%{"sub" => "user-1", "tenant_id" => "t-1", "exp" => System.system_time(:second) + 3600})
+      token =
+        sign_jwt(%{
+          "sub" => "user-1",
+          "tenant_id" => "t-1",
+          "exp" => System.system_time(:second) + 3600
+        })
 
       conn =
         build_conn()
@@ -93,10 +100,11 @@ defmodule QueryServiceExWeb.Plugs.JwtAuthTest do
     end
 
     test "returns 401 when JWT signature is invalid (wrong secret)" do
-      token = sign_jwt(
-        %{"sub" => "user-1", "tenant_id" => "t-1", "exp" => System.system_time(:second) + 3600},
-        "wrong-secret"
-      )
+      token =
+        sign_jwt(
+          %{"sub" => "user-1", "tenant_id" => "t-1", "exp" => System.system_time(:second) + 3600},
+          "wrong-secret"
+        )
 
       conn =
         build_conn()
@@ -111,11 +119,12 @@ defmodule QueryServiceExWeb.Plugs.JwtAuthTest do
     end
 
     test "returns 401 when token has expired" do
-      token = sign_jwt(%{
-        "sub" => "user-1",
-        "tenant_id" => "t-1",
-        "exp" => System.system_time(:second) - 60
-      })
+      token =
+        sign_jwt(%{
+          "sub" => "user-1",
+          "tenant_id" => "t-1",
+          "exp" => System.system_time(:second) - 60
+        })
 
       conn =
         build_conn()
@@ -130,10 +139,11 @@ defmodule QueryServiceExWeb.Plugs.JwtAuthTest do
     end
 
     test "returns 401 when sub claim is missing" do
-      token = sign_jwt(%{
-        "tenant_id" => "t-1",
-        "exp" => System.system_time(:second) + 3600
-      })
+      token =
+        sign_jwt(%{
+          "tenant_id" => "t-1",
+          "exp" => System.system_time(:second) + 3600
+        })
 
       conn =
         build_conn()
@@ -148,10 +158,11 @@ defmodule QueryServiceExWeb.Plugs.JwtAuthTest do
     end
 
     test "returns 401 when tenant_id claim is missing" do
-      token = sign_jwt(%{
-        "sub" => "user-1",
-        "exp" => System.system_time(:second) + 3600
-      })
+      token =
+        sign_jwt(%{
+          "sub" => "user-1",
+          "exp" => System.system_time(:second) + 3600
+        })
 
       conn =
         build_conn()
@@ -166,10 +177,11 @@ defmodule QueryServiceExWeb.Plugs.JwtAuthTest do
     end
 
     test "returns 401 when exp claim is missing" do
-      token = sign_jwt(%{
-        "sub" => "user-1",
-        "tenant_id" => "t-1"
-      })
+      token =
+        sign_jwt(%{
+          "sub" => "user-1",
+          "tenant_id" => "t-1"
+        })
 
       conn =
         build_conn()
@@ -184,13 +196,14 @@ defmodule QueryServiceExWeb.Plugs.JwtAuthTest do
     end
 
     test "sets assigns on valid JWT" do
-      token = sign_jwt(%{
-        "sub" => "user-42",
-        "tenant_id" => "tenant-abc",
-        "role" => "admin",
-        "is_api_key" => false,
-        "exp" => System.system_time(:second) + 3600
-      })
+      token =
+        sign_jwt(%{
+          "sub" => "user-42",
+          "tenant_id" => "tenant-abc",
+          "role" => "admin",
+          "is_api_key" => false,
+          "exp" => System.system_time(:second) + 3600
+        })
 
       conn =
         build_conn()
@@ -206,11 +219,12 @@ defmodule QueryServiceExWeb.Plugs.JwtAuthTest do
     end
 
     test "sets assigns with nil role when role claim is absent" do
-      token = sign_jwt(%{
-        "sub" => "user-1",
-        "tenant_id" => "tenant-1",
-        "exp" => System.system_time(:second) + 3600
-      })
+      token =
+        sign_jwt(%{
+          "sub" => "user-1",
+          "tenant_id" => "tenant-1",
+          "exp" => System.system_time(:second) + 3600
+        })
 
       conn =
         build_conn()

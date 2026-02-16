@@ -4,7 +4,7 @@ defmodule QueryServiceExWeb.BillingControllerTest do
   """
   use QueryServiceExWeb.ConnCase
 
-  @mgmt_url "https://cp.allsource.dev"
+  @mgmt_url "https://cp.all-source.xyz"
 
   setup %{conn: conn} do
     System.put_env("MGMT_PLANE_URL", @mgmt_url)

@@ -215,7 +215,7 @@ apps/web/src/components/demo/demo-prompts.tsx
       "command": "npx",
       "args": ["@allsource/mcp-server"],
       "env": {
-        "ALLSOURCE_URL": "https://demo.allsource.dev",
+        "ALLSOURCE_URL": "https://demo.all-source.xyz",
         "ALLSOURCE_API_KEY": "demo-key-xxx"
       }
     }
@@ -299,7 +299,7 @@ assets/demo-replay.gif
 **Priority**: P2 | **Effort**: 0.5 day
 
 - [ ] Embed demo video in hero section
-- [ ] Add "Try Demo" button linking to demo.allsource.dev
+- [ ] Add "Try Demo" button linking to demo.all-source.xyz
 - [ ] Add GIFs to feature sections
 
 **Files to modify**:
@@ -356,7 +356,7 @@ apps/web/src/app/page.tsx
 ## Launch Checklist
 
 ### Pre-Launch
-- [ ] Demo environment deployed (demo.allsource.dev)
+- [ ] Demo environment deployed (demo.all-source.xyz)
 - [ ] Demo data seeded
 - [ ] Demo API key created and published
 - [ ] Claude Desktop config documented
@@ -368,7 +368,7 @@ apps/web/src/app/page.tsx
 - [ ] Post to Hacker News
 - [ ] Share in relevant Discord/Slack communities
 - [ ] Email to waitlist
-- [ ] Monitor demo.allsource.dev performance
+- [ ] Monitor demo.all-source.xyz performance
 
 ### Post-Launch
 - [ ] Monitor signup conversion

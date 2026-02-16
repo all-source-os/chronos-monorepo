@@ -1,7 +1,7 @@
 ---
 title: "MCP Server"
 status: CURRENT
-version: 0.10.1
+version: 0.10.3
 last_updated: 2026-02-15
 category: service
 port: 4000
@@ -17,7 +17,7 @@ technology: Elixir
 [![Tools](https://img.shields.io/badge/MCP%20tools-61-orange.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 
-**Current Version**: v0.10.1
+**Current Version**: v0.10.3
 
 ## What Can It Do?
 
@@ -171,11 +171,13 @@ Tools follow a guided workflow from discovery to deep analysis. Each phase build
 ### Phase 9: Schema & Validation — *Event type governance*
 | Tool | Description |
 |------|-------------|
-| `register_schema` | Register event schema with versioning |
-| `validate_schema` | Validate events against schema |
-| `migrate_schema` | Migrate to new schema version |
-| `infer_schema` | Auto-infer schema from existing events |
-| `schema_diff` | Compare schema versions for breaking changes |
+| `register_schema` | Register event schema with versioning (Core API) |
+| `validate_schema` | Validate events against schema (Core API) |
+| `migrate_schema` | Register new schema version; dry-run diff is client-side |
+| `infer_schema` | Fetch events from Core, infer JSON Schema client-side |
+| `schema_diff` | Fetch schema versions from Core, compute diff client-side |
+
+> **Architecture note:** `migrate_schema`, `infer_schema`, and `schema_diff` use Core's schema registry and event query APIs for data retrieval, then perform lightweight computation (structural diffing, type inference) client-side in the MCP server. This is intentional — these operations are simple map comparisons and type detection that don't warrant dedicated Core endpoints. `register_schema`, `validate_schema`, and `list_schemas` are fully backed by Core's schema registry API.
 
 ### Phase 10: Analytics — *Business intelligence*
 | Tool | Description |

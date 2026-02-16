@@ -105,14 +105,14 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       id: "docs",
       name: "Documentation",
       icon: FileText,
-      action: () => window.open("https://docs.allsource.dev", "_blank"),
+      action: () => window.open("https://docs.all-source.xyz", "_blank"),
       group: "Resources",
     },
     {
       id: "api-reference",
       name: "API Reference",
       icon: ExternalLink,
-      action: () => window.open("https://docs.allsource.dev/api", "_blank"),
+      action: () => window.open("https://docs.all-source.xyz/api", "_blank"),
       group: "Resources",
     },
   ];

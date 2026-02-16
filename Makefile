@@ -637,9 +637,7 @@ endif
 	@echo "Updating Rust Core (Cargo.toml)..."
 	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' apps/core/Cargo.toml
 	@echo "Updating Go Control Plane (main.go)..."
-	@sed -i '' 's/"version":[[:space:]]*"[0-9]*\.[0-9]*\.[0-9]*"/"version":   "$(VERSION)"/' apps/control-plane/main.go
-	@echo "Updating Go Control Plane (main_v1.go)..."
-	@sed -i '' 's/Version = "[0-9]*\.[0-9]*\.[0-9]*"/Version = "$(VERSION)"/' apps/control-plane/main_v1.go
+	@sed -i '' 's/Version = "[0-9]*\.[0-9]*\.[0-9]*"/Version = "$(VERSION)"/' apps/control-plane/main.go
 	@echo "Updating Go Control Plane (tracing.go)..."
 	@sed -i '' 's/serviceVersion = "[0-9]*\.[0-9]*\.[0-9]*"/serviceVersion = "$(VERSION)"/' apps/control-plane/tracing.go
 	@echo "Updating Query Service (mix.exs)..."
@@ -659,7 +657,6 @@ endif
 	@echo "Files updated:"
 	@echo "  - apps/core/Cargo.toml"
 	@echo "  - apps/control-plane/main.go"
-	@echo "  - apps/control-plane/main_v1.go"
 	@echo "  - apps/control-plane/tracing.go"
 	@echo "  - apps/query-service/mix.exs"
 	@echo "  - apps/mcp-server-elixir/mix.exs"

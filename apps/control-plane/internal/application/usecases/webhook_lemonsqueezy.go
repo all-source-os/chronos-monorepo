@@ -99,10 +99,11 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCreated(tenantID 
 
 	billing := &entities.TenantBillingMetadata{
 		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID: event.Data.ID,
-			CustomerID:     fmt.Sprintf("%d", attrs.CustomerID),
-			Status:         attrs.Status,
-			Tier:           tier,
+			SubscriptionID:  event.Data.ID,
+			CustomerID:      fmt.Sprintf("%d", attrs.CustomerID),
+			Status:          attrs.Status,
+			Tier:            tier,
+			PaymentProvider: "lemonsqueezy",
 		},
 		// Quotas will be auto-applied by UpdateSubscriptionMetadataUseCase based on tier
 	}
@@ -117,10 +118,11 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionUpdated(tenantID 
 
 	billing := &entities.TenantBillingMetadata{
 		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID: event.Data.ID,
-			CustomerID:     fmt.Sprintf("%d", attrs.CustomerID),
-			Status:         attrs.Status,
-			Tier:           tier,
+			SubscriptionID:  event.Data.ID,
+			CustomerID:      fmt.Sprintf("%d", attrs.CustomerID),
+			Status:          attrs.Status,
+			Tier:            tier,
+			PaymentProvider: "lemonsqueezy",
 		},
 	}
 
@@ -132,10 +134,11 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCanceled(ctx cont
 	// Update subscription status to canceled
 	billing := &entities.TenantBillingMetadata{
 		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID: event.Data.ID,
-			CustomerID:     fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
-			Status:         "canceled",
-			Tier:           resolveTierFromVariantName(event.Data.Attributes.VariantName),
+			SubscriptionID:  event.Data.ID,
+			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
+			Status:          "canceled",
+			Tier:            resolveTierFromVariantName(event.Data.Attributes.VariantName),
+			PaymentProvider: "lemonsqueezy",
 		},
 	}
 	if _, err := uc.updateSubUC.Execute(tenantID, billing); err != nil {
@@ -154,10 +157,11 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionExpired(ctx conte
 	// Update subscription status to expired
 	billing := &entities.TenantBillingMetadata{
 		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID: event.Data.ID,
-			CustomerID:     fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
-			Status:         "expired",
-			Tier:           resolveTierFromVariantName(event.Data.Attributes.VariantName),
+			SubscriptionID:  event.Data.ID,
+			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
+			Status:          "expired",
+			Tier:            resolveTierFromVariantName(event.Data.Attributes.VariantName),
+			PaymentProvider: "lemonsqueezy",
 		},
 	}
 	if _, err := uc.updateSubUC.Execute(tenantID, billing); err != nil {
@@ -176,10 +180,11 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handlePaymentFailed(tenantID string
 	// Update subscription status to past_due but don't suspend yet
 	billing := &entities.TenantBillingMetadata{
 		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID: event.Data.ID,
-			CustomerID:     fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
-			Status:         "past_due",
-			Tier:           resolveTierFromVariantName(event.Data.Attributes.VariantName),
+			SubscriptionID:  event.Data.ID,
+			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
+			Status:          "past_due",
+			Tier:            resolveTierFromVariantName(event.Data.Attributes.VariantName),
+			PaymentProvider: "lemonsqueezy",
 		},
 	}
 
@@ -219,12 +224,10 @@ func extractTenantIDFromWebhook(event LemonSqueezyWebhookEvent) string {
 // Falls back to "free" for unknown variants.
 func resolveTierFromVariantName(variantName string) string {
 	switch variantName {
-	case "Starter", "starter":
-		return "starter"
 	case "Pro", "pro":
 		return "pro"
-	case "Enterprise", "enterprise":
-		return "enterprise"
+	case "Team", "team":
+		return "team"
 	default:
 		return "free"
 	}

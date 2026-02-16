@@ -112,8 +112,8 @@ func RoleHasPermission(role entities.Role, perm entities.Permission) bool {
 // AuthMiddleware validates JWT tokens and adds auth context to requests
 func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Skip auth for health endpoints, public cluster health, and webhooks
-		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathMetrics || c.Request.URL.Path == "/api/v1/cluster/health" || c.Request.URL.Path == "/api/v1/webhooks/lemonsqueezy" {
+		// Skip auth for health, metrics, public cluster health, webhooks, and auth endpoints
+		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathMetrics || c.Request.URL.Path == "/docs" || c.Request.URL.Path == "/openapi" || c.Request.URL.Path == "/api/v1/cluster/health" || strings.HasPrefix(c.Request.URL.Path, "/api/v1/webhooks/") || strings.HasPrefix(c.Request.URL.Path, "/api/v1/auth/") || strings.HasPrefix(c.Request.URL.Path, "/api/v1/onboard/") {
 			c.Next()
 			return
 		}
@@ -196,6 +196,114 @@ func GetAuthContext(c *gin.Context) (*AuthContext, error) {
 	}
 
 	return auth, nil
+}
+
+// OAuthRequest represents an OAuth user creation/lookup request from the Query Service.
+type OAuthRequest struct {
+	Provider   string `json:"provider" binding:"required"`
+	ProviderID string `json:"provider_id" binding:"required"`
+	Email      string `json:"email" binding:"required"`
+	Name       string `json:"name"`
+}
+
+// OAuthHandler handles OAuth user creation/lookup from the Query Service.
+// POST /api/v1/auth/oauth
+func (cp *ControlPlane) OAuthHandler(c *gin.Context) {
+	var req OAuthRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request", "message": err.Error()})
+		return
+	}
+
+	// Generate a deterministic user ID from provider info
+	userID := fmt.Sprintf("oauth:%s:%s", req.Provider, req.ProviderID)
+
+	// Build tenant slug from email
+	tenantSlug := strings.ReplaceAll(strings.ToLower(req.Email), "@", "-at-")
+	tenantSlug = strings.ReplaceAll(tenantSlug, ".", "-")
+
+	tenantBody := map[string]interface{}{
+		"id":   userID,
+		"name": req.Name,
+		"slug": tenantSlug,
+		"metadata": map[string]interface{}{
+			"subscription": map[string]interface{}{
+				"tier":   "free",
+				"status": "active",
+			},
+			"quota": map[string]interface{}{
+				"events_quota": 10000,
+			},
+		},
+	}
+
+	// Create or get tenant from Core
+	resp, err := cp.client.R().
+		SetBody(tenantBody).
+		Post("/api/v1/tenants")
+
+	var tenantID string
+	isNewUser := false
+
+	switch {
+	case err != nil:
+		// Core unavailable — use the user ID as tenant ID
+		tenantID = userID
+		isNewUser = true
+	case resp.StatusCode() == 201 || resp.StatusCode() == 200:
+		var result map[string]interface{}
+		if parseErr := json.Unmarshal(resp.Body(), &result); parseErr == nil {
+			if id, ok := result["id"].(string); ok {
+				tenantID = id
+			}
+			isNewUser = resp.StatusCode() == 201
+		}
+		if tenantID == "" {
+			tenantID = userID
+		}
+	case resp.StatusCode() == 409:
+		// Tenant already exists — returning user
+		tenantID = userID
+		isNewUser = false
+	default:
+		tenantID = userID
+		isNewUser = true
+	}
+
+	// Sign JWT
+	now := time.Now()
+	claims := &Claims{
+		UserID:   userID,
+		Username: req.Name,
+		TenantID: tenantID,
+		Role:     entities.RoleDeveloper,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: now.Add(7 * 24 * time.Hour).Unix(),
+			IssuedAt:  now.Unix(),
+			Subject:   userID,
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(cp.authClient.jwtSecret))
+	if err != nil {
+		c.JSON(500, gin.H{"error": "failed to generate token"})
+		return
+	}
+
+	status := 200
+	if isNewUser {
+		status = 201
+	}
+
+	c.JSON(status, gin.H{
+		"token":     tokenString,
+		"user_id":   userID,
+		"tenant_id": tenantID,
+		"new_user":  isNewUser,
+		"email":     req.Email,
+		"name":      req.Name,
+	})
 }
 
 // LoginRequest represents a login request

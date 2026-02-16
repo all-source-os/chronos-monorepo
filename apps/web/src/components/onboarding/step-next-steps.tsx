@@ -15,14 +15,14 @@ const resources = [
     icon: BookOpen,
     title: "Documentation",
     description: "Learn everything about AllSource",
-    href: "https://docs.allsource.dev",
+    href: "https://docs.all-source.xyz",
     external: true,
   },
   {
     icon: Code2,
     title: "API Reference",
     description: "Explore all available endpoints",
-    href: "https://docs.allsource.dev/api",
+    href: "https://docs.all-source.xyz/api",
     external: true,
   },
   {
@@ -36,7 +36,7 @@ const resources = [
     icon: Sparkles,
     title: "MCP Integration",
     description: "Connect with Claude Desktop",
-    href: "https://docs.allsource.dev/mcp",
+    href: "https://docs.all-source.xyz/mcp",
     external: true,
   },
 ];

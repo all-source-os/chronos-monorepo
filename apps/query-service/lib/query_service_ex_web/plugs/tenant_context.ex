@@ -13,8 +13,8 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
 
   import Plug.Conn
   alias QueryServiceEx.DevMode
-  alias QueryServiceEx.TenantCache
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+  alias QueryServiceEx.TenantCache
 
   require Logger
 
@@ -30,11 +30,12 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
 
   defp set_dev_tenant_context(conn) do
     dev_tenant = DevMode.dev_tenant()
+    tid = tenant_id(dev_tenant)
 
     conn
     |> assign(:current_tenant, dev_tenant)
-    |> assign(:tenant_id, dev_tenant.id)
-    |> put_private(:allsource_tenant_id, dev_tenant.id)
+    |> assign(:tenant_id, tid)
+    |> put_private(:allsource_tenant_id, tid)
   end
 
   defp set_user_tenant_context(conn) do
@@ -90,7 +91,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
   # Subscription status helpers that work with both Ecto Tenant structs and Core maps
 
   defp subscription_active?(tenant) do
-    get_subscription_status(tenant) in ~w(trialing active)a ++ ["trialing", "active"]
+    get_subscription_status(tenant) in (~w(trialing active)a ++ ["trialing", "active"])
   end
 
   defp get_subscription_status(%{subscription_status: status}) when not is_nil(status), do: status
@@ -127,8 +128,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
     |> Phoenix.Controller.json(%{
       error: %{
         code: "subscription_required",
-        message:
-          "Your subscription has #{status}. Please update your billing.",
+        message: "Your subscription has #{status}. Please update your billing.",
         subscription_status: status,
         trial_ends_at: trial_ends_at,
         subscription_ends_at: subscription_ends_at

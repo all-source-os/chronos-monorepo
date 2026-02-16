@@ -18,12 +18,12 @@
     [ ] User Type: External
     [ ] App name: AllSource
     [ ] Support email: your email
-    [ ] Authorized domains: allsource.dev
+    [ ] Authorized domains: all-source.xyz
 [ ] Create OAuth 2.0 Client ID
     [ ] Application type: Web application
     [ ] Name: AllSource Web
     [ ] Authorized redirect URIs:
-        - https://allsource.allsource.dev/api/auth/google/callback
+        - https://all-source.xyz/api/auth/google/callback
         - http://localhost:3902/api/auth/google/callback (for testing)
 [ ] Copy Client ID: _______________________
 [ ] Copy Client Secret: _______________________
@@ -38,8 +38,8 @@
 [ ] Click "New OAuth App"
 [ ] Fill in:
     [ ] Application name: AllSource
-    [ ] Homepage URL: https://allsource.allsource.dev
-    [ ] Authorization callback URL: https://allsource.allsource.dev/api/auth/github/callback
+    [ ] Homepage URL: https://all-source.xyz
+    [ ] Authorization callback URL: https://all-source.xyz/api/auth/github/callback
 [ ] Click "Register application"
 [ ] Copy Client ID: _______________________
 [ ] Click "Generate a new client secret"
@@ -79,17 +79,16 @@
 [ ] Note your app names: _______________________
 ```
 
-### Create Postgres Database
+### Create Postgres Database (Optional — Future)
 - **Estimate:** Water (10 min)
+- **Note:** As of v0.10.3, no service requires PostgreSQL. The Query Service is fully stateless. PostgreSQL may be needed in a future version for billing/subscription metadata. Skip this step for initial launch.
 
 ```
-[ ] Create Postgres cluster:
+[ ] (OPTIONAL) Create Postgres cluster:
     fly postgres create --name allsource-db --region iad --vm-size shared-cpu-1x --initial-cluster-size 1
 
-[ ] Attach to query service:
+[ ] (OPTIONAL) Attach to query service:
     fly postgres attach allsource-db --app allsource-query-service
-
-[ ] Note: DATABASE_URL is now automatically set as a secret
 ```
 
 ### Set Secrets
@@ -108,7 +107,7 @@
       GOOGLE_CLIENT_SECRET="<from-step-1>" \
       GITHUB_CLIENT_ID="<from-step-1>" \
       GITHUB_CLIENT_SECRET="<from-step-1>" \
-      RUST_CORE_URL="http://allsource-core.internal:3900" \
+      CORE_URL="http://allsource-core.internal:3900" \
       CORE_WS_URL="ws://allsource-core.internal:3900/api/v1/events/stream" \
       --app allsource-query-service
 
@@ -138,7 +137,7 @@
     fly deploy
     [ ] Verify: fly status --app allsource-query-service
 
-[ ] Run migrations:
+[ ] (SKIP if no Postgres) Run migrations:
     fly ssh console -a allsource-query-service -C "/app/bin/query_service_ex eval 'QueryServiceEx.Release.migrate()'"
     [ ] Verify: fly logs -a allsource-query-service (check for migration success)
 
@@ -247,7 +246,7 @@
 These improve the product but don't block launch:
 
 ```
-[ ] Custom domain setup (allsource.allsource.dev → Fly.io)
+[ ] Custom domain setup (all-source.xyz → Fly.io)
 [ ] LemonSqueezy billing integration test
 [ ] Privacy Policy page
 [ ] Terms of Service page

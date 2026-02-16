@@ -289,10 +289,9 @@ func TestReportUsage_APIError(t *testing.T) {
 
 func TestLookupVariantID(t *testing.T) {
 	client := newLemonSqueezyClient("http://unused", "key", "store", VariantMap{
-		"free":       "var_1",
-		"starter":    "var_2",
-		"pro":        "var_3",
-		"enterprise": "var_4",
+		"free": "var_1",
+		"pro":  "var_2",
+		"team": "var_3",
 	})
 
 	tests := []struct {
@@ -301,8 +300,8 @@ func TestLookupVariantID(t *testing.T) {
 		wantErr bool
 	}{
 		{"free", "var_1", false},
-		{"pro", "var_3", false},
-		{"enterprise", "var_4", false},
+		{"pro", "var_2", false},
+		{"team", "var_3", false},
 		{"unknown", "", true},
 	}
 

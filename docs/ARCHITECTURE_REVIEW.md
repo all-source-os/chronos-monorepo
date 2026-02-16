@@ -1,5 +1,7 @@
 # AllSource Architecture Review
 
+> **Note (2026-02-16)**: This review was written when the Query Service used PostgreSQL for user/tenant storage. As of v0.10.3, **Query Service is fully stateless** (no PostgreSQL). The "ideal state" recommendations in Sections 4-6 (Better Auth, JWKS, unified tenant authority) remain valid goals but the "current state" sections (1-3) show a PostgreSQL dependency that no longer exists. See `docs/proposals/SERVICE_RESPONSIBILITY_REALIGNMENT.md` for the current plan to add PostgreSQL for billing metadata only.
+
 ## Executive Summary
 
 AllSource is a polyglot event sourcing platform with 5 services. This review identifies **3 disconnected auth stores**, **3 disconnected tenant stores**, and **broken email/password auth** as the primary architectural issues. The data flow for events is well-designed, but the identity and tenant management layers need consolidation.

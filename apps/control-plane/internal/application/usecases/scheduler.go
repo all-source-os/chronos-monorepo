@@ -24,13 +24,14 @@ type ScheduledTask struct {
 
 // OperationScheduler manages background operations (compaction, snapshots, etc.)
 type OperationScheduler struct {
-	operationRepo repositories.OperationRepository
-	auditRepo     repositories.AuditRepository
-	coreClient    clients.CoreClient
-	reportUsageUC *billing.ReportUsageUseCase
-	tasks         []ScheduledTask
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
+	operationRepo      repositories.OperationRepository
+	auditRepo          repositories.AuditRepository
+	coreClient         clients.CoreClient
+	reportUsageUC      *billing.ReportUsageUseCase
+	checkUsageWarnings *billing.CheckUsageWarningsUseCase
+	tasks              []ScheduledTask
+	cancel             context.CancelFunc
+	wg                 sync.WaitGroup
 }
 
 // NewOperationScheduler creates a new OperationScheduler.
@@ -46,6 +47,7 @@ func NewOperationScheduler(
 		tasks: []ScheduledTask{
 			{Name: "compaction", Interval: 6 * time.Hour, Enabled: true},
 			{Name: "overage_reporting", Interval: 1 * time.Hour, Enabled: true},
+			{Name: "usage_warnings", Interval: 1 * time.Hour, Enabled: true},
 		},
 	}
 }
@@ -54,6 +56,12 @@ func NewOperationScheduler(
 // Must be called before Start if overage_reporting task is enabled.
 func (s *OperationScheduler) SetReportUsageUseCase(uc *billing.ReportUsageUseCase) {
 	s.reportUsageUC = uc
+}
+
+// SetCheckUsageWarningsUseCase sets the usage warning use case for the scheduler.
+// Must be called before Start if usage_warnings task is enabled.
+func (s *OperationScheduler) SetCheckUsageWarningsUseCase(uc *billing.CheckUsageWarningsUseCase) {
+	s.checkUsageWarnings = uc
 }
 
 // Start begins running scheduled tasks in the background.
@@ -103,6 +111,8 @@ func (s *OperationScheduler) executeTask(ctx context.Context, task ScheduledTask
 		s.executeCompaction(ctx)
 	case "overage_reporting":
 		s.executeOverageReporting(ctx)
+	case "usage_warnings":
+		s.executeUsageWarnings(ctx)
 	default:
 		log.Printf("Unknown scheduled task: %s", task.Name)
 	}
@@ -181,6 +191,38 @@ func (s *OperationScheduler) executeOverageReporting(ctx context.Context) {
 	// Audit log
 	auditEvent, _ := entities.NewAuditEvent("billing.overage.scheduled_report", "execute", "SCHEDULER", "/billing/overage") //nolint:errcheck
 	auditEvent.AddMetadata("reported", fmt.Sprintf("%d", reported))
+	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
+	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
+	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck
+}
+
+func (s *OperationScheduler) executeUsageWarnings(ctx context.Context) {
+	if s.checkUsageWarnings == nil {
+		return
+	}
+
+	results := s.checkUsageWarnings.ExecuteAll(ctx)
+
+	var sent, skipped, errored int
+	for _, r := range results {
+		switch {
+		case r.Error != nil:
+			errored++
+			log.Printf("Scheduler: usage warning failed for tenant %s: %v", r.TenantID, r.Error)
+		case r.Skipped:
+			skipped++
+		case r.EmailSent:
+			sent++
+		default:
+			skipped++
+		}
+	}
+
+	log.Printf("Scheduler: usage warnings complete — sent=%d skipped=%d errors=%d", sent, skipped, errored)
+
+	// Audit log
+	auditEvent, _ := entities.NewAuditEvent("billing.usage_warning.scheduled_check", "execute", "SCHEDULER", "/billing/usage-warning") //nolint:errcheck
+	auditEvent.AddMetadata("sent", fmt.Sprintf("%d", sent))
 	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
 	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
 	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck

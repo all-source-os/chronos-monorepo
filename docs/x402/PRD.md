@@ -795,7 +795,7 @@ Response: { status: 'resolved' }
 
 ```html
 <!-- Step 1: Add widget script to <head> -->
-<script src="https://paywall.allsource.dev/widget.js"
+<script src="https://paywall.all-source.xyz/widget.js"
         data-creator-id="your-creator-id"
         data-network="solana"></script>
 
@@ -826,7 +826,7 @@ Premium content here...
 
 ```html
 <!-- Settings > Code Injection > Site Header -->
-<script src="https://paywall.allsource.dev/widget.js"
+<script src="https://paywall.all-source.xyz/widget.js"
         data-creator-id="{{@site.uuid}}"></script>
 
 <!-- In your post -->

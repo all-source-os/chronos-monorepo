@@ -75,11 +75,11 @@ defmodule QueryServiceExWeb.ApiSpec do
 
         ## Support
 
-        For API issues, contact support@allsource.dev or visit our documentation.
+        For API issues, contact support@all-source.xyz or visit our documentation.
         """,
         contact: %OpenApiSpex.Contact{
           name: "AllSource Support",
-          email: "support@allsource.dev"
+          email: "support@all-source.xyz"
         },
         license: %OpenApiSpex.License{
           name: "MIT"
@@ -155,8 +155,8 @@ defmodule QueryServiceExWeb.ApiSpec do
     case env do
       :prod ->
         [
-          %Server{url: "https://api.allsource.dev", description: "Production"},
-          %Server{url: "https://staging-api.allsource.dev", description: "Staging"}
+          %Server{url: "https://api.all-source.xyz", description: "Production"},
+          %Server{url: "https://staging-api.all-source.xyz", description: "Staging"}
         ]
 
       _ ->

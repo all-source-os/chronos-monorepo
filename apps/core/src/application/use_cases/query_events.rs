@@ -107,11 +107,11 @@ mod tests {
     #[async_trait]
     impl EventRepository for MockEventRepository {
         async fn save(&self, _event: &Event) -> Result<()> {
-            unimplemented!()
+            Ok(())
         }
 
         async fn save_batch(&self, _events: &[Event]) -> Result<()> {
-            unimplemented!()
+            Ok(())
         }
 
         async fn find_by_id(&self, id: Uuid) -> Result<Option<Event>> {

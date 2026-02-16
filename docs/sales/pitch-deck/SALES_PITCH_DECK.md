@@ -21,7 +21,7 @@
 │                                                                    │
 │                        [Company Logo]                              │
 │                                                                    │
-│                     www.allsource.io                                 │
+│                     all-source.xyz                                 │
 │                                                                    │
 └────────────────────────────────────────────────────────────────────┘
 ```
@@ -464,7 +464,7 @@
 │          ┌─────────────────────────────────────────────┐          │
 │          │                                             │          │
 │          │   1. Start Free Trial Today                 │          │
-│          │      allsource.io/trial                       │          │
+│          │      all-source.xyz/trial                       │          │
 │          │                                             │          │
 │          │   2. Book a Technical Deep-Dive             │          │
 │          │      calendly.com/allsource-demo              │          │
