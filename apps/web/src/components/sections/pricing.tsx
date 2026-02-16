@@ -13,15 +13,12 @@ export default function PricingSection() {
   const [isMonthly, setIsMonthly] = useState(true);
   const { isDesktop } = useWindowSize();
 
-  const _handleToggle = () => {
-    setIsMonthly(!isMonthly);
-  };
-
   return (
     <Section title="Pricing" subtitle="Choose the plan that's right for you">
       <div className="flex justify-center mb-10">
         <div className="inline-flex items-center rounded-full border-2 border-primary/20 bg-muted/50 p-1">
           <button
+            type="button"
             onClick={() => setIsMonthly(true)}
             className={cn(
               "px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200",
@@ -33,6 +30,7 @@ export default function PricingSection() {
             Monthly
           </button>
           <button
+            type="button"
             onClick={() => setIsMonthly(false)}
             className={cn(
               "px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-1",

@@ -2506,7 +2506,7 @@ defmodule McpServerElixir.Protocol.McpTools do
 
   @doc false
   def handle_get_cluster_status(state, format) do
-    case ControlPlaneClient.get_cluster_status(state.control_client) do
+    case CoreClient.get_cluster_status(state.core_client) do
       {:ok, status} ->
         summary = "🎯 Cluster Status\n\n"
         formatted_data = ToonEncoder.format_response(status, format)
@@ -5594,113 +5594,60 @@ defmodule McpServerElixir.Protocol.McpTools do
   end
 
   @doc false
-  def handle_backup_create(args, state, format) do
-    params =
-      %{}
-      |> maybe_put("label", Map.get(args, "label"))
-      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
-      |> maybe_put("incremental", Map.get(args, "incremental"))
+  def handle_backup_create(_args, _state, _format) do
+    {:ok,
+     %{
+       content: [
+         %{
+           type: "text",
+           text: """
+           Backup Create — Not Yet Available
 
-    case CoreClient.backup_create(state.core_client, params) do
-      {:ok, data} ->
-        formatted_data = ToonEncoder.format_response(data, format)
+           Backup API is not yet implemented in AllSource Core.
 
-        text = """
-        📦 Backup Created
-
-        #{formatted_data}
-
-        💡 Use backup_list to see all available backups
-        """
-
-        {:ok, %{content: [%{type: "text", text: text}]}}
-
-      {:error, reason} ->
-        {:error, "Failed to create backup: #{inspect(reason)}"}
-    end
+           Workaround: Copy the Core data directory (WAL + Parquet files) while the service is stopped.
+           """
+         }
+       ]
+     }}
   end
 
   @doc false
-  def handle_backup_restore(args, state, format) do
-    backup_id = Map.fetch!(args, "backup_id")
-    confirm = Map.get(args, "confirm", false)
-    dry_run = Map.get(args, "dry_run", false)
+  def handle_backup_restore(_args, _state, _format) do
+    {:ok,
+     %{
+       content: [
+         %{
+           type: "text",
+           text: """
+           Backup Restore — Not Yet Available
 
-    unless confirm do
-      text = """
-      ⛔ Restore NOT Executed — Confirmation Required
+           Backup restore API is not yet implemented in AllSource Core.
 
-      backup_restore is a DESTRUCTIVE operation that replaces current data.
-      Set confirm: true to proceed.
-
-      ⚠️ All events written after backup "#{backup_id}" was created will be LOST.
-      💡 Consider creating a fresh backup first with backup_create.
-      """
-
-      {:ok, %{content: [%{type: "text", text: text}]}}
-    else
-      params =
-        %{"backup_id" => backup_id}
-        |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
-        |> maybe_put("dry_run", dry_run)
-
-      case CoreClient.backup_restore(state.core_client, params) do
-        {:ok, data} ->
-          formatted_data = ToonEncoder.format_response(data, format)
-
-          text =
-            if dry_run do
-              """
-              🔍 Restore Validation (DRY RUN)
-              📦 Backup: #{backup_id}
-
-              #{formatted_data}
-
-              💡 Remove dry_run: true to execute the restore
-              """
-            else
-              """
-              ✅ Restore Initiated
-              📦 Backup: #{backup_id}
-
-              #{formatted_data}
-
-              ⚠️ System may be unavailable during restore. Monitor with health_deep.
-              """
-            end
-
-          {:ok, %{content: [%{type: "text", text: text}]}}
-
-        {:error, reason} ->
-          {:error, "Failed to restore backup: #{inspect(reason)}"}
-      end
-    end
+           Workaround: Stop Core, replace the data directory with a backup copy, then restart.
+           """
+         }
+       ]
+     }}
   end
 
   @doc false
-  def handle_backup_list(args, state, format) do
-    params =
-      %{}
-      |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
-      |> maybe_put("limit", Map.get(args, "limit"))
+  def handle_backup_list(_args, _state, _format) do
+    {:ok,
+     %{
+       content: [
+         %{
+           type: "text",
+           text: """
+           Backup List — Not Yet Available
 
-    case CoreClient.backup_list(state.core_client, params) do
-      {:ok, data} ->
-        formatted_data = ToonEncoder.format_response(data, format)
+           Backup API is not yet implemented in AllSource Core.
 
-        text = """
-        📋 Available Backups
-
-        #{formatted_data}
-
-        💡 Use backup_id with backup_restore to restore from a backup
-        """
-
-        {:ok, %{content: [%{type: "text", text: text}]}}
-
-      {:error, reason} ->
-        {:error, "Failed to list backups: #{inspect(reason)}"}
-    end
+           Workaround: Check the Core data directory for WAL segments and Parquet files.
+           """
+         }
+       ]
+     }}
   end
 
   @doc false

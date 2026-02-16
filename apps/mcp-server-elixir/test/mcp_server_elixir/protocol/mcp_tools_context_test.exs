@@ -8,28 +8,11 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
 
   setup do
     # Ensure ConversationContext is running for tests
-    # Stop any existing process first to ensure clean state
-    case GenServer.whereis(McpServerElixir.Context.ConversationContext) do
-      nil ->
-        :ok
-
-      existing_pid when is_pid(existing_pid) ->
-        if Process.alive?(existing_pid) do
-          GenServer.stop(existing_pid, :normal)
-        end
-    end
-
-    # Small delay to ensure process is fully stopped
-    Process.sleep(10)
-
-    # Start fresh
-    {:ok, pid} = ConversationContext.start_link(name: McpServerElixir.Context.ConversationContext)
-
-    on_exit(fn ->
-      if Process.alive?(pid) do
-        GenServer.stop(pid, :normal)
+    pid =
+      case ConversationContext.start_link(name: McpServerElixir.Context.ConversationContext) do
+        {:ok, pid} -> pid
+        {:error, {:already_started, pid}} -> pid
       end
-    end)
 
     {:ok, pid: pid}
   end

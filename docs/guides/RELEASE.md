@@ -258,7 +258,7 @@ grep -rn "0\.9\.0\|0\.9\.1" --include="*.md" --include="*.tsx" --include="*.go" 
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| v0.10.3 | 2026-02-16 | Fix Query Service tenant context crash (string vs atom keys), Docker build context for OpenAPI spec, Go lint exclusion. Unblocks rebalancing app: QS proxy routes (event read/write, tenant context) now work in dev mode. |
+| v0.10.3 | 2026-02-16 | Critical QS proxy fix, domain migration chronos→allsource |
 | v0.10.0 | 2026-02-13 | Leader-follower replication, event-sourced metadata, control plane v2 |
 | v0.9.1 | 2026-02-12 | Stream & event type discovery APIs |
 | v0.9.0 | 2026-02-10 | Dashboard, auth & logger fixes |
@@ -266,8 +266,36 @@ grep -rn "0\.9\.0\|0\.9\.1" --include="*.md" --include="*.tsx" --include="*.go" 
 | v0.8.0 | 2026-02-03 | Clean Architecture release |
 | v0.7.3 | 2026-02-02 | Quality improvements |
 
+---
+
+### v0.10.3 — Critical QS Proxy Fix (2026-02-16)
+
+**Fixed**: All tenant-scoped Query Service routes now work. They were returning 500 in v0.10.1 due to a string-vs-atom key mismatch in the tenant context.
+
+**Verified working endpoints:**
+
+| Endpoint | Use Case |
+|----------|----------|
+| `GET /api/events/entity/:entity_id` | Load entity stream (index, trade, balance) |
+| `GET /api/events?stream_id=...` | Filtered event listing |
+| `POST /api/query` (simple format) | Cross-entity queries by type |
+| `GET /api/streams` | List all streams (for user indices) |
+| `GET /api/event-types` | List event types |
+| `GET /api/events/type/:type` | Events by type |
+
+**Key discovery**: `entity_id` IS the stream ID — there is no separate `stream_id` field in the event schema. Code using `stream_id` when writing to Core should use `entity_id` instead. The Query Service accepts both as query params.
+
+**Fixed**: DSL `where` clause (`"from"`/`"where"` format in `POST /api/query`) previously returned 500. Root cause: `compile_query` only extracted `entity_id`/`event_type` from simple predicates and silently dropped compound predicates (`and`/`or`). Now properly flattens all predicate trees into Core query params.
+
+**Also in this release**: Domain migration from chronos→allsource across all docs, configs, and source files.
+
+Full API reference: [`docs/allsource-qs-api-reference.md`](../allsource-qs-api-reference.md)
+
+---
+
 ## Related Documentation
 
+- [QS API Reference](../allsource-qs-api-reference.md) - Verified endpoint reference for v0.10.3
 - [Docker Images](../docker-images.md) - Container deployment guide
 - [Quality Gates](./QUALITY_GATES_SETUP.md) - CI/CD quality checks
 - [RELEASE.md](../../RELEASE.md) - Current release notes

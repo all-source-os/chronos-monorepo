@@ -25,6 +25,14 @@ config :phoenix, :stacktrace_depth, 20
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
 
+# OAuth configuration for development
+# Reads from environment variables — source .env or use direnv
+config :query_service_ex, :oauth,
+  google_client_id: System.get_env("GOOGLE_CLIENT_ID"),
+  google_client_secret: System.get_env("GOOGLE_CLIENT_SECRET"),
+  github_client_id: System.get_env("GITHUB_CLIENT_ID"),
+  github_client_secret: System.get_env("GITHUB_CLIENT_SECRET")
+
 # LemonSqueezy configuration for development (optional)
 # Set LEMON_SQUEEZY_VARIANT_TIERS="variant_id:tier,..." to map variants to tiers
 config :query_service_ex, :lemon_squeezy,

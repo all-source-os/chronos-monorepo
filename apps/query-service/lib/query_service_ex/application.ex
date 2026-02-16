@@ -50,6 +50,9 @@ defmodule QueryServiceEx.Application do
         # ETS cache for analytics results
         QueryServiceEx.Infrastructure.Adapters.AnalyticsCache,
 
+        # ETS-backed team membership store (projects team events from Core)
+        QueryServiceEx.TeamStore,
+
         # Health checker for Core read nodes (polls /health, tracks lag in ETS)
         QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
       ] ++

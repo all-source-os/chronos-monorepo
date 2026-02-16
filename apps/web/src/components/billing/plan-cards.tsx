@@ -7,10 +7,11 @@ import { siteConfig } from "@/lib/config";
 
 interface PlanCardsProps {
   currentPlan?: string;
-  onUpgrade?: (planName: string) => void;
+  isYearly?: boolean;
+  onUpgrade?: (planName: string, billingPeriod: "monthly" | "annual") => void;
 }
 
-export function PlanCards({ currentPlan = "free", onUpgrade }: PlanCardsProps) {
+export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }: PlanCardsProps) {
   const plans = siteConfig.pricing;
 
   const getPlanTier = (name: string) => {
@@ -26,6 +27,7 @@ export function PlanCards({ currentPlan = "free", onUpgrade }: PlanCardsProps) {
         const planTier = getPlanTier(plan.name);
         const isCurrent = planTier === currentPlan;
         const isPopular = plan.isPopular;
+        const displayPrice = isYearly ? plan.yearlyPrice : plan.price;
 
         return (
           <Card
@@ -57,11 +59,16 @@ export function PlanCards({ currentPlan = "free", onUpgrade }: PlanCardsProps) {
                 {plan.name}
               </CardTitle>
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold">{plan.price}</span>
-                {plan.price !== "Custom" && (
+                <span className="text-4xl font-bold">{displayPrice}</span>
+                {displayPrice !== "Custom" && (
                   <span className="text-muted-foreground">/{plan.period}</span>
                 )}
               </div>
+              {isYearly && plan.price !== "$0" && plan.price !== "Custom" && (
+                <p className="text-xs text-muted-foreground">
+                  billed annually ({plan.yearlyPrice}/mo &times; 12)
+                </p>
+              )}
               <p className="text-sm text-muted-foreground">{plan.description}</p>
             </CardHeader>
 
@@ -81,7 +88,7 @@ export function PlanCards({ currentPlan = "free", onUpgrade }: PlanCardsProps) {
                 className="w-full"
                 variant={isPopular ? "default" : "outline"}
                 disabled={isCurrent}
-                onClick={() => onUpgrade?.(planTier)}
+                onClick={() => onUpgrade?.(planTier, isYearly ? "annual" : "monthly")}
               >
                 {isCurrent ? (
                   "Current Plan"

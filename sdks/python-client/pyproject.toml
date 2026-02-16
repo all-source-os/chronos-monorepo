@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "allsource-client"
+version = "0.1.0"
+description = "Python SDK for AllSource Event Store"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{ name = "AllSource", email = "support@allsource.co" }]
+keywords = ["event-store", "event-sourcing", "allsource"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = ["httpx>=0.25.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "pytest-httpx>=0.30", "mypy>=1.0"]
+
+[project.urls]
+Homepage = "https://allsource.co"
+Documentation = "https://docs.allsource.co"
+Repository = "https://github.com/all-source-os/chronos-monorepo"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/allsource_client"]
+
+[tool.mypy]
+strict = true
+python_version = "3.9"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

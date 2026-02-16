@@ -271,10 +271,13 @@ export class ApiClient {
   }
 
   // Billing endpoints
-  async createCheckout(variantId: string): Promise<ApiResponse<CheckoutResponse>> {
+  async createCheckout(
+    variantId: string,
+    billingPeriod: "monthly" | "annual" = "monthly"
+  ): Promise<ApiResponse<CheckoutResponse>> {
     return this.request<CheckoutResponse>("/api/billing/checkout", {
       method: "POST",
-      body: JSON.stringify({ variant_id: variantId }),
+      body: JSON.stringify({ variant_id: variantId, billing_period: billingPeriod }),
     });
   }
 
@@ -348,6 +351,83 @@ export class ApiClient {
     return this.request<EventListResponse>(`/api/events/range?${queryParams.toString()}`);
   }
 
+  // Team management endpoints
+  async listTeamMembers(): Promise<ApiResponse<TeamMembersResponse>> {
+    return this.request<TeamMembersResponse>("/api/team/members");
+  }
+
+  async inviteTeamMember(data: InviteMemberRequest): Promise<ApiResponse<Invitation>> {
+    return this.request<Invitation>("/api/team/invite", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removeTeamMember(userId: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/api/team/members/${userId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async updateTeamMemberRole(userId: string, role: string): Promise<ApiResponse<TeamMember>> {
+    return this.request<TeamMember>(`/api/team/members/${userId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  // Audit log endpoints
+  async listAuditLogs(params?: AuditLogParams): Promise<ApiResponse<AuditLogResponse>> {
+    const queryString = params
+      ? `?${new URLSearchParams(
+          Object.entries(params).reduce(
+            (acc, [key, value]) => {
+              if (value !== undefined) acc[key] = String(value);
+              return acc;
+            },
+            {} as Record<string, string>
+          )
+        ).toString()}`
+      : "";
+    return this.request<AuditLogResponse>(`/api/tenant/audit-logs${queryString}`);
+  }
+
+  // Usage analytics endpoints
+  async getUsageAnalytics(params?: {
+    range?: string;
+  }): Promise<ApiResponse<UsageAnalyticsResponse>> {
+    const queryString = params?.range ? `?range=${encodeURIComponent(params.range)}` : "";
+    return this.request<UsageAnalyticsResponse>(`/api/tenants/me/analytics${queryString}`);
+  }
+
+  // Replay endpoints
+  async startReplay(params: StartReplayRequest): Promise<ApiResponse<ReplayProgress>> {
+    return this.request<ReplayProgress>("/api/replay", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  }
+
+  async listReplays(): Promise<ApiResponse<ReplayListResponse>> {
+    return this.request<ReplayListResponse>("/api/replay");
+  }
+
+  async getReplay(replayId: string): Promise<ApiResponse<ReplayProgress>> {
+    return this.request<ReplayProgress>(`/api/replay/${replayId}`);
+  }
+
+  async cancelReplay(replayId: string): Promise<ApiResponse<ReplayProgress>> {
+    return this.request<ReplayProgress>(`/api/replay/${replayId}/cancel`, {
+      method: "POST",
+    });
+  }
+
+  async deleteReplay(replayId: string): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.request<{ deleted: boolean }>(`/api/replay/${replayId}`, {
+      method: "DELETE",
+    });
+  }
+
   // Entity timeline (formatted for visualization)
   async getEntityTimeline(
     entityId: string,
@@ -395,6 +475,7 @@ export interface Tenant {
   slug: string;
   subscription_status: "active" | "trialing" | "past_due" | "cancelled" | "expired";
   subscription_tier: "free" | "starter" | "growth" | "enterprise";
+  billing_period: "monthly" | "annual" | null;
   trial_ends_at: string | null;
   subscription_ends_at: string | null;
   events_quota: number;
@@ -658,6 +739,121 @@ export interface TimelineGap {
   end: string;
   duration_ms: number;
   expected_event_types?: string[];
+}
+
+// Team Management types
+export interface TeamMember {
+  id: string;
+  user_id: string;
+  email: string;
+  name: string;
+  role: "owner" | "admin" | "member" | "viewer";
+  joined_at: string;
+  status: "active" | "pending";
+}
+
+export interface TeamMembersResponse {
+  members: TeamMember[];
+  seat_limit: number;
+  seats_used: number;
+}
+
+export interface InviteMemberRequest {
+  email: string;
+  role: "admin" | "member" | "viewer";
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: string;
+  invited_by: string;
+  invited_at: string;
+  status: "pending" | "accepted" | "expired";
+}
+
+// Audit Log types
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  details: Record<string, unknown>;
+}
+
+export interface AuditLogResponse {
+  entries: AuditLogEntry[];
+  retention_days: number;
+  actions: string[];
+}
+
+export interface AuditLogParams {
+  action?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// Replay types
+export type ReplayStatus = "Pending" | "Running" | "Completed" | "Failed" | "Cancelled";
+
+export interface ReplayConfig {
+  batch_size?: number;
+  parallel?: boolean;
+  workers?: number;
+  emit_progress?: boolean;
+  progress_interval?: number;
+}
+
+export interface StartReplayRequest {
+  from_timestamp?: string;
+  to_timestamp?: string;
+  event_type?: string;
+  entity_id?: string;
+  projection_name?: string;
+  config?: ReplayConfig;
+}
+
+export interface ReplayProgress {
+  replay_id: string;
+  status: ReplayStatus;
+  started_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  total_events: number;
+  processed_events: number;
+  failed_events: number;
+  progress_percentage: number;
+  events_per_second: number;
+  error_message: string | null;
+}
+
+export interface ReplayListResponse {
+  data: ReplayProgress[];
+  total: number;
+}
+
+// Usage Analytics types
+export interface EventTypeDistribution {
+  event_type: string;
+  count: number;
+}
+
+export interface TopEntity {
+  entity_id: string;
+  event_count: number;
+}
+
+export interface IngestionDataPoint {
+  timestamp: string;
+  count: number;
+}
+
+export interface UsageAnalyticsResponse {
+  range: string;
+  since: string;
+  event_type_distribution: EventTypeDistribution[];
+  top_entity_ids: TopEntity[];
+  ingestion_rate: IngestionDataPoint[];
 }
 
 // Export singleton instance

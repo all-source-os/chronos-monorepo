@@ -953,30 +953,36 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   ## Private Helpers
 
   defp compile_query(%Query{} = query) do
-    %{}
-    |> maybe_add_param(:entity_id, query.where, &extract_entity_id/1)
-    |> maybe_add_param(:event_type, query.where, &extract_event_type/1)
-    |> maybe_add_param(:limit, query.limit)
-    |> maybe_add_param(:offset, query.offset)
-    |> Map.reject(fn {_k, v} -> is_nil(v) end)
+    params = flatten_predicate(query.where, %{})
+
+    params
+    |> maybe_put(:limit, query.limit)
+    |> maybe_put(:offset, query.offset)
   end
 
-  defp maybe_add_param(params, _key, nil), do: params
-  defp maybe_add_param(params, _key, value) when is_function(value), do: params
-  defp maybe_add_param(params, key, value), do: Map.put(params, key, value)
+  # Flatten a predicate tree into Core-compatible flat query params.
+  # Core accepts: entity_id, event_type, since, until, as_of, limit, offset.
+  defp flatten_predicate(nil, acc), do: acc
 
-  defp maybe_add_param(params, key, source, extractor) when is_function(extractor) do
-    case extractor.(source) do
-      nil -> params
-      value -> Map.put(params, key, value)
-    end
+  defp flatten_predicate(%{operator: :eq, field: field, value: value}, acc)
+       when field in [:entity_id, :event_type, :since, :until, :as_of] do
+    Map.put(acc, field, value)
   end
 
-  defp extract_entity_id(%{field: :entity_id, operator: :eq, value: value}), do: value
-  defp extract_entity_id(_), do: nil
+  # Ignore unsupported predicates (Core doesn't support arbitrary field filters)
+  defp flatten_predicate(%{operator: :eq, field: _field}, acc), do: acc
 
-  defp extract_event_type(%{field: :event_type, operator: :eq, value: value}), do: value
-  defp extract_event_type(_), do: nil
+  # Flatten compound predicates — extract all supported fields from children
+  defp flatten_predicate(%{operator: op, value: children}, acc)
+       when op in [:and, :or] and is_list(children) do
+    Enum.reduce(children, acc, &flatten_predicate/2)
+  end
+
+  # Catch-all for unsupported predicate types
+  defp flatten_predicate(_predicate, acc), do: acc
+
+  defp maybe_put(params, _key, nil), do: params
+  defp maybe_put(params, key, value), do: Map.put(params, key, value)
 
   ## Webhook Management
 
@@ -1071,6 +1077,93 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     case Tesla.get(read_client(), "/api/v1/webhooks/#{webhook_id}/deliveries",
            query: [limit: limit]
          ) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # -------------------------------------------------------------------
+  # Replay Operations
+  # -------------------------------------------------------------------
+
+  @doc """
+  Start a new event replay.
+  """
+  def start_replay(params) when is_map(params) do
+    case Tesla.post(write_client(), "/api/v1/replay", params) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  List all replays.
+  """
+  def list_replays do
+    case Tesla.get(read_client(), "/api/v1/replay") do
+      {:ok, %Tesla.Env{status: 200, body: %{"replays" => replays, "total" => total}}} ->
+        {:ok, %{replays: replays, total: total}}
+
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Get replay progress by ID.
+  """
+  def get_replay(replay_id) when is_binary(replay_id) do
+    case Tesla.get(read_client(), "/api/v1/replay/#{replay_id}") do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Cancel a running replay.
+  """
+  def cancel_replay(replay_id) when is_binary(replay_id) do
+    case Tesla.post(write_client(), "/api/v1/replay/#{replay_id}/cancel", %{}) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Delete a completed or failed replay.
+  """
+  def delete_replay(replay_id) when is_binary(replay_id) do
+    case Tesla.delete(write_client(), "/api/v1/replay/#{replay_id}") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 

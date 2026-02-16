@@ -1,0 +1,304 @@
+"""Tests for the synchronous AllSource client."""
+
+import json
+
+import httpx
+import pytest
+from pytest_httpx import HTTPXMock
+
+from allsource_client import AllSourceClient, AllSourceError
+
+
+BASE_URL = "http://localhost:3902"
+
+
+@pytest.fixture
+def client() -> AllSourceClient:
+    return AllSourceClient(api_key="test-key", base_url=BASE_URL)
+
+
+class TestIngest:
+    def test_ingest_event(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/events",
+            method="POST",
+            json={
+                "data": {
+                    "id": "evt-1",
+                    "entity_id": "user-123",
+                    "event_type": "user.signup",
+                    "payload": {"plan": "pro"},
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "version": 1,
+                }
+            },
+        )
+
+        event = client.ingest("user.signup", "user-123", {"plan": "pro"})
+
+        assert event.id == "evt-1"
+        assert event.entity_id == "user-123"
+        assert event.event_type == "user.signup"
+        assert event.payload == {"plan": "pro"}
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["Authorization"] == "Bearer test-key"
+        body = json.loads(request.content)
+        assert body["event_type"] == "user.signup"
+        assert body["entity_id"] == "user-123"
+        assert body["payload"] == {"plan": "pro"}
+
+    def test_ingest_batch(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/events/batch",
+            method="POST",
+            json={
+                "data": [
+                    {
+                        "id": "evt-1",
+                        "entity_id": "user-1",
+                        "event_type": "user.signup",
+                        "payload": {},
+                        "timestamp": "2026-01-01T00:00:00Z",
+                        "version": 1,
+                    },
+                    {
+                        "id": "evt-2",
+                        "entity_id": "user-2",
+                        "event_type": "user.signup",
+                        "payload": {},
+                        "timestamp": "2026-01-01T00:00:01Z",
+                        "version": 1,
+                    },
+                ]
+            },
+        )
+
+        events = client.ingest_batch([
+            {"event_type": "user.signup", "entity_id": "user-1", "payload": {}},
+            {"event_type": "user.signup", "entity_id": "user-2", "payload": {}},
+        ])
+
+        assert len(events) == 2
+        assert events[0].id == "evt-1"
+        assert events[1].id == "evt-2"
+
+
+class TestQuery:
+    def test_query_events(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=httpx.URL(f"{BASE_URL}/api/events", params={"event_type": "user.signup", "limit": "10"}),
+            method="GET",
+            json={
+                "data": {
+                    "data": [
+                        {
+                            "id": "evt-1",
+                            "entity_id": "user-123",
+                            "event_type": "user.signup",
+                            "payload": {},
+                            "timestamp": "2026-01-01T00:00:00Z",
+                            "version": 1,
+                        }
+                    ],
+                    "count": 1,
+                }
+            },
+        )
+
+        result = client.query(event_type="user.signup", limit=10)
+
+        assert result.count == 1
+        assert len(result.events) == 1
+        assert result.events[0].event_type == "user.signup"
+
+    def test_query_by_entity(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/events/entity/user-123",
+            method="GET",
+            json={
+                "data": {"data": [], "count": 0}
+            },
+        )
+
+        result = client.get_events_by_entity("user-123")
+        assert result.count == 0
+        assert result.events == []
+
+    def test_query_by_type(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/events/type/user.signup",
+            method="GET",
+            json={
+                "data": {"data": [], "count": 0}
+            },
+        )
+
+        result = client.get_events_by_type("user.signup")
+        assert result.count == 0
+
+
+class TestProjections:
+    def test_list_projections(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/projections",
+            method="GET",
+            json={
+                "data": [
+                    {
+                        "id": "proj-1",
+                        "name": "user-count",
+                        "version": 1,
+                        "status": "running",
+                        "initial_state": {"count": 0},
+                        "definition": "count(*)",
+                        "created_at": "2026-01-01T00:00:00Z",
+                        "updated_at": "2026-01-01T00:00:00Z",
+                    }
+                ]
+            },
+        )
+
+        projections = client.get_projections()
+
+        assert len(projections) == 1
+        assert projections[0].name == "user-count"
+        assert projections[0].status == "running"
+
+    def test_get_projection(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/projections/user-count",
+            method="GET",
+            json={
+                "data": {
+                    "id": "proj-1",
+                    "name": "user-count",
+                    "version": 1,
+                    "status": "running",
+                    "initial_state": {},
+                    "definition": "count(*)",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                }
+            },
+        )
+
+        projection = client.get_projection("user-count")
+        assert projection.name == "user-count"
+
+    def test_create_projection(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/projections",
+            method="POST",
+            json={
+                "data": {
+                    "id": "proj-2",
+                    "name": "order-totals",
+                    "version": 1,
+                    "status": "running",
+                    "initial_state": {"total": 0},
+                    "definition": "sum(payload.amount)",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                }
+            },
+        )
+
+        projection = client.create_projection(
+            "order-totals",
+            "sum(payload.amount)",
+            initial_state={"total": 0},
+        )
+        assert projection.name == "order-totals"
+
+
+class TestWebhooks:
+    def test_create_webhook(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/webhooks",
+            method="POST",
+            json={
+                "data": {
+                    "id": "wh-1",
+                    "url": "https://example.com/webhook",
+                    "event_types": ["user.*"],
+                    "active": True,
+                    "created_at": "2026-01-01T00:00:00Z",
+                }
+            },
+        )
+
+        webhook = client.create_webhook(
+            "https://example.com/webhook",
+            event_types=["user.*"],
+        )
+        assert webhook.id == "wh-1"
+        assert webhook.url == "https://example.com/webhook"
+
+    def test_list_webhooks(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/webhooks",
+            method="GET",
+            json={"data": []},
+        )
+
+        webhooks = client.list_webhooks()
+        assert webhooks == []
+
+    def test_delete_webhook(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/webhooks/wh-1",
+            method="DELETE",
+            json={"ok": True},
+        )
+
+        client.delete_webhook("wh-1")
+
+
+class TestErrorHandling:
+    def test_api_error(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/events",
+            method="POST",
+            status_code=422,
+            json={
+                "error": {
+                    "code": "validation_error",
+                    "message": "entity_id is required",
+                }
+            },
+        )
+
+        with pytest.raises(AllSourceError) as exc_info:
+            client.ingest("user.signup", "", {})
+
+        assert exc_info.value.code == "validation_error"
+        assert exc_info.value.status_code == 422
+        assert "entity_id is required" in str(exc_info.value)
+
+    def test_auth_header(self, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/health",
+            method="GET",
+            json={"status": "ok"},
+        )
+
+        c = AllSourceClient(api_key="my-secret-key", base_url=BASE_URL)
+        c.health()
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["Authorization"] == "Bearer my-secret-key"
+        c.close()
+
+    def test_context_manager(self, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/health",
+            method="GET",
+            json={"status": "ok"},
+        )
+
+        with AllSourceClient(api_key="key", base_url=BASE_URL) as c:
+            result = c.health()
+            assert result["status"] == "ok"

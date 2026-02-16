@@ -199,6 +199,17 @@ defmodule QueryServiceExWeb.Router do
     post("/schemas", SchemaController, :register)
   end
 
+  # Replay endpoints (proxied to Core)
+  scope "/api", QueryServiceExWeb do
+    pipe_through([:tenant_scoped, :rate_limited])
+
+    get("/replay", ReplayController, :index)
+    post("/replay", ReplayController, :create)
+    get("/replay/:id", ReplayController, :show)
+    post("/replay/:id/cancel", ReplayController, :cancel)
+    delete("/replay/:id", ReplayController, :delete)
+  end
+
   # -------------------------------------------------------------------
   # Analytics Routes
   # -------------------------------------------------------------------
@@ -261,6 +272,39 @@ defmodule QueryServiceExWeb.Router do
 
     # Usage statistics
     get("/tenant/usage", TenantController, :usage)
+  end
+
+  # -------------------------------------------------------------------
+  # Team Management Routes
+  # -------------------------------------------------------------------
+
+  scope "/api/team", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    get("/members", TeamController, :index)
+    post("/invite", TeamController, :invite)
+    delete("/members/:user_id", TeamController, :remove)
+    put("/members/:user_id/role", TeamController, :update_role)
+  end
+
+  # -------------------------------------------------------------------
+  # Audit Log Routes
+  # -------------------------------------------------------------------
+
+  scope "/api/tenant", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    get("/audit-logs", AuditLogController, :index)
+  end
+
+  # -------------------------------------------------------------------
+  # Usage Analytics Routes
+  # -------------------------------------------------------------------
+
+  scope "/api/tenants/me", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    get("/analytics", UsageAnalyticsController, :show)
   end
 
   # -------------------------------------------------------------------

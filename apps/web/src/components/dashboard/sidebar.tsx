@@ -4,14 +4,18 @@ import { Button, Icons } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import {
   Activity,
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  FileText,
   GitBranch,
   Key,
   LayoutDashboard,
+  RotateCcw,
   Settings,
   Sparkles,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -26,7 +30,11 @@ const navigation = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Events", href: "/dashboard/events", icon: Activity },
   { name: "Pipelines", href: "/dashboard/pipelines", icon: GitBranch },
+  { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "API Keys", href: "/dashboard/api-keys", icon: Key },
+  { name: "Team", href: "/dashboard/team", icon: Users },
+  { name: "Replay", href: "/dashboard/tools/replay", icon: RotateCcw },
+  { name: "Audit Log", href: "/dashboard/settings/audit-log", icon: FileText },
   { name: "Billing", href: "/dashboard/billing", icon: CreditCard },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
@@ -86,7 +94,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
         {navigation.map((item) => {
           const isActive =
-            item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
+            item.href === "/dashboard"
+              ? pathname === "/dashboard"
+              : item.href === "/dashboard/settings"
+                ? pathname === "/dashboard/settings"
+                : pathname.startsWith(item.href);
 
           return (
             <Link

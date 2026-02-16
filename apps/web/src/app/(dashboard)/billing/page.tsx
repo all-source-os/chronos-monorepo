@@ -47,13 +47,16 @@ export default function BillingPage() {
     }
   };
 
-  const handleUpgrade = async (planTier: string) => {
+  const handleUpgrade = async (
+    planTier: string,
+    billingPeriod: "monthly" | "annual" = "monthly"
+  ) => {
     if (planTier === "enterprise") {
       window.open("mailto:sales@all-source.xyz?subject=Enterprise%20Plan%20Inquiry", "_blank");
       return;
     }
     try {
-      const response = await apiClient.createCheckout(planTier);
+      const response = await apiClient.createCheckout(planTier, billingPeriod);
       if (response.data?.checkout_url) {
         window.location.href = response.data.checkout_url;
       }
@@ -136,11 +139,28 @@ export default function BillingPage() {
               {/* Plan details */}
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Monthly Price</p>
-                  <p className="text-2xl font-bold">
-                    {currentPlan === "free" ? "$0" : currentPlan === "growth" ? "$99" : "Custom"}
+                  <p className="text-sm text-muted-foreground">
+                    {tenant?.billing_period === "annual" ? "Annual Price" : "Monthly Price"}
                   </p>
+                  <p className="text-2xl font-bold">
+                    {currentPlan === "free"
+                      ? "$0"
+                      : currentPlan === "growth"
+                        ? tenant?.billing_period === "annual"
+                          ? "$79/mo"
+                          : "$99/mo"
+                        : "Custom"}
+                  </p>
+                  {tenant?.billing_period === "annual" && currentPlan !== "free" && (
+                    <p className="text-xs text-muted-foreground">billed annually</p>
+                  )}
                 </div>
+                {tenant?.billing_period && currentPlan !== "free" && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Billing Period</p>
+                    <p className="font-medium capitalize">{tenant.billing_period}</p>
+                  </div>
+                )}
                 {subscriptionEndsAt && (
                   <div>
                     <p className="text-sm text-muted-foreground">Billing Period Ends</p>
@@ -201,6 +221,7 @@ export default function BillingPage() {
             {/* Billing toggle */}
             <div className="flex items-center gap-2 rounded-lg border border-border p-1">
               <button
+                type="button"
                 onClick={() => setIsYearly(false)}
                 className={cn(
                   "rounded-md px-3 py-1.5 text-sm font-medium transition-all",
@@ -210,6 +231,7 @@ export default function BillingPage() {
                 Monthly
               </button>
               <button
+                type="button"
                 onClick={() => setIsYearly(true)}
                 className={cn(
                   "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
@@ -224,7 +246,7 @@ export default function BillingPage() {
             </div>
           </div>
 
-          <PlanCards currentPlan={currentPlan} onUpgrade={handleUpgrade} />
+          <PlanCards currentPlan={currentPlan} isYearly={isYearly} onUpgrade={handleUpgrade} />
         </div>
       </BlurFade>
 

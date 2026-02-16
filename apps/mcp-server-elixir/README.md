@@ -199,6 +199,97 @@ Tools follow a guided workflow from discovery to deep analysis. Each phase build
 | `debug_query` | Debug query performance with explain plans |
 | `benchmark_query` | Benchmark query execution |
 
+## Use Case: E-Commerce Order Investigation
+
+This walkthrough shows how an AI assistant uses the MCP server to investigate a customer support issue end-to-end.
+
+**Scenario:** Customer reports they were charged but never received a confirmation email.
+
+### Step 1: Discover — Orient yourself
+
+```
+User: "Customer user-4821 says they were charged but got no confirmation. What happened?"
+
+AI calls: quick_stats
+→ 142,387 events across 8,291 entities — system is healthy
+
+AI calls: get_cluster_status
+→ Single-node mode, healthy, replication: null
+```
+
+### Step 2: Search — Find the customer's events
+
+```
+AI calls: query_events
+  entity_id: "user-4821"
+  limit: 50
+
+→ 23 events found:
+  - user.created (2026-01-15)
+  - cart.item_added (x3)
+  - checkout.started
+  - payment.initiated
+  - payment.succeeded     ← charge went through
+  - order.created
+  - (no email.confirmation.sent event!)
+```
+
+### Step 3: Drill down — Reconstruct state at the time
+
+```
+AI calls: event_timeline
+  entity_id: "user-4821"
+  since: "2026-02-15T00:00:00Z"
+
+→ Timeline shows payment.succeeded at 14:32:07Z
+  followed by order.created at 14:32:08Z
+  then... nothing. No email event.
+
+AI calls: analyze_changes
+  entity_id: "user-4821"
+  from: "2026-02-15T14:32:00Z"
+  to: "2026-02-15T14:33:00Z"
+
+→ State changed from {order_status: "pending"} to {order_status: "created"}
+  but email_sent remained false
+```
+
+### Step 4: Find patterns — Is this systemic?
+
+```
+AI calls: find_patterns
+  event_type: "payment.succeeded"
+  since: "2026-02-15T00:00:00Z"
+
+→ Pattern detected: 47 payment.succeeded events today,
+  but only 41 email.confirmation.sent events.
+  6 orders missing confirmation emails — all between 14:30-14:45Z.
+
+AI calls: query_events
+  event_type: "email.service.error"
+  since: "2026-02-15T14:00:00Z"
+
+→ Found: email.service.error at 14:29:55Z
+  payload: {provider: "sendgrid", error: "rate_limit_exceeded", retry_after: 900}
+```
+
+### Step 5: Resolution
+
+```
+AI: "Found the issue. The email service (SendGrid) hit a rate limit at 14:29:55Z,
+which caused 6 confirmation emails to fail between 14:30-14:45Z. User-4821's
+order was created successfully and payment went through — only the confirmation
+email was dropped. Recommend: retry the 6 failed emails and check the email
+service error handling for rate limit backoff."
+```
+
+### What the MCP server provided
+
+- **5 tool calls** to go from vague complaint to root cause
+- **No SQL, no dashboard clicking, no log grep** — natural language throughout
+- **Time-travel analysis** to reconstruct exact system state at failure time
+- **Pattern detection** to identify it's a systemic issue, not a one-off
+
 ## Token-Efficient Responses
 
 All tools return responses in **TOON format** by default — approximately **50% fewer tokens** than JSON for tabular data. This directly reduces LLM API costs and speeds up processing.
