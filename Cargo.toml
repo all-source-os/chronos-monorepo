@@ -33,7 +33,7 @@ crc32fast = "1.4"
 criterion = "0.5"
 crossbeam = "0.8"
 crossbeam-queue = "0.3"
-ctrlc = "3.4"
+ctrlc = "3.5"
 
 # Storage & Concurrency
 dashmap = "6.1"
