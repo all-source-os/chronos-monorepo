@@ -44,8 +44,21 @@ async fn main() -> Result<()> {
     }
     tracing::info!("   Production-ready event store with authentication & multi-tenancy");
 
-    // Initialize components
-    let store = EventStore::new();
+    // Initialize components — read persistence config from environment
+    let (config, mode) = allsource_core::store::EventStoreConfig::from_env();
+    if mode == "in-memory" {
+        tracing::warn!(
+            "   Persistence: NONE (in-memory only) — set ALLSOURCE_DATA_DIR for durability"
+        );
+    } else {
+        tracing::info!(
+            "   Persistence: {} (storage_dir={:?}, wal_dir={:?})",
+            mode,
+            config.storage_dir,
+            config.wal_dir
+        );
+    }
+    let store = EventStore::with_config(config);
 
     // Initialize WAL replication if this is a leader with replication enabled
     let replication_enabled = std::env::var("ALLSOURCE_REPLICATION_ENABLED")

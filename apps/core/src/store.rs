@@ -1108,6 +1108,67 @@ impl EventStoreConfig {
             .clone()
             .or_else(|| self.storage_dir.as_ref().map(|d| d.join("__system")))
     }
+
+    /// Build config from environment variables.
+    ///
+    /// Reads `ALLSOURCE_DATA_DIR`, `ALLSOURCE_STORAGE_DIR`, `ALLSOURCE_WAL_DIR`,
+    /// and `ALLSOURCE_WAL_ENABLED` to determine persistence mode.
+    ///
+    /// Returns `(config, description)` where description is a human-readable
+    /// summary of the persistence mode for logging.
+    pub fn from_env() -> (Self, &'static str) {
+        Self::from_env_vars(
+            std::env::var("ALLSOURCE_DATA_DIR")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            std::env::var("ALLSOURCE_STORAGE_DIR")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            std::env::var("ALLSOURCE_WAL_DIR")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            std::env::var("ALLSOURCE_WAL_ENABLED").ok(),
+        )
+    }
+
+    /// Build config from explicit env-var values (testable without mutating process env).
+    pub fn from_env_vars(
+        data_dir: Option<String>,
+        explicit_storage_dir: Option<String>,
+        explicit_wal_dir: Option<String>,
+        wal_enabled_var: Option<String>,
+    ) -> (Self, &'static str) {
+        let data_dir = data_dir.filter(|s| !s.is_empty());
+        let storage_dir = explicit_storage_dir
+            .filter(|s| !s.is_empty())
+            .or_else(|| data_dir.as_ref().map(|d| format!("{}/storage", d)));
+        let wal_dir = explicit_wal_dir
+            .filter(|s| !s.is_empty())
+            .or_else(|| data_dir.as_ref().map(|d| format!("{}/wal", d)));
+        let wal_enabled = wal_enabled_var.map(|v| v == "true").unwrap_or(true);
+
+        match (&storage_dir, &wal_dir) {
+            (Some(sd), Some(wd)) if wal_enabled => {
+                let config = Self::production(
+                    sd,
+                    wd,
+                    SnapshotConfig::default(),
+                    WALConfig::default(),
+                    CompactionConfig::default(),
+                );
+                (config, "wal+parquet")
+            }
+            (Some(sd), _) => {
+                let config = Self::with_persistence(sd);
+                (config, "parquet-only")
+            }
+            (_, Some(wd)) if wal_enabled => {
+                let config = Self::with_wal(wd, WALConfig::default());
+                (config, "wal-only")
+            }
+            _ => (Self::default(), "in-memory"),
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -1491,6 +1552,96 @@ mod tests {
 
         assert!(config.storage_dir.is_some());
         assert!(config.wal_dir.is_some());
+    }
+
+    // -----------------------------------------------------------------------
+    // from_env_vars tests — verifies the env-var-to-config wiring that
+    // caused the durability bug (events lost on restart) in v0.10.3.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_from_env_vars_data_dir_enables_full_persistence() {
+        let (config, mode) =
+            EventStoreConfig::from_env_vars(Some("/app/data".to_string()), None, None, None);
+        assert_eq!(mode, "wal+parquet");
+        assert_eq!(
+            config.storage_dir.unwrap().to_str().unwrap(),
+            "/app/data/storage"
+        );
+        assert_eq!(config.wal_dir.unwrap().to_str().unwrap(), "/app/data/wal");
+    }
+
+    #[test]
+    fn test_from_env_vars_explicit_dirs() {
+        let (config, mode) = EventStoreConfig::from_env_vars(
+            None,
+            Some("/custom/storage".to_string()),
+            Some("/custom/wal".to_string()),
+            None,
+        );
+        assert_eq!(mode, "wal+parquet");
+        assert_eq!(
+            config.storage_dir.unwrap().to_str().unwrap(),
+            "/custom/storage"
+        );
+        assert_eq!(config.wal_dir.unwrap().to_str().unwrap(), "/custom/wal");
+    }
+
+    #[test]
+    fn test_from_env_vars_wal_disabled() {
+        let (config, mode) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            Some("false".to_string()),
+        );
+        assert_eq!(mode, "parquet-only");
+        assert!(config.storage_dir.is_some());
+        assert!(config.wal_dir.is_none());
+    }
+
+    #[test]
+    fn test_from_env_vars_no_dirs_is_in_memory() {
+        let (config, mode) = EventStoreConfig::from_env_vars(None, None, None, None);
+        assert_eq!(mode, "in-memory");
+        assert!(config.storage_dir.is_none());
+        assert!(config.wal_dir.is_none());
+    }
+
+    #[test]
+    fn test_from_env_vars_empty_strings_treated_as_none() {
+        let (_, mode) = EventStoreConfig::from_env_vars(
+            Some("".to_string()),
+            Some("".to_string()),
+            Some("".to_string()),
+            None,
+        );
+        assert_eq!(mode, "in-memory");
+    }
+
+    #[test]
+    fn test_from_env_vars_explicit_overrides_data_dir() {
+        let (config, mode) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            Some("/override/storage".to_string()),
+            Some("/override/wal".to_string()),
+            None,
+        );
+        assert_eq!(mode, "wal+parquet");
+        assert_eq!(
+            config.storage_dir.unwrap().to_str().unwrap(),
+            "/override/storage"
+        );
+        assert_eq!(config.wal_dir.unwrap().to_str().unwrap(), "/override/wal");
+    }
+
+    #[test]
+    fn test_from_env_vars_wal_only() {
+        let (config, mode) =
+            EventStoreConfig::from_env_vars(None, None, Some("/wal/only".to_string()), None);
+        assert_eq!(mode, "wal-only");
+        assert!(config.storage_dir.is_none());
+        assert_eq!(config.wal_dir.unwrap().to_str().unwrap(), "/wal/only");
     }
 
     #[test]

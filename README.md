@@ -1,111 +1,71 @@
 ---
 title: "AllSource Event Store - Monorepo"
 status: CURRENT
-last_updated: 2026-02-15
-version: "0.10.3"
+last_updated: 2026-02-16
+version: "0.10.4"
 ---
 
+<div align="center">
+
 # AllSource Event Store
+
+**High-performance event sourcing platform with distributed architecture and AI-native tooling.**
 
 [![CI](https://github.com/all-source-os/all-source/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/ci.yml)
 [![Container CI](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml)
 [![Docker Build](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml)
-[![Release](https://img.shields.io/github/v/release/all-source-os/all-source?label=release)](https://github.com/all-source-os/all-source/releases/latest)
+[![Release](https://img.shields.io/github/v/release/all-source-os/all-source?label=release&color=blue)](https://github.com/all-source-os/all-source/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-High-performance event sourcing platform with distributed architecture and AI-native tooling.
+[![Core](https://img.shields.io/badge/Core-v0.10.4-orange?logo=rust&logoColor=white)](apps/core/)
+[![Control Plane](https://img.shields.io/badge/Control_Plane-v0.10.4-00ADD8?logo=go&logoColor=white)](apps/control-plane/)
+[![Query Service](https://img.shields.io/badge/Query_Service-v0.10.4-4B275F?logo=elixir&logoColor=white)](apps/query-service/)
+[![Web](https://img.shields.io/badge/Web-v0.10.4-000000?logo=next.js&logoColor=white)](apps/web/)
+[![MCP Server](https://img.shields.io/badge/MCP_Server-61_tools-8A2BE2)](apps/mcp-server-elixir/)
+
+[![Core Image](https://img.shields.io/badge/ghcr.io-allsource--core:0.10.4-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-core)
+[![Control Plane Image](https://img.shields.io/badge/ghcr.io-allsource--control--plane:0.10.4-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-control-plane)
+[![Query Service Image](https://img.shields.io/badge/ghcr.io-allsource--query--service:0.10.4-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-query-service)
+[![Web Image](https://img.shields.io/badge/ghcr.io-allsource--web:0.10.4-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-web)
+
+</div>
 
 ---
 
 ## Quick Links
 
-| Category | Links |
-|----------|-------|
-| **Documentation** | [Quick Start](docs/QUICK_START.md) · [Docs Hub](docs/README.md) · [Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [API Reference](docs/current/API_REFERENCE.md) |
-| **Deployment** | [Docker Guide](docs/deployment/DOCKER.md) · [Helm Chart](deploy/helm/allsource/) · [Kubernetes](deploy/k8s/) |
-| **Services** | [Core](apps/core/README.md) · [Control Plane](apps/control-plane/README.md) · [Query Service](apps/query-service/README.md) · [MCP Server](apps/mcp-server-elixir/README.md) · [Web](apps/web/README.md) |
-| **Roadmap** | [Consolidated Roadmap](docs/roadmaps/2026-02-15_CONSOLIDATED_ROADMAP.md) |
-
----
-
-## Project Status (v0.10.3)
-
-### Rust Core (port 3900)
-
-The database. Source of truth for all event data.
-
-- Event ingestion at 469K events/sec, 11.9us query latency
-- WAL (CRC32, fsync) + Parquet (Snappy) + DashMap for durability and speed
-- Leader-follower replication via WAL shipping
-- Schema registry with JSON Schema validation
-- Stream processing pipelines (Filter, Map, Reduce, Window, Branch, Enrich)
-- Multi-tenancy with quotas, RBAC, audit logging
-- Vector search (fastembed + HNSW) and BM25 keyword search (tantivy)
-- Zero external database dependencies
-
-**Known gaps**: Fork event commit is stubbed (TODO), cloud KMS providers unimplemented (Local only), Parquet metadata checksum verification missing. See [roadmap P0](docs/roadmaps/2026-02-15_CONSOLIDATED_ROADMAP.md#p0-fix-existing-gaps).
-
-### Go Control Plane (port 3901)
-
-Authentication, authorization, billing, and operational management.
-
-- JWT authentication & RBAC (4 roles, 7 permissions)
-- Policy enforcement engine with audit logging
-- LemonSqueezy billing integration (checkout, webhooks, usage reporting)
-- Authenticated proxying to Core
-- HAL hypermedia API responses, OpenAPI specification
-- OpenTelemetry distributed tracing
-
-### Elixir Query Service (port 3902)
-
-Stateless API gateway. Routes to Core, handles auth delegation to Control Plane.
-
-- No PostgreSQL dependency — fully stateless
-- JWT & API key auth delegated to Control Plane
-- Tesla HTTP client to Core with connection pooling
-- Broadway event processing pipeline
-- OpenAPI specification via `open_api_spex`
-
-**Known gaps**: 5 endpoints return 501 Not Implemented (`GET /api/events/:id`, projection delete/state/reset/rebuild_stats). These require Core API additions first. Phoenix Channels WebSocket for external clients not yet built (internal WS client to Core works). Broadway Kafka/RabbitMQ dependencies exist but are not wired. See [roadmap](docs/roadmaps/2026-02-15_CONSOLIDATED_ROADMAP.md#1-query-service-api-completeness).
-
-### MCP Server (61 tools)
-
-AI-native interface for Claude Desktop or any MCP client.
-
-- 61 tool definitions across 11 categories (discover, search, drill-down, context, mutate, event management, operations, tenants, schema, analytics, dev tools)
-- TOON format responses (~50% fewer tokens than JSON)
-- Conversation context for multi-turn sessions
-
-**Known gaps**: Analytics tools (cohort, correlation, forecast, churn, LTV, etc.) are basic client-side aggregations, not sophisticated ML. Schema tools (migrate, infer, diff) compute client-side without Core API support. `get_query_advice` is a hardcoded lookup table. See [roadmap](docs/roadmaps/2026-02-15_CONSOLIDATED_ROADMAP.md#6-mcp-analytics-tool-quality).
-
-### Web Dashboard (port 3000)
-
-- Next.js 16 + TypeScript + React + Tailwind + shadcn/ui
-- Auth pages (login, signup, forgot/reset password, verify email)
-- Dashboard pages: Events, API Keys, Billing, Pipelines, Settings
-- OAuth UI scaffolded (Google, GitHub buttons present)
+| | |
+|---|---|
+| **Get Started** | [Quick Start](docs/QUICK_START.md) · [Docker Guide](docs/deployment/DOCKER.md) · [Troubleshooting](docs/guides/TROUBLESHOOTING.md) |
+| **Architecture** | [Clean Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [Tenant Model](docs/current/TENANT_ARCHITECTURE.md) · [Replication Design](docs/proposals/CORE_REPLICATION_DESIGN.md) |
+| **API & Specs** | [API Reference](docs/current/API_REFERENCE.md) · [Performance](docs/current/PERFORMANCE.md) · [Event Store Features](docs/current/EVENT_STORE_FEATURES.md) |
+| **Operations** | [Release Guide](docs/guides/RELEASE.md) · [Quality Gates](docs/current/QUALITY_GATES.md) · [WebSocket Config](docs/guides/WEBSOCKET_CONFIGURATION.md) |
+| **Services** | [Core](apps/core/) · [Control Plane](apps/control-plane/) · [Query Service](apps/query-service/) · [MCP Server](apps/mcp-server-elixir/) · [Web](apps/web/) |
+| **Deploy** | [Helm Chart](deploy/helm/allsource/) · [Kubernetes](deploy/k8s/) · [Fly.io](apps/core/fly.toml) |
 
 ---
 
 ## Architecture
 
 ```
-Clients --> Query Service (Elixir, port 3902) --> Core (Rust, port 3900)
-                |                                     |
-           Control Plane (Go, port 3901)        WAL + Parquet + DashMap
-           (auth, billing, policies)            (events, projections,
-                                                 snapshots, schemas)
+Clients --> Query Service (Elixir, :3902) --> Core (Rust, :3900)
+                |                                  |
+           Control Plane (Go, :3901)         WAL + Parquet + DashMap
+           (auth, billing, policies)         (events, projections,
+                                              snapshots, schemas)
 ```
+
+**Core IS the database.** No PostgreSQL for events — just WAL (CRC32, fsync), Parquet (Snappy compression), and DashMap (concurrent in-memory reads). Zero external dependencies. [Full architecture docs →](docs/current/CLEAN_ARCHITECTURE.md)
 
 ### Monorepo Structure
 
 ```
 apps/
-  core/               # Rust event store
-  control-plane/      # Go auth/billing/operations
-  query-service/      # Elixir API gateway
-  mcp-server-elixir/  # MCP server for AI agents
-  web/                # Next.js dashboard
+  core/               # Rust event store          — the database
+  control-plane/      # Go auth/billing/ops       — the gatekeeper
+  query-service/      # Elixir API gateway        — the router
+  mcp-server-elixir/  # MCP server (61 tools)     — the AI interface
+  web/                # Next.js dashboard          — the UI
 
 deploy/
   helm/               # Helm charts
@@ -113,47 +73,88 @@ deploy/
   cloudrun/           # Cloud Run configs
   prometheus/         # Monitoring config
   grafana/            # Grafana provisioning
+
+tooling/
+  data-flow-test/     # E2E data flow test
+  durability-test/    # WAL/Parquet durability test
 ```
 
 ---
 
-## Releases & Docker Images
+## Project Status & Roadmap (v0.10.4)
 
-All services maintain consistent versioning at **v0.10.3**.
+> Full roadmap: [Consolidated Roadmap](docs/roadmaps/2026-02-15_CONSOLIDATED_ROADMAP.md) · Known gaps: [Roadmap P0](docs/roadmaps/2026-02-15_CONSOLIDATED_ROADMAP.md#p0-fix-existing-gaps)
+
+### Rust Core (port 3900) — [docs](apps/core/) · [features](docs/current/EVENT_STORE_FEATURES.md) · [perf](docs/current/PERFORMANCE.md)
+
+The database. Source of truth for all event data.
+
+- 469K events/sec ingestion, 11.9us query latency
+- WAL (CRC32, fsync) + Parquet (Snappy) + DashMap for durability and speed
+- **v0.10.4: persistence wiring fix** — env vars now correctly configure WAL+Parquet on startup
+- Leader-follower replication via WAL shipping ([design](docs/proposals/CORE_REPLICATION_DESIGN.md))
+- Schema registry, stream processing pipelines, multi-tenancy with RBAC
+- Vector search (fastembed + HNSW) and BM25 keyword search (tantivy)
+
+### Go Control Plane (port 3901) — [docs](apps/control-plane/)
+
+Authentication, authorization, billing, and operational management.
+
+- JWT auth & RBAC (4 roles, 7 permissions), policy enforcement with audit logging
+- LemonSqueezy billing integration, HAL hypermedia API, OpenAPI spec
+- OpenTelemetry distributed tracing
+
+### Elixir Query Service (port 3902) — [docs](apps/query-service/) · [API ref](docs/allsource-qs-api-reference.md)
+
+Stateless API gateway. Routes to Core, delegates auth to Control Plane.
+
+- Fully stateless, no PostgreSQL dependency
+- Tesla HTTP client with connection pooling, Broadway event processing
+- OpenAPI specification via `open_api_spex`
+
+### MCP Server (61 tools) — [docs](apps/mcp-server-elixir/)
+
+AI-native interface for Claude Desktop or any MCP client.
+
+- 61 tools across 11 categories (discover, search, drill-down, context, mutate, ops, tenants, schema, analytics, dev)
+- TOON format responses (~50% fewer tokens than JSON)
+
+### Web Dashboard (port 3000) — [docs](apps/web/)
+
+- Next.js 16 + TypeScript + React + Tailwind + shadcn/ui
+- Events, API Keys, Billing, Pipelines, Settings pages
+
+### What's Next
+
+| Priority | Focus | Details |
+|----------|-------|---------|
+| **P0** | Fix existing gaps | 5 QS endpoints return 501, Core fork commit stubbed, MCP analytics are basic aggregations |
+| **P1** | SaaS launch | Fly.io deploy, LemonSqueezy products, JS/Python/Go SDKs, onboarding wizard |
+| **P2** | QS Phase 3 | Phoenix Channels WebSocket, Broadway Kafka/RabbitMQ, distributed mode |
+| **P3** | Future | Multi-node Raft, geo-replication (CRDT), EventQL query language, GraphQL |
+
+---
+
+## Docker Images
+
+All services ship at **v0.10.4**. Total production footprint: **~129 MB**.
 
 | Service | Image | Size | Base |
 |---------|-------|:----:|------|
-| Core | `ghcr.io/all-source-os/allsource-core:0.10.3` | 15.7 MB | Distroless |
-| Control Plane | `ghcr.io/all-source-os/allsource-control-plane:0.10.3` | 27.9 MB | Distroless |
-| Query Service | `ghcr.io/all-source-os/allsource-query-service:0.10.3` | 35.1 MB | Alpine |
-| Web | `ghcr.io/all-source-os/allsource-web:0.10.3` | ~50 MB | Alpine |
-
-**Total production footprint: ~129 MB**
-
-### Version Locations
-
-| Service | File |
-|---------|------|
-| Core | `apps/core/Cargo.toml` |
-| Control Plane | `apps/control-plane/main.go` |
-| Query Service | `apps/query-service/mix.exs` |
-| MCP Server | `apps/mcp-server-elixir/mix.exs` |
-| K8s Manifests | `deploy/k8s/*.yaml` |
+| Core | `ghcr.io/all-source-os/allsource-core:0.10.4` | 15.7 MB | Distroless |
+| Control Plane | `ghcr.io/all-source-os/allsource-control-plane:0.10.4` | 27.9 MB | Distroless |
+| Query Service | `ghcr.io/all-source-os/allsource-query-service:0.10.4` | 35.1 MB | Alpine |
+| Web | `ghcr.io/all-source-os/allsource-web:0.10.4` | ~50 MB | Alpine |
 
 ```bash
 # Quick start
 docker compose up -d
 
 # Pull specific version
-docker pull ghcr.io/all-source-os/allsource-core:0.10.3
-
-# Version management
-make check-versions           # Verify consistency
-make set-version VERSION=X.Y.Z  # Update all locations
-make bump-version             # Interactive bump
+docker pull ghcr.io/all-source-os/allsource-core:0.10.4
 ```
 
-See [Release Guide](docs/guides/RELEASE.md) for the full release process.
+See [Docker Guide](docs/deployment/DOCKER.md) · [Release Guide](docs/guides/RELEASE.md)
 
 ---
 
@@ -161,10 +162,7 @@ See [Release Guide](docs/guides/RELEASE.md) for the full release process.
 
 ### Prerequisites
 
-- **Rust**: 1.92+
-- **Go**: 1.24+
-- **Elixir**: 1.17+ (Erlang/OTP 27+)
-- **Bun**: 1.3+ (for web)
+- **Rust** 1.92+ · **Go** 1.24+ · **Elixir** 1.17+ (OTP 27+) · **Bun** 1.3+
 
 ### Quick Start
 
@@ -182,46 +180,32 @@ cd apps/query-service && mix phx.server
 ### Testing
 
 ```bash
-cd apps/core && cargo test --lib
+cd apps/core && cargo test --lib          # 1466 tests
 cd apps/control-plane && go test ./...
 cd apps/query-service && mix test
 cd apps/mcp-server-elixir && mix test
 ```
 
----
+### Quality Gates
 
-## Roadmap
+```bash
+make quality-rust       # fmt + clippy + test + doc
+make quality-go         # vet + lint + test
+make quality-elixir     # format + credo + test
+make check-versions     # Verify version consistency
+```
 
-Full details: [Consolidated Roadmap](docs/roadmaps/2026-02-15_CONSOLIDATED_ROADMAP.md)
+See [Quality Gates](docs/current/QUALITY_GATES.md) · [Quality Gates Setup](docs/guides/QUALITY_GATES_SETUP.md)
 
-### P0: Fix Existing Gaps
+### Version Locations
 
-Items previously marked complete that have known cracks:
-
-- **Query Service**: 5 endpoints return 501 (event by ID, projection delete/state/reset/rebuild_stats)
-- **Core**: Fork event commit stubbed, cloud KMS unimplemented, Parquet checksum TODO
-- **Core**: Vector search mock repositories incomplete for testing
-- **MCP**: Analytics tools are basic client-side aggregations, schema tools lack Core API backing
-
-### P1: SaaS Launch
-
-- Deploy to Fly.io, create LemonSqueezy products, landing page
-- Onboarding wizard, quick start docs, usage warning emails
-- JavaScript SDK, then Python and Go SDKs
-- Simple customer dashboard, webhook delivery, status page
-
-### P2: Query Service Phase 3
-
-- Phoenix Channels WebSocket for external clients
-- Wire Broadway Kafka/RabbitMQ integrations
-- Distributed mode (libcluster + Horde)
-- Grafana dashboards, Swagger UI
-
-### P3: Future (2027)
-
-- Multi-node clustering (simplified Raft)
-- Geo-replication (CRDT conflict resolution)
-- EventQL query language, GraphQL API
+| Service | File |
+|---------|------|
+| Core | `apps/core/Cargo.toml` |
+| Control Plane | `apps/control-plane/main.go` |
+| Query Service | `apps/query-service/mix.exs` |
+| MCP Server | `apps/mcp-server-elixir/mix.exs` |
+| K8s Manifests | `deploy/k8s/*.yaml` |
 
 ---
 
@@ -231,8 +215,8 @@ Items previously marked complete that have known cracks:
 
 ---
 
-## Support
+<div align="center">
 
-- **Issues**: [GitHub Issues](https://github.com/all-source-os/all-source/issues)
-- **Releases**: [GitHub Releases](https://github.com/all-source-os/all-source/releases)
-- **Documentation**: [Docs Hub](docs/README.md)
+[Issues](https://github.com/all-source-os/all-source/issues) · [Releases](https://github.com/all-source-os/all-source/releases) · [Docs Hub](docs/README.md)
+
+</div>
