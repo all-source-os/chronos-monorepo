@@ -258,6 +258,7 @@ grep -rn "0\.9\.0\|0\.9\.1" --include="*.md" --include="*.tsx" --include="*.go" 
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| v0.10.3 | 2026-02-16 | Fix Query Service tenant context crash (string vs atom keys), Docker build context for OpenAPI spec, Go lint exclusion. Unblocks rebalancing app: QS proxy routes (event read/write, tenant context) now work in dev mode. |
 | v0.10.0 | 2026-02-13 | Leader-follower replication, event-sourced metadata, control plane v2 |
 | v0.9.1 | 2026-02-12 | Stream & event type discovery APIs |
 | v0.9.0 | 2026-02-10 | Dashboard, auth & logger fixes |
