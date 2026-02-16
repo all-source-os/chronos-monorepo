@@ -113,6 +113,12 @@ linters:
         linters:
           - govet
 
+      # Allow package name "http" in interfaces/http (Clean Architecture layer)
+      - path: internal/interfaces/http/
+        text: "var-naming: avoid package names"
+        linters:
+          - revive
+
 formatters:
   enable:
     - gofmt
