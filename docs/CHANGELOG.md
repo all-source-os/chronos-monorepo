@@ -2,6 +2,33 @@
 
 All notable changes to AllSource Chronos are documented here.
 
+## [0.10.5] - 2026-02-17
+
+### Added
+- **Server-side projections**: Query Service projection engine with behaviour, registry, fold pipeline, and 5 projection modules (IndexState, TradeState, PortfolioState, SagaState)
+- **Fold-on-read endpoint**: `POST /api/query/projected` — returns projected entity state instead of raw events, with snapshot-aware folding, server-side filtering, and pagination
+- **Continuous projections**: ProjectionServer (PubSub subscription) + DynamicSupervisor for real-time materialized read models via ETS with fold-on-read fallback
+- **Rust SDK** (`allsource` crate): typed client with circuit breaker, retry logic, and client-side fold helpers — published to crates.io
+- Monorepo structure best practices document (`docs/MONOREPO_STRUCTURE.md`)
+- Design proposal and 8 use cases for server-side projections
+
+### Fixed
+- **Wire format standardization**: all QS list endpoints now return consistent `{data, count, total}` — fixed snapshot controller mapping `total` → `count`, standardized webhook and replay controllers
+- **MCP client resilience**: disabled Hackney connection pooling in CoreClient and ControlPlaneClient to prevent stale connection errors after Core restarts; increased retry delays (500ms base, 5s max)
+- **Core persistence wiring** (from v0.10.4): `main.rs` now reads env vars and constructs `EventStoreConfig::production(...)` — all prior Docker images ran in-memory only
+
+### Changed
+- Consolidated all SDKs under `sdks/` — moved TypeScript client from `packages/client` to `sdks/typescript`, Rust SDK from `packages/rust-client` to `sdks/rust`
+- Removed legacy duplicate SDKs from `packages/` (go-client, python-client)
+- `packages/` now contains only shared internal packages (ui component library)
+- Updated workspace Cargo.toml and bun workspace to reflect new SDK paths
+
+## [0.10.4] - 2026-02-17
+
+### Fixed
+- Core persistence wiring: `main.rs` reads `ALLSOURCE_DATA_DIR` / `ALLSOURCE_WAL_DIR` / `ALLSOURCE_STORAGE_DIR` env vars and constructs `EventStoreConfig::production(...)` when persistence dirs are available
+- Added durability test script (`tooling/durability-test/test-durability.sh`)
+
 ## [0.10.3] - 2026-02-16
 
 ### Changed

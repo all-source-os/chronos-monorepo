@@ -35,8 +35,11 @@ COPY apps/core/src apps/core/src
 
 # Create stubs for workspace members and optional targets
 COPY tooling/performance/Cargo.toml tooling/performance/Cargo.toml
+COPY sdks/rust/Cargo.toml sdks/rust/Cargo.toml
 RUN mkdir -p tooling/performance/src && \
     echo 'fn main() {}' > tooling/performance/src/main.rs && \
+    mkdir -p sdks/rust/src && \
+    echo '' > sdks/rust/src/lib.rs && \
     mkdir -p apps/core/benches apps/core/tests/stress_tests && \
     echo 'fn main() {}' > apps/core/benches/performance_benchmarks.rs && \
     echo 'fn main() {}' > apps/core/tests/stress_tests/seven_day_stress.rs && \
@@ -55,9 +58,11 @@ ARG BUILDTIME=unknown
 COPY Cargo.toml Cargo.lock ./
 COPY apps/core/Cargo.toml apps/core/
 COPY tooling/performance/Cargo.toml tooling/performance/
-RUN mkdir -p apps/core/src tooling/performance/src && \
+COPY sdks/rust/Cargo.toml sdks/rust/
+RUN mkdir -p apps/core/src tooling/performance/src sdks/rust/src && \
     echo 'fn main() {}' > apps/core/src/main.rs && \
-    echo 'fn main() {}' > tooling/performance/src/main.rs
+    echo 'fn main() {}' > tooling/performance/src/main.rs && \
+    echo '' > sdks/rust/src/lib.rs
 
 # Cook dependencies from recipe (cached layer)
 COPY --from=planner /app/recipe.json recipe.json

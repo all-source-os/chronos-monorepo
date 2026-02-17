@@ -13,16 +13,30 @@
 
 ## Repository Structure
 
+**See `docs/MONOREPO_STRUCTURE.md` for full rules.** Key directories:
+
 ```
-apps/
-  core/           — Rust event store (AllSource Core)
-  query-service/  — Elixir/Phoenix API gateway (auth, billing, routing to Core)
-  web/            — Next.js frontend dashboard
+apps/              — Deployable services ONLY
+  core/            — Rust event store (AllSource Core)
+  query-service/   — Elixir/Phoenix API gateway (auth, billing, routing to Core)
+  web/             — Next.js frontend dashboard
   mcp-server-elixir/ — Elixir MCP server (separate from Rust MCP Docker binary)
+sdks/              — Client SDKs — ALL languages, NO EXCEPTIONS
+  rust/            — Rust SDK
+  go/              — Go SDK
+  python-client/   — Python SDK
+  typescript/      — TypeScript SDK (@allsource/client)
+packages/          — Shared internal packages (NOT SDKs)
+  ui/              — Shared UI component library
 docs/
-  proposals/      — Design proposals (e.g., CORE_REPLICATION_DESIGN.md)
-  current/        — Current architecture docs
+  proposals/       — Design proposals (e.g., CORE_REPLICATION_DESIGN.md)
+  use-cases/       — Use case documents
+  current/         — Current architecture docs
+deploy/            — K8s manifests, deployment configs
+tooling/           — Developer tools (durability tests, etc.)
 ```
+
+**DO NOT** put SDKs in `packages/`, `apps/`, or anywhere else. SDKs go in `sdks/`.
 
 ## Service Architecture
 

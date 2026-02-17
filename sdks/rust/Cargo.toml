@@ -1,0 +1,25 @@
+[package]
+name = "allsource"
+version = "0.10.5"
+edition = "2021"
+description = "Rust client for the AllSource event store — query, ingest, and fold events"
+license = "MIT"
+repository = "https://github.com/all-source-os/allsource-monorepo"
+keywords = ["event-sourcing", "event-store", "allsource", "cqrs"]
+categories = ["api-bindings", "database"]
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json"], default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "time", "sync"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+
+[features]
+default = ["rustls"]
+rustls = ["reqwest/rustls-tls"]
+native-tls = ["reqwest/native-tls"]

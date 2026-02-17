@@ -1,0 +1,356 @@
+use reqwest::header::{HeaderMap, HeaderValue};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::time::Duration;
+
+use crate::circuit_breaker::CircuitBreaker;
+use crate::error::Error;
+use crate::fold::EventFolder;
+use crate::types::*;
+
+/// Retry configuration for transient failures.
+#[derive(Debug, Clone)]
+pub struct RetryConfig {
+    /// Maximum number of retry attempts. Default: 3.
+    pub max_retries: u32,
+    /// Base delay between retries. Default: 200ms.
+    pub base_delay: Duration,
+    /// Backoff multiplier. Default: 2.0.
+    pub backoff_factor: f64,
+    /// Maximum delay between retries. Default: 10s.
+    pub max_delay: Duration,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 3,
+            base_delay: Duration::from_millis(200),
+            backoff_factor: 2.0,
+            max_delay: Duration::from_secs(10),
+        }
+    }
+}
+
+/// Full configuration for building a client.
+#[derive(Debug, Clone)]
+pub struct ClientConfig {
+    /// Base URL of the service.
+    pub base_url: String,
+    /// API key for authentication.
+    pub api_key: String,
+    /// HTTP request timeout. Default: 30s.
+    pub timeout: Duration,
+    /// Retry configuration.
+    pub retry: RetryConfig,
+    /// Circuit breaker failure threshold. Default: 5.
+    pub circuit_breaker_threshold: u32,
+    /// Circuit breaker recovery timeout. Default: 30s.
+    pub circuit_breaker_recovery: Duration,
+}
+
+impl ClientConfig {
+    pub fn new(base_url: &str, api_key: &str) -> Self {
+        Self {
+            base_url: base_url.to_string(),
+            api_key: api_key.to_string(),
+            timeout: Duration::from_secs(30),
+            retry: RetryConfig::default(),
+            circuit_breaker_threshold: 5,
+            circuit_breaker_recovery: Duration::from_secs(30),
+        }
+    }
+}
+
+/// Shared HTTP transport with retry and circuit breaker.
+#[derive(Debug)]
+struct HttpTransport {
+    base_url: String,
+    http: reqwest::Client,
+    retry: RetryConfig,
+    circuit_breaker: CircuitBreaker,
+}
+
+impl HttpTransport {
+    fn new(config: &ClientConfig) -> Result<Self, Error> {
+        if config.base_url.is_empty() {
+            return Err(Error::Config("base_url is required".into()));
+        }
+        if config.api_key.is_empty() {
+            return Err(Error::Config("api_key is required".into()));
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "X-API-Key",
+            HeaderValue::from_str(&config.api_key)
+                .map_err(|e| Error::Config(format!("invalid API key: {e}")))?,
+        );
+        headers.insert("Accept", HeaderValue::from_static("application/json"));
+
+        let http = reqwest::Client::builder()
+            .default_headers(headers)
+            .timeout(config.timeout)
+            .build()?;
+
+        Ok(Self {
+            base_url: config.base_url.trim_end_matches('/').to_string(),
+            http,
+            retry: config.retry.clone(),
+            circuit_breaker: CircuitBreaker::new(
+                config.circuit_breaker_threshold,
+                config.circuit_breaker_recovery,
+            ),
+        })
+    }
+
+    async fn get<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T, Error> {
+        self.with_retry(|| async {
+            let url = format!("{}{}", self.base_url, path);
+            let resp = self.http.get(&url).send().await?;
+            self.handle_response(resp).await
+        })
+        .await
+    }
+
+    async fn get_with_query<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<T, Error> {
+        self.with_retry(|| async {
+            let url = format!("{}{}", self.base_url, path);
+            let resp = self.http.get(&url).query(query).send().await?;
+            self.handle_response(resp).await
+        })
+        .await
+    }
+
+    async fn post<T: for<'de> Deserialize<'de>, B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, Error> {
+        self.with_retry(|| async {
+            let url = format!("{}{}", self.base_url, path);
+            let resp = self.http.post(&url).json(body).send().await?;
+            self.handle_response(resp).await
+        })
+        .await
+    }
+
+    async fn with_retry<T, F, Fut>(&self, f: F) -> Result<T, Error>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<T, Error>>,
+    {
+        // Check circuit breaker
+        if let Err(retry_after) = self.circuit_breaker.check() {
+            return Err(Error::CircuitOpen {
+                retry_after_secs: retry_after,
+            });
+        }
+
+        let mut last_error = None;
+        for attempt in 0..=self.retry.max_retries {
+            if attempt > 0 {
+                let delay = self.retry.base_delay.mul_f64(
+                    self.retry.backoff_factor.powi(attempt as i32 - 1),
+                );
+                let delay = delay.min(self.retry.max_delay);
+                tracing::debug!(attempt, delay_ms = delay.as_millis(), "retrying request");
+                tokio::time::sleep(delay).await;
+            }
+
+            match f().await {
+                Ok(result) => {
+                    self.circuit_breaker.record_success();
+                    return Ok(result);
+                }
+                Err(e) if e.is_retryable() && attempt < self.retry.max_retries => {
+                    tracing::warn!(attempt, error = %e, "transient error, will retry");
+                    self.circuit_breaker.record_failure();
+                    last_error = Some(e);
+                }
+                Err(e) => {
+                    if e.is_server_error() || matches!(e, Error::Http(_)) {
+                        self.circuit_breaker.record_failure();
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| Error::Config("retry exhausted".into())))
+    }
+
+    async fn handle_response<T: for<'de> Deserialize<'de>>(
+        &self,
+        resp: reqwest::Response,
+    ) -> Result<T, Error> {
+        let status = resp.status().as_u16();
+        if !(200..300).contains(&status) {
+            let body: Option<serde_json::Value> = resp.json().await.ok();
+            let message = body
+                .as_ref()
+                .and_then(|b| b.get("error").and_then(|e| e.get("message")))
+                .and_then(|m| m.as_str())
+                .or_else(|| body.as_ref().and_then(|b| b.get("error")).and_then(|e| e.as_str()))
+                .unwrap_or("Unknown error")
+                .to_string();
+            return Err(Error::Api {
+                status,
+                message,
+                body,
+            });
+        }
+        Ok(resp.json().await?)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QueryClient — reads from Query Service
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Client for the AllSource Query Service (reads).
+///
+/// Connects to the Query Service (default port 3902) for event queries,
+/// projections, stream discovery, and health checks.
+#[derive(Debug, Clone)]
+pub struct QueryClient {
+    transport: Arc<HttpTransport>,
+}
+
+impl QueryClient {
+    /// Create a new Query Service client.
+    pub fn new(base_url: &str, api_key: &str) -> Result<Self, Error> {
+        Self::with_config(ClientConfig::new(base_url, api_key))
+    }
+
+    /// Create with full configuration.
+    pub fn with_config(config: ClientConfig) -> Result<Self, Error> {
+        Ok(Self {
+            transport: Arc::new(HttpTransport::new(&config)?),
+        })
+    }
+
+    /// Query events with filters.
+    ///
+    /// Uses Core's `/api/v1/events/query` endpoint.
+    pub async fn query_events(&self, params: QueryEventsParams) -> Result<QueryEventsResponse, Error> {
+        let pairs = params.to_query_pairs();
+        self.transport.get_with_query("/api/v1/events/query", &pairs).await
+    }
+
+    /// Get all events for a specific entity.
+    pub async fn get_entity_events(&self, entity_id: &str) -> Result<QueryEventsResponse, Error> {
+        self.query_events(QueryEventsParams::new().entity_id(entity_id)).await
+    }
+
+    /// Get all events of a specific type.
+    pub async fn get_events_by_type(&self, event_type: &str) -> Result<QueryEventsResponse, Error> {
+        self.query_events(QueryEventsParams::new().event_type(event_type)).await
+    }
+
+    /// List projections.
+    pub async fn list_projections(&self) -> Result<ProjectionsResponse, Error> {
+        self.transport.get("/api/v1/projections").await
+    }
+
+    /// Check health.
+    pub async fn health(&self) -> Result<HealthResponse, Error> {
+        self.transport.get("/health").await
+    }
+
+    /// Query events and fold them into domain state in one call.
+    ///
+    /// Convenience method that combines [`query_events`] + [`fold_events`].
+    pub async fn query_and_fold<F: EventFolder>(
+        &self,
+        params: QueryEventsParams,
+    ) -> Result<Option<F::State>, Error> {
+        let resp = self.query_events(params).await?;
+        Ok(crate::fold::fold_events::<F>(&resp.events))
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CoreClient — writes to Core
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Client for AllSource Core (writes).
+///
+/// Connects directly to Core (default port 3900) for event ingestion.
+/// Use this for write operations; use [`QueryClient`] for reads.
+#[derive(Debug, Clone)]
+pub struct CoreClient {
+    transport: Arc<HttpTransport>,
+}
+
+impl CoreClient {
+    /// Create a new Core client.
+    pub fn new(base_url: &str, api_key: &str) -> Result<Self, Error> {
+        Self::with_config(ClientConfig::new(base_url, api_key))
+    }
+
+    /// Create with full configuration.
+    pub fn with_config(config: ClientConfig) -> Result<Self, Error> {
+        Ok(Self {
+            transport: Arc::new(HttpTransport::new(&config)?),
+        })
+    }
+
+    /// Ingest a single event.
+    pub async fn ingest_event(&self, input: IngestEventInput) -> Result<IngestResponse, Error> {
+        self.transport.post("/api/v1/events", &input).await
+    }
+
+    /// Ingest a batch of events.
+    pub async fn ingest_batch(&self, events: Vec<IngestEventInput>) -> Result<BatchIngestResponse, Error> {
+        #[derive(Serialize)]
+        struct BatchRequest {
+            events: Vec<IngestEventInput>,
+        }
+        self.transport
+            .post("/api/v1/events/batch", &BatchRequest { events })
+            .await
+    }
+
+    /// Check Core health.
+    pub async fn health(&self) -> Result<HealthResponse, Error> {
+        self.transport.get("/health").await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config_validation() {
+        assert!(QueryClient::new("", "key").is_err());
+        assert!(QueryClient::new("http://localhost:3902", "").is_err());
+        assert!(QueryClient::new("http://localhost:3902", "test-key").is_ok());
+    }
+
+    #[test]
+    fn test_core_client_config_validation() {
+        assert!(CoreClient::new("", "key").is_err());
+        assert!(CoreClient::new("http://localhost:3900", "").is_err());
+        assert!(CoreClient::new("http://localhost:3900", "test-key").is_ok());
+    }
+
+    #[test]
+    fn test_base_url_trailing_slash() {
+        let client = QueryClient::new("http://localhost:3902/", "key").unwrap();
+        assert_eq!(client.transport.base_url, "http://localhost:3902");
+    }
+
+    #[test]
+    fn test_retry_config_defaults() {
+        let cfg = RetryConfig::default();
+        assert_eq!(cfg.max_retries, 3);
+        assert_eq!(cfg.base_delay, Duration::from_millis(200));
+        assert_eq!(cfg.backoff_factor, 2.0);
+    }
+}

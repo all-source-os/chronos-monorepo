@@ -67,14 +67,6 @@
         "typescript": "^5.8.3",
       },
     },
-    "packages/client": {
-      "name": "@allsource/client",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@types/bun": "^1.1.13",
-        "typescript": "^5.8.3",
-      },
-    },
     "packages/ui": {
       "name": "@allsource/ui",
       "version": "0.1.0",
@@ -122,6 +114,14 @@
         "react-dom": "^18.0.0 || ^19.0.0",
       },
     },
+    "sdks/typescript": {
+      "name": "@allsource/client",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "^1.1.13",
+        "typescript": "^5.8.3",
+      },
+    },
     "tooling/e2e": {
       "name": "@allsource/e2e",
       "version": "1.0.0",
@@ -140,7 +140,7 @@
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 
-    "@allsource/client": ["@allsource/client@workspace:packages/client"],
+    "@allsource/client": ["@allsource/client@workspace:sdks/typescript"],
 
     "@allsource/control-plane": ["@allsource/control-plane@workspace:apps/control-plane"],
 
