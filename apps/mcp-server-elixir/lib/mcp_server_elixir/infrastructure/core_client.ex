@@ -11,6 +11,11 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   @default_base_url "http://localhost:3900"
   @default_timeout 30_000
 
+  # Disable Hackney connection pooling so stale connections don't cause
+  # errors after Core restarts. The MCP server makes infrequent calls,
+  # so connection reuse provides negligible benefit.
+  adapter(Tesla.Adapter.Hackney, pool: false, recv_timeout: @default_timeout)
+
   plug(
     Tesla.Middleware.BaseUrl,
     Application.get_env(:mcp_server_elixir, :core_url, @default_base_url)
@@ -20,9 +25,9 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   plug(Tesla.Middleware.Timeout, timeout: @default_timeout)
 
   plug(Tesla.Middleware.Retry,
-    delay: 100,
+    delay: 500,
     max_retries: 3,
-    max_delay: 2_000,
+    max_delay: 5_000,
     should_retry: fn
       {:ok, %{status: status}} when status in [408, 429, 500, 502, 503, 504] -> true
       {:ok, _} -> false

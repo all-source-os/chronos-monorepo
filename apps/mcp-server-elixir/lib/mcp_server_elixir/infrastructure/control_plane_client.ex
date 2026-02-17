@@ -10,6 +10,9 @@ defmodule McpServerElixir.Infrastructure.ControlPlaneClient do
   @default_base_url "http://localhost:3901"
   @default_timeout 10_000
 
+  # Disable Hackney connection pooling — same rationale as CoreClient
+  adapter(Tesla.Adapter.Hackney, pool: false, recv_timeout: @default_timeout)
+
   plug(
     Tesla.Middleware.BaseUrl,
     Application.get_env(:mcp_server_elixir, :control_url, @default_base_url)
@@ -19,9 +22,9 @@ defmodule McpServerElixir.Infrastructure.ControlPlaneClient do
   plug(Tesla.Middleware.Timeout, timeout: @default_timeout)
 
   plug(Tesla.Middleware.Retry,
-    delay: 100,
-    max_retries: 2,
-    max_delay: 1_000,
+    delay: 500,
+    max_retries: 3,
+    max_delay: 5_000,
     should_retry: fn
       {:ok, %{status: status}} when status in [408, 429, 500, 502, 503, 504] -> true
       {:ok, _} -> false
