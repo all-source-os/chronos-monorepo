@@ -164,6 +164,7 @@ defmodule QueryServiceExWeb.Router do
     pipe_through([:tenant_scoped, :rate_limited, :queries_quota])
 
     post("/query", QueryController, :execute)
+    post("/query/projected", ProjectedQueryController, :execute)
   end
 
   # Projections endpoints (no quota for projection operations)

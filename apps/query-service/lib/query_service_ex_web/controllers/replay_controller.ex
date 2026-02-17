@@ -23,7 +23,10 @@ defmodule QueryServiceExWeb.ReplayController do
   def index(conn, _params) do
     case RustCoreClient.list_replays() do
       {:ok, %{replays: replays, total: total}} ->
-        json(conn, %{data: replays, total: total})
+        json(conn, %{data: replays, count: length(replays), total: total})
+
+      {:ok, body} when is_list(body) ->
+        json(conn, %{data: body, count: length(body), total: length(body)})
 
       {:ok, body} ->
         json(conn, %{data: body})

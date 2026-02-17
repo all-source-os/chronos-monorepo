@@ -66,6 +66,9 @@ defmodule QueryServiceEx.Application do
           {DynamicSupervisor,
            strategy: :one_for_one, name: QueryServiceEx.ProjectionSyncSupervisor},
 
+          # DynamicSupervisor for server-side projection servers (Phase 2 continuous projections)
+          QueryServiceEx.Projections.ProjectionSupervisor,
+
           # WebSocket client for real-time events from Core
           {QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient, []},
 

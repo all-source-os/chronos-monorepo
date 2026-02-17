@@ -24,7 +24,7 @@ defmodule QueryServiceExWeb.WebhookSubscriptionController do
 
     case RustCoreClient.list_webhooks(tenant_id) do
       {:ok, %{webhooks: webhooks, total: total}} ->
-        json(conn, %{data: webhooks, total: total})
+        json(conn, %{data: webhooks, count: length(webhooks), total: total})
 
       {:error, reason} ->
         conn

@@ -18,10 +18,10 @@ defmodule QueryServiceExWeb.SnapshotController do
 
     case RustCoreClient.list_snapshots(entity_id) do
       {:ok, %{"snapshots" => snapshots, "total" => total}} ->
-        json(conn, %{data: snapshots, count: total})
+        json(conn, %{data: snapshots, count: length(snapshots), total: total})
 
       {:ok, body} when is_list(body) ->
-        json(conn, %{data: body, count: length(body)})
+        json(conn, %{data: body, count: length(body), total: length(body)})
 
       {:ok, body} when is_map(body) ->
         json(conn, body)
