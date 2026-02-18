@@ -191,6 +191,8 @@ defmodule QueryServiceExWeb.QueryController do
     HAL.merge(links, HAL.link("next", "/api/query?offset=#{next_offset}&limit=#{limit}"))
   end
 
+  defp maybe_add_next_link(links, %Query{}, _result_count), do: links
+
   defp maybe_add_next_link(links, params, result_count) when is_map(params) do
     limit = params["limit"] || params[:limit]
     offset = params["offset"] || params[:offset] || 0
