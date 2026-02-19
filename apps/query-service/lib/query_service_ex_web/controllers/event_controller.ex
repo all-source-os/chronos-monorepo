@@ -92,6 +92,42 @@ defmodule QueryServiceExWeb.EventController do
   )
 
   @doc """
+  Query events returning Core-compatible format (no HATEOAS wrapping).
+
+  This endpoint proxies to Core's GET /api/v1/events/query and returns
+  the response as-is: `{"events": [...], "count": N}`.
+
+  Used by SDKs that call query_events() and expect the Core wire format.
+  """
+  def query_core_compat(conn, params) do
+    tenant_id = get_tenant_id!(conn)
+    consistency = conn.assigns[:consistency]
+
+    query_params =
+      %{limit: parse_int(params["limit"], 100), offset: parse_int(params["offset"], 0)}
+      |> maybe_put(:entity_id, params["entity_id"])
+      |> maybe_put(:event_type, params["event_type"])
+      |> maybe_put(:since, params["since"])
+      |> maybe_put(:until, params["until"])
+
+    case RustCoreClient.query_events(tenant_id, query_params, consistency: consistency) do
+      {:ok, events} when is_list(events) ->
+        json(conn, %{events: events, count: length(events)})
+
+      {:ok, %{"events" => events, "count" => count}} ->
+        json(conn, %{events: events, count: count})
+
+      {:ok, body} when is_map(body) ->
+        json(conn, body)
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
+  end
+
+  @doc """
   Get a specific event by ID.
   """
   def show(conn, %{"id" => id}) do

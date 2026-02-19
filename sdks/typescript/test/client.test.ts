@@ -1,10 +1,18 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { AllSourceClient, AllSourceError } from "../src";
+import { AllSourceClient, AllSourceError, CircuitOpenError } from "../src";
+import type { EventFolder } from "../src";
 
 const MOCK_BASE_URL = "https://allsource-query.example.com";
 const MOCK_API_KEY = "test-api-key-123";
 
-function createClient(overrides?: { baseUrl?: string; apiKey?: string; timeout?: number }) {
+function createClient(overrides?: {
+  baseUrl?: string;
+  apiKey?: string;
+  timeout?: number;
+  fetch?: typeof globalThis.fetch;
+  retry?: { maxRetries?: number; baseDelay?: number; backoffFactor?: number; maxDelay?: number };
+  circuitBreaker?: { threshold?: number; recoveryTimeout?: number };
+}) {
   return new AllSourceClient({
     baseUrl: overrides?.baseUrl ?? MOCK_BASE_URL,
     apiKey: overrides?.apiKey ?? MOCK_API_KEY,
@@ -43,12 +51,12 @@ describe("AllSourceClient constructor", () => {
     );
     await client.getHealth();
     const url = (mockFetch.mock.calls[0] as unknown[])[0] as string;
-    expect(url).toBe("https://example.com/api/health");
+    expect(url).toBe("https://example.com/health");
   });
 });
 
 describe("getHealth", () => {
-  test("sends GET /api/health with API key header", async () => {
+  test("sends GET /health with API key header", async () => {
     const client = createClient();
     mockFetch.mockImplementation(() =>
       Promise.resolve(
@@ -62,14 +70,14 @@ describe("getHealth", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(`${MOCK_BASE_URL}/api/health`);
+    expect(url).toBe(`${MOCK_BASE_URL}/health`);
     expect(options.method).toBe("GET");
     expect((options.headers as Record<string, string>)["X-API-Key"]).toBe(MOCK_API_KEY);
   });
 });
 
 describe("ingestEvent", () => {
-  test("sends POST /api/events with event body", async () => {
+  test("sends POST /api/v1/events with event body", async () => {
     const client = createClient();
     const event = {
       event_type: "user.signup",
@@ -77,7 +85,7 @@ describe("ingestEvent", () => {
       payload: { email: "test@example.com" },
       metadata: { source: "sdk-test" },
     };
-    const responseEvent = { id: "evt-1", ...event, timestamp: "2026-02-16T00:00:00Z" };
+    const responseEvent = { event_id: "evt-1", timestamp: "2026-02-16T00:00:00Z" };
 
     mockFetch.mockImplementation(() =>
       Promise.resolve(new Response(JSON.stringify(responseEvent), { status: 200 })),
@@ -85,11 +93,11 @@ describe("ingestEvent", () => {
 
     const result = await client.ingestEvent(event);
 
-    expect(result.id).toBe("evt-1");
-    expect(result.event_type).toBe("user.signup");
+    expect(result.event_id).toBe("evt-1");
+    expect(result.timestamp).toBe("2026-02-16T00:00:00Z");
 
     const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(`${MOCK_BASE_URL}/api/events`);
+    expect(url).toBe(`${MOCK_BASE_URL}/api/v1/events`);
     expect(options.method).toBe("POST");
     expect((options.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
     expect(JSON.parse(options.body as string)).toEqual(event);
@@ -97,7 +105,7 @@ describe("ingestEvent", () => {
 });
 
 describe("queryEvents", () => {
-  test("sends GET /api/events with no params", async () => {
+  test("sends GET /api/v1/events/query with no params", async () => {
     const client = createClient();
     const response = { events: [], count: 0 };
 
@@ -109,7 +117,7 @@ describe("queryEvents", () => {
 
     expect(result).toEqual(response);
     const [url] = mockFetch.mock.calls[0] as [string];
-    expect(url).toBe(`${MOCK_BASE_URL}/api/events`);
+    expect(url).toBe(`${MOCK_BASE_URL}/api/v1/events/query`);
   });
 
   test("sends query params when provided", async () => {
@@ -129,6 +137,22 @@ describe("queryEvents", () => {
     expect(parsed.searchParams.get("event_type")).toBe("user.signup");
   });
 
+  test("sends since/until params (not start_time/end_time)", async () => {
+    const client = createClient();
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ events: [], count: 0 }), { status: 200 })),
+    );
+
+    await client.queryEvents({ since: "2026-01-01T00:00:00Z", until: "2026-02-01T00:00:00Z" });
+
+    const [url] = mockFetch.mock.calls[0] as [string];
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get("since")).toBe("2026-01-01T00:00:00Z");
+    expect(parsed.searchParams.get("until")).toBe("2026-02-01T00:00:00Z");
+    expect(parsed.searchParams.has("start_time")).toBe(false);
+    expect(parsed.searchParams.has("end_time")).toBe(false);
+  });
+
   test("omits undefined params", async () => {
     const client = createClient();
     mockFetch.mockImplementation(() =>
@@ -144,9 +168,33 @@ describe("queryEvents", () => {
   });
 });
 
+describe("listProjections", () => {
+  test("sends GET /api/v1/projections", async () => {
+    const client = createClient();
+    const response = {
+      projections: [{ name: "user-count", state: { count: 42 } }],
+      total: 1,
+    };
+
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(response), { status: 200 })),
+    );
+
+    const result = await client.listProjections();
+
+    expect(result).toEqual(response);
+    expect(result.projections.length).toBe(1);
+    expect(result.total).toBe(1);
+
+    const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${MOCK_BASE_URL}/api/v1/projections`);
+    expect(options.method).toBe("GET");
+  });
+});
+
 describe("error handling", () => {
   test("throws AllSourceError on non-2xx response", async () => {
-    const client = createClient();
+    const client = createClient({ retry: { maxRetries: 0 } });
     mockFetch.mockImplementation(() =>
       Promise.resolve(
         new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }),
@@ -165,7 +213,7 @@ describe("error handling", () => {
   });
 
   test("AllSourceError includes status text", async () => {
-    const client = createClient();
+    const client = createClient({ retry: { maxRetries: 0 } });
     mockFetch.mockImplementation(() =>
       Promise.resolve(
         new Response("Not Found", { status: 404, statusText: "Not Found" }),
@@ -180,5 +228,212 @@ describe("error handling", () => {
       expect(error.message).toContain("404");
       expect(error.message).toContain("Not Found");
     }
+  });
+});
+
+describe("error helpers", () => {
+  test("isUnauthorized", () => {
+    const err = new AllSourceError("test", 401);
+    expect(err.isUnauthorized()).toBe(true);
+    expect(err.isRateLimited()).toBe(false);
+  });
+
+  test("isRateLimited", () => {
+    const err = new AllSourceError("test", 429);
+    expect(err.isRateLimited()).toBe(true);
+  });
+
+  test("isNotFound", () => {
+    const err = new AllSourceError("test", 404);
+    expect(err.isNotFound()).toBe(true);
+  });
+
+  test("isForbidden", () => {
+    const err = new AllSourceError("test", 403);
+    expect(err.isForbidden()).toBe(true);
+  });
+
+  test("isServerError", () => {
+    expect(new AllSourceError("test", 500).isServerError()).toBe(true);
+    expect(new AllSourceError("test", 503).isServerError()).toBe(true);
+    expect(new AllSourceError("test", 400).isServerError()).toBe(false);
+  });
+
+  test("isRetryable", () => {
+    for (const code of [408, 429, 500, 502, 503, 504]) {
+      expect(new AllSourceError("test", code).isRetryable()).toBe(true);
+    }
+    expect(new AllSourceError("test", 400).isRetryable()).toBe(false);
+    expect(new AllSourceError("test", 401).isRetryable()).toBe(false);
+  });
+});
+
+describe("retry logic", () => {
+  test("retries on 503 then succeeds", async () => {
+    let callCount = 0;
+    const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
+      callCount++;
+      if (callCount <= 2) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "Service Unavailable" }), { status: 503 }),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      );
+    }) as unknown as typeof globalThis.fetch;
+
+    const client = createClient({
+      fetch: customFetch,
+      retry: { maxRetries: 3, baseDelay: 1, backoffFactor: 1, maxDelay: 1 },
+    });
+
+    const result = await client.getHealth();
+    expect(result).toEqual({ status: "ok" });
+    expect(callCount).toBe(3);
+  });
+
+  test("does not retry on 401", async () => {
+    let callCount = 0;
+    const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
+      callCount++;
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }),
+      );
+    }) as unknown as typeof globalThis.fetch;
+
+    const client = createClient({
+      fetch: customFetch,
+      retry: { maxRetries: 3, baseDelay: 1 },
+    });
+
+    try {
+      await client.getHealth();
+      expect(true).toBe(false);
+    } catch (err) {
+      expect(err).toBeInstanceOf(AllSourceError);
+      expect((err as AllSourceError).status).toBe(401);
+    }
+    expect(callCount).toBe(1);
+  });
+
+  test("retries on network error then succeeds", async () => {
+    let callCount = 0;
+    const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
+      callCount++;
+      if (callCount <= 1) {
+        return Promise.reject(new TypeError("fetch failed"));
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      );
+    }) as unknown as typeof globalThis.fetch;
+
+    const client = createClient({
+      fetch: customFetch,
+      retry: { maxRetries: 2, baseDelay: 1, backoffFactor: 1, maxDelay: 1 },
+    });
+
+    const result = await client.getHealth();
+    expect(result).toEqual({ status: "ok" });
+    expect(callCount).toBe(2);
+  });
+});
+
+describe("circuit breaker integration", () => {
+  test("opens circuit after threshold failures", async () => {
+    let callCount = 0;
+    const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
+      callCount++;
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: "Server Error" }), { status: 500 }),
+      );
+    }) as unknown as typeof globalThis.fetch;
+
+    const client = createClient({
+      fetch: customFetch,
+      retry: { maxRetries: 0, baseDelay: 1 },
+      circuitBreaker: { threshold: 3, recoveryTimeout: 60_000 },
+    });
+
+    // Fail 3 times to trip the breaker
+    for (let i = 0; i < 3; i++) {
+      try {
+        await client.getHealth();
+      } catch {
+        // expected
+      }
+    }
+
+    // Next call should throw CircuitOpenError without making a fetch
+    const callCountBefore = callCount;
+    try {
+      await client.getHealth();
+      expect(true).toBe(false);
+    } catch (err) {
+      expect(err).toBeInstanceOf(CircuitOpenError);
+    }
+    expect(callCount).toBe(callCountBefore);
+  });
+});
+
+describe("queryAndFold", () => {
+  test("folds events into a state", async () => {
+    const events = [
+      { id: "1", event_type: "counter.incremented", entity_id: "c1", payload: { amount: 5 }, metadata: {}, timestamp: "t1" },
+      { id: "2", event_type: "counter.incremented", entity_id: "c1", payload: { amount: 3 }, metadata: {}, timestamp: "t2" },
+      { id: "3", event_type: "counter.decremented", entity_id: "c1", payload: { amount: 2 }, metadata: {}, timestamp: "t3" },
+    ];
+
+    const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
+      return Promise.resolve(
+        new Response(JSON.stringify({ events, count: 3 }), { status: 200 }),
+      );
+    }) as unknown as typeof globalThis.fetch;
+
+    const client = createClient({ fetch: customFetch });
+
+    const folder: EventFolder<number> = {
+      _total: 0,
+      _applied: false,
+      apply(event) {
+        if (event.event_type === "counter.incremented") {
+          this._total += event.payload.amount as number;
+          this._applied = true;
+          return true;
+        }
+        if (event.event_type === "counter.decremented") {
+          this._total -= event.payload.amount as number;
+          this._applied = true;
+          return true;
+        }
+        return false;
+      },
+      finalize() {
+        return this._applied ? this._total : undefined;
+      },
+    } as EventFolder<number> & { _total: number; _applied: boolean };
+
+    const result = await client.queryAndFold({ entity_id: "c1" }, folder);
+    expect(result).toBe(6); // 5 + 3 - 2
+  });
+});
+
+describe("custom fetch injection", () => {
+  test("uses injected fetch function", async () => {
+    let called = false;
+    const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
+      called = true;
+      return Promise.resolve(
+        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+      );
+    }) as unknown as typeof globalThis.fetch;
+
+    const client = createClient({ fetch: customFetch });
+    await client.getHealth();
+
+    expect(called).toBe(true);
+    // Global mock should NOT have been called
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

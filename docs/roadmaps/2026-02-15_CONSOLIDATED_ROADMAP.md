@@ -10,8 +10,8 @@ supersedes:
 
 # AllSource Event Store - Consolidated Roadmap
 
-**Date**: 2026-02-15
-**Version**: 5.0
+**Date**: 2026-02-19
+**Version**: 5.1 (updated for v0.10.6)
 
 ---
 
@@ -25,7 +25,9 @@ The codebase is real and substantial: Rust Core, Go Control Plane, Elixir Query 
 - Leader-follower replication via WAL shipping (fully implemented)
 - Control Plane: JWT/RBAC, policy engine, OpenTelemetry, HAL responses, OpenAPI spec
 - LemonSqueezy billing integration (checkout, webhooks, usage reporting)
-- Query Service: stateless gateway, Tesla HTTP client to Core, Broadway pipeline, OpenAPI
+- Query Service: stateless gateway, Tesla HTTP client to Core, Broadway pipeline, OpenAPI, server-side projections with fold-on-read
+- Self-hosted SDK registry (`apps/registry`) serving Cargo, Go, npm, PyPI protocols
+- OAuth login (GitHub, Google) in Control Plane
 - MCP Server: 61 tool definitions, TOON encoder, conversation context, Core/Control Plane clients
 - Web: auth pages, dashboard skeleton, real React/Next.js pages
 - Infrastructure: Docker images, Helm charts, K8s manifests, GitHub Actions CI/CD
@@ -109,13 +111,13 @@ Mock repository methods for vector search use `unimplemented!()` for most operat
 - [ ] Quick start curl examples (welcome email)
 - [ ] Usage warning emails (80% quota)
 - [ ] Stripe as backup payment processor
-- [ ] JavaScript SDK (`@allsource/client`)
+- [x] JavaScript SDK (`@allsource/client`) — in `sdks/typescript/`, distributed via `registry.all-source.xyz`
 - [ ] API docs on `/docs`
 
 ### Phase 2: Product-Market Fit (Months 2-3)
 - [ ] Simple dashboard (usage chart, API keys, upgrade button)
 - [ ] Webhook delivery (push events to customer URLs)
-- [ ] Python SDK
+- [x] Python SDK — in `sdks/python-client/`, distributed via `registry.all-source.xyz`
 - [ ] Status page
 - [ ] Changelog (`/changelog`)
 - [ ] Feedback widget
@@ -126,7 +128,7 @@ Mock repository methods for vector search use `unimplemented!()` for most operat
 - [ ] Customer-facing audit logs
 - [ ] Usage analytics for customers
 - [ ] Event replay from UI
-- [ ] Go SDK
+- [x] Go SDK — in `sdks/go/`, distributed via `registry.all-source.xyz`
 
 ---
 
@@ -217,5 +219,5 @@ Expose WebSocket endpoint for external clients (currently only internal WS clien
 ---
 
 **Document Status**: CURRENT
-**Last Updated**: 2026-02-15
+**Last Updated**: 2026-02-19
 **Next Review**: After P0 gaps are resolved

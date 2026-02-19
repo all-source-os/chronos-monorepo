@@ -8,6 +8,8 @@ type Event struct {
 	EntityID  string         `json:"entity_id"`
 	EventType string         `json:"event_type"`
 	Payload   map[string]any `json:"payload"`
+	Metadata  map[string]any `json:"metadata"`
+	TenantID  string         `json:"tenant_id,omitempty"`
 	Timestamp string         `json:"timestamp"`
 	Version   int            `json:"version"`
 }
@@ -52,3 +54,16 @@ func (e *APIError) IsNotFound() bool { return e.StatusCode == 404 }
 
 // IsRateLimited returns true if the error is a 429 Too Many Requests.
 func (e *APIError) IsRateLimited() bool { return e.StatusCode == 429 }
+
+// IsServerError returns true if the error is a 5xx server error.
+func (e *APIError) IsServerError() bool { return e.StatusCode >= 500 }
+
+// IsRetryable returns true if the error has a status code that is safe to retry.
+func (e *APIError) IsRetryable() bool {
+	switch e.StatusCode {
+	case 408, 429, 500, 502, 503, 504:
+		return true
+	default:
+		return false
+	}
+}

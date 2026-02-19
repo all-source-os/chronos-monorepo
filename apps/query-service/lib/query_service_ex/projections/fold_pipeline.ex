@@ -40,7 +40,15 @@ defmodule QueryServiceEx.Projections.FoldPipeline do
 
     {initial_states, since_timestamp} = load_snapshots(core_client, entity_id)
 
-    with {:ok, events} <- fetch_events(core_client, tenant_id, projection_mod, entity_id, since_timestamp, consistency) do
+    with {:ok, events} <-
+           fetch_events(
+             core_client,
+             tenant_id,
+             projection_mod,
+             entity_id,
+             since_timestamp,
+             consistency
+           ) do
       projected = fold_events(events, projection_mod, initial_states)
       duration = System.monotonic_time(:millisecond) - start_time
       events_after_snapshot = length(events)
@@ -73,12 +81,26 @@ defmodule QueryServiceEx.Projections.FoldPipeline do
     Application.get_env(:query_service_ex, :snapshot_threshold, @default_snapshot_threshold)
   end
 
-  defp maybe_create_snapshots(_core_client, _projection_mod, _events, _projected, events_after_snapshot, _opts)
+  defp maybe_create_snapshots(
+         _core_client,
+         _projection_mod,
+         _events,
+         _projected,
+         events_after_snapshot,
+         _opts
+       )
        when events_after_snapshot <= 0 do
     false
   end
 
-  defp maybe_create_snapshots(core_client, projection_mod, events, projected, events_after_snapshot, _opts) do
+  defp maybe_create_snapshots(
+         core_client,
+         projection_mod,
+         events,
+         projected,
+         events_after_snapshot,
+         _opts
+       ) do
     if events_after_snapshot > snapshot_threshold() do
       projection_name = projection_mod.entity_type()
 
@@ -157,7 +179,14 @@ defmodule QueryServiceEx.Projections.FoldPipeline do
     {initial_states, oldest_as_of}
   end
 
-  defp fetch_events(core_client, tenant_id, projection_mod, entity_id, since_timestamp, consistency) do
+  defp fetch_events(
+         core_client,
+         tenant_id,
+         projection_mod,
+         entity_id,
+         since_timestamp,
+         consistency
+       ) do
     entity_type = projection_mod.entity_type()
 
     query_params =

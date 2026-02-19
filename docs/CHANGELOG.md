@@ -2,6 +2,15 @@
 
 All notable changes to AllSource Chronos are documented here.
 
+## [0.10.6] - 2026-02-19
+
+### Fixed
+- **Query DSL crash** (GitHub #65): `POST /api/query` returned HTTP 500 when `%Query{}` struct fell through to Access-based `is_map` clause in `maybe_add_next_link/3` — added explicit `%Query{}` catch-all clause
+- **AUTH_DISABLED bypass**: dev mode now short-circuits before header inspection, so malformed `Authorization` headers no longer cause 401 when auth is disabled
+- **Domain references**: replaced all `allsource.co` references with `all-source.xyz` across SDKs, registry, CI, and docs
+- **Go lint issues**: extracted OAuth provider constants, added `stringFromMap`/`boolFromMap` helpers to satisfy errcheck, gosec nolint for URL constants
+- **SIMD filter test threshold**: lowered flaky throughput assertion from 1M to 100K events/sec for CI stability
+
 ## [0.10.5] - 2026-02-17
 
 ### Added

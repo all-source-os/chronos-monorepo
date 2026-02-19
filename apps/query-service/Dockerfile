@@ -99,10 +99,6 @@ EXPOSE 3902
 # Required environment variables (must be provided at runtime):
 #   DATABASE_URL        - PostgreSQL connection URL (ecto://USER:PASS@HOST/DATABASE)
 #   SECRET_KEY_BASE     - Secret key for signing (generate with: mix phx.gen.secret)
-#   GOOGLE_CLIENT_ID    - Google OAuth client ID
-#   GOOGLE_CLIENT_SECRET- Google OAuth client secret
-#   GITHUB_CLIENT_ID    - GitHub OAuth client ID
-#   GITHUB_CLIENT_SECRET- GitHub OAuth client secret
 #
 # Optional environment variables:
 #   PORT                - HTTP port (default: 3902)

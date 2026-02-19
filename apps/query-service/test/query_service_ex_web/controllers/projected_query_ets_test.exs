@@ -24,7 +24,8 @@ defmodule QueryServiceExWeb.ProjectedQueryEtsTest do
   end
 
   defp via_name(projection_name) do
-    {:via, Elixir.Registry, {QueryServiceEx.ProjectionRegistry, {:projection_server, projection_name}}}
+    {:via, Elixir.Registry,
+     {QueryServiceEx.ProjectionRegistry, {:projection_server, projection_name}}}
   end
 
   # Minimal Core client that returns empty state (for ProjectionServer hydration)
@@ -38,14 +39,15 @@ defmodule QueryServiceExWeb.ProjectedQueryEtsTest do
     def list_snapshots(_entity_id), do: {:ok, []}
 
     def query_events(_tenant_id, _params, _opts) do
-      {:ok, [
-        %{
-          "event_type" => "index.created",
-          "entity_id" => "fold-1",
-          "data" => %{"name" => "Folded Index"},
-          "timestamp" => "2026-01-01T00:00:00Z"
-        }
-      ]}
+      {:ok,
+       [
+         %{
+           "event_type" => "index.created",
+           "entity_id" => "fold-1",
+           "data" => %{"name" => "Folded Index"},
+           "timestamp" => "2026-01-01T00:00:00Z"
+         }
+       ]}
     end
   end
 
@@ -64,12 +66,16 @@ defmodule QueryServiceExWeb.ProjectedQueryEtsTest do
       Process.sleep(30)
 
       # Inject some state via PubSub event
-      send(pid, {:new_event, %{
-        "event_type" => "index.created",
-        "entity_id" => "ets-1",
-        "data" => %{"name" => "ETS Index"},
-        "timestamp" => "2026-01-01T00:00:00Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "index.created",
+           "entity_id" => "ets-1",
+           "data" => %{"name" => "ETS Index"},
+           "timestamp" => "2026-01-01T00:00:00Z"
+         }}
+      )
 
       Process.sleep(10)
 
@@ -143,26 +149,38 @@ defmodule QueryServiceExWeb.ProjectedQueryEtsTest do
       Process.sleep(30)
 
       # Insert two entities: one deleted, one not
-      send(pid, {:new_event, %{
-        "event_type" => "index.created",
-        "entity_id" => "ets-alive",
-        "data" => %{"name" => "Alive"},
-        "timestamp" => "2026-01-01T00:00:00Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "index.created",
+           "entity_id" => "ets-alive",
+           "data" => %{"name" => "Alive"},
+           "timestamp" => "2026-01-01T00:00:00Z"
+         }}
+      )
 
-      send(pid, {:new_event, %{
-        "event_type" => "index.created",
-        "entity_id" => "ets-deleted",
-        "data" => %{"name" => "Deleted"},
-        "timestamp" => "2026-01-01T00:00:01Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "index.created",
+           "entity_id" => "ets-deleted",
+           "data" => %{"name" => "Deleted"},
+           "timestamp" => "2026-01-01T00:00:01Z"
+         }}
+      )
 
-      send(pid, {:new_event, %{
-        "event_type" => "index.deleted",
-        "entity_id" => "ets-deleted",
-        "data" => %{},
-        "timestamp" => "2026-01-01T00:00:02Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "index.deleted",
+           "entity_id" => "ets-deleted",
+           "data" => %{},
+           "timestamp" => "2026-01-01T00:00:02Z"
+         }}
+      )
 
       Process.sleep(10)
 
@@ -198,12 +216,16 @@ defmodule QueryServiceExWeb.ProjectedQueryEtsTest do
       Process.sleep(30)
 
       for i <- 1..5 do
-        send(pid, {:new_event, %{
-          "event_type" => "index.created",
-          "entity_id" => "ets-#{i}",
-          "data" => %{"name" => "Index #{i}"},
-          "timestamp" => "2026-01-01T00:00:0#{i}Z"
-        }})
+        send(
+          pid,
+          {:new_event,
+           %{
+             "event_type" => "index.created",
+             "entity_id" => "ets-#{i}",
+             "data" => %{"name" => "Index #{i}"},
+             "timestamp" => "2026-01-01T00:00:0#{i}Z"
+           }}
+        )
       end
 
       Process.sleep(10)
@@ -240,12 +262,16 @@ defmodule QueryServiceExWeb.ProjectedQueryEtsTest do
       Process.sleep(30)
 
       # Insert state into ETS
-      send(pid, {:new_event, %{
-        "event_type" => "index.created",
-        "entity_id" => "ets-strong",
-        "data" => %{"name" => "ETS Only"},
-        "timestamp" => "2026-01-01T00:00:00Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "index.created",
+           "entity_id" => "ets-strong",
+           "data" => %{"name" => "ETS Only"},
+           "timestamp" => "2026-01-01T00:00:00Z"
+         }}
+      )
 
       Process.sleep(10)
 

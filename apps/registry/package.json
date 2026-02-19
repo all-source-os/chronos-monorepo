@@ -1,0 +1,7 @@
+{
+  "name": "@allsource/registry",
+  "scripts": {
+    "build": "cargo build --release -p allsource-registry",
+    "test": "cargo test -p allsource-registry"
+  }
+}

@@ -28,7 +28,7 @@ var openAPIYAML []byte
 // Control plane configuration constants.
 const (
 	// Version is the current version of the control plane.
-	Version = "0.10.5"
+	Version = "0.10.6"
 	// DefaultPort is the default port the control plane listens on.
 	DefaultPort = "3901"
 	// CoreServiceURL is the URL of the core event store service.
@@ -241,7 +241,8 @@ func (cp *ControlPlane) setupRoutes() {
 	auth := cp.router.Group("/api/v1/auth")
 	auth.POST("/login", cp.LoginHandler)
 	auth.POST("/register", cp.RegisterHandler)
-	auth.POST("/oauth", cp.OAuthHandler)
+	auth.GET("/oauth/:provider", cp.OAuthAuthorize)
+	auth.GET("/oauth/:provider/callback", cp.OAuthCallback)
 
 	// Onboarding endpoint (public, no auth required)
 	onboard := cp.router.Group("/api/v1/onboard")

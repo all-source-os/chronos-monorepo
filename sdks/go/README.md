@@ -1,6 +1,6 @@
 # allsource-go
 
-Go client for the [AllSource Event Store](https://allsource.co) API.
+Go client for the [AllSource Event Store](https://all-source.xyz) API.
 
 ## Installation
 
@@ -22,7 +22,7 @@ import (
 )
 
 func main() {
-	client := allsource.New("as_your_api_key", "https://api.allsource.co")
+	client := allsource.New("as_your_api_key", "https://api.all-source.xyz")
 
 	ctx := context.Background()
 
@@ -106,5 +106,5 @@ result, err := client.Query(ctx, allsource.QueryOptions{
 
 ```go
 httpClient := &http.Client{Timeout: 60 * time.Second}
-client := allsource.NewWithHTTPClient("as_key", "https://api.allsource.co", httpClient)
+client := allsource.NewWithHTTPClient("as_key", "https://api.all-source.xyz", httpClient)
 ```

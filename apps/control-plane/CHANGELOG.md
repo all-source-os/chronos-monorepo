@@ -5,6 +5,17 @@ All notable changes to the Go Control Plane will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.6] - 2026-02-19
+
+### Fixed
+- **Go lint**: extracted `providerGitHub`/`providerGoogle` constants (goconst), added `stringFromMap`/`boolFromMap` helpers (errcheck), `//nolint:gosec` for OAuth URL constants
+
+### Added
+- OAuth login flow for GitHub and Google providers with CSRF state cookie protection
+- `isSecureContext()` derives HTTPS from `FRONTEND_URL` scheme for correct cookie flags behind reverse proxies
+
+---
+
 ## [0.2.0] - 2026-02-03
 
 ### Added

@@ -17,7 +17,7 @@ import { AlertCircle, Eye, EyeOff, Loader2, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useId, useState } from "react";
-import { getApiUrl } from "@/lib/api/client";
+import { getControlPlaneUrl } from "@/lib/api/client";
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing_token: "Authentication failed. Please try again.",
@@ -55,9 +55,8 @@ function LoginContent() {
   const handleOAuthLogin = (provider: "google" | "github") => {
     setLoadingProvider(provider);
     setError(null);
-    // Redirect to OAuth provider via backend
-    const apiUrl = getApiUrl();
-    window.location.href = `${apiUrl}/api/auth/${provider}`;
+    const cpUrl = getControlPlaneUrl();
+    window.location.href = `${cpUrl}/api/v1/auth/oauth/${provider}`;
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -66,8 +65,8 @@ function LoginContent() {
     setIsSubmitting(true);
 
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/auth/login`, {
+      const cpUrl = getControlPlaneUrl();
+      const response = await fetch(`${cpUrl}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -80,13 +79,10 @@ function LoginContent() {
         throw new Error(data.error?.message || data.message || "Login failed");
       }
 
-      // If we get a token, set it as cookie and redirect
+      // Route through the callback handler to set the httpOnly auth cookie
       if (data.token) {
-        // The backend should set the cookie, but we'll handle redirect
         const isNewUser = data.new_user === true;
-        router.push(isNewUser ? "/onboarding" : "/dashboard");
-      } else if (data.redirect) {
-        window.location.href = data.redirect;
+        window.location.href = `/api/auth/callback?token=${encodeURIComponent(data.token)}&new_user=${isNewUser}`;
       } else {
         router.push("/dashboard");
       }

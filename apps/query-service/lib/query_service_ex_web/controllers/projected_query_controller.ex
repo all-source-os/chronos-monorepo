@@ -25,7 +25,8 @@ defmodule QueryServiceExWeb.ProjectedQueryController do
     consistency = conn.assigns[:consistency]
 
     with {:ok, projection_name, projection_mod} <- resolve_projection(params),
-         {:ok, projected, metadata} <- read_projected(projection_name, projection_mod, tenant_id, consistency) do
+         {:ok, projected, metadata} <-
+           read_projected(projection_name, projection_mod, tenant_id, consistency) do
       filtered = apply_filters(projected, params["filters"] || %{}, projection_mod)
       {page, result} = paginate(filtered, params)
 
@@ -51,7 +52,9 @@ defmodule QueryServiceExWeb.ProjectedQueryController do
   end
 
   defp projection_server_running?(projection_name) do
-    via = {:via, Elixir.Registry, {QueryServiceEx.ProjectionRegistry, {:projection_server, projection_name}}}
+    via =
+      {:via, Elixir.Registry,
+       {QueryServiceEx.ProjectionRegistry, {:projection_server, projection_name}}}
 
     case GenServer.whereis(via) do
       nil -> false
@@ -60,12 +63,17 @@ defmodule QueryServiceExWeb.ProjectedQueryController do
   end
 
   defp read_from_ets(projection_name) do
-    via = {:via, Elixir.Registry, {QueryServiceEx.ProjectionRegistry, {:projection_server, projection_name}}}
+    via =
+      {:via, Elixir.Registry,
+       {QueryServiceEx.ProjectionRegistry, {:projection_server, projection_name}}}
+
     start_time = System.monotonic_time(:millisecond)
     states = ProjectionServer.get_all_states(via)
     duration = System.monotonic_time(:millisecond) - start_time
 
-    Logger.debug("ProjectedQuery[#{projection_name}] ETS read: #{length(states)} entities in #{duration}ms")
+    Logger.debug(
+      "ProjectedQuery[#{projection_name}] ETS read: #{length(states)} entities in #{duration}ms"
+    )
 
     metadata = %{
       source: "ets",

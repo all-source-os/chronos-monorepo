@@ -383,6 +383,7 @@ defmodule QueryServiceEx.Projections.FoldPipelineTest do
           {:create_snapshot, _, _} -> true
           _ -> false
         end)
+
       assert length(create_calls) == 3
 
       # All should be "automatic" type

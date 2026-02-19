@@ -44,7 +44,10 @@ defmodule QueryServiceEx.Projections.ProjectionSupervisor do
           :ok
 
         {:error, reason} ->
-          Logger.warning("ProjectionSupervisor failed to start projection #{name}: #{inspect(reason)}")
+          Logger.warning(
+            "ProjectionSupervisor failed to start projection #{name}: #{inspect(reason)}"
+          )
+
           :error
       end
     end
@@ -89,6 +92,7 @@ defmodule QueryServiceEx.Projections.ProjectionSupervisor do
   end
 
   defp via_name(projection_name) do
-    {:via, Elixir.Registry, {QueryServiceEx.ProjectionRegistry, {:projection_server, projection_name}}}
+    {:via, Elixir.Registry,
+     {QueryServiceEx.ProjectionRegistry, {:projection_server, projection_name}}}
   end
 end

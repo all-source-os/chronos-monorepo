@@ -18,7 +18,7 @@ import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Mail } from "lucide-re
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useId, useState } from "react";
-import { getApiUrl } from "@/lib/api/client";
+import { getControlPlaneUrl } from "@/lib/api/client";
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing_token: "Authentication failed. Please try again.",
@@ -70,9 +70,8 @@ function SignUpContent() {
   const handleOAuthSignUp = (provider: "google" | "github") => {
     setLoadingProvider(provider);
     setError(null);
-    // Redirect to OAuth provider via backend (same endpoint for signup/login)
-    const apiUrl = getApiUrl();
-    window.location.href = `${apiUrl}/api/auth/${provider}`;
+    const cpUrl = getControlPlaneUrl();
+    window.location.href = `${cpUrl}/api/v1/auth/oauth/${provider}`;
   };
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
@@ -81,8 +80,8 @@ function SignUpContent() {
     setIsSubmitting(true);
 
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/auth/register`, {
+      const cpUrl = getControlPlaneUrl();
+      const response = await fetch(`${cpUrl}/api/v1/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
@@ -94,8 +93,14 @@ function SignUpContent() {
         throw new Error(data.error?.message || data.message || "Registration failed");
       }
 
-      // Show email verification message
-      setEmailSent(true);
+      // Route through the callback handler to set the httpOnly auth cookie
+      if (data.token) {
+        const isNewUser = data.new_user === true;
+        window.location.href = `/api/auth/callback?token=${encodeURIComponent(data.token)}&new_user=${isNewUser}`;
+      } else {
+        // Fallback: show email verification message
+        setEmailSent(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
     } finally {

@@ -85,6 +85,9 @@ jobs:
             context: apps/control-plane
           - name: query-service
             context: apps/query-service
+          - name: registry
+            context: .
+            dockerfile: apps/registry/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
@@ -271,6 +274,108 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: dist/${{ matrix.artifact }}.tar.gz
+
+  # ============================================================================
+  # Upload SDKs to Self-Hosted Registry
+  # ============================================================================
+  upload-registry:
+    name: Upload SDKs to Registry
+    needs: [validate, build-images]
+    runs-on: ubuntu-latest
+    if: ${{ needs.validate.outputs.is_prerelease == 'false' }}
+    env:
+      REGISTRY_URL: https://registry.all-source.xyz
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Build all SDK artifacts ---
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.0"
+
+      - name: Build Rust SDK artifact
+        continue-on-error: true
+        working-directory: sdks/rust
+        run: |
+          cargo package --allow-dirty
+          cp ../../target/package/allsource-${VERSION}.crate /tmp/allsource-${VERSION}.crate
+
+      - name: Build TypeScript SDK artifact
+        continue-on-error: true
+        working-directory: sdks/typescript
+        run: |
+          bun install
+          bun run build
+          npm pack
+          cp allsource-client-${VERSION}.tgz /tmp/
+
+      - name: Build Python SDK artifact
+        continue-on-error: true
+        working-directory: sdks/python-client
+        run: |
+          pip install hatch
+          hatch build
+          cp dist/allsource_client-${VERSION}.tar.gz /tmp/
+
+      - name: Build Go SDK artifact
+        continue-on-error: true
+        run: |
+          MODULE_PATH="github.com/all-source-os/allsource-go"
+          ZIP_PREFIX="${MODULE_PATH}@v${VERSION}"
+          # Go module zips require files under <module>@v<version>/ prefix
+          # Create the directory structure that matches the expected zip layout
+          STAGING="/tmp/go-zip-staging/${ZIP_PREFIX}"
+          mkdir -p "${STAGING}"
+          cp -r ${{ github.workspace }}/sdks/go/* "${STAGING}/"
+          cd /tmp/go-zip-staging
+          zip -r /tmp/allsource-go-v${VERSION}.zip "${ZIP_PREFIX}"
+          rm -rf /tmp/go-zip-staging
+
+      # --- Upload all artifacts to self-hosted registry ---
+      - name: Upload Rust SDK
+        continue-on-error: true
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.REGISTRY_DEPLOY_TOKEN }}" \
+            --data-binary @/tmp/allsource-${VERSION}.crate \
+            "${REGISTRY_URL}/upload/cargo/allsource/${VERSION}"
+
+      - name: Upload TypeScript SDK
+        continue-on-error: true
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.REGISTRY_DEPLOY_TOKEN }}" \
+            --data-binary @/tmp/allsource-client-${VERSION}.tgz \
+            "${REGISTRY_URL}/upload/npm/@allsource/client/${VERSION}"
+
+      - name: Upload Python SDK
+        continue-on-error: true
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.REGISTRY_DEPLOY_TOKEN }}" \
+            --data-binary @/tmp/allsource_client-${VERSION}.tar.gz \
+            "${REGISTRY_URL}/upload/pypi/allsource-client/${VERSION}"
+
+      - name: Upload Go SDK
+        continue-on-error: true
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.REGISTRY_DEPLOY_TOKEN }}" \
+            --data-binary @/tmp/allsource-go-v${VERSION}.zip \
+            "${REGISTRY_URL}/upload/go/github.com/all-source-os/allsource-go/v${VERSION}"
 
   # ============================================================================
   # Create GitHub Release

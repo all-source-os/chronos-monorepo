@@ -1,8 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["apps/core", "tooling/performance", "sdks/rust"]
+members = ["apps/core", "apps/registry", "tooling/performance", "sdks/rust"]
 
 [workspace.dependencies]
+
+# AllFrame web framework
+allframe = "0.1"
 
 # Security & Crypto
 aes-gcm = "0.10"

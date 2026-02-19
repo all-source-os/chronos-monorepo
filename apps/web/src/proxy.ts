@@ -16,7 +16,7 @@ const _publicRoutes = [
   "/verify-email",
 ];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check if the route is protected

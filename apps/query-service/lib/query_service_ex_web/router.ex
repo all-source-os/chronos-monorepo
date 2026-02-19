@@ -116,10 +116,6 @@ defmodule QueryServiceExWeb.Router do
 
     # Dev token endpoint (only works when AUTH_DISABLED=true)
     get("/dev-token", AuthController, :dev_token)
-
-    # OAuth provider routes (redirect to Google/GitHub, handle callback)
-    get("/:provider", OAuthController, :authorize)
-    get("/:provider/callback", OAuthController, :callback)
   end
 
   # -------------------------------------------------------------------
@@ -150,6 +146,7 @@ defmodule QueryServiceExWeb.Router do
     pipe_through([:tenant_scoped, :rate_limited])
 
     get("/events", EventController, :index)
+    get("/events/query", EventController, :query_core_compat)
     get("/events/:id", EventController, :show)
     get("/events/entity/:entity_id", EventController, :by_entity)
     get("/events/type/:event_type", EventController, :by_type)
@@ -367,6 +364,7 @@ defmodule QueryServiceExWeb.Router do
     pipe_through([:tenant_scoped, :rate_limited])
 
     get("/events", EventController, :index)
+    get("/events/query", EventController, :query_core_compat)
     get("/events/recent", EventController, :recent)
     get("/events/:id", EventController, :show)
     get("/events/entity/:entity_id", EventController, :by_entity)

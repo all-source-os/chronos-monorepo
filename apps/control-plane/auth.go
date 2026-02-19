@@ -32,7 +32,11 @@ type AuthContext struct {
 	IsAPIKey bool
 }
 
-// AuthClient handles authentication with the core service
+// AuthClient handles authentication with the core service.
+// NOTE: JWT_SECRET is shared between CP and QS via HMAC-SHA256 (HS256).
+// Adding new services to the fleet requires distributing another copy.
+// TODO: Migrate to RS256 with a JWKS endpoint on CP so other services can verify
+// tokens without possessing the signing key.
 type AuthClient struct {
 	jwtSecret string
 }
@@ -198,33 +202,26 @@ func GetAuthContext(c *gin.Context) (*AuthContext, error) {
 	return auth, nil
 }
 
-// OAuthRequest represents an OAuth user creation/lookup request from the Query Service.
-type OAuthRequest struct {
-	Provider   string `json:"provider" binding:"required"`
-	ProviderID string `json:"provider_id" binding:"required"`
-	Email      string `json:"email" binding:"required"`
-	Name       string `json:"name"`
+// oauthUserResult holds the result of finding or creating an OAuth user.
+type oauthUserResult struct {
+	Token     string
+	UserID    string
+	TenantID  string
+	IsNewUser bool
 }
 
-// OAuthHandler handles OAuth user creation/lookup from the Query Service.
-// POST /api/v1/auth/oauth
-func (cp *ControlPlane) OAuthHandler(c *gin.Context) {
-	var req OAuthRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid request", "message": err.Error()})
-		return
-	}
-
+// findOrCreateOAuthUser creates or finds a tenant for the OAuth user and signs a JWT.
+func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name string) (*oauthUserResult, error) {
 	// Generate a deterministic user ID from provider info
-	userID := fmt.Sprintf("oauth:%s:%s", req.Provider, req.ProviderID)
+	userID := fmt.Sprintf("oauth:%s:%s", provider, providerID)
 
 	// Build tenant slug from email
-	tenantSlug := strings.ReplaceAll(strings.ToLower(req.Email), "@", "-at-")
+	tenantSlug := strings.ReplaceAll(strings.ToLower(email), "@", "-at-")
 	tenantSlug = strings.ReplaceAll(tenantSlug, ".", "-")
 
 	tenantBody := map[string]interface{}{
 		"id":   userID,
-		"name": req.Name,
+		"name": name,
 		"slug": tenantSlug,
 		"metadata": map[string]interface{}{
 			"subscription": map[string]interface{}{
@@ -242,14 +239,14 @@ func (cp *ControlPlane) OAuthHandler(c *gin.Context) {
 		SetBody(tenantBody).
 		Post("/api/v1/tenants")
 
+	if err != nil {
+		return nil, fmt.Errorf("core service unavailable: %w", err)
+	}
+
 	var tenantID string
 	isNewUser := false
 
 	switch {
-	case err != nil:
-		// Core unavailable — use the user ID as tenant ID
-		tenantID = userID
-		isNewUser = true
 	case resp.StatusCode() == 201 || resp.StatusCode() == 200:
 		var result map[string]interface{}
 		if parseErr := json.Unmarshal(resp.Body(), &result); parseErr == nil {
@@ -266,15 +263,14 @@ func (cp *ControlPlane) OAuthHandler(c *gin.Context) {
 		tenantID = userID
 		isNewUser = false
 	default:
-		tenantID = userID
-		isNewUser = true
+		return nil, fmt.Errorf("failed to create tenant (HTTP %d)", resp.StatusCode())
 	}
 
 	// Sign JWT
 	now := time.Now()
 	claims := &Claims{
 		UserID:   userID,
-		Username: req.Name,
+		Username: name,
 		TenantID: tenantID,
 		Role:     entities.RoleDeveloper,
 		StandardClaims: jwt.StandardClaims{
@@ -287,40 +283,35 @@ func (cp *ControlPlane) OAuthHandler(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(cp.authClient.jwtSecret))
 	if err != nil {
-		c.JSON(500, gin.H{"error": "failed to generate token"})
-		return
+		return nil, fmt.Errorf("failed to sign JWT: %w", err)
 	}
 
-	status := 200
-	if isNewUser {
-		status = 201
-	}
-
-	c.JSON(status, gin.H{
-		"token":     tokenString,
-		"user_id":   userID,
-		"tenant_id": tenantID,
-		"new_user":  isNewUser,
-		"email":     req.Email,
-		"name":      req.Name,
-	})
+	return &oauthUserResult{
+		Token:     tokenString,
+		UserID:    userID,
+		TenantID:  tenantID,
+		IsNewUser: isNewUser,
+	}, nil
 }
 
-// LoginRequest represents a login request
+// LoginRequest represents a login request from the frontend.
+// Accepts "email" (preferred) or "username" for the identifier field.
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
 	Password string `json:"password" binding:"required"`
 }
 
-// RegisterRequest represents a registration request
+// RegisterRequest represents a registration request from the frontend.
 type RegisterRequest struct {
-	Username string        `json:"username" binding:"required"`
-	Password string        `json:"password" binding:"required"`
-	TenantID string        `json:"tenant_id"`
-	Role     entities.Role `json:"role"`
+	Name     string `json:"name" binding:"required"`
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
-// LoginHandler handles user login
+// LoginHandler handles user login.
+// Proxies credential verification to Core, then signs a CP-issued JWT on success.
+// TODO: CP should own credential storage (PostgreSQL) instead of proxying to Core.
 func (cp *ControlPlane) LoginHandler(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -328,27 +319,105 @@ func (cp *ControlPlane) LoginHandler(c *gin.Context) {
 		return
 	}
 
-	// Proxy to core service
+	// Frontend sends "email", Core expects "username" — translate
+	username := req.Email
+	if username == "" {
+		username = req.Username
+	}
+	if username == "" {
+		c.JSON(400, gin.H{"error": "invalid request", "message": "email or username is required"})
+		return
+	}
+
+	// Verify credentials against Core
 	resp, err := cp.client.R().
-		SetBody(req).
+		SetBody(map[string]string{
+			"username": username,
+			"password": req.Password,
+		}).
 		Post("/api/v1/auth/login")
 
 	if err != nil {
-		c.JSON(500, gin.H{"error": "failed to authenticate", "message": err.Error()})
+		c.JSON(503, gin.H{"error": "service_unavailable", "message": "authentication service is temporarily unavailable"})
 		return
 	}
 
-	// Parse response
-	var result map[string]interface{}
-	if err := json.Unmarshal(resp.Body(), &result); err != nil {
-		c.JSON(500, gin.H{"error": "invalid response from core service"})
+	if resp.StatusCode() != 200 {
+		// Forward Core's error response (wrong password, user not found, etc.)
+		var errResult map[string]interface{}
+		if json.Unmarshal(resp.Body(), &errResult) == nil {
+			c.JSON(resp.StatusCode(), errResult)
+			return
+		}
+		c.JSON(401, gin.H{"error": "invalid_credentials", "message": "Invalid email or password"})
 		return
 	}
 
-	c.JSON(resp.StatusCode(), result)
+	// Parse Core's response to extract user info
+	var coreResp struct {
+		Token string `json:"token"`
+		User  struct {
+			ID       string `json:"id"`
+			Username string `json:"username"`
+			Email    string `json:"email"`
+			Role     string `json:"role"`
+			TenantID string `json:"tenant_id"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal(resp.Body(), &coreResp); err != nil {
+		c.JSON(500, gin.H{"error": "internal_error", "message": "failed to parse authentication response"})
+		return
+	}
+
+	// Sign a CP-issued JWT (consistent with OAuth flow)
+	userID := coreResp.User.ID
+	if userID == "" {
+		userID = fmt.Sprintf("email:%s", username)
+	}
+	tenantID := coreResp.User.TenantID
+	if tenantID == "" {
+		tenantID = userID
+	}
+	displayName := coreResp.User.Username
+	if displayName == "" {
+		displayName = username
+	}
+
+	now := time.Now()
+	claims := &Claims{
+		UserID:   userID,
+		Username: displayName,
+		TenantID: tenantID,
+		Role:     entities.RoleDeveloper,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: now.Add(7 * 24 * time.Hour).Unix(),
+			IssuedAt:  now.Unix(),
+			Subject:   userID,
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(cp.authClient.jwtSecret))
+	if err != nil {
+		c.JSON(500, gin.H{"error": "internal_error", "message": "failed to create session"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"token":    tokenString,
+		"new_user": false,
+		"user": gin.H{
+			"id":        userID,
+			"email":     username,
+			"name":      displayName,
+			"tenant_id": tenantID,
+		},
+	})
 }
 
-// RegisterHandler handles user registration
+// RegisterHandler handles user registration.
+// Proxies credential creation to Core, creates a tenant, and signs a CP-issued JWT.
+// TODO: CP should own credential storage (PostgreSQL) instead of proxying to Core.
 func (cp *ControlPlane) RegisterHandler(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -356,27 +425,67 @@ func (cp *ControlPlane) RegisterHandler(c *gin.Context) {
 		return
 	}
 
-	// Default to Developer role if not specified
-	if req.Role == "" {
-		req.Role = entities.RoleDeveloper
-	}
-
-	// Proxy to core service
+	// Register credentials in Core (Core handles password hashing)
 	resp, err := cp.client.R().
-		SetBody(req).
+		SetBody(map[string]string{
+			"username": req.Email,
+			"email":    req.Email,
+			"password": req.Password,
+		}).
 		Post("/api/v1/auth/register")
 
 	if err != nil {
-		c.JSON(500, gin.H{"error": "registration failed", "message": err.Error()})
+		c.JSON(503, gin.H{"error": "service_unavailable", "message": "registration service is temporarily unavailable"})
 		return
 	}
 
-	// Parse response
-	var result map[string]interface{}
-	if err := json.Unmarshal(resp.Body(), &result); err != nil {
-		c.JSON(500, gin.H{"error": "invalid response from core service"})
+	if resp.StatusCode() != 201 && resp.StatusCode() != 200 {
+		body := string(resp.Body())
+		// Core returns 400/409 with "already exists" for duplicate usernames
+		if resp.StatusCode() == 409 || strings.Contains(strings.ToLower(body), "already exists") {
+			c.JSON(409, gin.H{"error": "email_exists", "message": "An account with this email already exists"})
+			return
+		}
+		var errResult map[string]interface{}
+		if json.Unmarshal(resp.Body(), &errResult) == nil {
+			c.JSON(resp.StatusCode(), errResult)
+			return
+		}
+		c.JSON(resp.StatusCode(), gin.H{"error": "registration_failed", "message": "Registration failed"})
 		return
 	}
 
-	c.JSON(resp.StatusCode(), result)
+	// Parse Core's response for user ID
+	var coreResp struct {
+		UserID   string `json:"user_id"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		TenantID string `json:"tenant_id"`
+	}
+	if err := json.Unmarshal(resp.Body(), &coreResp); err != nil {
+		coreResp.UserID = fmt.Sprintf("email:%s", req.Email)
+	}
+
+	userID := coreResp.UserID
+	if userID == "" {
+		userID = fmt.Sprintf("email:%s", req.Email)
+	}
+
+	// Create tenant (same pattern as OAuth)
+	result, err := cp.findOrCreateOAuthUser("email", userID, req.Email, req.Name)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "internal_error", "message": "failed to create account"})
+		return
+	}
+
+	c.JSON(201, gin.H{
+		"token":    result.Token,
+		"new_user": true,
+		"user": gin.H{
+			"id":        result.UserID,
+			"email":     req.Email,
+			"name":      req.Name,
+			"tenant_id": result.TenantID,
+		},
+	})
 }

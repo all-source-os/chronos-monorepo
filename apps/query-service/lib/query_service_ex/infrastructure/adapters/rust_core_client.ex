@@ -475,8 +475,11 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
       {:ok, %Tesla.Env{status: 404}} ->
         {:error, :not_found}
 
+      {:ok, %Tesla.Env{status: status, body: body}} when is_map(body) or is_list(body) ->
+        {:error, "HTTP #{status}: #{Jason.encode!(body)}"}
+
       {:ok, %Tesla.Env{status: status, body: body}} ->
-        {:error, "HTTP #{status}: #{inspect(body)}"}
+        {:error, "HTTP #{status}: #{body}"}
 
       {:error, reason} ->
         {:error, reason}
@@ -868,77 +871,6 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   @doc "Check health status"
   def health_check do
     case Tesla.get(read_client(), "/health") do
-      {:ok, %Tesla.Env{status: 200, body: body}} ->
-        {:ok, body}
-
-      {:ok, %Tesla.Env{status: status}} ->
-        {:error, "HTTP #{status}"}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  @doc """
-  Aggregated cluster health check.
-
-  Queries Core's health endpoint and optionally the Control Plane's
-  cluster status endpoint to provide a unified cluster health view.
-  Returns a map with core health, control plane status, and read URL count.
-  """
-  def cluster_health do
-    core_task = Task.async(fn -> health_check() end)
-    cp_task = Task.async(fn -> control_plane_cluster_status() end)
-
-    core_result = Task.await(core_task, 5_000)
-    cp_result = Task.await(cp_task, 5_000)
-
-    read_urls =
-      case Application.get_env(:query_service_ex, :core_read_urls) do
-        urls when is_list(urls) -> length(urls)
-        _ -> 1
-      end
-
-    core_health =
-      case core_result do
-        {:ok, body} -> %{status: "healthy", details: body}
-        {:error, reason} -> %{status: "unhealthy", error: inspect(reason)}
-      end
-
-    control_plane =
-      case cp_result do
-        {:ok, body} -> %{status: "healthy", details: body}
-        {:error, _reason} -> %{status: "unavailable"}
-      end
-
-    {:ok,
-     %{
-       core: core_health,
-       control_plane: control_plane,
-       read_replicas: read_urls,
-       timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
-     }}
-  rescue
-    error -> {:error, inspect(error)}
-  catch
-    :exit, reason -> {:error, inspect(reason)}
-  end
-
-  defp control_plane_cluster_status do
-    cp_url =
-      Application.get_env(:query_service_ex, :control_plane_url, "http://localhost:3901")
-
-    cp_client =
-      Tesla.client(
-        [
-          {Tesla.Middleware.BaseUrl, cp_url},
-          Tesla.Middleware.JSON,
-          {Tesla.Middleware.Timeout, timeout: 5_000}
-        ],
-        {Tesla.Adapter.Hackney, [connect_options: [:inet6]]}
-      )
-
-    case Tesla.get(cp_client, "/api/v1/cluster/health") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 

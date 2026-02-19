@@ -5,33 +5,96 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 )
 
+// RetryConfig controls exponential backoff retry behavior.
+type RetryConfig struct {
+	// MaxRetries is the maximum number of retry attempts (default 3).
+	MaxRetries int
+	// BaseDelay is the initial delay before the first retry (default 200ms).
+	BaseDelay time.Duration
+	// BackoffFactor is the multiplier applied to the delay after each retry (default 2.0).
+	BackoffFactor float64
+	// MaxDelay is the maximum delay between retries (default 10s).
+	MaxDelay time.Duration
+}
+
+// DefaultRetryConfig returns the default retry configuration.
+func DefaultRetryConfig() RetryConfig {
+	return RetryConfig{
+		MaxRetries:    3,
+		BaseDelay:     200 * time.Millisecond,
+		BackoffFactor: 2.0,
+		MaxDelay:      10 * time.Second,
+	}
+}
+
+// Option is a functional option for configuring the Client.
+type Option func(*Client)
+
+// WithRetry configures retry behavior with exponential backoff.
+func WithRetry(cfg RetryConfig) Option {
+	return func(c *Client) {
+		c.retry = &cfg
+	}
+}
+
+// WithCircuitBreaker configures a circuit breaker that opens after threshold
+// consecutive failures and recovers after the given duration.
+func WithCircuitBreaker(threshold int, recovery time.Duration) Option {
+	return func(c *Client) {
+		c.cb = NewCircuitBreaker(threshold, recovery)
+	}
+}
+
+// WithHTTPClient sets a custom *http.Client for the AllSource client.
+func WithHTTPClient(hc *http.Client) Option {
+	return func(c *Client) {
+		c.http = hc
+	}
+}
+
+// WithTimeout sets the HTTP client timeout.
+func WithTimeout(d time.Duration) Option {
+	return func(c *Client) {
+		c.http.Timeout = d
+	}
+}
+
 // Client is the AllSource Event Store API client.
 type Client struct {
 	apiKey  string
 	baseURL string
 	http    *http.Client
+	retry   *RetryConfig
+	cb      *CircuitBreaker
 }
 
-// New creates a new AllSource client.
-func New(apiKey, baseURL string) *Client {
-	return &Client{
+// New creates a new AllSource client. Options are applied in order after defaults.
+func New(apiKey, baseURL string, opts ...Option) *Client {
+	c := &Client{
 		apiKey:  apiKey,
 		baseURL: baseURL,
 		http: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // NewWithHTTPClient creates a new AllSource client with a custom http.Client.
+// Deprecated: use New with WithHTTPClient instead.
 func NewWithHTTPClient(apiKey, baseURL string, httpClient *http.Client) *Client {
 	return &Client{
 		apiKey:  apiKey,
@@ -40,7 +103,95 @@ func NewWithHTTPClient(apiKey, baseURL string, httpClient *http.Client) *Client 
 	}
 }
 
+// retryableStatusCodes are HTTP status codes that are safe to retry.
+var retryableStatusCodes = map[int]bool{
+	408: true,
+	429: true,
+	500: true,
+	502: true,
+	503: true,
+	504: true,
+}
+
 func (c *Client) do(ctx context.Context, method, path string, body any) ([]byte, int, error) {
+	// Check circuit breaker before attempting the request.
+	if c.cb != nil && !c.cb.Allow() {
+		return nil, 0, ErrCircuitOpen
+	}
+
+	maxAttempts := 1
+	var retryCfg RetryConfig
+	if c.retry != nil {
+		retryCfg = *c.retry
+		maxAttempts = retryCfg.MaxRetries + 1
+	}
+
+	var lastErr error
+	var lastStatus int
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(float64(retryCfg.BaseDelay) * math.Pow(retryCfg.BackoffFactor, float64(attempt-1)))
+			if delay > retryCfg.MaxDelay {
+				delay = retryCfg.MaxDelay
+			}
+			select {
+			case <-ctx.Done():
+				return nil, 0, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		data, status, err := c.doOnce(ctx, method, path, body)
+		if err == nil {
+			if c.cb != nil {
+				c.cb.RecordSuccess()
+			}
+			return data, status, nil
+		}
+
+		lastErr = err
+		lastStatus = status
+
+		// Determine if this error is retryable.
+		if !c.shouldRetry(err, status) {
+			if c.cb != nil {
+				// Non-retryable client errors (4xx except 408/429) are not circuit breaker failures.
+				if status >= 500 || status == 408 || status == 429 {
+					c.cb.RecordFailure()
+				}
+			}
+			return nil, lastStatus, lastErr
+		}
+
+		if c.cb != nil {
+			c.cb.RecordFailure()
+		}
+	}
+
+	return nil, lastStatus, lastErr
+}
+
+func (c *Client) shouldRetry(err error, status int) bool {
+	if c.retry == nil {
+		return false
+	}
+
+	// Transport errors (no status code) are retryable.
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return retryableStatusCodes[apiErr.StatusCode]
+	}
+
+	// Non-APIError means transport/network failure; retryable.
+	if status == 0 {
+		return true
+	}
+
+	return retryableStatusCodes[status]
+}
+
+func (c *Client) doOnce(ctx context.Context, method, path string, body any) ([]byte, int, error) {
 	var reqBody io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -54,7 +205,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any) ([]byte,
 	if err != nil {
 		return nil, 0, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("X-API-Key", c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.http.Do(req)
@@ -96,38 +247,61 @@ func parseAPIError(data []byte, statusCode int) error {
 	}
 }
 
+// IngestResponse is the response from ingesting a single event.
+type IngestResponse struct {
+	EventID   string `json:"event_id"`
+	Timestamp string `json:"timestamp"`
+}
+
+// BatchIngestResponse is the response from batch ingesting events.
+type BatchIngestResponse struct {
+	Total    int              `json:"total"`
+	Ingested int              `json:"ingested"`
+	Events   []IngestResponse `json:"events"`
+}
+
 // Ingest sends a single event to the AllSource Event Store.
-func (c *Client) Ingest(ctx context.Context, eventType, entityID string, data map[string]any) (*Event, error) {
+func (c *Client) Ingest(ctx context.Context, eventType, entityID string, data map[string]any) (*IngestResponse, error) {
 	body := map[string]any{
 		"event_type": eventType,
 		"entity_id":  entityID,
 		"payload":    data,
 	}
-	respData, _, err := c.do(ctx, http.MethodPost, "/api/events", body)
+	respData, _, err := c.do(ctx, http.MethodPost, "/api/v1/events", body)
 	if err != nil {
 		return nil, err
 	}
 
-	var wrapper struct {
-		Data Event `json:"data"`
+	var resp IngestResponse
+	if err := json.Unmarshal(respData, &resp); err != nil {
+		return nil, fmt.Errorf("decode ingest response: %w", err)
 	}
-	if err := json.Unmarshal(respData, &wrapper); err != nil {
-		// Try parsing directly as Event
-		var event Event
-		if err2 := json.Unmarshal(respData, &event); err2 != nil {
-			return nil, fmt.Errorf("decode event response: %w", err)
-		}
-		return &event, nil
+	return &resp, nil
+}
+
+// IngestBatch sends multiple events in a single request.
+func (c *Client) IngestBatch(ctx context.Context, events []map[string]any) (*BatchIngestResponse, error) {
+	body := map[string]any{
+		"events": events,
 	}
-	return &wrapper.Data, nil
+	respData, _, err := c.do(ctx, http.MethodPost, "/api/v1/events/batch", body)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp BatchIngestResponse
+	if err := json.Unmarshal(respData, &resp); err != nil {
+		return nil, fmt.Errorf("decode batch ingest response: %w", err)
+	}
+	return &resp, nil
 }
 
 // QueryOptions specifies filters for querying events.
 type QueryOptions struct {
 	EventType string
 	EntityID  string
-	Start     string // ISO-8601 timestamp
-	End       string // ISO-8601 timestamp
+	Start     string // ISO-8601 timestamp, maps to "since" query param
+	End       string // ISO-8601 timestamp, maps to "until" query param
 	Limit     int
 	Offset    int
 }
@@ -142,10 +316,10 @@ func (c *Client) Query(ctx context.Context, opts QueryOptions) (*EventList, erro
 		params.Set("entity_id", opts.EntityID)
 	}
 	if opts.Start != "" {
-		params.Set("start", opts.Start)
+		params.Set("since", opts.Start)
 	}
 	if opts.End != "" {
-		params.Set("end", opts.End)
+		params.Set("until", opts.End)
 	}
 	if opts.Limit > 0 {
 		params.Set("limit", strconv.Itoa(opts.Limit))
@@ -154,7 +328,7 @@ func (c *Client) Query(ctx context.Context, opts QueryOptions) (*EventList, erro
 		params.Set("offset", strconv.Itoa(opts.Offset))
 	}
 
-	path := "/api/events"
+	path := "/api/v1/events/query"
 	if len(params) > 0 {
 		path += "?" + params.Encode()
 	}
@@ -164,17 +338,6 @@ func (c *Client) Query(ctx context.Context, opts QueryOptions) (*EventList, erro
 		return nil, err
 	}
 
-	var wrapper struct {
-		Data json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(respData, &wrapper); err == nil && wrapper.Data != nil {
-		var el EventList
-		if err := json.Unmarshal(wrapper.Data, &el); err != nil {
-			return nil, fmt.Errorf("decode event list: %w", err)
-		}
-		return &el, nil
-	}
-
 	var el EventList
 	if err := json.Unmarshal(respData, &el); err != nil {
 		return nil, fmt.Errorf("decode event list: %w", err)
@@ -182,46 +345,24 @@ func (c *Client) Query(ctx context.Context, opts QueryOptions) (*EventList, erro
 	return &el, nil
 }
 
-// GetProjections returns all projections.
-func (c *Client) GetProjections(ctx context.Context) ([]Projection, error) {
-	respData, _, err := c.do(ctx, http.MethodGet, "/api/projections", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var wrapper struct {
-		Data []Projection `json:"data"`
-	}
-	if err := json.Unmarshal(respData, &wrapper); err == nil && wrapper.Data != nil {
-		return wrapper.Data, nil
-	}
-
-	var projections []Projection
-	if err := json.Unmarshal(respData, &projections); err != nil {
-		return nil, fmt.Errorf("decode projections: %w", err)
-	}
-	return projections, nil
+// ProjectionList is a list of projections with a total.
+type ProjectionList struct {
+	Projections []Projection `json:"projections"`
+	Total       int          `json:"total"`
 }
 
-// GetProjection returns a single projection by name.
-func (c *Client) GetProjection(ctx context.Context, name string) (*Projection, error) {
-	respData, _, err := c.do(ctx, http.MethodGet, "/api/projections/"+url.PathEscape(name), nil)
+// GetProjections returns all projections.
+func (c *Client) GetProjections(ctx context.Context) (*ProjectionList, error) {
+	respData, _, err := c.do(ctx, http.MethodGet, "/api/v1/projections", nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var wrapper struct {
-		Data Projection `json:"data"`
+	var pl ProjectionList
+	if err := json.Unmarshal(respData, &pl); err != nil {
+		return nil, fmt.Errorf("decode projections: %w", err)
 	}
-	if err := json.Unmarshal(respData, &wrapper); err == nil && wrapper.Data.Name != "" {
-		return &wrapper.Data, nil
-	}
-
-	var p Projection
-	if err := json.Unmarshal(respData, &p); err != nil {
-		return nil, fmt.Errorf("decode projection: %w", err)
-	}
-	return &p, nil
+	return &pl, nil
 }
 
 // Health checks the API health endpoint.

@@ -2,6 +2,7 @@
 // All dashboard operations go through this client
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
+const CONTROL_PLANE_URL = process.env.NEXT_PUBLIC_CONTROL_PLANE_URL || "http://localhost:3901";
 
 export interface ApiError {
   code: string;
@@ -87,48 +88,6 @@ export class ApiClient {
 
   async logout(): Promise<ApiResponse<void>> {
     return this.request<void>("/api/auth/logout", { method: "POST" });
-  }
-
-  async register(data: RegisterRequest): Promise<ApiResponse<{ message: string }>> {
-    return this.request<{ message: string }>("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
-    return this.request<AuthResponse>("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async verifyEmail(token: string): Promise<ApiResponse<{ message: string }>> {
-    return this.request<{ message: string }>("/api/auth/verify-email", {
-      method: "POST",
-      body: JSON.stringify({ token }),
-    });
-  }
-
-  async forgotPassword(email: string): Promise<ApiResponse<{ message: string }>> {
-    return this.request<{ message: string }>("/api/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
-  }
-
-  async resetPassword(token: string, password: string): Promise<ApiResponse<{ message: string }>> {
-    return this.request<{ message: string }>("/api/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify({ token, password }),
-    });
-  }
-
-  async resendVerification(email: string): Promise<ApiResponse<{ message: string }>> {
-    return this.request<{ message: string }>("/api/auth/resend-verification", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
   }
 
   // Tenant endpoints
@@ -449,24 +408,6 @@ export interface User {
   provider: "google" | "github" | "email";
   email_verified: boolean;
   tenant_id: string;
-}
-
-export interface RegisterRequest {
-  name: string;
-  email: string;
-  password: string;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  user: User;
-  tenant: Tenant;
-  token: string;
-  new_user?: boolean;
 }
 
 export interface Tenant {
@@ -859,5 +800,8 @@ export interface UsageAnalyticsResponse {
 // Export singleton instance
 export const apiClient = new ApiClient();
 
-// Export API URL for OAuth redirects
+// Export API URL for Query Service requests
 export const getApiUrl = () => API_URL;
+
+// Export Control Plane URL for auth requests (login, register, OAuth)
+export const getControlPlaneUrl = () => CONTROL_PLANE_URL;

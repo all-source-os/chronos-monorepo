@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
+import { getApiUrl } from "@/lib/api/client";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -24,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   // Verify token by fetching user info
   try {
-    const meResponse = await fetch(`${API_URL}/api/auth/me`, {
+    const meResponse = await fetch(`${getApiUrl()}/api/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

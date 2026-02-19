@@ -157,7 +157,8 @@ defmodule QueryServiceEx.Projections.PortfolioStateTest do
         }
       ]
 
-      state = Enum.reduce(events, PortfolioState.initial_state(), &PortfolioState.apply_event(&2, &1))
+      state =
+        Enum.reduce(events, PortfolioState.initial_state(), &PortfolioState.apply_event(&2, &1))
 
       assert state["id"] == "port-1"
       assert state["name"] == "Renamed Portfolio"

@@ -8,7 +8,7 @@ defmodule QueryServiceEx.Projections.Behaviour do
   Projection modules are registered at compile time in `QueryServiceEx.Projections.Registry`.
   """
 
-  @doc "The entity type this projection folds over (e.g. \"index\", \"trade\")."
+  @doc ~s(The entity type this projection folds over, e.g. "index" or "trade".)
   @callback entity_type() :: String.t()
 
   @doc "The initial accumulator state before any events are applied."

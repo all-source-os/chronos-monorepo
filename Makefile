@@ -1,12 +1,12 @@
 .PHONY: help install dev build clean demo test lint check-versions \
-        core control web mcp \
+        core control web mcp registry \
         docker-build docker-test docker-test-quick docker-clean docker-purge \
-        docker-core docker-web docker-query docker-mcp docker-control \
+        docker-core docker-web docker-query docker-mcp docker-control docker-registry \
         ci quality-gates quality-rust quality-go quality-elixir quality-elixir-full \
         validate-workflows validate-workflows-quick \
         elixir-test elixir-test-failed elixir-test-watch elixir-test-report \
         release release-quick release-preflight version images-check \
-        perf-bench
+        perf-bench publish-sdks
 
 # Test output directory for failure reports
 TEST_OUTPUT_DIR := .test-reports
@@ -52,6 +52,7 @@ help:
 	@echo "  make control      - Run Go control plane only"
 	@echo "  make web          - Run Next.js web UI only"
 	@echo "  make mcp          - Run MCP server only"
+	@echo "  make registry     - Run SDK registry only"
 	@echo ""
 	@echo "Container Testing:"
 	@echo "  make docker-test       - Full container test suite (all services)"
@@ -66,6 +67,7 @@ help:
 	@echo "  make docker-query      - Build query-service container"
 	@echo "  make docker-mcp        - Build mcp-server container"
 	@echo "  make docker-control    - Build control-plane container"
+	@echo "  make docker-registry   - Build registry container"
 	@echo ""
 	@echo "Release:"
 	@echo "  make release           - Interactive release workflow (full)"
@@ -78,6 +80,7 @@ help:
 	@echo "  make bump-version      - Interactive version bump"
 	@echo "  make set-version VERSION=X.Y.Z - Set version across all services"
 	@echo "  make check-versions    - Check version consistency"
+	@echo "  make publish-sdks      - Dry-run SDK publishing (validate before CI)"
 	@echo ""
 	@echo "Performance:"
 	@echo "  make perf-bench        - Run performance benchmarks (release mode)"
@@ -292,6 +295,10 @@ mcp:
 	@echo "🤖 Starting MCP server"
 	cd apps/mcp-server-elixir && mix phx.server
 
+registry:
+	@echo "📦 Starting SDK registry on :3901"
+	DEPLOY_TOKEN=dev REGISTRY_DATA_DIR=/tmp/allsource-registry cargo run -p allsource-registry
+
 # =============================================================================
 # Container Testing Commands
 # =============================================================================
@@ -348,6 +355,10 @@ docker-mcp:
 docker-control:
 	@echo "🐳 Building control-plane container..."
 	docker build -t allsource-control-plane:test apps/control-plane
+
+docker-registry:
+	@echo "🐳 Building registry container..."
+	docker build -t allsource-registry:test -f apps/registry/Dockerfile .
 
 # =============================================================================
 # Docker Compose Commands
@@ -651,6 +662,14 @@ endif
 	@echo "Updating README.md version..."
 	@sed -i '' 's/version: "[0-9]*\.[0-9]*\.[0-9]*"/version: "$(VERSION)"/' README.md
 	@sed -i '' 's/\*\*Monorepo Version\*\*: v[0-9]*\.[0-9]*\.[0-9]*/\*\*Monorepo Version\*\*: v$(VERSION)/' README.md
+	@echo "Updating Rust SDK (Cargo.toml)..."
+	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' sdks/rust/Cargo.toml
+	@echo "Updating Go SDK (version.go)..."
+	@sed -i '' 's/Version = "[0-9]*\.[0-9]*\.[0-9]*"/Version = "$(VERSION)"/' sdks/go/version.go
+	@echo "Updating TypeScript SDK (package.json)..."
+	@sed -i '' 's/"version": "[0-9]*\.[0-9]*\.[0-9]*"/"version": "$(VERSION)"/' sdks/typescript/package.json
+	@echo "Updating Python SDK (pyproject.toml)..."
+	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' sdks/python-client/pyproject.toml
 	@echo ""
 	@echo "=== Version $(VERSION) set across all services ==="
 	@echo ""
@@ -663,8 +682,29 @@ endif
 	@echo "  - deploy/k8s/core.yaml"
 	@echo "  - deploy/k8s/query-service.yaml"
 	@echo "  - README.md"
+	@echo "  - sdks/rust/Cargo.toml"
+	@echo "  - sdks/go/version.go"
+	@echo "  - sdks/typescript/package.json"
+	@echo "  - sdks/python-client/pyproject.toml"
 	@echo ""
 	@echo "Run 'make check-versions' to verify consistency"
+
+# Dry-run SDK publishing (for local validation before CI does the real publish)
+publish-sdks:
+	@echo "=== SDK Publish Dry Run ==="
+	@echo ""
+	@echo "Rust SDK (crates.io)..."
+	cd sdks/rust && cargo publish --dry-run
+	@echo ""
+	@echo "TypeScript SDK (npm)..."
+	cd sdks/typescript && bun run build && npm pack
+	@echo ""
+	@echo "Python SDK (PyPI)..."
+	cd sdks/python-client && hatch build
+	@echo ""
+	@echo "Go SDK — no build step (synced to separate repo by CI)"
+	@echo ""
+	@echo "=== Dry run complete. Use CI to publish for real. ==="
 
 # Interactive version bump
 bump-version:

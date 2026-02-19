@@ -1,6 +1,6 @@
 # allsource-client
 
-Python SDK for the [AllSource Event Store](https://allsource.co).
+Python SDK for the [AllSource Event Store](https://all-source.xyz).
 
 ## Install
 
@@ -13,7 +13,7 @@ pip install allsource-client
 ```python
 from allsource_client import AllSourceClient
 
-client = AllSourceClient(api_key="as_your_key", base_url="https://api.allsource.co")
+client = AllSourceClient(api_key="as_your_key", base_url="https://api.all-source.xyz")
 
 # Ingest an event
 event = client.ingest("user.signup", "user-123", {"plan": "pro", "source": "web"})

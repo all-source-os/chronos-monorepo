@@ -158,7 +158,11 @@ defmodule QueryServiceEx.Projections.ProjectionServer do
           failed
 
         entity_state ->
-          case state.core_client.save_projection_state(state.projection_name, entity_id, entity_state) do
+          case state.core_client.save_projection_state(
+                 state.projection_name,
+                 entity_id,
+                 entity_state
+               ) do
             :ok ->
               failed
 
@@ -180,14 +184,18 @@ defmodule QueryServiceEx.Projections.ProjectionServer do
           :ets.insert(state.ets_table, {eid, entity_state})
         end
 
-        Logger.info("ProjectionServer[#{state.entity_type}] hydrated #{length(states)} entities from Core")
+        Logger.info(
+          "ProjectionServer[#{state.entity_type}] hydrated #{length(states)} entities from Core"
+        )
 
       {:ok, states} when is_list(states) ->
         for %{"entity_id" => eid, "state" => entity_state} <- states, not is_nil(entity_state) do
           :ets.insert(state.ets_table, {eid, entity_state})
         end
 
-        Logger.info("ProjectionServer[#{state.entity_type}] hydrated #{length(states)} entities from Core")
+        Logger.info(
+          "ProjectionServer[#{state.entity_type}] hydrated #{length(states)} entities from Core"
+        )
 
       {:error, reason} ->
         Logger.warning(
@@ -195,7 +203,9 @@ defmodule QueryServiceEx.Projections.ProjectionServer do
         )
 
       _ ->
-        Logger.info("ProjectionServer[#{state.entity_type}] no existing state in Core, starting fresh")
+        Logger.info(
+          "ProjectionServer[#{state.entity_type}] no existing state in Core, starting fresh"
+        )
     end
   end
 

@@ -29,7 +29,7 @@ class AllSourceAsyncClient:
     def __init__(
         self,
         api_key: str,
-        base_url: str = "https://api.allsource.co",
+        base_url: str = "https://api.all-source.xyz",
         timeout: float = 30.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")

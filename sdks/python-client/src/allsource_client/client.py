@@ -21,7 +21,7 @@ class AllSourceClient:
 
     Usage::
 
-        client = AllSourceClient(api_key="as_xxx", base_url="https://api.allsource.co")
+        client = AllSourceClient(api_key="as_xxx", base_url="https://api.all-source.xyz")
         event = client.ingest("user.signup", "user-123", {"plan": "pro"})
         events = client.query(event_type="user.signup")
     """
@@ -29,7 +29,7 @@ class AllSourceClient:
     def __init__(
         self,
         api_key: str,
-        base_url: str = "https://api.allsource.co",
+        base_url: str = "https://api.all-source.xyz",
         timeout: float = 30.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")

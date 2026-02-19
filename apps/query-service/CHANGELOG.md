@@ -5,6 +5,20 @@ All notable changes to the Query Service will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.6] - 2026-02-19
+
+### Fixed
+- **Query DSL crash** (GitHub #65): `POST /api/query` returned HTTP 500 when `%Query{}` struct fell through to the `is_map` clause in `maybe_add_next_link/3` that uses bracket syntax — structs don't implement the Access behaviour. Added explicit `%Query{}` catch-all clause before the generic map clause.
+- **AUTH_DISABLED bypass**: `AuthPipeline` now checks `DevMode.auth_disabled?()` first, before inspecting headers. Previously, a malformed `Authorization: Bearer <garbage>` header would trigger JWT validation and reject the request even when auth was disabled.
+
+### Added
+- Server-side projections: behaviour, registry, fold pipeline, 5 projection modules (IndexState, TradeState, PortfolioState, SagaState, ProjectionBehaviour)
+- Fold-on-read endpoint: `POST /api/query/projected` with snapshot-aware folding
+- Continuous projections: ProjectionServer (PubSub subscription) + DynamicSupervisor
+- Wire format standardization for all list endpoints
+
+---
+
 ## [0.2.0] - 2026-02-03
 
 ### Added

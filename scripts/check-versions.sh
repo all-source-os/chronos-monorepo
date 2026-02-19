@@ -372,6 +372,72 @@ get_app_versions() {
     log ""
 }
 
+get_sdk_versions() {
+    log "=== SDK Versions ==="
+
+    declare -A sdk_versions
+
+    # Rust SDK
+    if [ -f "sdks/rust/Cargo.toml" ]; then
+        local rust_sdk=$(grep -E '^version\s*=' sdks/rust/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "")
+        if [ -n "$rust_sdk" ]; then
+            sdk_versions["rust-sdk"]=$rust_sdk
+            log "  Rust SDK (Cargo.toml):       $rust_sdk"
+        fi
+    fi
+
+    # Go SDK
+    if [ -f "sdks/go/version.go" ]; then
+        local go_sdk=$(grep 'Version\s*=' sdks/go/version.go | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$go_sdk" ]; then
+            sdk_versions["go-sdk"]=$go_sdk
+            log "  Go SDK (version.go):         $go_sdk"
+        fi
+    fi
+
+    # TypeScript SDK
+    if [ -f "sdks/typescript/package.json" ]; then
+        local ts_sdk=$(grep '"version"' sdks/typescript/package.json | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+        if [ -n "$ts_sdk" ]; then
+            sdk_versions["ts-sdk"]=$ts_sdk
+            log "  TypeScript SDK (package.json): $ts_sdk"
+        fi
+    fi
+
+    # Python SDK
+    if [ -f "sdks/python-client/pyproject.toml" ]; then
+        local py_sdk=$(grep -E '^version\s*=' sdks/python-client/pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "")
+        if [ -n "$py_sdk" ]; then
+            sdk_versions["python-sdk"]=$py_sdk
+            log "  Python SDK (pyproject.toml): $py_sdk"
+        fi
+    fi
+
+    # Check SDK versions match each other
+    local unique_sdk=($(printf '%s\n' "${sdk_versions[@]}" | sort -u))
+    if [ ${#unique_sdk[@]} -gt 1 ]; then
+        log_error "SDK version mismatch detected!"
+        log_error "  Found versions: ${unique_sdk[*]}"
+        log_error "  Run 'make set-version VERSION=X.Y.Z' to fix"
+        for sdk in "${!sdk_versions[@]}"; do
+            add_json_result "$sdk" "sdk-version" "${unique_sdk[0]}" "${sdk_versions[$sdk]}" "error" ""
+        done
+    elif [ ${#unique_sdk[@]} -eq 1 ]; then
+        log_success "All SDK versions consistent: ${unique_sdk[0]}"
+        add_json_result "all-sdks" "sdk-version" "${unique_sdk[0]}" "${unique_sdk[0]}" "ok" ""
+    fi
+
+    # Check SDK versions match app version (Core as reference)
+    if [ ${#unique_sdk[@]} -eq 1 ] && [ -f "apps/core/Cargo.toml" ]; then
+        local core_version=$(grep -E '^version\s*=' apps/core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "")
+        if [ -n "$core_version" ] && [ "${unique_sdk[0]}" != "$core_version" ]; then
+            log_error "SDK version (${unique_sdk[0]}) does not match Core version ($core_version)"
+            add_json_result "sdks-vs-core" "version-sync" "$core_version" "${unique_sdk[0]}" "error" ""
+        fi
+    fi
+    log ""
+}
+
 get_alpine_versions() {
     log "=== Alpine Base Image Versions ==="
     
@@ -459,6 +525,7 @@ main() {
     fi
     
     get_app_versions
+    get_sdk_versions
     get_rust_versions
     get_go_versions
     get_node_versions

@@ -180,6 +180,7 @@ defmodule McpServerElixir.Infrastructure.CoreProducerTest do
   end
 
   describe "GenStage producer behavior" do
+    @tag :integration
     test "producer responds to demand", %{name: name} do
       {:ok, pid} = CoreProducer.start_link(name: name, poll_interval_ms: 50)
 

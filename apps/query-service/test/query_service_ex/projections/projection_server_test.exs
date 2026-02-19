@@ -60,10 +60,14 @@ defmodule QueryServiceEx.Projections.ProjectionServerTest do
   # Mock Core client that returns existing state for hydration
   defmodule HydrationCoreClient do
     def get_projection_state_summary(_name) do
-      {:ok, [
-        %{"entity_id" => "ent-1", "state" => %{"id" => "ent-1", "name" => "Alpha", "count" => 3}},
-        %{"entity_id" => "ent-2", "state" => %{"id" => "ent-2", "name" => "Beta", "count" => 1}}
-      ]}
+      {:ok,
+       [
+         %{
+           "entity_id" => "ent-1",
+           "state" => %{"id" => "ent-1", "name" => "Alpha", "count" => 3}
+         },
+         %{"entity_id" => "ent-2", "state" => %{"id" => "ent-2", "name" => "Beta", "count" => 1}}
+       ]}
     end
 
     def save_projection_state(_projection_name, _entity_id, _state), do: :ok
@@ -196,19 +200,27 @@ defmodule QueryServiceEx.Projections.ProjectionServerTest do
       pid = start_server()
       Process.sleep(50)
 
-      send(pid, {:new_event, %{
-        "event_type" => "test_ps.created",
-        "entity_id" => "idx-1",
-        "data" => %{"name" => "Original"},
-        "timestamp" => "2026-01-01T00:00:00Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "test_ps.created",
+           "entity_id" => "idx-1",
+           "data" => %{"name" => "Original"},
+           "timestamp" => "2026-01-01T00:00:00Z"
+         }}
+      )
 
-      send(pid, {:new_event, %{
-        "event_type" => "test_ps.updated",
-        "entity_id" => "idx-1",
-        "data" => %{"name" => "Updated"},
-        "timestamp" => "2026-01-01T00:01:00Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "test_ps.updated",
+           "entity_id" => "idx-1",
+           "data" => %{"name" => "Updated"},
+           "timestamp" => "2026-01-01T00:01:00Z"
+         }}
+      )
 
       Process.sleep(10)
 
@@ -223,19 +235,27 @@ defmodule QueryServiceEx.Projections.ProjectionServerTest do
       pid = start_server()
       Process.sleep(50)
 
-      send(pid, {:new_event, %{
-        "event_type" => "test_ps.created",
-        "entity_id" => "idx-1",
-        "data" => %{"name" => "First"},
-        "timestamp" => "2026-01-01T00:00:00Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "test_ps.created",
+           "entity_id" => "idx-1",
+           "data" => %{"name" => "First"},
+           "timestamp" => "2026-01-01T00:00:00Z"
+         }}
+      )
 
-      send(pid, {:new_event, %{
-        "event_type" => "test_ps.created",
-        "entity_id" => "idx-2",
-        "data" => %{"name" => "Second"},
-        "timestamp" => "2026-01-01T00:00:01Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "test_ps.created",
+           "entity_id" => "idx-2",
+           "data" => %{"name" => "Second"},
+           "timestamp" => "2026-01-01T00:00:01Z"
+         }}
+      )
 
       Process.sleep(10)
 
@@ -249,7 +269,11 @@ defmodule QueryServiceEx.Projections.ProjectionServerTest do
       pid = start_server()
       Process.sleep(50)
 
-      send(pid, {:new_event, %{"event_type" => "test_ps.created", "data" => %{"name" => "No ID"}}})
+      send(
+        pid,
+        {:new_event, %{"event_type" => "test_ps.created", "data" => %{"name" => "No ID"}}}
+      )
+
       Process.sleep(10)
 
       assert ProjectionServer.get_all_states(pid) == []
@@ -261,11 +285,15 @@ defmodule QueryServiceEx.Projections.ProjectionServerTest do
       pid = start_server()
       Process.sleep(50)
 
-      send(pid, {:new_event, %{
-        "event_type" => "unknown.event",
-        "entity_id" => "idx-1",
-        "data" => %{}
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "unknown.event",
+           "entity_id" => "idx-1",
+           "data" => %{}
+         }}
+      )
 
       Process.sleep(10)
 
@@ -283,12 +311,16 @@ defmodule QueryServiceEx.Projections.ProjectionServerTest do
       pid = start_server(sync_interval: 50)
       Process.sleep(30)
 
-      send(pid, {:new_event, %{
-        "event_type" => "test_ps.created",
-        "entity_id" => "idx-1",
-        "data" => %{"name" => "Synced"},
-        "timestamp" => "2026-01-01T00:00:00Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "test_ps.created",
+           "entity_id" => "idx-1",
+           "data" => %{"name" => "Synced"},
+           "timestamp" => "2026-01-01T00:00:00Z"
+         }}
+      )
 
       # Wait for sync tick
       Process.sleep(100)
@@ -311,12 +343,16 @@ defmodule QueryServiceEx.Projections.ProjectionServerTest do
       pid = start_server(core_client: FailingSaveCoreClient, sync_interval: 50)
       Process.sleep(30)
 
-      send(pid, {:new_event, %{
-        "event_type" => "test_ps.created",
-        "entity_id" => "idx-1",
-        "data" => %{"name" => "WillFail"},
-        "timestamp" => "2026-01-01T00:00:00Z"
-      }})
+      send(
+        pid,
+        {:new_event,
+         %{
+           "event_type" => "test_ps.created",
+           "entity_id" => "idx-1",
+           "data" => %{"name" => "WillFail"},
+           "timestamp" => "2026-01-01T00:00:00Z"
+         }}
+      )
 
       # Wait for two sync ticks
       Process.sleep(150)
@@ -335,12 +371,16 @@ defmodule QueryServiceEx.Projections.ProjectionServerTest do
       Process.sleep(50)
 
       for i <- 1..3 do
-        send(pid, {:new_event, %{
-          "event_type" => "test_ps.created",
-          "entity_id" => "idx-#{i}",
-          "data" => %{"name" => "Entity #{i}"},
-          "timestamp" => "2026-01-01T00:00:0#{i}Z"
-        }})
+        send(
+          pid,
+          {:new_event,
+           %{
+             "event_type" => "test_ps.created",
+             "entity_id" => "idx-#{i}",
+             "data" => %{"name" => "Entity #{i}"},
+             "timestamp" => "2026-01-01T00:00:0#{i}Z"
+           }}
+        )
       end
 
       Process.sleep(10)

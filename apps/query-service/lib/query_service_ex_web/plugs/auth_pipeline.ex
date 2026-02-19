@@ -27,18 +27,19 @@ defmodule QueryServiceExWeb.Plugs.AuthPipeline do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    cond do
-      has_api_key_header?(conn) ->
-        authenticate_api_key(conn)
+    if DevMode.auth_disabled?() do
+      bypass_auth(conn)
+    else
+      cond do
+        has_api_key_header?(conn) ->
+          authenticate_api_key(conn)
 
-      has_bearer_token?(conn) ->
-        authenticate_jwt(conn)
+        has_bearer_token?(conn) ->
+          authenticate_jwt(conn)
 
-      DevMode.auth_disabled?() ->
-        bypass_auth(conn)
-
-      true ->
-        reject(conn, "missing authentication credentials")
+        true ->
+          reject(conn, "missing authentication credentials")
+      end
     end
   end
 
