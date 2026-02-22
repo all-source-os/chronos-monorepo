@@ -11,9 +11,18 @@ primary_region = "iad"
   GIN_MODE = "release"
   PORT = "3901"
   CORE_SERVICE_URL = "http://allsource-core.internal:3900"
+  # OAuth callback URL must match the domain registered with GitHub/Google.
+  # Since OAuth providers redirect to the frontend, and Next.js proxies
+  # /api/v1/auth/oauth/* to this service, this must be the frontend URL.
+  CONTROL_PLANE_URL = "https://www.all-source.xyz"
+  FRONTEND_URL = "https://www.all-source.xyz"
 
 # Required secrets (set via flyctl secrets set):
 # - JWT_SECRET: openssl rand -base64 32
+# - GITHUB_CLIENT_ID: GitHub OAuth App client ID
+# - GITHUB_CLIENT_SECRET: GitHub OAuth App client secret
+# - GOOGLE_CLIENT_ID: Google OAuth client ID
+# - GOOGLE_CLIENT_SECRET: Google OAuth client secret
 # - LEMON_SQUEEZY_API_KEY: LemonSqueezy API key (sk_live_...)
 # - LEMON_SQUEEZY_STORE_ID: LemonSqueezy store ID
 # - LEMON_SQUEEZY_WEBHOOK_SECRET: HMAC secret for webhook verification

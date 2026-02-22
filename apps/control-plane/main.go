@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
+	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/yaml.v3"
 
@@ -584,6 +585,10 @@ func (cp *ControlPlane) Shutdown() {
 var startTime time.Time
 
 func main() {
+	// Load .env from repo root (two levels up from apps/control-plane/).
+	// Silently ignored in production where real env vars are set.
+	_ = godotenv.Load("../../.env")
+
 	startTime = time.Now()
 
 	log.Println("AllSource Control Plane starting...")

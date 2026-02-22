@@ -77,11 +77,16 @@ func isSecureContext() bool {
 	return strings.HasPrefix(getFrontendURL(), "https://")
 }
 
+// getOAuthCallbackBaseURL returns the public base URL for OAuth callbacks.
+// In production, CONTROL_PLANE_URL must be set (e.g. https://allsource-control-plane.fly.dev).
+// Falls back to OAUTH_CALLBACK_BASE_URL for backwards compatibility, then localhost for dev.
 func getOAuthCallbackBaseURL() string {
-	if u := os.Getenv("OAUTH_CALLBACK_BASE_URL"); u != "" {
-		return u
+	if u := os.Getenv("CONTROL_PLANE_URL"); u != "" {
+		return strings.TrimRight(u, "/")
 	}
-	// Default to Control Plane's own URL
+	if u := os.Getenv("OAUTH_CALLBACK_BASE_URL"); u != "" {
+		return strings.TrimRight(u, "/")
+	}
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = DefaultPort

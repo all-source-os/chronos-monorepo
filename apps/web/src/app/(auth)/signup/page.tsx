@@ -70,8 +70,8 @@ function SignUpContent() {
   const handleOAuthSignUp = (provider: "google" | "github") => {
     setLoadingProvider(provider);
     setError(null);
-    const cpUrl = getControlPlaneUrl();
-    window.location.href = `${cpUrl}/api/v1/auth/oauth/${provider}`;
+    // Use same-origin path — Next.js rewrites proxy this to the control plane
+    window.location.href = `/api/v1/auth/oauth/${provider}`;
   };
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
