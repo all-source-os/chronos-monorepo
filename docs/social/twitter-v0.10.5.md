@@ -1,3 +1,7 @@
+---
+status: published
+---
+
 # Twitter Thread — AllSource Chronos v0.10.5
 
 ## Tweet 1/7 — Hook

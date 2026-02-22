@@ -1,6 +1,10 @@
+---
+status: published
+---
+
 # Twitter Thread — AllSource Chronos v0.10.6
 
-## Tweet 1/8 — Hook
+## 1/9
 
 Most startups depend on npm, PyPI, and crates.io to ship their SDKs.
 
@@ -12,7 +16,7 @@ AllSource Chronos v0.10.6 is out 🧵
 
 ---
 
-## Tweet 2/8 — The Registry
+## 2/9
 
 We ship SDKs in 4 languages. That means 4 package managers, 4 auth systems, 4 points of failure.
 
@@ -29,7 +33,23 @@ Runs on Fly.io. 31-line Dockerfile. ~15 MB image.
 
 ---
 
-## Tweet 3/8 — SDK Parity
+## 3/9
+
+Hot take: if your event store doesn't ship an SDK, it's not a database — it's a protocol spec with a README.
+
+Event sourcing is hard. Not the storage — the client code. Append is easy. But folding events into state, handling projections, retrying on transient failures, circuit-breaking when the server is down?
+
+Every team rebuilds this. In every language. Badly.
+
+Postgres doesn't need an SDK because SELECT is universal. Event stores don't have that luxury. Your wire format is your API. Your fold semantics are your query language.
+
+If you're not shipping a client that handles this, you're shipping homework.
+
+`#eventsourcing #databases #dx`
+
+---
+
+## 4/9
 
 Our Rust SDK had features the others didn't. That's fixed now.
 
@@ -50,7 +70,7 @@ Same capabilities. Every language.
 
 ---
 
-## Tweet 4/8 — OAuth Moved Where It Belongs
+## 5/9
 
 OAuth lived in the Query Service — an Elixir middleman that just forwarded everything to the Control Plane anyway.
 
@@ -67,7 +87,7 @@ Auth belongs in the auth service. Not the API gateway.
 
 ---
 
-## Tweet 5/8 — The Security Fixes You Don't See
+## 6/9
 
 While moving OAuth, we did a principal-engineer-level security audit:
 
@@ -83,7 +103,7 @@ The boring stuff that prevents the headlines.
 
 ---
 
-## Tweet 6/8 — Dead Code Purge
+## 7/9
 
 Deleted across this release:
 
@@ -99,7 +119,7 @@ Every line of dead code is a line someone will try to understand later. Don't ma
 
 ---
 
-## Tweet 7/8 — The Numbers
+## 8/9
 
 AllSource Chronos v0.10.6:
 
@@ -116,7 +136,7 @@ Small images. Big capabilities.
 
 ---
 
-## Tweet 8/8 — CTA
+## 9/9
 
 We're building an AI-native event store in the open. Rust core, Elixir API gateway, Go control plane.
 
