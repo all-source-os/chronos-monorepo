@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
@@ -215,7 +216,11 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 	callbackURL := fmt.Sprintf("%s/api/v1/auth/oauth/%s/callback", getOAuthCallbackBaseURL(), provider)
 
 	// Exchange code for provider access token
-	providerToken, err := exchangeCode(cp.client, provider, code, cfg, callbackURL)
+	// Use a plain HTTP client for external OAuth calls — cp.client has a service
+	// JWT as its default Bearer token which would override the provider's token.
+	oauthClient := resty.New().SetTimeout(10 * time.Second)
+
+	providerToken, err := exchangeCode(oauthClient, provider, code, cfg, callbackURL)
 	if err != nil {
 		log.Printf("[OAuth] Code exchange failed for %s: %v", provider, err)
 		c.Redirect(http.StatusFound, frontendURL+"/login?error=auth_failed")
@@ -223,7 +228,7 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 	}
 
 	// Fetch user info from provider
-	userInfo, err := fetchUserInfo(cp.client, provider, providerToken)
+	userInfo, err := fetchUserInfo(oauthClient, provider, providerToken)
 	if err != nil {
 		log.Printf("[OAuth] User info fetch failed for %s: %v", provider, err)
 		c.Redirect(http.StatusFound, frontendURL+"/login?error=auth_failed")
