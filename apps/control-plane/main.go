@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 	"github.com/joho/godotenv"
@@ -108,6 +109,25 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		jwtSecret = "default-secret-change-in-production"
 	}
 	authClient := NewAuthClient(jwtSecret)
+
+	// Sign a service-to-service JWT so the resty client can authenticate with Core.
+	// Uses a long-lived token with admin role — Core validates with the same shared secret.
+	serviceClaims := &Claims{
+		UserID:   "control-plane",
+		Username: "control-plane",
+		TenantID: "system",
+		Role:     entities.RoleAdmin,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Unix(),
+			IssuedAt:  time.Now().Unix(),
+			Subject:   "control-plane",
+		},
+	}
+	serviceToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, serviceClaims).SignedString([]byte(jwtSecret))
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign service JWT: %w", err)
+	}
+	client.SetAuthToken(serviceToken)
 
 	// Initialize audit logger
 	auditLogPath := os.Getenv("AUDIT_LOG_PATH")
