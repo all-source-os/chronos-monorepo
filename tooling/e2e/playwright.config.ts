@@ -48,23 +48,13 @@ export default defineConfig({
     },
   ],
 
-  /* Run Core API and web app before starting tests */
-  webServer: [
-    {
-      // Core API service (Rust) - must start first
-      command: "cd ../../apps/core && cargo build --release && ./target/release/allsource-core",
-      url: "http://localhost:3900/health",
-      reuseExistingServer: true,
-      timeout: 180_000, // Rust build + startup
-      stdout: "pipe",
-      stderr: "pipe",
-    },
-    {
-      // Web app (Next.js) - use dev server for faster iteration
-      command: "cd ../../apps/web && bun run dev",
-      url: "http://localhost:3000",
-      reuseExistingServer: true,
-      timeout: 60_000, // Dev server starts faster than build+start
-    },
-  ],
+  /* Start Next.js dev server before tests.
+   * Core API must be running externally (Docker or `make core`).
+   * The web app will start automatically if not already running. */
+  webServer: {
+    command: "cd ../../apps/web && bun run dev",
+    url: "http://localhost:3000",
+    reuseExistingServer: true,
+    timeout: 60_000,
+  },
 });

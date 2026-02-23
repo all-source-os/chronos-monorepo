@@ -17,6 +17,9 @@
       "name": "@allsource/core",
       "version": "0.1.0",
     },
+    "apps/registry": {
+      "name": "@allsource/registry",
+    },
     "apps/web": {
       "name": "@allsource/web",
       "version": "0.1.0",
@@ -116,7 +119,7 @@
     },
     "sdks/typescript": {
       "name": "@allsource/client",
-      "version": "0.1.0",
+      "version": "0.10.6",
       "devDependencies": {
         "@types/bun": "^1.1.13",
         "typescript": "^5.8.3",
@@ -147,6 +150,8 @@
     "@allsource/core": ["@allsource/core@workspace:apps/core"],
 
     "@allsource/e2e": ["@allsource/e2e@workspace:tooling/e2e"],
+
+    "@allsource/registry": ["@allsource/registry@workspace:apps/registry"],
 
     "@allsource/typescript-config": ["@allsource/typescript-config@workspace:tooling/typescript"],
 

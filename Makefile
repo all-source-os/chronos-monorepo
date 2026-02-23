@@ -2,7 +2,7 @@
         core control web mcp registry \
         docker-build docker-test docker-test-quick docker-clean docker-purge \
         docker-core docker-web docker-query docker-mcp docker-control docker-registry \
-        ci quality-gates quality-rust quality-go quality-elixir quality-elixir-full \
+        ci quality-gates quality-rust quality-go quality-elixir quality-elixir-full quality-e2e \
         validate-workflows validate-workflows-quick \
         elixir-test elixir-test-failed elixir-test-watch elixir-test-report \
         release release-quick release-preflight version images-check \
@@ -143,7 +143,7 @@ quality-gates: check-versions quality-rust quality-go quality-elixir
 	@echo "✅ All quality gates passed!"
 
 # Full CI pipeline - replicates exact GitHub Actions checks
-ci: check-versions quality-rust quality-go quality-elixir-full
+ci: check-versions quality-rust quality-go quality-elixir-full quality-e2e
 	@echo ""
 	@echo "=============================================="
 	@echo "✅ Full CI pipeline passed!"
@@ -274,6 +274,15 @@ quality-elixir-full:
 			exit 1; \
 		fi
 	@echo "✅ Full Elixir CI pipeline passed!"
+
+quality-e2e:
+	@echo ""
+	@echo "🎭 Running Playwright e2e tests..."
+	@echo "==================================="
+	cd tooling/e2e && bun install --frozen-lockfile 2>/dev/null || cd tooling/e2e && bun install
+	cd tooling/e2e && bunx playwright install --with-deps chromium
+	cd tooling/e2e && bunx playwright test
+	@echo "✅ Playwright e2e tests passed!"
 
 # =============================================================================
 # Individual Service Commands
