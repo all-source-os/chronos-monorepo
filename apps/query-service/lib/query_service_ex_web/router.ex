@@ -110,6 +110,27 @@ defmodule QueryServiceExWeb.Router do
     get("/hash-ring", ClusterController, :hash_ring)
   end
 
+  # Demo endpoints (no auth — demo-friendly)
+  scope "/api/v1/demo", QueryServiceExWeb do
+    pipe_through(:api)
+
+    post("/seed", DemoController, :seed)
+  end
+
+  # Feedback endpoint (no auth — demo-friendly)
+  scope "/api/v1", QueryServiceExWeb do
+    pipe_through(:api)
+
+    post("/feedback", DemoController, :feedback)
+  end
+
+  # Config endpoints (no auth — public config data)
+  scope "/api/v1/config", QueryServiceExWeb do
+    pipe_through(:api)
+
+    get("/benchmarks", ConfigController, :benchmarks)
+  end
+
   # Public auth routes (no authentication required)
   scope "/api/auth", QueryServiceExWeb do
     pipe_through(:api)

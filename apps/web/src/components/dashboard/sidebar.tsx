@@ -16,6 +16,7 @@ import {
   Settings,
   Sparkles,
   Users,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -31,6 +32,7 @@ const navigation = [
   { name: "Events", href: "/dashboard/events", icon: Activity },
   { name: "Pipelines", href: "/dashboard/pipelines", icon: GitBranch },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
+  { name: "Demo Zone", href: "/demo", icon: Zap },
   { name: "API Keys", href: "/dashboard/api-keys", icon: Key },
   { name: "Team", href: "/dashboard/team", icon: Users },
   { name: "Replay", href: "/dashboard/tools/replay", icon: RotateCcw },

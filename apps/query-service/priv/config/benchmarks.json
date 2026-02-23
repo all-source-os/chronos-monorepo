@@ -1,0 +1,51 @@
+{
+  "allsource": {
+    "throughput_events_per_sec": 469000,
+    "query_latency_p50_ms": 0.012,
+    "query_latency_p99_ms": 0.045,
+    "vector_search": "built-in",
+    "vector_search_setup": "zero-config",
+    "services_required": 1,
+    "storage": "WAL + Parquet + DashMap",
+    "mcp_token_reduction_pct": 90,
+    "mcp_latency_ms": 9,
+    "cost_per_million_events_usd": 0.12
+  },
+  "competitors": {
+    "kafka": {
+      "throughput_events_per_sec": 50000,
+      "query_latency_p50_ms": 5.0,
+      "vector_search": "none",
+      "vector_search_setup": "requires Pinecone/Weaviate",
+      "services_required": 3,
+      "note": "Kafka + Pinecone + ETL glue"
+    },
+    "redis": {
+      "throughput_events_per_sec": 100000,
+      "query_latency_p50_ms": 0.5,
+      "vector_search": "bolt-on (RediSearch)",
+      "vector_search_setup": "bolt-on",
+      "services_required": 2,
+      "note": "Redis + RediSearch module"
+    },
+    "elasticsearch": {
+      "throughput_events_per_sec": 30000,
+      "query_latency_p50_ms": 10.0,
+      "vector_search": "kNN plugin",
+      "vector_search_setup": "plugin + reindex",
+      "services_required": 1,
+      "note": "Heavy JVM footprint, complex tuning"
+    }
+  },
+  "cost_formulas": {
+    "raw_cost_per_million_tokens_usd": 3.00,
+    "mcp_cost_per_million_tokens_usd": 0.30,
+    "tokens_per_event_raw": 150,
+    "tokens_per_event_mcp": 15,
+    "vectors_cost_multiplier": 1.2
+  },
+  "_meta": {
+    "updated_at": "2026-02-23",
+    "note": "Edit this file to update comparison metrics without redeploying"
+  }
+}

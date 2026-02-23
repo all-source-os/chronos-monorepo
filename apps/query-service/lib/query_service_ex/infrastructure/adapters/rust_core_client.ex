@@ -605,6 +605,22 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
+  ## Demo
+
+  @doc "Seed demo data in Core. Returns {:ok, body} on success."
+  def seed_demo do
+    case Tesla.post(write_client(), "/api/v1/demo/seed", %{}) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   ## Snapshots
 
   @doc "List snapshots"

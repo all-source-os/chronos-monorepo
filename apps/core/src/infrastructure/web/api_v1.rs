@@ -216,6 +216,8 @@ pub async fn serve_v1(
         .route("/api/v1/config/{key}", get(get_config))
         .route("/api/v1/config/{key}", put(update_config))
         .route("/api/v1/config/{key}", delete(delete_config))
+        // Demo seeding
+        .route("/api/v1/demo/seed", post(super::demo_api::demo_seed_handler))
         // Event and data routes (protected by auth)
         .route("/api/v1/events", post(super::api::ingest_event_v1))
         .route(
@@ -471,6 +473,7 @@ const WRITE_PATHS: &[&str] = &[
     "/api/v1/audit/events",
     "/api/v1/config",
     "/api/v1/webhooks",
+    "/api/v1/demo/seed",
 ];
 
 /// Returns true if this request is a write operation that should be blocked on followers.

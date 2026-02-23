@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
   Settings,
+  Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -83,6 +84,14 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       icon: Settings,
       action: () => router.push("/dashboard/settings"),
       shortcut: "G S",
+      group: "Navigation",
+    },
+    {
+      id: "demo",
+      name: "Go to Demo Zone",
+      icon: Zap,
+      action: () => router.push("/demo"),
+      shortcut: "G D",
       group: "Navigation",
     },
     // Actions
