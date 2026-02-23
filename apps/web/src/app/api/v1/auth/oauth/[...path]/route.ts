@@ -22,9 +22,18 @@ async function proxyToControlPlane(
     url.searchParams.set(key, value);
   });
 
+  // Only forward headers the control plane needs. Passing the original Host
+  // header (www.all-source.xyz) causes Fly.io to misroute the request, and
+  // Vercel internal headers can confuse downstream services.
+  const headers: Record<string, string> = {};
+  const cookie = request.headers.get("cookie");
+  if (cookie) {
+    headers["cookie"] = cookie; // CSRF state cookie for OAuth callback
+  }
+
   const response = await fetch(url.toString(), {
     method: request.method,
-    headers: request.headers,
+    headers,
     redirect: "manual",
   });
 
