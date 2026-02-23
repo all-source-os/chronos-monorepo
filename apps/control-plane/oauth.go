@@ -78,13 +78,11 @@ func isSecureContext() bool {
 }
 
 // getOAuthCallbackBaseURL returns the public base URL for OAuth callbacks.
-// In production, CONTROL_PLANE_URL must be set (e.g. https://allsource-control-plane.fly.dev).
-// Falls back to OAUTH_CALLBACK_BASE_URL for backwards compatibility, then localhost for dev.
+// OAuth requests are proxied through the frontend (Next.js), so the callback
+// URL must use FRONTEND_URL — that's the domain registered with Google/GitHub.
+// Flow: Google → browser → frontend/api/v1/auth/oauth/:provider/callback → proxy → CP.
 func getOAuthCallbackBaseURL() string {
-	if u := os.Getenv("CONTROL_PLANE_URL"); u != "" {
-		return strings.TrimRight(u, "/")
-	}
-	if u := os.Getenv("OAUTH_CALLBACK_BASE_URL"); u != "" {
+	if u := os.Getenv("FRONTEND_URL"); u != "" {
 		return strings.TrimRight(u, "/")
 	}
 	port := os.Getenv("PORT")
