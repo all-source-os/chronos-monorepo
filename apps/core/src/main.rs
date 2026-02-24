@@ -154,7 +154,18 @@ async fn main() -> Result<()> {
         None
     };
 
-    let auth_manager = Arc::new(AuthManager::default());
+    let auth_manager = Arc::new(
+        match std::env::var("ALLSOURCE_JWT_SECRET") {
+            Ok(secret) if !secret.is_empty() => {
+                tracing::info!("Using ALLSOURCE_JWT_SECRET for JWT validation");
+                AuthManager::new(&secret)
+            }
+            _ => {
+                tracing::warn!("ALLSOURCE_JWT_SECRET not set — using random secret (tokens from other services will fail)");
+                AuthManager::default()
+            }
+        }
+    );
     let tenant_manager = Arc::new(TenantManager::new());
     let rate_limiter = Arc::new(RateLimiter::new(RateLimitConfig::professional()));
 
