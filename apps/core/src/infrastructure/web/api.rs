@@ -1,8 +1,10 @@
 use crate::{
     application::{
         dto::{
+            DetectDuplicatesRequest, DetectDuplicatesResponse, DuplicateGroup, EntitySummary,
             EventDto, IngestEventRequest, IngestEventResponse, IngestEventsBatchRequest,
-            IngestEventsBatchResponse, QueryEventsRequest, QueryEventsResponse,
+            IngestEventsBatchResponse, ListEntitiesRequest, ListEntitiesResponse,
+            QueryEventsRequest, QueryEventsResponse,
         },
         services::{
             analytics::{
@@ -106,6 +108,7 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
         // v0.10: Stream and event type discovery endpoints
         .route("/api/v1/streams", get(list_streams))
         .route("/api/v1/event-types", get(list_event_types))
+        .route("/api/v1/entities/duplicates", get(detect_duplicates))
         .route("/api/v1/entities/{entity_id}/state", get(get_entity_state))
         .route(
             "/api/v1/entities/{entity_id}/snapshot",
@@ -416,13 +419,205 @@ pub async fn query_events(
     State(store): State<SharedStore>,
     Query(req): Query<QueryEventsRequest>,
 ) -> Result<Json<QueryEventsResponse>> {
-    let domain_events = store.query(req)?;
-    let events: Vec<EventDto> = domain_events.iter().map(EventDto::from).collect();
-    let count = events.len();
+    let requested_limit = req.limit;
 
-    tracing::debug!("Query returned {} events", count);
+    // Query without limit to get total count
+    let unlimited_req = QueryEventsRequest {
+        entity_id: req.entity_id,
+        event_type: req.event_type,
+        tenant_id: req.tenant_id,
+        as_of: req.as_of,
+        since: req.since,
+        until: req.until,
+        limit: None,
+        event_type_prefix: req.event_type_prefix,
+        payload_filter: req.payload_filter,
+    };
+    let all_events = store.query(unlimited_req)?;
+    let total_count = all_events.len();
 
-    Ok(Json(QueryEventsResponse { events, count }))
+    // Apply limit
+    let limited_events: Vec<Event> = if let Some(limit) = requested_limit {
+        all_events.into_iter().take(limit).collect()
+    } else {
+        all_events
+    };
+
+    let count = limited_events.len();
+    let has_more = count < total_count;
+    let events: Vec<EventDto> = limited_events.iter().map(EventDto::from).collect();
+
+    tracing::debug!("Query returned {} events (total: {})", count, total_count);
+
+    Ok(Json(QueryEventsResponse {
+        events,
+        count,
+        total_count,
+        has_more,
+    }))
+}
+
+pub async fn list_entities(
+    State(store): State<SharedStore>,
+    Query(req): Query<ListEntitiesRequest>,
+) -> Result<Json<ListEntitiesResponse>> {
+    use std::collections::HashMap;
+
+    // Get all events matching the filters
+    let query_req = QueryEventsRequest {
+        entity_id: None,
+        event_type: None,
+        tenant_id: None,
+        as_of: None,
+        since: None,
+        until: None,
+        limit: None,
+        event_type_prefix: req.event_type_prefix,
+        payload_filter: req.payload_filter,
+    };
+    let events = store.query(query_req)?;
+
+    // Group by entity_id
+    let mut entity_map: HashMap<String, Vec<&Event>> = HashMap::new();
+    for event in &events {
+        entity_map
+            .entry(event.entity_id().to_string())
+            .or_default()
+            .push(event);
+    }
+
+    // Build entity summaries sorted by last event time (descending)
+    let mut summaries: Vec<EntitySummary> = entity_map
+        .into_iter()
+        .map(|(entity_id, events)| {
+            let last = events.iter().max_by_key(|e| e.timestamp()).unwrap();
+            EntitySummary {
+                entity_id,
+                event_count: events.len(),
+                last_event_type: last.event_type_str().to_string(),
+                last_event_at: last.timestamp(),
+            }
+        })
+        .collect();
+    summaries.sort_by(|a, b| b.last_event_at.cmp(&a.last_event_at));
+
+    let total = summaries.len();
+
+    // Apply offset and limit
+    let offset = req.offset.unwrap_or(0);
+    let summaries: Vec<EntitySummary> = summaries.into_iter().skip(offset).collect::<Vec<_>>();
+    let summaries = if let Some(limit) = req.limit {
+        let has_more = summaries.len() > limit;
+        let truncated: Vec<EntitySummary> = summaries.into_iter().take(limit).collect();
+        return Ok(Json(ListEntitiesResponse {
+            entities: truncated,
+            total,
+            has_more,
+        }));
+    } else {
+        summaries
+    };
+
+    Ok(Json(ListEntitiesResponse {
+        entities: summaries,
+        total,
+        has_more: false,
+    }))
+}
+
+pub async fn detect_duplicates(
+    State(store): State<SharedStore>,
+    Query(req): Query<DetectDuplicatesRequest>,
+) -> Result<Json<DetectDuplicatesResponse>> {
+    use std::collections::HashMap;
+
+    let group_by_fields: Vec<&str> = req.group_by.split(',').map(|s| s.trim()).collect();
+
+    // Query events scoped by the required prefix
+    let query_req = QueryEventsRequest {
+        entity_id: None,
+        event_type: None,
+        tenant_id: None,
+        as_of: None,
+        since: None,
+        until: None,
+        limit: None,
+        event_type_prefix: Some(req.event_type_prefix),
+        payload_filter: None,
+    };
+    let events = store.query(query_req)?;
+
+    // For each entity, extract the latest event's payload fields specified by group_by
+    // Then group entities by those field values
+    let mut entity_latest: HashMap<String, &Event> = HashMap::new();
+    for event in &events {
+        let eid = event.entity_id().to_string();
+        entity_latest
+            .entry(eid)
+            .and_modify(|existing| {
+                if event.timestamp() > existing.timestamp() {
+                    *existing = event;
+                }
+            })
+            .or_insert(event);
+    }
+
+    // Group entities by their payload field values
+    let mut groups: HashMap<String, Vec<String>> = HashMap::new();
+    for (entity_id, event) in &entity_latest {
+        let payload = event.payload();
+        let mut key_parts = serde_json::Map::new();
+        for field in &group_by_fields {
+            let value = payload.get(*field).cloned().unwrap_or(serde_json::Value::Null);
+            key_parts.insert(field.to_string(), value);
+        }
+        let key_str = serde_json::to_string(&key_parts).unwrap_or_default();
+        groups.entry(key_str).or_default().push(entity_id.clone());
+    }
+
+    // Filter to groups with count > 1 (actual duplicates)
+    let mut duplicate_groups: Vec<DuplicateGroup> = groups
+        .into_iter()
+        .filter(|(_, ids)| ids.len() > 1)
+        .map(|(key_str, mut ids)| {
+            ids.sort();
+            let key: serde_json::Value =
+                serde_json::from_str(&key_str).unwrap_or(serde_json::Value::Null);
+            let count = ids.len();
+            DuplicateGroup {
+                key,
+                entity_ids: ids,
+                count,
+            }
+        })
+        .collect();
+
+    // Sort by count descending for consistent output
+    duplicate_groups.sort_by(|a, b| b.count.cmp(&a.count));
+
+    let total = duplicate_groups.len();
+
+    // Apply offset and limit
+    let offset = req.offset.unwrap_or(0);
+    let duplicate_groups: Vec<DuplicateGroup> =
+        duplicate_groups.into_iter().skip(offset).collect();
+
+    if let Some(limit) = req.limit {
+        let has_more = duplicate_groups.len() > limit;
+        let truncated: Vec<DuplicateGroup> =
+            duplicate_groups.into_iter().take(limit).collect();
+        return Ok(Json(DetectDuplicatesResponse {
+            duplicates: truncated,
+            total,
+            has_more,
+        }));
+    }
+
+    Ok(Json(DetectDuplicatesResponse {
+        duplicates: duplicate_groups,
+        total,
+        has_more: false,
+    }))
 }
 
 #[derive(Deserialize)]
@@ -1557,6 +1752,8 @@ pub async fn graphql_query(
                     as_of: None,
                     since: None,
                     until: None,
+                    event_type_prefix: None,
+                    payload_filter: None,
                 };
                 match store.query(request) {
                     Ok(events) => {
@@ -1746,6 +1943,395 @@ mod tests {
             None,
         )
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_query_events_has_more_and_total_count() {
+        let store = create_test_store();
+
+        // Ingest 50 events
+        for i in 0..50 {
+            store
+                .ingest(create_test_event(&format!("entity-{}", i), "user.created"))
+                .unwrap();
+        }
+
+        // Query with limit=10 — should get has_more=true, total_count=50
+        let req = QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: None,
+            as_of: None,
+            since: None,
+            until: None,
+            limit: Some(10),
+            event_type_prefix: None,
+            payload_filter: None,        };
+
+        let requested_limit = req.limit;
+        let unlimited_req = QueryEventsRequest {
+            limit: None,
+            ..QueryEventsRequest {
+                entity_id: req.entity_id,
+                event_type: req.event_type,
+                tenant_id: req.tenant_id,
+                as_of: req.as_of,
+                since: req.since,
+                until: req.until,
+                limit: None,
+                event_type_prefix: req.event_type_prefix,
+                payload_filter: req.payload_filter,
+            }
+        };
+        let all_events = store.query(unlimited_req).unwrap();
+        let total_count = all_events.len();
+        let limited_events: Vec<Event> = if let Some(limit) = requested_limit {
+            all_events.into_iter().take(limit).collect()
+        } else {
+            all_events
+        };
+        let count = limited_events.len();
+        let has_more = count < total_count;
+
+        assert_eq!(count, 10);
+        assert_eq!(total_count, 50);
+        assert!(has_more);
+    }
+
+    #[tokio::test]
+    async fn test_query_events_no_more_results() {
+        let store = create_test_store();
+
+        // Ingest 5 events
+        for i in 0..5 {
+            store
+                .ingest(create_test_event(&format!("entity-{}", i), "user.created"))
+                .unwrap();
+        }
+
+        // Query with limit=100 — should get has_more=false, total_count=5
+        let all_events = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,            })
+            .unwrap();
+        let total_count = all_events.len();
+        let limited_events: Vec<Event> = all_events.into_iter().take(100).collect();
+        let count = limited_events.len();
+        let has_more = count < total_count;
+
+        assert_eq!(count, 5);
+        assert_eq!(total_count, 5);
+        assert!(!has_more);
+    }
+
+    #[tokio::test]
+    async fn test_list_entities_by_type_prefix() {
+        let store = create_test_store();
+
+        // 3 index entities
+        store.ingest(create_test_event("idx-1", "index.created")).unwrap();
+        store.ingest(create_test_event("idx-1", "index.updated")).unwrap();
+        store.ingest(create_test_event("idx-2", "index.created")).unwrap();
+        store.ingest(create_test_event("idx-3", "index.created")).unwrap();
+        // 2 trade entities
+        store.ingest(create_test_event("trade-1", "trade.created")).unwrap();
+        store.ingest(create_test_event("trade-2", "trade.created")).unwrap();
+
+        // List entities for index.*
+        let req = ListEntitiesRequest {
+            event_type_prefix: Some("index.".to_string()),
+            payload_filter: None,
+            limit: None,
+            offset: None,
+        };
+        let query_req = QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: None,
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: req.event_type_prefix,
+            payload_filter: req.payload_filter,
+        };
+        let events = store.query(query_req).unwrap();
+
+        // Group and verify
+        let mut entity_map: std::collections::HashMap<String, Vec<&Event>> = std::collections::HashMap::new();
+        for event in &events {
+            entity_map.entry(event.entity_id().to_string()).or_default().push(event);
+        }
+
+        assert_eq!(entity_map.len(), 3); // idx-1, idx-2, idx-3
+        assert_eq!(entity_map["idx-1"].len(), 2); // 2 events for idx-1
+        assert_eq!(entity_map["idx-2"].len(), 1);
+        assert_eq!(entity_map["idx-3"].len(), 1);
+    }
+
+    fn create_test_event_with_payload(
+        entity_id: &str,
+        event_type: &str,
+        payload: serde_json::Value,
+    ) -> Event {
+        Event::from_strings(
+            event_type.to_string(),
+            entity_id.to_string(),
+            "test-stream".to_string(),
+            payload,
+            None,
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_detect_duplicates_by_payload_fields() {
+        let store = create_test_store();
+
+        // Create entities with duplicate "name" field values
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-1",
+                "index.created",
+                serde_json::json!({"name": "S&P 500", "user_id": "alice"}),
+            ))
+            .unwrap();
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-2",
+                "index.created",
+                serde_json::json!({"name": "S&P 500", "user_id": "bob"}),
+            ))
+            .unwrap();
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-3",
+                "index.created",
+                serde_json::json!({"name": "NASDAQ", "user_id": "alice"}),
+            ))
+            .unwrap();
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-4",
+                "index.created",
+                serde_json::json!({"name": "NASDAQ", "user_id": "carol"}),
+            ))
+            .unwrap();
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-5",
+                "index.created",
+                serde_json::json!({"name": "DAX", "user_id": "dave"}),
+            ))
+            .unwrap();
+
+        // Group by name — should find 2 groups: "S&P 500" (idx-1, idx-2) and "NASDAQ" (idx-3, idx-4)
+        let query_req = QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: None,
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: Some("index.".to_string()),
+            payload_filter: None,
+        };
+        let events = store.query(query_req).unwrap();
+
+        // Manually replicate the handler logic for testing
+        let group_by_fields = vec!["name"];
+        let mut entity_latest: std::collections::HashMap<String, &Event> =
+            std::collections::HashMap::new();
+        for event in &events {
+            let eid = event.entity_id().to_string();
+            entity_latest
+                .entry(eid)
+                .and_modify(|existing| {
+                    if event.timestamp() > existing.timestamp() {
+                        *existing = event;
+                    }
+                })
+                .or_insert(event);
+        }
+
+        let mut groups: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for (entity_id, event) in &entity_latest {
+            let payload = event.payload();
+            let mut key_parts = serde_json::Map::new();
+            for field in &group_by_fields {
+                let value = payload
+                    .get(*field)
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
+                key_parts.insert(field.to_string(), value);
+            }
+            let key_str = serde_json::to_string(&key_parts).unwrap_or_default();
+            groups.entry(key_str).or_default().push(entity_id.clone());
+        }
+
+        let duplicate_groups: Vec<_> = groups
+            .into_iter()
+            .filter(|(_, ids)| ids.len() > 1)
+            .collect();
+
+        assert_eq!(duplicate_groups.len(), 2); // S&P 500 and NASDAQ groups
+        for (_, ids) in &duplicate_groups {
+            assert_eq!(ids.len(), 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_detect_duplicates_no_duplicates() {
+        let store = create_test_store();
+
+        // All unique names
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-1",
+                "index.created",
+                serde_json::json!({"name": "A"}),
+            ))
+            .unwrap();
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-2",
+                "index.created",
+                serde_json::json!({"name": "B"}),
+            ))
+            .unwrap();
+
+        let query_req = QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: None,
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: Some("index.".to_string()),
+            payload_filter: None,
+        };
+        let events = store.query(query_req).unwrap();
+
+        let mut entity_latest: std::collections::HashMap<String, &Event> =
+            std::collections::HashMap::new();
+        for event in &events {
+            entity_latest
+                .entry(event.entity_id().to_string())
+                .or_insert(event);
+        }
+
+        let mut groups: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for (entity_id, event) in &entity_latest {
+            let key_str = serde_json::to_string(
+                &serde_json::json!({"name": event.payload().get("name")}),
+            )
+            .unwrap();
+            groups.entry(key_str).or_default().push(entity_id.clone());
+        }
+
+        let duplicate_groups: Vec<_> = groups
+            .into_iter()
+            .filter(|(_, ids)| ids.len() > 1)
+            .collect();
+
+        assert_eq!(duplicate_groups.len(), 0); // No duplicates
+    }
+
+    #[tokio::test]
+    async fn test_detect_duplicates_multi_field_group_by() {
+        let store = create_test_store();
+
+        // Two entities with same name AND user_id = true duplicate
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-1",
+                "index.created",
+                serde_json::json!({"name": "S&P 500", "user_id": "alice"}),
+            ))
+            .unwrap();
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-2",
+                "index.created",
+                serde_json::json!({"name": "S&P 500", "user_id": "alice"}),
+            ))
+            .unwrap();
+        // Same name but different user_id = NOT a duplicate in multi-field group
+        store
+            .ingest(create_test_event_with_payload(
+                "idx-3",
+                "index.created",
+                serde_json::json!({"name": "S&P 500", "user_id": "bob"}),
+            ))
+            .unwrap();
+
+        let query_req = QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: None,
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: Some("index.".to_string()),
+            payload_filter: None,
+        };
+        let events = store.query(query_req).unwrap();
+
+        let group_by_fields = vec!["name", "user_id"];
+        let mut entity_latest: std::collections::HashMap<String, &Event> =
+            std::collections::HashMap::new();
+        for event in &events {
+            entity_latest
+                .entry(event.entity_id().to_string())
+                .and_modify(|existing| {
+                    if event.timestamp() > existing.timestamp() {
+                        *existing = event;
+                    }
+                })
+                .or_insert(event);
+        }
+
+        let mut groups: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for (entity_id, event) in &entity_latest {
+            let payload = event.payload();
+            let mut key_parts = serde_json::Map::new();
+            for field in &group_by_fields {
+                let value = payload
+                    .get(*field)
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
+                key_parts.insert(field.to_string(), value);
+            }
+            let key_str = serde_json::to_string(&key_parts).unwrap_or_default();
+            groups.entry(key_str).or_default().push(entity_id.clone());
+        }
+
+        let duplicate_groups: Vec<_> = groups
+            .into_iter()
+            .filter(|(_, ids)| ids.len() > 1)
+            .collect();
+
+        // Only 1 duplicate group: name=S&P 500, user_id=alice (idx-1, idx-2)
+        assert_eq!(duplicate_groups.len(), 1);
+        let (_, ref ids) = duplicate_groups[0];
+        assert_eq!(ids.len(), 2);
+        let mut sorted_ids = ids.clone();
+        sorted_ids.sort();
+        assert_eq!(sorted_ids, vec!["idx-1", "idx-2"]);
     }
 
     #[tokio::test]

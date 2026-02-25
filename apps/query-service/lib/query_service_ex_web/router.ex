@@ -83,6 +83,7 @@ defmodule QueryServiceExWeb.Router do
     get("/health", HealthController, :show)
     get("/health/live", HealthController, :live)
     get("/health/ready", HealthController, :ready)
+    get("/health/replay", HealthController, :replay)
 
     # Metrics endpoints
     # GET /api/metrics - JSON format (default) or Prometheus (with Accept header/format param)
@@ -135,8 +136,11 @@ defmodule QueryServiceExWeb.Router do
   scope "/api/auth", QueryServiceExWeb do
     pipe_through(:api)
 
-    # Dev token endpoint (only works when AUTH_DISABLED=true)
-    get("/dev-token", AuthController, :dev_token)
+    # Dev token endpoint — excluded from router entirely in prod builds.
+    # In non-prod, the controller still checks AUTH_DISABLED at runtime.
+    if Mix.env() != :prod do
+      get("/dev-token", AuthController, :dev_token)
+    end
   end
 
   # -------------------------------------------------------------------

@@ -22,6 +22,7 @@ func TestAuthClient_ValidateToken(t *testing.T) {
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(time.Hour).Unix(),
 			IssuedAt:  time.Now().Unix(),
+			Issuer:    "allsource",
 		},
 	}
 
@@ -58,6 +59,7 @@ func TestAuthClient_ValidateToken(t *testing.T) {
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: time.Now().Add(-time.Hour).Unix(), // Already expired
 				IssuedAt:  time.Now().Unix(),
+				Issuer:    "allsource",
 			},
 		}
 

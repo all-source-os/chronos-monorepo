@@ -196,6 +196,7 @@ pub async fn serve_v1(
         .route("/api/v1/tenants", post(create_tenant_handler))
         .route("/api/v1/tenants", get(list_tenants_handler))
         .route("/api/v1/tenants/{id}", get(get_tenant_handler))
+        .route("/api/v1/tenants/{id}", put(update_tenant_handler))
         .route("/api/v1/tenants/{id}/stats", get(get_tenant_stats_handler))
         .route("/api/v1/tenants/{id}/quotas", put(update_quotas_handler))
         .route(
@@ -230,6 +231,11 @@ pub async fn serve_v1(
             get(super::api::get_event_by_id),
         )
         .route("/api/v1/events/stream", get(super::api::events_websocket))
+        .route("/api/v1/entities", get(super::api::list_entities))
+        .route(
+            "/api/v1/entities/duplicates",
+            get(super::api::detect_duplicates),
+        )
         .route(
             "/api/v1/entities/{entity_id}/state",
             get(super::api::get_entity_state),

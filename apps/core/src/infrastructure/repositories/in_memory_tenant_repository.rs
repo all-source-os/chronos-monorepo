@@ -181,6 +181,7 @@ impl TenantRepository for InMemoryTenantRepository {
                 tenant.created_at(),
                 Utc::now(), // Update the updated_at timestamp
                 tenant.is_active(),
+                tenant.is_demo(),
                 tenant.metadata().clone(),
             );
             *entry = updated;
@@ -204,6 +205,7 @@ impl TenantRepository for InMemoryTenantRepository {
                 tenant.created_at(),
                 Utc::now(), // Update the updated_at timestamp
                 tenant.is_active(),
+                tenant.is_demo(),
                 tenant.metadata().clone(),
             );
             *entry = updated;
@@ -227,6 +229,7 @@ impl TenantRepository for InMemoryTenantRepository {
                 tenant.created_at(),
                 Utc::now(), // Update the updated_at timestamp
                 true,       // Activate
+                tenant.is_demo(),
                 tenant.metadata().clone(),
             );
             *entry = updated;
@@ -250,6 +253,7 @@ impl TenantRepository for InMemoryTenantRepository {
                 tenant.created_at(),
                 Utc::now(), // Update the updated_at timestamp
                 false,      // Deactivate
+                tenant.is_demo(),
                 tenant.metadata().clone(),
             );
             *entry = updated;
@@ -561,6 +565,7 @@ mod tests {
             tenant.created_at(),
             Utc::now(),
             tenant.is_active(),
+            tenant.is_demo(),
             tenant.metadata().clone(),
         );
 

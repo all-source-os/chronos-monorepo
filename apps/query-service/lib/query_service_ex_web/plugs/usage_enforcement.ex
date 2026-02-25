@@ -45,6 +45,11 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
       is_nil(tenant) ->
         conn
 
+      demo_tenant?(tenant) ->
+        # Demo tenants bypass quota enforcement but still track usage
+        increment_usage(tenant, type)
+        conn
+
       not quota_exceeded?(tenant, type) ->
         # Under quota — increment usage async and pass through
         increment_usage(tenant, type)
@@ -105,6 +110,12 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
   defp to_integer(v) when is_integer(v), do: v
   defp to_integer(v) when is_float(v), do: trunc(v)
   defp to_integer(v) when is_binary(v), do: String.to_integer(v)
+
+  # Demo tenant checking — Core returns is_demo at the top level of the tenant response
+
+  defp demo_tenant?(%{"is_demo" => true}), do: true
+  defp demo_tenant?(%{is_demo: true}), do: true
+  defp demo_tenant?(_), do: false
 
   # Overage checking
 

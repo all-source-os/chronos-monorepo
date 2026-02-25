@@ -103,6 +103,7 @@ impl EventSourcedTenantRepository {
                     .unwrap_or(serde_json::json!({}));
 
                 if let Ok(tid) = TenantId::new(tenant_id_str.to_string()) {
+                    let is_demo = payload["is_demo"].as_bool().unwrap_or(false);
                     let tenant = Tenant::reconstruct(
                         tid,
                         name,
@@ -112,6 +113,7 @@ impl EventSourcedTenantRepository {
                         event.timestamp(),
                         event.timestamp(),
                         true,
+                        is_demo,
                         metadata,
                     );
                     self.cache.insert(tenant_id_str.to_string(), tenant);
@@ -345,6 +347,7 @@ impl TenantRepository for EventSourcedTenantRepository {
                     tenant.created_at(),
                     chrono::Utc::now(),
                     tenant.is_active(),
+                    tenant.is_demo(),
                     tenant.metadata().clone(),
                 );
                 drop(current);

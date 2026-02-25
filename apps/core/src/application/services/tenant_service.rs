@@ -152,6 +152,9 @@ pub struct Tenant {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub active: bool,
+    /// Whether this is a demo tenant (skips billing)
+    #[serde(default)]
+    pub is_demo: bool,
     /// Custom metadata
     pub metadata: serde_json::Value,
 }
@@ -169,6 +172,7 @@ impl Tenant {
             created_at: now,
             updated_at: now,
             active: true,
+            is_demo: false,
             metadata: serde_json::json!({}),
         }
     }
@@ -316,6 +320,17 @@ impl TenantManager {
         Ok(tenant)
     }
 
+    /// Save (overwrite) an existing tenant
+    pub fn save_tenant(&self, tenant: &Tenant) -> Result<()> {
+        if !self.tenants.contains_key(&tenant.id) {
+            return Err(AllSourceError::ValidationError(
+                "Tenant not found".to_string(),
+            ));
+        }
+        self.tenants.insert(tenant.id.clone(), tenant.clone());
+        Ok(())
+    }
+
     /// Get tenant
     pub fn get_tenant(&self, tenant_id: &str) -> Result<Tenant> {
         self.tenants
@@ -446,6 +461,7 @@ impl TenantManager {
             "tenant_id": tenant.id,
             "name": tenant.name,
             "active": tenant.active,
+            "is_demo": tenant.is_demo,
             "usage": tenant.usage,
             "quotas": tenant.quotas,
             "utilization": tenant.quota_utilization(),

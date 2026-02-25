@@ -52,6 +52,13 @@ pub struct QueryEventsRequest {
 
     /// Limit number of results
     pub limit: Option<usize>,
+
+    /// Filter by event type prefix (e.g., "index." matches "index.created", "index.updated")
+    pub event_type_prefix: Option<String>,
+
+    /// Filter by payload fields (JSON string, e.g., `{"user_id":"abc-123"}`).
+    /// Matches events where payload contains ALL specified key-value pairs.
+    pub payload_filter: Option<String>,
 }
 
 /// DTO for query response
@@ -59,6 +66,8 @@ pub struct QueryEventsRequest {
 pub struct QueryEventsResponse {
     pub events: Vec<EventDto>,
     pub count: usize,
+    pub total_count: usize,
+    pub has_more: bool,
 }
 
 /// DTO for a single event in responses
@@ -93,6 +102,71 @@ impl From<Event> for EventDto {
     fn from(event: Event) -> Self {
         EventDto::from(&event)
     }
+}
+
+/// Request parameters for listing entities
+#[derive(Debug, Deserialize)]
+pub struct ListEntitiesRequest {
+    /// Filter entities by event type prefix
+    pub event_type_prefix: Option<String>,
+    /// Filter by payload fields (JSON string)
+    pub payload_filter: Option<String>,
+    /// Limit number of entities returned
+    pub limit: Option<usize>,
+    /// Offset for pagination
+    pub offset: Option<usize>,
+}
+
+/// A single entity summary in the list response
+#[derive(Debug, Serialize)]
+pub struct EntitySummary {
+    pub entity_id: String,
+    pub event_count: usize,
+    pub last_event_type: String,
+    pub last_event_at: DateTime<Utc>,
+}
+
+/// Response from listing entities
+#[derive(Debug, Serialize)]
+pub struct ListEntitiesResponse {
+    pub entities: Vec<EntitySummary>,
+    pub total: usize,
+    pub has_more: bool,
+}
+
+/// Request parameters for detecting duplicate entities
+#[derive(Debug, Deserialize)]
+pub struct DetectDuplicatesRequest {
+    /// Required: event type prefix to scope the search (no full-store scans)
+    pub event_type_prefix: String,
+    /// Comma-separated list of payload field names to group by (e.g., "name,user_id")
+    pub group_by: String,
+    /// Limit number of duplicate groups returned
+    pub limit: Option<usize>,
+    /// Offset for pagination
+    pub offset: Option<usize>,
+}
+
+/// A group of entities that share the same payload field values
+#[derive(Debug, Serialize)]
+pub struct DuplicateGroup {
+    /// The shared field values that define this group
+    pub key: serde_json::Value,
+    /// Entity IDs in this group
+    pub entity_ids: Vec<String>,
+    /// Number of entities in this group
+    pub count: usize,
+}
+
+/// Response from duplicate entity detection
+#[derive(Debug, Serialize)]
+pub struct DetectDuplicatesResponse {
+    /// Groups where count > 1
+    pub duplicates: Vec<DuplicateGroup>,
+    /// Total number of duplicate groups found
+    pub total: usize,
+    /// Whether more results are available
+    pub has_more: bool,
 }
 
 /// DTO for batch ingesting multiple events

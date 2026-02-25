@@ -5,10 +5,10 @@ type Role string
 
 // Role constants define the possible roles in the system.
 const (
-	RoleAdmin          Role = "Admin"
-	RoleDeveloper      Role = "Developer"
-	RoleReadOnly       Role = "ReadOnly"
-	RoleServiceAccount Role = "ServiceAccount"
+	RoleAdmin          Role = "admin"
+	RoleDeveloper      Role = "developer"
+	RoleReadOnly       Role = "readonly"
+	RoleServiceAccount Role = "serviceaccount"
 )
 
 // Permission represents a specific permission.

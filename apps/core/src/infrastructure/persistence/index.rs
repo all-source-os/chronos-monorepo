@@ -92,6 +92,17 @@ impl EventIndex {
         self.id_index.get(event_id).map(|offset| *offset)
     }
 
+    /// Get all event entries matching a type prefix (e.g., "index." matches "index.created")
+    pub fn get_by_type_prefix(&self, prefix: &str) -> Vec<IndexEntry> {
+        let mut entries = Vec::new();
+        for item in self.type_index.iter() {
+            if item.key().starts_with(prefix) {
+                entries.extend(item.value().clone());
+            }
+        }
+        entries
+    }
+
     /// Get all entities being tracked
     pub fn get_all_entities(&self) -> Vec<String> {
         self.entity_index.iter().map(|e| e.key().clone()).collect()
@@ -181,5 +192,28 @@ mod tests {
         let entries = index.get_by_type("user.created").unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].event_id, event_id);
+    }
+
+    #[test]
+    fn test_get_by_type_prefix() {
+        let index = EventIndex::new();
+        let ts = chrono::Utc::now();
+
+        index.index_event(Uuid::new_v4(), "e-1", "index.created", ts, 0).unwrap();
+        index.index_event(Uuid::new_v4(), "e-2", "index.updated", ts, 1).unwrap();
+        index.index_event(Uuid::new_v4(), "e-3", "trade.created", ts, 2).unwrap();
+
+        let entries = index.get_by_type_prefix("index.");
+        assert_eq!(entries.len(), 2);
+
+        let entries = index.get_by_type_prefix("trade.");
+        assert_eq!(entries.len(), 1);
+
+        let entries = index.get_by_type_prefix("nonexistent.");
+        assert_eq!(entries.len(), 0);
+
+        // Empty prefix matches all
+        let entries = index.get_by_type_prefix("");
+        assert_eq!(entries.len(), 3);
     }
 }

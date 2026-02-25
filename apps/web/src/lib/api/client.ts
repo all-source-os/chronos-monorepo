@@ -423,6 +423,7 @@ export interface Tenant {
   queries_quota: number;
   events_used: number;
   queries_used: number;
+  is_demo?: boolean;
   settings: Record<string, unknown>;
   created_at: string;
   updated_at: string;

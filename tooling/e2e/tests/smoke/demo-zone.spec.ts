@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
 
+const CP_URL =
+  process.env.CONTROL_PLANE_URL || "http://localhost:3901";
+
 /**
  * Demo Zone - Page Shell & Navigation (US-005)
  *
@@ -1447,5 +1450,91 @@ test.describe("Responsive Layout + Accessibility", () => {
     });
     // Focus was set programmatically; the element should at least be focusable
     expect(await sdkOption.evaluate((el) => el === document.activeElement)).toBe(true);
+  });
+});
+
+/**
+ * Demo Account Flow - Authenticated Demo Tests @demo
+ *
+ * Tests the full demo account flow: create demo account via Control Plane,
+ * authenticate, verify pre-seeded data is visible, interact with demo features.
+ */
+test.describe("Demo Account Flow @demo", () => {
+  let demoToken: string;
+
+  test.beforeAll(async ({ request }) => {
+    // Create a demo account via Control Plane
+    const resp = await request.post(`${CP_URL}/api/v1/demo/start`, {
+      headers: { "Content-Type": "application/json" },
+    });
+    if (resp.ok()) {
+      const data = await resp.json();
+      demoToken = data.api_key;
+    }
+  });
+
+  test("demo account authenticates and reaches dashboard @demo", async ({
+    page,
+  }) => {
+    test.skip(!demoToken, "Demo token not available (Control Plane not running)");
+
+    await page.goto(
+      `/api/auth/callback?token=${encodeURIComponent(demoToken)}&new_user=true`
+    );
+    await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 });
+
+    // Verify session
+    const sessionResp = await page.request.get("/api/auth/session");
+    expect(sessionResp.ok()).toBeTruthy();
+  });
+
+  test("demo dashboard shows demo banner @demo", async ({ page }) => {
+    test.skip(!demoToken, "Demo token not available (Control Plane not running)");
+
+    await page.goto(
+      `/api/auth/callback?token=${encodeURIComponent(demoToken)}`
+    );
+    await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 });
+
+    // If redirected to onboarding, navigate to dashboard
+    if (page.url().includes("onboarding")) {
+      await page.goto("/dashboard");
+    }
+
+    // Demo banner should be visible
+    await expect(page.getByText(/demo account/i)).toBeVisible({ timeout: 5000 });
+  });
+
+  test("demo account can access Live Fire view @demo", async ({ page }) => {
+    test.skip(!demoToken, "Demo token not available (Control Plane not running)");
+
+    // Authenticate first
+    await page.goto(
+      `/api/auth/callback?token=${encodeURIComponent(demoToken)}`
+    );
+    await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 });
+
+    // Navigate to demo zone
+    await page.goto("/demo");
+    await expect(
+      page.getByRole("heading", { name: "Demo Zone" })
+    ).toBeVisible();
+
+    // Live Fire should be active by default
+    const liveFire = page.getByRole("button", { name: /Live Fire/i });
+    await expect(liveFire).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("demo account can switch to MCP Showdown @demo", async ({ page }) => {
+    test.skip(!demoToken, "Demo token not available (Control Plane not running)");
+
+    await page.goto(
+      `/api/auth/callback?token=${encodeURIComponent(demoToken)}`
+    );
+    await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 });
+
+    await page.goto("/demo");
+    await page.getByRole("button", { name: /MCP Showdown/i }).click();
+    await expect(page).toHaveURL(/view=mcp-showdown/);
   });
 });

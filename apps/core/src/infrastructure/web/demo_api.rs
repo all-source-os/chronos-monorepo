@@ -32,7 +32,7 @@ pub async fn demo_seed_handler(
         since: None,
         until: None,
         limit: Some(1),
-    })?;
+        event_type_prefix: None, payload_filter: None,    })?;
 
     if !existing.is_empty() {
         return Ok(Json(serde_json::json!({

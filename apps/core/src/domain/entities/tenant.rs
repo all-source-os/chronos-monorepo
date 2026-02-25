@@ -314,6 +314,8 @@ pub struct Tenant {
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     active: bool,
+    #[serde(default)]
+    is_demo: bool,
     metadata: serde_json::Value,
 }
 
@@ -332,6 +334,7 @@ impl Tenant {
             created_at: now,
             updated_at: now,
             active: true,
+            is_demo: false,
             metadata: serde_json::json!({}),
         })
     }
@@ -346,6 +349,7 @@ impl Tenant {
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
         active: bool,
+        is_demo: bool,
         metadata: serde_json::Value,
     ) -> Self {
         Self {
@@ -357,6 +361,7 @@ impl Tenant {
             created_at,
             updated_at,
             active,
+            is_demo,
             metadata,
         }
     }
@@ -394,6 +399,10 @@ impl Tenant {
         self.active
     }
 
+    pub fn is_demo(&self) -> bool {
+        self.is_demo
+    }
+
     pub fn metadata(&self) -> &serde_json::Value {
         &self.metadata
     }
@@ -417,6 +426,12 @@ impl Tenant {
     /// Update quotas
     pub fn update_quotas(&mut self, quotas: TenantQuotas) {
         self.quotas = quotas;
+        self.updated_at = Utc::now();
+    }
+
+    /// Update is_demo flag
+    pub fn set_is_demo(&mut self, is_demo: bool) {
+        self.is_demo = is_demo;
         self.updated_at = Utc::now();
     }
 

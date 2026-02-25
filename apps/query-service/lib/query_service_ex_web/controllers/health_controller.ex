@@ -150,6 +150,20 @@ defmodule QueryServiceExWeb.HealthController do
     |> json(response)
   end
 
+  @doc """
+  Replay lag endpoint - reports how far behind the Query Service is from Core.
+
+  Returns the current replay lag state including event counts and status.
+  Status is "ready" when caught up, "catching_up" when behind.
+  """
+  def replay(conn, _params) do
+    state = QueryServiceEx.Infrastructure.Adapters.ReplayLagMonitor.get_state()
+
+    conn
+    |> put_status(:ok)
+    |> json(state)
+  end
+
   # Private functions
 
   defp perform_readiness_checks do

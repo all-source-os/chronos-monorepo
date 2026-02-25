@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -79,6 +80,7 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: now.Add(365 * 24 * time.Hour).Unix(), // 1 year
 			IssuedAt:  now.Unix(),
+			Issuer:    "allsource",
 			Subject:   tenantID,
 		},
 	}
@@ -112,6 +114,145 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 		"sample_events":   ingestedCount,
 		"tier":            "free",
 		"events_quota":    10000,
+		"getting_started": curls,
+	})
+}
+
+// DemoStartHandler provisions a demo tenant with enterprise quotas and sample data.
+// POST /api/v1/demo/start
+func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
+	// Accept optional name/email; generate defaults if absent
+	var req struct {
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	}
+	// Bind is best-effort — all fields optional
+	_ = c.ShouldBindJSON(&req)
+
+	// Generate a unique demo tenant ID
+	demoID := fmt.Sprintf("demo-%s", uuid.New().String()[:8])
+
+	name := req.Name
+	if name == "" {
+		name = "Demo User"
+	}
+	email := req.Email
+	if email == "" {
+		email = fmt.Sprintf("%s@demo.allsource.dev", demoID)
+	}
+
+	// Create the demo tenant via Core with is_demo: true and enterprise quotas
+	tenantBody := map[string]interface{}{
+		"id":       demoID,
+		"name":     name,
+		"is_demo":  true,
+		"metadata": map[string]interface{}{
+			"email": email,
+			"subscription": map[string]interface{}{
+				"tier":   "enterprise",
+				"status": "active",
+			},
+			"quotas": map[string]interface{}{
+				"events_quota":  -1,
+				"queries_quota": -1,
+			},
+		},
+	}
+
+	resp, err := cp.client.R().
+		SetBody(tenantBody).
+		Post("/api/v1/tenants")
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "core service unavailable", "message": err.Error()})
+		return
+	}
+
+	var tenantID string
+	switch {
+	case resp.StatusCode() == 201 || resp.StatusCode() == 200:
+		var result map[string]interface{}
+		if parseErr := json.Unmarshal(resp.Body(), &result); parseErr == nil {
+			if id, ok := result["id"].(string); ok {
+				tenantID = id
+			}
+		}
+		if tenantID == "" {
+			tenantID = demoID
+		}
+	case resp.StatusCode() == 409:
+		// Unlikely with UUID-based IDs but handle gracefully
+		tenantID = demoID
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "failed to create demo tenant",
+			"message": fmt.Sprintf("Core returned HTTP %d", resp.StatusCode()),
+		})
+		return
+	}
+
+	// Sign a JWT for the demo tenant
+	now := time.Now()
+	claims := &Claims{
+		UserID:   fmt.Sprintf("demo:%s", demoID),
+		Username: name,
+		TenantID: tenantID,
+		Role:     entities.RoleDeveloper,
+		IsAPIKey: true,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: now.Add(24 * time.Hour).Unix(), // 24h for demo
+			IssuedAt:  now.Unix(),
+			Issuer:    "allsource",
+			Subject:   demoID,
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	apiKey, err := token.SignedString([]byte(cp.authClient.jwtSecret))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate demo token"})
+		return
+	}
+
+	// Ingest sample business events (7 events across user/order lifecycle)
+	sampleEvents := buildSampleEvents(tenantID)
+	var ingestedCount int
+	for _, event := range sampleEvents {
+		r, postErr := cp.client.R().
+			SetBody(event).
+			Post("/api/v1/events")
+		if postErr == nil && r.StatusCode() < 400 {
+			ingestedCount++
+		}
+	}
+
+	// Trigger Core's rich demo seed (1000 events with embeddings).
+	// This is idempotent — Core checks for a marker event before seeding.
+	var coreSeeded bool
+	seedResp, seedErr := cp.client.R().
+		Post("/api/v1/demo/seed")
+	if seedErr == nil && seedResp.StatusCode() < 400 {
+		coreSeeded = true
+		var seedResult map[string]interface{}
+		if json.Unmarshal(seedResp.Body(), &seedResult) == nil {
+			if count, ok := seedResult["event_count"].(float64); ok {
+				ingestedCount += int(count)
+			}
+		}
+	}
+
+	baseURL := cp.getPublicBaseURL(c)
+	curls := buildSampleCurls(baseURL, apiKey, tenantID)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"tenant_id":     tenantID,
+		"api_key":       apiKey,
+		"is_demo":       true,
+		"expires_in":    "24h",
+		"sample_events": ingestedCount,
+		"core_seeded":   coreSeeded,
+		"tier":          "enterprise",
+		"events_quota":  -1,
+		"queries_quota": -1,
 		"getting_started": curls,
 	})
 }

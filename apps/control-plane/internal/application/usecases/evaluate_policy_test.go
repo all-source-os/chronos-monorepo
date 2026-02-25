@@ -57,7 +57,7 @@ func TestEvaluatePolicyUseCase_Execute(t *testing.T) {
 			Resource: "tenant",
 			Attributes: map[string]interface{}{
 				"operation": "create",
-				"role":      "Developer",
+				"role":      "developer",
 			},
 		}
 
@@ -76,7 +76,7 @@ func TestEvaluatePolicyUseCase_Execute(t *testing.T) {
 			Resource: "tenant",
 			Attributes: map[string]interface{}{
 				"operation": "create",
-				"role":      "Admin",
+				"role":      "admin",
 			},
 		}
 

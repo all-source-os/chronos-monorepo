@@ -235,6 +235,55 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcementTest do
     end
   end
 
+  describe "demo tenant bypass" do
+    test "allows request even when quota is exceeded for demo tenants" do
+      tenant =
+        core_tenant("t-demo", events_used: 99_999, events_quota: 100)
+        |> Map.put("is_demo", true)
+
+      conn =
+        conn(:post, "/api/events")
+        |> assign(:current_tenant, tenant)
+
+      opts = UsageEnforcement.init(type: :events)
+      result = UsageEnforcement.call(conn, opts)
+
+      refute result.halted
+    end
+
+    test "does not bypass for non-demo tenants" do
+      tenant =
+        core_tenant("t-not-demo", events_used: 10_000, events_quota: 10_000)
+        |> Map.put("is_demo", false)
+
+      conn =
+        conn(:post, "/api/events")
+        |> assign(:current_tenant, tenant)
+        |> put_private(:phoenix_format, "json")
+
+      opts = UsageEnforcement.init(type: :events)
+      result = UsageEnforcement.call(conn, opts)
+
+      assert result.halted
+      assert result.status == 402
+    end
+
+    test "bypasses queries quota for demo tenants" do
+      tenant =
+        core_tenant("t-demo-q", queries_used: 99_999, queries_quota: 100)
+        |> Map.put("is_demo", true)
+
+      conn =
+        conn(:post, "/api/query")
+        |> assign(:current_tenant, tenant)
+
+      opts = UsageEnforcement.init(type: :queries)
+      result = UsageEnforcement.call(conn, opts)
+
+      refute result.halted
+    end
+  end
+
   describe "tenant with no metadata" do
     test "treats missing quotas as 0 (allows through since 0 used >= 0 quota triggers block)" do
       # Tenant with no metadata at all — quotas default to 0, used defaults to 0

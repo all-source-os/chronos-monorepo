@@ -226,6 +226,8 @@ fn handle_xrange(
         since: None,
         until: None,
         limit,
+        event_type_prefix: None,
+        payload_filter: None,
     };
 
     if let Some(rest) = stream_key.strip_prefix("entity:") {
@@ -309,7 +311,7 @@ fn handle_xlen(
         since: None,
         until: None,
         limit: None,
-    };
+        event_type_prefix: None, payload_filter: None,    };
     if let Some(rest) = stream_key.strip_prefix("entity:") {
         request.entity_id = Some(rest.to_string());
     } else if let Some(rest) = stream_key.strip_prefix("type:") {

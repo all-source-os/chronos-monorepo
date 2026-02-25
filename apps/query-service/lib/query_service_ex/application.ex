@@ -54,7 +54,13 @@ defmodule QueryServiceEx.Application do
         QueryServiceEx.TeamStore,
 
         # Health checker for Core read nodes (polls /health, tracks lag in ETS)
-        QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
+        QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker,
+
+        # Replay lag monitor (polls Core stats, tracks event count lag)
+        QueryServiceEx.Infrastructure.Adapters.ReplayLagMonitor,
+
+        # Daily demo data reset (disabled unless DEMO_RESET_ENABLED=true)
+        QueryServiceEx.DemoReset
       ] ++
         cluster_children ++
         integration_children() ++

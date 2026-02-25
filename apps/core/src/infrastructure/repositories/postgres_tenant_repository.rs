@@ -168,6 +168,9 @@ impl PostgresTenantRepository {
             AllSourceError::StorageError(format!("Failed to deserialize usage: {e}"))
         })?;
 
+        // Extract is_demo (default false for existing rows without the column)
+        let is_demo: bool = row.try_get("is_demo").unwrap_or(false);
+
         // Reconstruct tenant
         Ok(Tenant::reconstruct(
             id,
@@ -178,6 +181,7 @@ impl PostgresTenantRepository {
             created_at,
             updated_at,
             active,
+            is_demo,
             metadata,
         ))
     }

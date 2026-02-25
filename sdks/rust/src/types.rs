@@ -33,14 +33,37 @@ pub struct Event {
 }
 
 /// Query parameters for filtering events. Uses builder pattern.
+///
+/// Supports two event type filters:
+/// - [`event_type`](Self::event_type): exact match (e.g., `"order.placed"`)
+/// - [`event_type_prefix`](Self::event_type_prefix): prefix match (e.g., `"order."` matches
+///   `"order.placed"`, `"order.shipped"`, etc.)
+///
+/// Core applies a default limit of 100 events. Use [`has_more`](QueryEventsResponse::has_more)
+/// on the response to check if more results are available, then paginate with `offset`.
+///
+/// # Example: querying all index.* events with prefix
+/// ```
+/// # use allsource::QueryEventsParams;
+/// let params = QueryEventsParams::new()
+///     .event_type_prefix("index.")
+///     .limit(50);
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct QueryEventsParams {
     pub entity_id: Option<String>,
     pub event_type: Option<String>,
+    /// Filter by event type prefix. For example, `"index."` matches `"index.created"`,
+    /// `"index.strategy.updated"`, `"index.deleted"`, etc.
+    /// This is mutually exclusive with `event_type` (exact match).
+    pub event_type_prefix: Option<String>,
     pub limit: Option<u32>,
     pub offset: Option<u32>,
     pub since: Option<String>,
     pub until: Option<String>,
+    /// Filter by payload fields. Keys and values are matched exactly against top-level payload fields.
+    /// Multiple entries use AND logic (all must match).
+    pub payload_filter: Option<std::collections::HashMap<String, String>>,
 }
 
 impl QueryEventsParams {
@@ -53,8 +76,17 @@ impl QueryEventsParams {
         self
     }
 
+    /// Filter by exact event type (e.g., `"order.placed"`).
+    /// For prefix matching, use [`event_type_prefix`](Self::event_type_prefix) instead.
     pub fn event_type(mut self, t: &str) -> Self {
         self.event_type = Some(t.to_string());
+        self
+    }
+
+    /// Filter by event type prefix (e.g., `"order."` matches `"order.placed"`, `"order.shipped"`).
+    /// For exact matching, use [`event_type`](Self::event_type) instead.
+    pub fn event_type_prefix(mut self, prefix: &str) -> Self {
+        self.event_type_prefix = Some(prefix.to_string());
         self
     }
 
@@ -78,6 +110,15 @@ impl QueryEventsParams {
         self
     }
 
+    /// Add a payload field filter. Events must have this key-value pair in their payload.
+    /// Call multiple times for AND logic (all must match).
+    pub fn payload_filter(mut self, key: &str, value: &str) -> Self {
+        self.payload_filter
+            .get_or_insert_with(std::collections::HashMap::new)
+            .insert(key.to_string(), value.to_string());
+        self
+    }
+
     /// Convert to query string pairs for reqwest.
     pub(crate) fn to_query_pairs(&self) -> Vec<(&str, String)> {
         let mut pairs = Vec::new();
@@ -86,6 +127,9 @@ impl QueryEventsParams {
         }
         if let Some(ref v) = self.event_type {
             pairs.push(("event_type", v.clone()));
+        }
+        if let Some(ref v) = self.event_type_prefix {
+            pairs.push(("event_type_prefix", v.clone()));
         }
         if let Some(v) = self.limit {
             pairs.push(("limit", v.to_string()));
@@ -99,20 +143,71 @@ impl QueryEventsParams {
         if let Some(ref v) = self.until {
             pairs.push(("until", v.clone()));
         }
+        if let Some(ref v) = self.payload_filter {
+            if let Ok(json) = serde_json::to_string(v) {
+                pairs.push(("payload_filter", json));
+            }
+        }
         pairs
     }
 }
 
 /// Response from querying events.
 ///
-/// Core returns `{"events": [...], "count": N}`.
+/// Core returns `{"events": [...], "count": N, "total_count": N, "has_more": bool}`.
 /// Query Service may return `{"data": [...], "count": N}`.
 /// This struct accepts both via serde alias.
+///
+/// The `total_count` and `has_more` fields are `Option` for backward compatibility
+/// with older Core versions that do not include them.
 #[derive(Debug, Clone, Deserialize)]
 pub struct QueryEventsResponse {
     pub count: u64,
     #[serde(alias = "data")]
     pub events: Vec<Event>,
+    /// Total number of matching events (before limit). `None` if the server does not support it.
+    pub total_count: Option<u64>,
+    /// Whether more results are available beyond the current page. `None` if not supported.
+    pub has_more: Option<bool>,
+}
+
+/// Summary of a single entity returned by the list-entities endpoint.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EntitySummary {
+    pub entity_id: String,
+    pub event_count: u64,
+    pub last_event_type: String,
+    pub last_event_at: String,
+}
+
+/// Response from listing entities.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListEntitiesResponse {
+    pub entities: Vec<EntitySummary>,
+    pub total: u64,
+    pub has_more: bool,
+}
+
+/// A group of entities that share the same payload field values (duplicates).
+#[derive(Debug, Clone, Deserialize)]
+pub struct DuplicateGroup {
+    /// The shared field values that define this group
+    pub key: Value,
+    /// Entity IDs in this group
+    pub entity_ids: Vec<String>,
+    /// Number of entities in this group
+    pub count: u64,
+}
+
+/// Response from duplicate entity detection.
+#[derive(Debug, Clone, Deserialize)]
+pub struct DetectDuplicatesResponse {
+    /// Groups where count > 1
+    pub duplicates: Vec<DuplicateGroup>,
+    /// Total number of duplicate groups found
+    pub total: u64,
+    /// Whether more results are available
+    pub has_more: bool,
 }
 
 /// Response from ingesting an event via Core.

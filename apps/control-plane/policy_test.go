@@ -227,7 +227,7 @@ func TestPolicyCondition_Evaluation(t *testing.T) {
 			condition: PolicyCondition{
 				Field:    "role",
 				Operator: "ne",
-				Value:    "Admin",
+				Value:    "admin",
 			},
 			ctx: PolicyContext{
 				Role: entities.RoleDeveloper,

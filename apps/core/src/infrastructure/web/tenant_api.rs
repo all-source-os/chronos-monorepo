@@ -3,6 +3,7 @@ use crate::{
     infrastructure::security::middleware::{Admin, Authenticated},
 };
 use axum::{Json, extract::State, http::StatusCode};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 // AppState is defined in api_v1.rs
@@ -19,6 +20,8 @@ pub struct CreateTenantRequest {
     pub description: Option<String>,
     pub quota_preset: Option<String>, // "free", "professional", "unlimited"
     pub quotas: Option<TenantQuotas>,
+    #[serde(default)]
+    pub is_demo: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -30,6 +33,7 @@ pub struct TenantResponse {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub active: bool,
+    pub is_demo: bool,
 }
 
 impl From<Tenant> for TenantResponse {
@@ -42,8 +46,17 @@ impl From<Tenant> for TenantResponse {
             created_at: tenant.created_at,
             updated_at: tenant.updated_at,
             active: tenant.active,
+            is_demo: tenant.is_demo,
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTenantRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub is_demo: Option<bool>,
+    pub quotas: Option<TenantQuotas>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,6 +97,13 @@ pub async fn create_tenant_handler(
     if let Some(desc) = req.description {
         tenant.description = Some(desc);
     }
+    tenant.is_demo = req.is_demo;
+
+    // Persist the updated fields back
+    state
+        .tenant_manager
+        .save_tenant(&tenant)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok((StatusCode::CREATED, Json(tenant.into())))
 }
@@ -196,6 +216,41 @@ pub async fn activate_tenant_handler(
         .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Update tenant (admin only)
+/// PUT /api/v1/tenants/:id
+pub async fn update_tenant_handler(
+    State(state): State<AppState>,
+    Admin(_): Admin,
+    axum::extract::Path(tenant_id): axum::extract::Path<String>,
+    Json(req): Json<UpdateTenantRequest>,
+) -> Result<Json<TenantResponse>, (StatusCode, String)> {
+    let mut tenant = state
+        .tenant_manager
+        .get_tenant(&tenant_id)
+        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+
+    if let Some(name) = req.name {
+        tenant.name = name;
+    }
+    if let Some(desc) = req.description {
+        tenant.description = Some(desc);
+    }
+    if let Some(is_demo) = req.is_demo {
+        tenant.is_demo = is_demo;
+    }
+    if let Some(quotas) = req.quotas {
+        tenant.quotas = quotas;
+    }
+    tenant.updated_at = Utc::now();
+
+    state
+        .tenant_manager
+        .save_tenant(&tenant)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(tenant.into()))
 }
 
 /// Delete tenant (admin only)

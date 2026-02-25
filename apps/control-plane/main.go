@@ -120,6 +120,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(365 * 24 * time.Hour).Unix(),
 			IssuedAt:  time.Now().Unix(),
+			Issuer:    "allsource",
 			Subject:   "control-plane",
 		},
 	}
@@ -268,6 +269,10 @@ func (cp *ControlPlane) setupRoutes() {
 	// Onboarding endpoint (public, no auth required)
 	onboard := cp.router.Group("/api/v1/onboard")
 	onboard.POST("/start", cp.OnboardHandler)
+
+	// Demo endpoint (public, no auth required)
+	demo := cp.router.Group("/api/v1/demo")
+	demo.POST("/start", cp.DemoStartHandler)
 
 	// Protected API endpoints
 	api := cp.router.Group("/api/v1")

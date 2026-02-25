@@ -101,7 +101,7 @@ func (pe *PolicyEngine) addDefaultPolicies() {
 			{
 				Field:    "role",
 				Operator: "ne",
-				Value:    "Admin",
+				Value:    "admin",
 			},
 		},
 		Priority: 90,

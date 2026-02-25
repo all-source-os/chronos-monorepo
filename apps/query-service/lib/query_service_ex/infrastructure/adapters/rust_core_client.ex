@@ -868,6 +868,50 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
+  @doc """
+  Delete a tenant.
+
+  ## Returns
+    * `:ok` - Tenant deleted
+    * `{:error, :not_found}` - Tenant does not exist
+    * `{:error, reason}` - Error details
+  """
+  def delete_tenant(tenant_id) when is_binary(tenant_id) do
+    case Tesla.delete(write_client(), "/api/v1/tenants/#{tenant_id}") do
+      {:ok, %Tesla.Env{status: status}} when status in [200, 204] ->
+        :ok
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Trigger demo data seeding in Core. Idempotent — skips if already seeded.
+
+  ## Returns
+    * `{:ok, result}` - Seed result map
+    * `{:error, reason}` - Error details
+  """
+  def demo_seed do
+    case Tesla.post(write_client(), "/api/v1/demo/seed", %{}) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   ## Metrics & Health
 
   @doc "Get system metrics"

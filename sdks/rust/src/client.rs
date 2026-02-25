@@ -262,6 +262,54 @@ impl QueryClient {
         self.transport.get("/health").await
     }
 
+    /// List distinct entities, optionally filtered by event type prefix.
+    ///
+    /// Uses Core's `/api/v1/entities` endpoint.
+    pub async fn list_entities(
+        &self,
+        event_type_prefix: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<ListEntitiesResponse, Error> {
+        let mut pairs: Vec<(&str, String)> = Vec::new();
+        if let Some(prefix) = event_type_prefix {
+            pairs.push(("event_type_prefix", prefix.to_string()));
+        }
+        if let Some(limit) = limit {
+            pairs.push(("limit", limit.to_string()));
+        }
+        if let Some(offset) = offset {
+            pairs.push(("offset", offset.to_string()));
+        }
+        self.transport.get_with_query("/api/v1/entities", &pairs).await
+    }
+
+    /// Detect duplicate entities by grouping on payload field values.
+    ///
+    /// Uses Core's `/api/v1/entities/duplicates` endpoint.
+    /// Requires `event_type_prefix` to scope the search (no full-store scans).
+    pub async fn detect_duplicates(
+        &self,
+        event_type_prefix: &str,
+        group_by: &str,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<DetectDuplicatesResponse, Error> {
+        let mut pairs: Vec<(&str, String)> = vec![
+            ("event_type_prefix", event_type_prefix.to_string()),
+            ("group_by", group_by.to_string()),
+        ];
+        if let Some(limit) = limit {
+            pairs.push(("limit", limit.to_string()));
+        }
+        if let Some(offset) = offset {
+            pairs.push(("offset", offset.to_string()));
+        }
+        self.transport
+            .get_with_query("/api/v1/entities/duplicates", &pairs)
+            .await
+    }
+
     /// Query events and fold them into domain state in one call.
     ///
     /// Convenience method that combines [`query_events`] + [`fold_events`].

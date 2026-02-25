@@ -19,9 +19,32 @@ defmodule QueryServiceEx.DevMode do
   """
   def auth_disabled? do
     case System.get_env("AUTH_DISABLED") do
-      val when val in ["true", "1"] -> true
-      _ -> false
+      val when val in ["true", "1"] ->
+        if production?() do
+          Logger.error(
+            "AUTH_DISABLED is set but ignored in production. " <>
+              "Unset AUTH_DISABLED or set MIX_ENV to dev/test."
+          )
+
+          false
+        else
+          true
+        end
+
+      _ ->
+        false
     end
+  end
+
+  @doc """
+  Returns true when running in production mode.
+
+  Checks the `RELEASE_MODE` env var (set in Docker/release builds) and
+  the compile-time Mix environment.
+  """
+  def production? do
+    System.get_env("RELEASE_MODE") == "true" ||
+      Application.get_env(:query_service_ex, :env) == :prod
   end
 
   @doc """

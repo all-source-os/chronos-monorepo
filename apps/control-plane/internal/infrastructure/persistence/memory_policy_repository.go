@@ -47,7 +47,7 @@ func (r *MemoryPolicyRepository) addDefaultPolicies() {
 		90,
 	)
 	_ = policy2.AddCondition("operation", "eq", "create") //nolint:errcheck // default policy initialization
-	_ = policy2.AddCondition("role", "ne", "Admin")       //nolint:errcheck // default policy initialization
+	_ = policy2.AddCondition("role", "ne", "admin")       //nolint:errcheck // default policy initialization
 	_ = r.Save(policy2)                                   //nolint:errcheck // default policy initialization
 
 	// Policy 3: Warn on large operations

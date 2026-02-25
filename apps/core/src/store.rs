@@ -581,7 +581,7 @@ impl EventStore {
             since: None,
             until: None,
             limit: None,
-        })?;
+            event_type_prefix: None, payload_filter: None,        })?;
 
         if events.is_empty() {
             return Err(AllSourceError::EntityNotFound(entity_id.to_string()));
@@ -714,6 +714,8 @@ impl EventStore {
             "entity"
         } else if request.event_type.is_some() {
             "type"
+        } else if request.event_type_prefix.is_some() {
+            "type_prefix"
         } else {
             "full_scan"
         };
@@ -741,11 +743,15 @@ impl EventStore {
                 .map(|entries| self.filter_entries(entries, &request))
                 .unwrap_or_default()
         } else if let Some(event_type) = &request.event_type {
-            // Use type index
+            // Use type index (exact match)
             self.index
                 .get_by_type(event_type)
                 .map(|entries| self.filter_entries(entries, &request))
                 .unwrap_or_default()
+        } else if let Some(prefix) = &request.event_type_prefix {
+            // Use type index (prefix match)
+            let entries = self.index.get_by_type_prefix(prefix);
+            self.filter_entries(entries, &request)
         } else {
             // Full scan (less efficient but necessary for complex queries)
             (0..events.len()).collect()
@@ -814,6 +820,27 @@ impl EventStore {
             return false;
         }
 
+        // Additional prefix filter if entity was primary
+        if request.entity_id.is_some()
+            && let Some(ref prefix) = request.event_type_prefix
+            && !event.event_type_str().starts_with(prefix)
+        {
+            return false;
+        }
+
+        // Payload field filtering
+        if let Some(ref filter_str) = request.payload_filter {
+            if let Ok(filter_obj) = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(filter_str) {
+                let payload = event.payload();
+                for (key, expected_value) in &filter_obj {
+                    match payload.get(key) {
+                        Some(actual_value) if actual_value == expected_value => {}
+                        _ => return false,
+                    }
+                }
+            }
+        }
+
         true
     }
 
@@ -864,7 +891,7 @@ impl EventStore {
             since: since_timestamp,
             until: None,
             limit: None,
-        })?;
+            event_type_prefix: None, payload_filter: None,        })?;
 
         // If no events and no snapshot, entity not found
         if events.is_empty() && since_timestamp.is_none() {
@@ -1224,6 +1251,17 @@ mod tests {
         .unwrap()
     }
 
+    fn create_test_event_with_payload(entity_id: &str, event_type: &str, payload: serde_json::Value) -> Event {
+        Event::from_strings(
+            event_type.to_string(),
+            entity_id.to_string(),
+            "default".to_string(),
+            payload,
+            None,
+        )
+        .unwrap()
+    }
+
     #[test]
     fn test_event_store_new() {
         let store = EventStore::new();
@@ -1284,7 +1322,7 @@ mod tests {
                 since: None,
                 until: None,
                 limit: None,
-            })
+                event_type_prefix: None, payload_filter: None,            })
             .unwrap();
 
         assert_eq!(results.len(), 2);
@@ -1313,7 +1351,7 @@ mod tests {
                 since: None,
                 until: None,
                 limit: None,
-            })
+                event_type_prefix: None, payload_filter: None,            })
             .unwrap();
 
         assert_eq!(results.len(), 2);
@@ -1337,7 +1375,7 @@ mod tests {
                 since: None,
                 until: None,
                 limit: Some(5),
-            })
+                event_type_prefix: None, payload_filter: None,            })
             .unwrap();
 
         assert_eq!(results.len(), 5);
@@ -1356,7 +1394,7 @@ mod tests {
                 since: None,
                 until: None,
                 limit: None,
-            })
+                event_type_prefix: None, payload_filter: None,            })
             .unwrap();
 
         assert!(results.is_empty());
@@ -1681,11 +1719,318 @@ mod tests {
                 since: None,
                 until: None,
                 limit: None,
-            })
+                event_type_prefix: None, payload_filter: None,            })
             .unwrap();
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].event_type_str(), "user.created");
+    }
+
+    #[test]
+    fn test_query_by_event_type_prefix() {
+        let store = EventStore::new();
+
+        // Ingest events with various types
+        store
+            .ingest(create_test_event("entity-1", "index.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-2", "index.updated"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-3", "trade.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-4", "trade.completed"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-5", "balance.updated"))
+            .unwrap();
+
+        // Query with prefix "index." should return exactly 2
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: Some("index.".to_string()),
+                payload_filter: None,
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|e| e.event_type_str().starts_with("index.")));
+    }
+
+    #[test]
+    fn test_query_by_event_type_prefix_empty_returns_all() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "index.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-2", "trade.created"))
+            .unwrap();
+
+        // Empty prefix matches all types
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: Some("".to_string()),
+                payload_filter: None,
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_query_by_event_type_prefix_no_match() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "index.created"))
+            .unwrap();
+
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: Some("nonexistent.".to_string()),
+                payload_filter: None,
+            })
+            .unwrap();
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_query_by_entity_with_type_prefix() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "index.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-1", "trade.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("entity-2", "index.updated"))
+            .unwrap();
+
+        // Query entity-1 with prefix "index." should return 1
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: Some("entity-1".to_string()),
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: Some("index.".to_string()),
+                payload_filter: None,
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].event_type_str(), "index.created");
+    }
+
+    #[test]
+    fn test_query_prefix_with_limit() {
+        let store = EventStore::new();
+
+        for i in 0..5 {
+            store
+                .ingest(create_test_event(&format!("entity-{}", i), "index.created"))
+                .unwrap();
+        }
+
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: Some(3),
+                event_type_prefix: Some("index.".to_string()),
+                payload_filter: None,
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 3);
+    }
+
+    #[test]
+    fn test_query_prefix_alongside_existing_filters() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event("entity-1", "index.created"))
+            .unwrap();
+        // Sleep briefly to ensure different timestamps
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        store
+            .ingest(create_test_event("entity-2", "index.strategy.updated"))
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        store
+            .ingest(create_test_event("entity-3", "index.deleted"))
+            .unwrap();
+
+        // Prefix with limit
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: Some(2),
+                event_type_prefix: Some("index.".to_string()),
+                payload_filter: None,
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_query_with_payload_filter() {
+        let store = EventStore::new();
+
+        // Ingest 5 events with user_id=alice
+        for i in 0..5 {
+            store
+                .ingest(create_test_event_with_payload(
+                    &format!("entity-{}", i),
+                    "user.action",
+                    serde_json::json!({"user_id": "alice", "action": "click"}),
+                ))
+                .unwrap();
+        }
+        // Ingest 5 events with user_id=bob
+        for i in 5..10 {
+            store
+                .ingest(create_test_event_with_payload(
+                    &format!("entity-{}", i),
+                    "user.action",
+                    serde_json::json!({"user_id": "bob", "action": "view"}),
+                ))
+                .unwrap();
+        }
+
+        // Filter for alice
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: Some("user.action".to_string()),
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: Some(r#"{"user_id":"alice"}"#.to_string()),
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 5);
+    }
+
+    #[test]
+    fn test_query_payload_filter_non_existent_field() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event_with_payload(
+                "entity-1",
+                "user.action",
+                serde_json::json!({"user_id": "alice"}),
+            ))
+            .unwrap();
+
+        // Filter for a field that doesn't exist — returns 0, not error
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: Some(r#"{"nonexistent":"value"}"#.to_string()),
+            })
+            .unwrap();
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_query_payload_filter_with_prefix() {
+        let store = EventStore::new();
+
+        store
+            .ingest(create_test_event_with_payload(
+                "entity-1",
+                "index.created",
+                serde_json::json!({"status": "active"}),
+            ))
+            .unwrap();
+        store
+            .ingest(create_test_event_with_payload(
+                "entity-2",
+                "index.created",
+                serde_json::json!({"status": "inactive"}),
+            ))
+            .unwrap();
+        store
+            .ingest(create_test_event_with_payload(
+                "entity-3",
+                "trade.created",
+                serde_json::json!({"status": "active"}),
+            ))
+            .unwrap();
+
+        // Combine prefix + payload filter
+        let results = store
+            .query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: Some("index.".to_string()),
+                payload_filter: Some(r#"{"status":"active"}"#.to_string()),
+            })
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entity_id().to_string(), "entity-1");
     }
 
     #[test]

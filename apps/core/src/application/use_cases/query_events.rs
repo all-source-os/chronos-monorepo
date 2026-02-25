@@ -68,6 +68,9 @@ impl QueryEventsUseCase {
             events.retain(|e| e.occurred_before(until));
         }
 
+        // Capture total before applying limit
+        let total_count = events.len();
+
         // Apply limit
         if let Some(limit) = request.limit {
             events.truncate(limit);
@@ -76,10 +79,13 @@ impl QueryEventsUseCase {
         // Convert to DTOs
         let event_dtos: Vec<EventDto> = events.iter().map(EventDto::from).collect();
         let count = event_dtos.len();
+        let has_more = count < total_count;
 
         Ok(QueryEventsResponse {
             events: event_dtos,
             count,
+            total_count,
+            has_more,
         })
     }
 }
@@ -225,7 +231,7 @@ mod tests {
             since: None,
             until: None,
             limit: None,
-        };
+            event_type_prefix: None, payload_filter: None,        };
 
         let response = use_case.execute(request).await;
         assert!(response.is_ok());
@@ -248,7 +254,7 @@ mod tests {
             since: None,
             until: None,
             limit: None,
-        };
+            event_type_prefix: None, payload_filter: None,        };
 
         let response = use_case.execute(request).await;
         assert!(response.is_ok());
@@ -271,7 +277,7 @@ mod tests {
             since: None,
             until: None,
             limit: Some(1),
-        };
+            event_type_prefix: None, payload_filter: None,        };
 
         let response = use_case.execute(request).await;
         assert!(response.is_ok());
@@ -294,7 +300,7 @@ mod tests {
             since: None,
             until: None,
             limit: None,
-        };
+            event_type_prefix: None, payload_filter: None,        };
 
         let response = use_case.execute(request).await;
         assert!(response.is_err());

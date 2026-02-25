@@ -4,6 +4,7 @@ import { cn } from "@allsource/ui/utils";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { CommandPalette } from "@/components/dashboard/command-palette";
+import { DemoBanner } from "@/components/dashboard/demo-banner";
 import { EarlyAccessBanner } from "@/components/dashboard/early-access-banner";
 import { Header } from "@/components/dashboard/header";
 import { HistoricalModeBanner } from "@/components/dashboard/historical-mode-banner";
@@ -107,6 +108,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             sidebarCollapsed ? "md:left-16" : "md:left-64"
           )}
         >
+          <DemoBanner />
           <EarlyAccessBanner />
           <HistoricalModeBanner />
         </div>

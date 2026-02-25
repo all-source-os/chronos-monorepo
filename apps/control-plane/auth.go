@@ -117,7 +117,7 @@ func RoleHasPermission(role entities.Role, perm entities.Permission) bool {
 func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip auth for health, metrics, public cluster health, webhooks, and auth endpoints
-		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathMetrics || c.Request.URL.Path == "/docs" || c.Request.URL.Path == "/openapi" || c.Request.URL.Path == "/api/v1/cluster/health" || strings.HasPrefix(c.Request.URL.Path, "/api/v1/webhooks/") || strings.HasPrefix(c.Request.URL.Path, "/api/v1/auth/") || strings.HasPrefix(c.Request.URL.Path, "/api/v1/onboard/") {
+		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathMetrics || c.Request.URL.Path == "/docs" || c.Request.URL.Path == "/openapi" || c.Request.URL.Path == "/api/v1/cluster/health" || strings.HasPrefix(c.Request.URL.Path, "/api/v1/webhooks/") || strings.HasPrefix(c.Request.URL.Path, "/api/v1/auth/") || strings.HasPrefix(c.Request.URL.Path, "/api/v1/onboard/") || strings.HasPrefix(c.Request.URL.Path, "/api/v1/demo/") {
 			c.Next()
 			return
 		}
@@ -276,6 +276,7 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name 
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: now.Add(7 * 24 * time.Hour).Unix(),
 			IssuedAt:  now.Unix(),
+			Issuer:    "allsource",
 			Subject:   userID,
 		},
 	}
@@ -392,6 +393,7 @@ func (cp *ControlPlane) LoginHandler(c *gin.Context) {
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: now.Add(7 * 24 * time.Hour).Unix(),
 			IssuedAt:  now.Unix(),
+			Issuer:    "allsource",
 			Subject:   userID,
 		},
 	}
