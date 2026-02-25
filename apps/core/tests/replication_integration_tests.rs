@@ -150,6 +150,7 @@ async fn test_leader_follower_wal_replication() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         };
         let follower_query = QueryEventsRequest {
             entity_id: Some(entity_id.clone()),
@@ -159,6 +160,7 @@ async fn test_leader_follower_wal_replication() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         };
 
         let leader_events = leader_store.query(leader_query).unwrap();
@@ -389,6 +391,7 @@ async fn test_replication_preserves_event_data_fidelity() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         };
 
         let follower_events = follower_store.query(query).unwrap();

@@ -52,11 +52,9 @@ func TestResponseCache_GetSet(t *testing.T) {
 
 	// Test set and get
 	cache.Set("test_key", "test_value", time.Minute)
-	got := cache.Get("test_key")
-	if got == nil {
+	if got := cache.Get("test_key"); got == nil {
 		t.Fatal("Get() = nil, want non-nil")
-	}
-	if got.Data != "test_value" {
+	} else if got.Data != "test_value" {
 		t.Errorf("Get().Data = %v, want test_value", got.Data)
 	}
 }

@@ -185,6 +185,7 @@ async fn test_static_stability_data_plane_uses_cache() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         })
         .unwrap();
     assert_eq!(events.len(), 1);

@@ -218,7 +218,10 @@ pub async fn serve_v1(
         .route("/api/v1/config/{key}", put(update_config))
         .route("/api/v1/config/{key}", delete(delete_config))
         // Demo seeding
-        .route("/api/v1/demo/seed", post(super::demo_api::demo_seed_handler))
+        .route(
+            "/api/v1/demo/seed",
+            post(super::demo_api::demo_seed_handler),
+        )
         // Event and data routes (protected by auth)
         .route("/api/v1/events", post(super::api::ingest_event_v1))
         .route(

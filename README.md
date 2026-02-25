@@ -1,8 +1,8 @@
 ---
 title: "AllSource Event Store - Monorepo"
 status: CURRENT
-last_updated: 2026-02-19
-version: "0.10.6"
+last_updated: 2026-02-26
+version: "0.10.7"
 ---
 
 <div align="center">
@@ -17,16 +17,16 @@ version: "0.10.6"
 [![Release](https://img.shields.io/github/v/release/all-source-os/all-source?label=release&color=blue)](https://github.com/all-source-os/all-source/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[![Core](https://img.shields.io/badge/Core-v0.10.6-orange?logo=rust&logoColor=white)](apps/core/)
-[![Control Plane](https://img.shields.io/badge/Control_Plane-v0.10.6-00ADD8?logo=go&logoColor=white)](apps/control-plane/)
-[![Query Service](https://img.shields.io/badge/Query_Service-v0.10.6-4B275F?logo=elixir&logoColor=white)](apps/query-service/)
-[![Web](https://img.shields.io/badge/Web-v0.10.6-000000?logo=next.js&logoColor=white)](apps/web/)
+[![Core](https://img.shields.io/badge/Core-v0.10.7-orange?logo=rust&logoColor=white)](apps/core/)
+[![Control Plane](https://img.shields.io/badge/Control_Plane-v0.10.7-00ADD8?logo=go&logoColor=white)](apps/control-plane/)
+[![Query Service](https://img.shields.io/badge/Query_Service-v0.10.7-4B275F?logo=elixir&logoColor=white)](apps/query-service/)
+[![Web](https://img.shields.io/badge/Web-v0.10.7-000000?logo=next.js&logoColor=white)](apps/web/)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-61_tools-8A2BE2)](apps/mcp-server-elixir/)
 
-[![Core Image](https://img.shields.io/badge/ghcr.io-allsource--core:0.10.6-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-core)
-[![Control Plane Image](https://img.shields.io/badge/ghcr.io-allsource--control--plane:0.10.6-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-control-plane)
-[![Query Service Image](https://img.shields.io/badge/ghcr.io-allsource--query--service:0.10.6-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-query-service)
-[![Web Image](https://img.shields.io/badge/ghcr.io-allsource--web:0.10.6-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-web)
+[![Core Image](https://img.shields.io/badge/ghcr.io-allsource--core:0.10.7-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-core)
+[![Control Plane Image](https://img.shields.io/badge/ghcr.io-allsource--control--plane:0.10.7-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-control-plane)
+[![Query Service Image](https://img.shields.io/badge/ghcr.io-allsource--query--service:0.10.7-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-query-service)
+[![Web Image](https://img.shields.io/badge/ghcr.io-allsource--web:0.10.7-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-web)
 
 </div>
 
@@ -81,7 +81,14 @@ tooling/
 
 ---
 
-## Project Status & Roadmap (v0.10.6)
+## Project Status & Roadmap (v0.10.7)
+
+### What's New in v0.10.7
+
+- **Query ergonomics**: `event_type_prefix` and `payload_filter` query parameters for flexible event filtering
+- **Duplicate entity detection**: `GET /api/v1/entities/duplicates` — group events by payload fields and find duplicates
+- **Consumer patterns guide**: `docs/current/QUERY_PATTERNS.md` — best practices for pagination, saga orchestration, and MCP consumers
+- **Control plane auth fixes**: OAuth proxy, service JWT for Core requests, frontend URL for callbacks
 
 > Full roadmap: [Consolidated Roadmap](docs/roadmaps/2026-02-15_CONSOLIDATED_ROADMAP.md) · Known gaps: [Roadmap P0](docs/roadmaps/2026-02-15_CONSOLIDATED_ROADMAP.md#p0-fix-existing-gaps)
 
@@ -146,21 +153,21 @@ AI-native interface for Claude Desktop or any MCP client.
 
 ## Docker Images
 
-All services ship at **v0.10.6**. Total production footprint: **~129 MB**.
+All services ship at **v0.10.7**. Total production footprint: **~129 MB**.
 
 | Service | Image | Size | Base |
 |---------|-------|:----:|------|
-| Core | `ghcr.io/all-source-os/allsource-core:0.10.6` | 15.7 MB | Distroless |
-| Control Plane | `ghcr.io/all-source-os/allsource-control-plane:0.10.6` | 27.9 MB | Distroless |
-| Query Service | `ghcr.io/all-source-os/allsource-query-service:0.10.6` | 35.1 MB | Alpine |
-| Web | `ghcr.io/all-source-os/allsource-web:0.10.6` | ~50 MB | Alpine |
+| Core | `ghcr.io/all-source-os/allsource-core:0.10.7` | 15.7 MB | Distroless |
+| Control Plane | `ghcr.io/all-source-os/allsource-control-plane:0.10.7` | 27.9 MB | Distroless |
+| Query Service | `ghcr.io/all-source-os/allsource-query-service:0.10.7` | 35.1 MB | Alpine |
+| Web | `ghcr.io/all-source-os/allsource-web:0.10.7` | ~50 MB | Alpine |
 
 ```bash
 # Quick start
 docker compose up -d
 
 # Pull specific version
-docker pull ghcr.io/all-source-os/allsource-core:0.10.6
+docker pull ghcr.io/all-source-os/allsource-core:0.10.7
 ```
 
 See [Docker Guide](docs/deployment/DOCKER.md) · [Release Guide](docs/guides/RELEASE.md)
@@ -189,7 +196,7 @@ cd apps/query-service && mix phx.server
 ### Testing
 
 ```bash
-cd apps/core && cargo test --lib          # 1466 tests
+cd apps/core && cargo test --lib          # 1482 tests
 cd apps/control-plane && go test ./...
 cd apps/query-service && mix test
 cd apps/mcp-server-elixir && mix test

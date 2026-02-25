@@ -111,6 +111,7 @@ fn bench_query_performance(c: &mut Criterion) {
                 since: None,
                 until: None,
                 limit: None,
+                ..Default::default()
             };
 
             store.query(black_box(request)).unwrap();
@@ -127,6 +128,7 @@ fn bench_query_performance(c: &mut Criterion) {
                 since: None,
                 until: None,
                 limit: Some(100),
+                ..Default::default()
             };
 
             store.query(black_box(request)).unwrap();

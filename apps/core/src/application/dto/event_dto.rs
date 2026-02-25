@@ -30,7 +30,7 @@ impl IngestEventResponse {
 }
 
 /// DTO for querying events
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct QueryEventsRequest {
     /// Filter by entity ID
     pub entity_id: Option<String>,

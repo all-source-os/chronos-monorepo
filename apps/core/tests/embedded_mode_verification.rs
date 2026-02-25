@@ -125,6 +125,7 @@ fn test_embedded_event_querying() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         })
         .expect("Failed to query events");
 
@@ -140,6 +141,7 @@ fn test_embedded_event_querying() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         })
         .expect("Failed to query by event type");
 
@@ -306,6 +308,7 @@ fn test_embedded_multi_tenant_isolation() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         })
         .unwrap();
 
@@ -664,6 +667,7 @@ fn test_embedded_full_workflow() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         })
         .unwrap();
 

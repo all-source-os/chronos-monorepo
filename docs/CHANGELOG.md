@@ -2,6 +2,22 @@
 
 All notable changes to AllSource Chronos are documented here.
 
+## [0.10.7] - 2026-02-26
+
+### Added
+- **Query ergonomics**: `event_type_prefix` query parameter for prefix-based event type filtering (e.g., "index." matches "index.created", "index.updated")
+- **Payload filtering**: `payload_filter` query parameter — JSON key-value matching against event payloads (e.g., `{"user_id":"abc-123"}`)
+- **Duplicate entity detection**: `GET /api/v1/entities/duplicates` endpoint — groups events by payload fields and identifies entities with duplicate values
+- **Consumer patterns guide**: `docs/current/QUERY_PATTERNS.md` — best practices for pagination, saga orchestration, uniqueness checks, and MCP consumers
+- **Demo zone**: interactive demo portal with one-click account provisioning and guided feature showcases
+- `Default` derive for `QueryEventsRequest` for ergonomic struct construction
+
+### Fixed
+- **Control plane OAuth proxy**: stopped forwarding Host header to prevent Fly.io misrouting
+- **Service JWT auth**: Core requests from Control Plane now authenticated with service JWT
+- **OAuth callback URL**: uses `FRONTEND_URL` for callback base URL instead of request host
+- **External OAuth calls**: uses plain HTTP client (no service auth headers) for provider API calls
+
 ## [0.10.6] - 2026-02-19
 
 ### Fixed

@@ -178,6 +178,7 @@ fn test_event_store_with_tenants() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
     let entity_events = store.query(query).expect("Failed to query by entity");
 

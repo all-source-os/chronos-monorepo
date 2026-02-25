@@ -1,7 +1,5 @@
 use crate::{
-    application::dto::QueryEventsRequest,
-    domain::entities::Event,
-    error::Result,
+    application::dto::QueryEventsRequest, domain::entities::Event, error::Result,
     infrastructure::web::api_v1::AppState,
 };
 use axum::{Json, extract::State};
@@ -20,9 +18,7 @@ const EMBEDDING_DIM: usize = 384;
 ///
 /// Idempotent: if a `demo.seed_marker` event already exists, returns
 /// immediately without duplicating data.
-pub async fn demo_seed_handler(
-    State(state): State<AppState>,
-) -> Result<Json<serde_json::Value>> {
+pub async fn demo_seed_handler(State(state): State<AppState>) -> Result<Json<serde_json::Value>> {
     // Idempotency check: look for our marker event
     let existing = state.store.query(QueryEventsRequest {
         entity_id: None,
@@ -32,7 +28,9 @@ pub async fn demo_seed_handler(
         since: None,
         until: None,
         limit: Some(1),
-        event_type_prefix: None, payload_filter: None,    })?;
+        event_type_prefix: None,
+        payload_filter: None,
+    })?;
 
     if !existing.is_empty() {
         return Ok(Json(serde_json::json!({
@@ -53,16 +51,66 @@ pub async fn demo_seed_handler(
     }
 
     let specs = [
-        EventSpec { event_type: "log.info",       entity_prefix: "server", count: 200, category_index: 0 },
-        EventSpec { event_type: "log.warning",    entity_prefix: "server", count: 100, category_index: 1 },
-        EventSpec { event_type: "log.error",      entity_prefix: "server", count: 100, category_index: 2 },
-        EventSpec { event_type: "metric.cpu",     entity_prefix: "infra",  count: 100, category_index: 3 },
-        EventSpec { event_type: "metric.memory",  entity_prefix: "infra",  count: 100, category_index: 4 },
-        EventSpec { event_type: "metric.latency", entity_prefix: "infra",  count: 100, category_index: 5 },
-        EventSpec { event_type: "user.signup",    entity_prefix: "user",   count: 80,  category_index: 6 },
-        EventSpec { event_type: "user.login",     entity_prefix: "user",   count: 80,  category_index: 7 },
-        EventSpec { event_type: "user.action",    entity_prefix: "user",   count: 80,  category_index: 8 },
-        EventSpec { event_type: "user.search",    entity_prefix: "user",   count: 60,  category_index: 9 },
+        EventSpec {
+            event_type: "log.info",
+            entity_prefix: "server",
+            count: 200,
+            category_index: 0,
+        },
+        EventSpec {
+            event_type: "log.warning",
+            entity_prefix: "server",
+            count: 100,
+            category_index: 1,
+        },
+        EventSpec {
+            event_type: "log.error",
+            entity_prefix: "server",
+            count: 100,
+            category_index: 2,
+        },
+        EventSpec {
+            event_type: "metric.cpu",
+            entity_prefix: "infra",
+            count: 100,
+            category_index: 3,
+        },
+        EventSpec {
+            event_type: "metric.memory",
+            entity_prefix: "infra",
+            count: 100,
+            category_index: 4,
+        },
+        EventSpec {
+            event_type: "metric.latency",
+            entity_prefix: "infra",
+            count: 100,
+            category_index: 5,
+        },
+        EventSpec {
+            event_type: "user.signup",
+            entity_prefix: "user",
+            count: 80,
+            category_index: 6,
+        },
+        EventSpec {
+            event_type: "user.login",
+            entity_prefix: "user",
+            count: 80,
+            category_index: 7,
+        },
+        EventSpec {
+            event_type: "user.action",
+            entity_prefix: "user",
+            count: 80,
+            category_index: 8,
+        },
+        EventSpec {
+            event_type: "user.search",
+            entity_prefix: "user",
+            count: 60,
+            category_index: 9,
+        },
     ];
 
     let mut total_count: usize = 0;
@@ -225,7 +273,13 @@ fn build_payload(event_type: &str, rng: &mut rand::rngs::ThreadRng, i: usize) ->
             })
         }
         "user.action" => {
-            let actions = ["viewed_dashboard", "created_event", "ran_query", "exported_data", "invited_member"];
+            let actions = [
+                "viewed_dashboard",
+                "created_event",
+                "ran_query",
+                "exported_data",
+                "invited_member",
+            ];
             let action_idx = rng.random_range(0..actions.len());
             let success = rng.random_range(0..10) > 1;
             serde_json::json!({
@@ -236,7 +290,16 @@ fn build_payload(event_type: &str, rng: &mut rand::rngs::ThreadRng, i: usize) ->
             })
         }
         "user.search" => {
-            let queries = ["cat videos", "error 500", "production deploy", "user signup", "latency spike", "memory leak", "api timeout", "database slow"];
+            let queries = [
+                "cat videos",
+                "error 500",
+                "production deploy",
+                "user signup",
+                "latency spike",
+                "memory leak",
+                "api timeout",
+                "database slow",
+            ];
             let query_idx = rng.random_range(0..queries.len());
             serde_json::json!({
                 "user_id": format!("usr-{:06}", rng.random_range(0..500)),

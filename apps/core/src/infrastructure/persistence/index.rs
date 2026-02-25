@@ -199,9 +199,15 @@ mod tests {
         let index = EventIndex::new();
         let ts = chrono::Utc::now();
 
-        index.index_event(Uuid::new_v4(), "e-1", "index.created", ts, 0).unwrap();
-        index.index_event(Uuid::new_v4(), "e-2", "index.updated", ts, 1).unwrap();
-        index.index_event(Uuid::new_v4(), "e-3", "trade.created", ts, 2).unwrap();
+        index
+            .index_event(Uuid::new_v4(), "e-1", "index.created", ts, 0)
+            .unwrap();
+        index
+            .index_event(Uuid::new_v4(), "e-2", "index.updated", ts, 1)
+            .unwrap();
+        index
+            .index_event(Uuid::new_v4(), "e-3", "trade.created", ts, 2)
+            .unwrap();
 
         let entries = index.get_by_type_prefix("index.");
         assert_eq!(entries.len(), 2);

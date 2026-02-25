@@ -30,7 +30,7 @@ var openAPIYAML []byte
 // Control plane configuration constants.
 const (
 	// Version is the current version of the control plane.
-	Version = "0.10.6"
+	Version = "0.10.7"
 	// DefaultPort is the default port the control plane listens on.
 	DefaultPort = "3901"
 	// CoreServiceURL is the URL of the core event store service.
@@ -612,7 +612,7 @@ var startTime time.Time
 func main() {
 	// Load .env from repo root (two levels up from apps/control-plane/).
 	// Silently ignored in production where real env vars are set.
-	_ = godotenv.Load("../../.env")
+	godotenv.Load("../../.env") //nolint:errcheck // best-effort .env load
 
 	startTime = time.Now()
 

@@ -192,6 +192,7 @@ async fn test_data_plane_continues_with_cached_metadata() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
     let results = store.query(query).unwrap();
     assert_eq!(results.len(), 1);
@@ -261,6 +262,7 @@ async fn test_corrupt_system_storage_graceful_degradation() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
     let results = store.query(query).unwrap();
     assert_eq!(results.len(), 1);
@@ -298,6 +300,7 @@ async fn test_separate_storage_dirs_prevent_cross_contamination() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
     let results = store.query(query).unwrap();
     assert_eq!(results.len(), 50);
@@ -316,6 +319,7 @@ async fn test_separate_storage_dirs_prevent_cross_contamination() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         })
         .unwrap();
     assert_eq!(results2.len(), 50);

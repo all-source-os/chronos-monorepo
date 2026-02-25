@@ -45,6 +45,7 @@ fn test_full_lifecycle_in_memory() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
 
     let events = store.query(query).unwrap();
@@ -162,6 +163,7 @@ fn test_wal_durability_and_recovery() {
             since: None,
             until: None,
             limit: None,
+            ..Default::default()
         };
         let events = store.query(query).unwrap();
         assert_eq!(events.len(), 30, "Should have exactly 30 events for user-2");
@@ -280,6 +282,7 @@ fn test_multi_entity_queries() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
     let events = store.query(query).unwrap();
     assert_eq!(events.len(), 10);
@@ -293,6 +296,7 @@ fn test_multi_entity_queries() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
     let events = store.query(query).unwrap();
     assert_eq!(events.len(), 50); // 5 users * 10 events
@@ -424,6 +428,7 @@ fn test_event_stream_ordering() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
 
     let events = store.query(query).unwrap();
@@ -512,6 +517,7 @@ fn test_entity_not_found_error() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
     let events = store.query(query).unwrap();
     assert_eq!(events.len(), 0);
@@ -619,6 +625,7 @@ fn test_metadata_preservation() {
         since: None,
         until: None,
         limit: None,
+        ..Default::default()
     };
 
     let events = store.query(query).unwrap();

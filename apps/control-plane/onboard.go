@@ -118,34 +118,61 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 	})
 }
 
-// DemoStartHandler provisions a demo tenant with enterprise quotas and sample data.
+// DemoStartHandler provisions a demo account through the normal registration flow.
+// Generates demo credentials, registers them via Core auth, creates a demo tenant,
+// seeds sample data, and returns the email + password for the user to log in normally.
+//
 // POST /api/v1/demo/start
 func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
-	// Accept optional name/email; generate defaults if absent
-	var req struct {
-		Email string `json:"email"`
-		Name  string `json:"name"`
-	}
-	// Bind is best-effort — all fields optional
-	_ = c.ShouldBindJSON(&req)
+	// Generate unique demo credentials
+	demoSlug := uuid.New().String()[:8]
+	email := fmt.Sprintf("demo-%s@demo.allsource.dev", demoSlug)
+	password := fmt.Sprintf("demo-%s-%s", demoSlug, uuid.New().String()[:8])
+	name := "Demo User"
 
-	// Generate a unique demo tenant ID
-	demoID := fmt.Sprintf("demo-%s", uuid.New().String()[:8])
+	// Step 1: Register credentials in Core (same path as normal RegisterHandler)
+	regResp, err := cp.client.R().
+		SetBody(map[string]string{
+			"username": email,
+			"email":    email,
+			"password": password,
+		}).
+		Post("/api/v1/auth/register")
 
-	name := req.Name
-	if name == "" {
-		name = "Demo User"
-	}
-	email := req.Email
-	if email == "" {
-		email = fmt.Sprintf("%s@demo.allsource.dev", demoID)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "service_unavailable", "message": "registration service is temporarily unavailable"})
+		return
 	}
 
-	// Create the demo tenant via Core with is_demo: true and enterprise quotas
+	if regResp.StatusCode() != 201 && regResp.StatusCode() != 200 {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "failed to create demo account",
+			"message": fmt.Sprintf("registration returned HTTP %d", regResp.StatusCode()),
+		})
+		return
+	}
+
+	// Parse Core's response for user ID
+	var coreResp struct {
+		UserID string `json:"user_id"`
+	}
+	if parseErr := json.Unmarshal(regResp.Body(), &coreResp); parseErr != nil {
+		coreResp.UserID = fmt.Sprintf("email:%s", email)
+	}
+	userID := coreResp.UserID
+	if userID == "" {
+		userID = fmt.Sprintf("email:%s", email)
+	}
+
+	// Step 2: Create tenant with is_demo: true and enterprise quotas
+	tenantSlug := strings.ReplaceAll(strings.ToLower(email), "@", "-at-")
+	tenantSlug = strings.ReplaceAll(tenantSlug, ".", "-")
+
 	tenantBody := map[string]interface{}{
-		"id":       demoID,
-		"name":     name,
-		"is_demo":  true,
+		"id":      userID,
+		"name":    name,
+		"slug":    tenantSlug,
+		"is_demo": true,
 		"metadata": map[string]interface{}{
 			"email": email,
 			"subscription": map[string]interface{}{
@@ -159,7 +186,7 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 		},
 	}
 
-	resp, err := cp.client.R().
+	tenantResp, err := cp.client.R().
 		SetBody(tenantBody).
 		Post("/api/v1/tenants")
 	if err != nil {
@@ -169,51 +196,27 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 
 	var tenantID string
 	switch {
-	case resp.StatusCode() == 201 || resp.StatusCode() == 200:
+	case tenantResp.StatusCode() == 201 || tenantResp.StatusCode() == 200:
 		var result map[string]interface{}
-		if parseErr := json.Unmarshal(resp.Body(), &result); parseErr == nil {
+		if parseErr := json.Unmarshal(tenantResp.Body(), &result); parseErr == nil {
 			if id, ok := result["id"].(string); ok {
 				tenantID = id
 			}
 		}
 		if tenantID == "" {
-			tenantID = demoID
+			tenantID = userID
 		}
-	case resp.StatusCode() == 409:
-		// Unlikely with UUID-based IDs but handle gracefully
-		tenantID = demoID
+	case tenantResp.StatusCode() == 409:
+		tenantID = userID
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "failed to create demo tenant",
-			"message": fmt.Sprintf("Core returned HTTP %d", resp.StatusCode()),
+			"message": fmt.Sprintf("Core returned HTTP %d", tenantResp.StatusCode()),
 		})
 		return
 	}
 
-	// Sign a JWT for the demo tenant
-	now := time.Now()
-	claims := &Claims{
-		UserID:   fmt.Sprintf("demo:%s", demoID),
-		Username: name,
-		TenantID: tenantID,
-		Role:     entities.RoleDeveloper,
-		IsAPIKey: true,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: now.Add(24 * time.Hour).Unix(), // 24h for demo
-			IssuedAt:  now.Unix(),
-			Issuer:    "allsource",
-			Subject:   demoID,
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	apiKey, err := token.SignedString([]byte(cp.authClient.jwtSecret))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate demo token"})
-		return
-	}
-
-	// Ingest sample business events (7 events across user/order lifecycle)
+	// Step 3: Seed sample data
 	sampleEvents := buildSampleEvents(tenantID)
 	var ingestedCount int
 	for _, event := range sampleEvents {
@@ -225,13 +228,10 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 		}
 	}
 
-	// Trigger Core's rich demo seed (1000 events with embeddings).
-	// This is idempotent — Core checks for a marker event before seeding.
-	var coreSeeded bool
+	// Trigger Core's rich demo seed (1000 events with embeddings, idempotent)
 	seedResp, seedErr := cp.client.R().
 		Post("/api/v1/demo/seed")
 	if seedErr == nil && seedResp.StatusCode() < 400 {
-		coreSeeded = true
 		var seedResult map[string]interface{}
 		if json.Unmarshal(seedResp.Body(), &seedResult) == nil {
 			if count, ok := seedResult["event_count"].(float64); ok {
@@ -240,20 +240,12 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 		}
 	}
 
-	baseURL := cp.getPublicBaseURL(c)
-	curls := buildSampleCurls(baseURL, apiKey, tenantID)
-
+	// Return credentials — the client logs in through the normal login flow
 	c.JSON(http.StatusCreated, gin.H{
-		"tenant_id":     tenantID,
-		"api_key":       apiKey,
+		"email":         email,
+		"password":      password,
 		"is_demo":       true,
-		"expires_in":    "24h",
 		"sample_events": ingestedCount,
-		"core_seeded":   coreSeeded,
-		"tier":          "enterprise",
-		"events_quota":  -1,
-		"queries_quota": -1,
-		"getting_started": curls,
 	})
 }
 

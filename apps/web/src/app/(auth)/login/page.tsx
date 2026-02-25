@@ -99,6 +99,7 @@ function LoginContent() {
     setIsDemoLoading(true);
     setError(null);
     try {
+      // Step 1: Create demo credentials via Control Plane
       const cpUrl = getControlPlaneUrl();
       const response = await fetch(`${cpUrl}/api/v1/demo/start`, {
         method: "POST",
@@ -108,8 +109,31 @@ function LoginContent() {
       if (!response.ok) {
         throw new Error(data.message || "Failed to create demo account");
       }
-      if (data.api_key) {
-        window.location.href = `/api/auth/callback?token=${encodeURIComponent(data.api_key)}&new_user=true`;
+
+      // Step 2: Fill the login form with demo credentials and submit
+      // This goes through the exact same handleEmailLogin path as a real user
+      setEmail(data.email);
+      setPassword(data.password);
+      setShowEmailForm(true);
+
+      // Step 3: Log in with the demo credentials through the normal flow
+      const loginResponse = await fetch(`${cpUrl}/api/v1/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: data.email, password: data.password }),
+      });
+
+      const loginData = await loginResponse.json();
+      if (!loginResponse.ok) {
+        throw new Error(loginData.message || "Demo login failed");
+      }
+
+      if (loginData.token) {
+        const isNewUser = loginData.new_user === true;
+        window.location.href = `/api/auth/callback?token=${encodeURIComponent(loginData.token)}&new_user=${isNewUser}`;
+      } else {
+        router.push("/dashboard");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start demo. Please try again.");

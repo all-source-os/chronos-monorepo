@@ -581,7 +581,9 @@ impl EventStore {
             since: None,
             until: None,
             limit: None,
-            event_type_prefix: None, payload_filter: None,        })?;
+            event_type_prefix: None,
+            payload_filter: None,
+        })?;
 
         if events.is_empty() {
             return Err(AllSourceError::EntityNotFound(entity_id.to_string()));
@@ -829,14 +831,15 @@ impl EventStore {
         }
 
         // Payload field filtering
-        if let Some(ref filter_str) = request.payload_filter {
-            if let Ok(filter_obj) = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(filter_str) {
-                let payload = event.payload();
-                for (key, expected_value) in &filter_obj {
-                    match payload.get(key) {
-                        Some(actual_value) if actual_value == expected_value => {}
-                        _ => return false,
-                    }
+        if let Some(ref filter_str) = request.payload_filter
+            && let Ok(filter_obj) =
+                serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(filter_str)
+        {
+            let payload = event.payload();
+            for (key, expected_value) in &filter_obj {
+                match payload.get(key) {
+                    Some(actual_value) if actual_value == expected_value => {}
+                    _ => return false,
                 }
             }
         }
@@ -891,7 +894,9 @@ impl EventStore {
             since: since_timestamp,
             until: None,
             limit: None,
-            event_type_prefix: None, payload_filter: None,        })?;
+            event_type_prefix: None,
+            payload_filter: None,
+        })?;
 
         // If no events and no snapshot, entity not found
         if events.is_empty() && since_timestamp.is_none() {
@@ -1251,7 +1256,11 @@ mod tests {
         .unwrap()
     }
 
-    fn create_test_event_with_payload(entity_id: &str, event_type: &str, payload: serde_json::Value) -> Event {
+    fn create_test_event_with_payload(
+        entity_id: &str,
+        event_type: &str,
+        payload: serde_json::Value,
+    ) -> Event {
         Event::from_strings(
             event_type.to_string(),
             entity_id.to_string(),
@@ -1322,7 +1331,9 @@ mod tests {
                 since: None,
                 until: None,
                 limit: None,
-                event_type_prefix: None, payload_filter: None,            })
+                event_type_prefix: None,
+                payload_filter: None,
+            })
             .unwrap();
 
         assert_eq!(results.len(), 2);
@@ -1351,7 +1362,9 @@ mod tests {
                 since: None,
                 until: None,
                 limit: None,
-                event_type_prefix: None, payload_filter: None,            })
+                event_type_prefix: None,
+                payload_filter: None,
+            })
             .unwrap();
 
         assert_eq!(results.len(), 2);
@@ -1375,7 +1388,9 @@ mod tests {
                 since: None,
                 until: None,
                 limit: Some(5),
-                event_type_prefix: None, payload_filter: None,            })
+                event_type_prefix: None,
+                payload_filter: None,
+            })
             .unwrap();
 
         assert_eq!(results.len(), 5);
@@ -1394,7 +1409,9 @@ mod tests {
                 since: None,
                 until: None,
                 limit: None,
-                event_type_prefix: None, payload_filter: None,            })
+                event_type_prefix: None,
+                payload_filter: None,
+            })
             .unwrap();
 
         assert!(results.is_empty());
@@ -1719,7 +1736,9 @@ mod tests {
                 since: None,
                 until: None,
                 limit: None,
-                event_type_prefix: None, payload_filter: None,            })
+                event_type_prefix: None,
+                payload_filter: None,
+            })
             .unwrap();
 
         assert_eq!(results.len(), 1);
@@ -1763,7 +1782,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(results.len(), 2);
-        assert!(results.iter().all(|e| e.event_type_str().starts_with("index.")));
+        assert!(
+            results
+                .iter()
+                .all(|e| e.event_type_str().starts_with("index."))
+        );
     }
 
     #[test]

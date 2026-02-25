@@ -568,7 +568,10 @@ pub async fn detect_duplicates(
         let payload = event.payload();
         let mut key_parts = serde_json::Map::new();
         for field in &group_by_fields {
-            let value = payload.get(*field).cloned().unwrap_or(serde_json::Value::Null);
+            let value = payload
+                .get(*field)
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
             key_parts.insert(field.to_string(), value);
         }
         let key_str = serde_json::to_string(&key_parts).unwrap_or_default();
@@ -599,13 +602,11 @@ pub async fn detect_duplicates(
 
     // Apply offset and limit
     let offset = req.offset.unwrap_or(0);
-    let duplicate_groups: Vec<DuplicateGroup> =
-        duplicate_groups.into_iter().skip(offset).collect();
+    let duplicate_groups: Vec<DuplicateGroup> = duplicate_groups.into_iter().skip(offset).collect();
 
     if let Some(limit) = req.limit {
         let has_more = duplicate_groups.len() > limit;
-        let truncated: Vec<DuplicateGroup> =
-            duplicate_groups.into_iter().take(limit).collect();
+        let truncated: Vec<DuplicateGroup> = duplicate_groups.into_iter().take(limit).collect();
         return Ok(Json(DetectDuplicatesResponse {
             duplicates: truncated,
             total,
@@ -1966,7 +1967,8 @@ mod tests {
             until: None,
             limit: Some(10),
             event_type_prefix: None,
-            payload_filter: None,        };
+            payload_filter: None,
+        };
 
         let requested_limit = req.limit;
         let unlimited_req = QueryEventsRequest {
@@ -2020,7 +2022,8 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
-                payload_filter: None,            })
+                payload_filter: None,
+            })
             .unwrap();
         let total_count = all_events.len();
         let limited_events: Vec<Event> = all_events.into_iter().take(100).collect();
@@ -2037,13 +2040,25 @@ mod tests {
         let store = create_test_store();
 
         // 3 index entities
-        store.ingest(create_test_event("idx-1", "index.created")).unwrap();
-        store.ingest(create_test_event("idx-1", "index.updated")).unwrap();
-        store.ingest(create_test_event("idx-2", "index.created")).unwrap();
-        store.ingest(create_test_event("idx-3", "index.created")).unwrap();
+        store
+            .ingest(create_test_event("idx-1", "index.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("idx-1", "index.updated"))
+            .unwrap();
+        store
+            .ingest(create_test_event("idx-2", "index.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("idx-3", "index.created"))
+            .unwrap();
         // 2 trade entities
-        store.ingest(create_test_event("trade-1", "trade.created")).unwrap();
-        store.ingest(create_test_event("trade-2", "trade.created")).unwrap();
+        store
+            .ingest(create_test_event("trade-1", "trade.created"))
+            .unwrap();
+        store
+            .ingest(create_test_event("trade-2", "trade.created"))
+            .unwrap();
 
         // List entities for index.*
         let req = ListEntitiesRequest {
@@ -2066,9 +2081,13 @@ mod tests {
         let events = store.query(query_req).unwrap();
 
         // Group and verify
-        let mut entity_map: std::collections::HashMap<String, Vec<&Event>> = std::collections::HashMap::new();
+        let mut entity_map: std::collections::HashMap<String, Vec<&Event>> =
+            std::collections::HashMap::new();
         for event in &events {
-            entity_map.entry(event.entity_id().to_string()).or_default().push(event);
+            entity_map
+                .entry(event.entity_id().to_string())
+                .or_default()
+                .push(event);
         }
 
         assert_eq!(entity_map.len(), 3); // idx-1, idx-2, idx-3
@@ -2234,10 +2253,9 @@ mod tests {
         let mut groups: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
         for (entity_id, event) in &entity_latest {
-            let key_str = serde_json::to_string(
-                &serde_json::json!({"name": event.payload().get("name")}),
-            )
-            .unwrap();
+            let key_str =
+                serde_json::to_string(&serde_json::json!({"name": event.payload().get("name")}))
+                    .unwrap();
             groups.entry(key_str).or_default().push(entity_id.clone());
         }
 

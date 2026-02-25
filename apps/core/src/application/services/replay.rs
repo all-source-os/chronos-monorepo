@@ -153,7 +153,9 @@ impl ReplayManager {
             since: request.from_timestamp,
             until: request.to_timestamp,
             limit: None,
-            event_type_prefix: None, payload_filter: None,        };
+            event_type_prefix: None,
+            payload_filter: None,
+        };
 
         let events = store.query(query)?;
         let total_events = events.len();

@@ -231,7 +231,9 @@ mod tests {
             since: None,
             until: None,
             limit: None,
-            event_type_prefix: None, payload_filter: None,        };
+            event_type_prefix: None,
+            payload_filter: None,
+        };
 
         let response = use_case.execute(request).await;
         assert!(response.is_ok());
@@ -254,7 +256,9 @@ mod tests {
             since: None,
             until: None,
             limit: None,
-            event_type_prefix: None, payload_filter: None,        };
+            event_type_prefix: None,
+            payload_filter: None,
+        };
 
         let response = use_case.execute(request).await;
         assert!(response.is_ok());
@@ -277,7 +281,9 @@ mod tests {
             since: None,
             until: None,
             limit: Some(1),
-            event_type_prefix: None, payload_filter: None,        };
+            event_type_prefix: None,
+            payload_filter: None,
+        };
 
         let response = use_case.execute(request).await;
         assert!(response.is_ok());
@@ -300,7 +306,9 @@ mod tests {
             since: None,
             until: None,
             limit: None,
-            event_type_prefix: None, payload_filter: None,        };
+            event_type_prefix: None,
+            payload_filter: None,
+        };
 
         let response = use_case.execute(request).await;
         assert!(response.is_err());

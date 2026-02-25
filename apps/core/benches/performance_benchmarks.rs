@@ -71,6 +71,7 @@ fn bench_query_performance(c: &mut Criterion) {
                 since: None,
                 until: None,
                 limit: None,
+                ..Default::default()
             };
             black_box(store.query(query).unwrap());
         });
@@ -86,6 +87,7 @@ fn bench_query_performance(c: &mut Criterion) {
                 since: None,
                 until: None,
                 limit: Some(100),
+                ..Default::default()
             };
             black_box(store.query(query).unwrap());
         });
@@ -227,6 +229,7 @@ fn bench_index_lookups(c: &mut Criterion) {
                 since: None,
                 until: None,
                 limit: None,
+                ..Default::default()
             };
             black_box(store.query(query).unwrap());
         });
@@ -242,6 +245,7 @@ fn bench_index_lookups(c: &mut Criterion) {
                 since: None,
                 until: None,
                 limit: None,
+                ..Default::default()
             };
             black_box(store.query(query).unwrap());
         });

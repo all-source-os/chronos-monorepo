@@ -5,6 +5,18 @@ All notable changes to the Go Control Plane will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.7] - 2026-02-26
+
+### Fixed
+- **OAuth proxy**: stopped forwarding Host header to prevent Fly.io misrouting
+- **Service JWT auth**: Core requests now authenticated with service JWT instead of anonymous
+- **OAuth callback URL**: uses `FRONTEND_URL` for callback base URL
+- **External OAuth calls**: uses plain HTTP client (no service auth headers) for provider API calls
+- **Go lint**: fixed staticcheck SA5011 nil pointer in cache_test.go, errcheck for godotenv.Load
+
+### Added
+- Demo account provisioning endpoint (`POST /api/v1/demo/start`)
+
 ## [0.10.6] - 2026-02-19
 
 ### Fixed

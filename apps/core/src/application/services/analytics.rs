@@ -225,7 +225,9 @@ impl AnalyticsEngine {
             since: Some(request.since),
             until: Some(until),
             limit: None,
-            event_type_prefix: None, payload_filter: None,        })?;
+            event_type_prefix: None,
+            payload_filter: None,
+        })?;
 
         if events.is_empty() {
             return Ok(EventFrequencyResponse {
@@ -327,7 +329,9 @@ impl AnalyticsEngine {
             since: request.since,
             until: request.until,
             limit: None,
-            event_type_prefix: None, payload_filter: None,        })?;
+            event_type_prefix: None,
+            payload_filter: None,
+        })?;
 
         if events.is_empty() {
             return Err(AllSourceError::ValidationError(
@@ -416,7 +420,9 @@ impl AnalyticsEngine {
             since: request.since,
             until: request.until,
             limit: None,
-            event_type_prefix: None, payload_filter: None,        })?;
+            event_type_prefix: None,
+            payload_filter: None,
+        })?;
 
         let events_b = store.query(crate::application::dto::QueryEventsRequest {
             entity_id: None,
@@ -426,7 +432,9 @@ impl AnalyticsEngine {
             since: request.since,
             until: request.until,
             limit: None,
-            event_type_prefix: None, payload_filter: None,        })?;
+            event_type_prefix: None,
+            payload_filter: None,
+        })?;
 
         // Group events by entity
         let mut entity_events_a: HashMap<String, Vec<&Event>> = HashMap::new();

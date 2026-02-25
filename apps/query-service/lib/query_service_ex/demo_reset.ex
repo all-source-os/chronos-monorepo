@@ -33,7 +33,10 @@ defmodule QueryServiceEx.DemoReset do
   @impl true
   def init(_opts) do
     if enabled?() do
-      Logger.info("[DemoReset] Started. Reset hour: #{reset_hour()} UTC, check interval: #{div(@check_interval, 60_000)}m")
+      Logger.info(
+        "[DemoReset] Started. Reset hour: #{reset_hour()} UTC, check interval: #{div(@check_interval, 60_000)}m"
+      )
+
       schedule_check()
       {:ok, %{last_reset_date: nil}}
     else
@@ -84,7 +87,9 @@ defmodule QueryServiceEx.DemoReset do
               Logger.info("[DemoReset] Deleted tenant #{tenant_id}")
 
             {:error, reason} ->
-              Logger.warning("[DemoReset] Failed to delete tenant #{tenant_id}: #{inspect(reason)}")
+              Logger.warning(
+                "[DemoReset] Failed to delete tenant #{tenant_id}: #{inspect(reason)}"
+              )
           end
         end
 
