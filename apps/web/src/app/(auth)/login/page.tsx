@@ -69,7 +69,6 @@ function LoginContent() {
       const response = await fetch(`${cpUrl}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
 
@@ -120,7 +119,6 @@ function LoginContent() {
       const loginResponse = await fetch(`${cpUrl}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ email: data.email, password: data.password }),
       });
 
