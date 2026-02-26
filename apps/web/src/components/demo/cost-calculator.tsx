@@ -57,8 +57,7 @@ export function CostCalculator() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
-    fetch(`${apiUrl}/api/v1/config/benchmarks`)
+    fetch("/api/v1/config/benchmarks")
       .then((res) => res.json())
       .then((data: BenchmarkConfig) => {
         setFormulas(data.cost_formulas);

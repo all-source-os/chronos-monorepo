@@ -35,10 +35,7 @@ const SUGGESTED_QUERIES = [
   "database slow",
 ];
 
-const API_URL =
-  typeof window !== "undefined"
-    ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902"
-    : "http://localhost:3902";
+const API_URL = "";
 
 /**
  * Compute a simulated similarity score based on text matching.

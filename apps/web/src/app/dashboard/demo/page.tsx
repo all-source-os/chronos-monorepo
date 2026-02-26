@@ -45,8 +45,7 @@ export default function DemoPage() {
     setSeeding(true);
     setSeedError(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
-      const response = await fetch(`${apiUrl}/api/v1/demo/seed`, {
+      const response = await fetch("/api/v1/demo/seed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });

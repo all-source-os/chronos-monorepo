@@ -168,14 +168,13 @@ export function LiveEventStreamPanel() {
     // Try fetching real events from Core via QS with time-range filter
     let replayEvents: StreamEvent[] = [];
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
       const now = new Date();
       const tenSecondsAgo = new Date(now.getTime() - 10_000);
       const params = new URLSearchParams({
         start_time: tenSecondsAgo.toISOString(),
         end_time: now.toISOString(),
       });
-      const res = await fetch(`${apiUrl}/api/v1/events/query?${params}`);
+      const res = await fetch(`/api/v1/events/query?${params}`);
       if (res.ok) {
         const data = await res.json();
         replayEvents = data.events ?? [];

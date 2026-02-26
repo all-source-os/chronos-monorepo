@@ -111,8 +111,7 @@ export function SpeedSimplicityDashboard() {
 
   // Fetch benchmark config from QS
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
-    fetch(`${apiUrl}/api/v1/config/benchmarks`)
+    fetch("/api/v1/config/benchmarks")
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch benchmarks");
         return res.json();

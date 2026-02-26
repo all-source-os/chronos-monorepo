@@ -19,6 +19,7 @@ pub const AUTH_SKIP_PATHS: &[&str] = &[
     "/metrics",
     "/api/v1/auth/register",
     "/api/v1/auth/login",
+    "/api/v1/demo/seed",
 ];
 
 /// Path prefixes that bypass authentication and rate limiting.
@@ -1040,6 +1041,7 @@ mod tests {
         assert!(should_skip_auth("/metrics"));
         assert!(should_skip_auth("/api/v1/auth/register"));
         assert!(should_skip_auth("/api/v1/auth/login"));
+        assert!(should_skip_auth("/api/v1/demo/seed"));
 
         // Verify internal endpoints bypass auth (sentinel failover)
         assert!(should_skip_auth("/internal/promote"));

@@ -11,9 +11,7 @@ export function FeedbackWidget() {
   const handleFeedback = async (positive: boolean) => {
     setSubmitting(true);
     try {
-      const apiUrl =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
-      await fetch(`${apiUrl}/api/v1/feedback`, {
+      await fetch("/api/v1/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
