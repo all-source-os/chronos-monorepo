@@ -73,6 +73,12 @@ RUN mkdir -p apps/core/src tooling/performance/src sdks/rust/src apps/registry/s
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
+# Re-copy real Cargo manifests after cook (cargo-chef replaces version fields
+# with placeholders to maximize cache hits, which causes env!("CARGO_PKG_VERSION")
+# to resolve to "0.0.1" instead of the actual version)
+COPY Cargo.toml Cargo.lock ./
+COPY apps/core/Cargo.toml apps/core/
+
 # Copy actual source files for binary build
 COPY apps/core/src apps/core/src
 RUN mkdir -p apps/core/benches apps/core/tests/stress_tests && \
