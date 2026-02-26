@@ -25,7 +25,7 @@ async-trait = "0.1"
 axum = { version = "0.8", features = ["json", "ws"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
 base64 = "0.22"
-bumpalo = { version = "3.16", features = ["collections"] }
+bumpalo = { version = "3.20", features = ["collections"] }
 bytes = "1.11.1"
 
 # Common utilities
@@ -36,7 +36,7 @@ crc32fast = "1.4"
 criterion = "0.5"
 crossbeam = "0.8"
 crossbeam-queue = "0.3"
-ctrlc = "3.4"
+ctrlc = "3.5"
 
 # Storage & Concurrency
 dashmap = "6.1"
