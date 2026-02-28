@@ -30,6 +30,7 @@ defmodule QueryServiceExWeb.HealthController do
 
   alias QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
   alias QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient
+  alias QueryServiceEx.Infrastructure.Adapters.ReplayLagMonitor
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceExWeb.Schemas.Health
 
@@ -157,7 +158,7 @@ defmodule QueryServiceExWeb.HealthController do
   Status is "ready" when caught up, "catching_up" when behind.
   """
   def replay(conn, _params) do
-    state = QueryServiceEx.Infrastructure.Adapters.ReplayLagMonitor.get_state()
+    state = ReplayLagMonitor.get_state()
 
     conn
     |> put_status(:ok)
