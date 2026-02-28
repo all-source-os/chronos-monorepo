@@ -581,29 +581,42 @@ impl EventStore {
     ///
     /// Returns `Ok(true)` if compaction was performed, `Ok(false)` if no
     /// matching events were found.
+    ///
+    /// The write lock is held only for the final swap, not during projection
+    /// processing or index computation.
     pub fn compact_entity_tokens(
         &self,
         entity_id: &str,
         token_event_type: &str,
         merged_event: Event,
     ) -> Result<bool> {
-        let mut events = self.events.write();
-        let before_len = events.len();
-
-        // Retain all events that are NOT token events for this entity
-        events.retain(|e| {
-            !(e.entity_id_str() == entity_id && e.event_type_str() == token_event_type)
-        });
-
-        if events.len() == before_len {
-            // No tokens found — nothing to compact
-            return Ok(false);
+        // Phase 1: Read-only check — do we have anything to compact?
+        {
+            let events = self.events.read();
+            let has_tokens = events.iter().any(|e| {
+                e.entity_id_str() == entity_id && e.event_type_str() == token_event_type
+            });
+            if !has_tokens {
+                return Ok(false);
+            }
         }
 
-        // Process the merged event through projections
+        // Phase 2: Process merged event through projections (no write lock held)
         let projections = self.projections.read();
         projections.process_event(&merged_event)?;
         drop(projections);
+
+        // Write merged event to WAL for durability
+        if let Some(ref wal) = self.wal {
+            wal.append(merged_event.clone())?;
+        }
+
+        // Phase 3: Acquire write lock only for the swap + index rebuild
+        let mut events = self.events.write();
+
+        events.retain(|e| {
+            !(e.entity_id_str() == entity_id && e.event_type_str() == token_event_type)
+        });
 
         events.push(merged_event);
 

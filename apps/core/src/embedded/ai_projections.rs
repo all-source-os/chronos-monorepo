@@ -9,7 +9,6 @@
 use crate::{application::services::projection::Projection, domain::entities::Event, error::Result};
 use dashmap::DashMap;
 use serde_json::{json, Value};
-use std::sync::Arc;
 
 // =============================================================================
 // Token Usage / Cost Tracking Projection
@@ -20,13 +19,13 @@ use std::sync::Arc;
 /// Folds `llm.call.completed` events into aggregate stats:
 /// `{ total_input_tokens, total_output_tokens, total_cost_usd, calls_count, by_model }`
 pub struct TokenUsageProjection {
-    states: Arc<DashMap<String, Value>>,
+    states: DashMap<String, Value>,
 }
 
 impl TokenUsageProjection {
     pub fn new() -> Self {
         Self {
-            states: Arc::new(DashMap::new()),
+            states: DashMap::new(),
         }
     }
 }
@@ -46,7 +45,9 @@ impl Projection for TokenUsageProjection {
 
         let input_tokens = payload.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
         let output_tokens = payload.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-        let cost_usd = payload.get("cost_usd").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        // Store costs as integer microdollars internally to avoid f64 drift.
+        // Convert from f64 USD on input, accumulate as u64, convert back on read.
+        let cost_microdollars = (payload.get("cost_usd").and_then(|v| v.as_f64()).unwrap_or(0.0) * 1_000_000.0).round() as u64;
         let model = payload
             .get("model")
             .and_then(|v| v.as_str())
@@ -58,12 +59,13 @@ impl Projection for TokenUsageProjection {
             .and_modify(|state| {
                 let ti = state["total_input_tokens"].as_u64().unwrap_or(0) + input_tokens;
                 let to = state["total_output_tokens"].as_u64().unwrap_or(0) + output_tokens;
-                let tc = state["total_cost_usd"].as_f64().unwrap_or(0.0) + cost_usd;
+                let tc_micro = state["_cost_microdollars"].as_u64().unwrap_or(0) + cost_microdollars;
                 let cc = state["calls_count"].as_u64().unwrap_or(0) + 1;
 
                 state["total_input_tokens"] = json!(ti);
                 state["total_output_tokens"] = json!(to);
-                state["total_cost_usd"] = json!(tc);
+                state["_cost_microdollars"] = json!(tc_micro);
+                state["total_cost_usd"] = json!(tc_micro as f64 / 1_000_000.0);
                 state["calls_count"] = json!(cc);
 
                 // Per-model breakdown
@@ -72,28 +74,31 @@ impl Projection for TokenUsageProjection {
                         .as_object_mut()
                         .unwrap()
                         .entry(&model)
-                        .or_insert(json!({"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}));
+                        .or_insert(json!({"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "_cost_microdollars": 0}));
                     model_entry["calls"] = json!(model_entry["calls"].as_u64().unwrap_or(0) + 1);
                     model_entry["input_tokens"] =
                         json!(model_entry["input_tokens"].as_u64().unwrap_or(0) + input_tokens);
                     model_entry["output_tokens"] =
                         json!(model_entry["output_tokens"].as_u64().unwrap_or(0) + output_tokens);
-                    model_entry["cost_usd"] =
-                        json!(model_entry["cost_usd"].as_f64().unwrap_or(0.0) + cost_usd);
+                    let model_micro = model_entry["_cost_microdollars"].as_u64().unwrap_or(0) + cost_microdollars;
+                    model_entry["_cost_microdollars"] = json!(model_micro);
+                    model_entry["cost_usd"] = json!(model_micro as f64 / 1_000_000.0);
                 }
             })
             .or_insert_with(|| {
                 json!({
                     "total_input_tokens": input_tokens,
                     "total_output_tokens": output_tokens,
-                    "total_cost_usd": cost_usd,
+                    "_cost_microdollars": cost_microdollars,
+                    "total_cost_usd": cost_microdollars as f64 / 1_000_000.0,
                     "calls_count": 1,
                     "by_model": {
                         model: {
                             "calls": 1,
                             "input_tokens": input_tokens,
                             "output_tokens": output_tokens,
-                            "cost_usd": cost_usd,
+                            "_cost_microdollars": cost_microdollars,
+                            "cost_usd": cost_microdollars as f64 / 1_000_000.0,
                         }
                     }
                 })
@@ -115,17 +120,23 @@ impl Projection for TokenUsageProjection {
 // MCP Tool Call Audit Projection
 // =============================================================================
 
+/// Maximum number of duration samples to keep per tool.
+/// Older samples are dropped when this limit is reached.
+const MAX_DURATION_SAMPLES: usize = 1000;
+
 /// Tracks MCP tool call success rates and latency per entity.
 ///
 /// Folds `mcp.tool.result` and `mcp.tool.error` events into per-tool stats.
+/// Duration samples are capped at [`MAX_DURATION_SAMPLES`] per tool to bound
+/// memory usage and keep percentile computation O(1) amortized.
 pub struct ToolCallAuditProjection {
-    states: Arc<DashMap<String, Value>>,
+    states: DashMap<String, Value>,
 }
 
 impl ToolCallAuditProjection {
     pub fn new() -> Self {
         Self {
-            states: Arc::new(DashMap::new()),
+            states: DashMap::new(),
         }
     }
 }
@@ -179,11 +190,16 @@ impl Projection for ToolCallAuditProjection {
                 if let Some(d) = duration_ms {
                     if let Some(durations) = tool["durations"].as_array_mut() {
                         durations.push(json!(d));
+                        // Cap the ring buffer: drop oldest samples when over limit
+                        if durations.len() > MAX_DURATION_SAMPLES {
+                            let excess = durations.len() - MAX_DURATION_SAMPLES;
+                            durations.drain(..excess);
+                        }
                         let mut sorted: Vec<f64> = durations
                             .iter()
                             .filter_map(|v| v.as_f64())
                             .collect();
-                        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                        sorted.sort_by(|a, b| a.total_cmp(b));
                         let len = sorted.len();
                         let p50_idx = len / 2;
                         let p95_idx = ((len as f64 * 0.95).ceil() as usize).min(len - 1);
@@ -229,13 +245,13 @@ impl Projection for ToolCallAuditProjection {
 /// Query with entity_id `__all` to get the full pending queue.
 pub struct HumanInLoopQueueProjection {
     /// entity_id -> (reason, timestamp) for pending approvals
-    pending: Arc<DashMap<String, (String, chrono::DateTime<chrono::Utc>)>>,
+    pending: DashMap<String, (String, chrono::DateTime<chrono::Utc>)>,
 }
 
 impl HumanInLoopQueueProjection {
     pub fn new() -> Self {
         Self {
-            pending: Arc::new(DashMap::new()),
+            pending: DashMap::new(),
         }
     }
 }
@@ -314,25 +330,33 @@ impl Projection for HumanInLoopQueueProjection {
 // Agent Utilization Projection
 // =============================================================================
 
+/// Per-replicant state, consolidated into a single struct to avoid TOCTOU
+/// races across multiple DashMap operations.
+#[derive(Clone)]
+struct ReplicantState {
+    status: String,
+    active_workflows: Vec<String>,
+}
+
 /// Tracks agent (replicant) utilization: active, idle, total capacity.
 ///
 /// Folds `replicant.*` and `workflow.claimed`/`workflow.output.ready` events.
 /// Query with entity_id `__all` to get aggregate utilization.
+///
+/// All per-replicant state is consolidated into a single DashMap entry to
+/// prevent TOCTOU races between status and workflow tracking.
 pub struct AgentUtilizationProjection {
-    /// replicant_id -> status ("active"/"idle"/"stale")
-    replicants: Arc<DashMap<String, String>>,
-    /// replicant_id -> set of active workflow IDs
-    active_workflows: Arc<DashMap<String, Vec<String>>>,
-    /// workflow_id -> replicant_id (for mapping completions back)
-    workflow_to_replicant: Arc<DashMap<String, String>>,
+    /// replicant_id -> consolidated state
+    replicants: DashMap<String, ReplicantState>,
+    /// workflow_id -> replicant_id (reverse lookup for completions)
+    workflow_to_replicant: DashMap<String, String>,
 }
 
 impl AgentUtilizationProjection {
     pub fn new() -> Self {
         Self {
-            replicants: Arc::new(DashMap::new()),
-            active_workflows: Arc::new(DashMap::new()),
-            workflow_to_replicant: Arc::new(DashMap::new()),
+            replicants: DashMap::new(),
+            workflow_to_replicant: DashMap::new(),
         }
     }
 }
@@ -348,17 +372,27 @@ impl Projection for AgentUtilizationProjection {
 
         match event_type {
             "replicant.registered" => {
-                self.replicants.insert(entity_id.clone(), "idle".to_string());
-                self.active_workflows.insert(entity_id, Vec::new());
+                self.replicants.insert(
+                    entity_id,
+                    ReplicantState {
+                        status: "idle".to_string(),
+                        active_workflows: Vec::new(),
+                    },
+                );
             }
             "replicant.stale" => {
-                self.replicants.insert(entity_id, "stale".to_string());
+                self.replicants
+                    .entry(entity_id)
+                    .and_modify(|s| s.status = "stale".to_string())
+                    .or_insert(ReplicantState {
+                        status: "stale".to_string(),
+                        active_workflows: Vec::new(),
+                    });
             }
             "replicant.heartbeat" => {
-                // Only reactivate if not stale
-                self.replicants.entry(entity_id).and_modify(|status| {
-                    if status != "stale" {
-                        *status = "idle".to_string();
+                self.replicants.entry(entity_id).and_modify(|s| {
+                    if s.status != "stale" {
+                        s.status = "idle".to_string();
                     }
                 });
             }
@@ -367,32 +401,24 @@ impl Projection for AgentUtilizationProjection {
                     let rid = rid.to_string();
                     self.workflow_to_replicant
                         .insert(entity_id.clone(), rid.clone());
-                    self.active_workflows
-                        .entry(rid.clone())
-                        .and_modify(|wfs| {
-                            if !wfs.contains(&entity_id) {
-                                wfs.push(entity_id.clone());
-                            }
-                        });
-                    self.replicants.entry(rid).and_modify(|status| {
-                        *status = "active".to_string();
+                    // Single atomic update: add workflow and set status
+                    self.replicants.entry(rid).and_modify(|s| {
+                        if !s.active_workflows.contains(&entity_id) {
+                            s.active_workflows.push(entity_id.clone());
+                        }
+                        s.status = "active".to_string();
                     });
                 }
             }
             "workflow.output.ready" | "workflow.step.failed" => {
                 // Workflow completed — free up the replicant
                 if let Some((_, rid)) = self.workflow_to_replicant.remove(&entity_id) {
-                    self.active_workflows.entry(rid.clone()).and_modify(|wfs| {
-                        wfs.retain(|w| w != &entity_id);
-                    });
-                    // If no more active workflows, mark as idle
-                    if let Some(wfs) = self.active_workflows.get(&rid) {
-                        if wfs.is_empty() {
-                            self.replicants.entry(rid).and_modify(|status| {
-                                *status = "idle".to_string();
-                            });
+                    self.replicants.entry(rid).and_modify(|s| {
+                        s.active_workflows.retain(|w| w != &entity_id);
+                        if s.active_workflows.is_empty() {
+                            s.status = "idle".to_string();
                         }
-                    }
+                    });
                 }
             }
             _ => {}
@@ -408,10 +434,10 @@ impl Projection for AgentUtilizationProjection {
             let mut total = 0u64;
 
             for entry in self.replicants.iter() {
-                let status = entry.value();
-                if status != "stale" {
+                let state = entry.value();
+                if state.status != "stale" {
                     total += 1;
-                    match status.as_str() {
+                    match state.status.as_str() {
                         "active" => active += 1,
                         "idle" => idle += 1,
                         _ => {}
@@ -425,15 +451,14 @@ impl Projection for AgentUtilizationProjection {
                 "idle": idle,
             }))
         } else {
-            self.replicants.get(entity_id).map(|status| {
-                json!({ "status": status.value() })
+            self.replicants.get(entity_id).map(|entry| {
+                json!({ "status": entry.value().status })
             })
         }
     }
 
     fn clear(&self) {
         self.replicants.clear();
-        self.active_workflows.clear();
         self.workflow_to_replicant.clear();
     }
 }

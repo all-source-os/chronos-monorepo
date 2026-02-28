@@ -7,7 +7,7 @@ use crate::{
     infrastructure::{
         cluster::{
             crdt::{ConflictResolution, CrdtResolver, ReplicatedEvent},
-            hlc::HybridLogicalClock,
+            hlc::{HlcTimestamp, HybridLogicalClock},
         },
         persistence::{
             compaction::CompactionConfig, snapshot::SnapshotConfig, wal::WALConfig,
@@ -30,6 +30,9 @@ use super::{
 ///
 /// When configured with a `node_id`, each instance gets an HLC clock and
 /// CRDT resolver for bidirectional sync via [`sync_to`](Self::sync_to).
+///
+/// All blocking store operations are offloaded to `spawn_blocking` so they
+/// don't block the Tokio runtime's async worker threads.
 ///
 /// # Example
 /// ```rust,no_run
@@ -119,6 +122,8 @@ impl EmbeddedCore {
     /// In single-tenant mode, "default" is used as the tenant_id regardless of
     /// the `tenant_id` field on `IngestEvent`. In multi-tenant mode, the
     /// `tenant_id` field is used if provided, otherwise "default".
+    ///
+    /// The blocking store write is offloaded to `spawn_blocking`.
     pub async fn ingest(&self, event: IngestEvent<'_>) -> Result<()> {
         let tenant_id = self.effective_tenant_id(event.tenant_id);
         let domain_event = Event::from_strings(
@@ -142,18 +147,59 @@ impl EmbeddedCore {
             resolver.accept(&replicated);
         }
 
-        self.store.ingest(domain_event)?;
+        let store = Arc::clone(&self.store);
+        tokio::task::spawn_blocking(move || store.ingest(domain_event))
+            .await
+            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
         Ok(())
     }
 
     /// Ingest a batch of events atomically.
     ///
-    /// All events are ingested in order. If any event fails validation,
-    /// prior events in the batch are still stored (no rollback).
+    /// All events in the batch are validated first, then ingested under a
+    /// single write lock acquisition. If any event fails validation, no events
+    /// are stored (all-or-nothing semantics).
     pub async fn ingest_batch(&self, events: Vec<IngestEvent<'_>>) -> Result<()> {
+        // Phase 1: Build and validate all domain events before acquiring any locks
+        let mut domain_events = Vec::with_capacity(events.len());
         for event in events {
-            self.ingest(event).await?;
+            let tenant_id = self.effective_tenant_id(event.tenant_id);
+            let domain_event = Event::from_strings(
+                event.event_type.to_string(),
+                event.entity_id.to_string(),
+                tenant_id,
+                event.payload,
+                event.metadata,
+            )?;
+            domain_events.push(domain_event);
         }
+
+        // Phase 2: Stamp all events for sync (if enabled)
+        if let (Some(hlc), Some(resolver)) = (&self.hlc, &self.resolver) {
+            for domain_event in &domain_events {
+                let ts = hlc.now();
+                let replicated = ReplicatedEvent {
+                    event_id: domain_event.id().to_string(),
+                    hlc_timestamp: ts,
+                    origin_region: format!("node-{}", hlc.node_id()),
+                    event_data: serde_json::to_value(&EventView::from(domain_event))
+                        .unwrap_or_default(),
+                };
+                resolver.accept(&replicated);
+            }
+        }
+
+        // Phase 3: Ingest all events on the blocking threadpool
+        let store = Arc::clone(&self.store);
+        tokio::task::spawn_blocking(move || {
+            for domain_event in domain_events {
+                store.ingest(domain_event)?;
+            }
+            Ok::<(), crate::error::AllSourceError>(())
+        })
+        .await
+        .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
+
         Ok(())
     }
 
@@ -165,58 +211,63 @@ impl EmbeddedCore {
     ///
     /// Returns `Ok(())` regardless of whether compaction was needed.
     pub async fn compact_tokens(&self, entity_id: &str) -> Result<()> {
-        // Query all token events for this entity
-        let all_events = self.store.query(QueryEventsRequest {
-            entity_id: Some(entity_id.to_string()),
-            event_type: Some("workflow.token".to_string()),
-            tenant_id: None,
-            as_of: None,
-            since: None,
-            until: None,
-            limit: None,
-            event_type_prefix: None,
-            payload_filter: None,
-        })?;
-
-        if all_events.is_empty() {
-            return Ok(());
-        }
-
-        // Sort by index and concatenate tokens
-        let mut tokens: Vec<(u64, String)> = all_events
-            .iter()
-            .map(|e| {
-                let idx = e.payload.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
-                let token = e
-                    .payload
-                    .get("token")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                (idx, token)
-            })
-            .collect();
-        tokens.sort_by_key(|(idx, _)| *idx);
-
-        let merged_text: String = tokens
-            .iter()
-            .map(|(_, t)| t.as_str())
-            .collect::<Vec<_>>()
-            .join(" ");
-
+        let store = Arc::clone(&self.store);
+        let entity_id = entity_id.to_string();
         let tenant_id = self.effective_tenant_id(None);
-        let merged_event = Event::from_strings(
-            "workflow.output.complete".to_string(),
-            entity_id.to_string(),
-            tenant_id,
-            serde_json::json!({ "text": merged_text, "token_count": tokens.len() }),
-            None,
-        )?;
 
-        self.store
-            .compact_entity_tokens(entity_id, "workflow.token", merged_event)?;
+        tokio::task::spawn_blocking(move || {
+            // Query all token events for this entity
+            let all_events = store.query(QueryEventsRequest {
+                entity_id: Some(entity_id.clone()),
+                event_type: Some("workflow.token".to_string()),
+                tenant_id: None,
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })?;
 
-        Ok(())
+            if all_events.is_empty() {
+                return Ok(());
+            }
+
+            // Sort by index and concatenate tokens
+            let mut tokens: Vec<(u64, String)> = all_events
+                .iter()
+                .map(|e| {
+                    let idx = e.payload.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let token = e
+                        .payload
+                        .get("token")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    (idx, token)
+                })
+                .collect();
+            tokens.sort_by_key(|(idx, _)| *idx);
+
+            let merged_text: String = tokens
+                .iter()
+                .map(|(_, t)| t.as_str())
+                .collect();
+
+            let merged_event = Event::from_strings(
+                "workflow.output.complete".to_string(),
+                entity_id.clone(),
+                tenant_id,
+                serde_json::json!({ "text": merged_text, "token_count": tokens.len() }),
+                None,
+            )?;
+
+            store.compact_entity_tokens(&entity_id, "workflow.token", merged_event)?;
+
+            Ok(())
+        })
+        .await
+        .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))?
     }
 
     /// Sync events from this instance to another instance.
@@ -238,24 +289,54 @@ impl EmbeddedCore {
             ));
         };
 
-        // Get all events from this store
-        let all_events = self.store.query(QueryEventsRequest {
-            entity_id: None,
-            event_type: None,
-            tenant_id: None,
-            as_of: None,
-            since: None,
-            until: None,
-            limit: None,
-            event_type_prefix: None,
-            payload_filter: None,
-        })?;
-
         let self_region = format!("node-{}", self_hlc.node_id());
 
+        // Use version vector for delta exchange: only query events newer than
+        // what the peer has already seen from our region.
+        let since = peer_resolver
+            .version_vector_for(&self_region)
+            .and_then(|vv| vv.get(&self_region).copied())
+            .map(|ts| {
+                chrono::DateTime::from_timestamp_millis(ts.physical_ms as i64)
+                    .unwrap_or_default()
+            });
+
+        // Get events from this store, filtered by version vector threshold
+        let self_store = Arc::clone(&self.store);
+        let all_events = tokio::task::spawn_blocking(move || {
+            self_store.query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+        })
+        .await
+        .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
+        let self_node_id = self_hlc.node_id();
+
+        // Collect events to sync (CRDT resolution is cheap, do it on the async thread)
+        let mut events_to_sync = Vec::new();
+        let mut last_ms = 0u64;
+        let mut logical = 0u32;
         for event in &all_events {
-            // Use a per-event HLC timestamp for causal ordering
-            let ts = self_hlc.now();
+            // Use the event's original creation timestamp for causal ordering.
+            // Minting fresh timestamps via hlc.now() would make sync order
+            // determine LWW winners instead of creation order.
+            // Logical counter distinguishes events within the same millisecond.
+            let event_ms = event.timestamp().timestamp_millis() as u64;
+            if event_ms == last_ms {
+                logical += 1;
+            } else {
+                last_ms = event_ms;
+                logical = 0;
+            }
+            let ts = HlcTimestamp::new(event_ms, logical, self_node_id);
 
             let replicated = ReplicatedEvent {
                 event_id: event.id().to_string(),
@@ -272,10 +353,21 @@ impl EmbeddedCore {
                 // Update peer's HLC with our timestamp for causal ordering
                 let _ = peer_hlc.receive(&ts);
 
-                // Clone the original event to preserve its UUID for dedup
-                let cloned = event.clone();
-                peer.store.ingest(cloned)?;
+                events_to_sync.push(event.clone());
             }
+        }
+
+        // Ingest accepted events into peer store (blocking)
+        if !events_to_sync.is_empty() {
+            let peer_store = Arc::clone(&peer.store);
+            tokio::task::spawn_blocking(move || {
+                for event in events_to_sync {
+                    peer_store.ingest(event)?;
+                }
+                Ok::<(), crate::error::AllSourceError>(())
+            })
+            .await
+            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
         }
 
         Ok(())
@@ -295,8 +387,26 @@ impl EmbeddedCore {
             payload_filter: None,
         };
 
-        let events = self.store.query(request)?;
+        let store = Arc::clone(&self.store);
+        let events = tokio::task::spawn_blocking(move || store.query(request))
+            .await
+            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
         Ok(events.iter().map(EventView::from).collect())
+    }
+
+    /// Query events and return the result in TOON (Token-Oriented Object Notation).
+    ///
+    /// TOON is a compact text format that uses ~50% fewer tokens than JSON for
+    /// tabular data — ideal for LLM consumption. Falls back gracefully for
+    /// non-tabular structures.
+    #[cfg(feature = "embedded-toon")]
+    pub async fn query_toon(&self, query: Query) -> Result<String> {
+        let events = self.query(query).await?;
+        let json_value = serde_json::to_value(&events).unwrap_or_default();
+        let opts = toon_format::EncodeOptions::default();
+        toon_format::encode(&json_value, &opts).map_err(|e| {
+            crate::error::AllSourceError::InvalidInput(format!("TOON encoding failed: {e}"))
+        })
     }
 
     /// Get the current state of a named projection for a given entity.
@@ -326,7 +436,10 @@ impl EmbeddedCore {
 
     /// Flush WAL and Parquet storage, then shut down cleanly.
     pub async fn shutdown(&self) -> Result<()> {
-        self.store.flush_storage()
+        let store = Arc::clone(&self.store);
+        tokio::task::spawn_blocking(move || store.flush_storage())
+            .await
+            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))?
     }
 
     fn effective_tenant_id(&self, explicit: Option<&str>) -> String {
@@ -346,10 +459,14 @@ impl EmbeddedCore {
                     sync_on_write: config.wal_sync_on_write(),
                     ..WALConfig::default()
                 };
+                let snapshot_config = SnapshotConfig {
+                    time_threshold_seconds: config.parquet_flush_interval_secs() as i64,
+                    ..SnapshotConfig::default()
+                };
                 EventStoreConfig::production(
                     storage_dir,
                     wal_dir,
-                    SnapshotConfig::default(),
+                    snapshot_config,
                     wal_config,
                     CompactionConfig::default(),
                 )
