@@ -3,5 +3,8 @@ playwright-report/
 test-results/
 test-results.json
 
+# Credentials
+.env.test
+
 # Node modules
 node_modules/

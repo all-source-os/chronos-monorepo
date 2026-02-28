@@ -59,8 +59,30 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
 
     cond do
       is_nil(tenant) ->
-        Logger.warning("[TenantContext] Tenant #{user.tenant_id} not found for user #{user.id}")
-        send_error(conn, :not_found, "tenant_not_found", "Workspace not found")
+        # Lazy auto-provisioning: the JWT is valid but the tenant doesn't exist
+        # in Core (e.g., after Core restart losing in-memory tenants, or race condition).
+        # Create the tenant using JWT claims so the request can proceed.
+        case auto_provision_tenant(user) do
+          {:ok, new_tenant} ->
+            Logger.info(
+              "[TenantContext] Auto-provisioned tenant #{user.tenant_id} for user #{user.id}"
+            )
+
+            TenantCache.put(user.tenant_id, new_tenant)
+            tid = tenant_id(new_tenant)
+
+            conn
+            |> assign(:current_tenant, new_tenant)
+            |> assign(:tenant_id, tid)
+            |> put_private(:allsource_tenant_id, tid)
+
+          {:error, reason} ->
+            Logger.warning(
+              "[TenantContext] Tenant #{user.tenant_id} not found and auto-provision failed: #{inspect(reason)}"
+            )
+
+            send_error(conn, :not_found, "tenant_not_found", "Workspace not found")
+        end
 
       not subscription_active?(tenant) ->
         status = get_subscription_status(tenant)
@@ -86,6 +108,15 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
       {:ok, tenant} -> tenant
       {:error, _reason} -> nil
     end
+  end
+
+  defp auto_provision_tenant(user) do
+    name = user.name || user.email || "Workspace"
+
+    RustCoreClient.create_tenant(user.tenant_id, name, %{
+      is_demo: false,
+      tier: "free"
+    })
   end
 
   # Subscription status helpers that work with both Ecto Tenant structs and Core maps

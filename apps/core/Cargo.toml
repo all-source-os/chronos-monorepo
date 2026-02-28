@@ -21,35 +21,52 @@ path = "src/lib.rs"
 [[bin]]
 name = "allsource-core"
 path = "src/main.rs"
+required-features = ["server"]
 
 [[bin]]
 name = "allsource-admin"
 path = "src/bin/allsource-admin.rs"
+required-features = ["server"]
 
 [[bin]]
 name = "allsource-sentinel"
 path = "src/bin/allsource-sentinel.rs"
+required-features = ["server"]
 
 [features]
-default = []
-# DEPRECATED: Use event-sourced repositories (EventSourcedTenantRepository,
-# EventSourcedAuditRepository) backed by AllSource's own WAL instead.
-# This feature flag will be removed in a future release.
+default = ["server", "analytics"]
+# Server feature: includes HTTP server, auth, metrics, webhooks, and all infrastructure
+server = [
+    "dep:axum", "dep:axum-extra", "dep:tower", "dep:tower-http",
+    "dep:reqwest", "dep:jsonwebtoken", "dep:argon2",
+    "dep:aes-gcm", "dep:http",
+]
+# Analytics: DataFusion SQL engine for EventQL queries
+analytics = ["dep:datafusion"]
+# Arrow Flight protocol
+flight = ["dep:arrow-flight"]
+# DEPRECATED: Use event-sourced repositories instead.
 postgres = ["sqlx"]
 rocksdb-storage = ["rocksdb"]
 vector-search = ["fastembed", "instant-distance"]
 keyword-search = ["tantivy"]
+embedded = []
+embedded-phase2 = ["embedded"]
+embedded-sync = ["embedded"]
+embedded-replicant = ["embedded"]
+embedded-streaming = ["embedded"]
+embedded-projections = ["embedded"]
 
 [dependencies]
-aes-gcm.workspace = true
+aes-gcm = { workspace = true, optional = true }
 anyhow.workspace = true
-argon2.workspace = true
+argon2 = { workspace = true, optional = true }
 # Note: arrow/parquet versions must be compatible with datafusion
 arrow.workspace = true
-arrow-flight.workspace = true
+arrow-flight = { workspace = true, optional = true }
 async-trait.workspace = true
-axum.workspace = true
-axum-extra.workspace = true
+axum = { workspace = true, optional = true }
+axum-extra = { workspace = true, optional = true }
 base64.workspace = true
 bumpalo.workspace = true
 # Security: bytes 1.11.1+ required for RUSTSEC-2026-0007
@@ -60,23 +77,23 @@ crossbeam.workspace = true
 crossbeam-queue.workspace = true
 dashmap.workspace = true
 # Note: datafusion 51+ requires Rust 1.88+, pinned to 44.x for Rust 1.85 compatibility
-datafusion.workspace = true
+datafusion = { workspace = true, optional = true }
 # Vector search dependencies (optional)
 fastembed = { workspace = true, optional = true }
 flate2.workspace = true
 futures.workspace = true
 hex = "0.4"
 hmac = "0.12"
-http.workspace = true
+http = { workspace = true, optional = true }
 instant-distance = { workspace = true, optional = true }
 jsonschema.workspace = true
-jsonwebtoken.workspace = true
+jsonwebtoken = { workspace = true, optional = true }
 lz4.workspace = true
 parking_lot.workspace = true
 parquet.workspace = true
 prometheus.workspace = true
 rand.workspace = true
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 rocksdb = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
@@ -91,8 +108,8 @@ time.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
 toml.workspace = true
-tower.workspace = true
-tower-http.workspace = true
+tower = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 url = "2.5"
@@ -113,3 +130,38 @@ harness = false
 name = "seven_day_stress"
 path = "tests/stress_tests/seven_day_stress.rs"
 harness = true
+
+[[test]]
+name = "embedded_core_api"
+path = "tests/embedded_core_api.rs"
+required-features = ["embedded"]
+
+[[test]]
+name = "embedded_api_phase2"
+path = "tests/embedded_api_phase2.rs"
+required-features = ["embedded-phase2"]
+
+[[test]]
+name = "embedded_minimal_build"
+path = "tests/embedded_minimal_build.rs"
+required-features = ["embedded"]
+
+[[test]]
+name = "bidirectional_sync"
+path = "tests/bidirectional_sync.rs"
+required-features = ["embedded-sync"]
+
+[[test]]
+name = "replicant_protocol"
+path = "tests/replicant_protocol.rs"
+required-features = ["embedded-replicant"]
+
+[[test]]
+name = "token_streaming"
+path = "tests/token_streaming.rs"
+required-features = ["embedded-streaming"]
+
+[[test]]
+name = "ai_projection_templates"
+path = "tests/ai_projection_templates.rs"
+required-features = ["embedded-projections"]

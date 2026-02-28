@@ -869,6 +869,49 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   end
 
   @doc """
+  Create a tenant in Core.
+
+  Used for lazy auto-provisioning when a valid JWT references a tenant that
+  doesn't yet exist in Core (e.g., after Core restart or race condition).
+
+  ## Parameters
+    * `tenant_id` - The tenant ID to create
+    * `name` - Display name for the tenant
+    * `opts` - Optional map with `is_demo`, `email`, `tier` keys
+
+  ## Returns
+    * `{:ok, tenant}` - Newly created tenant map
+    * `{:error, :conflict}` - Tenant already exists (409)
+    * `{:error, reason}` - Error details
+  """
+  def create_tenant(tenant_id, name, opts \\ %{}) when is_binary(tenant_id) do
+    is_demo = Map.get(opts, :is_demo, false)
+    tier = Map.get(opts, :tier, "free")
+
+    body = %{
+      "id" => tenant_id,
+      "name" => name,
+      "is_demo" => is_demo,
+      "quota_preset" => tier
+    }
+
+    case Tesla.post(write_client(), "/api/v1/tenants", body) do
+      {:ok, %Tesla.Env{status: status, body: resp_body}} when status in [200, 201] ->
+        {:ok, resp_body}
+
+      {:ok, %Tesla.Env{status: 409}} ->
+        # Tenant already exists — fetch and return it
+        get_tenant(tenant_id)
+
+      {:ok, %Tesla.Env{status: status, body: resp_body}} ->
+        {:error, "HTTP #{status}: #{inspect(resp_body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Delete a tenant.
 
   ## Returns

@@ -8,28 +8,30 @@ use crate::{
             replay::ReplayManager,
             schema::{SchemaRegistry, SchemaRegistryConfig},
             schema_evolution::SchemaEvolutionManager,
-            webhook::WebhookRegistry,
         },
     },
     domain::entities::Event,
     error::{AllSourceError, Result},
-    infrastructure::{
-        observability::metrics::MetricsRegistry,
-        persistence::{
-            compaction::{CompactionConfig, CompactionManager},
-            index::{EventIndex, IndexEntry},
-            snapshot::{SnapshotConfig, SnapshotManager, SnapshotType},
-            storage::ParquetStorage,
-            wal::{WALConfig, WriteAheadLog},
-        },
-        query::geospatial::GeoIndex,
-        web::websocket::WebSocketManager,
+    infrastructure::persistence::{
+        compaction::{CompactionConfig, CompactionManager},
+        index::{EventIndex, IndexEntry},
+        snapshot::{SnapshotConfig, SnapshotManager, SnapshotType},
+        storage::ParquetStorage,
+        wal::{WALConfig, WriteAheadLog},
     },
 };
+use crate::infrastructure::query::geospatial::GeoIndex;
+#[cfg(feature = "server")]
+use crate::application::services::webhook::WebhookRegistry;
+#[cfg(feature = "server")]
+use crate::infrastructure::observability::metrics::MetricsRegistry;
+#[cfg(feature = "server")]
+use crate::infrastructure::web::websocket::WebSocketManager;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::{path::PathBuf, sync::Arc};
+#[cfg(feature = "server")]
 use tokio::sync::mpsc;
 
 /// High-performance event store with columnar storage
@@ -47,6 +49,7 @@ pub struct EventStore {
     storage: Option<Arc<RwLock<ParquetStorage>>>,
 
     /// WebSocket manager for real-time event streaming (v0.2 feature)
+    #[cfg(feature = "server")]
     websocket_manager: Arc<WebSocketManager>,
 
     /// Snapshot manager for fast state recovery (v0.2 feature)
@@ -68,6 +71,7 @@ pub struct EventStore {
     pipeline_manager: Arc<PipelineManager>,
 
     /// Prometheus metrics registry (v0.6 feature)
+    #[cfg(feature = "server")]
     metrics: Arc<MetricsRegistry>,
 
     /// Total events ingested (for metrics)
@@ -79,9 +83,11 @@ pub struct EventStore {
     projection_state_cache: Arc<DashMap<String, serde_json::Value>>,
 
     /// Webhook registry for outbound event delivery (v0.11 feature)
+    #[cfg(feature = "server")]
     webhook_registry: Arc<WebhookRegistry>,
 
     /// Channel sender for async webhook delivery tasks
+    #[cfg(feature = "server")]
     webhook_tx: Arc<RwLock<Option<mpsc::UnboundedSender<WebhookDeliveryTask>>>>,
 
     /// Geospatial index for coordinate-based queries (v2.0 feature)
@@ -95,6 +101,7 @@ pub struct EventStore {
 }
 
 /// A task queued for async webhook delivery
+#[cfg(feature = "server")]
 #[derive(Debug, Clone)]
 pub struct WebhookDeliveryTask {
     pub webhook: crate::application::services::webhook::WebhookSubscription,
@@ -163,22 +170,31 @@ impl EventStore {
         tracing::info!("✅ Pipeline manager enabled");
 
         // Initialize metrics registry (v0.6 feature)
-        let metrics = MetricsRegistry::new();
-        tracing::info!("✅ Prometheus metrics registry initialized");
+        #[cfg(feature = "server")]
+        let metrics = {
+            let m = MetricsRegistry::new();
+            tracing::info!("✅ Prometheus metrics registry initialized");
+            m
+        };
 
         // Initialize projection state cache (v0.7 feature)
         let projection_state_cache = Arc::new(DashMap::new());
         tracing::info!("✅ Projection state cache initialized");
 
         // Initialize webhook registry (v0.11 feature)
-        let webhook_registry = Arc::new(WebhookRegistry::new());
-        tracing::info!("✅ Webhook registry initialized");
+        #[cfg(feature = "server")]
+        let webhook_registry = {
+            let w = Arc::new(WebhookRegistry::new());
+            tracing::info!("✅ Webhook registry initialized");
+            w
+        };
 
         let store = Self {
             events: Arc::new(RwLock::new(Vec::new())),
             index: Arc::new(EventIndex::new()),
             projections: Arc::new(RwLock::new(projections)),
             storage,
+            #[cfg(feature = "server")]
             websocket_manager: Arc::new(WebSocketManager::new()),
             snapshot_manager: Arc::new(SnapshotManager::new(config.snapshot_config)),
             wal,
@@ -186,10 +202,13 @@ impl EventStore {
             schema_registry,
             replay_manager,
             pipeline_manager,
+            #[cfg(feature = "server")]
             metrics,
             total_ingested: Arc::new(RwLock::new(0)),
             projection_state_cache,
+            #[cfg(feature = "server")]
             webhook_registry,
+            #[cfg(feature = "server")]
             webhook_tx: Arc::new(RwLock::new(None)),
             geo_index: Arc::new(GeoIndex::new()),
             exactly_once: Arc::new(ExactlyOnceRegistry::new(ExactlyOnceConfig::default())),
@@ -293,14 +312,17 @@ impl EventStore {
     /// Ingest a new event into the store
     pub fn ingest(&self, event: Event) -> Result<()> {
         // Start metrics timer (v0.6 feature)
+        #[cfg(feature = "server")]
         let timer = self.metrics.ingestion_duration_seconds.start_timer();
 
         // Validate event
         let validation_result = self.validate_event(&event);
         if let Err(e) = validation_result {
-            // Record ingestion error
-            self.metrics.ingestion_errors_total.inc();
-            timer.observe_duration();
+            #[cfg(feature = "server")]
+            {
+                self.metrics.ingestion_errors_total.inc();
+                timer.observe_duration();
+            }
             return Err(e);
         }
 
@@ -309,8 +331,11 @@ impl EventStore {
         if let Some(ref wal) = self.wal
             && let Err(e) = wal.append(event.clone())
         {
-            self.metrics.ingestion_errors_total.inc();
-            timer.observe_duration();
+            #[cfg(feature = "server")]
+            {
+                self.metrics.ingestion_errors_total.inc();
+                timer.observe_duration();
+            }
             return Err(e);
         }
 
@@ -359,10 +384,12 @@ impl EventStore {
         drop(events); // Release lock early
 
         // Broadcast to WebSocket clients (v0.2 feature)
+        #[cfg(feature = "server")]
         self.websocket_manager
             .broadcast_event(Arc::new(event.clone()));
 
         // Dispatch to matching webhook subscriptions (v0.11 feature)
+        #[cfg(feature = "server")]
         self.dispatch_webhooks(&event);
 
         // Update geospatial index (v2.0 feature)
@@ -376,17 +403,21 @@ impl EventStore {
         self.check_auto_snapshot(event.entity_id_str(), &event);
 
         // Update metrics (v0.6 feature)
-        self.metrics.events_ingested_total.inc();
-        self.metrics
-            .events_ingested_by_type
-            .with_label_values(&[event.event_type_str()])
-            .inc();
-        self.metrics.storage_events_total.set(total_events as i64);
+        #[cfg(feature = "server")]
+        {
+            self.metrics.events_ingested_total.inc();
+            self.metrics
+                .events_ingested_by_type
+                .with_label_values(&[event.event_type_str()])
+                .inc();
+            self.metrics.storage_events_total.set(total_events as i64);
+        }
 
         // Update legacy total counter
         let mut total = self.total_ingested.write();
         *total += 1;
 
+        #[cfg(feature = "server")]
         timer.observe_duration();
 
         tracing::debug!("Event ingested: {} (offset: {})", event.id, offset);
@@ -401,6 +432,7 @@ impl EventStore {
     /// - Skips schema validation (the leader already validated)
     /// - Still indexes, processes projections/pipelines, and broadcasts to WebSocket clients
     pub fn ingest_replicated(&self, event: Event) -> Result<()> {
+        #[cfg(feature = "server")]
         let timer = self.metrics.ingestion_duration_seconds.start_timer();
 
         let mut events = self.events.write();
@@ -436,20 +468,25 @@ impl EventStore {
         drop(events);
 
         // Broadcast to WebSocket clients
+        #[cfg(feature = "server")]
         self.websocket_manager
             .broadcast_event(Arc::new(event.clone()));
 
         // Update metrics
-        self.metrics.events_ingested_total.inc();
-        self.metrics
-            .events_ingested_by_type
-            .with_label_values(&[event.event_type_str()])
-            .inc();
-        self.metrics.storage_events_total.set(total_events as i64);
+        #[cfg(feature = "server")]
+        {
+            self.metrics.events_ingested_total.inc();
+            self.metrics
+                .events_ingested_by_type
+                .with_label_values(&[event.event_type_str()])
+                .inc();
+            self.metrics.storage_events_total.set(total_events as i64);
+        }
 
         let mut total = self.total_ingested.write();
         *total += 1;
 
+        #[cfg(feature = "server")]
         timer.observe_duration();
 
         tracing::debug!(
@@ -462,6 +499,7 @@ impl EventStore {
     }
 
     /// Get the WebSocket manager for this store
+    #[cfg(feature = "server")]
     pub fn websocket_manager(&self) -> Arc<WebSocketManager> {
         Arc::clone(&self.websocket_manager)
     }
@@ -492,6 +530,7 @@ impl EventStore {
     }
 
     /// Get the metrics registry for this store (v0.6 feature)
+    #[cfg(feature = "server")]
     pub fn metrics(&self) -> Arc<MetricsRegistry> {
         Arc::clone(&self.metrics)
     }
@@ -499,6 +538,15 @@ impl EventStore {
     /// Get the projection manager for this store (v0.7 feature)
     pub fn projection_manager(&self) -> parking_lot::RwLockReadGuard<'_, ProjectionManager> {
         self.projections.read()
+    }
+
+    /// Register a custom projection at runtime.
+    ///
+    /// The projection will receive all future events via `process()`.
+    /// To also process historical events, call `reset_projection(name)` after registration.
+    pub fn register_projection(&self, projection: Arc<dyn crate::application::services::projection::Projection>) {
+        let mut pm = self.projections.write();
+        pm.register(projection);
     }
 
     /// Get the projection state cache for this store (v0.7 feature)
@@ -528,18 +576,67 @@ impl EventStore {
         self.events.read().clone()
     }
 
+    /// Compact token events for an entity by replacing matching events with a
+    /// single merged event. Used by the embedded streaming feature.
+    ///
+    /// Returns `Ok(true)` if compaction was performed, `Ok(false)` if no
+    /// matching events were found.
+    pub fn compact_entity_tokens(
+        &self,
+        entity_id: &str,
+        token_event_type: &str,
+        merged_event: Event,
+    ) -> Result<bool> {
+        let mut events = self.events.write();
+        let before_len = events.len();
+
+        // Retain all events that are NOT token events for this entity
+        events.retain(|e| {
+            !(e.entity_id_str() == entity_id && e.event_type_str() == token_event_type)
+        });
+
+        if events.len() == before_len {
+            // No tokens found — nothing to compact
+            return Ok(false);
+        }
+
+        // Process the merged event through projections
+        let projections = self.projections.read();
+        projections.process_event(&merged_event)?;
+        drop(projections);
+
+        events.push(merged_event);
+
+        // Rebuild entire index since retain() shifted event positions
+        self.index.clear();
+        for (offset, event) in events.iter().enumerate() {
+            let _ = self.index.index_event(
+                event.id,
+                event.entity_id_str(),
+                event.event_type_str(),
+                event.timestamp,
+                offset,
+            );
+        }
+
+        Ok(true)
+    }
+
+    #[cfg(feature = "server")]
     pub fn webhook_registry(&self) -> Arc<WebhookRegistry> {
         Arc::clone(&self.webhook_registry)
     }
 
     /// Set the channel for async webhook delivery.
     /// Called during server startup to wire the delivery worker.
+    #[cfg(feature = "server")]
     pub fn set_webhook_tx(&self, tx: mpsc::UnboundedSender<WebhookDeliveryTask>) {
         *self.webhook_tx.write() = Some(tx);
         tracing::info!("Webhook delivery channel connected");
     }
 
     /// Dispatch matching webhooks for a given event (non-blocking).
+    #[cfg(feature = "server")]
     fn dispatch_webhooks(&self, event: &Event) {
         let matching = self.webhook_registry.find_matching(event);
         if matching.is_empty() {
@@ -723,6 +820,7 @@ impl EventStore {
         };
 
         // Start metrics timer (v0.6 feature)
+        #[cfg(feature = "server")]
         let timer = self
             .metrics
             .query_duration_seconds
@@ -730,6 +828,7 @@ impl EventStore {
             .start_timer();
 
         // Increment query counter (v0.6 feature)
+        #[cfg(feature = "server")]
         self.metrics
             .queries_total
             .with_label_values(&[query_type])
@@ -775,12 +874,14 @@ impl EventStore {
         }
 
         // Record query results count (v0.6 feature)
-        self.metrics
-            .query_results_total
-            .with_label_values(&[query_type])
-            .inc_by(results.len() as u64);
-
-        timer.observe_duration();
+        #[cfg(feature = "server")]
+        {
+            self.metrics
+                .query_results_total
+                .with_label_values(&[query_type])
+                .inc_by(results.len() as u64);
+            timer.observe_duration();
+        }
 
         Ok(results)
     }

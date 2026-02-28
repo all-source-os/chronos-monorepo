@@ -283,6 +283,18 @@ defmodule QueryServiceExWeb.Router do
   end
 
   # -------------------------------------------------------------------
+  # API Key Management Routes
+  # -------------------------------------------------------------------
+
+  scope "/api", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    get("/api-keys", ApiKeyController, :index)
+    post("/api-keys", ApiKeyController, :create)
+    delete("/api-keys/:id", ApiKeyController, :revoke)
+  end
+
+  # -------------------------------------------------------------------
   # Tenant Management Routes
   # -------------------------------------------------------------------
 

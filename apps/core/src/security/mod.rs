@@ -9,7 +9,9 @@ pub mod adaptive_rate_limit;
 /// - Security automation and CI/CD scanning
 pub mod anomaly_detection;
 pub mod automation;
+#[cfg(feature = "server")]
 pub mod encryption;
+#[cfg(feature = "server")]
 pub mod kms;
 
 // Re-export main types
@@ -18,11 +20,13 @@ pub use anomaly_detection::{
     RecommendedAction,
 };
 
+#[cfg(feature = "server")]
 pub use encryption::{
     Encryptable, EncryptedData, EncryptionAlgorithm, EncryptionConfig, EncryptionStats,
     FieldEncryption, decrypt_json_value, encrypt_json_value,
 };
 
+#[cfg(feature = "server")]
 pub use kms::{
     EnvelopeEncryptedData, KeyAlgorithm, KeyMetadata, KeyPurpose, KeyStatus, KmsClient, KmsConfig,
     KmsManager, KmsProvider, LocalKms,

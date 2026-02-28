@@ -53,6 +53,9 @@ defmodule QueryServiceEx.Application do
         # ETS-backed team membership store (projects team events from Core)
         QueryServiceEx.TeamStore,
 
+        # ETS-backed API key metadata store
+        QueryServiceEx.ApiKeyStore,
+
         # Health checker for Core read nodes (polls /health, tracks lag in ETS)
         QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker,
 

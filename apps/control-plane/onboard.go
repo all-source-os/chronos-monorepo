@@ -74,6 +74,8 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 	apiKeyClaims := &Claims{
 		UserID:   tenantID,
 		Username: name,
+		Email:    req.Email,
+		Name:     name,
 		TenantID: tenantResp.ID,
 		Role:     entities.RoleDeveloper,
 		IsAPIKey: true,
@@ -130,12 +132,20 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 	password := fmt.Sprintf("demo-%s-%s", demoSlug, uuid.New().String()[:8])
 	name := "Demo User"
 
+	// Compute tenant ID deterministically from the email BEFORE registration
+	// so we can pass the same ID to both Core auth (user.tenant_id) and Core tenants.
+	tenantSlug := strings.ReplaceAll(strings.ToLower(email), "@", "-at-")
+	tenantSlug = strings.ReplaceAll(tenantSlug, ".", "-")
+	tenantID := tenantSlug
+
 	// Step 1: Register credentials in Core (same path as normal RegisterHandler)
+	// Include tenant_id so Core's user record references the right tenant.
 	regResp, err := cp.client.R().
-		SetBody(map[string]string{
-			"username": email,
-			"email":    email,
-			"password": password,
+		SetBody(map[string]interface{}{
+			"username":  email,
+			"email":     email,
+			"password":  password,
+			"tenant_id": tenantID,
 		}).
 		Post("/api/v1/auth/register")
 
@@ -152,24 +162,10 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 		return
 	}
 
-	// Parse Core's response for user ID
-	var coreResp struct {
-		UserID string `json:"user_id"`
-	}
-	if parseErr := json.Unmarshal(regResp.Body(), &coreResp); parseErr != nil {
-		coreResp.UserID = fmt.Sprintf("email:%s", email)
-	}
-	userID := coreResp.UserID
-	if userID == "" {
-		userID = fmt.Sprintf("email:%s", email)
-	}
-
 	// Step 2: Create tenant with is_demo: true and enterprise quotas
-	tenantSlug := strings.ReplaceAll(strings.ToLower(email), "@", "-at-")
-	tenantSlug = strings.ReplaceAll(tenantSlug, ".", "-")
-
+	// Use the same tenantID that was registered with the user.
 	tenantBody := map[string]interface{}{
-		"id":      userID,
+		"id":      tenantID,
 		"name":    name,
 		"slug":    tenantSlug,
 		"is_demo": true,
@@ -194,20 +190,11 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 		return
 	}
 
-	var tenantID string
 	switch {
 	case tenantResp.StatusCode() == 201 || tenantResp.StatusCode() == 200:
-		var result map[string]interface{}
-		if parseErr := json.Unmarshal(tenantResp.Body(), &result); parseErr == nil {
-			if id, ok := result["id"].(string); ok {
-				tenantID = id
-			}
-		}
-		if tenantID == "" {
-			tenantID = userID
-		}
+		// Tenant created successfully — tenantID already set
 	case tenantResp.StatusCode() == 409:
-		tenantID = userID
+		// Tenant already exists — tenantID already set
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "failed to create demo tenant",

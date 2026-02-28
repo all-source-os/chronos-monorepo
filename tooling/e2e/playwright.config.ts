@@ -1,17 +1,24 @@
 import { defineConfig, devices } from "@playwright/test";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * See https://playwright.dev/docs/test-configuration.
  *
- * Run against production/staging:
- *   BASE_URL=https://app.all-source.xyz CONTROL_PLANE_URL=https://cp.all-source.xyz \
- *     bunx playwright test tests/smoke/auth-staging.spec.ts
+ * Default target: https://all-source.xyz (production).
+ * Override with BASE_URL env var for staging or local dev.
  *
- * Run locally (starts Next.js dev server automatically):
- *   bunx playwright test
+ * Run against production (default):
+ *   cd tooling/e2e && bunx playwright test tests/smoke/auth.spec.ts
+ *
+ * Run locally:
+ *   BASE_URL=http://localhost:3000 bunx playwright test
  */
 
-const isRemote = !!process.env.BASE_URL;
+const baseURL = process.env.BASE_URL || "https://all-source.xyz";
+const isLocal = baseURL.includes("localhost");
 
 export default defineConfig({
   testDir: "./tests",
@@ -25,7 +32,7 @@ export default defineConfig({
     ["json", { outputFile: "test-results.json" }],
   ],
   use: {
-    baseURL: process.env.BASE_URL || "http://localhost:3000",
+    baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
@@ -38,15 +45,14 @@ export default defineConfig({
   ],
 
   // Only start the local dev server when running against localhost.
-  // When BASE_URL points at a remote environment, skip this entirely.
-  ...(isRemote
-    ? {}
-    : {
+  ...(isLocal
+    ? {
         webServer: {
           command: "cd ../../apps/web && bun run dev",
-          url: "http://localhost:3000",
+          url: baseURL,
           reuseExistingServer: true,
           timeout: 60_000,
         },
-      }),
+      }
+    : {}),
 });

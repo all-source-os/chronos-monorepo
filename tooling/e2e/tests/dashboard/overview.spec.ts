@@ -1,0 +1,250 @@
+import { test, expect, type Page } from "@playwright/test";
+
+/**
+ * Dashboard Overview E2E Tests
+ *
+ * Covers stats cards, current plan, usage charts, API keys section,
+ * quick action cards, recent events, and product stats banner.
+ *
+ * Run:
+ *   cd tooling/e2e && bunx playwright test tests/dashboard/overview.spec.ts
+ */
+
+const CP_URL =
+  process.env.CONTROL_PLANE_URL || "http://localhost:3901";
+
+async function demoLogin(request: any): Promise<string | null> {
+  const demoResp = await request.post(`${CP_URL}/api/v1/demo/start`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!demoResp.ok()) return null;
+  const demoData = await demoResp.json();
+
+  const loginResp = await request.post(`${CP_URL}/api/v1/auth/login`, {
+    headers: { "Content-Type": "application/json" },
+    data: { email: demoData.email, password: demoData.password },
+  });
+  if (!loginResp.ok()) return null;
+  const loginData = await loginResp.json();
+  return loginData.token as string;
+}
+
+async function authenticateAndGoToDashboard(
+  page: Page,
+  token: string
+): Promise<void> {
+  await page.goto(
+    `/api/auth/callback?token=${encodeURIComponent(token)}&new_user=false`
+  );
+  await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 });
+  if (!page.url().includes("/dashboard")) {
+    await page.goto("/dashboard");
+  }
+  await expect(page.getByText("Loading...")).toBeHidden({ timeout: 15000 });
+}
+
+// ---------------------------------------------------------------------------
+// Stats cards
+// ---------------------------------------------------------------------------
+
+test.describe("Overview — stats cards", () => {
+  let token: string | null = null;
+
+  test.beforeAll(async ({ request }) => {
+    token = await demoLogin(request);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    test.skip(!token, "Demo login failed (Control Plane not running)");
+    await authenticateAndGoToDashboard(page, token!);
+  });
+
+  test("stats cards render with numeric values", async ({ page }) => {
+    // The overview page should show stat cards with numbers
+    const statsSection = page.locator("[class*='grid']").first();
+    await expect(statsSection).toBeVisible({ timeout: 10000 });
+
+    // At least one numeric value should be present in the stats area
+    const numericValue = page.locator("text=/\\d+/").first();
+    await expect(numericValue).toBeVisible({ timeout: 10000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Current plan card
+// ---------------------------------------------------------------------------
+
+test.describe("Overview — current plan card", () => {
+  let token: string | null = null;
+
+  test.beforeAll(async ({ request }) => {
+    token = await demoLogin(request);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    test.skip(!token, "Demo login failed (Control Plane not running)");
+    await authenticateAndGoToDashboard(page, token!);
+  });
+
+  test("current plan card shows plan name and usage bars", async ({ page }) => {
+    // Plan card should show a plan tier badge
+    const planBadge = page.locator("text=/Developer|Free|Growth|Team|Enterprise|Pro/i").first();
+    await expect(planBadge).toBeVisible({ timeout: 10000 });
+
+    // Should have at least one progress bar for usage
+    const progressBar = page.locator("[role='progressbar'], [class*='progress']").first();
+    await expect(progressBar).toBeVisible({ timeout: 10000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Usage charts
+// ---------------------------------------------------------------------------
+
+test.describe("Overview — usage charts", () => {
+  let token: string | null = null;
+
+  test.beforeAll(async ({ request }) => {
+    token = await demoLogin(request);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    test.skip(!token, "Demo login failed (Control Plane not running)");
+    await authenticateAndGoToDashboard(page, token!);
+  });
+
+  test("usage charts render with SVG elements", async ({ page }) => {
+    // Check for chart section headings
+    await expect(page.getByText("Event Ingestion (30 days)")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Query Usage (30 days)")).toBeVisible({ timeout: 10000 });
+
+    // At least one SVG chart element should be present
+    const svg = page.locator("svg.recharts-surface").first();
+    await expect(svg).toBeVisible({ timeout: 10000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// API keys section
+// ---------------------------------------------------------------------------
+
+test.describe("Overview — API keys section", () => {
+  let token: string | null = null;
+
+  test.beforeAll(async ({ request }) => {
+    token = await demoLogin(request);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    test.skip(!token, "Demo login failed (Control Plane not running)");
+    await authenticateAndGoToDashboard(page, token!);
+  });
+
+  test("'View All' link navigates to /dashboard/api-keys", async ({ page }) => {
+    const viewAllLink = page.getByRole("link", { name: /View All/i });
+    await expect(viewAllLink).toBeVisible({ timeout: 10000 });
+    await viewAllLink.click();
+
+    await page.waitForURL(/\/dashboard\/api-keys/, { timeout: 15000 });
+    expect(page.url()).toContain("/dashboard/api-keys");
+  });
+
+  test("'Create Key' button is visible", async ({ page }) => {
+    const createKeyBtn = page.getByRole("button", { name: /Create Key/i });
+    await expect(createKeyBtn).toBeVisible({ timeout: 10000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Quick action cards
+// ---------------------------------------------------------------------------
+
+test.describe("Overview — quick action cards", () => {
+  let token: string | null = null;
+
+  test.beforeAll(async ({ request }) => {
+    token = await demoLogin(request);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    test.skip(!token, "Demo login failed (Control Plane not running)");
+    await authenticateAndGoToDashboard(page, token!);
+  });
+
+  test("Create Event card navigates to /dashboard/events?action=create", async ({ page }) => {
+    const card = page.getByRole("link", { name: /Create Event/i });
+    await expect(card).toBeVisible({ timeout: 10000 });
+    await card.click();
+
+    await page.waitForURL(/\/dashboard\/events/, { timeout: 15000 });
+    expect(page.url()).toContain("/dashboard/events");
+  });
+
+  test("Generate API Key card navigates to /dashboard/api-keys?action=create", async ({ page }) => {
+    const card = page.getByRole("link", { name: /Generate API Key/i });
+    await expect(card).toBeVisible({ timeout: 10000 });
+    await card.click();
+
+    await page.waitForURL(/\/dashboard\/api-keys/, { timeout: 15000 });
+    expect(page.url()).toContain("/dashboard/api-keys");
+  });
+
+  test("View Documentation card links externally", async ({ page }) => {
+    const card = page.getByRole("link", { name: /View Documentation/i });
+    await expect(card).toBeVisible({ timeout: 10000 });
+
+    const target = await card.getAttribute("target");
+    const href = await card.getAttribute("href");
+    // External links should open in new tab or have non-relative href
+    expect(target === "_blank" || (href && !href.startsWith("/dashboard"))).toBeTruthy();
+  });
+
+  test("API Reference card links externally", async ({ page }) => {
+    const card = page.getByRole("link", { name: /API Reference/i });
+    await expect(card).toBeVisible({ timeout: 10000 });
+
+    const target = await card.getAttribute("target");
+    const href = await card.getAttribute("href");
+    expect(target === "_blank" || (href && !href.startsWith("/dashboard"))).toBeTruthy();
+  });
+
+  test("Join Discord card links externally", async ({ page }) => {
+    const card = page.getByRole("link", { name: /Join Discord/i });
+    await expect(card).toBeVisible({ timeout: 10000 });
+
+    const target = await card.getAttribute("target");
+    const href = await card.getAttribute("href");
+    expect(target === "_blank" || (href && !href.startsWith("/dashboard"))).toBeTruthy();
+  });
+
+  test("Changelog card navigates to /blog", async ({ page }) => {
+    const card = page.getByRole("link", { name: /Changelog/i });
+    await expect(card).toBeVisible({ timeout: 10000 });
+
+    const href = await card.getAttribute("href");
+    expect(href).toContain("/blog");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Recent events section
+// ---------------------------------------------------------------------------
+
+test.describe("Overview — recent events", () => {
+  let token: string | null = null;
+
+  test.beforeAll(async ({ request }) => {
+    token = await demoLogin(request);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    test.skip(!token, "Demo login failed (Control Plane not running)");
+    await authenticateAndGoToDashboard(page, token!);
+  });
+
+  test("recent events section renders", async ({ page }) => {
+    // The recent events section or product stats banner should be visible
+    const recentSection = page.getByText(/Recent Events|AllSource Event Store/i).first();
+    await expect(recentSection).toBeVisible({ timeout: 10000 });
+  });
+});

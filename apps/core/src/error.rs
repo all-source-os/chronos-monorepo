@@ -1,8 +1,3 @@
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-
 /// AllSource error types
 #[derive(Debug, thiserror::Error)]
 pub enum AllSourceError {
@@ -99,43 +94,60 @@ impl From<sqlx::Error> for AllSourceError {
 /// Custom Result type for AllSource operations
 pub type Result<T> = std::result::Result<T, AllSourceError>;
 
-/// Implement IntoResponse for axum error handling
-impl IntoResponse for AllSourceError {
-    fn into_response(self) -> Response {
-        let (status, error_message) = match self {
-            AllSourceError::EventNotFound(_)
-            | AllSourceError::EntityNotFound(_)
-            | AllSourceError::TenantNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
-            AllSourceError::InvalidEvent(_)
-            | AllSourceError::InvalidQuery(_)
-            | AllSourceError::InvalidInput(_)
-            | AllSourceError::ValidationError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-            AllSourceError::TenantAlreadyExists(_) | AllSourceError::ConcurrencyError(_) => {
-                (StatusCode::CONFLICT, self.to_string())
-            }
-            AllSourceError::QueueFull(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
-            AllSourceError::StorageError(_)
-            | AllSourceError::ArrowError(_)
-            | AllSourceError::IndexError(_)
-            | AllSourceError::InternalError(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
-            }
-            AllSourceError::SerializationError(_) => {
-                (StatusCode::UNPROCESSABLE_ENTITY, self.to_string())
-            }
-        };
+#[cfg(feature = "server")]
+mod axum_impl {
+    use super::AllSourceError;
+    use axum::{
+        http::StatusCode,
+        response::{IntoResponse, Response},
+    };
 
-        let body = serde_json::json!({
-            "error": error_message,
-        });
+    /// Implement IntoResponse for axum error handling
+    impl IntoResponse for AllSourceError {
+        fn into_response(self) -> Response {
+            let (status, error_message) = match self {
+                AllSourceError::EventNotFound(_)
+                | AllSourceError::EntityNotFound(_)
+                | AllSourceError::TenantNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
+                AllSourceError::InvalidEvent(_)
+                | AllSourceError::InvalidQuery(_)
+                | AllSourceError::InvalidInput(_)
+                | AllSourceError::ValidationError(_) => {
+                    (StatusCode::BAD_REQUEST, self.to_string())
+                }
+                AllSourceError::TenantAlreadyExists(_)
+                | AllSourceError::ConcurrencyError(_) => {
+                    (StatusCode::CONFLICT, self.to_string())
+                }
+                AllSourceError::QueueFull(_) => {
+                    (StatusCode::SERVICE_UNAVAILABLE, self.to_string())
+                }
+                AllSourceError::StorageError(_)
+                | AllSourceError::ArrowError(_)
+                | AllSourceError::IndexError(_)
+                | AllSourceError::InternalError(_) => {
+                    (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
+                }
+                AllSourceError::SerializationError(_) => {
+                    (StatusCode::UNPROCESSABLE_ENTITY, self.to_string())
+                }
+            };
 
-        (status, axum::Json(body)).into_response()
+            let body = serde_json::json!({
+                "error": error_message,
+            });
+
+            (status, axum::Json(body)).into_response()
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "server")]
+    use axum::{http::StatusCode, response::IntoResponse};
 
     #[test]
     fn test_error_display() {
@@ -173,6 +185,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_into_response_not_found() {
         let err = AllSourceError::EventNotFound("event-123".to_string());
@@ -188,6 +201,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_into_response_bad_request() {
         let err = AllSourceError::InvalidEvent("bad event".to_string());
@@ -207,6 +221,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_into_response_conflict() {
         let err = AllSourceError::TenantAlreadyExists("tenant-1".to_string());
@@ -218,6 +233,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::CONFLICT);
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_into_response_service_unavailable() {
         let err = AllSourceError::QueueFull("queue is full".to_string());
@@ -225,6 +241,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_into_response_internal_error() {
         let err = AllSourceError::StorageError("storage error".to_string());

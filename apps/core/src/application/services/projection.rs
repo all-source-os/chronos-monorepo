@@ -23,8 +23,8 @@ pub trait Projection: Send + Sync {
 /// Entity snapshot projection - maintains current state of each entity
 pub struct EntitySnapshotProjection {
     name: String,
-    /// entity_id -> latest state
-    states: Arc<DashMap<String, Value>>,
+    /// entity_id -> (latest state, last event timestamp)
+    states: Arc<DashMap<String, (Value, chrono::DateTime<chrono::Utc>)>>,
 }
 
 impl EntitySnapshotProjection {
@@ -39,7 +39,7 @@ impl EntitySnapshotProjection {
     pub fn get_all_states(&self) -> Vec<(String, Value)> {
         self.states
             .iter()
-            .map(|entry| (entry.key().clone(), entry.value().clone()))
+            .map(|entry| (entry.key().clone(), entry.value().0.clone()))
             .collect()
     }
 }
@@ -50,24 +50,34 @@ impl Projection for EntitySnapshotProjection {
     }
 
     fn process(&self, event: &Event) -> Result<()> {
-        // Simple merge strategy: update or insert
+        // Timestamp-aware merge strategy: only merge if the event is at least
+        // as new as the last processed event for this entity. This ensures
+        // convergence during bidirectional sync where events may arrive out of
+        // order. In the normal (non-sync) case, events are always in order so
+        // this condition is always true.
         self.states
             .entry(event.entity_id_str().to_string())
-            .and_modify(|state| {
-                // Merge the event payload into existing state
-                if let (Value::Object(map), Value::Object(payload_map)) = (state, &event.payload) {
-                    for (key, value) in payload_map {
-                        map.insert(key.clone(), value.clone());
+            .and_modify(|(state, last_ts)| {
+                if event.timestamp >= *last_ts {
+                    // Merge the event payload into existing state
+                    if let (Value::Object(map), Value::Object(payload_map)) =
+                        (state, &event.payload)
+                    {
+                        for (key, value) in payload_map {
+                            map.insert(key.clone(), value.clone());
+                        }
                     }
+                    *last_ts = event.timestamp;
                 }
+                // Out-of-order event: skip merge to ensure convergence
             })
-            .or_insert_with(|| event.payload.clone());
+            .or_insert_with(|| (event.payload.clone(), event.timestamp));
 
         Ok(())
     }
 
     fn get_state(&self, entity_id: &str) -> Option<Value> {
-        self.states.get(entity_id).map(|v| v.clone())
+        self.states.get(entity_id).map(|v| v.0.clone())
     }
 
     fn clear(&self) {

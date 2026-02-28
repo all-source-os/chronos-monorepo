@@ -97,7 +97,15 @@ pub mod security;
 pub mod test_utils;
 
 /// Async webhook delivery worker
+#[cfg(feature = "server")]
 pub mod webhook_worker;
+
+/// Ergonomic embedded-mode facade (requires `embedded` feature)
+#[cfg(feature = "embedded")]
+pub mod embedded;
+
+#[cfg(feature = "embedded")]
+pub use embedded::EmbeddedCore;
 
 // =============================================================================
 // Public API - Commonly Used Types
@@ -117,14 +125,15 @@ pub use application::{
 };
 
 // Infrastructure layer exports
-pub use infrastructure::{
-    persistence::{
-        CompactionConfig, CompactionManager, EventIndex, ParquetStorage, SnapshotConfig,
-        SnapshotManager, WALConfig, WriteAheadLog,
-    },
-    security::{AuthManager, Permission, RateLimiter, Role},
-    web::{WebSocketManager, serve},
+pub use infrastructure::persistence::{
+    CompactionConfig, CompactionManager, EventIndex, ParquetStorage, SnapshotConfig,
+    SnapshotManager, WALConfig, WriteAheadLog,
 };
+pub use infrastructure::security::RateLimiter;
+#[cfg(feature = "server")]
+pub use infrastructure::security::{AuthManager, Permission, Role};
+#[cfg(feature = "server")]
+pub use infrastructure::web::{WebSocketManager, serve};
 
 // Error handling
 pub use error::{AllSourceError, Result};
@@ -134,6 +143,7 @@ pub use error::{AllSourceError, Result};
 // =============================================================================
 
 /// Auth module re-export for backward compatibility
+#[cfg(feature = "server")]
 pub mod auth {
     pub use crate::infrastructure::security::{AuthManager, Permission, Role};
 }
@@ -162,6 +172,7 @@ pub mod backup {
 }
 
 /// API v1 module re-export
+#[cfg(feature = "server")]
 pub mod api_v1 {
     pub use crate::infrastructure::web::api_v1::{AppState, AtomicNodeRole, NodeRole, serve_v1};
 }
@@ -185,14 +196,18 @@ pub mod cluster {
 }
 
 /// RESP3 (Redis wire protocol) server re-export
+#[cfg(feature = "server")]
 pub mod resp {
     pub use crate::infrastructure::resp::RespServer;
 }
 
 /// Advanced query features re-export (v2.0)
 pub mod query {
+    #[cfg(feature = "analytics")]
+    pub use crate::infrastructure::query::eventql::{
+        EventQLRequest, EventQLResponse, execute_eventql,
+    };
     pub use crate::infrastructure::query::{
-        eventql::{EventQLRequest, EventQLResponse, execute_eventql},
         geospatial::{
             BoundingBox, Coordinate, GeoEventResult, GeoIndex, GeoQueryRequest, RadiusQuery,
             execute_geo_query, haversine_distance,

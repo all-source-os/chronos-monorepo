@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       data: {
-        user: userData.data,
+        user: userData.data?.user || userData.data,
         tenant: tenantData?.data || null,
       },
     });

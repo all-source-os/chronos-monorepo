@@ -18,7 +18,9 @@ pub mod persistence;
 pub mod query;
 pub mod replication;
 pub mod repositories;
+#[cfg(feature = "server")]
 pub mod resp;
 pub mod search;
 pub mod security;
+#[cfg(feature = "server")]
 pub mod web;

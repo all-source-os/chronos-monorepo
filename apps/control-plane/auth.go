@@ -17,6 +17,8 @@ import (
 type Claims struct {
 	UserID   string        `json:"sub"`
 	Username string        `json:"username"`
+	Email    string        `json:"email,omitempty"`
+	Name     string        `json:"name,omitempty"`
 	TenantID string        `json:"tenant_id"`
 	Role     entities.Role `json:"role"`
 	IsAPIKey bool          `json:"is_api_key,omitempty"`
@@ -271,6 +273,8 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name 
 	claims := &Claims{
 		UserID:   userID,
 		Username: name,
+		Email:    email,
+		Name:     name,
 		TenantID: tenantID,
 		Role:     entities.RoleDeveloper,
 		StandardClaims: jwt.StandardClaims{
@@ -388,6 +392,8 @@ func (cp *ControlPlane) LoginHandler(c *gin.Context) {
 	claims := &Claims{
 		UserID:   userID,
 		Username: displayName,
+		Email:    username,
+		Name:     displayName,
 		TenantID: tenantID,
 		Role:     entities.RoleDeveloper,
 		StandardClaims: jwt.StandardClaims{
