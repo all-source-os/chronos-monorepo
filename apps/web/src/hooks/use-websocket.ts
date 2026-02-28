@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3902";
+function getWebSocketUrl(): string {
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (apiUrl) {
+    return apiUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+  }
+
+  return "ws://localhost:3902";
+}
+
+const WS_URL = getWebSocketUrl();
 
 interface UseWebSocketOptions {
   onMessage?: (data: unknown) => void;

@@ -18,6 +18,7 @@
 //!     event_type: "order.placed",
 //!     payload: json!({"total": 99.99}),
 //!     metadata: None,
+//!     tenant_id: None,
 //! }).await?;
 //!
 //! let events = core.query(Query::new().entity_id("order-1")).await?;

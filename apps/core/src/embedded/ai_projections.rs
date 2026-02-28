@@ -242,7 +242,8 @@ impl Projection for ToolCallAuditProjection {
 
 /// Tracks pending approval requests across all workflows.
 ///
-/// Query with entity_id `__all` to get the full pending queue.
+/// Query with entity_id `"__all"` to get the full pending queue (sorted
+/// by timestamp, oldest first). Use a specific entity ID for per-workflow state.
 pub struct HumanInLoopQueueProjection {
     /// entity_id -> (reason, timestamp) for pending approvals
     pending: DashMap<String, (String, chrono::DateTime<chrono::Utc>)>,
@@ -345,6 +346,12 @@ struct ReplicantState {
 ///
 /// All per-replicant state is consolidated into a single DashMap entry to
 /// prevent TOCTOU races between status and workflow tracking.
+///
+/// **Thread safety:** Updates to `replicants` and `workflow_to_replicant` are
+/// not atomic across both maps. This is safe because `process()` is called
+/// under the `EventStore` events write lock, ensuring single-writer semantics.
+/// However, `get_state("__all")` reads are eventually consistent — a
+/// concurrent read may see a partially-updated state between the two maps.
 pub struct AgentUtilizationProjection {
     /// replicant_id -> consolidated state
     replicants: DashMap<String, ReplicantState>,

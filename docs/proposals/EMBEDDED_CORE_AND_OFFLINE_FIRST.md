@@ -1,6 +1,6 @@
 # Embedded Core Library + Offline-First Desktop Integration
 
-> **Status**: In Progress (Phase 1-7 complete, Phase 8 remaining)
+> **Status**: **COMPLETE** (All 8 phases done)
 > **Tracking**: [GitHub Issue #73](https://github.com/all-source-os/all-source/issues/73)
 > **Origin**: Feature request from [Longhand](https://github.com/technical-leaders/longhand) — offline-first Tauri 2 desktop app
 > **Started**: 2026-02-28
@@ -873,9 +873,16 @@ async fn hitl_queue_tracks_pending_approvals() {
 
 ---
 
-## Phase 8: TOON Format + Documented SDK — NOT STARTED
+## Phase 8: TOON Format + Documented SDK — DONE
 
-**Priority**: P2 | **Effort**: Low | **Status**: Backlog
+**Priority**: P2 | **Effort**: Low | **Status**: Implemented + 4 tests passing
+
+### What Was Built
+
+- **`EmbeddedCore::query_toon()`** — returns events encoded in TOON v3 format (via `toon-format` crate v0.4)
+- TOON removes JSON structural overhead (braces, quoted keys) for LLM-optimized output
+- Gated behind `embedded-toon` feature flag which pulls in `toon-format` as optional dependency
+- Tests verify: valid output, structural overhead reduction, empty results, single events
 
 ### TOON in Embedded API
 
@@ -923,9 +930,9 @@ async fn query_toon_returns_valid_toon() {
 | 5 | Replicant worker protocol | P1 | **Done** | 14/14 |
 | 6 | Streaming token events + compaction | P1 | **Done** | 7/7 |
 | 7 | AI workflow projection templates | P2 | **Done** | 12/12 |
-| 8 | TOON format + documented SDK | P2 | Not started | 0/1 |
+| 8 | TOON format + documented SDK | P2 | **Done** | 4/4 |
 
-**Total**: 79 passing / ~80 planned
+**Total**: 83 passing / 83 planned
 
 ---
 

@@ -27,6 +27,7 @@ mod tests {
             event_type: "order.placed",
             payload: json!({"total": 99.99}),
             metadata: None,
+            tenant_id: None,
         })
         .await
         .unwrap();
@@ -51,6 +52,7 @@ mod tests {
             event_type: "item.created",
             payload: json!({"name": "Widget", "qty": 5}),
             metadata: Some(json!({"source": "test"})),
+            tenant_id: None,
         })
         .await
         .unwrap();
@@ -177,18 +179,21 @@ mod tests {
                 event_type: "a.created",
                 payload: json!({"i": 1}),
                 metadata: None,
+                tenant_id: None,
             },
             IngestEvent {
                 entity_id: "e2",
                 event_type: "b.created",
                 payload: json!({"i": 2}),
                 metadata: None,
+                tenant_id: None,
             },
             IngestEvent {
                 entity_id: "e3",
                 event_type: "c.created",
                 payload: json!({"i": 3}),
                 metadata: None,
+                tenant_id: None,
             },
         ];
 
@@ -213,12 +218,14 @@ mod tests {
                 event_type: "good.event",
                 payload: json!({}),
                 metadata: None,
+                tenant_id: None,
             },
             IngestEvent {
                 entity_id: "",
                 event_type: "bad.event",
                 payload: json!({}),
                 metadata: None,
+                tenant_id: None,
             },
         ];
 
@@ -238,18 +245,21 @@ mod tests {
                 event_type: "step.one",
                 payload: json!({"order": 1}),
                 metadata: None,
+                tenant_id: None,
             },
             IngestEvent {
                 entity_id: "e1",
                 event_type: "step.two",
                 payload: json!({"order": 2}),
                 metadata: None,
+                tenant_id: None,
             },
             IngestEvent {
                 entity_id: "e1",
                 event_type: "step.three",
                 payload: json!({"order": 3}),
                 metadata: None,
+                tenant_id: None,
             },
         ];
 
@@ -278,6 +288,7 @@ mod tests {
             event_type: "order.placed",
             payload: json!({}),
             metadata: None,
+            tenant_id: None,
         })
         .await
         .unwrap();
@@ -287,6 +298,7 @@ mod tests {
             event_type: "order.shipped",
             payload: json!({}),
             metadata: None,
+            tenant_id: None,
         })
         .await
         .unwrap();

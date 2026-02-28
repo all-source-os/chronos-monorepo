@@ -227,6 +227,12 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 		}
 	}
 
+	// Step 4: Seed audit log entries so the Audit Log page isn't empty
+	auditEvents := buildDemoAuditEntries(tenantID, email)
+	for _, ae := range auditEvents {
+		cp.client.R().SetBody(ae).Post("/api/v1/events")
+	}
+
 	// Return credentials — the client logs in through the normal login flow
 	c.JSON(http.StatusCreated, gin.H{
 		"email":         email,
@@ -348,6 +354,45 @@ func buildSampleEvents(tenantID string) []map[string]interface{} {
 			},
 		},
 	}
+}
+
+// buildDemoAuditEntries creates sample audit log events so the Audit Log page
+// shows realistic data for demo accounts. The QS audit log reads events with
+// entity_id "audit:{tenant_id}" and event_type "audit.{action}".
+func buildDemoAuditEntries(tenantID, email string) []map[string]interface{} {
+	now := time.Now()
+
+	entries := []struct {
+		action  string
+		details map[string]interface{}
+		ago     time.Duration
+	}{
+		{"api_key.created", map[string]interface{}{"key_name": "Production API Key", "scopes": []string{"events:read", "events:write"}}, 72 * time.Hour},
+		{"member.invited", map[string]interface{}{"email": "dev@example.com", "role": "member"}, 48 * time.Hour},
+		{"webhook.created", map[string]interface{}{"url": "https://hooks.example.com/events", "events": []string{"order.created"}}, 24 * time.Hour},
+		{"api_key.created", map[string]interface{}{"key_name": "Staging Key", "scopes": []string{"events:read"}}, 12 * time.Hour},
+		{"plan.changed", map[string]interface{}{"from": "free", "to": "enterprise"}, 6 * time.Hour},
+		{"api_key.revoked", map[string]interface{}{"key_name": "Old Test Key", "reason": "expired"}, 2 * time.Hour},
+	}
+
+	events := make([]map[string]interface{}, 0, len(entries))
+	for _, e := range entries {
+		events = append(events, map[string]interface{}{
+			"entity_id":  fmt.Sprintf("audit:%s", tenantID),
+			"event_type": fmt.Sprintf("audit.%s", e.action),
+			"tenant_id":  tenantID,
+			"payload": map[string]interface{}{
+				"actor":       email,
+				"action":      e.action,
+				"details":     e.details,
+				"recorded_at": now.Add(-e.ago).Format(time.RFC3339),
+			},
+			"metadata": map[string]interface{}{
+				"source": "demo_seed",
+			},
+		})
+	}
+	return events
 }
 
 // buildSampleCurls returns sample curl commands for the new tenant.

@@ -48,6 +48,7 @@ use super::{
 ///     event_type: "order.placed",
 ///     payload: json!({"total": 99.99}),
 ///     metadata: None,
+///     tenant_id: None,
 /// }).await?;
 ///
 /// let events = core.query(Query::new().entity_id("order-1")).await?;
@@ -154,11 +155,14 @@ impl EmbeddedCore {
         Ok(())
     }
 
-    /// Ingest a batch of events atomically.
+    /// Ingest a batch of events.
     ///
-    /// All events in the batch are validated first, then ingested under a
-    /// single write lock acquisition. If any event fails validation, no events
-    /// are stored (all-or-nothing semantics).
+    /// All events are validated (converted to domain events) before any are
+    /// ingested. If validation fails for any event, no events are stored.
+    ///
+    /// **Note:** Ingestion is sequential, not atomic — if the process crashes
+    /// mid-batch, some events may have been persisted. For true all-or-nothing
+    /// semantics, use WAL transactions (not yet supported).
     pub async fn ingest_batch(&self, events: Vec<IngestEvent<'_>>) -> Result<()> {
         // Phase 1: Build and validate all domain events before acquiring any locks
         let mut domain_events = Vec::with_capacity(events.len());
@@ -209,11 +213,13 @@ impl EmbeddedCore {
     /// their `token` fields in index order, replaces them with a single
     /// `workflow.output.complete` event, and preserves all non-token events.
     ///
+    /// The merged event inherits the tenant ID from the first token event,
+    /// preserving multi-tenant correctness.
+    ///
     /// Returns `Ok(())` regardless of whether compaction was needed.
     pub async fn compact_tokens(&self, entity_id: &str) -> Result<()> {
         let store = Arc::clone(&self.store);
         let entity_id = entity_id.to_string();
-        let tenant_id = self.effective_tenant_id(None);
 
         tokio::task::spawn_blocking(move || {
             // Query all token events for this entity
@@ -232,6 +238,9 @@ impl EmbeddedCore {
             if all_events.is_empty() {
                 return Ok(());
             }
+
+            // Inherit tenant from the original events (not the config default)
+            let tenant_id = all_events[0].tenant_id_str().to_string();
 
             // Sort by index and concatenate tokens
             let mut tokens: Vec<(u64, String)> = all_events
@@ -402,7 +411,9 @@ impl EmbeddedCore {
     #[cfg(feature = "embedded-toon")]
     pub async fn query_toon(&self, query: Query) -> Result<String> {
         let events = self.query(query).await?;
-        let json_value = serde_json::to_value(&events).unwrap_or_default();
+        let json_value = serde_json::to_value(&events).map_err(|e| {
+            crate::error::AllSourceError::InvalidInput(format!("JSON serialization failed: {e}"))
+        })?;
         let opts = toon_format::EncodeOptions::default();
         toon_format::encode(&json_value, &opts).map_err(|e| {
             crate::error::AllSourceError::InvalidInput(format!("TOON encoding failed: {e}"))

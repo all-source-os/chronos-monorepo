@@ -5,7 +5,7 @@ last_updated: 2026-02-15
 category: service
 port: 3900
 technology: Rust
-version: "0.10.3"
+version: "0.10.7"
 ---
 
 # AllSource Core - High-Performance Event Store
@@ -20,7 +20,7 @@ version: "0.10.3"
 [![Performance](https://img.shields.io/badge/throughput-469K%20events%2Fsec-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 
-**Current Version**: v0.10.3 | [crates.io](https://crates.io/crates/allsource-core) | [docs.rs](https://docs.rs/allsource-core)
+**Current Version**: v0.10.7 | [crates.io](https://crates.io/crates/allsource-core) | [docs.rs](https://docs.rs/allsource-core)
 
 ## What is AllSource Core?
 
@@ -44,7 +44,7 @@ AllSource Core is a Rust-native event store that replaces the traditional "app +
 
 ```bash
 # Start the server
-docker run -p 3900:3900 ghcr.io/all-source-os/allsource-core:0.10.3
+docker run -p 3900:3900 ghcr.io/all-source-os/allsource-core:0.10.7
 
 # Ingest an event
 curl -X POST http://localhost:3900/api/v1/events \
@@ -294,13 +294,15 @@ Enable additional capabilities via Cargo features:
 
 | Feature | Flag | Dependencies | Use Case |
 |---------|------|-------------|----------|
+| Embedded API | `embedded` | — | Use Core as an in-process library (`EmbeddedCore`) |
+| Embedded TOON | `embedded-toon` | toon-format | `query_toon()` — TOON-encoded output (~50% fewer tokens for LLMs) |
 | Vector search | `vector-search` | fastembed, instant-distance | Semantic event search, similarity matching |
 | Keyword search | `keyword-search` | tantivy | Full-text search across event payloads |
 | RocksDB storage | `rocksdb-storage` | rocksdb | Alternative persistent storage backend |
 
 ```toml
 [dependencies]
-allsource-core = { version = "0.10", features = ["vector-search", "keyword-search"] }
+allsource-core = { version = "0.10", features = ["embedded", "embedded-toon"] }
 ```
 
 ## Programmatic API

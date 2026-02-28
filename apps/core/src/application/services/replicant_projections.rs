@@ -83,53 +83,77 @@ impl Projection for WorkflowStatusProjection {
             "workflow.step.started" => {
                 if let Some(mut entry) = self.states.get_mut(&entity_id) {
                     let state = entry.value_mut();
-                    state["status"] = json!("running");
+                    // Only transition from claimed or running (not from terminal states)
+                    let status = state["status"].as_str().unwrap_or("");
+                    if status == "claimed" || status == "running" {
+                        state["status"] = json!("running");
+                    }
                 }
             }
             "workflow.step.completed" => {
                 if let Some(mut entry) = self.states.get_mut(&entity_id) {
                     let state = entry.value_mut();
-                    state["status"] = json!("running");
-                    let completed = state["steps_completed"].as_u64().unwrap_or(0) + 1;
-                    state["steps_completed"] = json!(completed);
+                    let status = state["status"].as_str().unwrap_or("");
+                    if status == "running" || status == "claimed" {
+                        state["status"] = json!("running");
+                        let completed = state["steps_completed"].as_u64().unwrap_or(0) + 1;
+                        state["steps_completed"] = json!(completed);
+                    }
                 }
             }
             "workflow.step.failed" => {
                 if let Some(mut entry) = self.states.get_mut(&entity_id) {
                     let state = entry.value_mut();
-                    state["status"] = json!("failed");
-                    if let Some(error) = event.payload.get("error") {
-                        state["error"] = error.clone();
+                    let status = state["status"].as_str().unwrap_or("");
+                    // Only fail from active states (not from already-completed/rejected)
+                    if status == "running" || status == "claimed" || status == "awaiting_approval" {
+                        state["status"] = json!("failed");
+                        if let Some(error) = event.payload.get("error") {
+                            state["error"] = error.clone();
+                        }
                     }
                 }
             }
             "workflow.approval.requested" => {
                 if let Some(mut entry) = self.states.get_mut(&entity_id) {
                     let state = entry.value_mut();
-                    state["status"] = json!("awaiting_approval");
-                    state["awaiting_approval"] = json!(true);
+                    let status = state["status"].as_str().unwrap_or("");
+                    if status == "running" {
+                        state["status"] = json!("awaiting_approval");
+                        state["awaiting_approval"] = json!(true);
+                    }
                 }
             }
             "workflow.approval.granted" => {
                 if let Some(mut entry) = self.states.get_mut(&entity_id) {
                     let state = entry.value_mut();
-                    state["status"] = json!("running");
-                    state["awaiting_approval"] = json!(false);
+                    let status = state["status"].as_str().unwrap_or("");
+                    if status == "awaiting_approval" {
+                        state["status"] = json!("running");
+                        state["awaiting_approval"] = json!(false);
+                    }
                 }
             }
             "workflow.approval.rejected" => {
                 if let Some(mut entry) = self.states.get_mut(&entity_id) {
                     let state = entry.value_mut();
-                    state["status"] = json!("rejected");
-                    state["awaiting_approval"] = json!(false);
+                    let status = state["status"].as_str().unwrap_or("");
+                    if status == "awaiting_approval" {
+                        state["status"] = json!("rejected");
+                        state["awaiting_approval"] = json!(false);
+                    }
                 }
             }
             "workflow.output.ready" => {
                 if let Some(mut entry) = self.states.get_mut(&entity_id) {
                     let state = entry.value_mut();
-                    state["status"] = json!("completed");
-                    if let Some(result) = event.payload.get("result") {
-                        state["output"] = result.clone();
+                    let status = state["status"].as_str().unwrap_or("");
+                    // Allow completion from any active state
+                    if status == "running" || status == "claimed" {
+                        state["status"] = json!("completed");
+                        if let Some(result) = event.payload.get("result") {
+                            state["output"] = result.clone();
+                        }
                     }
                 }
             }
@@ -229,9 +253,11 @@ impl Projection for ReplicantRegistryProjection {
 
 /// Tracks dispatched-but-unclaimed workflows.
 ///
-/// Uses a special entity ID `__all` to return the global queue state.
+/// Use `get_state("__all")` to return the full pending queue (sorted
+/// alphabetically for deterministic output). Use a specific entity ID
+/// to check if a single workflow is queued.
 ///
-/// State shape:
+/// State shape for `__all`:
 /// ```json
 /// { "pending": ["wf-2", "wf-3"] }
 /// ```
@@ -271,13 +297,19 @@ impl Projection for TaskQueueProjection {
         Ok(())
     }
 
+    /// Get task queue state.
+    ///
+    /// Use `entity_id = "__all"` to get the full pending queue (sorted for
+    /// deterministic output). Use a specific entity ID to check if it's queued.
     fn get_state(&self, entity_id: &str) -> Option<Value> {
         if entity_id == "__all" {
-            let pending: Vec<Value> = self.pending
+            let mut pending: Vec<String> = self.pending
                 .iter()
-                .map(|entry| json!(entry.key().clone()))
+                .map(|entry| entry.key().clone())
                 .collect();
-            Some(json!({ "pending": pending }))
+            pending.sort();
+            let pending_values: Vec<Value> = pending.into_iter().map(|s| json!(s)).collect();
+            Some(json!({ "pending": pending_values }))
         } else {
             // Check if a specific workflow is in the queue
             if self.pending.contains_key(entity_id) {

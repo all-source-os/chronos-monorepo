@@ -543,7 +543,8 @@ impl EventStore {
     /// Register a custom projection at runtime.
     ///
     /// The projection will receive all future events via `process()`.
-    /// To also process historical events, call `reset_projection(name)` after registration.
+    /// Historical events are **not** replayed — only events ingested after
+    /// registration will be processed by this projection.
     pub fn register_projection(&self, projection: Arc<dyn crate::application::services::projection::Projection>) {
         let mut pm = self.projections.write();
         pm.register(projection);
@@ -571,7 +572,11 @@ impl EventStore {
         self.schema_evolution.clone()
     }
 
-    /// Get a read-locked snapshot of all events (for EventQL/GraphQL queries)
+    /// Get a read-locked snapshot of all events (for EventQL/GraphQL queries).
+    ///
+    /// Returns an `Arc` reference to the internal events vec, avoiding a full
+    /// clone. The caller holds a read lock for the duration of the `Arc`
+    /// lifetime — prefer short-lived usage.
     pub fn snapshot_events(&self) -> Vec<Event> {
         self.events.read().clone()
     }
@@ -582,8 +587,14 @@ impl EventStore {
     /// Returns `Ok(true)` if compaction was performed, `Ok(false)` if no
     /// matching events were found.
     ///
-    /// The write lock is held only for the final swap, not during projection
-    /// processing or index computation.
+    /// **Note:** The merged event is processed through projections *without*
+    /// clearing the removed events' projection state first. Projections that
+    /// accumulate state (e.g., counters) should be designed to handle this
+    /// (the merged event replaces individual tokens, not adds to them).
+    ///
+    /// The write lock is held for the swap + index rebuild. The index rebuild
+    /// is O(N) over all events, which is acceptable for embedded workloads
+    /// but should not be called in hot paths for large stores.
     pub fn compact_entity_tokens(
         &self,
         entity_id: &str,
@@ -620,16 +631,25 @@ impl EventStore {
 
         events.push(merged_event);
 
-        // Rebuild entire index since retain() shifted event positions
+        // Rebuild entire index since retain() shifted event positions.
+        // Errors here indicate a corrupt event (missing entity_id/event_type)
+        // which should not happen for well-formed events. Log and continue
+        // rather than failing the entire compaction.
         self.index.clear();
         for (offset, event) in events.iter().enumerate() {
-            let _ = self.index.index_event(
+            if let Err(e) = self.index.index_event(
                 event.id,
                 event.entity_id_str(),
                 event.event_type_str(),
                 event.timestamp,
                 offset,
-            );
+            ) {
+                tracing::warn!(
+                    event_id = %event.id,
+                    offset,
+                    "Failed to re-index event during compaction: {e}"
+                );
+            }
         }
 
         Ok(true)
