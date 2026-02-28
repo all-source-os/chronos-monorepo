@@ -35,12 +35,16 @@ defmodule QueryServiceExWeb.ChannelBroadcaster do
     PubSub.broadcast(@pubsub, "events:all", {:new_event, event})
 
     # Broadcast to entity-specific topic
-    if entity_id = event["entity_id"] || event[:entity_id] do
+    entity_id = event["entity_id"] || event[:entity_id]
+
+    if entity_id do
       PubSub.broadcast(@pubsub, "events:#{entity_id}", {:new_event, event})
     end
 
     # Broadcast to event-type topic
-    if event_type = event["event_type"] || event[:event_type] do
+    event_type = event["event_type"] || event[:event_type]
+
+    if event_type do
       PubSub.broadcast(@pubsub, "events:type:#{event_type}", {:new_event, event})
     end
 

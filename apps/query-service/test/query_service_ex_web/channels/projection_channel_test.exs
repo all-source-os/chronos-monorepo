@@ -103,7 +103,7 @@ defmodule QueryServiceExWeb.ProjectionChannelTest do
       assert Map.has_key?(state, user_id_str)
 
       metas = state[user_id_str].metas
-      assert length(metas) > 0
+      assert metas != []
 
       [meta | _] = metas
       assert meta.projection == "user_stats"

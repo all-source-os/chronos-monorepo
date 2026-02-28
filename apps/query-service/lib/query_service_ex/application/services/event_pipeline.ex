@@ -179,10 +179,12 @@ defmodule QueryServiceEx.Application.Services.EventPipeline do
       end)
 
     # Bulk sync to Core
-    if length(projection_states) > 0 do
+    if projection_states != [] do
+      count = length(projection_states)
+
       case RustCoreClient.bulk_save_projection_states(projection_states) do
         :ok ->
-          Logger.debug("[EventPipeline] Synced #{length(projection_states)} projection states")
+          Logger.debug("[EventPipeline] Synced #{count} projection states")
 
         {:error, reason} ->
           Logger.warning("[EventPipeline] Failed to sync projections: #{inspect(reason)}")
@@ -191,7 +193,7 @@ defmodule QueryServiceEx.Application.Services.EventPipeline do
       # Emit telemetry
       :telemetry.execute(
         [:query_service_ex, :event_pipeline, :projections_synced],
-        %{count: length(projection_states)},
+        %{count: count},
         %{}
       )
     end

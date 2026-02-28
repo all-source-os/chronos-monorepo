@@ -93,7 +93,7 @@ defmodule QueryServiceEx.Projections.ProjectionSupervisorTest do
 
       children = DynamicSupervisor.which_children(sup)
       # At least one child (indices is registered in Registry)
-      assert length(children) >= 1
+      assert children != []
 
       DynamicSupervisor.stop(sup)
     end
@@ -106,7 +106,7 @@ defmodule QueryServiceEx.Projections.ProjectionSupervisorTest do
 
       children = DynamicSupervisor.which_children(sup)
 
-      if length(children) > 0 do
+      if children != [] do
         {_, child_pid, _, _} = hd(children)
 
         # Kill the child
@@ -115,7 +115,7 @@ defmodule QueryServiceEx.Projections.ProjectionSupervisorTest do
 
         # Supervisor should have restarted it
         new_children = DynamicSupervisor.which_children(sup)
-        assert length(new_children) >= 1
+        assert new_children != []
 
         {_, new_pid, _, _} = hd(new_children)
         assert new_pid != child_pid

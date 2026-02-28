@@ -154,7 +154,7 @@ defmodule QueryServiceExWeb.EventChannelTest do
 
       assert Map.has_key?(state, to_string(user.id))
       user_presence = state[to_string(user.id)]
-      assert length(user_presence.metas) > 0
+      assert user_presence.metas != []
     end
   end
 end

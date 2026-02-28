@@ -327,7 +327,7 @@ defmodule QueryServiceEx.Projections.ProjectionServerTest do
 
       calls = MockCoreClient.get_calls()
       save_calls = Enum.filter(calls, fn {op, _, _, _} -> op == :save end)
-      assert length(save_calls) >= 1
+      assert save_calls != []
 
       {_, proj_name, eid, state} = hd(save_calls)
       assert eid == "idx-1"

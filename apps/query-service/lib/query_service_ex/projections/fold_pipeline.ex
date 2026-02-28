@@ -142,10 +142,10 @@ defmodule QueryServiceEx.Projections.FoldPipeline do
 
   defp load_snapshots(core_client, entity_id) do
     case core_client.list_snapshots(entity_id) do
-      {:ok, snapshots} when is_list(snapshots) and length(snapshots) > 0 ->
+      {:ok, [_ | _] = snapshots} ->
         build_snapshot_accumulators(snapshots)
 
-      {:ok, %{"snapshots" => snapshots}} when is_list(snapshots) and length(snapshots) > 0 ->
+      {:ok, %{"snapshots" => [_ | _] = snapshots}} ->
         build_snapshot_accumulators(snapshots)
 
       _ ->

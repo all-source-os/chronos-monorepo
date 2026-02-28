@@ -958,7 +958,7 @@ async fn query_toon_returns_valid_toon() {
 | Batch ingestion | 6 | **Done** (`ingest_batch()`) |
 | Streaming tokens + compaction | 6 | **Done** (`compact_tokens()`, index rebuild) |
 | Pre-built projection templates | 7 | **Done** (TokenUsage, ToolCallAudit, HumanInLoopQueue, AgentUtilization) |
-| TOON format in SDK | 8 | Planned |
+| TOON format in SDK | 8 | **Done** (`query_toon()` behind `embedded-toon` feature) |
 
 ---
 

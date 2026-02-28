@@ -84,7 +84,7 @@ defmodule QueryServiceEx.Cluster.Membership do
   Check if we're in a clustered environment.
   """
   def clustered? do
-    length(Node.list()) > 0
+    Node.list() != []
   end
 
   ## Server Callbacks

@@ -21,7 +21,7 @@ defmodule QueryServiceEx.PrometheusMetricsTest do
     test "returns a list of metric definitions" do
       metrics = PrometheusMetrics.metrics()
       assert is_list(metrics)
-      assert length(metrics) > 0
+      assert metrics != []
     end
 
     test "includes HTTP metrics" do
@@ -80,21 +80,21 @@ defmodule QueryServiceEx.PrometheusMetricsTest do
       metrics = PrometheusMetrics.metrics()
       counters = Enum.filter(metrics, &(&1.__struct__ == Telemetry.Metrics.Counter))
 
-      assert length(counters) > 0
+      assert counters != []
     end
 
     test "includes distribution metrics" do
       metrics = PrometheusMetrics.metrics()
       distributions = Enum.filter(metrics, &(&1.__struct__ == Telemetry.Metrics.Distribution))
 
-      assert length(distributions) > 0
+      assert distributions != []
     end
 
     test "includes last_value metrics" do
       metrics = PrometheusMetrics.metrics()
       last_values = Enum.filter(metrics, &(&1.__struct__ == Telemetry.Metrics.LastValue))
 
-      assert length(last_values) > 0
+      assert last_values != []
     end
   end
 

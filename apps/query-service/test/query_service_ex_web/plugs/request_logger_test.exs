@@ -33,7 +33,7 @@ defmodule QueryServiceExWeb.Plugs.RequestLoggerTest do
       result = RequestLogger.call(conn, [])
 
       # The callback should be registered in private.before_send
-      assert length(result.private.before_send) > 0
+      assert result.private.before_send != []
     end
 
     test "logs request on send" do

@@ -58,7 +58,7 @@ defmodule QueryServiceExWeb.ClusterControllerTest do
       assert data["total"] >= 1
 
       # Check member structure
-      if length(data["members"]) > 0 do
+      if data["members"] != [] do
         member = hd(data["members"])
         assert Map.has_key?(member, "node")
         assert Map.has_key?(member, "self")

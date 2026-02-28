@@ -97,7 +97,7 @@ defmodule QueryServiceEx.Cluster.DistributedRegistryTest do
       members = DistributedRegistry.members()
       assert is_list(members)
       # Should have at least the current node
-      assert length(members) >= 1
+      assert members != []
     end
   end
 

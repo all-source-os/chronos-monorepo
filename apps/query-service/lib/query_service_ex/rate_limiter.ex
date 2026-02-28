@@ -210,7 +210,7 @@ defmodule QueryServiceEx.RateLimiter do
       :ets.delete(@table_name, key)
     end)
 
-    if length(stale_keys) > 0 do
+    if stale_keys != [] do
       Logger.debug("[RateLimiter] Cleaned up #{length(stale_keys)} stale entries")
     end
   end
