@@ -293,6 +293,57 @@ mod tests {
     }
 
     // =========================================================================
+    // Cross-tenant compaction guard
+    // =========================================================================
+
+    #[tokio::test]
+    async fn compact_rejects_cross_tenant_tokens() {
+        // Multi-tenant mode
+        let core = EmbeddedCore::open(
+            Config::builder().single_tenant(false).build().unwrap(),
+        )
+        .await
+        .unwrap();
+
+        // Ingest tokens for same entity_id under two different tenants
+        for i in 0..3 {
+            core.ingest(IngestEvent {
+                entity_id: "wf-shared",
+                event_type: "workflow.token",
+                payload: json!({"token": format!("a{i}"), "index": i}),
+                metadata: None,
+                tenant_id: Some("tenant-a"),
+            })
+            .await
+            .unwrap();
+        }
+        for i in 0..3 {
+            core.ingest(IngestEvent {
+                entity_id: "wf-shared",
+                event_type: "workflow.token",
+                payload: json!({"token": format!("b{i}"), "index": i}),
+                metadata: None,
+                tenant_id: Some("tenant-b"),
+            })
+            .await
+            .unwrap();
+        }
+
+        // Compaction should succeed (tokens from both tenants exist but query
+        // returns all — the guard should detect mixed tenants and reject)
+        let result = core.compact_tokens("wf-shared").await;
+        assert!(
+            result.is_err(),
+            "compact_tokens should reject cross-tenant token events"
+        );
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("multiple tenants"),
+            "Error should mention multiple tenants, got: {err_msg}"
+        );
+    }
+
+    // =========================================================================
     // Helper
     // =========================================================================
 

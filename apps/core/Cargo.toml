@@ -35,6 +35,7 @@ required-features = ["server"]
 
 [features]
 default = ["server", "analytics"]
+# Embedded-only rlib size: ~30MB (includes arrow, parquet, serde, chrono; measured 2026-02-28)
 # Server feature: includes HTTP server, auth, metrics, webhooks, and all infrastructure
 server = [
     "dep:axum", "dep:axum-extra", "dep:tower", "dep:tower-http",

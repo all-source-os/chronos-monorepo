@@ -155,14 +155,12 @@ impl EmbeddedCore {
         Ok(())
     }
 
-    /// Ingest a batch of events.
+    /// Ingest a batch of events with a single write lock acquisition.
     ///
     /// All events are validated (converted to domain events) before any are
     /// ingested. If validation fails for any event, no events are stored.
-    ///
-    /// **Note:** Ingestion is sequential, not atomic — if the process crashes
-    /// mid-batch, some events may have been persisted. For true all-or-nothing
-    /// semantics, use WAL transactions (not yet supported).
+    /// The store-level batch uses a single write lock for all events,
+    /// minimizing lock contention for high-throughput streaming.
     pub async fn ingest_batch(&self, events: Vec<IngestEvent<'_>>) -> Result<()> {
         // Phase 1: Build and validate all domain events before acquiring any locks
         let mut domain_events = Vec::with_capacity(events.len());
@@ -193,16 +191,11 @@ impl EmbeddedCore {
             }
         }
 
-        // Phase 3: Ingest all events on the blocking threadpool
+        // Phase 3: Ingest entire batch on the blocking threadpool (single lock)
         let store = Arc::clone(&self.store);
-        tokio::task::spawn_blocking(move || {
-            for domain_event in domain_events {
-                store.ingest(domain_event)?;
-            }
-            Ok::<(), crate::error::AllSourceError>(())
-        })
-        .await
-        .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
+        tokio::task::spawn_blocking(move || store.ingest_batch(domain_events))
+            .await
+            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
 
         Ok(())
     }
@@ -239,8 +232,17 @@ impl EmbeddedCore {
                 return Ok(());
             }
 
-            // Inherit tenant from the original events (not the config default)
+            // Inherit tenant from the original events (not the config default).
+            // Validate all events share the same tenant to prevent cross-tenant merging.
             let tenant_id = all_events[0].tenant_id_str().to_string();
+            if all_events.iter().any(|e| e.tenant_id_str() != tenant_id) {
+                return Err(crate::error::AllSourceError::InvalidInput(
+                    format!(
+                        "compact_tokens: entity '{}' has token events across multiple tenants — cannot merge",
+                        entity_id
+                    ),
+                ));
+            }
 
             // Sort by index and concatenate tokens
             let mut tokens: Vec<(u64, String)> = all_events

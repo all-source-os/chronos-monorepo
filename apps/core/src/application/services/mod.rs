@@ -8,7 +8,6 @@ pub mod event_coordinator;
 pub mod payment_coordinator;
 pub mod pipeline;
 pub mod projection;
-pub mod replicant_projections;
 pub mod replay;
 pub mod schema;
 pub mod tenant_service;

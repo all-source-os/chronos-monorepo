@@ -127,6 +127,123 @@ mod tests {
     }
 
     // =========================================================================
+    // TOON round-trip and validation
+    // =========================================================================
+
+    #[tokio::test]
+    async fn query_toon_round_trips_through_decode() {
+        let core = open_core().await;
+
+        core.ingest(IngestEvent {
+            entity_id: "rt-1",
+            event_type: "roundtrip.test",
+            payload: json!({"name": "Alice", "score": 42}),
+            metadata: None,
+            tenant_id: None,
+        })
+        .await
+        .unwrap();
+
+        let toon = core
+            .query_toon(Query::new().entity_id("rt-1"))
+            .await
+            .unwrap();
+
+        // Decode TOON back to JSON
+        let opts = toon_format::DecodeOptions::new();
+        let decoded: serde_json::Value =
+            toon_format::decode(&toon, &opts).expect("TOON should decode back to valid JSON");
+
+        // Should be an array with one event
+        let arr = decoded.as_array().expect("Decoded TOON should be an array");
+        assert_eq!(arr.len(), 1, "Should contain exactly 1 event");
+
+        let event = &arr[0];
+        assert_eq!(event["entity_id"], "rt-1");
+        assert_eq!(event["event_type"], "roundtrip.test");
+        assert_eq!(event["payload"]["name"], "Alice");
+        assert_eq!(event["payload"]["score"], 42);
+    }
+
+    #[tokio::test]
+    async fn query_toon_preserves_field_values() {
+        let core = open_core().await;
+
+        core.ingest(IngestEvent {
+            entity_id: "fv-1",
+            event_type: "field.values",
+            payload: json!({
+                "string": "hello world",
+                "number": 3.14,
+                "boolean": true,
+                "null_val": null,
+                "nested": {"key": "value"}
+            }),
+            metadata: None,
+            tenant_id: None,
+        })
+        .await
+        .unwrap();
+
+        let toon = core
+            .query_toon(Query::new().entity_id("fv-1"))
+            .await
+            .unwrap();
+
+        let opts = toon_format::DecodeOptions::new().with_coerce_types(true);
+        let decoded: serde_json::Value =
+            toon_format::decode(&toon, &opts).expect("Should decode");
+        let event = &decoded.as_array().unwrap()[0];
+
+        assert_eq!(event["payload"]["string"], "hello world");
+        assert_eq!(event["payload"]["boolean"], true);
+        // Nested objects should survive round-trip
+        assert_eq!(event["payload"]["nested"]["key"], "value");
+    }
+
+    #[tokio::test]
+    async fn query_toon_handles_special_characters() {
+        let core = open_core().await;
+
+        core.ingest(IngestEvent {
+            entity_id: "special-1",
+            event_type: "special.chars",
+            payload: json!({
+                "with_quotes": "he said \"hello\"",
+                "with_newline": "line1\nline2",
+                "with_unicode": "emoji: \u{1F600}",
+                "with_tabs": "col1\tcol2"
+            }),
+            metadata: None,
+            tenant_id: None,
+        })
+        .await
+        .unwrap();
+
+        // Should not error during encoding
+        let toon = core
+            .query_toon(Query::new().entity_id("special-1"))
+            .await
+            .unwrap();
+
+        assert!(!toon.is_empty(), "TOON output should not be empty");
+
+        // Should be decodable
+        let opts = toon_format::DecodeOptions::new();
+        let decoded: serde_json::Value =
+            toon_format::decode(&toon, &opts).expect("TOON with special chars should decode");
+        let event = &decoded.as_array().unwrap()[0];
+        // Unicode should survive
+        let unicode_val = event["payload"]["with_unicode"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(
+            unicode_val.contains('\u{1F600}'),
+            "Unicode should survive round-trip"
+        );
+    }
+
+    // =========================================================================
     // Helper
     // =========================================================================
 

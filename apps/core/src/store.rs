@@ -425,6 +425,69 @@ impl EventStore {
         Ok(())
     }
 
+    /// Ingest a batch of events with a single write lock acquisition.
+    ///
+    /// All events are validated first. If any event fails validation, no
+    /// events are stored (all-or-nothing validation). Events are then written
+    /// to WAL, indexed, processed through projections, and pushed to the
+    /// events vector under a single write lock.
+    pub fn ingest_batch(&self, batch: Vec<Event>) -> Result<()> {
+        if batch.is_empty() {
+            return Ok(());
+        }
+
+        // Phase 1: Validate all events before acquiring any locks
+        for event in &batch {
+            self.validate_event(event)?;
+        }
+
+        // Phase 2: Write all events to WAL (before write lock, for durability)
+        if let Some(ref wal) = self.wal {
+            for event in &batch {
+                wal.append(event.clone())?;
+            }
+        }
+
+        // Phase 3: Single write lock for index + projections + push
+        let mut events = self.events.write();
+        let projections = self.projections.read();
+
+        for event in batch {
+            let offset = events.len();
+
+            self.index.index_event(
+                event.id,
+                event.entity_id_str(),
+                event.event_type_str(),
+                event.timestamp,
+                offset,
+            )?;
+
+            projections.process_event(&event)?;
+            self.pipeline_manager.process_event(&event);
+
+            if let Some(ref storage) = self.storage {
+                let storage = storage.read();
+                storage.append_event(event.clone())?;
+            }
+
+            self.geo_index.index_event(&event);
+            self.schema_evolution
+                .analyze_event(event.event_type_str(), &event.payload);
+
+            events.push(event);
+        }
+
+        let total_events = events.len();
+        drop(projections);
+        drop(events);
+
+        let mut total = self.total_ingested.write();
+        *total += total_events as u64;
+
+        Ok(())
+    }
+
     /// Ingest a replicated event from the leader (follower mode).
     ///
     /// Unlike `ingest()`, this method:
@@ -545,9 +608,33 @@ impl EventStore {
     /// The projection will receive all future events via `process()`.
     /// Historical events are **not** replayed — only events ingested after
     /// registration will be processed by this projection.
+    ///
+    /// See [`register_projection_with_backfill`](Self::register_projection_with_backfill)
+    /// to also process historical events.
     pub fn register_projection(&self, projection: Arc<dyn crate::application::services::projection::Projection>) {
         let mut pm = self.projections.write();
         pm.register(projection);
+    }
+
+    /// Register a custom projection and replay all existing events through it.
+    ///
+    /// After registration, the projection will also receive all future events.
+    /// Historical events are replayed under a read lock — the projection's
+    /// internal state (typically DashMap) handles concurrent access.
+    pub fn register_projection_with_backfill(&self, projection: Arc<dyn crate::application::services::projection::Projection>) -> Result<()> {
+        // First register so future events are processed
+        {
+            let mut pm = self.projections.write();
+            pm.register(Arc::clone(&projection));
+        }
+
+        // Then replay existing events under read lock
+        let events = self.events.read();
+        for event in events.iter() {
+            projection.process(event)?;
+        }
+
+        Ok(())
     }
 
     /// Get the projection state cache for this store (v0.7 feature)
@@ -592,9 +679,16 @@ impl EventStore {
     /// accumulate state (e.g., counters) should be designed to handle this
     /// (the merged event replaces individual tokens, not adds to them).
     ///
-    /// The write lock is held for the swap + index rebuild. The index rebuild
-    /// is O(N) over all events, which is acceptable for embedded workloads
-    /// but should not be called in hot paths for large stores.
+    /// **Crash safety:** The WAL append happens *after* the in-memory swap
+    /// under the write lock. If the process crashes before the WAL write,
+    /// no change is persisted — WAL replay restores the pre-compaction state.
+    /// If the process crashes after the WAL write, replay sees the merged
+    /// event (and the original tokens, which are idempotent to replay since
+    /// the merged event supersedes them).
+    ///
+    /// The write lock is held for the swap + WAL write + index rebuild.
+    /// The index rebuild is O(N) over all events, which is acceptable for
+    /// embedded workloads but should not be called in hot paths for large stores.
     pub fn compact_entity_tokens(
         &self,
         entity_id: &str,
@@ -617,19 +711,21 @@ impl EventStore {
         projections.process_event(&merged_event)?;
         drop(projections);
 
-        // Write merged event to WAL for durability
-        if let Some(ref wal) = self.wal {
-            wal.append(merged_event.clone())?;
-        }
-
-        // Phase 3: Acquire write lock only for the swap + index rebuild
+        // Phase 3: Acquire write lock for the swap + WAL + index rebuild
         let mut events = self.events.write();
 
         events.retain(|e| {
             !(e.entity_id_str() == entity_id && e.event_type_str() == token_event_type)
         });
 
-        events.push(merged_event);
+        events.push(merged_event.clone());
+
+        // WAL append inside write lock: crash before this line = no change persisted.
+        // Crash after = merged event in WAL, original tokens also in WAL but
+        // superseded by the merged event's entity_id + event_type.
+        if let Some(ref wal) = self.wal {
+            wal.append(merged_event)?;
+        }
 
         // Rebuild entire index since retain() shifted event positions.
         // Errors here indicate a corrupt event (missing entity_id/event_type)

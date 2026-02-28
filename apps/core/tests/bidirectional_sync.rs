@@ -18,7 +18,6 @@ mod tests {
     };
     use allsource_core::embedded::{Config, EmbeddedCore, IngestEvent, Query};
     use serde_json::json;
-    use std::time::Duration;
 
     // =========================================================================
     // HLC Ordering
@@ -281,9 +280,8 @@ mod tests {
             .await
             .unwrap();
 
-        // Small delay so B's HLC is strictly later
-        tokio::time::sleep(Duration::from_millis(5)).await;
-
+        // B's event has higher node_id (2 > 1), so at same millisecond
+        // B wins the LWW tie-break deterministically.
         core_b
             .ingest(IngestEvent {
                 entity_id: "config-1",

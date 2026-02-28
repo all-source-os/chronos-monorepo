@@ -539,6 +539,256 @@ mod tests {
     }
 
     // =========================================================================
+    // Projection backfill test
+    // =========================================================================
+
+    #[tokio::test]
+    async fn register_projection_with_backfill_replays_history() {
+        use allsource_core::application::services::projection::Projection;
+        use allsource_core::domain::entities::Event;
+        use dashmap::DashMap;
+        use std::sync::Arc;
+
+        // Simple counting projection
+        struct CountProjection {
+            counts: DashMap<String, u64>,
+        }
+
+        impl Projection for CountProjection {
+            fn name(&self) -> &str {
+                "test_counter"
+            }
+            fn process(&self, event: &Event) -> allsource_core::error::Result<()> {
+                self.counts
+                    .entry(event.entity_id_str().to_string())
+                    .and_modify(|c| *c += 1)
+                    .or_insert(1);
+                Ok(())
+            }
+            fn get_state(&self, entity_id: &str) -> Option<serde_json::Value> {
+                self.counts.get(entity_id).map(|c| json!({ "count": *c }))
+            }
+            fn clear(&self) {
+                self.counts.clear();
+            }
+        }
+
+        let core = open_in_memory_core().await;
+
+        // Ingest 5 events BEFORE registering the projection
+        for i in 0..5 {
+            core.ingest(IngestEvent {
+                entity_id: "backfill-entity",
+                event_type: "backfill.test",
+                payload: json!({"seq": i}),
+                metadata: None,
+                tenant_id: None,
+            })
+            .await
+            .unwrap();
+        }
+
+        // Register with backfill — should replay historical events
+        let projection = Arc::new(CountProjection {
+            counts: DashMap::new(),
+        });
+        core.inner()
+            .register_projection_with_backfill(projection.clone())
+            .unwrap();
+
+        // Projection should have seen all 5 historical events
+        let state = projection.get_state("backfill-entity").unwrap();
+        assert_eq!(state["count"], 5, "Backfill should have replayed 5 events");
+
+        // Future events should also be processed
+        core.ingest(IngestEvent {
+            entity_id: "backfill-entity",
+            event_type: "backfill.test",
+            payload: json!({"seq": 5}),
+            metadata: None,
+            tenant_id: None,
+        })
+        .await
+        .unwrap();
+
+        let state = projection.get_state("backfill-entity").unwrap();
+        assert_eq!(
+            state["count"], 6,
+            "Future event should also be processed"
+        );
+    }
+
+    // =========================================================================
+    // Crash recovery test
+    // =========================================================================
+
+    #[tokio::test]
+    async fn events_survive_store_restart_via_wal() {
+        let tmp = TempDir::new().unwrap();
+        let data_dir = tmp.path().to_path_buf();
+
+        // Phase 1: Open, ingest events, shutdown
+        {
+            let core = EmbeddedCore::open(
+                Config::builder()
+                    .data_dir(&data_dir)
+                    .build()
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+            for i in 0..10 {
+                core.ingest(IngestEvent {
+                    entity_id: &format!("recovery-{i}"),
+                    event_type: "recovery.test",
+                    payload: json!({"seq": i}),
+                    metadata: None,
+                    tenant_id: None,
+                })
+                .await
+                .unwrap();
+            }
+
+            core.shutdown().await.unwrap();
+            // core is dropped here
+        }
+
+        // Phase 2: Reopen with same data_dir, verify events survived
+        {
+            let core = EmbeddedCore::open(
+                Config::builder()
+                    .data_dir(&data_dir)
+                    .build()
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+            let events = core
+                .query(Query::new().event_type("recovery.test").limit(100))
+                .await
+                .unwrap();
+
+            assert_eq!(
+                events.len(),
+                10,
+                "Expected 10 events after restart, got {}",
+                events.len()
+            );
+
+            // Verify event data is intact
+            let first = events.iter().find(|e| e.entity_id == "recovery-0").unwrap();
+            assert_eq!(first.payload["seq"], 0);
+        }
+    }
+
+    // =========================================================================
+    // Concurrency tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn concurrent_writers_no_lost_events() {
+        use std::sync::Arc;
+
+        let core = Arc::new(open_in_memory_core().await);
+        let mut handles = Vec::new();
+
+        // Spawn 10 tasks, each ingesting 100 events
+        for task_id in 0..10u32 {
+            let core = Arc::clone(&core);
+            handles.push(tokio::spawn(async move {
+                for i in 0..100u32 {
+                    core.ingest(IngestEvent {
+                        entity_id: &format!("task-{task_id}-entity-{i}"),
+                        event_type: "concurrency.test",
+                        payload: json!({"task": task_id, "seq": i}),
+                        metadata: None,
+                        tenant_id: None,
+                    })
+                    .await
+                    .unwrap();
+                }
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // All 1000 events should be present
+        let events = core
+            .query(Query::new().event_type("concurrency.test").limit(2000))
+            .await
+            .unwrap();
+        assert_eq!(
+            events.len(),
+            1000,
+            "Expected 1000 events from 10 writers x 100 events, got {}",
+            events.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_readers_and_writers() {
+        use std::sync::Arc;
+
+        let core = Arc::new(open_in_memory_core().await);
+        let mut handles = Vec::new();
+
+        // 5 writers
+        for task_id in 0..5u32 {
+            let core = Arc::clone(&core);
+            handles.push(tokio::spawn(async move {
+                for i in 0..50u32 {
+                    core.ingest(IngestEvent {
+                        entity_id: &format!("rw-{task_id}-{i}"),
+                        event_type: "rw.test",
+                        payload: json!({"task": task_id, "seq": i}),
+                        metadata: None,
+                        tenant_id: None,
+                    })
+                    .await
+                    .unwrap();
+                }
+            }));
+        }
+
+        // 5 concurrent readers — each reads multiple times
+        for _ in 0..5u32 {
+            let core = Arc::clone(&core);
+            handles.push(tokio::spawn(async move {
+                let mut prev_count = 0;
+                for _ in 0..20 {
+                    let events = core
+                        .query(Query::new().event_type("rw.test").limit(500))
+                        .await
+                        .unwrap();
+                    // Event count should be monotonically non-decreasing
+                    assert!(
+                        events.len() >= prev_count,
+                        "Event count decreased: {} -> {}",
+                        prev_count,
+                        events.len()
+                    );
+                    prev_count = events.len();
+                }
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // Final count: 5 writers x 50 events = 250
+        let events = core
+            .query(Query::new().event_type("rw.test").limit(500))
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 250);
+    }
+
+    // =========================================================================
     // Helper
     // =========================================================================
 
