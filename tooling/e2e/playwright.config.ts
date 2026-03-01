@@ -21,6 +21,7 @@ const baseURL = process.env.BASE_URL || "https://all-source.xyz";
 const isLocal = baseURL.includes("localhost");
 
 export default defineConfig({
+  globalSetup: "./global-setup.ts",
   testDir: "./tests",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

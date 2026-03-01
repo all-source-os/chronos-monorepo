@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { demoLoginFull, type DemoAuth } from "../../fixtures/demo-auth";
 
 /**
  * Backend Integration E2E Tests — Full-stack: QS + Core + Control Plane
@@ -17,36 +18,13 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
  *     bunx playwright test tests/smoke/backend-integration.spec.ts
  */
 
-const CP_URL =
-  process.env.CONTROL_PLANE_URL || "http://localhost:3901";
 const QS_URL =
   process.env.QS_URL || process.env.NEXT_PUBLIC_API_URL || "https://allsource-query.fly.dev";
-
-interface DemoAuth {
-  token: string;
-  email: string;
-}
-
-async function demoLogin(request: APIRequestContext): Promise<DemoAuth | null> {
-  const demoResp = await request.post(`${CP_URL}/api/v1/demo/start`, {
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!demoResp.ok()) return null;
-  const demoData = await demoResp.json();
-
-  const loginResp = await request.post(`${CP_URL}/api/v1/auth/login`, {
-    headers: { "Content-Type": "application/json" },
-    data: { email: demoData.email, password: demoData.password },
-  });
-  if (!loginResp.ok()) return null;
-  const loginData = await loginResp.json();
-  return { token: loginData.token, email: demoData.email };
-}
 
 let auth: DemoAuth | null = null;
 
 test.beforeAll(async ({ request }) => {
-  auth = await demoLogin(request);
+  auth = await demoLoginFull(request);
 });
 
 /** Authenticate the browser via callback so cookie is set. */

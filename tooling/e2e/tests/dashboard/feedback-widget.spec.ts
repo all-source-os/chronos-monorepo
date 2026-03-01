@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { demoLogin, authenticateAndGoToDashboard } from "../../fixtures/demo-auth";
 
 /**
  * Feedback Widget E2E Tests
@@ -9,39 +10,6 @@ import { test, expect, type Page } from "@playwright/test";
  * Run:
  *   cd tooling/e2e && bunx playwright test tests/dashboard/feedback-widget.spec.ts
  */
-
-const CP_URL =
-  process.env.CONTROL_PLANE_URL || "http://localhost:3901";
-
-async function demoLogin(request: any): Promise<string | null> {
-  const demoResp = await request.post(`${CP_URL}/api/v1/demo/start`, {
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!demoResp.ok()) return null;
-  const demoData = await demoResp.json();
-
-  const loginResp = await request.post(`${CP_URL}/api/v1/auth/login`, {
-    headers: { "Content-Type": "application/json" },
-    data: { email: demoData.email, password: demoData.password },
-  });
-  if (!loginResp.ok()) return null;
-  const loginData = await loginResp.json();
-  return loginData.token as string;
-}
-
-async function authenticateAndGoToDashboard(
-  page: Page,
-  token: string
-): Promise<void> {
-  await page.goto(
-    `/api/auth/callback?token=${encodeURIComponent(token)}&new_user=false`
-  );
-  await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 });
-  if (!page.url().includes("/dashboard")) {
-    await page.goto("/dashboard");
-  }
-  await expect(page.getByText("Loading...")).toBeHidden({ timeout: 15000 });
-}
 
 // ---------------------------------------------------------------------------
 // Floating button visibility

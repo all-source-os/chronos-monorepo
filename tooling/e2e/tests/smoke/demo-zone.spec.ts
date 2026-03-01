@@ -1,28 +1,10 @@
 import { test, expect } from "@playwright/test";
-
-const CP_URL =
-  process.env.CONTROL_PLANE_URL || "http://localhost:3901";
+import { demoLogin } from "../../fixtures/demo-auth";
 
 /**
  * Helper: create demo credentials and log in through the normal flow.
  * Returns a JWT token that can be used to authenticate via the callback URL.
  */
-async function demoLogin(request: any) {
-  const demoResp = await request.post(`${CP_URL}/api/v1/demo/start`, {
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!demoResp.ok()) return null;
-  const demoData = await demoResp.json();
-
-  const loginResp = await request.post(`${CP_URL}/api/v1/auth/login`, {
-    headers: { "Content-Type": "application/json" },
-    data: { email: demoData.email, password: demoData.password },
-  });
-  if (!loginResp.ok()) return null;
-  const loginData = await loginResp.json();
-  return loginData.token as string;
-}
-
 // File-level auth: every test gets an authenticated session before running
 let fileToken: string | null = null;
 
