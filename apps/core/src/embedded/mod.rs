@@ -27,14 +27,14 @@
 //! # }
 //! ```
 
-mod config;
-mod core;
 #[cfg(feature = "embedded-projections")]
 pub mod ai_projections;
+mod config;
+mod core;
 #[cfg(feature = "embedded-replicant")]
 pub mod replicant;
 mod types;
 
-pub use config::{ConfigBuilder, EmbeddedConfig as Config};
 pub use self::core::EmbeddedCore;
+pub use config::{ConfigBuilder, EmbeddedConfig as Config};
 pub use types::{EventView, IngestEvent, Query};

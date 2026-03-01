@@ -125,15 +125,17 @@ pub use application::{
 };
 
 // Infrastructure layer exports
-pub use infrastructure::persistence::{
-    CompactionConfig, CompactionManager, EventIndex, ParquetStorage, SnapshotConfig,
-    SnapshotManager, WALConfig, WriteAheadLog,
-};
-pub use infrastructure::security::RateLimiter;
 #[cfg(feature = "server")]
 pub use infrastructure::security::{AuthManager, Permission, Role};
 #[cfg(feature = "server")]
 pub use infrastructure::web::{WebSocketManager, serve};
+pub use infrastructure::{
+    persistence::{
+        CompactionConfig, CompactionManager, EventIndex, ParquetStorage, SnapshotConfig,
+        SnapshotManager, WALConfig, WriteAheadLog,
+    },
+    security::RateLimiter,
+};
 
 // Error handling
 pub use error::{AllSourceError, Result};

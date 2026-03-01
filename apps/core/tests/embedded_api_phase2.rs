@@ -32,10 +32,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("order-1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("order-1")).await.unwrap();
 
         let json_str = serde_json::to_string(&events[0]).unwrap();
         assert!(json_str.contains("order.placed"));
@@ -57,10 +54,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("item-1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("item-1")).await.unwrap();
 
         let json_str = serde_json::to_string(&events[0]).unwrap();
         let deserialized: EventView = serde_json::from_str(&json_str).unwrap();
@@ -265,10 +259,7 @@ mod tests {
 
         core.ingest_batch(events).await.unwrap();
 
-        let result = core
-            .query(Query::new().entity_id("e1"))
-            .await
-            .unwrap();
+        let result = core.query(Query::new().entity_id("e1")).await.unwrap();
         assert_eq!(result.len(), 3);
         assert_eq!(result[0].event_type, "step.one");
         assert_eq!(result[1].event_type, "step.two");
@@ -320,11 +311,9 @@ mod tests {
         // Verifies `pub use embedded::EmbeddedCore` exists in lib.rs
         use allsource_core::EmbeddedCore;
 
-        let core = EmbeddedCore::open(
-            allsource_core::embedded::Config::builder().build().unwrap(),
-        )
-        .await
-        .unwrap();
+        let core = EmbeddedCore::open(allsource_core::embedded::Config::builder().build().unwrap())
+            .await
+            .unwrap();
         assert_eq!(core.stats().total_events, 0);
     }
 

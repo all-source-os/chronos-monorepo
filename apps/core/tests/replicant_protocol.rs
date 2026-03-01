@@ -257,13 +257,9 @@ mod tests {
         ))
         .await
         .unwrap();
-        core.ingest(make_event(
-            "wf-1",
-            "workflow.approval.granted",
-            json!({}),
-        ))
-        .await
-        .unwrap();
+        core.ingest(make_event("wf-1", "workflow.approval.granted", json!({})))
+            .await
+            .unwrap();
 
         let state = core.projection("workflow_status", "wf-1").unwrap();
         assert_eq!(state["status"], "running");

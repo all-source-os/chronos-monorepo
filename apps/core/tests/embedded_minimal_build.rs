@@ -64,10 +64,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("q1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("q1")).await.unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].entity_id, "q1");
     }
@@ -75,11 +72,9 @@ mod tests {
     #[tokio::test]
     async fn persistence_works_without_server() {
         let tmp = TempDir::new().unwrap();
-        let core = EmbeddedCore::open(
-            Config::builder().data_dir(tmp.path()).build().unwrap(),
-        )
-        .await
-        .unwrap();
+        let core = EmbeddedCore::open(Config::builder().data_dir(tmp.path()).build().unwrap())
+            .await
+            .unwrap();
 
         core.ingest(IngestEvent {
             entity_id: "p1",
@@ -110,10 +105,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("s1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("s1")).await.unwrap();
         let json_str = serde_json::to_string(&events[0]).unwrap();
         let round_tripped: EventView = serde_json::from_str(&json_str).unwrap();
         assert_eq!(round_tripped.entity_id, "s1");

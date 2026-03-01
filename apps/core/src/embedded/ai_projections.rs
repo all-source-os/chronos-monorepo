@@ -6,9 +6,11 @@
 //! - Human-in-the-loop approval queue
 //! - Agent utilization (active/idle/capacity)
 
-use crate::{application::services::projection::Projection, domain::entities::Event, error::Result};
+use crate::{
+    application::services::projection::Projection, domain::entities::Event, error::Result,
+};
 use dashmap::DashMap;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 // =============================================================================
 // Token Usage / Cost Tracking Projection
@@ -43,11 +45,22 @@ impl Projection for TokenUsageProjection {
         let entity_id = event.entity_id_str().to_string();
         let payload = &event.payload;
 
-        let input_tokens = payload.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-        let output_tokens = payload.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+        let input_tokens = payload
+            .get("input_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let output_tokens = payload
+            .get("output_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
         // Store costs as integer microdollars internally to avoid f64 drift.
         // Convert from f64 USD on input, accumulate as u64, convert back on read.
-        let cost_microdollars = (payload.get("cost_usd").and_then(|v| v.as_f64()).unwrap_or(0.0) * 1_000_000.0).round() as u64;
+        let cost_microdollars = (payload
+            .get("cost_usd")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0)
+            * 1_000_000.0)
+            .round() as u64;
         let model = payload
             .get("model")
             .and_then(|v| v.as_str())
@@ -177,10 +190,10 @@ impl Projection for ToolCallAuditProjection {
                         "durations": [],
                     }));
                 let total = tool["total_calls"].as_u64().unwrap_or(0) + 1;
-                let successes = tool["successes"].as_u64().unwrap_or(0)
-                    + if is_success { 1 } else { 0 };
-                let failures = tool["failures"].as_u64().unwrap_or(0)
-                    + if is_success { 0 } else { 1 };
+                let successes =
+                    tool["successes"].as_u64().unwrap_or(0) + if is_success { 1 } else { 0 };
+                let failures =
+                    tool["failures"].as_u64().unwrap_or(0) + if is_success { 0 } else { 1 };
 
                 tool["total_calls"] = json!(total);
                 tool["successes"] = json!(successes);
@@ -195,10 +208,8 @@ impl Projection for ToolCallAuditProjection {
                             let excess = durations.len() - MAX_DURATION_SAMPLES;
                             durations.drain(..excess);
                         }
-                        let mut sorted: Vec<f64> = durations
-                            .iter()
-                            .filter_map(|v| v.as_f64())
-                            .collect();
+                        let mut sorted: Vec<f64> =
+                            durations.iter().filter_map(|v| v.as_f64()).collect();
                         sorted.sort_by(|a, b| a.total_cmp(b));
                         let len = sorted.len();
                         let p50_idx = len / 2;
@@ -458,9 +469,9 @@ impl Projection for AgentUtilizationProjection {
                 "idle": idle,
             }))
         } else {
-            self.replicants.get(entity_id).map(|entry| {
-                json!({ "status": entry.value().status })
-            })
+            self.replicants
+                .get(entity_id)
+                .map(|entry| json!({ "status": entry.value().status }))
         }
     }
 

@@ -112,16 +112,11 @@ mod axum_impl {
                 AllSourceError::InvalidEvent(_)
                 | AllSourceError::InvalidQuery(_)
                 | AllSourceError::InvalidInput(_)
-                | AllSourceError::ValidationError(_) => {
-                    (StatusCode::BAD_REQUEST, self.to_string())
-                }
-                AllSourceError::TenantAlreadyExists(_)
-                | AllSourceError::ConcurrencyError(_) => {
+                | AllSourceError::ValidationError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+                AllSourceError::TenantAlreadyExists(_) | AllSourceError::ConcurrencyError(_) => {
                     (StatusCode::CONFLICT, self.to_string())
                 }
-                AllSourceError::QueueFull(_) => {
-                    (StatusCode::SERVICE_UNAVAILABLE, self.to_string())
-                }
+                AllSourceError::QueueFull(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
                 AllSourceError::StorageError(_)
                 | AllSourceError::ArrowError(_)
                 | AllSourceError::IndexError(_)

@@ -47,9 +47,7 @@ async fn main() -> allsource_core::error::Result<()> {
     }
 
     // 4. Query by event type prefix
-    let all_orders = core
-        .query(Query::new().event_type_prefix("order."))
-        .await?;
+    let all_orders = core.query(Query::new().event_type_prefix("order.")).await?;
     println!("\nAll order events: {} event(s)", all_orders.len());
 
     // 5. Read projection state (entity_snapshots is built-in)

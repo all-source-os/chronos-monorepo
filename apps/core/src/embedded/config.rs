@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 pub struct EmbeddedConfig {
     data_dir: Option<PathBuf>,
     wal_sync_on_write: bool,
+    wal_fsync_interval_ms: Option<u64>,
     parquet_flush_interval_secs: u64,
     single_tenant: bool,
     node_id: Option<u32>,
@@ -29,6 +30,12 @@ impl EmbeddedConfig {
         self.wal_sync_on_write
     }
 
+    /// Interval-based fsync period in milliseconds.
+    /// `None` means no background fsync task.
+    pub fn wal_fsync_interval_ms(&self) -> Option<u64> {
+        self.wal_fsync_interval_ms
+    }
+
     /// Whether single-tenant mode is enabled.
     pub fn single_tenant(&self) -> bool {
         self.single_tenant
@@ -49,6 +56,7 @@ impl EmbeddedConfig {
 pub struct ConfigBuilder {
     data_dir: Option<PathBuf>,
     wal_sync_on_write: bool,
+    wal_fsync_interval_ms: Option<u64>,
     parquet_flush_interval_secs: u64,
     single_tenant: bool,
     node_id: Option<u32>,
@@ -59,6 +67,7 @@ impl Default for ConfigBuilder {
         Self {
             data_dir: None,
             wal_sync_on_write: true,
+            wal_fsync_interval_ms: None,
             parquet_flush_interval_secs: 300,
             single_tenant: true,
             node_id: None,
@@ -79,6 +88,19 @@ impl ConfigBuilder {
     /// potential data loss on crash within the last sync window.
     pub fn wal_sync_on_write(mut self, sync: bool) -> Self {
         self.wal_sync_on_write = sync;
+        self
+    }
+
+    /// Set the interval for background coalesced fsync in milliseconds.
+    ///
+    /// When set, a background task flushes and fsyncs the WAL every `ms`
+    /// milliseconds instead of on every write. This gives near-zero write
+    /// latency with a bounded data-loss window of at most `ms` milliseconds.
+    ///
+    /// Automatically disables per-write `sync_on_write` to prevent double-fsync.
+    /// Default: `None` (no background fsync task).
+    pub fn wal_fsync_interval_ms(mut self, ms: u64) -> Self {
+        self.wal_fsync_interval_ms = Some(ms);
         self
     }
 
@@ -108,6 +130,7 @@ impl ConfigBuilder {
         Ok(EmbeddedConfig {
             data_dir: self.data_dir,
             wal_sync_on_write: self.wal_sync_on_write,
+            wal_fsync_interval_ms: self.wal_fsync_interval_ms,
             parquet_flush_interval_secs: self.parquet_flush_interval_secs,
             single_tenant: self.single_tenant,
             node_id: self.node_id,

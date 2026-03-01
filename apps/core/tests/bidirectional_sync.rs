@@ -12,11 +12,13 @@
 
 #[cfg(feature = "embedded-sync")]
 mod tests {
-    use allsource_core::cluster::{
-        ConflictResolution, CrdtResolver, HlcTimestamp, HybridLogicalClock, ReplicatedEvent,
-        VersionVector,
+    use allsource_core::{
+        cluster::{
+            ConflictResolution, CrdtResolver, HlcTimestamp, HybridLogicalClock, ReplicatedEvent,
+            VersionVector,
+        },
+        embedded::{Config, EmbeddedCore, IngestEvent, Query},
     };
-    use allsource_core::embedded::{Config, EmbeddedCore, IngestEvent, Query};
     use serde_json::json;
 
     // =========================================================================
@@ -369,21 +371,13 @@ mod tests {
 
     /// Open an in-memory EmbeddedCore with a specific node_id for sync.
     async fn open_core_with_node(node_id: u32) -> EmbeddedCore {
-        EmbeddedCore::open(
-            Config::builder()
-                .node_id(node_id)
-                .build()
-                .unwrap(),
-        )
-        .await
-        .unwrap()
+        EmbeddedCore::open(Config::builder().node_id(node_id).build().unwrap())
+            .await
+            .unwrap()
     }
 
     /// Bidirectional sync between two cores: a→b then b→a.
-    async fn sync_pair(
-        a: &EmbeddedCore,
-        b: &EmbeddedCore,
-    ) -> allsource_core::error::Result<()> {
+    async fn sync_pair(a: &EmbeddedCore, b: &EmbeddedCore) -> allsource_core::error::Result<()> {
         a.sync_to(b).await?;
         b.sync_to(a).await?;
         Ok(())

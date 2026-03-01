@@ -3,9 +3,11 @@
 //! Three event-sourced projections that implement autonomous workflow
 //! orchestration — no Temporal needed.
 
-use crate::{application::services::projection::Projection, domain::entities::Event, error::Result};
+use crate::{
+    application::services::projection::Projection, domain::entities::Event, error::Result,
+};
 use dashmap::DashMap;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 // =============================================================================
 // Workflow Status Projection
@@ -28,16 +30,14 @@ impl WorkflowStatusProjection {
 
     /// Ensure an entry exists for this entity, inserting a default if missing.
     fn ensure_entry(&self, entity_id: &str) -> dashmap::mapref::one::RefMut<'_, String, Value> {
-        self.states
-            .entry(entity_id.to_string())
-            .or_insert_with(|| {
-                json!({
-                    "status": "unknown",
-                    "steps_total": 0,
-                    "steps_completed": 0,
-                    "awaiting_approval": false,
-                })
+        self.states.entry(entity_id.to_string()).or_insert_with(|| {
+            json!({
+                "status": "unknown",
+                "steps_total": 0,
+                "steps_completed": 0,
+                "awaiting_approval": false,
             })
+        })
     }
 }
 
@@ -53,7 +53,10 @@ impl Projection for WorkflowStatusProjection {
 
         match event_type {
             "workflow.dispatched" => {
-                let steps_total = payload.get("steps_total").and_then(|v| v.as_u64()).unwrap_or(0);
+                let steps_total = payload
+                    .get("steps_total")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
                 self.states.insert(
                     entity_id,
                     json!({
@@ -162,10 +165,7 @@ impl Projection for ReplicantRegistryProjection {
 
         match event_type {
             "replicant.registered" => {
-                let capabilities = payload
-                    .get("capabilities")
-                    .cloned()
-                    .unwrap_or(json!([]));
+                let capabilities = payload.get("capabilities").cloned().unwrap_or(json!([]));
                 self.states.insert(
                     entity_id,
                     json!({

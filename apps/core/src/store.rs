@@ -1,3 +1,9 @@
+#[cfg(feature = "server")]
+use crate::application::services::webhook::WebhookRegistry;
+#[cfg(feature = "server")]
+use crate::infrastructure::observability::metrics::MetricsRegistry;
+#[cfg(feature = "server")]
+use crate::infrastructure::web::websocket::WebSocketManager;
 use crate::{
     application::{
         dto::QueryEventsRequest,
@@ -12,21 +18,17 @@ use crate::{
     },
     domain::entities::Event,
     error::{AllSourceError, Result},
-    infrastructure::persistence::{
-        compaction::{CompactionConfig, CompactionManager},
-        index::{EventIndex, IndexEntry},
-        snapshot::{SnapshotConfig, SnapshotManager, SnapshotType},
-        storage::ParquetStorage,
-        wal::{WALConfig, WriteAheadLog},
+    infrastructure::{
+        persistence::{
+            compaction::{CompactionConfig, CompactionManager},
+            index::{EventIndex, IndexEntry},
+            snapshot::{SnapshotConfig, SnapshotManager, SnapshotType},
+            storage::ParquetStorage,
+            wal::{WALConfig, WriteAheadLog},
+        },
+        query::geospatial::GeoIndex,
     },
 };
-use crate::infrastructure::query::geospatial::GeoIndex;
-#[cfg(feature = "server")]
-use crate::application::services::webhook::WebhookRegistry;
-#[cfg(feature = "server")]
-use crate::infrastructure::observability::metrics::MetricsRegistry;
-#[cfg(feature = "server")]
-use crate::infrastructure::web::websocket::WebSocketManager;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -611,7 +613,10 @@ impl EventStore {
     ///
     /// See [`register_projection_with_backfill`](Self::register_projection_with_backfill)
     /// to also process historical events.
-    pub fn register_projection(&self, projection: Arc<dyn crate::application::services::projection::Projection>) {
+    pub fn register_projection(
+        &self,
+        projection: Arc<dyn crate::application::services::projection::Projection>,
+    ) {
         let mut pm = self.projections.write();
         pm.register(projection);
     }
@@ -621,7 +626,10 @@ impl EventStore {
     /// After registration, the projection will also receive all future events.
     /// Historical events are replayed under a read lock — the projection's
     /// internal state (typically DashMap) handles concurrent access.
-    pub fn register_projection_with_backfill(&self, projection: Arc<dyn crate::application::services::projection::Projection>) -> Result<()> {
+    pub fn register_projection_with_backfill(
+        &self,
+        projection: Arc<dyn crate::application::services::projection::Projection>,
+    ) -> Result<()> {
         // First register so future events are processed
         {
             let mut pm = self.projections.write();
@@ -698,9 +706,9 @@ impl EventStore {
         // Phase 1: Read-only check — do we have anything to compact?
         {
             let events = self.events.read();
-            let has_tokens = events.iter().any(|e| {
-                e.entity_id_str() == entity_id && e.event_type_str() == token_event_type
-            });
+            let has_tokens = events
+                .iter()
+                .any(|e| e.entity_id_str() == entity_id && e.event_type_str() == token_event_type);
             if !has_tokens {
                 return Ok(false);
             }

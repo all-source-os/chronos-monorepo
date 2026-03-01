@@ -80,6 +80,7 @@ impl SystemMetadataStore {
             sync_on_write: true,
             max_wal_files: 5,
             compress: false,
+            ..WALConfig::default()
         };
 
         let wal = WriteAheadLog::new(&wal_dir, wal_config)?;

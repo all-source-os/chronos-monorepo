@@ -55,11 +55,9 @@ mod tests {
     #[tokio::test]
     async fn open_with_persistence() {
         let tmp = TempDir::new().unwrap();
-        let core = EmbeddedCore::open(
-            Config::builder().data_dir(tmp.path()).build().unwrap(),
-        )
-        .await
-        .expect("open with persistence should succeed");
+        let core = EmbeddedCore::open(Config::builder().data_dir(tmp.path()).build().unwrap())
+            .await
+            .expect("open with persistence should succeed");
         assert_eq!(core.stats().total_events, 0);
     }
 
@@ -220,10 +218,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("ent-1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("ent-1")).await.unwrap();
 
         assert_eq!(events.len(), 1);
         let ev: &EventView = &events[0];
@@ -276,10 +271,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("e-st"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("e-st")).await.unwrap();
 
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].tenant_id, "default");
@@ -316,11 +308,9 @@ mod tests {
     #[tokio::test]
     async fn shutdown_is_graceful() {
         let tmp = TempDir::new().unwrap();
-        let core = EmbeddedCore::open(
-            Config::builder().data_dir(tmp.path()).build().unwrap(),
-        )
-        .await
-        .unwrap();
+        let core = EmbeddedCore::open(Config::builder().data_dir(tmp.path()).build().unwrap())
+            .await
+            .unwrap();
 
         core.ingest(IngestEvent {
             entity_id: "e1",
@@ -365,10 +355,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("ser-1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("ser-1")).await.unwrap();
 
         let json_str = serde_json::to_string(&events[0]).unwrap();
         assert!(json_str.contains("item.created"));
@@ -389,10 +376,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("deser-1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("deser-1")).await.unwrap();
 
         let json_str = serde_json::to_string(&events[0]).unwrap();
         let round_tripped: EventView = serde_json::from_str(&json_str).unwrap();
@@ -407,11 +391,9 @@ mod tests {
 
     #[tokio::test]
     async fn ingest_with_explicit_tenant_id() {
-        let core = EmbeddedCore::open(
-            Config::builder().single_tenant(false).build().unwrap(),
-        )
-        .await
-        .unwrap();
+        let core = EmbeddedCore::open(Config::builder().single_tenant(false).build().unwrap())
+            .await
+            .unwrap();
 
         core.ingest(IngestEvent {
             entity_id: "mt-1",
@@ -423,10 +405,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("mt-1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("mt-1")).await.unwrap();
 
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].tenant_id, "tenant-acme");
@@ -434,11 +413,9 @@ mod tests {
 
     #[tokio::test]
     async fn ingest_without_tenant_id_in_multi_tenant_uses_default() {
-        let core = EmbeddedCore::open(
-            Config::builder().single_tenant(false).build().unwrap(),
-        )
-        .await
-        .unwrap();
+        let core = EmbeddedCore::open(Config::builder().single_tenant(false).build().unwrap())
+            .await
+            .unwrap();
 
         core.ingest(IngestEvent {
             entity_id: "mt-2",
@@ -450,10 +427,7 @@ mod tests {
         .await
         .unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("mt-2"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("mt-2")).await.unwrap();
 
         assert_eq!(events[0].tenant_id, "default");
     }
@@ -483,11 +457,9 @@ mod tests {
 
     #[tokio::test]
     async fn multi_tenant_query_filters_by_tenant() {
-        let core = EmbeddedCore::open(
-            Config::builder().single_tenant(false).build().unwrap(),
-        )
-        .await
-        .unwrap();
+        let core = EmbeddedCore::open(Config::builder().single_tenant(false).build().unwrap())
+            .await
+            .unwrap();
 
         // Ingest events for two tenants
         core.ingest(IngestEvent {
@@ -530,11 +502,9 @@ mod tests {
     #[tokio::test]
     async fn embedded_core_accessible_from_crate_root() {
         // EmbeddedCore should be re-exported at the crate root
-        let core = allsource_core::EmbeddedCore::open(
-            Config::builder().build().unwrap(),
-        )
-        .await
-        .unwrap();
+        let core = allsource_core::EmbeddedCore::open(Config::builder().build().unwrap())
+            .await
+            .unwrap();
         assert_eq!(core.stats().total_events, 0);
     }
 
@@ -544,8 +514,9 @@ mod tests {
 
     #[tokio::test]
     async fn register_projection_with_backfill_replays_history() {
-        use allsource_core::application::services::projection::Projection;
-        use allsource_core::domain::entities::Event;
+        use allsource_core::{
+            application::services::projection::Projection, domain::entities::Event,
+        };
         use dashmap::DashMap;
         use std::sync::Arc;
 
@@ -612,10 +583,7 @@ mod tests {
         .unwrap();
 
         let state = projection.get_state("backfill-entity").unwrap();
-        assert_eq!(
-            state["count"], 6,
-            "Future event should also be processed"
-        );
+        assert_eq!(state["count"], 6, "Future event should also be processed");
     }
 
     // =========================================================================
@@ -629,14 +597,9 @@ mod tests {
 
         // Phase 1: Open, ingest events, shutdown
         {
-            let core = EmbeddedCore::open(
-                Config::builder()
-                    .data_dir(&data_dir)
-                    .build()
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+            let core = EmbeddedCore::open(Config::builder().data_dir(&data_dir).build().unwrap())
+                .await
+                .unwrap();
 
             for i in 0..10 {
                 core.ingest(IngestEvent {
@@ -656,14 +619,9 @@ mod tests {
 
         // Phase 2: Reopen with same data_dir, verify events survived
         {
-            let core = EmbeddedCore::open(
-                Config::builder()
-                    .data_dir(&data_dir)
-                    .build()
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+            let core = EmbeddedCore::open(Config::builder().data_dir(&data_dir).build().unwrap())
+                .await
+                .unwrap();
 
             let events = core
                 .query(Query::new().event_type("recovery.test").limit(100))

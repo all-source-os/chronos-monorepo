@@ -124,14 +124,8 @@ mod tests {
         let by_model = &usage["by_model"];
         assert_eq!(by_model["claude-sonnet-4-20250514"]["calls"], 1);
         assert_eq!(by_model["claude-haiku-4-5-20251001"]["calls"], 1);
-        assert_eq!(
-            by_model["claude-sonnet-4-20250514"]["input_tokens"],
-            1000
-        );
-        assert_eq!(
-            by_model["claude-haiku-4-5-20251001"]["input_tokens"],
-            2000
-        );
+        assert_eq!(by_model["claude-sonnet-4-20250514"]["input_tokens"], 1000);
+        assert_eq!(by_model["claude-haiku-4-5-20251001"]["input_tokens"], 2000);
     }
 
     #[tokio::test]
@@ -309,9 +303,7 @@ mod tests {
         .await
         .unwrap();
 
-        let queue = core
-            .projection("human_in_loop_queue", "__all")
-            .unwrap();
+        let queue = core.projection("human_in_loop_queue", "__all").unwrap();
         let pending = queue["pending_approvals"].as_array().unwrap();
 
         // Only wf-2 should remain pending
@@ -355,9 +347,7 @@ mod tests {
         .await
         .unwrap();
 
-        let queue = core
-            .projection("human_in_loop_queue", "__all")
-            .unwrap();
+        let queue = core.projection("human_in_loop_queue", "__all").unwrap();
         let pending = queue["pending_approvals"].as_array().unwrap();
 
         assert_eq!(pending.len(), 3);
@@ -391,9 +381,7 @@ mod tests {
         .await
         .unwrap();
 
-        let queue = core
-            .projection("human_in_loop_queue", "__all")
-            .unwrap();
+        let queue = core.projection("human_in_loop_queue", "__all").unwrap();
         let pending = queue["pending_approvals"].as_array().unwrap();
         assert!(pending.is_empty());
     }
@@ -447,12 +435,10 @@ mod tests {
         .await
         .unwrap();
 
-        let util = core
-            .projection("agent_utilization", "__all")
-            .unwrap();
+        let util = core.projection("agent_utilization", "__all").unwrap();
         assert_eq!(util["total_capacity"], 2);
-        assert_eq!(util["active"], 1);  // r-1 is working
-        assert_eq!(util["idle"], 1);    // r-2 is idle
+        assert_eq!(util["active"], 1); // r-1 is working
+        assert_eq!(util["idle"], 1); // r-2 is idle
     }
 
     #[tokio::test]
@@ -499,9 +485,7 @@ mod tests {
         .await
         .unwrap();
 
-        let util = core
-            .projection("agent_utilization", "__all")
-            .unwrap();
+        let util = core.projection("agent_utilization", "__all").unwrap();
         assert_eq!(util["active"], 0);
         assert_eq!(util["idle"], 1); // r-1 is free again
     }
@@ -541,9 +525,7 @@ mod tests {
         .await
         .unwrap();
 
-        let util = core
-            .projection("agent_utilization", "__all")
-            .unwrap();
+        let util = core.projection("agent_utilization", "__all").unwrap();
         assert_eq!(util["total_capacity"], 1); // only r-1 is alive
         assert_eq!(util["idle"], 1);
     }

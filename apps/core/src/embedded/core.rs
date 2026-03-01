@@ -9,9 +9,7 @@ use crate::{
             crdt::{ConflictResolution, CrdtResolver, ReplicatedEvent},
             hlc::{HlcTimestamp, HybridLogicalClock},
         },
-        persistence::{
-            compaction::CompactionConfig, snapshot::SnapshotConfig, wal::WALConfig,
-        },
+        persistence::{compaction::CompactionConfig, snapshot::SnapshotConfig, wal::WALConfig},
     },
     store::{EventStore, EventStoreConfig, StoreStats},
 };
@@ -63,6 +61,8 @@ pub struct EmbeddedCore {
     hlc: Option<Arc<HybridLogicalClock>>,
     /// CRDT resolver for deduplication during sync.
     resolver: Option<Arc<CrdtResolver>>,
+    /// Background interval-based fsync task handle.
+    sync_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl EmbeddedCore {
@@ -110,11 +110,38 @@ impl EmbeddedCore {
             None => (None, None),
         };
 
+        // Spawn background fsync task if interval is configured and WAL exists
+        let sync_handle = if let Some(interval_ms) = config.wal_fsync_interval_ms() {
+            if let Some(wal) = store.wal() {
+                let wal = Arc::clone(wal);
+                let interval = std::time::Duration::from_millis(interval_ms);
+                tracing::info!(
+                    "🔄 Starting background WAL fsync task (interval: {}ms)",
+                    interval_ms
+                );
+                Some(tokio::spawn(async move {
+                    let mut ticker = tokio::time::interval(interval);
+                    ticker.tick().await; // first tick completes immediately
+                    loop {
+                        ticker.tick().await;
+                        if let Err(e) = wal.sync() {
+                            tracing::warn!("Background WAL fsync failed: {e}");
+                        }
+                    }
+                }))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         Ok(Self {
             store,
             config,
             hlc,
             resolver,
+            sync_handle,
         })
     }
 
@@ -151,7 +178,9 @@ impl EmbeddedCore {
         let store = Arc::clone(&self.store);
         tokio::task::spawn_blocking(move || store.ingest(domain_event))
             .await
-            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
+            .map_err(|e| {
+                crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+            })??;
         Ok(())
     }
 
@@ -195,7 +224,9 @@ impl EmbeddedCore {
         let store = Arc::clone(&self.store);
         tokio::task::spawn_blocking(move || store.ingest_batch(domain_events))
             .await
-            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
+            .map_err(|e| {
+                crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+            })??;
 
         Ok(())
     }
@@ -308,8 +339,7 @@ impl EmbeddedCore {
             .version_vector_for(&self_region)
             .and_then(|vv| vv.get(&self_region).copied())
             .map(|ts| {
-                chrono::DateTime::from_timestamp_millis(ts.physical_ms as i64)
-                    .unwrap_or_default()
+                chrono::DateTime::from_timestamp_millis(ts.physical_ms as i64).unwrap_or_default()
             });
 
         // Get events from this store, filtered by version vector threshold
@@ -328,7 +358,9 @@ impl EmbeddedCore {
             })
         })
         .await
-        .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
+        .map_err(|e| {
+            crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+        })??;
         let self_node_id = self_hlc.node_id();
 
         // Collect events to sync (CRDT resolution is cheap, do it on the async thread)
@@ -378,7 +410,9 @@ impl EmbeddedCore {
                 Ok::<(), crate::error::AllSourceError>(())
             })
             .await
-            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
+            .map_err(|e| {
+                crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+            })??;
         }
 
         Ok(())
@@ -401,7 +435,9 @@ impl EmbeddedCore {
         let store = Arc::clone(&self.store);
         let events = tokio::task::spawn_blocking(move || store.query(request))
             .await
-            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))??;
+            .map_err(|e| {
+                crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+            })??;
         Ok(events.iter().map(EventView::from).collect())
     }
 
@@ -425,11 +461,7 @@ impl EmbeddedCore {
     /// Get the current state of a named projection for a given entity.
     ///
     /// Returns `None` if the projection doesn't exist or has no state for the entity.
-    pub fn projection(
-        &self,
-        projection_name: &str,
-        entity_id: &str,
-    ) -> Option<serde_json::Value> {
+    pub fn projection(&self, projection_name: &str, entity_id: &str) -> Option<serde_json::Value> {
         let pm = self.store.projection_manager();
         let projection = pm.get_projection(projection_name)?;
         projection.get_state(entity_id)
@@ -448,11 +480,26 @@ impl EmbeddedCore {
     }
 
     /// Flush WAL and Parquet storage, then shut down cleanly.
+    ///
+    /// Aborts the background fsync task (if running) and performs a final
+    /// sync before flushing storage.
     pub async fn shutdown(&self) -> Result<()> {
+        // Stop background fsync task
+        if let Some(handle) = &self.sync_handle {
+            handle.abort();
+        }
+
+        // Final sync if WAL exists (ensure last writes are durable)
+        if let Some(wal) = self.store.wal() {
+            wal.sync()?;
+        }
+
         let store = Arc::clone(&self.store);
         tokio::task::spawn_blocking(move || store.flush_storage())
             .await
-            .map_err(|e| crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}")))?
+            .map_err(|e| {
+                crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+            })?
     }
 
     fn effective_tenant_id(&self, explicit: Option<&str>) -> String {
@@ -468,8 +515,16 @@ impl EmbeddedCore {
             Some(dir) => {
                 let storage_dir = dir.join("storage");
                 let wal_dir = dir.join("wal");
+                // When interval-based fsync is configured, force sync_on_write off
+                // to prevent double-fsync (the background task handles durability).
+                let sync_on_write = if config.wal_fsync_interval_ms().is_some() {
+                    false
+                } else {
+                    config.wal_sync_on_write()
+                };
                 let wal_config = WALConfig {
-                    sync_on_write: config.wal_sync_on_write(),
+                    sync_on_write,
+                    fsync_interval_ms: config.wal_fsync_interval_ms(),
                     ..WALConfig::default()
                 };
                 let snapshot_config = SnapshotConfig {

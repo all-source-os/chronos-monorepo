@@ -70,14 +70,8 @@ mod tests {
             .unwrap();
         }
 
-        let wf1 = core
-            .query(Query::new().entity_id("wf-1"))
-            .await
-            .unwrap();
-        let wf2 = core
-            .query(Query::new().entity_id("wf-2"))
-            .await
-            .unwrap();
+        let wf1 = core.query(Query::new().entity_id("wf-1")).await.unwrap();
+        let wf2 = core.query(Query::new().entity_id("wf-2")).await.unwrap();
 
         assert_eq!(wf1.len(), 100);
         assert_eq!(wf2.len(), 100);
@@ -110,15 +104,15 @@ mod tests {
         core.compact_tokens("wf-1").await.unwrap();
 
         // After compaction: token events replaced by single output.complete
-        let events = core
-            .query(Query::new().entity_id("wf-1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("wf-1")).await.unwrap();
 
         let output = events
             .iter()
             .find(|e| e.event_type == "workflow.output.complete");
-        assert!(output.is_some(), "should have a workflow.output.complete event");
+        assert!(
+            output.is_some(),
+            "should have a workflow.output.complete event"
+        );
 
         // The merged output should contain all tokens concatenated
         let output_payload = &output.unwrap().payload;
@@ -156,10 +150,7 @@ mod tests {
         // Compact should succeed but change nothing
         core.compact_tokens("wf-1").await.unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("wf-1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("wf-1")).await.unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_type, "workflow.dispatched");
     }
@@ -203,10 +194,7 @@ mod tests {
 
         core.compact_tokens("wf-1").await.unwrap();
 
-        let events = core
-            .query(Query::new().entity_id("wf-1"))
-            .await
-            .unwrap();
+        let events = core.query(Query::new().entity_id("wf-1")).await.unwrap();
 
         // Should have: dispatched + output.complete + step.completed = 3
         assert_eq!(events.len(), 3);
@@ -253,7 +241,11 @@ mod tests {
         .unwrap();
 
         let events = core
-            .query(Query::new().entity_id("wf-1").event_type_prefix("mcp.tool."))
+            .query(
+                Query::new()
+                    .entity_id("wf-1")
+                    .event_type_prefix("mcp.tool."),
+            )
             .await
             .unwrap();
         assert_eq!(events.len(), 2);
@@ -284,7 +276,11 @@ mod tests {
         .unwrap();
 
         let events = core
-            .query(Query::new().entity_id("wf-1").event_type("llm.call.completed"))
+            .query(
+                Query::new()
+                    .entity_id("wf-1")
+                    .event_type("llm.call.completed"),
+            )
             .await
             .unwrap();
         assert_eq!(events.len(), 1);
@@ -299,11 +295,9 @@ mod tests {
     #[tokio::test]
     async fn compact_rejects_cross_tenant_tokens() {
         // Multi-tenant mode
-        let core = EmbeddedCore::open(
-            Config::builder().single_tenant(false).build().unwrap(),
-        )
-        .await
-        .unwrap();
+        let core = EmbeddedCore::open(Config::builder().single_tenant(false).build().unwrap())
+            .await
+            .unwrap();
 
         // Ingest tokens for same entity_id under two different tenants
         for i in 0..3 {

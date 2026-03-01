@@ -48,6 +48,12 @@ pub struct WALConfig {
 
     /// Enable WAL compression
     pub compress: bool,
+
+    /// Interval in milliseconds for background coalesced fsync.
+    /// When set, a background task calls `flush() + sync_all()` every N ms,
+    /// giving near-zero write latency with bounded data loss window.
+    /// When `Some`, `sync_on_write` is forced to `false` to prevent double-fsync.
+    pub fsync_interval_ms: Option<u64>,
 }
 
 impl Default for WALConfig {
@@ -57,6 +63,7 @@ impl Default for WALConfig {
             sync_on_write: true,
             max_wal_files: 10,
             compress: false,
+            fsync_interval_ms: None,
         }
     }
 }
@@ -397,6 +404,30 @@ impl WriteAheadLog {
         Ok(())
     }
 
+    /// Flush the BufWriter and fsync the current WAL file to disk.
+    ///
+    /// Called by the background interval-based fsync task. Acquires the write
+    /// lock, flushes buffered data, then issues `sync_all()` to ensure the
+    /// OS has persisted the data to durable storage.
+    pub fn sync(&self) -> Result<()> {
+        let mut current = self.current_file.write();
+        current
+            .writer
+            .flush()
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to flush WAL: {e}")))?;
+        current
+            .writer
+            .get_ref()
+            .sync_all()
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to sync WAL: {e}")))?;
+        Ok(())
+    }
+
+    /// Get the configured fsync interval (if any).
+    pub fn fsync_interval_ms(&self) -> Option<u64> {
+        self.config.fsync_interval_ms
+    }
+
     /// Truncate WAL after successful checkpoint
     pub fn truncate(&self) -> Result<()> {
         tracing::info!("🧹 Truncating WAL after checkpoint");
@@ -577,6 +608,40 @@ mod tests {
         let mut corrupted = entry.clone();
         corrupted.checksum = 0;
         assert!(!corrupted.verify());
+    }
+
+    #[test]
+    fn test_wal_fsync_interval_config() {
+        let config = WALConfig {
+            fsync_interval_ms: Some(100),
+            ..Default::default()
+        };
+        assert_eq!(config.fsync_interval_ms, Some(100));
+        // Default should have no interval
+        assert_eq!(WALConfig::default().fsync_interval_ms, None);
+    }
+
+    #[test]
+    fn test_wal_sync_method() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = WALConfig {
+            sync_on_write: false, // Disable per-write sync to test explicit sync
+            ..Default::default()
+        };
+        let wal = WriteAheadLog::new(temp_dir.path(), config).unwrap();
+
+        // Write events without per-write fsync
+        for _ in 0..5 {
+            wal.append(create_test_event()).unwrap();
+        }
+
+        // Explicitly sync — should flush + fsync without error
+        wal.sync().unwrap();
+
+        // Verify data survives by recovering from a new WAL instance
+        let wal2 = WriteAheadLog::new(temp_dir.path(), WALConfig::default()).unwrap();
+        let recovered = wal2.recover().unwrap();
+        assert_eq!(recovered.len(), 5);
     }
 
     #[test]

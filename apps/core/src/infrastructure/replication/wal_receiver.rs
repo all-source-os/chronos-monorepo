@@ -113,6 +113,7 @@ impl WalReceiver {
             sync_on_write: true,
             max_wal_files: 10,
             compress: false,
+            ..WALConfig::default()
         };
         let local_wal = Arc::new(WriteAheadLog::new(&wal_dir, wal_config)?);
 
