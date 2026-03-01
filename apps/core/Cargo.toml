@@ -38,9 +38,15 @@ default = ["server", "analytics"]
 # Embedded-only rlib size: ~30MB (includes arrow, parquet, serde, chrono; measured 2026-02-28)
 # Server feature: includes HTTP server, auth, metrics, webhooks, and all infrastructure
 server = [
-    "dep:axum", "dep:axum-extra", "dep:tower", "dep:tower-http",
-    "dep:reqwest", "dep:jsonwebtoken", "dep:argon2",
-    "dep:aes-gcm", "dep:http",
+    "dep:axum",
+    "dep:axum-extra",
+    "dep:tower",
+    "dep:tower-http",
+    "dep:reqwest",
+    "dep:jsonwebtoken",
+    "dep:argon2",
+    "dep:aes-gcm",
+    "dep:http",
 ]
 # Analytics: DataFusion SQL engine for EventQL queries
 analytics = ["dep:datafusion"]
@@ -105,12 +111,12 @@ sqlx = { workspace = true, optional = true }
 # Keyword search dependencies (optional)
 tantivy = { workspace = true, optional = true }
 thiserror.workspace = true
-toon-format = { version = "0.4", optional = true }
 # Security: time 0.3.47+ required for RUSTSEC-2026-0009
 time.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
 toml.workspace = true
+toon-format = { version = "0.4", optional = true }
 tower = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true }
 tracing.workspace = true
