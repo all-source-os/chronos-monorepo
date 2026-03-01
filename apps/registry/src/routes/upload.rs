@@ -192,7 +192,7 @@ async fn handle_pypi(
     sha256: &str,
 ) -> std::io::Result<()> {
     // Normalize project name for PyPI (PEP 503)
-    let normalized = name.replace('-', "-").to_lowercase();
+    let normalized = name.to_lowercase();
 
     // Determine filename: use sdist naming convention
     let filename = format!("{normalized}-{version}.tar.gz");

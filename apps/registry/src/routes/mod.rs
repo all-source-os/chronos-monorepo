@@ -83,10 +83,10 @@ pub async fn dispatch(
     if path == "/cargo/config.json" {
         return Ok(cargo::config(req.headers()));
     }
-    if let Some(rest) = path.strip_prefix("/cargo/crates/") {
-        if rest.ends_with("/download") {
-            return Ok(cargo::download(&state, rest).await);
-        }
+    if let Some(rest) = path.strip_prefix("/cargo/crates/")
+        && rest.ends_with("/download")
+    {
+        return Ok(cargo::download(&state, rest).await);
     }
     if let Some(rest) = path.strip_prefix("/cargo/") {
         return Ok(cargo::index(&state, rest).await);

@@ -278,8 +278,8 @@ impl CleanupExpiredTokensUseCase {
 
 /// Generate a raw token for access
 fn generate_raw_token(article_id: &ArticleId, wallet: &WalletAddress) -> String {
-    use rand::Rng;
-    let random_bytes: [u8; 32] = rand::thread_rng().r#gen();
+    use rand::RngExt;
+    let random_bytes: [u8; 32] = rand::rng().random();
     let mut hasher = Sha256::new();
     hasher.update(article_id.to_string().as_bytes());
     hasher.update(wallet.to_string().as_bytes());

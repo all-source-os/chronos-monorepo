@@ -20,8 +20,9 @@
 //! - Query operates on an in-memory snapshot of events at execution time
 
 use arrow::{
-    array::{Array, Int64Array, RecordBatch, StringArray, TimestampMicrosecondArray},
+    array::{Int64Array, RecordBatch, StringArray, TimestampMicrosecondArray},
     datatypes::{DataType, Field, Schema, TimeUnit},
+    util::display::ArrayFormatter,
 };
 use datafusion::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -189,8 +190,11 @@ pub async fn execute_eventql(
                     serde_json::Value::Null
                 } else {
                     // Use arrow's display formatter for generic value extraction
-                    let formatted = arrow::util::display::array_value_to_string(col, row_idx)
-                        .unwrap_or_else(|_| "null".to_string());
+                    let formatter = ArrayFormatter::try_new(col.as_ref(), &Default::default());
+                    let formatted = match formatter {
+                        Ok(fmt) => format!("{}", fmt.value(row_idx)),
+                        Err(_) => "null".to_string(),
+                    };
                     if formatted == "null" {
                         serde_json::Value::Null
                     } else if let Ok(n) = formatted.parse::<i64>() {

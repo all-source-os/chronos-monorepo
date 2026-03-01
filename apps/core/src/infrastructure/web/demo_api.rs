@@ -3,7 +3,7 @@ use crate::{
     infrastructure::web::api_v1::AppState,
 };
 use axum::{Json, extract::State};
-use rand::Rng;
+use rand::RngExt;
 
 /// Marker event type used to detect whether seeding has already occurred.
 const DEMO_SEED_MARKER: &str = "demo.seed_marker";

@@ -330,9 +330,9 @@ impl ParquetStorage {
         self.events_written
             .fetch_add(batch_count as u64, Ordering::Relaxed);
         if let Some(size) = file_metadata
-            .row_groups
+            .row_groups()
             .first()
-            .map(|rg| rg.total_byte_size)
+            .map(|rg| rg.total_byte_size())
         {
             self.bytes_written.fetch_add(size as u64, Ordering::Relaxed);
         }

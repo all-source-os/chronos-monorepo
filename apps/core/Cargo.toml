@@ -39,7 +39,6 @@ default = ["server", "analytics"]
 # Server feature: includes HTTP server, auth, metrics, webhooks, and all infrastructure
 server = [
     "dep:axum",
-    "dep:axum-extra",
     "dep:tower",
     "dep:tower-http",
     "dep:reqwest",
@@ -74,7 +73,6 @@ arrow.workspace = true
 arrow-flight = { workspace = true, optional = true }
 async-trait.workspace = true
 axum = { workspace = true, optional = true }
-axum-extra = { workspace = true, optional = true }
 base64.workspace = true
 bumpalo.workspace = true
 # Security: bytes 1.11.1+ required for RUSTSEC-2026-0007
@@ -84,7 +82,6 @@ crc32fast.workspace = true
 crossbeam.workspace = true
 crossbeam-queue.workspace = true
 dashmap.workspace = true
-# Note: datafusion 51+ requires Rust 1.88+, pinned to 44.x for Rust 1.85 compatibility
 datafusion = { workspace = true, optional = true }
 # Vector search dependencies (optional)
 fastembed = { workspace = true, optional = true }
@@ -94,14 +91,13 @@ hex = "0.4"
 hmac = "0.12"
 http = { workspace = true, optional = true }
 instant-distance = { workspace = true, optional = true }
-jsonschema.workspace = true
 jsonwebtoken = { workspace = true, optional = true }
 lz4.workspace = true
 parking_lot.workspace = true
 parquet.workspace = true
 prometheus.workspace = true
 rand.workspace = true
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"], optional = true }
 rocksdb = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
@@ -128,8 +124,6 @@ uuid.workspace = true
 criterion.workspace = true
 ctrlc.workspace = true
 tempfile.workspace = true
-testcontainers.workspace = true
-testcontainers-modules.workspace = true
 
 [[bench]]
 name = "performance_benchmarks"
