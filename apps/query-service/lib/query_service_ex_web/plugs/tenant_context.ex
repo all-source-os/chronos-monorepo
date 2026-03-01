@@ -111,7 +111,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
   end
 
   defp auto_provision_tenant(user) do
-    name = user.name || user.email || "Workspace"
+    name = Map.get(user, :name) || Map.get(user, :email) || "Workspace"
 
     RustCoreClient.create_tenant(user.tenant_id, name, %{
       is_demo: false,
