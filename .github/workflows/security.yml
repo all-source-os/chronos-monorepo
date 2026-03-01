@@ -36,7 +36,7 @@ jobs:
             working-directory: apps/query-service
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Rust dependencies
       - name: Set up Rust
@@ -57,7 +57,7 @@ jobs:
       # Go dependencies
       - name: Set up Go
         if: matrix.name == 'go'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.26.0"
           cache-dependency-path: apps/control-plane/go.sum
@@ -98,17 +98,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
 
       - name: Set up Go
         if: matrix.language == 'go'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.26.0"
           cache-dependency-path: apps/control-plane/go.sum
@@ -120,10 +120,10 @@ jobs:
 
       - name: Autobuild
         if: matrix.language != 'go'
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
 
@@ -149,7 +149,7 @@ jobs:
             dockerfile: apps/query-service/Dockerfile
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -174,7 +174,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-results-${{ matrix.service.name }}.sarif
@@ -187,10 +187,10 @@ jobs:
     name: License Compliance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.26.0"
           cache-dependency-path: apps/control-plane/go.sum
