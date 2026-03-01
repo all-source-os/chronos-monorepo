@@ -5,9 +5,9 @@ use allsource_core::{
     store::{EventStore, EventStoreConfig},
 };
 use chrono::Utc;
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use serde_json::json;
-use std::sync::Arc;
+use std::{hint::black_box, sync::Arc};
 use tempfile::TempDir;
 
 fn create_event(entity_id: &str, event_type: &str, payload: serde_json::Value) -> Event {

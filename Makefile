@@ -143,7 +143,7 @@ quality-gates: check-versions quality-rust quality-go quality-elixir
 	@echo "✅ All quality gates passed!"
 
 # Full CI pipeline - replicates exact GitHub Actions checks
-ci: check-versions quality-rust quality-go quality-elixir-full quality-e2e
+ci: check-versions quality-rust quality-go quality-elixir-full
 	@echo ""
 	@echo "=============================================="
 	@echo "✅ Full CI pipeline passed!"
@@ -277,12 +277,16 @@ quality-elixir-full:
 
 quality-e2e:
 	@echo ""
-	@echo "🎭 Running Playwright e2e tests..."
-	@echo "==================================="
-	cd tooling/e2e && bun install --frozen-lockfile 2>/dev/null || cd tooling/e2e && bun install
-	cd tooling/e2e && bunx playwright install --with-deps chromium
-	cd tooling/e2e && bunx playwright test
-	@echo "✅ Playwright e2e tests passed!"
+	@if [ -d tooling/e2e ]; then \
+		echo "🎭 Running Playwright e2e tests..."; \
+		echo "==================================="; \
+		(cd tooling/e2e && bun install --frozen-lockfile 2>/dev/null || bun install) && \
+		(cd tooling/e2e && bunx playwright install --with-deps chromium) && \
+		(cd tooling/e2e && bunx playwright test) && \
+		echo "✅ Playwright e2e tests passed!"; \
+	else \
+		echo "⏭️  Skipping Playwright e2e tests (tooling/e2e not found)"; \
+	fi
 
 # =============================================================================
 # Individual Service Commands

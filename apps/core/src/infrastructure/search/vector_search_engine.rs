@@ -164,7 +164,7 @@ impl instant_distance::Point for VectorPoint {
 pub struct VectorSearchEngine {
     config: VectorSearchEngineConfig,
     #[cfg(feature = "vector-search")]
-    embedding_model: Arc<TextEmbedding>,
+    embedding_model: Arc<parking_lot::Mutex<TextEmbedding>>,
     #[cfg(feature = "vector-search")]
     hnsw_index: Arc<RwLock<Option<HnswMap<VectorPoint, Uuid>>>>,
     /// Metadata storage: event_id -> IndexedVector
@@ -204,7 +204,7 @@ impl VectorSearchEngine {
 
         Ok(Self {
             config,
-            embedding_model: Arc::new(model),
+            embedding_model: Arc::new(parking_lot::Mutex::new(model)),
             hnsw_index: Arc::new(RwLock::new(None)),
             vectors: Arc::new(RwLock::new(HashMap::new())),
             tenant_index: Arc::new(RwLock::new(HashMap::new())),
@@ -238,9 +238,13 @@ impl VectorSearchEngine {
     /// Generate embedding from text using fastembed
     #[cfg(feature = "vector-search")]
     pub fn embed_text(&self, text: &str) -> Result<Vec<f32>> {
-        let embeddings = self.embedding_model.embed(vec![text], None).map_err(|e| {
-            AllSourceError::InternalError(format!("Embedding generation failed: {}", e))
-        })?;
+        let embeddings = self
+            .embedding_model
+            .lock()
+            .embed(vec![text], None)
+            .map_err(|e| {
+                AllSourceError::InternalError(format!("Embedding generation failed: {}", e))
+            })?;
 
         let embedding = embeddings
             .into_iter()

@@ -1,6 +1,6 @@
 [package]
 name = "allsource-core"
-version = "0.10.7"
+version = "0.11.0"
 edition = "2024"
 rust-version = "1.92"
 authors = ["AllSource Team"]
@@ -124,6 +124,8 @@ uuid.workspace = true
 criterion.workspace = true
 ctrlc.workspace = true
 tempfile.workspace = true
+testcontainers = "0.25"
+testcontainers-modules = { version = "0.13", features = ["postgres"] }
 
 [[bench]]
 name = "performance_benchmarks"

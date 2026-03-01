@@ -1,6 +1,7 @@
 use allsource_core::{QueryEventsRequest, domain::entities::Event, store::EventStore};
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use serde_json::json;
+use std::hint::black_box;
 
 fn generate_test_event(entity_id: usize) -> Event {
     Event::from_strings(
