@@ -129,7 +129,8 @@ defmodule QueryServiceExWeb.ApiKeyController do
 
   defp get_tenant_id(conn) do
     conn.assigns[:tenant_id] ||
-      (conn.assigns[:current_user] && (conn.assigns[:current_user][:tenant_id] || conn.assigns[:current_user]["tenant_id"]))
+      (conn.assigns[:current_user] &&
+         (conn.assigns[:current_user][:tenant_id] || conn.assigns[:current_user]["tenant_id"]))
   end
 
   defp sign_api_key(key_id, tenant_id, name) do

@@ -230,7 +230,7 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 	// Step 4: Seed audit log entries so the Audit Log page isn't empty
 	auditEvents := buildDemoAuditEntries(tenantID, email)
 	for _, ae := range auditEvents {
-		cp.client.R().SetBody(ae).Post("/api/v1/events")
+		cp.client.R().SetBody(ae).Post("/api/v1/events") //nolint:errcheck // best-effort seeding
 	}
 
 	// Return credentials — the client logs in through the normal login flow
