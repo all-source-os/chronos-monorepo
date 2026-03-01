@@ -31,8 +31,14 @@
 pub mod ai_projections;
 mod config;
 mod core;
+#[cfg(feature = "embedded-projections")]
+pub mod mcp_events;
 #[cfg(feature = "embedded-replicant")]
 pub mod replicant;
+#[cfg(feature = "embedded-sync")]
+pub mod sync_transport;
+#[cfg(feature = "embedded-sync")]
+pub mod sync_types;
 mod types;
 
 pub use self::core::EmbeddedCore;

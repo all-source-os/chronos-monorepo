@@ -437,7 +437,15 @@ pub async fn serve_v1(
         .route("/api/v1/geo/failover", post(geo_failover_handler))
         // Internal endpoints for sentinel-driven failover (not exposed publicly)
         .route("/internal/promote", post(promote_handler))
-        .route("/internal/repoint", post(repoint_handler))
+        .route("/internal/repoint", post(repoint_handler));
+
+    // v0.11: Bidirectional sync protocol (embedded↔server)
+    #[cfg(feature = "embedded-sync")]
+    let app = app
+        .route("/api/v1/sync/pull", post(super::api::sync_pull_handler))
+        .route("/api/v1/sync/push", post(super::api::sync_push_handler));
+
+    let app = app
         .with_state(app_state.clone())
         // IMPORTANT: Middleware layers execute from bottom to top in Tower/Axum
         // Read-only middleware runs after auth (applied before rate limit layer)

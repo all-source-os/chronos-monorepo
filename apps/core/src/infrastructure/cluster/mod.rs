@@ -52,7 +52,7 @@ pub mod request_router;
 pub use consensus::{
     ClusterManager, ClusterMember, ClusterStatus, MemberRole, VoteRequest, VoteResponse,
 };
-pub use crdt::{ConflictResolution, CrdtResolver, ReplicatedEvent, VersionVector};
+pub use crdt::{ConflictResolution, CrdtResolver, MergeStrategy, ReplicatedEvent, VersionVector};
 pub use geo_replication::{
     GeoReplicationConfig, GeoReplicationManager, GeoReplicationStatus, GeoSyncRequest,
     GeoSyncResponse, PeerHealth, PeerRegion, PeerStatus,

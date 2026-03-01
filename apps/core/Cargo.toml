@@ -1,6 +1,6 @@
 [package]
 name = "allsource-core"
-version = "0.11.0"
+version = "0.12.0"
 edition = "2024"
 rust-version = "1.92"
 authors = ["AllSource Team"]
@@ -58,7 +58,7 @@ vector-search = ["fastembed", "instant-distance"]
 keyword-search = ["tantivy"]
 embedded = []
 embedded-phase2 = ["embedded"]
-embedded-sync = ["embedded"]
+embedded-sync = ["embedded", "dep:reqwest"]
 embedded-replicant = ["embedded"]
 embedded-streaming = ["embedded"]
 embedded-projections = ["embedded"]
@@ -157,6 +157,11 @@ path = "tests/bidirectional_sync.rs"
 required-features = ["embedded-sync"]
 
 [[test]]
+name = "http_sync_transport"
+path = "tests/http_sync_transport.rs"
+required-features = ["embedded-sync"]
+
+[[test]]
 name = "replicant_protocol"
 path = "tests/replicant_protocol.rs"
 required-features = ["embedded-replicant"]
@@ -169,6 +174,11 @@ required-features = ["embedded-streaming"]
 [[test]]
 name = "ai_projection_templates"
 path = "tests/ai_projection_templates.rs"
+required-features = ["embedded-projections"]
+
+[[test]]
+name = "mcp_tool_emission"
+path = "tests/mcp_tool_emission.rs"
 required-features = ["embedded-projections"]
 
 [[test]]

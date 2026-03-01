@@ -366,6 +366,152 @@ mod tests {
     }
 
     // =========================================================================
+    // Merge Strategy Tests
+    // =========================================================================
+
+    #[test]
+    fn test_append_only_strategy_accepts_all() {
+        use allsource_core::cluster::MergeStrategy;
+
+        let resolver = CrdtResolver::with_strategies(vec![
+            ("test.".to_string(), MergeStrategy::AppendOnly),
+        ]);
+
+        let event1 = ReplicatedEvent {
+            event_id: "evt-1".to_string(),
+            hlc_timestamp: HlcTimestamp::new(1000, 0, 1),
+            origin_region: "node-1".to_string(),
+            event_data: json!({"event_type": "test.created", "entity_id": "e-1"}),
+        };
+        let event2 = ReplicatedEvent {
+            event_id: "evt-2".to_string(),
+            hlc_timestamp: HlcTimestamp::new(2000, 0, 1),
+            origin_region: "node-1".to_string(),
+            event_data: json!({"event_type": "test.created", "entity_id": "e-1"}),
+        };
+
+        assert_eq!(resolver.resolve_and_accept(&event1), ConflictResolution::Accept);
+        assert_eq!(resolver.resolve_and_accept(&event2), ConflictResolution::Accept);
+    }
+
+    #[test]
+    fn test_lww_strategy_keeps_latest() {
+        use allsource_core::cluster::MergeStrategy;
+
+        let resolver = CrdtResolver::with_strategies(vec![
+            ("config.".to_string(), MergeStrategy::LastWriteWins),
+        ]);
+
+        // Newer event first
+        let newer = ReplicatedEvent {
+            event_id: "evt-2".to_string(),
+            hlc_timestamp: HlcTimestamp::new(2000, 0, 1),
+            origin_region: "node-1".to_string(),
+            event_data: json!({"event_type": "config.updated", "entity_id": "cfg-1"}),
+        };
+        // Older event second
+        let older = ReplicatedEvent {
+            event_id: "evt-1".to_string(),
+            hlc_timestamp: HlcTimestamp::new(1000, 0, 2),
+            origin_region: "node-2".to_string(),
+            event_data: json!({"event_type": "config.updated", "entity_id": "cfg-1"}),
+        };
+
+        assert_eq!(resolver.resolve_and_accept(&newer), ConflictResolution::Accept);
+        // Older event for same entity+type should be skipped under LWW
+        assert_eq!(resolver.resolve(&older), ConflictResolution::Skip);
+    }
+
+    #[test]
+    fn test_fww_strategy_keeps_first() {
+        use allsource_core::cluster::MergeStrategy;
+
+        let resolver = CrdtResolver::with_strategies(vec![
+            ("init.".to_string(), MergeStrategy::FirstWriteWins),
+        ]);
+
+        let first = ReplicatedEvent {
+            event_id: "evt-1".to_string(),
+            hlc_timestamp: HlcTimestamp::new(1000, 0, 1),
+            origin_region: "node-1".to_string(),
+            event_data: json!({"event_type": "init.setup", "entity_id": "app-1"}),
+        };
+        let second = ReplicatedEvent {
+            event_id: "evt-2".to_string(),
+            hlc_timestamp: HlcTimestamp::new(2000, 0, 2),
+            origin_region: "node-2".to_string(),
+            event_data: json!({"event_type": "init.setup", "entity_id": "app-1"}),
+        };
+
+        assert_eq!(resolver.resolve_and_accept(&first), ConflictResolution::Accept);
+        // Second event for same entity+type should be skipped under FWW
+        assert_eq!(resolver.resolve(&second), ConflictResolution::Skip);
+    }
+
+    #[test]
+    fn test_strategy_prefix_matching() {
+        use allsource_core::cluster::MergeStrategy;
+
+        let resolver = CrdtResolver::with_strategies(vec![
+            ("config.".to_string(), MergeStrategy::LastWriteWins),
+        ]);
+
+        // "config.updated" matches "config." prefix
+        let event = ReplicatedEvent {
+            event_id: "evt-1".to_string(),
+            hlc_timestamp: HlcTimestamp::new(2000, 0, 1),
+            origin_region: "node-1".to_string(),
+            event_data: json!({"event_type": "config.updated", "entity_id": "cfg-1"}),
+        };
+        resolver.resolve_and_accept(&event);
+
+        // Older event for same entity+type should be skipped (LWW applies)
+        let older = ReplicatedEvent {
+            event_id: "evt-2".to_string(),
+            hlc_timestamp: HlcTimestamp::new(1000, 0, 2),
+            origin_region: "node-2".to_string(),
+            event_data: json!({"event_type": "config.updated", "entity_id": "cfg-1"}),
+        };
+        assert_eq!(resolver.resolve(&older), ConflictResolution::Skip);
+
+        // "config.deleted" also matches "config." prefix
+        let deleted = ReplicatedEvent {
+            event_id: "evt-3".to_string(),
+            hlc_timestamp: HlcTimestamp::new(3000, 0, 1),
+            origin_region: "node-1".to_string(),
+            event_data: json!({"event_type": "config.deleted", "entity_id": "cfg-1"}),
+        };
+        assert_eq!(resolver.resolve(&deleted), ConflictResolution::Accept);
+    }
+
+    #[test]
+    fn test_default_fallback_when_no_match() {
+        use allsource_core::cluster::MergeStrategy;
+
+        // Only "config." has a strategy; "order." should fall back to AppendOnly
+        let resolver = CrdtResolver::with_strategies(vec![
+            ("config.".to_string(), MergeStrategy::FirstWriteWins),
+        ]);
+
+        let order1 = ReplicatedEvent {
+            event_id: "evt-1".to_string(),
+            hlc_timestamp: HlcTimestamp::new(1000, 0, 1),
+            origin_region: "node-1".to_string(),
+            event_data: json!({"event_type": "order.placed", "entity_id": "o-1"}),
+        };
+        let order2 = ReplicatedEvent {
+            event_id: "evt-2".to_string(),
+            hlc_timestamp: HlcTimestamp::new(2000, 0, 1),
+            origin_region: "node-1".to_string(),
+            event_data: json!({"event_type": "order.placed", "entity_id": "o-1"}),
+        };
+
+        assert_eq!(resolver.resolve_and_accept(&order1), ConflictResolution::Accept);
+        // AppendOnly: second event for same entity+type is still accepted
+        assert_eq!(resolver.resolve_and_accept(&order2), ConflictResolution::Accept);
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 

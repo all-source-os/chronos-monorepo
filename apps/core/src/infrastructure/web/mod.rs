@@ -13,7 +13,7 @@ pub mod websocket;
 
 // Public API re-exports
 pub use api::serve;
-pub use websocket::{EventFilters, WebSocketManager, WebSocketStats};
+pub use websocket::{EventFilters, WebSocketConfig, WebSocketManager, WebSocketStats};
 
 // Handler state re-exports for convenience
 pub use handlers::{

@@ -104,7 +104,13 @@ impl EmbeddedCore {
         let (hlc, resolver) = match config.node_id() {
             Some(node_id) => {
                 let hlc = Arc::new(HybridLogicalClock::new(node_id));
-                let resolver = Arc::new(CrdtResolver::new());
+                let resolver = if config.merge_strategies().is_empty() {
+                    Arc::new(CrdtResolver::new())
+                } else {
+                    Arc::new(CrdtResolver::with_strategies(
+                        config.merge_strategies().to_vec(),
+                    ))
+                };
                 (Some(hlc), Some(resolver))
             }
             None => (None, None),
@@ -470,6 +476,175 @@ impl EmbeddedCore {
     /// Get basic statistics about this store instance.
     pub fn stats(&self) -> StoreStats {
         self.store.stats()
+    }
+
+    /// Get the merged version vector across all known regions.
+    ///
+    /// Returns a map of `region_id → latest HLC timestamp`. Used by the
+    /// sync transport to compute deltas.
+    pub fn version_vector(
+        &self,
+    ) -> std::collections::BTreeMap<String, crate::infrastructure::cluster::hlc::HlcTimestamp> {
+        match &self.resolver {
+            Some(resolver) => {
+                let all_vv = resolver.all_version_vectors();
+                let mut merged = crate::infrastructure::cluster::crdt::VersionVector::new();
+                for (_region, vv) in &all_vv {
+                    merged.merge(vv);
+                }
+                merged.entries().clone()
+            }
+            None => std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// Get the node's region identifier (e.g., "node-1").
+    ///
+    /// Returns `None` if sync is not configured (no `node_id`).
+    pub fn region_id(&self) -> Option<String> {
+        self.hlc.as_ref().map(|hlc| format!("node-{}", hlc.node_id()))
+    }
+
+    /// Receive events from a remote sync push.
+    ///
+    /// Applies CRDT conflict resolution to each event and ingests
+    /// accepted events. Returns `(accepted, skipped)` counts.
+    pub async fn receive_sync_push(
+        &self,
+        events: Vec<ReplicatedEvent>,
+    ) -> Result<(usize, usize)> {
+        let (Some(_hlc), Some(resolver)) = (&self.hlc, &self.resolver) else {
+            return Err(crate::error::AllSourceError::InvalidInput(
+                "sync requires node_id to be configured".to_string(),
+            ));
+        };
+
+        let mut accepted = Vec::new();
+        let mut skipped = 0usize;
+
+        for event in &events {
+            let resolution = resolver.resolve(event);
+            if resolution == ConflictResolution::Accept {
+                resolver.accept(event);
+                accepted.push(event.clone());
+            } else {
+                skipped += 1;
+            }
+        }
+
+        let accepted_count = accepted.len();
+
+        if !accepted.is_empty() {
+            let store = Arc::clone(&self.store);
+            tokio::task::spawn_blocking(move || {
+                for rep_event in accepted {
+                    // Convert ReplicatedEvent back to domain Event
+                    let event_data = &rep_event.event_data;
+                    let event_type = event_data
+                        .get("event_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let entity_id = event_data
+                        .get("entity_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let tenant_id = event_data
+                        .get("tenant_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("default")
+                        .to_string();
+                    let payload = event_data
+                        .get("payload")
+                        .cloned()
+                        .unwrap_or(serde_json::json!({}));
+                    let metadata = event_data.get("metadata").cloned();
+
+                    let domain_event = Event::from_strings(
+                        event_type,
+                        entity_id,
+                        tenant_id,
+                        payload,
+                        metadata,
+                    )?;
+                    store.ingest(domain_event)?;
+                }
+                Ok::<(), crate::error::AllSourceError>(())
+            })
+            .await
+            .map_err(|e| {
+                crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+            })??;
+        }
+
+        Ok((accepted_count, skipped))
+    }
+
+    /// Get all events as `ReplicatedEvent`s for sync push.
+    ///
+    /// Optionally filtered by a version vector threshold (only events
+    /// newer than the threshold are returned).
+    pub async fn events_for_sync(
+        &self,
+        since_vv: &std::collections::BTreeMap<String, crate::infrastructure::cluster::hlc::HlcTimestamp>,
+    ) -> Result<Vec<ReplicatedEvent>> {
+        let Some(hlc) = &self.hlc else {
+            return Err(crate::error::AllSourceError::InvalidInput(
+                "sync requires node_id to be configured".to_string(),
+            ));
+        };
+
+        let self_region = format!("node-{}", hlc.node_id());
+        let since = since_vv
+            .get(&self_region)
+            .map(|ts| {
+                chrono::DateTime::from_timestamp_millis(ts.physical_ms as i64).unwrap_or_default()
+            });
+
+        let store = Arc::clone(&self.store);
+        let all_events = tokio::task::spawn_blocking(move || {
+            store.query(QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: None,
+                as_of: None,
+                since,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+        })
+        .await
+        .map_err(|e| {
+            crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+        })??;
+
+        let node_id = hlc.node_id();
+        let mut replicated = Vec::with_capacity(all_events.len());
+        let mut last_ms = 0u64;
+        let mut logical = 0u32;
+
+        for event in &all_events {
+            let event_ms = event.timestamp().timestamp_millis() as u64;
+            if event_ms == last_ms {
+                logical += 1;
+            } else {
+                last_ms = event_ms;
+                logical = 0;
+            }
+            let ts = HlcTimestamp::new(event_ms, logical, node_id);
+
+            replicated.push(ReplicatedEvent {
+                event_id: event.id().to_string(),
+                hlc_timestamp: ts,
+                origin_region: self_region.clone(),
+                event_data: serde_json::to_value(EventView::from(event)).unwrap_or_default(),
+            });
+        }
+
+        Ok(replicated)
     }
 
     /// Get a reference to the underlying `EventStore`.

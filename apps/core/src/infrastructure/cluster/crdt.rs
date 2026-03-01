@@ -126,28 +126,84 @@ pub enum ConflictResolution {
     Skip,
 }
 
+/// Per-entity-type merge strategy for conflict resolution.
+///
+/// Controls how the CRDT resolver handles events for specific event types
+/// (or prefixes). The default behavior is `AppendOnly`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MergeStrategy {
+    /// Accept all events (default, current G-Set behavior).
+    AppendOnly,
+    /// Newer HLC timestamp wins for same entity+type. Earlier events are skipped.
+    LastWriteWins,
+    /// First event for entity+type wins. Subsequent events are rejected.
+    FirstWriteWins,
+}
+
 /// CRDT-based conflict resolver for geo-replicated events.
 ///
 /// Thread-safe: uses DashMap internally for the version vector.
+///
+/// Supports configurable per-entity-type merge strategies via
+/// [`with_strategies`](Self::with_strategies). Strategy lookup uses prefix
+/// matching: a strategy registered for `"config."` applies to
+/// `"config.updated"`, `"config.deleted"`, etc. The most specific
+/// (longest) prefix match wins. Unmatched types fall back to `AppendOnly`.
 pub struct CrdtResolver {
     /// Per-region version vectors.
     version_vectors: DashMap<String, VersionVector>,
     /// Set of event IDs already seen (deduplication).
     seen_events: DashMap<String, ()>,
+    /// Per-event-type merge strategies (prefix → strategy).
+    /// Sorted by prefix length descending for longest-match-first lookup.
+    strategies: Vec<(String, MergeStrategy)>,
+    /// entity+type → winning HLC timestamp, used for LWW and FWW tracking.
+    entity_type_winners: DashMap<String, HlcTimestamp>,
 }
 
 impl CrdtResolver {
-    /// Create a new CRDT resolver.
+    /// Create a new CRDT resolver with default AppendOnly behavior.
     pub fn new() -> Self {
         Self {
             version_vectors: DashMap::new(),
             seen_events: DashMap::new(),
+            strategies: Vec::new(),
+            entity_type_winners: DashMap::new(),
         }
+    }
+
+    /// Create a CRDT resolver with per-event-type merge strategies.
+    ///
+    /// Each entry is `(prefix, strategy)`. Prefix matching is used:
+    /// `"config."` matches `"config.updated"`. The longest matching
+    /// prefix wins. Unmatched types use `AppendOnly`.
+    pub fn with_strategies(strategies: Vec<(String, MergeStrategy)>) -> Self {
+        let mut sorted = strategies;
+        // Sort by prefix length descending for longest-match-first
+        sorted.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        Self {
+            version_vectors: DashMap::new(),
+            seen_events: DashMap::new(),
+            strategies: sorted,
+            entity_type_winners: DashMap::new(),
+        }
+    }
+
+    /// Look up the merge strategy for an event type (longest prefix match).
+    fn strategy_for(&self, event_type: &str) -> &MergeStrategy {
+        for (prefix, strategy) in &self.strategies {
+            if event_type.starts_with(prefix.as_str()) {
+                return strategy;
+            }
+        }
+        // Static reference to default — avoids allocation
+        &MergeStrategy::AppendOnly
     }
 
     /// Resolve whether an incoming replicated event should be accepted.
     ///
     /// Returns `Accept` if the event is new, `Skip` if it's a duplicate.
+    /// Consults the per-event-type merge strategy when one is registered.
     pub fn resolve(&self, event: &ReplicatedEvent) -> ConflictResolution {
         // Dedup by event ID
         if self.seen_events.contains_key(&event.event_id) {
@@ -165,10 +221,41 @@ impl CrdtResolver {
             return ConflictResolution::Skip;
         }
 
-        ConflictResolution::Accept
+        // Extract event_type and entity_id from event_data for strategy lookup
+        let event_type = event
+            .event_data
+            .get("event_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let entity_id = event
+            .event_data
+            .get("entity_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        match self.strategy_for(event_type) {
+            MergeStrategy::AppendOnly => ConflictResolution::Accept,
+            MergeStrategy::LastWriteWins => {
+                let key = format!("{}\x00{}", entity_id, event_type);
+                match self.entity_type_winners.get(&key) {
+                    Some(existing) if event.hlc_timestamp <= *existing => {
+                        ConflictResolution::Skip
+                    }
+                    _ => ConflictResolution::Accept,
+                }
+            }
+            MergeStrategy::FirstWriteWins => {
+                let key = format!("{}\x00{}", entity_id, event_type);
+                if self.entity_type_winners.contains_key(&key) {
+                    ConflictResolution::Skip
+                } else {
+                    ConflictResolution::Accept
+                }
+            }
+        }
     }
 
-    /// Mark an event as accepted: update version vector and dedup set.
+    /// Mark an event as accepted: update version vector, dedup set, and strategy state.
     pub fn accept(&self, event: &ReplicatedEvent) {
         self.seen_events.insert(event.event_id.clone(), ());
 
@@ -177,6 +264,29 @@ impl CrdtResolver {
             .entry(event.origin_region.clone())
             .or_default();
         vv.advance(&event.origin_region, event.hlc_timestamp);
+
+        // Track entity+type winner for LWW/FWW strategies
+        let event_type = event
+            .event_data
+            .get("event_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let entity_id = event
+            .event_data
+            .get("entity_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if !event_type.is_empty() && !entity_id.is_empty() {
+            let key = format!("{}\x00{}", entity_id, event_type);
+            self.entity_type_winners
+                .entry(key)
+                .and_modify(|existing| {
+                    if event.hlc_timestamp > *existing {
+                        *existing = event.hlc_timestamp;
+                    }
+                })
+                .or_insert(event.hlc_timestamp);
+        }
     }
 
     /// Resolve and accept in one step. Returns the resolution.

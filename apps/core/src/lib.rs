@@ -191,9 +191,9 @@ pub mod cluster {
     pub use crate::infrastructure::cluster::{
         ClusterManager, ClusterMember, ClusterStatus, ConflictResolution, CrdtResolver,
         GeoReplicationConfig, GeoReplicationManager, GeoReplicationStatus, GeoSyncRequest,
-        GeoSyncResponse, HlcTimestamp, HybridLogicalClock, MemberRole, Node, NodeRegistry,
-        PeerHealth, PeerRegion, PeerStatus, ReplicatedEvent, RequestRouter, VersionVector,
-        VoteRequest, VoteResponse,
+        GeoSyncResponse, HlcTimestamp, HybridLogicalClock, MemberRole, MergeStrategy, Node,
+        NodeRegistry, PeerHealth, PeerRegion, PeerStatus, ReplicatedEvent, RequestRouter,
+        VersionVector, VoteRequest, VoteResponse,
     };
 }
 

@@ -1,3 +1,4 @@
+use crate::infrastructure::cluster::crdt::MergeStrategy;
 use std::path::{Path, PathBuf};
 
 /// Configuration for [`EmbeddedCore`](super::EmbeddedCore).
@@ -11,6 +12,7 @@ pub struct EmbeddedConfig {
     parquet_flush_interval_secs: u64,
     single_tenant: bool,
     node_id: Option<u32>,
+    merge_strategies: Vec<(String, MergeStrategy)>,
 }
 
 impl EmbeddedConfig {
@@ -47,6 +49,11 @@ impl EmbeddedConfig {
         self.node_id
     }
 
+    /// Per-event-type merge strategies for conflict resolution.
+    pub fn merge_strategies(&self) -> &[(String, MergeStrategy)] {
+        &self.merge_strategies
+    }
+
     pub(crate) fn parquet_flush_interval_secs(&self) -> u64 {
         self.parquet_flush_interval_secs
     }
@@ -60,6 +67,7 @@ pub struct ConfigBuilder {
     parquet_flush_interval_secs: u64,
     single_tenant: bool,
     node_id: Option<u32>,
+    merge_strategies: Vec<(String, MergeStrategy)>,
 }
 
 impl Default for ConfigBuilder {
@@ -71,6 +79,7 @@ impl Default for ConfigBuilder {
             parquet_flush_interval_secs: 300,
             single_tenant: true,
             node_id: None,
+            merge_strategies: Vec::new(),
         }
     }
 }
@@ -125,6 +134,16 @@ impl ConfigBuilder {
         self
     }
 
+    /// Register a per-event-type merge strategy for conflict resolution.
+    ///
+    /// The `prefix` is matched against event types: `"config."` matches
+    /// `"config.updated"`, `"config.deleted"`, etc. The longest matching
+    /// prefix wins. Unmatched types default to `AppendOnly`.
+    pub fn merge_strategy(mut self, prefix: impl Into<String>, strategy: MergeStrategy) -> Self {
+        self.merge_strategies.push((prefix.into(), strategy));
+        self
+    }
+
     /// Build the configuration. Returns `Result` for forward compatibility.
     pub fn build(self) -> crate::error::Result<EmbeddedConfig> {
         Ok(EmbeddedConfig {
@@ -134,6 +153,7 @@ impl ConfigBuilder {
             parquet_flush_interval_secs: self.parquet_flush_interval_secs,
             single_tenant: self.single_tenant,
             node_id: self.node_id,
+            merge_strategies: self.merge_strategies,
         })
     }
 }

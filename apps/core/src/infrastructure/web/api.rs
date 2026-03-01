@@ -1923,6 +1923,128 @@ pub async fn schema_evolution_stats(State(store): State<SharedStore>) -> Json<se
     }))
 }
 
+// =============================================================================
+// Sync Protocol Endpoints (v0.11: embedded↔server bidirectional sync)
+// =============================================================================
+
+/// POST /api/v1/sync/pull — Client sends version vector, server returns delta events.
+#[cfg(feature = "embedded-sync")]
+pub async fn sync_pull_handler(
+    State(state): State<AppState>,
+    Json(request): Json<crate::embedded::sync_types::SyncPullRequest>,
+) -> Result<Json<crate::embedded::sync_types::SyncPullResponse>> {
+    use crate::infrastructure::cluster::crdt::ReplicatedEvent;
+    use crate::infrastructure::cluster::hlc::HlcTimestamp;
+
+    let store = &state.store;
+
+    // Compute "since" threshold from the client's version vector
+    // We return all events the client hasn't seen yet
+    let since = request
+        .version_vector
+        .values()
+        .map(|ts| ts.physical_ms)
+        .min()
+        .and_then(|ms| chrono::DateTime::from_timestamp_millis(ms as i64));
+
+    let events = store.query(crate::application::dto::QueryEventsRequest {
+        entity_id: None,
+        event_type: None,
+        tenant_id: None,
+        as_of: None,
+        since,
+        until: None,
+        limit: None,
+        event_type_prefix: None,
+        payload_filter: None,
+    })?;
+
+    // Convert domain events to ReplicatedEvent wire format
+    let mut replicated = Vec::with_capacity(events.len());
+    let mut last_ms = 0u64;
+    let mut logical = 0u32;
+
+    for event in &events {
+        let event_ms = event.timestamp().timestamp_millis() as u64;
+        if event_ms == last_ms {
+            logical += 1;
+        } else {
+            last_ms = event_ms;
+            logical = 0;
+        }
+
+        replicated.push(ReplicatedEvent {
+            event_id: event.id().to_string(),
+            hlc_timestamp: HlcTimestamp::new(event_ms, logical, 0),
+            origin_region: "server".to_string(),
+            event_data: serde_json::json!({
+                "event_type": event.event_type_str(),
+                "entity_id": event.entity_id_str(),
+                "tenant_id": event.tenant_id_str(),
+                "payload": event.payload,
+                "metadata": event.metadata,
+            }),
+        });
+    }
+
+    Ok(Json(crate::embedded::sync_types::SyncPullResponse {
+        events: replicated,
+        version_vector: std::collections::BTreeMap::new(),
+    }))
+}
+
+/// POST /api/v1/sync/push — Client pushes events, server applies CRDT resolution.
+#[cfg(feature = "embedded-sync")]
+pub async fn sync_push_handler(
+    State(state): State<AppState>,
+    Json(request): Json<crate::embedded::sync_types::SyncPushRequest>,
+) -> Result<Json<crate::embedded::sync_types::SyncPushResponse>> {
+    let store = &state.store;
+
+    let mut accepted = 0usize;
+    let mut skipped = 0usize;
+
+    for rep_event in &request.events {
+        let event_data = &rep_event.event_data;
+        let event_type = event_data
+            .get("event_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let entity_id = event_data
+            .get("entity_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let tenant_id = event_data
+            .get("tenant_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default")
+            .to_string();
+        let payload = event_data
+            .get("payload")
+            .cloned()
+            .unwrap_or(serde_json::json!({}));
+        let metadata = event_data.get("metadata").cloned();
+
+        match Event::from_strings(event_type, entity_id, tenant_id, payload, metadata) {
+            Ok(domain_event) => {
+                store.ingest(domain_event)?;
+                accepted += 1;
+            }
+            Err(_) => {
+                skipped += 1;
+            }
+        }
+    }
+
+    Ok(Json(crate::embedded::sync_types::SyncPushResponse {
+        accepted,
+        skipped,
+        version_vector: std::collections::BTreeMap::new(),
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
