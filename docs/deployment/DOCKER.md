@@ -6,9 +6,9 @@ Production-optimized container images for AllSource services.
 
 | Service | Image | Size | Base |
 |---------|-------|------|------|
-| **Core** | `ghcr.io/allsource/allsource-core` | **15.7 MB** | Distroless |
-| **Control Plane** | `ghcr.io/allsource/allsource-control-plane` | **27.9 MB** | Distroless |
-| **Query Service** | `ghcr.io/allsource/allsource-query-service` | **35.1 MB** | Alpine 3.22 |
+| **Core** | `ghcr.io/all-source-os/chronos-core` | **15.7 MB** | Distroless |
+| **Control Plane** | `ghcr.io/all-source-os/chronos-control-plane` | **27.9 MB** | Distroless |
+| **Query Service** | `ghcr.io/all-source-os/chronos-query-service` | **35.1 MB** | Alpine 3.22 |
 
 ### Why So Small?
 
@@ -25,12 +25,12 @@ Production-optimized container images for AllSource services.
 
 ```bash
 # Latest stable
-docker pull ghcr.io/allsource/allsource-core:latest
-docker pull ghcr.io/allsource/allsource-control-plane:latest
-docker pull ghcr.io/allsource/allsource-query-service:latest
+docker pull ghcr.io/all-source-os/chronos-core:latest
+docker pull ghcr.io/all-source-os/chronos-control-plane:latest
+docker pull ghcr.io/all-source-os/chronos-query-service:latest
 
 # Specific version
-docker pull ghcr.io/allsource/allsource-core:0.7.3
+docker pull ghcr.io/all-source-os/chronos-core:v0.10.7
 ```
 
 ### Run Locally
@@ -41,23 +41,24 @@ docker run -d \
   --name allsource-core \
   -p 3900:3900 \
   -v allsource-data:/app/data \
-  ghcr.io/allsource/allsource-core:latest
+  ghcr.io/all-source-os/chronos-core:latest
 
 # Control Plane (Go)
 docker run -d \
   --name allsource-control-plane \
-  -p 8080:8080 \
+  -p 3901:3901 \
   -e CORE_URL=http://allsource-core:3900 \
-  ghcr.io/allsource/allsource-control-plane:latest
+  -e JWT_SECRET=$(openssl rand -hex 32) \
+  ghcr.io/all-source-os/chronos-control-plane:latest
 
-# Query Service (Elixir)
+# Query Service (Elixir) — stateless, no database needed
 docker run -d \
   --name allsource-query-service \
   -p 3902:3902 \
-  -e DATABASE_URL=ecto://user:pass@postgres/allsource \
   -e SECRET_KEY_BASE=$(openssl rand -hex 64) \
-  -e RUST_CORE_URL=http://allsource-core:3900 \
-  ghcr.io/allsource/allsource-query-service:latest
+  -e CORE_URL=http://allsource-core:3900 \
+  -e CORE_WS_URL=ws://allsource-core:3900 \
+  ghcr.io/all-source-os/chronos-query-service:latest
 ```
 
 ---
@@ -90,26 +91,30 @@ See [`docker-compose.yml`](../../docker-compose.yml) in the repository root.
 | `RUST_LOG` | `allsource_core=info` | Log level |
 | `ALLSOURCE_HOST` | `0.0.0.0` | Bind address |
 | `ALLSOURCE_PORT` | `3900` | HTTP port |
-| `ALLSOURCE_DATA_DIR` | `/app/data` | Data directory |
+| `ALLSOURCE_DATA_DIR` | `/app/data` | Data directory (WAL + Parquet) |
+| `ALLSOURCE_WAL_ENABLED` | `true` | Enable Write-Ahead Log |
+| `ALLSOURCE_PARQUET_ENABLED` | `true` | Enable Parquet persistence |
+| `ALLSOURCE_JWT_SECRET` | - | JWT secret for auth (optional) |
 
 ### Control Plane (Go)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GIN_MODE` | `release` | Gin framework mode |
-| `PORT` | `8080` | HTTP port |
+| `PORT` | `3901` | HTTP port |
 | `CORE_URL` | `http://localhost:3900` | Core service URL |
 | `JWT_SECRET` | - | JWT signing secret (required) |
+| `FRONTEND_URL` | - | Frontend URL for OAuth callbacks |
 
 ### Query Service (Elixir)
 
+> **Note:** Query Service is stateless — no database required. It fetches tenant/user data from Core.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | - | PostgreSQL connection URL (required) |
 | `SECRET_KEY_BASE` | - | Phoenix secret key (required) |
 | `PORT` | `3902` | HTTP port |
-| `POOL_SIZE` | `10` | Database connection pool size |
-| `RUST_CORE_URL` | `http://localhost:3900` | Core service URL |
+| `CORE_URL` | `http://localhost:3900` | Core service URL |
 | `CORE_WS_URL` | `ws://localhost:3900` | Core WebSocket URL ([see guide](../guides/WEBSOCKET_CONFIGURATION.md)) |
 | `CORE_WS_ENABLED` | `true` | Enable real-time WebSocket client |
 | `PHX_HOST` | `localhost` | Hostname for URL generation |
@@ -216,10 +221,10 @@ docker buildx build --platform linux/amd64,linux/arm64 -t allsource-core .
 
 ```bash
 # Scan with Trivy
-trivy image ghcr.io/allsource/allsource-core:latest
+trivy image ghcr.io/all-source-os/chronos-core:latest
 
 # Scan with Grype
-grype ghcr.io/allsource/allsource-core:latest
+grype ghcr.io/all-source-os/chronos-core:latest
 ```
 
 ---
@@ -258,7 +263,7 @@ docker run -it --rm allsource-core:alpine /bin/sh
 ```bash
 # Test health endpoint manually
 curl http://localhost:3900/health
-curl http://localhost:8080/health
+curl http://localhost:3901/health
 curl http://localhost:3902/api/health
 ```
 
@@ -273,4 +278,3 @@ Ensure Alpine version matches the build image (3.22+) for OpenSSL compatibility.
 - [WebSocket Configuration](../guides/WEBSOCKET_CONFIGURATION.md) - Real-time event streaming setup
 - [Kubernetes Deployment](../k8s/) - Production Kubernetes manifests
 - [Helm Chart](../../deploy/helm/allsource/) - Helm chart for easy deployment
-- [Cloud Run](../../deploy/cloudrun/) - Google Cloud Run configurations

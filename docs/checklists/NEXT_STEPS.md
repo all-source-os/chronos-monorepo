@@ -1,6 +1,8 @@
 # Next Steps Checklist
 
-Status as of 2026-02-17. Findings from architecture review of all services.
+Status as of 2026-03-01. Updated to reflect current architecture (v0.10.7+).
+
+> **Note (2026-03-01):** Section 2 was rewritten. The previous version proposed moving metadata to PostgreSQL, which contradicts the actual architecture where Core is the sole data store and QS is stateless. See ADR-005 for the PostgreSQL removal decision.
 
 ---
 
@@ -24,38 +26,36 @@ Status as of 2026-02-17. Findings from architecture review of all services.
 
 ## 2. Architecture Cleanup (Query Service vs Control Plane)
 
-### Current Problem
+### Current State (v0.10.0+)
 
-Core stores both events (correct) AND metadata (users, tenants, config, audit — incorrect). Control Plane is mostly a proxy to Core with RBAC on top. No clear API contract for clients.
+Core is the sole data store. QS is stateless (no PostgreSQL). CP delegates to Core.
 
-| Concern | Core | Control Plane | Query Service | Should Own |
-|---|---|---|---|---|
-| Auth (login/register) | Has endpoints | Proxies to Core | Has OAuth | **Control Plane** |
-| Tenant CRUD | Source of truth | Proxies to Core | Caches locally | **Control Plane** |
-| Config CRUD | Has endpoints | Proxies to Core | — | **Control Plane** |
-| Audit logging | Has endpoints | Proxies to Core | Tenant-scoped | **Control Plane** |
-| Schemas | Has endpoints | Proxies to Core | Proxies to Core | **Query Service** |
-| Events | Has endpoints | — | Proxies to Core | **Query Service** |
-| Projections | Has endpoints | — | Proxies to Core | **Query Service** |
-| Billing | — | Stripe/LemonSqueezy | 301 redirects to CP | **Control Plane** |
+| Concern | Core | Control Plane | Query Service |
+|---|---|---|---|
+| Events | Source of truth (WAL+Parquet) | — | API gateway (proxies to Core) |
+| Projections | Stores projection state | — | Server-side fold + API gateway |
+| Schemas | Source of truth | — | Proxies to Core |
+| Auth (login/register) | Auth manager + JWT | Proxies to Core + adds OAuth | Validates JWT (shared secret) |
+| Tenant CRUD | Source of truth (event-sourced) | Proxies to Core + provisions on demo/start | Caches via ETS (5-min TTL) |
+| Billing | — | LemonSqueezy integration | Usage enforcement plug |
+| Audit logging | System streams | Proxies to Core | — |
+| Config | System metadata | Proxies to Core | — |
 
-### Cleanup Tasks
+### Remaining Cleanup Tasks
 
-- [ ] Define clear ownership: CP owns management plane, QS owns data plane
-- [ ] Move tenant/user/config metadata storage from Core to PostgreSQL (via CP)
-- [ ] Remove duplicate auth endpoints (Core shouldn't handle login/register for SaaS users)
-- [ ] Remove duplicate tenant CRUD from Core (CP should be authoritative, backed by PostgreSQL)
-- [ ] Remove duplicate config CRUD from Core (CP should own dynamic config)
-- [ ] Consolidate audit logging to one endpoint (CP, backed by PostgreSQL)
+- [ ] Define clear API contract: which service handles which routes (document)
+- [ ] Remove duplicate auth endpoints — Core should handle auth, CP should proxy
 - [ ] Fix inconsistent endpoint naming (`/api/v1/users` vs `/api/v1/auth/users`)
-- [ ] Add cache invalidation for QS tenant cache (currently stale after CP updates)
-- [ ] Document the API contract: which service handles which routes
+- [ ] Add ETS cache invalidation webhook (CP → QS `/internal/tenant-updated`)
+- [ ] Consolidate audit logging API across CP and Core
 
-### Target Architecture
+### Architecture
 
 ```
 Clients → Query Service (data plane)     → Core (events, projections, schemas)
-       → Control Plane (management plane) → PostgreSQL (tenants, users, auth, billing, config, audit)
+       → Control Plane (management plane) → Core (tenants, users, auth, billing, config, audit)
+                                             ↓
+                                        WAL + Parquet + DashMap (all data durable)
 ```
 
 ---

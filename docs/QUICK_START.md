@@ -4,10 +4,10 @@ Get started with AllSource in under 5 minutes using curl.
 
 ## Prerequisites
 
-You need an API key. Get one by signing up at [allsource-query.fly.dev](https://allsource-query.fly.dev) or via the onboarding endpoint:
+You need an API key. Get one by signing up at [all-source.xyz](https://all-source.xyz) or via the onboarding endpoint:
 
 ```bash
-curl -s https://allsource-query.fly.dev/api/v1/onboard/start \
+curl -s https://all-source.xyz/api/v1/onboard/start \
   -H "Content-Type: application/json" \
   -d '{"email": "you@example.com"}' | jq
 ```
@@ -16,7 +16,7 @@ Set your API key for the examples below:
 
 ```bash
 export ALLSOURCE_API_KEY="your-api-key-here"
-export ALLSOURCE_URL="https://allsource-query.fly.dev"
+export ALLSOURCE_URL="https://all-source.xyz"
 ```
 
 > **Local development?** If running locally with Docker, use `http://localhost:3902` for the Query Service or `http://localhost:3900` for Core directly.
@@ -28,7 +28,7 @@ export ALLSOURCE_URL="https://allsource-query.fly.dev"
 Store your first event. Every event has an `event_type`, an `entity_id` (the thing it happened to), and a `payload` with your data:
 
 ```bash
-curl -s "$ALLSOURCE_URL/api/events" \
+curl -s "$ALLSOURCE_URL/api/v1/events" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" \
   -d '{
@@ -59,7 +59,7 @@ Add a few more events to have data to query:
 
 ```bash
 # Order placed
-curl -s "$ALLSOURCE_URL/api/events" \
+curl -s "$ALLSOURCE_URL/api/v1/events" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" \
   -d '{
@@ -73,7 +73,7 @@ curl -s "$ALLSOURCE_URL/api/events" \
   }' | jq
 
 # Payment processed
-curl -s "$ALLSOURCE_URL/api/events" \
+curl -s "$ALLSOURCE_URL/api/v1/events" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" \
   -d '{
@@ -95,7 +95,7 @@ curl -s "$ALLSOURCE_URL/api/events" \
 ### List all events
 
 ```bash
-curl -s "$ALLSOURCE_URL/api/events" \
+curl -s "$ALLSOURCE_URL/api/v1/events" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" | jq
 ```
 
@@ -104,7 +104,7 @@ curl -s "$ALLSOURCE_URL/api/events" \
 Get the full history of a specific entity:
 
 ```bash
-curl -s "$ALLSOURCE_URL/api/events?entity_id=order-456" \
+curl -s "$ALLSOURCE_URL/api/v1/events?entity_id=order-456" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" | jq
 ```
 
@@ -113,14 +113,14 @@ curl -s "$ALLSOURCE_URL/api/events?entity_id=order-456" \
 Find all events of a specific type:
 
 ```bash
-curl -s "$ALLSOURCE_URL/api/events?event_type=user.signup" \
+curl -s "$ALLSOURCE_URL/api/v1/events?event_type=user.signup" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" | jq
 ```
 
 ### Paginate results
 
 ```bash
-curl -s "$ALLSOURCE_URL/api/events?limit=10&offset=0" \
+curl -s "$ALLSOURCE_URL/api/v1/events?limit=10&offset=0" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" | jq
 ```
 
@@ -150,7 +150,7 @@ Projections are materialized views that automatically update as new events arriv
 
 ```bash
 # Save projection state for an entity
-curl -s "$ALLSOURCE_URL/api/projections" \
+curl -s "$ALLSOURCE_URL/api/v1/projections" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" \
   -d '{
@@ -168,14 +168,14 @@ curl -s "$ALLSOURCE_URL/api/projections" \
 ### List projections
 
 ```bash
-curl -s "$ALLSOURCE_URL/api/projections" \
+curl -s "$ALLSOURCE_URL/api/v1/projections" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" | jq
 ```
 
 ### Get a specific projection
 
 ```bash
-curl -s "$ALLSOURCE_URL/api/projections/order_summary" \
+curl -s "$ALLSOURCE_URL/api/v1/projections/order_summary" \
   -H "X-API-Key: $ALLSOURCE_API_KEY" | jq
 ```
 
@@ -183,9 +183,8 @@ curl -s "$ALLSOURCE_URL/api/projections/order_summary" \
 
 ## Next Steps
 
-- **Batch ingest**: POST to `/api/events/batch` with `{"events": [...]}` for bulk loading
-- **Schemas**: Register JSON schemas at `/api/schemas` to validate event payloads
-- **Analytics**: Use `/api/analytics/frequency`, `/api/analytics/summary`, and `/api/analytics/correlation`
+- **Batch ingest**: POST to `/api/v1/events/batch` with `{"events": [...]}` for bulk loading
+- **Schemas**: Register JSON schemas at `/api/v1/schemas` to validate event payloads
+- **Analytics**: Use `/api/v1/analytics/frequency`, `/api/v1/analytics/summary`, and `/api/v1/analytics/correlation`
 - **WebSocket streaming**: Connect to `/api/v1/events/stream` for real-time event feeds
-- **API docs**: Visit `$ALLSOURCE_URL/api/docs` for the interactive Swagger UI
 - **Full API reference**: See [docs/current/API_REFERENCE.md](current/API_REFERENCE.md)

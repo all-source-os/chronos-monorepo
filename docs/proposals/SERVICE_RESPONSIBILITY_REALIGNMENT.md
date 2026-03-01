@@ -1,8 +1,10 @@
 # Proposal: Service Responsibility Realignment (v0.11.0)
 
-**Status:** Draft
+**Status:** Partially Superseded
 **Date:** 2025-02-14
 **Depends on:** v0.10.0 (Control Plane PostgreSQL removal, Core-backed metadata)
+
+> **Note (2026-03-01):** This proposal's premise is outdated. It states "the Query Service still maintains a parallel tenant/user store in PostgreSQL" — this was fixed in v0.10.0 when the QS became fully stateless (no PostgreSQL). The QS now fetches tenant data from Core via `RustCoreClient.get_tenant()` with ETS cache. Decisions 1 (billing migration to CP) and 3 (HAL links) remain valid forward-looking goals. Decisions 2 (remove QS PG) and 4 (remove QS OAuth) are partially done — QS has no PG, but still has OAuth routes. See `docs/adr/005-postgresql-removal-event-sourced-metadata.md` for the actual implementation.
 
 ## Motivation
 

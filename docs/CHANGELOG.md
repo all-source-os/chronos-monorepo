@@ -2,6 +2,25 @@
 
 All notable changes to AllSource Chronos are documented here.
 
+## [Unreleased]
+
+### Fixed
+- **Crash-safe compaction**: WAL append moved inside write lock in `compact_entity_tokens` to prevent duplicate data on crash recovery
+- **Cross-tenant compaction guard**: Token compaction now validates all events share the same `tenant_id`, rejects multi-tenant merges
+- **True batch ingestion**: `EventStore::ingest_batch()` acquires write lock once for N events instead of N separate lock acquisitions
+- **TOON error handling**: `query_toon` propagates decode errors instead of silently returning empty results
+- **Duplicate projection module**: Removed `application/services/replicant_projections.rs` (identical to `embedded/replicant.rs`)
+- **Deterministic sync tests**: Replaced sleep-based timing with HLC node_id tie-breaking in bidirectional sync tests
+
+### Added
+- **Projection backfill**: `register_projection_with_backfill()` replays existing events through newly registered projections
+- **Concurrency tests**: 10-task concurrent writer test (1000 events) and concurrent reader+writer test
+- **Crash recovery test**: Write → shutdown → reopen → verify events survive via WAL
+- **TOON round-trip tests**: Encode → decode verification including special characters and nested objects
+- **Cross-tenant compaction test**: Validates rejection of multi-tenant token merges
+- **SDK quickstart example**: `apps/core/examples/embedded_quickstart.rs`
+- **ADRs**: Architecture Decision Records for embedded core, crash-safe compaction, batch ingestion, projection backfill
+
 ## [0.10.7] - 2026-02-26
 
 ### Added

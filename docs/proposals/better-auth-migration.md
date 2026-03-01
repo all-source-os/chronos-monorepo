@@ -1,5 +1,7 @@
 # Better Auth Migration Plan
 
+> **Note (2026-03-01):** This proposal's premise is partially outdated. It assumes the Query Service uses PostgreSQL ("the same Postgres DB the Query Service uses") — the QS has been stateless with no PostgreSQL since v0.10.0. The core goal (working email/password auth + consolidated identity) remains valid, but the "BEFORE" architecture diagram and Phase 2 (database setup sharing QS Postgres) need revision. If Better Auth is adopted, it would need its own Postgres instance or use Core's auth system instead.
+
 ## Context
 
 The current auth system has three disconnected auth stores across services, and **email/password login doesn't work** despite the frontend having the forms for it. The Query Service uses Ueberauth (OAuth) + Guardian (JWT) but only supports Google/GitHub OAuth — `POST /api/auth/login` and `POST /api/auth/register` don't exist on the backend.

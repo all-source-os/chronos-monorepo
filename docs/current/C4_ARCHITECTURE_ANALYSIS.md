@@ -1,6 +1,6 @@
-# AllSource Post-v0.10.3: C4 Architecture Analysis
+# AllSource C4 Architecture Analysis
 
-> **Updated 2026-02-16**: Corrected to reflect v0.10.3 architecture. Query Service is stateless (no PostgreSQL). Tenants are managed by Core (DashMap) and Control Plane (in-memory). See `docs/proposals/SERVICE_RESPONSIBILITY_REALIGNMENT.md` for the plan to unify tenant authority.
+> **Updated 2026-03-01**: Corrected to reflect v0.10.0+ architecture. Query Service is stateless (no PostgreSQL). Tenants are managed by Core via event-sourced system streams (WAL-durable). Control Plane delegates to Core. MCP Server is Elixir (port 4000). See ADR-005 for PostgreSQL removal decision.
 
 ## C4 Level 1 — System Context
 
@@ -16,7 +16,7 @@
          ▼                   ▼                   ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
 │  Query Service  │ │  Control Plane  │ │   MCP Server    │
-│  (Elixir:3902)  │ │  (Go:3901)      │ │  (Rust:3904)    │
+│  (Elixir:3902)  │ │  (Go:3901)      │ │  (Elixir:4000)  │
 │                 │ │                 │ │                 │
 │ API Gateway     │ │ Admin Console   │ │ LLM Tool Use    │
 │ Auth (OAuth)    │ │ Operations      │ │                 │
@@ -94,11 +94,11 @@
 │             │  └─ Analytics       │    └─ /api/v1/snapshots  ◄─ CP   │
 │             └──────────────────────┘                                   │
 │                                                                         │
-│  NOTE: No PostgreSQL in v0.10.3. Query Service is stateless.           │
-│  Control Plane removed PG in v0.10.0. QS never had PG.                │
-│  Tenants: Core DashMap + CP in-memory. Users: Core DashMap.            │
+│  NOTE: No PostgreSQL in v0.10.0+. Query Service is stateless.           │
+│  Tenants: Core event-sourced system streams (WAL-durable) + DashMap    │
+│  cache. CP delegates to Core. Users: Core DashMap (in-memory).         │
 │  Future: PostgreSQL may be added for billing/subscription metadata     │
-│  only (see SERVICE_RESPONSIBILITY_REALIGNMENT.md).                     │
+│  only. See ADR-005 and TENANT_ARCHITECTURE.md.                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -212,24 +212,16 @@ Legend: ✅ = owns/implements, proxy = passes through, →Core = delegates to Co
 
 ## Critical Gaps Identified
 
-### Gap 1: In-Memory Tenant Store (HIGH)
+### Gap 1: Tenant Billing/Subscription Store (MEDIUM — downgraded from HIGH)
 
 ```
-                   ┌─────────────┐
-  OAuth signup ──► │ Query Svc   │──► calls CP POST /api/v1/auth/oauth
-                   │ (port 3902) │    (CP creates user, returns JWT)
-                   └─────────────┘
-                         CP may create tenant in Core DashMap (in-memory)
+  NOTE: As of v0.10.0+, tenant metadata is WAL-durable via event-sourced
+  system streams. Tenant data survives Core restarts (SystemBootstrap replays).
+  This gap was HIGH when tenants were in-memory only — now downgraded.
 
-                   ┌─────────────┐
-  Admin API ────► │ Control Pln │──► Core /api/v1/tenants
-                   │ (port 3901) │    (DashMap — in-memory, lost on restart)
-                   └─────────────┘
-
-  RESULT: Tenant metadata is in-memory only (Core DashMap + CP sync.RWMutex).
-  No persistent store for billing/subscription data.
-  Tenant metadata lost on Core restart.
-  Event data is durable (WAL+Parquet), but tenant metadata is not.
+  REMAINING GAP: No persistent store for billing/subscription data
+  (LemonSqueezy IDs, usage counters, overage tracking).
+  This data has no natural home in Core's event-sourced system.
 ```
 
 ### Gap 2: Auth Fragmentation (MEDIUM)
@@ -316,10 +308,10 @@ Legend: ✅ = owns/implements, proxy = passes through, →Core = delegates to Co
 
 | # | Gap | Severity | Impact |
 |---|-----|----------|--------|
-| 1 | **In-memory tenant store** — Core DashMap + CP in-memory, no persistence | HIGH | Tenant metadata lost on restart; no billing/subscription persistence |
+| 1 | **No billing/subscription store** — tenant metadata is now WAL-durable, but billing data (LemonSqueezy IDs, usage) has no persistent home | MEDIUM | No billing persistence; tenant metadata itself is durable since v0.10.0 |
 | 2 | **Auth fragmentation** — 3 separate JWT/auth systems | MEDIUM | No SSO; tokens aren't portable across services |
 | 3 | **No CP->QS eventing** — CP state changes don't propagate | MEDIUM | Quota changes, suspensions, policy updates invisible to QS |
 | 4 | **Operation history in-memory** — CP MemoryOperationRepo | LOW | Op history lost on restart; inconsistent with audit/config being Core-backed |
 | 5 | **Backup is a stub** — CP exposes `/backup` route but no implementation | LOW | Admin API promises backup but doesn't deliver |
 
-As of v0.10.3, **no service uses PostgreSQL**. Query Service is fully stateless, Control Plane uses in-memory stores, and Core uses DashMap. The primary gap is that tenant/user metadata is entirely in-memory — durable for events (WAL+Parquet) but ephemeral for operational metadata. The next architectural milestone should add PostgreSQL for billing/subscription metadata only (LemonSqueezy IDs, usage counters), with Core remaining the source of truth for event data. See `docs/proposals/SERVICE_RESPONSIBILITY_REALIGNMENT.md`.
+As of v0.10.0+, **no service uses PostgreSQL**. Query Service is fully stateless, Control Plane delegates to Core, and Core stores tenant metadata via event-sourced system streams (WAL-durable). Tenant metadata survives restarts. The remaining gap is billing/subscription data (LemonSqueezy IDs, usage counters) which has no persistent store. The next architectural milestone should add PostgreSQL for billing metadata only, with Core remaining the source of truth for event and tenant data. See `docs/current/TENANT_ARCHITECTURE.md` and ADR-005.

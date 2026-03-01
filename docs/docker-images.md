@@ -1,7 +1,7 @@
 ---
 title: "AllSource Docker Images"
 status: CURRENT
-last_updated: 2026-02-02
+last_updated: 2026-03-01
 category: operations
 ---
 
@@ -32,19 +32,19 @@ All images are published to GitHub Container Registry (GHCR):
 
 | Image | Description | Port |
 |-------|-------------|------|
-| `ghcr.io/all-source-os/allsource-core` | High-performance Rust event store | 3900 |
-| `ghcr.io/all-source-os/allsource-query-service` | Elixir API gateway (stateless) | 3902 |
-| `ghcr.io/all-source-os/allsource-control-plane` | Go auth, billing, operations | 3901 |
-| `ghcr.io/all-source-os/allsource-web` | Next.js web dashboard | 3000 |
-| `ghcr.io/all-source-os/allsource-mcp-server` | Model Context Protocol server for AI integration | 4001 |
+| `ghcr.io/all-source-os/chronos-core` | High-performance Rust event store | 3900 |
+| `ghcr.io/all-source-os/chronos-query-service` | Elixir API gateway (stateless, no database) | 3902 |
+| `ghcr.io/all-source-os/chronos-control-plane` | Go auth, billing, operations | 3901 |
+| `ghcr.io/all-source-os/chronos-web` | Next.js web dashboard | 3000 |
+| `ghcr.io/all-source-os/chronos-mcp-server` | Elixir MCP server for AI integration | 4000 |
 
 ## Image Tags
 
 Images are tagged with multiple identifiers:
 
 - `latest` - Latest build from main branch
-- `v0.7.0` - Specific version (semver)
-- `0.7` - Major.minor version
+- `v0.10.7` - Specific version (semver)
+- `0.10` - Major.minor version
 - `sha-abc1234` - Git commit SHA
 
 ## Quick Start
@@ -56,7 +56,7 @@ Create a `docker-compose.yml`:
 ```yaml
 services:
   allsource-core:
-    image: ghcr.io/all-source-os/allsource-core:latest
+    image: ghcr.io/all-source-os/chronos-core:latest
     ports:
       - "3900:3900"
     volumes:
@@ -70,7 +70,7 @@ services:
       retries: 3
 
   allsource-control-plane:
-    image: ghcr.io/all-source-os/allsource-control-plane:latest
+    image: ghcr.io/all-source-os/chronos-control-plane:latest
     ports:
       - "3901:3901"
     environment:
@@ -80,7 +80,7 @@ services:
       - allsource-core
 
   allsource-query:
-    image: ghcr.io/all-source-os/allsource-query-service:latest
+    image: ghcr.io/all-source-os/chronos-query-service:latest
     ports:
       - "3902:3902"
     environment:
@@ -92,7 +92,7 @@ services:
       - allsource-control-plane
 
   allsource-web:
-    image: ghcr.io/all-source-os/allsource-web:latest
+    image: ghcr.io/all-source-os/chronos-web:latest
     ports:
       - "3000:3000"
     environment:
@@ -119,12 +119,12 @@ docker run -d \
   --name allsource-core \
   -p 3900:3900 \
   -v allsource-data:/data \
-  ghcr.io/all-source-os/allsource-core:latest
+  ghcr.io/all-source-os/chronos-core:latest
 ```
 
 ## Environment Variables
 
-### allsource-core
+### chronos-core
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -132,7 +132,7 @@ docker run -d \
 | `DATA_DIR` | Data directory path | `/data` |
 | `HTTP_PORT` | HTTP server port | `3900` |
 
-### allsource-query-service
+### chronos-query-service
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -143,7 +143,7 @@ docker run -d \
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | Optional |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Optional |
 
-### allsource-control-plane
+### chronos-control-plane
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -152,19 +152,20 @@ docker run -d \
 | `JWT_SECRET` | JWT signing secret | Required |
 | `JAEGER_ENDPOINT` | Jaeger tracing endpoint | Optional |
 
-### allsource-web
+### chronos-web
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | HTTP server port | `3000` |
 | `NEXT_PUBLIC_API_URL` | Public API URL | Required |
 
-### allsource-mcp-server
+### chronos-mcp-server
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ALLSOURCE_CORE_URL` | URL of allsource-core | Required |
+| `CORE_URL` | URL of chronos-core | Required |
 | `MIX_ENV` | Elixir environment | `prod` |
+| `PORT` | HTTP server port | `4000` |
 
 ## Multi-Architecture Support
 
@@ -195,7 +196,7 @@ AllSource is licensed under the **MIT License**.
 ```
 MIT License
 
-Copyright (c) 2024-2025 AllSource Team
+Copyright (c) 2024-2026 AllSource Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -938,6 +938,8 @@ async fn query_toon_returns_valid_toon() {
 
 ## Issue #73 Gap Analysis
 
+### Implemented
+
 | Issue #73 Requirement | Phase | Notes |
 |----------------------|-------|-------|
 | `EmbeddedCore` facade | 1 | **Done** |
@@ -950,15 +952,25 @@ async fn query_toon_returns_valid_toon() {
 | `Serialize`/`Deserialize` on `EventView` | 2 | **Done** |
 | Multi-tenant in embedded | 2 | **Done** (`tenant_id` on `IngestEvent`, wired in `effective_tenant_id`) |
 | Batch ingestion | 6 | **Done** (`ingest_batch()` — sequential per-event) |
-| `wal_fsync_ms` interval sync | — | Deferred (WALConfig doesn't support ms-interval) |
 | DataFusion behind feature flag | 3 | **Done** (`analytics` feature) |
 | Binary size < 5MB | 3 | **Done** (server deps gated; prometheus kept required) |
-| Bidirectional sync (HLC) | 4 | **Done** (sync_to, CRDT dedup, LWW convergence) |
+| Bidirectional sync (HLC) | 4 | **Done** — in-process only (`sync_to(&peer)` requires both cores in same process) |
 | Replicant worker protocol | 5 | **Done** (WorkflowStatus, ReplicantRegistry, TaskQueue projections) |
-| Batch ingestion | 6 | **Done** (`ingest_batch()`) |
 | Streaming tokens + compaction | 6 | **Done** (`compact_tokens()`, index rebuild) |
 | Pre-built projection templates | 7 | **Done** (TokenUsage, ToolCallAudit, HumanInLoopQueue, AgentUtilization) |
 | TOON format in SDK | 8 | **Done** (`query_toon()` behind `embedded-toon` feature) |
+| Cost tracking (per-entity totals) | 7 | **Done** — `TokenUsageProjection` tracks `total_cost_usd`, per-model breakdown, microdollar precision |
+
+### Remaining Gaps
+
+| Requirement | Priority | Gap | Implementation Path |
+|------------|----------|-----|---------------------|
+| `wal_fsync_ms` interval sync | Low | `WALConfig` only has `sync_on_write: bool` (every write or never). No interval-based fsync. | Add `fsync_interval: Option<Duration>` to `WALConfig`, implement periodic flush task in WAL writer, expose as `Config::builder().wal_fsync_ms(100)`. |
+| Network sync transport | P0 | `sync_to()` is in-process only. No HTTP client, no WebSocket client, no outbox, no remote peer config in `EmbeddedConfig`. WAL replication is TCP leader-follower (unidirectional), not for desktop-to-cloud. | Add `SyncTransport` trait with HTTP/WebSocket backends. Implement `remote_sync_to(url)` and `pull_from_remote(url)` on `EmbeddedCore`. Add sync endpoints to Query Service. Add `tokio-tungstenite` for WS client. Implement outbox for offline queuing. |
+| WebSocket backpressure | P1 | Broadcast uses fixed `tokio::broadcast::channel(1000)`. Events sent individually on ingest — no batching. Slow subscribers silently lose messages. No metrics on drops. | Add configurable buffer size, implement token event batching (buffer N tokens or flush every 100ms), add drop/saturation metrics, consider separate high-throughput channel for `workflow.token` events. |
+| Cost tracking (time-bucketed) | P2 | `TokenUsageProjection` tracks per-entity lifetime totals only. No daily/monthly/hourly aggregation, no billing period queries, no price lookup table (cost must be pre-calculated in event payload). | Add time-bucketed cost projection (reuse `TimeWindow` enum from analytics). Billing-period aggregation belongs in Query Service, not Core. |
+| MCP tool event emission | P2 | `ToolCallAuditProjection` is defined and tested, but NO code in `apps/mcp-server-elixir` actually emits `mcp.tool.result`/`mcp.tool.error` events. `dispatch_tool()` in `mcp_tools.ex` has no timing or event emission. | Add timing wrapper around `dispatch_tool()`, emit `mcp.tool.result`/`mcp.tool.error` events into Core via `CoreClient.ingest_event()`. Decide on entity_id convention (session ID? workflow ID?). |
+| Rustdoc publishing | P1 | Doc comments exist on all public types. `lib.rs` has module docs. Missing: `[package.metadata.docs.rs]` section in Cargo.toml, no CI step for docs.rs, no `RUSTDOCFLAGS="-D warnings"` enforcement. | Add metadata section to Cargo.toml, add `#![doc = include_str!("../README.md")]` to lib.rs, enforce doc warnings in CI. docs.rs auto-publishes on crates.io push. |
 
 ---
 

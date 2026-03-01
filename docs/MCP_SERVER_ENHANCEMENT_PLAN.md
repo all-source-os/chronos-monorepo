@@ -1,14 +1,16 @@
 ---
 title: "AllSource MCP Server Enhancement Plan"
-status: CURRENT
-last_updated: 2026-02-02
+status: SUPERSEDED
+last_updated: 2026-03-01
 category: reference
 ---
 
 # AllSource MCP Server Enhancement Plan
 
+> **Note (2026-03-01):** This proposal is **superseded**. It was written on 2025-10-24 when the MCP server was a TypeScript project in `packages/mcp-server` and referenced a "Clojure Query DSL" and "Clojure analytics engine" that no longer exist. The MCP server is now an Elixir application at `apps/mcp-server-elixir/` (port 4000). A separate Rust MCP Docker binary exists at port 3904 (archived in the wallet project). The tool categories and enhancement ideas may still be useful as inspiration, but the implementation approach, code examples, and architecture references are outdated.
+
 **Date**: 2025-10-24
-**Status**: Proposal
+**Status**: Superseded (see note above)
 **Goal**: Expose all new AllSource capabilities through the MCP interface
 
 ---

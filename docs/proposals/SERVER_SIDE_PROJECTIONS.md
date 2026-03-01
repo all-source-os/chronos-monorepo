@@ -1,8 +1,10 @@
 # Server-Side Projections & Fold-on-Read
 
-> **Status**: Proposal
+> **Status**: Implemented (v0.10.5) — see ADR-006
 > **Author**: Design session 2026-02-17
 > **Scope**: Query Service — projection engine, fold-on-read, snapshot-aware queries
+>
+> **Note (2026-03-01):** Phase 1 (fold-on-read) and Phase 2 (continuous projections) were implemented in v0.10.5. This document is preserved as the original design proposal. See `docs/adr/006-server-side-projections-fold-on-read.md` for the decision record.
 
 ---
 

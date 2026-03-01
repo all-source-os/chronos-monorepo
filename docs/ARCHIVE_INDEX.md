@@ -1,7 +1,7 @@
 ---
 title: "Archive Index"
 status: CURRENT
-last_updated: 2026-02-02
+last_updated: 2026-03-01
 category: reference
 ---
 
@@ -29,6 +29,11 @@ The following table tracks which archived documents have been replaced by curren
 | `archive/2025-10-21_ROADMAP.md` | `roadmaps/2025-10-22_COMPREHENSIVE_ROADMAP.md` | 2025-10-21 | Initial roadmap superseded by comprehensive roadmap |
 | `archive/2025-10-19_OLD_README.md` | `README.md` (root) | 2025-10-19 | Original README replaced by updated project documentation |
 | `archive/2025-10-19_ARCHITECTURE.md` | `current/CLEAN_ARCHITECTURE.md` | 2025-10-19 | Early architecture doc replaced by clean architecture guide |
+| `archive/2026-03-01-v1-historical/FINAL_V1_REPORT.md` | N/A | 2026-03-01 | Oct 2025 session report — historical only |
+| `archive/2026-03-01-v1-historical/V1_SESSION_SUMMARY.md` | N/A | 2026-03-01 | Oct 2025 session summary — historical only |
+| `archive/2026-03-01-v1-historical/MIGRATION_VERIFICATION.md` | N/A | 2026-03-01 | Clojure→Elixir migration verification (completed) |
+| `archive/2026-03-01-v1-historical/TEST_COVERAGE_REPORT.md` | N/A | 2026-03-01 | Oct 2025 test snapshot — superseded by CI |
+| `archive/2026-03-01-v1-historical/QUERY_SERVICE_IMPLEMENTATION_GUIDE.md` | `current/TENANT_ARCHITECTURE.md` | 2026-03-01 | Nov 2025 QS implementation plan — superseded by v0.10.5 |
 
 ---
 
@@ -136,6 +141,53 @@ Comprehensive documentation of the phased development approach for the core appl
 
 ---
 
+### `archive/2026-03-01-v1-historical/` - V1 Historical Documents
+
+Documents from Oct-Nov 2025 that are purely historical and no longer reflect the current architecture (v0.10.0+).
+
+**Files:**
+- `FINAL_V1_REPORT.md` — Oct 2025 development session report
+- `V1_SESSION_SUMMARY.md` — Oct 2025 session summary
+- `MIGRATION_VERIFICATION.md` — Clojure→Elixir migration verification (completed)
+- `TEST_COVERAGE_REPORT.md` — Oct 2025 test coverage snapshot (superseded by CI)
+- `QUERY_SERVICE_IMPLEMENTATION_GUIDE.md` — Nov 2025 QS implementation plan (superseded by v0.10.5 stateless architecture)
+
+**Purpose:** Preserves early development documentation for historical reference. All documents reference PostgreSQL-backed QS or pre-v0.10.0 architecture.
+
+---
+
+### `archive/2026-02-16-postgres-cleanup/` - PostgreSQL Removal
+
+Documentation from the PostgreSQL removal effort where Query Service was made stateless.
+
+**Purpose:** Records the transition from PostgreSQL-backed tenant storage to Core-backed event-sourced metadata.
+
+---
+
+### `archive/2026-03-01-embedded-core-hardening.md` - Embedded Core Hardening
+
+Execution summary of 25 findings across two principal engineer review rounds of the Embedded Core Library (Issue #73). Covers crash-safety fixes, batch ingestion, projection backfill, concurrency tests, and TOON round-trip verification.
+
+**Purpose:** Complete record of all hardening work done on the embedded Core API before release.
+
+---
+
+### `archive/2026-03-01-ralph-tui-execution-history.md` - Ralph-TUI Session History
+
+Comprehensive log of all 11 ralph-tui autonomous agent sessions (~280 iterations) from 2026-01-30 to 2026-03-01. Maps each session to beads completed, features built, and releases shipped.
+
+**Purpose:** Historical record of autonomous agent contributions and velocity tracking.
+
+---
+
+### `adr/` - Architecture Decision Records
+
+10 ADRs documenting major technical decisions from v0.9.1 through unreleased. Covers embedded Core API, crash-safe compaction, batch ingestion, projection backfill, PostgreSQL removal, server-side projections, domain value objects, vector search, simd-json, and native ARM64 CI.
+
+**Purpose:** Immutable record of architectural decisions and their rationale.
+
+---
+
 ## When to Archive
 
 Documents should be moved to the archive when:
@@ -186,6 +238,27 @@ Documents may be considered for deletion only when:
 
 ## Quick Reference
 
+## Documents Updated In-Place (2026-03-01)
+
+The following documents were updated with staleness notes or corrections rather than archived, as they contain useful forward-looking recommendations:
+
+| Document | Action Taken | Key Changes |
+|----------|-------------|-------------|
+| `current/C4_ARCHITECTURE_ANALYSIS.md` | Updated | MCP Elixir:4000, tenant metadata WAL-durable, Gap 1 downgraded |
+| `current/TENANT_ARCHITECTURE.md` | Rewritten (v2.0) | Event-sourced system streams, QS stateless, no PostgreSQL |
+| `ARCHITECTURE_REVIEW.md` | Staleness note | QS stateless since v0.10.0 (not v0.10.3), references ADR-005 |
+| `proposals/SERVICE_RESPONSIBILITY_REALIGNMENT.md` | Status → Partially Superseded | QS no longer uses PostgreSQL |
+| `proposals/better-auth-migration.md` | Staleness note | QS has no PostgreSQL to share |
+| `proposals/SERVER_SIDE_PROJECTIONS.md` | Status → Implemented (v0.10.5) | References ADR-006 |
+| `MCP_SERVER_ENHANCEMENT_PLAN.md` | Status → Superseded | Clojure DSL removed, MCP is now Elixir |
+| `docker-images.md` | Updated | Image names chronos-*, MCP port 4000, version v0.10.7 |
+| `QUICK_START.md` | Updated | URLs → all-source.xyz, API paths → /api/v1/ |
+| `deployment/DOCKER.md` | Rewritten | GHCR org, no DATABASE_URL, CORE_URL, CP port 3901 |
+| `launch/SOFT_LAUNCH_CHECKLIST.md` | Rewritten | No PostgreSQL steps, added CP deployment |
+| `checklists/NEXT_STEPS.md` | Section 2 rewritten | Architecture cleanup reflects current state |
+
+---
+
 | Need | Look In |
 |------|---------|
 | Old architecture details | `archive/2025-10-22_*_FULL.md` files |
@@ -194,6 +267,11 @@ Documents may be considered for deletion only when:
 | Marketing content | `archive/2025-11-03-marketing/` |
 | v1 documents | `archive/2025-11-04/` |
 | Migration history | `archive/2024-11-03/` |
+| PostgreSQL cleanup | `archive/2026-02-16-postgres-cleanup/` |
+| V1 historical docs | `archive/2026-03-01-v1-historical/` |
+| Embedded Core hardening | `archive/2026-03-01-embedded-core-hardening.md` |
+| Ralph-TUI execution history | `archive/2026-03-01-ralph-tui-execution-history.md` |
+| Architecture decisions | `adr/README.md` |
 
 ---
 

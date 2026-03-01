@@ -1,6 +1,6 @@
 # AllSource Architecture Review
 
-> **Note (2026-02-16)**: This review was written when the Query Service used PostgreSQL for user/tenant storage. As of v0.10.3, **Query Service is fully stateless** (no PostgreSQL). The "ideal state" recommendations in Sections 4-6 (Better Auth, JWKS, unified tenant authority) remain valid goals but the "current state" sections (1-3) show a PostgreSQL dependency that no longer exists. See `docs/proposals/SERVICE_RESPONSIBILITY_REALIGNMENT.md` for the current plan to add PostgreSQL for billing metadata only.
+> **Note (2026-03-01)**: This review was written when the Query Service used PostgreSQL for user/tenant storage. As of v0.10.0, **Query Service is fully stateless** (no PostgreSQL). Tenant metadata is now WAL-durable via Core's event-sourced system streams (see ADR-005 and `docs/current/TENANT_ARCHITECTURE.md`). The "ideal state" recommendations in Sections 4-6 (Better Auth, JWKS, unified tenant authority) remain valid goals, but the "current state" sections (1-3) show a PostgreSQL dependency that no longer exists. The `SERVICE_RESPONSIBILITY_REALIGNMENT.md` proposal is partially superseded — its premise that QS uses PostgreSQL is outdated.
 
 ## Executive Summary
 
