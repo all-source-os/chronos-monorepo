@@ -69,12 +69,16 @@ test.describe("Dashboard Overview (/dashboard)", () => {
     await expect(viewAll).toBeVisible();
   });
 
-  test("product stats banner shows performance numbers", async ({ page }) => {
+  test("instance stats banner shows real metrics", async ({ page }) => {
     await page.goto("/dashboard");
     await waitForDashboardLoad(page);
 
-    await expect(page.getByText("469K").first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText("11.9μs").first()).toBeVisible();
+    // Banner now shows real instance metrics instead of hardcoded marketing numbers
+    await expect(page.getByText("Your Event Store")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("total events")).toBeVisible();
+    await expect(page.getByText("p99 latency")).toBeVisible();
+    await expect(page.getByText("active projections")).toBeVisible();
+    await expect(page.getByText("storage used")).toBeVisible();
   });
 });
 
@@ -122,7 +126,7 @@ test.describe("Event Explorer (/dashboard/events)", () => {
     await expect(page.getByPlaceholder(/filter by type/i)).toBeVisible();
   });
 
-  test("shows demo data notice or real events", async ({ page }) => {
+  test("shows empty state or real events", async ({ page }) => {
     await page.goto("/dashboard/events");
     await waitForDashboardLoad(page);
 
@@ -130,9 +134,9 @@ test.describe("Event Explorer (/dashboard/events)", () => {
       page.getByRole("heading", { name: /event explorer/i })
     ).toBeVisible({ timeout: 10000 });
 
-    // Either "Showing sample events" banner or a results count like "(5 results)"
+    // Either "No events yet" empty state or a results count like "(5 results)"
     await expect(
-      page.getByText("Showing sample events", { exact: false })
+      page.getByText("No events yet")
         .or(page.getByText(/\(\d+ results\)/))
     ).toBeVisible({ timeout: 15000 });
   });

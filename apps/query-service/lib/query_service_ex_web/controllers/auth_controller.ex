@@ -190,7 +190,8 @@ defmodule QueryServiceExWeb.AuthController do
       id: user[:id] || user["id"],
       email: user[:email] || user["email"],
       name: user[:name] || user["name"],
-      tenant_id: user[:tenant_id] || user["tenant_id"]
+      tenant_id: user[:tenant_id] || user["tenant_id"],
+      provider: user[:provider] || user["provider"]
     }
   end
 

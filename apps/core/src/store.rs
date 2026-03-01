@@ -84,6 +84,10 @@ pub struct EventStore {
     /// This DashMap provides O(1) access with ~11.9 μs latency
     projection_state_cache: Arc<DashMap<String, serde_json::Value>>,
 
+    /// Projection status overrides (v0.13 feature)
+    /// Tracks pause/start state per projection name: "running" or "paused"
+    projection_status: Arc<DashMap<String, String>>,
+
     /// Webhook registry for outbound event delivery (v0.11 feature)
     #[cfg(feature = "server")]
     webhook_registry: Arc<WebhookRegistry>,
@@ -208,6 +212,7 @@ impl EventStore {
             metrics,
             total_ingested: Arc::new(RwLock::new(0)),
             projection_state_cache,
+            projection_status: Arc::new(DashMap::new()),
             #[cfg(feature = "server")]
             webhook_registry,
             #[cfg(feature = "server")]
@@ -649,6 +654,11 @@ impl EventStore {
     /// Used by Elixir Query Service for state synchronization
     pub fn projection_state_cache(&self) -> Arc<DashMap<String, serde_json::Value>> {
         Arc::clone(&self.projection_state_cache)
+    }
+
+    /// Get the projection status map (v0.13 feature)
+    pub fn projection_status(&self) -> Arc<DashMap<String, String>> {
+        Arc::clone(&self.projection_status)
     }
 
     /// Get the webhook registry for this store (v0.11 feature)

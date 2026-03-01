@@ -21,6 +21,7 @@ type Claims struct {
 	Name     string        `json:"name,omitempty"`
 	TenantID string        `json:"tenant_id"`
 	Role     entities.Role `json:"role"`
+	Provider string        `json:"provider,omitempty"`
 	IsAPIKey bool          `json:"is_api_key,omitempty"`
 	jwt.StandardClaims
 }
@@ -277,6 +278,7 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name 
 		Name:     name,
 		TenantID: tenantID,
 		Role:     entities.RoleDeveloper,
+		Provider: provider,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: now.Add(7 * 24 * time.Hour).Unix(),
 			IssuedAt:  now.Unix(),
@@ -396,6 +398,7 @@ func (cp *ControlPlane) LoginHandler(c *gin.Context) {
 		Name:     displayName,
 		TenantID: tenantID,
 		Role:     entities.RoleDeveloper,
+		Provider: "email",
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: now.Add(7 * 24 * time.Hour).Unix(),
 			IssuedAt:  now.Unix(),

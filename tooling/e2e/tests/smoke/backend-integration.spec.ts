@@ -216,9 +216,9 @@ test.describe("Events E2E (QS → Core)", () => {
       page.getByRole("heading", { name: /event explorer/i })
     ).toBeVisible({ timeout: 10000 });
 
-    // Should show results count (real events exist now)
+    // Should show results count (real events exist) or empty state
     await expect(
-      page.getByText(/results\)/).or(page.getByText(/showing sample events/i))
+      page.getByText(/results\)/).or(page.getByText(/No events yet/i))
     ).toBeVisible({ timeout: 15000 });
   });
 

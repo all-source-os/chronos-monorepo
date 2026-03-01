@@ -1289,14 +1289,20 @@ pub async fn get_event_by_id(
 /// List all registered projections
 pub async fn list_projections(State(store): State<SharedStore>) -> Json<serde_json::Value> {
     let projection_manager = store.projection_manager();
+    let status_map = store.projection_status();
 
     let projections: Vec<serde_json::Value> = projection_manager
         .list_projections()
         .iter()
         .map(|(name, projection)| {
+            let status = status_map
+                .get(name)
+                .map(|s| s.value().clone())
+                .unwrap_or_else(|| "running".to_string());
             serde_json::json!({
                 "name": name,
                 "type": format!("{:?}", projection.name()),
+                "status": status,
             })
         })
         .collect();
@@ -1446,6 +1452,54 @@ pub async fn reset_projection(
         "projection": name,
         "reset": true,
         "events_reprocessed": reprocessed
+    })))
+}
+
+/// Pause a projection
+///
+/// Sets the projection status to "paused" so it stops processing new events.
+pub async fn pause_projection(
+    State(store): State<SharedStore>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let projection_manager = store.projection_manager();
+
+    // Verify projection exists
+    let _projection = projection_manager.get_projection(&name).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
+    })?;
+
+    store.projection_status().insert(name.clone(), "paused".to_string());
+
+    tracing::info!("Projection paused: {}", name);
+
+    Ok(Json(serde_json::json!({
+        "projection": name,
+        "status": "paused"
+    })))
+}
+
+/// Start (resume) a projection
+///
+/// Sets the projection status to "running" so it resumes processing events.
+pub async fn start_projection(
+    State(store): State<SharedStore>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let projection_manager = store.projection_manager();
+
+    // Verify projection exists
+    let _projection = projection_manager.get_projection(&name).ok_or_else(|| {
+        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
+    })?;
+
+    store.projection_status().insert(name.clone(), "running".to_string());
+
+    tracing::info!("Projection started: {}", name);
+
+    Ok(Json(serde_json::json!({
+        "projection": name,
+        "status": "running"
     })))
 }
 

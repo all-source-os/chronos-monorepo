@@ -1,7 +1,7 @@
 "use client";
 
 import { BlurFade, Button, Card, CardContent, Input } from "@allsource/ui";
-import { Download, Filter, Info, Plus, RefreshCw, Search, X } from "lucide-react";
+import { BookOpen, Download, Filter, Inbox, Plus, RefreshCw, Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { EventDetailDrawer } from "@/components/events/event-detail-drawer";
@@ -28,58 +28,10 @@ export default function EventsPage() {
     limit: 50,
   });
 
-  // Track if we're showing demo data
-  const hasRealEvents = events.length > 0;
-  const showingDemoData = !hasRealEvents && !isLoading;
-
-  // Demo events for timeline if no real events
-  const demoEvents: Event[] = hasRealEvents
-    ? events
-    : [
-        {
-          id: "demo-1",
-          entity_id: "user-123",
-          event_type: "user.signed_up",
-          payload: { email: "demo@example.com" },
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-          version: 1,
-        },
-        {
-          id: "demo-2",
-          entity_id: "order-456",
-          event_type: "order.placed",
-          payload: { total: 99.99 },
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
-          version: 1,
-        },
-        {
-          id: "demo-3",
-          entity_id: "payment-789",
-          event_type: "payment.completed",
-          payload: { method: "card" },
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-          version: 1,
-        },
-        {
-          id: "demo-4",
-          entity_id: "user-123",
-          event_type: "user.profile_updated",
-          payload: { field: "name" },
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-          version: 2,
-        },
-        {
-          id: "demo-5",
-          entity_id: "inventory-abc",
-          event_type: "inventory.updated",
-          payload: { sku: "WIDGET-1", quantity: 100 },
-          timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-          version: 1,
-        },
-      ];
+  const showingEmptyState = events.length === 0 && !isLoading;
 
   // Filter events by search
-  const filteredEvents = demoEvents.filter((event) =>
+  const filteredEvents = events.filter((event) =>
     search
       ? event.event_type.toLowerCase().includes(search.toLowerCase()) ||
         event.entity_id.toLowerCase().includes(search.toLowerCase())
@@ -143,19 +95,37 @@ export default function EventsPage() {
         </div>
       </BlurFade>
 
-      {/* Demo Data Notice */}
-      {showingDemoData && (
+      {/* Empty State */}
+      {showingEmptyState && (
         <BlurFade delay={0.15} inView>
-          <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Info className="h-4 w-4 text-primary" />
-              <span>Showing sample events. Create your first event to see real data here.</span>
+          <Card className="p-12 text-center">
+            <Inbox className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
+            <h3 className="text-lg font-medium">No events yet</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+              Start sending events to your store to see them here. Use the API or any of our SDKs to ingest your first event.
+            </p>
+            <div className="mx-auto mt-6 max-w-lg rounded-lg bg-muted p-4 text-left">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Quick start with curl:</p>
+              <pre className="overflow-x-auto text-xs">
+                <code>{`curl -X POST $ALLSOURCE_URL/api/events \\
+  -H "Authorization: Bearer $API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"entity_id":"user-1","event_type":"user.created","payload":{"name":"Alice"}}'`}</code>
+              </pre>
             </div>
-            <Button variant="ghost" size="sm" onClick={refresh}>
-              <RefreshCw className="mr-1 h-3 w-3" />
-              Refresh
-            </Button>
-          </div>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <Button variant="outline" size="sm" asChild>
+                <a href="https://docs.all-source.xyz" target="_blank" rel="noopener noreferrer">
+                  <BookOpen className="mr-1.5 h-4 w-4" />
+                  Read the Docs
+                </a>
+              </Button>
+              <Button size="sm" onClick={refresh}>
+                <RefreshCw className="mr-1.5 h-4 w-4" />
+                Refresh
+              </Button>
+            </div>
+          </Card>
         </BlurFade>
       )}
 

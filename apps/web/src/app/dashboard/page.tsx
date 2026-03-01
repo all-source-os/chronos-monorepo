@@ -247,30 +247,30 @@ export default function DashboardPage() {
         <RecentEvents />
       </BlurFade>
 
-      {/* Product Stats Banner */}
+      {/* Instance Stats Banner */}
       <BlurFade delay={0.55} inView>
         <div className="rounded-xl border border-border bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-semibold">AllSource Event Store</h3>
-              <p className="text-sm text-muted-foreground">Powering real-time data intelligence</p>
+              <h3 className="text-lg font-semibold">Your Event Store</h3>
+              <p className="text-sm text-muted-foreground">Real-time instance metrics</p>
             </div>
             <div className="flex flex-wrap gap-6 text-center">
               <div>
-                <p className="text-2xl font-bold text-primary">469K</p>
-                <p className="text-xs text-muted-foreground">events/sec</p>
+                <p className="text-2xl font-bold text-primary">{stats.events.used.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">total events</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-primary">11.9μs</p>
+                <p className="text-2xl font-bold text-primary">{stats.latency.formatted}</p>
                 <p className="text-xs text-muted-foreground">p99 latency</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-primary">27</p>
-                <p className="text-xs text-muted-foreground">MCP tools</p>
+                <p className="text-2xl font-bold text-primary">{stats.projections.active}</p>
+                <p className="text-xs text-muted-foreground">active projections</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-primary">~129MB</p>
-                <p className="text-xs text-muted-foreground">footprint</p>
+                <p className="text-2xl font-bold text-primary">{stats.storage.formatted}</p>
+                <p className="text-xs text-muted-foreground">storage used</p>
               </div>
             </div>
           </div>

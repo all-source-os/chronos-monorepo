@@ -17,11 +17,29 @@ import { cn } from "@allsource/ui/utils";
 import { Bell, Building2, Check, Loader2, Shield, User } from "lucide-react";
 import { useState } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import {
+  useNotificationPreferences,
+  type NotificationPreferences,
+} from "@/hooks/use-notification-preferences";
 
 type Tab = "profile" | "workspace" | "security" | "notifications";
 
+function parseProvider(user: { id: string; provider?: string } | null): string | null {
+  if (!user) return null;
+  // Prefer explicit provider field from JWT (Phase 5)
+  if (user.provider && user.provider !== "email") return user.provider;
+  // Fallback: parse from user ID format "oauth:{provider}:{providerID}"
+  if (user.id?.startsWith("oauth:")) {
+    const parts = user.id.split(":");
+    if (parts.length >= 2 && parts[1]) return parts[1];
+  }
+  return user.provider ?? null;
+}
+
 export default function SettingsPage() {
   const { user, tenant } = useAuthStore();
+  const provider = parseProvider(user);
+  const { preferences, updatePreference } = useNotificationPreferences();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -272,13 +290,15 @@ export default function SettingsPage() {
                         <div>
                           <p className="font-medium">Google</p>
                           <p className="text-sm text-muted-foreground">
-                            {user?.provider === "google" ? user.email : "Not connected"}
+                            {provider === "google" ? user?.email : "Not connected"}
                           </p>
                         </div>
                       </div>
-                      <Badge variant={user?.provider === "google" ? "default" : "outline"}>
-                        {user?.provider === "google" ? "Connected" : "Connect"}
-                      </Badge>
+                      {provider === "google" ? (
+                        <Badge variant="default">Connected</Badge>
+                      ) : (
+                        <Badge variant="outline" className="opacity-50">Not available</Badge>
+                      )}
                     </div>
 
                     {/* GitHub */}
@@ -288,13 +308,15 @@ export default function SettingsPage() {
                         <div>
                           <p className="font-medium">GitHub</p>
                           <p className="text-sm text-muted-foreground">
-                            {user?.provider === "github" ? user.email : "Not connected"}
+                            {provider === "github" ? user?.email : "Not connected"}
                           </p>
                         </div>
                       </div>
-                      <Badge variant={user?.provider === "github" ? "default" : "outline"}>
-                        {user?.provider === "github" ? "Connected" : "Connect"}
-                      </Badge>
+                      {provider === "github" ? (
+                        <Badge variant="default">Connected</Badge>
+                      ) : (
+                        <Badge variant="outline" className="opacity-50">Not available</Badge>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -337,34 +359,34 @@ export default function SettingsPage() {
                   <CardDescription>Choose what updates you want to receive</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {[
+                  {([
                     {
+                      key: "usage_alerts" as const,
                       title: "Usage Alerts",
                       description: "Get notified when approaching quota limits",
-                      enabled: true,
                     },
                     {
+                      key: "pipeline_errors" as const,
                       title: "Pipeline Errors",
                       description: "Receive alerts when pipelines fail",
-                      enabled: true,
                     },
                     {
+                      key: "security_alerts" as const,
                       title: "Security Alerts",
                       description: "Get notified about security-related events",
-                      enabled: true,
                     },
                     {
+                      key: "product_updates" as const,
                       title: "Product Updates",
                       description: "Learn about new features and improvements",
-                      enabled: false,
                     },
                     {
+                      key: "tips" as const,
                       title: "Tips & Tutorials",
                       description: "Receive helpful tips to get the most out of AllSource",
-                      enabled: false,
                     },
-                  ].map((pref) => (
-                    <div key={pref.title} className="flex items-center justify-between">
+                  ] satisfies { key: keyof NotificationPreferences; title: string; description: string }[]).map((pref) => (
+                    <div key={pref.key} className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">{pref.title}</p>
                         <p className="text-sm text-muted-foreground">{pref.description}</p>
@@ -372,7 +394,8 @@ export default function SettingsPage() {
                       <label className="relative inline-flex cursor-pointer items-center">
                         <input
                           type="checkbox"
-                          defaultChecked={pref.enabled}
+                          checked={preferences[pref.key]}
+                          onChange={(e) => updatePreference(pref.key, e.target.checked)}
                           className="peer sr-only"
                         />
                         <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary peer-focus:ring-offset-2 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full" />

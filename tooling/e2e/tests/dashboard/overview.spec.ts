@@ -211,8 +211,8 @@ test.describe("Overview — recent events", () => {
   });
 
   test("recent events section renders", async ({ page }) => {
-    // The recent events section or product stats banner should be visible
-    const recentSection = page.getByText(/Recent Events|AllSource Event Store/i).first();
+    // The recent events section or instance stats banner should be visible
+    const recentSection = page.getByText(/Recent Events|Your Event Store/i).first();
     await expect(recentSection).toBeVisible({ timeout: 10000 });
   });
 });

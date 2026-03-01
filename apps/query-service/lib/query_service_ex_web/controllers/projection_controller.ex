@@ -225,6 +225,46 @@ defmodule QueryServiceExWeb.ProjectionController do
   end
 
   @doc """
+  Pause a projection.
+  """
+  def pause(conn, %{"name" => name}) do
+    case RustCoreClient.pause_projection(name) do
+      {:ok, result} ->
+        json(conn, %{data: result})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Projection not found"})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
+  end
+
+  @doc """
+  Start (resume) a projection.
+  """
+  def resume(conn, %{"name" => name}) do
+    case RustCoreClient.start_projection(name) do
+      {:ok, result} ->
+        json(conn, %{data: result})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Projection not found"})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string(reason)})
+    end
+  end
+
+  @doc """
   Get rebuild statistics for all projections.
   Returns the current status and progress of any ongoing or completed rebuilds.
   """

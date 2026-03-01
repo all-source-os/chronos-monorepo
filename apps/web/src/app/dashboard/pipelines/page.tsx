@@ -234,16 +234,46 @@ export default function PipelinesPage() {
     fetchPipelines();
   }, []);
 
-  const handlePause = (id: string) => {
-    setPipelines((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: "paused" as const } : p))
-    );
+  const refreshPipelines = async () => {
+    try {
+      const response = await apiClient.listProjections();
+      if (response.data) {
+        setPipelines(response.data.map(projectionToPipeline));
+      }
+    } catch (error) {
+      console.error("Failed to refresh pipelines:", error);
+    }
   };
 
-  const handleResume = (id: string) => {
-    setPipelines((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: "running" as const } : p))
-    );
+  const handlePause = async (name: string) => {
+    // Find the pipeline name from the id
+    const pipeline = pipelines.find((p) => p.id === name);
+    const projectionName = pipeline?.name || name;
+    try {
+      const response = await apiClient.pauseProjection(projectionName);
+      if (response.error) {
+        console.error("Failed to pause projection:", response.error);
+        return;
+      }
+      await refreshPipelines();
+    } catch (error) {
+      console.error("Failed to pause projection:", error);
+    }
+  };
+
+  const handleResume = async (name: string) => {
+    const pipeline = pipelines.find((p) => p.id === name);
+    const projectionName = pipeline?.name || name;
+    try {
+      const response = await apiClient.startProjection(projectionName);
+      if (response.error) {
+        console.error("Failed to start projection:", response.error);
+        return;
+      }
+      await refreshPipelines();
+    } catch (error) {
+      console.error("Failed to start projection:", error);
+    }
   };
 
   const runningCount = pipelines.filter((p) => p.status === "running").length;

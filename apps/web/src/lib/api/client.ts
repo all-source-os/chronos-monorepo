@@ -281,6 +281,18 @@ export class ApiClient {
     });
   }
 
+  async pauseProjection(name: string): Promise<ApiResponse<Projection>> {
+    return this.request<Projection>(`/api/projections/${encodeURIComponent(name)}/pause`, {
+      method: "POST",
+    });
+  }
+
+  async startProjection(name: string): Promise<ApiResponse<Projection>> {
+    return this.request<Projection>(`/api/projections/${encodeURIComponent(name)}/start`, {
+      method: "POST",
+    });
+  }
+
   // Metrics endpoints
   async getMetrics(): Promise<ApiResponse<MetricsResponse>> {
     return this.request<MetricsResponse>("/api/metrics");

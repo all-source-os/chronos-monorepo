@@ -199,6 +199,8 @@ defmodule QueryServiceExWeb.Router do
     delete("/projections/:name", ProjectionController, :delete)
     get("/projections/:name/state", ProjectionController, :get_state)
     post("/projections/:name/reset", ProjectionController, :reset)
+    post("/projections/:name/pause", ProjectionController, :pause)
+    post("/projections/:name/start", ProjectionController, :resume)
   end
 
   # Webhook subscription management endpoints

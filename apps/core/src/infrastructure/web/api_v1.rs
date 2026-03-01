@@ -353,6 +353,14 @@ pub async fn serve_v1(
             post(super::api::reset_projection),
         )
         .route(
+            "/api/v1/projections/{name}/pause",
+            post(super::api::pause_projection),
+        )
+        .route(
+            "/api/v1/projections/{name}/start",
+            post(super::api::start_projection),
+        )
+        .route(
             "/api/v1/projections/{name}/{entity_id}/state",
             get(super::api::get_projection_state),
         )

@@ -537,6 +537,40 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
+  @doc "Pause a projection"
+  def pause_projection(name) do
+    case Tesla.post(write_client(), "/api/v1/projections/#{name}/pause", %{}) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Start (resume) a projection"
+  def start_projection(name) do
+    case Tesla.post(write_client(), "/api/v1/projections/#{name}/start", %{}) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   @doc "Create a new projection"
   def create_projection(projection) when is_map(projection) do
     case Tesla.post(write_client(), "/api/v1/projections", projection) do

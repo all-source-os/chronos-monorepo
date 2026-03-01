@@ -106,7 +106,8 @@ defmodule QueryServiceExWeb.Plugs.AuthPipeline do
         email: claims["email"],
         name: claims["name"],
         tenant_id: claims["tenant_id"],
-        role: claims["role"]
+        role: claims["role"],
+        provider: claims["provider"]
       }
 
       conn

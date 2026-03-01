@@ -23,15 +23,33 @@ interface DashboardStats {
     p99_us: number;
     formatted: string;
   };
+  storage: {
+    bytes: number;
+    formatted: string;
+  };
   isHistorical?: boolean;
   asOf?: string | null;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const val = bytes / 1024 ** i;
+  return `${val < 10 ? val.toFixed(1) : Math.round(val)} ${units[i]}`;
+}
+
+function formatLatency(us: number): string {
+  if (us < 1000) return `${us.toFixed(1)}μs`;
+  return `${(us / 1000).toFixed(1)}ms`;
 }
 
 const DEFAULT_STATS: DashboardStats = {
   events: { used: 0, quota: 10000, percentage: 0 },
   queries: { used: 0, quota: 10000, percentage: 0 },
   projections: { count: 0, active: 0 },
-  latency: { p99_us: 11900, formatted: "11.9μs" },
+  latency: { p99_us: 0, formatted: "—" },
+  storage: { bytes: 0, formatted: "—" },
 };
 
 async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardStats> {
@@ -39,9 +57,10 @@ async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardSta
   apiClient.setAsOf(asOfIso);
 
   // Fetch all data in parallel
-  const [usageResponse, projectionsResponse] = await Promise.all([
+  const [usageResponse, projectionsResponse, metricsResponse] = await Promise.all([
     apiClient.getTenantUsage(),
     apiClient.listProjections(),
+    apiClient.getMetrics(),
   ]);
 
   // Build stats object with fallbacks
@@ -62,9 +81,15 @@ async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardSta
     };
   }
 
-  // Latency is a static benchmark value for now
-  // In future, could fetch from /api/metrics backend data
-  stats.latency = { p99_us: 11900, formatted: "11.9μs" };
+  // Extract real metrics from backend response
+  if (metricsResponse.data) {
+    const backend = (metricsResponse.data as unknown as Record<string, unknown>).backend as Record<string, unknown> | undefined;
+    const p99 = (backend?.p99_latency_us as number) ?? (backend?.latency_p99_us as number) ?? 0;
+    stats.latency = { p99_us: p99, formatted: p99 > 0 ? formatLatency(p99) : "—" };
+
+    const storageBytes = (backend?.storage_bytes as number) ?? (backend?.disk_usage_bytes as number) ?? 0;
+    stats.storage = { bytes: storageBytes, formatted: storageBytes > 0 ? formatBytes(storageBytes) : "—" };
+  }
 
   // Include time travel metadata
   stats.isHistorical = asOfIso !== null;
