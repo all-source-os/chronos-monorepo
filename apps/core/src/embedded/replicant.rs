@@ -21,6 +21,12 @@ pub struct WorkflowStatusProjection {
     states: DashMap<String, Value>,
 }
 
+impl Default for WorkflowStatusProjection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WorkflowStatusProjection {
     pub fn new() -> Self {
         Self {
@@ -71,6 +77,7 @@ impl Projection for WorkflowStatusProjection {
                 let mut state = self.ensure_entry(&entity_id);
                 // First-write-wins: only accept claim if pending or unknown (out-of-order)
                 let status = state.get("status").and_then(|s| s.as_str()).unwrap_or("");
+                #[allow(clippy::collapsible_if)]
                 if status == "pending" || status == "unknown" {
                     if let Some(rid) = payload.get("replicant_id") {
                         state["status"] = json!("claimed");
@@ -145,6 +152,12 @@ pub struct ReplicantRegistryProjection {
     states: DashMap<String, Value>,
 }
 
+impl Default for ReplicantRegistryProjection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ReplicantRegistryProjection {
     pub fn new() -> Self {
         Self {
@@ -213,6 +226,12 @@ impl Projection for ReplicantRegistryProjection {
 pub struct TaskQueueProjection {
     /// Set of workflow IDs that are pending (dispatched but not claimed/completed).
     pending: DashMap<String, ()>,
+}
+
+impl Default for TaskQueueProjection {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TaskQueueProjection {

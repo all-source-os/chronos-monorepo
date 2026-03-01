@@ -21,6 +21,7 @@ pub enum FollowerMessage {
 /// Messages sent from leader to follower.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum LeaderMessage {
     /// A WAL entry to be replayed by the follower.
     WalEntry { offset: u64, data: WALEntry },

@@ -174,7 +174,7 @@ mod tests {
             event_type: "field.values",
             payload: json!({
                 "string": "hello world",
-                "number": 3.14,
+                "number": 42.5,
                 "boolean": true,
                 "null_val": null,
                 "nested": {"key": "value"}

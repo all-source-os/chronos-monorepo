@@ -169,7 +169,7 @@ impl EmbeddedCore {
                 event_id: domain_event.id().to_string(),
                 hlc_timestamp: ts,
                 origin_region: format!("node-{}", hlc.node_id()),
-                event_data: serde_json::to_value(&EventView::from(&domain_event))
+                event_data: serde_json::to_value(EventView::from(&domain_event))
                     .unwrap_or_default(),
             };
             resolver.accept(&replicated);
@@ -213,7 +213,7 @@ impl EmbeddedCore {
                     event_id: domain_event.id().to_string(),
                     hlc_timestamp: ts,
                     origin_region: format!("node-{}", hlc.node_id()),
-                    event_data: serde_json::to_value(&EventView::from(domain_event))
+                    event_data: serde_json::to_value(EventView::from(domain_event))
                         .unwrap_or_default(),
                 };
                 resolver.accept(&replicated);

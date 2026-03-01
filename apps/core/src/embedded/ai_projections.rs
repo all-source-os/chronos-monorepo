@@ -24,6 +24,12 @@ pub struct TokenUsageProjection {
     states: DashMap<String, Value>,
 }
 
+impl Default for TokenUsageProjection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TokenUsageProjection {
     pub fn new() -> Self {
         Self {
@@ -146,6 +152,12 @@ pub struct ToolCallAuditProjection {
     states: DashMap<String, Value>,
 }
 
+impl Default for ToolCallAuditProjection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolCallAuditProjection {
     pub fn new() -> Self {
         Self {
@@ -200,23 +212,22 @@ impl Projection for ToolCallAuditProjection {
                 tool["failures"] = json!(failures);
                 tool["success_rate"] = json!(successes as f64 / total as f64);
 
-                if let Some(d) = duration_ms {
-                    if let Some(durations) = tool["durations"].as_array_mut() {
-                        durations.push(json!(d));
-                        // Cap the ring buffer: drop oldest samples when over limit
-                        if durations.len() > MAX_DURATION_SAMPLES {
-                            let excess = durations.len() - MAX_DURATION_SAMPLES;
-                            durations.drain(..excess);
-                        }
-                        let mut sorted: Vec<f64> =
-                            durations.iter().filter_map(|v| v.as_f64()).collect();
-                        sorted.sort_by(|a, b| a.total_cmp(b));
-                        let len = sorted.len();
-                        let p50_idx = len / 2;
-                        let p95_idx = ((len as f64 * 0.95).ceil() as usize).min(len - 1);
-                        tool["p50_ms"] = json!(sorted[p50_idx]);
-                        tool["p95_ms"] = json!(sorted[p95_idx]);
+                if let (Some(d), Some(durations)) = (duration_ms, tool["durations"].as_array_mut())
+                {
+                    durations.push(json!(d));
+                    // Cap the ring buffer: drop oldest samples when over limit
+                    if durations.len() > MAX_DURATION_SAMPLES {
+                        let excess = durations.len() - MAX_DURATION_SAMPLES;
+                        durations.drain(..excess);
                     }
+                    let mut sorted: Vec<f64> =
+                        durations.iter().filter_map(|v| v.as_f64()).collect();
+                    sorted.sort_by(|a, b| a.total_cmp(b));
+                    let len = sorted.len();
+                    let p50_idx = len / 2;
+                    let p95_idx = ((len as f64 * 0.95).ceil() as usize).min(len - 1);
+                    tool["p50_ms"] = json!(sorted[p50_idx]);
+                    tool["p95_ms"] = json!(sorted[p95_idx]);
                 }
             })
             .or_insert_with(|| {
@@ -258,6 +269,12 @@ impl Projection for ToolCallAuditProjection {
 pub struct HumanInLoopQueueProjection {
     /// entity_id -> (reason, timestamp) for pending approvals
     pending: DashMap<String, (String, chrono::DateTime<chrono::Utc>)>,
+}
+
+impl Default for HumanInLoopQueueProjection {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HumanInLoopQueueProjection {
@@ -368,6 +385,12 @@ pub struct AgentUtilizationProjection {
     replicants: DashMap<String, ReplicantState>,
     /// workflow_id -> replicant_id (reverse lookup for completions)
     workflow_to_replicant: DashMap<String, String>,
+}
+
+impl Default for AgentUtilizationProjection {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AgentUtilizationProjection {

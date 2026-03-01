@@ -10,7 +10,7 @@
 
 #[cfg(feature = "embedded-projections")]
 mod tests {
-    use allsource_core::embedded::{Config, EmbeddedCore, IngestEvent, Query};
+    use allsource_core::embedded::{Config, EmbeddedCore, IngestEvent};
     use serde_json::json;
 
     // =========================================================================
