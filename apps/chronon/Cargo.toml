@@ -1,0 +1,39 @@
+[package]
+name = "chronon"
+version = "0.1.0"
+edition = "2024"
+description = "Event-sourced task CLI powered by AllSource Core"
+
+[lib]
+name = "chronon"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cn"
+path = "src/main.rs"
+
+[dependencies]
+allsource-core = { path = "../core", default-features = false, features = [
+    "embedded",
+    "embedded-replicant",
+    "embedded-projections",
+] }
+clap = { workspace = true }
+crossterm = { workspace = true }
+tabled = { workspace = true }
+ratatui = { workspace = true }
+dashmap = { workspace = true }
+serde_json = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tower-http = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
