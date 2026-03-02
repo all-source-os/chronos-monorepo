@@ -50,6 +50,7 @@ if config_env() == :prod do
     core_write_url: core_write_url,
     core_read_urls: core_read_urls,
     core_ws_url: System.get_env("CORE_WS_URL") || "ws://localhost:3900/api/v1/events/stream",
+    core_ws_enabled: System.get_env("CORE_WS_ENABLED", "true") == "true",
     core_api_key: System.get_env("CORE_API_KEY"),
     core_max_replication_lag_ms: core_max_replication_lag_ms,
     core_health_check_interval_ms: core_health_check_interval_ms

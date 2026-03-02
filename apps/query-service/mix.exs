@@ -56,7 +56,8 @@ defmodule QueryServiceEx.MixProject do
       {:jason, "~> 1.4"},
 
       # WebSocket Client for real-time event streaming from Core
-      {:websockex, "~> 0.4"},
+      {:mint_web_socket, "~> 1.0"},
+      {:mint, "~> 1.0"},
 
       # Redis for caching
       {:redix, "~> 1.5"},

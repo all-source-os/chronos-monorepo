@@ -14,8 +14,9 @@ primary_region = "iad"  # US East (Virginia)
   PHX_HOST = "allsource-query.fly.dev"
   CORE_URL = "http://allsource-core.internal:3900"
   CORE_WS_URL = "ws://allsource-core.internal:3900/api/v1/events/stream"
+  CORE_WS_ENABLED = "true"
   ECTO_IPV6 = "true"
-  ERL_AFLAGS = "-proto_dist inet6_tcp"
+  ERL_AFLAGS = "-proto_dist inet6_tcp -kernel inet6 true"
   PORT = "3902"
   LOGGER_LEVEL = "info"
 
