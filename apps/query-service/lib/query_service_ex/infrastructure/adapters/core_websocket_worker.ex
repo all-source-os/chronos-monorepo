@@ -114,7 +114,10 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketWorker do
             done = Enum.any?(responses, &match?({:done, ^ref}, &1))
 
             if status && headers && done do
-              Mint.WebSocket.new(conn, ref, status, headers)
+              case Mint.WebSocket.new(conn, ref, status, headers) do
+                {:ok, _conn, _websocket} = ok -> ok
+                {:error, _conn, reason} -> {:error, {:upgrade_rejected, status, reason}}
+              end
             else
               receive_upgrade(conn, ref, deadline)
             end

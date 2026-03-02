@@ -297,10 +297,40 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
   end
 
   defp build_auth_headers do
+    # Try CORE_API_KEY first, then generate a service JWT from JWT_SECRET
     case Application.get_env(:query_service_ex, :core_api_key) do
-      key when key in [nil, ""] -> []
-      api_key -> [{"Authorization", api_key}]
+      key when key not in [nil, ""] ->
+        [{"Authorization", "Bearer #{key}"}]
+
+      _ ->
+        case System.get_env("JWT_SECRET") do
+          secret when secret not in [nil, ""] ->
+            token = generate_service_jwt(secret)
+            [{"Authorization", "Bearer #{token}"}]
+
+          _ ->
+            Logger.warning("[CoreWebSocketClient] No CORE_API_KEY or JWT_SECRET configured")
+            []
+        end
     end
+  end
+
+  defp generate_service_jwt(secret) do
+    jwk = JOSE.JWK.from_oct(secret)
+    jws = %{"alg" => "HS256"}
+    now = System.system_time(:second)
+
+    claims = %{
+      "sub" => "query-service",
+      "tenant_id" => "system",
+      "role" => "admin",
+      "iat" => now,
+      "exp" => now + 86_400 * 365,
+      "iss" => "allsource"
+    }
+
+    {_, token} = JOSE.JWT.sign(jwk, jws, claims) |> JOSE.JWS.compact()
+    token
   end
 
   defp calculate_backoff(base_ms, max_ms) do
