@@ -125,7 +125,7 @@ criterion.workspace = true
 ctrlc.workspace = true
 tempfile.workspace = true
 testcontainers = "0.25"
-testcontainers-modules = { version = "0.13", features = ["postgres"] }
+testcontainers-modules = { version = "0.14", features = ["postgres"] }
 
 [[bench]]
 name = "performance_benchmarks"
