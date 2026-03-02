@@ -87,9 +87,9 @@ dependencies = [
 
 [[package]]
 name = "allframe"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "619e561d4dcfb2ec6e5082cbf6d9a379b6fc3e68a282627e56df7acf89ccb5d8"
+checksum = "feda35271b12e7c4be5e4b6d1facd23e1fddf5411c4d00554ac5e2bd5d2270e8"
 dependencies = [
  "allframe-core",
  "allframe-forge",
@@ -98,9 +98,9 @@ dependencies = [
 
 [[package]]
 name = "allframe-core"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40d0f6a533f6b8eda9586445e43486f5963c15c5770ee4b8e44ba0f3b9ff96e3"
+checksum = "1fccabcced90870d4f147a88fdf628215c4a182a00f3c4caa397f403197c01f2"
 dependencies = [
  "allframe-macros",
  "async-trait",
@@ -116,9 +116,9 @@ dependencies = [
 
 [[package]]
 name = "allframe-forge"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ca31d64def09b353625dbbce3a1f29ef34a3908f497e85bea994ae2722830e3"
+checksum = "3069f0f079edfbaf160e8e1a712e0bd1b4e2c6ab2d59b2d0369ac69c3eb5a9ff"
 dependencies = [
  "anyhow",
  "clap",
@@ -131,9 +131,9 @@ dependencies = [
 
 [[package]]
 name = "allframe-macros"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21a7946d7fcd2aa11dd8bc56b38b3c77f51da3eb20be33aced01c7c507cae5d7"
+checksum = "2ae75807f737fcd3ac7086024caeacf4bf8eea946525fbc2e0f13e415f5be276"
 dependencies = [
  "async-trait",
  "proc-macro2",
@@ -368,7 +368,7 @@ dependencies = [
  "objc2-foundation",
  "parking_lot",
  "percent-encoding",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
  "x11rb",
 ]
 
@@ -2792,7 +2792,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2978,7 +2978,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4771,7 +4771,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5862,7 +5862,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6370,7 +6370,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6438,7 +6438,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7505,7 +7505,7 @@ dependencies = [
  "getrandom 0.4.1",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -8640,7 +8640,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
