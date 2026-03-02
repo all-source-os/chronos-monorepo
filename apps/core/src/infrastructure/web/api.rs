@@ -1469,7 +1469,9 @@ pub async fn pause_projection(
         crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
     })?;
 
-    store.projection_status().insert(name.clone(), "paused".to_string());
+    store
+        .projection_status()
+        .insert(name.clone(), "paused".to_string());
 
     tracing::info!("Projection paused: {}", name);
 
@@ -1493,7 +1495,9 @@ pub async fn start_projection(
         crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
     })?;
 
-    store.projection_status().insert(name.clone(), "running".to_string());
+    store
+        .projection_status()
+        .insert(name.clone(), "running".to_string());
 
     tracing::info!("Projection started: {}", name);
 
@@ -1987,8 +1991,7 @@ pub async fn sync_pull_handler(
     State(state): State<AppState>,
     Json(request): Json<crate::embedded::sync_types::SyncPullRequest>,
 ) -> Result<Json<crate::embedded::sync_types::SyncPullResponse>> {
-    use crate::infrastructure::cluster::crdt::ReplicatedEvent;
-    use crate::infrastructure::cluster::hlc::HlcTimestamp;
+    use crate::infrastructure::cluster::{crdt::ReplicatedEvent, hlc::HlcTimestamp};
 
     let store = &state.store;
 

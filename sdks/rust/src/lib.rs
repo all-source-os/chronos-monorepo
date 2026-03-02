@@ -65,17 +65,17 @@
 //! }
 //! ```
 
-mod client;
 mod circuit_breaker;
+mod client;
 mod error;
 mod fold;
 mod types;
 
-pub use client::{CoreClient, QueryClient, ClientConfig, RetryConfig};
 pub use circuit_breaker::CircuitBreaker;
+pub use client::{ClientConfig, CoreClient, QueryClient, RetryConfig};
 pub use error::Error;
-pub use fold::{EventFolder, fold_events};
+pub use fold::{fold_events, EventFolder};
 pub use types::*;
 
 // Re-export for payload construction
-pub use serde_json::{self, Value, json};
+pub use serde_json::{self, json, Value};

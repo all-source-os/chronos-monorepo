@@ -8,8 +8,7 @@ pub struct AuthConfig {
 
 impl AuthConfig {
     pub fn from_env() -> Self {
-        let deploy_token =
-            std::env::var("DEPLOY_TOKEN").expect("DEPLOY_TOKEN must be set");
+        let deploy_token = std::env::var("DEPLOY_TOKEN").expect("DEPLOY_TOKEN must be set");
         let registry_tokens = std::env::var("REGISTRY_TOKENS")
             .unwrap_or_default()
             .split(',')

@@ -300,7 +300,9 @@ mod tests {
             .since("2026-01-01T00:00:00Z");
         let pairs = params.to_query_pairs();
         assert_eq!(pairs.len(), 4);
-        assert!(pairs.iter().any(|(k, v)| *k == "entity_id" && v == "order-123"));
+        assert!(pairs
+            .iter()
+            .any(|(k, v)| *k == "entity_id" && v == "order-123"));
         assert!(pairs.iter().any(|(k, v)| *k == "limit" && v == "10"));
     }
 

@@ -28,8 +28,10 @@
 //! # }
 //! ```
 
-use crate::embedded::{EmbeddedCore, IngestEvent};
-use crate::error::Result;
+use crate::{
+    embedded::{EmbeddedCore, IngestEvent},
+    error::Result,
+};
 use serde_json::Value;
 use std::future::Future;
 
@@ -91,12 +93,7 @@ impl<'a> McpToolTracker<'a> {
     ///
     /// On success, emits `mcp.tool.result` with `duration_ms`.
     /// On error, emits `mcp.tool.error` with the error message and `duration_ms`.
-    pub async fn track<F, Fut>(
-        &self,
-        workflow_id: &str,
-        tool_name: &str,
-        f: F,
-    ) -> Result<Value>
+    pub async fn track<F, Fut>(&self, workflow_id: &str, tool_name: &str, f: F) -> Result<Value>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<Value>>,

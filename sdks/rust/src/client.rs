@@ -1,12 +1,8 @@
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
-use crate::circuit_breaker::CircuitBreaker;
-use crate::error::Error;
-use crate::fold::EventFolder;
-use crate::types::*;
+use crate::{circuit_breaker::CircuitBreaker, error::Error, fold::EventFolder, types::*};
 
 /// Retry configuration for transient failures.
 #[derive(Debug, Clone)]
@@ -154,9 +150,10 @@ impl HttpTransport {
         let mut last_error = None;
         for attempt in 0..=self.retry.max_retries {
             if attempt > 0 {
-                let delay = self.retry.base_delay.mul_f64(
-                    self.retry.backoff_factor.powi(attempt as i32 - 1),
-                );
+                let delay = self
+                    .retry
+                    .base_delay
+                    .mul_f64(self.retry.backoff_factor.powi(attempt as i32 - 1));
                 let delay = delay.min(self.retry.max_delay);
                 tracing::debug!(attempt, delay_ms = delay.as_millis(), "retrying request");
                 tokio::time::sleep(delay).await;
@@ -195,7 +192,11 @@ impl HttpTransport {
                 .as_ref()
                 .and_then(|b| b.get("error").and_then(|e| e.get("message")))
                 .and_then(|m| m.as_str())
-                .or_else(|| body.as_ref().and_then(|b| b.get("error")).and_then(|e| e.as_str()))
+                .or_else(|| {
+                    body.as_ref()
+                        .and_then(|b| b.get("error"))
+                        .and_then(|e| e.as_str())
+                })
                 .unwrap_or("Unknown error")
                 .to_string();
             return Err(Error::Api {
@@ -237,19 +238,26 @@ impl QueryClient {
     /// Query events with filters.
     ///
     /// Uses Core's `/api/v1/events/query` endpoint.
-    pub async fn query_events(&self, params: QueryEventsParams) -> Result<QueryEventsResponse, Error> {
+    pub async fn query_events(
+        &self,
+        params: QueryEventsParams,
+    ) -> Result<QueryEventsResponse, Error> {
         let pairs = params.to_query_pairs();
-        self.transport.get_with_query("/api/v1/events/query", &pairs).await
+        self.transport
+            .get_with_query("/api/v1/events/query", &pairs)
+            .await
     }
 
     /// Get all events for a specific entity.
     pub async fn get_entity_events(&self, entity_id: &str) -> Result<QueryEventsResponse, Error> {
-        self.query_events(QueryEventsParams::new().entity_id(entity_id)).await
+        self.query_events(QueryEventsParams::new().entity_id(entity_id))
+            .await
     }
 
     /// Get all events of a specific type.
     pub async fn get_events_by_type(&self, event_type: &str) -> Result<QueryEventsResponse, Error> {
-        self.query_events(QueryEventsParams::new().event_type(event_type)).await
+        self.query_events(QueryEventsParams::new().event_type(event_type))
+            .await
     }
 
     /// List projections.
@@ -281,7 +289,9 @@ impl QueryClient {
         if let Some(offset) = offset {
             pairs.push(("offset", offset.to_string()));
         }
-        self.transport.get_with_query("/api/v1/entities", &pairs).await
+        self.transport
+            .get_with_query("/api/v1/entities", &pairs)
+            .await
     }
 
     /// Detect duplicate entities by grouping on payload field values.
@@ -354,7 +364,10 @@ impl CoreClient {
     }
 
     /// Ingest a batch of events.
-    pub async fn ingest_batch(&self, events: Vec<IngestEventInput>) -> Result<BatchIngestResponse, Error> {
+    pub async fn ingest_batch(
+        &self,
+        events: Vec<IngestEventInput>,
+    ) -> Result<BatchIngestResponse, Error> {
         #[derive(Serialize)]
         struct BatchRequest {
             events: Vec<IngestEventInput>,

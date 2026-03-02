@@ -8,5 +8,7 @@
   ~r/query_controller\.ex.*pattern_match_cov/,
   ~r/tenant_context\.ex.*pattern_match_cov/,
   # WebSocket client no_return (expected — reconnection loops)
-  ~r/core_websocket_client\.ex.*no_return/
+  ~r/core_websocket_client\.ex.*no_return/,
+  # Mint.WebSocket.new can return {:ok, conn, ws} but Dialyzer infers only error from typespecs
+  ~r/core_websocket_worker\.ex.*pattern_match/
 ]

@@ -9,7 +9,7 @@
 
 #[cfg(feature = "embedded-sync")]
 mod tests {
-    use allsource_core::embedded::{Config, EmbeddedCore, IngestEvent, Query};
+    use allsource_core::embedded::{Config, EmbeddedCore, IngestEvent};
     use serde_json::json;
 
     #[tokio::test]
@@ -36,9 +36,8 @@ mod tests {
 
         // Pull with version vector past all events = get nothing new
         let full_vv = core.version_vector();
-        // events_for_sync uses the version vector's timestamp as "since",
-        // so events at or before the threshold are filtered out.
-        // We need to verify that after sync, the peer sees all events.
+        let events_after = core.events_for_sync(&full_vv).await.unwrap();
+        assert!(events_after.is_empty(), "expected no new events after full sync");
     }
 
     #[tokio::test]

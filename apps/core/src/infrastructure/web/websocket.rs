@@ -167,10 +167,7 @@ impl WebSocketManager {
                     match serde_json::to_string(&*event) {
                         Ok(json) => {
                             if sender.send(Message::Text(json.into())).await.is_err() {
-                                tracing::warn!(
-                                    "Failed to send event to client {}",
-                                    client_id
-                                );
+                                tracing::warn!("Failed to send event to client {}", client_id);
                                 break;
                             }
                         }
@@ -181,14 +178,8 @@ impl WebSocketManager {
                 }
                 Err(broadcast::error::RecvError::Lagged(n)) => {
                     let msg = serde_json::json!({"type": "lagged", "missed": n});
-                    let _ = sender
-                        .send(Message::Text(msg.to_string().into()))
-                        .await;
-                    tracing::warn!(
-                        "Client {} lagged, missed {} events",
-                        client_id,
-                        n
-                    );
+                    let _ = sender.send(Message::Text(msg.to_string().into())).await;
+                    tracing::warn!("Client {} lagged, missed {} events", client_id, n);
                 }
                 Err(broadcast::error::RecvError::Closed) => break,
             }
@@ -222,10 +213,10 @@ impl WebSocketManager {
                             }
 
                             // Flush early if batch is full
-                            if batch.len() >= max_batch_size {
-                                if !Self::flush_batch(&mut sender, &mut batch, client_id).await {
-                                    break;
-                                }
+                            if batch.len() >= max_batch_size
+                                && !Self::flush_batch(&mut sender, &mut batch, client_id).await
+                            {
+                                break;
                             }
                         }
                         Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -249,10 +240,10 @@ impl WebSocketManager {
                     }
                 }
                 _ = ticker.tick() => {
-                    if !batch.is_empty() {
-                        if !Self::flush_batch(&mut sender, &mut batch, client_id).await {
-                            break;
-                        }
+                    if !batch.is_empty()
+                        && !Self::flush_batch(&mut sender, &mut batch, client_id).await
+                    {
+                        break;
                     }
                 }
             }
@@ -287,11 +278,7 @@ impl WebSocketManager {
     }
 
     /// Check if an event passes the client's filters.
-    fn passes_filters(
-        clients: &DashMap<Uuid, ClientInfo>,
-        client_id: Uuid,
-        event: &Event,
-    ) -> bool {
+    fn passes_filters(clients: &DashMap<Uuid, ClientInfo>, client_id: Uuid, event: &Event) -> bool {
         let filters = clients
             .get(&client_id)
             .map(|entry| entry.value().filters.clone())
@@ -426,7 +413,7 @@ mod tests {
         rt.block_on(async {
             // Create a batch of events and serialize as JSON array
             let events: Vec<serde_json::Value> = (0..3)
-                .map(|_| serde_json::to_value(&create_test_event()).unwrap())
+                .map(|_| serde_json::to_value(create_test_event()).unwrap())
                 .collect();
 
             let json_array = serde_json::Value::Array(events);

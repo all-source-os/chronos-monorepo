@@ -164,7 +164,10 @@ async fn test_batch_ingest() {
         })
         .collect();
 
-    let resp = core.ingest_batch(events).await.expect("batch ingest failed");
+    let resp = core
+        .ingest_batch(events)
+        .await
+        .expect("batch ingest failed");
 
     assert_eq!(resp.total, 5, "total should be 5");
     assert_eq!(resp.ingested, 5, "all 5 should be ingested");
@@ -466,10 +469,7 @@ async fn test_concurrent_ingestion() {
     }
 
     for handle in handles {
-        handle
-            .await
-            .expect("task panicked")
-            .expect("ingest failed");
+        handle.await.expect("task panicked").expect("ingest failed");
     }
 
     let result = qs.get_entity_events(&entity).await.expect("query failed");

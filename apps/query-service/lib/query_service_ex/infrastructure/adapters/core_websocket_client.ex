@@ -47,6 +47,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
   """
 
   use GenServer
+
+  alias QueryServiceEx.Infrastructure.Adapters.CoreWebSocketWorker
+
   require Logger
 
   @default_url "ws://localhost:3900/api/v1/events/stream"
@@ -262,7 +265,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
       socket_connect_timeout: 10_000
     ]
 
-    case QueryServiceEx.Infrastructure.Adapters.CoreWebSocketWorker.start(
+    case CoreWebSocketWorker.start(
            state.url,
            parent,
            state,

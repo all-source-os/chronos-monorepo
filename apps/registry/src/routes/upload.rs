@@ -1,13 +1,12 @@
-use allframe::hyper::body::Incoming;
-use allframe::hyper::{Request, StatusCode};
-use allframe::serde_json;
-use allframe::tracing;
+use allframe::{
+    hyper::{Request, StatusCode, body::Incoming},
+    serde_json, tracing,
+};
 use http_body_util::BodyExt;
 use sha2::{Digest, Sha256};
 
 use super::BoxResponse;
-use crate::storage::Storage;
-use crate::AppState;
+use crate::{AppState, storage::Storage};
 
 /// `POST /upload/{protocol}/{name}/{version}`
 ///
@@ -55,10 +54,7 @@ pub async fn handle(state: AppState, req: Request<Incoming>, path: &str) -> BoxR
     };
 
     if body.is_empty() {
-        return super::json_response(
-            StatusCode::BAD_REQUEST,
-            r#"{"error":"empty body"}"#,
-        );
+        return super::json_response(StatusCode::BAD_REQUEST, r#"{"error":"empty body"}"#);
     }
 
     let sha256 = hex_sha256(&body);
@@ -148,21 +144,20 @@ async fn handle_npm(
 
     // Read or create packument (stored as packument.json to avoid dir collision)
     let packument_path = format!("npm/{name}/packument.json");
-    let mut packument: serde_json::Value =
-        match state.storage.read_file(&packument_path).await {
-            Some(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|_| {
-                serde_json::json!({
-                    "name": name,
-                    "dist-tags": {},
-                    "versions": {}
-                })
-            }),
-            None => serde_json::json!({
+    let mut packument: serde_json::Value = match state.storage.read_file(&packument_path).await {
+        Some(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|_| {
+            serde_json::json!({
                 "name": name,
                 "dist-tags": {},
                 "versions": {}
-            }),
-        };
+            })
+        }),
+        None => serde_json::json!({
+            "name": name,
+            "dist-tags": {},
+            "versions": {}
+        }),
+    };
 
     // Add version entry
     let host = "registry.all-source.xyz";
@@ -209,9 +204,7 @@ async fn handle_pypi(
     };
 
     // Insert link before </body>
-    let link = format!(
-        "<a href=\"/pypi/files/{filename}#sha256={sha256}\">{filename}</a>\n"
-    );
+    let link = format!("<a href=\"/pypi/files/{filename}#sha256={sha256}\">{filename}</a>\n");
     if let Some(pos) = html.rfind("</body>") {
         html.insert_str(pos, &link);
     }
@@ -261,10 +254,7 @@ async fn handle_go(
     // Write @latest
     state
         .storage
-        .write_file(
-            &format!("go/{module}/@latest"),
-            info.to_string().as_bytes(),
-        )
+        .write_file(&format!("go/{module}/@latest"), info.to_string().as_bytes())
         .await?;
 
     Ok(())

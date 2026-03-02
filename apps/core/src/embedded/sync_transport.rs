@@ -46,10 +46,7 @@ impl SyncClient {
     /// Perform a full bidirectional sync: pull then push.
     ///
     /// Returns aggregate statistics for the sync operation.
-    pub async fn sync(
-        &self,
-        core: &super::core::EmbeddedCore,
-    ) -> Result<SyncStats> {
+    pub async fn sync(&self, core: &super::core::EmbeddedCore) -> Result<SyncStats> {
         let mut stats = SyncStats::default();
 
         // Phase 1: Pull — get events we haven't seen from the server
@@ -66,10 +63,7 @@ impl SyncClient {
     }
 
     /// Pull events from the remote server into the local core.
-    async fn pull(
-        &self,
-        core: &super::core::EmbeddedCore,
-    ) -> Result<SyncStats> {
+    async fn pull(&self, core: &super::core::EmbeddedCore) -> Result<SyncStats> {
         let vv = core.version_vector();
         let request = SyncPullRequest {
             node_id: self.node_id.clone(),
@@ -105,10 +99,7 @@ impl SyncClient {
     }
 
     /// Push local events to the remote server.
-    async fn push(
-        &self,
-        core: &super::core::EmbeddedCore,
-    ) -> Result<SyncStats> {
+    async fn push(&self, core: &super::core::EmbeddedCore) -> Result<SyncStats> {
         // Get the server's version vector first (via a zero-event pull)
         let server_vv = self.fetch_server_version_vector().await?;
 

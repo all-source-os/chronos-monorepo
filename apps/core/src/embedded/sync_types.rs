@@ -3,10 +3,7 @@
 //! Used by [`SyncClient`](super::sync_transport::SyncClient) and the
 //! server-side `/api/v1/sync/pull` and `/api/v1/sync/push` endpoints.
 
-use crate::infrastructure::cluster::{
-    crdt::ReplicatedEvent,
-    hlc::HlcTimestamp,
-};
+use crate::infrastructure::cluster::{crdt::ReplicatedEvent, hlc::HlcTimestamp};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

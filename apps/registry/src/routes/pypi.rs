@@ -21,9 +21,7 @@ pub async fn project_index(state: &AppState, project: &str) -> BoxResponse {
     let path = format!("pypi/simple/{project}/index.html");
     match state.storage.read_file(&path).await {
         Some(data) => super::html_response(StatusCode::OK, String::from_utf8_lossy(&data).into()),
-        None => {
-            super::json_response(StatusCode::NOT_FOUND, r#"{"error":"project not found"}"#)
-        }
+        None => super::json_response(StatusCode::NOT_FOUND, r#"{"error":"project not found"}"#),
     }
 }
 

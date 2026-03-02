@@ -373,9 +373,8 @@ mod tests {
     fn test_append_only_strategy_accepts_all() {
         use allsource_core::cluster::MergeStrategy;
 
-        let resolver = CrdtResolver::with_strategies(vec![
-            ("test.".to_string(), MergeStrategy::AppendOnly),
-        ]);
+        let resolver =
+            CrdtResolver::with_strategies(vec![("test.".to_string(), MergeStrategy::AppendOnly)]);
 
         let event1 = ReplicatedEvent {
             event_id: "evt-1".to_string(),
@@ -390,17 +389,24 @@ mod tests {
             event_data: json!({"event_type": "test.created", "entity_id": "e-1"}),
         };
 
-        assert_eq!(resolver.resolve_and_accept(&event1), ConflictResolution::Accept);
-        assert_eq!(resolver.resolve_and_accept(&event2), ConflictResolution::Accept);
+        assert_eq!(
+            resolver.resolve_and_accept(&event1),
+            ConflictResolution::Accept
+        );
+        assert_eq!(
+            resolver.resolve_and_accept(&event2),
+            ConflictResolution::Accept
+        );
     }
 
     #[test]
     fn test_lww_strategy_keeps_latest() {
         use allsource_core::cluster::MergeStrategy;
 
-        let resolver = CrdtResolver::with_strategies(vec![
-            ("config.".to_string(), MergeStrategy::LastWriteWins),
-        ]);
+        let resolver = CrdtResolver::with_strategies(vec![(
+            "config.".to_string(),
+            MergeStrategy::LastWriteWins,
+        )]);
 
         // Newer event first
         let newer = ReplicatedEvent {
@@ -417,7 +423,10 @@ mod tests {
             event_data: json!({"event_type": "config.updated", "entity_id": "cfg-1"}),
         };
 
-        assert_eq!(resolver.resolve_and_accept(&newer), ConflictResolution::Accept);
+        assert_eq!(
+            resolver.resolve_and_accept(&newer),
+            ConflictResolution::Accept
+        );
         // Older event for same entity+type should be skipped under LWW
         assert_eq!(resolver.resolve(&older), ConflictResolution::Skip);
     }
@@ -426,9 +435,10 @@ mod tests {
     fn test_fww_strategy_keeps_first() {
         use allsource_core::cluster::MergeStrategy;
 
-        let resolver = CrdtResolver::with_strategies(vec![
-            ("init.".to_string(), MergeStrategy::FirstWriteWins),
-        ]);
+        let resolver = CrdtResolver::with_strategies(vec![(
+            "init.".to_string(),
+            MergeStrategy::FirstWriteWins,
+        )]);
 
         let first = ReplicatedEvent {
             event_id: "evt-1".to_string(),
@@ -443,7 +453,10 @@ mod tests {
             event_data: json!({"event_type": "init.setup", "entity_id": "app-1"}),
         };
 
-        assert_eq!(resolver.resolve_and_accept(&first), ConflictResolution::Accept);
+        assert_eq!(
+            resolver.resolve_and_accept(&first),
+            ConflictResolution::Accept
+        );
         // Second event for same entity+type should be skipped under FWW
         assert_eq!(resolver.resolve(&second), ConflictResolution::Skip);
     }
@@ -452,9 +465,10 @@ mod tests {
     fn test_strategy_prefix_matching() {
         use allsource_core::cluster::MergeStrategy;
 
-        let resolver = CrdtResolver::with_strategies(vec![
-            ("config.".to_string(), MergeStrategy::LastWriteWins),
-        ]);
+        let resolver = CrdtResolver::with_strategies(vec![(
+            "config.".to_string(),
+            MergeStrategy::LastWriteWins,
+        )]);
 
         // "config.updated" matches "config." prefix
         let event = ReplicatedEvent {
@@ -489,9 +503,10 @@ mod tests {
         use allsource_core::cluster::MergeStrategy;
 
         // Only "config." has a strategy; "order." should fall back to AppendOnly
-        let resolver = CrdtResolver::with_strategies(vec![
-            ("config.".to_string(), MergeStrategy::FirstWriteWins),
-        ]);
+        let resolver = CrdtResolver::with_strategies(vec![(
+            "config.".to_string(),
+            MergeStrategy::FirstWriteWins,
+        )]);
 
         let order1 = ReplicatedEvent {
             event_id: "evt-1".to_string(),
@@ -506,9 +521,15 @@ mod tests {
             event_data: json!({"event_type": "order.placed", "entity_id": "o-1"}),
         };
 
-        assert_eq!(resolver.resolve_and_accept(&order1), ConflictResolution::Accept);
+        assert_eq!(
+            resolver.resolve_and_accept(&order1),
+            ConflictResolution::Accept
+        );
         // AppendOnly: second event for same entity+type is still accepted
-        assert_eq!(resolver.resolve_and_accept(&order2), ConflictResolution::Accept);
+        assert_eq!(
+            resolver.resolve_and_accept(&order2),
+            ConflictResolution::Accept
+        );
     }
 
     // =========================================================================

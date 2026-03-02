@@ -1,10 +1,9 @@
-use allframe::hyper::server::conn::http1;
-use allframe::hyper::service::service_fn;
-use allframe::tokio;
-use allframe::tracing;
+use allframe::{
+    hyper::{server::conn::http1, service::service_fn},
+    tokio, tracing,
+};
 use hyper_util::rt::TokioIo;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 mod auth;
 mod routes;
@@ -25,8 +24,8 @@ async fn main() {
         )
         .init();
 
-    let data_dir = std::env::var("REGISTRY_DATA_DIR")
-        .unwrap_or_else(|_| "/app/data/registry".into());
+    let data_dir =
+        std::env::var("REGISTRY_DATA_DIR").unwrap_or_else(|_| "/app/data/registry".into());
     let port: u16 = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())

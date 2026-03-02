@@ -1,6 +1,7 @@
-use allframe::tokio::fs;
-use allframe::tokio::io::AsyncWriteExt;
-use allframe::tracing;
+use allframe::{
+    tokio::{fs, io::AsyncWriteExt},
+    tracing,
+};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone)]

@@ -1,5 +1,7 @@
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::{
+    sync::atomic::{AtomicU32, AtomicU64, Ordering},
+    time::{Duration, Instant},
+};
 
 /// Circuit breaker states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

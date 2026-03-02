@@ -4,8 +4,7 @@
 
 #[cfg(feature = "embedded-projections")]
 mod tests {
-    use allsource_core::embedded::mcp_events::McpToolTracker;
-    use allsource_core::embedded::{Config, EmbeddedCore, Query};
+    use allsource_core::embedded::{Config, EmbeddedCore, Query, mcp_events::McpToolTracker};
     use serde_json::json;
 
     #[tokio::test]
@@ -13,7 +12,10 @@ mod tests {
         let core = open_core().await;
         let tracker = McpToolTracker::new(&core);
 
-        tracker.emit_tool_result("wf-1", "read_file", 50).await.unwrap();
+        tracker
+            .emit_tool_result("wf-1", "read_file", 50)
+            .await
+            .unwrap();
 
         let events = core
             .query(Query::new().entity_id("wf-1").event_type("mcp.tool.result"))
@@ -87,10 +89,12 @@ mod tests {
             .unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].payload["tool_name"], "web_search");
-        assert!(events[0].payload["error"]
-            .as_str()
-            .unwrap()
-            .contains("network timeout"));
+        assert!(
+            events[0].payload["error"]
+                .as_str()
+                .unwrap()
+                .contains("network timeout")
+        );
         assert!(events[0].payload["duration_ms"].as_u64().is_some());
     }
 
@@ -100,8 +104,14 @@ mod tests {
         let tracker = McpToolTracker::new(&core);
 
         // Emit some tool events
-        tracker.emit_tool_result("wf-e2e", "read_file", 42).await.unwrap();
-        tracker.emit_tool_result("wf-e2e", "read_file", 55).await.unwrap();
+        tracker
+            .emit_tool_result("wf-e2e", "read_file", 42)
+            .await
+            .unwrap();
+        tracker
+            .emit_tool_result("wf-e2e", "read_file", 55)
+            .await
+            .unwrap();
         tracker
             .emit_tool_error("wf-e2e", "web_search", "failed")
             .await

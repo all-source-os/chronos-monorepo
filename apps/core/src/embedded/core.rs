@@ -489,7 +489,7 @@ impl EmbeddedCore {
             Some(resolver) => {
                 let all_vv = resolver.all_version_vectors();
                 let mut merged = crate::infrastructure::cluster::crdt::VersionVector::new();
-                for (_region, vv) in &all_vv {
+                for vv in all_vv.values() {
                     merged.merge(vv);
                 }
                 merged.entries().clone()
@@ -502,17 +502,16 @@ impl EmbeddedCore {
     ///
     /// Returns `None` if sync is not configured (no `node_id`).
     pub fn region_id(&self) -> Option<String> {
-        self.hlc.as_ref().map(|hlc| format!("node-{}", hlc.node_id()))
+        self.hlc
+            .as_ref()
+            .map(|hlc| format!("node-{}", hlc.node_id()))
     }
 
     /// Receive events from a remote sync push.
     ///
     /// Applies CRDT conflict resolution to each event and ingests
     /// accepted events. Returns `(accepted, skipped)` counts.
-    pub async fn receive_sync_push(
-        &self,
-        events: Vec<ReplicatedEvent>,
-    ) -> Result<(usize, usize)> {
+    pub async fn receive_sync_push(&self, events: Vec<ReplicatedEvent>) -> Result<(usize, usize)> {
         let (Some(_hlc), Some(resolver)) = (&self.hlc, &self.resolver) else {
             return Err(crate::error::AllSourceError::InvalidInput(
                 "sync requires node_id to be configured".to_string(),
@@ -561,13 +560,8 @@ impl EmbeddedCore {
                         .unwrap_or(serde_json::json!({}));
                     let metadata = event_data.get("metadata").cloned();
 
-                    let domain_event = Event::from_strings(
-                        event_type,
-                        entity_id,
-                        tenant_id,
-                        payload,
-                        metadata,
-                    )?;
+                    let domain_event =
+                        Event::from_strings(event_type, entity_id, tenant_id, payload, metadata)?;
                     store.ingest(domain_event)?;
                 }
                 Ok::<(), crate::error::AllSourceError>(())
@@ -587,7 +581,10 @@ impl EmbeddedCore {
     /// newer than the threshold are returned).
     pub async fn events_for_sync(
         &self,
-        since_vv: &std::collections::BTreeMap<String, crate::infrastructure::cluster::hlc::HlcTimestamp>,
+        since_vv: &std::collections::BTreeMap<
+            String,
+            crate::infrastructure::cluster::hlc::HlcTimestamp,
+        >,
     ) -> Result<Vec<ReplicatedEvent>> {
         let Some(hlc) = &self.hlc else {
             return Err(crate::error::AllSourceError::InvalidInput(
@@ -596,11 +593,9 @@ impl EmbeddedCore {
         };
 
         let self_region = format!("node-{}", hlc.node_id());
-        let since = since_vv
-            .get(&self_region)
-            .map(|ts| {
-                chrono::DateTime::from_timestamp_millis(ts.physical_ms as i64).unwrap_or_default()
-            });
+        let since = since_vv.get(&self_region).map(|ts| {
+            chrono::DateTime::from_timestamp_millis(ts.physical_ms as i64).unwrap_or_default()
+        });
 
         let store = Arc::clone(&self.store);
         let all_events = tokio::task::spawn_blocking(move || {

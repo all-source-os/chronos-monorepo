@@ -5,8 +5,10 @@ pub mod npm;
 pub mod pypi;
 pub mod upload;
 
-use allframe::hyper::body::{Bytes, Incoming};
-use allframe::hyper::{Method, Request, Response, StatusCode};
+use allframe::hyper::{
+    Method, Request, Response, StatusCode,
+    body::{Bytes, Incoming},
+};
 use http_body_util::Full;
 use std::convert::Infallible;
 
@@ -54,10 +56,7 @@ fn unauthorized() -> BoxResponse {
     json_response(StatusCode::UNAUTHORIZED, r#"{"error":"unauthorized"}"#)
 }
 
-pub async fn dispatch(
-    state: AppState,
-    req: Request<Incoming>,
-) -> Result<BoxResponse, Infallible> {
+pub async fn dispatch(state: AppState, req: Request<Incoming>) -> Result<BoxResponse, Infallible> {
     let path = req.uri().path().to_string();
     let method = req.method().clone();
 

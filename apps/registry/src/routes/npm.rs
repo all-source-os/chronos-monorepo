@@ -14,9 +14,7 @@ pub async fn handle(state: &AppState, path: &str) -> BoxResponse {
         let storage_path = format!("npm/{pkg}/-/{tarball}");
         return match state.storage.read_file(&storage_path).await {
             Some(data) => super::bytes_response(StatusCode::OK, "application/octet-stream", data),
-            None => {
-                super::json_response(StatusCode::NOT_FOUND, r#"{"error":"tarball not found"}"#)
-            }
+            None => super::json_response(StatusCode::NOT_FOUND, r#"{"error":"tarball not found"}"#),
         };
     }
 

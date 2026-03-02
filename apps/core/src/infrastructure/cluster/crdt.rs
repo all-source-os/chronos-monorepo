@@ -238,9 +238,7 @@ impl CrdtResolver {
             MergeStrategy::LastWriteWins => {
                 let key = format!("{}\x00{}", entity_id, event_type);
                 match self.entity_type_winners.get(&key) {
-                    Some(existing) if event.hlc_timestamp <= *existing => {
-                        ConflictResolution::Skip
-                    }
+                    Some(existing) if event.hlc_timestamp <= *existing => ConflictResolution::Skip,
                     _ => ConflictResolution::Accept,
                 }
             }
