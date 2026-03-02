@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/core", "apps/chronon", "apps/registry", "tooling/performance", "sdks/rust"]
+members = ["apps/core", "apps/registry", "tooling/performance", "sdks/rust"]
 
 [workspace.dependencies]
 
