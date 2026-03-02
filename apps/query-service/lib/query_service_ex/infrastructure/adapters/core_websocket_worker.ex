@@ -30,10 +30,10 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketWorker do
     # Resolve hostname, preferring IPv6 for Fly.io .internal DNS (AAAA-only).
     # Mint's transport_opts must be a keyword list, so we can't pass bare :inet6.
     # Instead, resolve to an IP address and connect directly.
-    {connect_address, transport_opts} = resolve_host(host, timeout)
+    {connect_address, connect_opts} = resolve_host(host, timeout)
 
     with {:ok, conn} <-
-           Mint.HTTP.connect(scheme, connect_address, port, transport_opts: transport_opts),
+           Mint.HTTP.connect(scheme, connect_address, port, connect_opts),
          {:ok, conn, ref} <- Mint.WebSocket.upgrade(ws_scheme, conn, path, extra_headers) do
       state = %__MODULE__{conn: conn, ref: ref, parent: parent, url: url}
       {:ok, state, {:continue, :await_upgrade}}
@@ -195,16 +195,17 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketWorker do
   end
 
   # Resolve hostname, trying IPv6 first for Fly.io .internal DNS compatibility.
-  # Returns {address, transport_opts} where address is either an IP tuple or hostname string.
+  # Returns {address, connect_opts} where address is either an IP tuple or hostname string.
+  # When passing an IP tuple, Mint requires an explicit :hostname option.
   defp resolve_host(host, timeout) do
     case :inet.getaddr(String.to_charlist(host), :inet6) do
       {:ok, ipv6_addr} ->
-        Logger.debug("[CoreWebSocketWorker] Resolved #{host} to IPv6: #{:inet.ntoa(ipv6_addr)}")
-        {ipv6_addr, [timeout: timeout]}
+        Logger.info("[CoreWebSocketWorker] Resolved #{host} to IPv6: #{:inet.ntoa(ipv6_addr)}")
+        {ipv6_addr, [hostname: host, transport_opts: [timeout: timeout]]}
 
       {:error, _} ->
         # Fall back to letting Mint resolve (works for IPv4 / localhost)
-        {host, [timeout: timeout]}
+        {host, [transport_opts: [timeout: timeout]]}
     end
   end
 end
