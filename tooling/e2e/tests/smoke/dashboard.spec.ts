@@ -74,11 +74,11 @@ test.describe("Dashboard Overview (/dashboard)", () => {
     await waitForDashboardLoad(page);
 
     // Banner now shows real instance metrics instead of hardcoded marketing numbers
-    await expect(page.getByText("Your Event Store")).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText("total events")).toBeVisible();
-    await expect(page.getByText("p99 latency")).toBeVisible();
-    await expect(page.getByText("active projections")).toBeVisible();
-    await expect(page.getByText("storage used")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your Event Store" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("total events", { exact: true })).toBeVisible();
+    await expect(page.getByText("p99 latency", { exact: true })).toBeVisible();
+    await expect(page.getByText("active projections", { exact: true })).toBeVisible();
+    await expect(page.getByText("storage used", { exact: true })).toBeVisible();
   });
 });
 
