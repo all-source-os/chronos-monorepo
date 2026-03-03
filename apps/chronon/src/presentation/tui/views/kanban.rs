@@ -1,12 +1,13 @@
-use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
+use ratatui::{
+    Frame,
+    layout::{Constraint, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::Line,
+    widgets::{Block, Borders, List, ListItem, ListState},
+};
 
-use crate::domain::repository::TaskRepository;
-use crate::domain::task::TaskStatus;
 use super::super::app::{App, KanbanColumn};
+use crate::domain::{repository::TaskRepository, task::TaskStatus};
 
 pub fn render<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
     let columns = Layout::horizontal([
@@ -16,9 +17,30 @@ pub fn render<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
     ])
     .split(area);
 
-    render_column(f, columns[0], app, TaskStatus::Open, KanbanColumn::Open, "Open");
-    render_column(f, columns[1], app, TaskStatus::InProgress, KanbanColumn::InProgress, "In Progress");
-    render_column(f, columns[2], app, TaskStatus::Done, KanbanColumn::Done, "Done");
+    render_column(
+        f,
+        columns[0],
+        app,
+        TaskStatus::Open,
+        KanbanColumn::Open,
+        "Open",
+    );
+    render_column(
+        f,
+        columns[1],
+        app,
+        TaskStatus::InProgress,
+        KanbanColumn::InProgress,
+        "In Progress",
+    );
+    render_column(
+        f,
+        columns[2],
+        app,
+        TaskStatus::Done,
+        KanbanColumn::Done,
+        "Done",
+    );
 }
 
 fn render_column<R: TaskRepository>(
@@ -30,7 +52,11 @@ fn render_column<R: TaskRepository>(
     title: &str,
 ) {
     let is_active = app.kanban_column == column;
-    let border_color = if is_active { Color::Cyan } else { Color::DarkGray };
+    let border_color = if is_active {
+        Color::Cyan
+    } else {
+        Color::DarkGray
+    };
 
     let tasks = app.tasks_by_status(status);
     let count = tasks.len();

@@ -8,4 +8,4 @@ catch
   _, _ -> :ok
 end
 
-ExUnit.start(exclude: [:integration])
+ExUnit.start(exclude: [:integration, :embedded])

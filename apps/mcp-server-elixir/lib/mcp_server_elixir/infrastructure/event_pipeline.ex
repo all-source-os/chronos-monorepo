@@ -53,8 +53,6 @@ defmodule McpServerElixir.Infrastructure.EventPipeline do
   require Logger
 
   alias McpServerElixir.Infrastructure.ProjectionSync
-  alias McpServerElixir.Infrastructure.CoreClient
-
   @default_batch_size 100
   @default_batch_timeout_ms 50
 
@@ -136,9 +134,7 @@ defmodule McpServerElixir.Infrastructure.EventPipeline do
           batch_timeout: batch_timeout_ms
         ]
       ],
-      context: %{
-        core_client: CoreClient.new()
-      }
+      context: %{}
     )
   end
 
@@ -206,7 +202,7 @@ defmodule McpServerElixir.Infrastructure.EventPipeline do
   end
 
   @impl Broadway
-  def handle_batch(:projection_updates, messages, _batch_info, context) do
+  def handle_batch(:projection_updates, messages, _batch_info, _context) do
     start_time = System.monotonic_time(:microsecond)
 
     # Collect all projection updates from messages
@@ -220,7 +216,7 @@ defmodule McpServerElixir.Infrastructure.EventPipeline do
 
     # Bulk save to Core (fire-and-forget for performance, ProjectionSync handles sync)
     Task.start(fn ->
-      bulk_save_to_core(updates, context.core_client)
+      bulk_save_to_core(updates)
     end)
 
     duration_us = System.monotonic_time(:microsecond) - start_time
@@ -332,7 +328,7 @@ defmodule McpServerElixir.Infrastructure.EventPipeline do
       %{saved: 0, error: e}
   end
 
-  defp bulk_save_to_core(updates_by_projection, _core_client) do
+  defp bulk_save_to_core(updates_by_projection) do
     base_url = Application.get_env(:mcp_server_elixir, :core_url, "http://localhost:3900")
 
     Enum.each(updates_by_projection, fn {projection_name, updates} ->

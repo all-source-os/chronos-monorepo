@@ -9,7 +9,7 @@ defmodule McpServerElixir.Server do
   use GenServer
   require Logger
 
-  alias McpServerElixir.Infrastructure.{ControlPlaneClient, CoreClient}
+  alias McpServerElixir.Infrastructure.ControlPlaneClient
   alias McpServerElixir.Protocol.{JsonRpc, McpTools}
 
   @server_info %{
@@ -52,9 +52,16 @@ defmodule McpServerElixir.Server do
           "ℹ️  Control plane not configured (set ALLSOURCE_CONTROL_URL to enable tenant tools)"
         )
 
+    backend =
+      Application.get_env(
+        :mcp_server_elixir,
+        :core_backend,
+        McpServerElixir.Infrastructure.CoreClient
+      )
+
     {:ok,
      %{
-       core_client: CoreClient.new(),
+       backend: backend,
        control_client: ControlPlaneClient.new(),
        read_only: read_only,
        control_plane_enabled: control_plane_enabled

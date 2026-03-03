@@ -39,8 +39,6 @@ defmodule McpServerElixir.Infrastructure.ProjectionSync do
   use GenServer
   require Logger
 
-  alias McpServerElixir.Infrastructure.CoreClient
-
   @default_sync_interval_ms 100
   @ets_state_table :projection_state
   @ets_dirty_table :projection_dirty
@@ -147,7 +145,6 @@ defmodule McpServerElixir.Infrastructure.ProjectionSync do
     state = %{
       sync_interval_ms: sync_interval,
       projections: projections,
-      core_client: CoreClient.new(),
       synced_count: 0,
       sync_errors: 0,
       last_sync_at: nil,
@@ -218,7 +215,7 @@ defmodule McpServerElixir.Infrastructure.ProjectionSync do
 
   @impl true
   def handle_call({:load_from_core, projection_name, entity_ids}, _from, state) do
-    result = load_entities_from_core(state.core_client, projection_name, entity_ids)
+    result = load_entities_from_core(projection_name, entity_ids)
     {:reply, result, state}
   end
 
@@ -332,7 +329,7 @@ defmodule McpServerElixir.Infrastructure.ProjectionSync do
     state
   end
 
-  defp load_entities_from_core(_client, projection_name, entity_ids) do
+  defp load_entities_from_core(projection_name, entity_ids) do
     url =
       Application.get_env(:mcp_server_elixir, :core_url, "http://localhost:3900") <>
         "/api/v1/projections/#{projection_name}/bulk"

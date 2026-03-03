@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     config::EmbeddedConfig,
-    types::{EventView, IngestEvent, Query},
+    types::{DurabilityStatus, EventView, IngestEvent, Query},
 };
 
 /// High-level facade over [`EventStore`] for embedded (library) use.
@@ -476,6 +476,88 @@ impl EmbeddedCore {
     /// Get basic statistics about this store instance.
     pub fn stats(&self) -> StoreStats {
         self.store.stats()
+    }
+
+    /// Get durability status — compares in-memory, WAL, and Parquet layers.
+    ///
+    /// Returns a [`DurabilityStatus`] with per-layer counts and warnings
+    /// when data exists only in volatile memory (not yet durable on disk).
+    /// Use this to detect silent data-loss conditions like the checkpoint
+    /// bug fixed in issue #84.
+    pub fn durability_status(&self) -> DurabilityStatus {
+        let store_stats = self.store.stats();
+        let memory_events = store_stats.total_events;
+
+        let (wal_enabled, wal_entries, wal_bytes, wal_sequence) = match self.store.wal() {
+            Some(wal) => {
+                let ws = wal.stats();
+                (
+                    true,
+                    ws.total_entries,
+                    ws.total_bytes_written,
+                    wal.current_sequence(),
+                )
+            }
+            None => (false, 0, 0, 0),
+        };
+
+        let (parquet_enabled, parquet_files, parquet_bytes, parquet_pending_batch) =
+            match self.store.parquet_storage() {
+                Some(storage) => match storage.read().stats() {
+                    Ok(ps) => (
+                        true,
+                        ps.total_files,
+                        ps.total_size_bytes,
+                        ps.current_batch_size,
+                    ),
+                    Err(_) => (true, 0, 0, 0),
+                },
+                None => (false, 0, 0, 0),
+            };
+
+        // Determine if data is durable (survives a crash)
+        let durable = memory_events == 0 || parquet_files > 0 || wal_entries > 0;
+
+        let mut warnings = Vec::new();
+
+        if memory_events > 0 && !wal_enabled && !parquet_enabled {
+            warnings.push(format!(
+                "{} events in memory only — no WAL or Parquet configured, data lost on restart",
+                memory_events
+            ));
+        }
+
+        if memory_events > 0
+            && parquet_files == 0
+            && wal_entries == 0
+            && (wal_enabled || parquet_enabled)
+        {
+            warnings.push(format!(
+                "{} events in memory but 0 in WAL and 0 Parquet files — data loss on restart",
+                memory_events
+            ));
+        }
+
+        if parquet_pending_batch > 0 && parquet_files == 0 {
+            warnings.push(format!(
+                "{} events buffered in Parquet batch but no Parquet files written yet",
+                parquet_pending_batch
+            ));
+        }
+
+        DurabilityStatus {
+            memory_events,
+            wal_enabled,
+            wal_entries,
+            wal_bytes,
+            wal_sequence,
+            parquet_enabled,
+            parquet_files,
+            parquet_bytes,
+            parquet_pending_batch,
+            durable,
+            warnings,
+        }
     }
 
     /// Get the merged version vector across all known regions.

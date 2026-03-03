@@ -1,12 +1,16 @@
-use axum::extract::{Path, Query, State};
-use axum::http::{header, StatusCode};
-use axum::response::{Html, IntoResponse, Json, Response};
+use axum::{
+    extract::{Path, Query, State},
+    http::{StatusCode, header},
+    response::{Html, IntoResponse, Json, Response},
+};
 use serde::Deserialize;
 
-use crate::domain::error::ChronError;
-use crate::domain::repository::TaskRepository;
-use crate::domain::task::{Task, TaskStatus};
 use super::state::AppState;
+use crate::domain::{
+    error::ChronError,
+    repository::TaskRepository,
+    task::{Task, TaskStatus},
+};
 
 // --- Static assets ---
 
@@ -140,9 +144,7 @@ fn task_row_html(task: &Task) -> String {
     s
 }
 
-pub async fn partial_task_list(
-    State(state): State<AppState>,
-) -> Result<Html<String>, AppError> {
+pub async fn partial_task_list(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let tasks = state.repo.list_tasks(None)?;
     let mut html = String::new();
     for task in &tasks {
@@ -150,7 +152,9 @@ pub async fn partial_task_list(
         html.push('\n');
     }
     if tasks.is_empty() {
-        html.push_str("<tr><td colspan=\"7\" style=\"text-align:center;color:#666\">No tasks</td></tr>");
+        html.push_str(
+            "<tr><td colspan=\"7\" style=\"text-align:center;color:#666\">No tasks</td></tr>",
+        );
     }
     Ok(Html(html))
 }
@@ -237,9 +241,7 @@ fn kanban_card_html(task: &Task) -> String {
     s
 }
 
-pub async fn partial_kanban(
-    State(state): State<AppState>,
-) -> Result<Html<String>, AppError> {
+pub async fn partial_kanban(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let tasks = state.repo.list_tasks(None)?;
 
     let mut html = String::from("<div class=\"kanban-board\">");

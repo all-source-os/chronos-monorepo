@@ -4,7 +4,7 @@ defmodule McpServerElixir.MixProject do
   def project do
     [
       app: :mcp_server_elixir,
-      version: "0.13.0",
+      version: "0.13.1",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -33,6 +33,9 @@ defmodule McpServerElixir.MixProject do
 
   defp deps do
     [
+      # Rustler NIF for embedded Core
+      {:rustler, "~> 0.36", optional: true},
+
       # HTTP Client
       {:tesla, "~> 1.11"},
       {:hackney, "~> 1.20"},

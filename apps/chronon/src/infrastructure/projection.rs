@@ -1,6 +1,6 @@
-use allsource_core::application::services::projection::Projection;
-use allsource_core::domain::entities::Event;
-use allsource_core::error::Result;
+use allsource_core::{
+    application::services::projection::Projection, domain::entities::Event, error::Result,
+};
 use dashmap::DashMap;
 use serde_json::{Value, json};
 
@@ -73,10 +73,7 @@ impl Projection for TaskProjection {
             }
             "task.dependency.added" => {
                 if let Some(mut state) = self.states.get_mut(&entity_id) {
-                    let dep_id = payload
-                        .get("depends_on")
-                        .cloned()
-                        .unwrap_or(json!(null));
+                    let dep_id = payload.get("depends_on").cloned().unwrap_or(json!(null));
                     if let Some(arr) = state["blocked_by"].as_array_mut() {
                         if !arr.contains(&dep_id) {
                             arr.push(dep_id);
@@ -96,10 +93,7 @@ impl Projection for TaskProjection {
             "workflow.claimed" => {
                 if let Some(mut state) = self.states.get_mut(&entity_id) {
                     // First-write-wins: only accept claim if still open
-                    let status = state
-                        .get("status")
-                        .and_then(|s| s.as_str())
-                        .unwrap_or("");
+                    let status = state.get("status").and_then(|s| s.as_str()).unwrap_or("");
                     if status == "open" {
                         state["status"] = json!("in-progress");
                         if let Some(agent) = payload.get("agent_id") {

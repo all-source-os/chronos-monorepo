@@ -1,15 +1,17 @@
-use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
+use ratatui::{
+    Frame,
+    layout::{Constraint, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
+};
 
-use crate::domain::repository::TaskRepository;
 use super::super::app::App;
+use crate::domain::repository::TaskRepository;
 
 pub fn render<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
-    let chunks = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
+    let chunks =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
 
     render_task_table(f, chunks[0], app);
     render_detail(f, chunks[1], app);
@@ -23,7 +25,11 @@ fn render_task_table<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>)
         Cell::from("Status"),
         Cell::from("Claimed"),
     ])
-    .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
+    .style(
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    );
 
     let rows: Vec<Row> = app
         .tasks
@@ -129,7 +135,9 @@ fn render_detail<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
             lines.push(Line::from(""));
             lines.push(Line::styled(
                 "Timeline:",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ));
             for entry in &detail.timeline {
                 lines.push(Line::from(vec![

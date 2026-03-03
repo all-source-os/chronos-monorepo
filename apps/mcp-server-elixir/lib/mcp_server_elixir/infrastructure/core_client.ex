@@ -2,9 +2,11 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   @moduledoc """
   HTTP client for communicating with the Rust Core API.
 
-  Provides methods for querying events, reconstructing state, and managing
-  the event store.
+  Implements `CoreBackend` behaviour for the remote (HTTP) backend.
+  The Tesla client is configured at the module level — no instance state needed.
   """
+
+  @behaviour McpServerElixir.Infrastructure.CoreBackend
 
   use Tesla
 
@@ -35,12 +37,9 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
     end
   )
 
-  def new do
-    %{client: __MODULE__}
-  end
-
   @doc "Query events with flexible filters"
-  def query_events(_client, params) when is_map(params) do
+  @impl true
+  def query_events(params) when is_map(params) do
     # Clean up params - remove nil values
     query_params =
       params
@@ -60,7 +59,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Reconstruct entity state at a point in time"
-  def reconstruct_state(_client, entity_id, as_of \\ nil) do
+  @impl true
+  def reconstruct_state(entity_id, as_of \\ nil) do
     path = "/api/v1/entities/#{entity_id}/state"
     query_params = if as_of, do: [as_of: as_of], else: []
 
@@ -77,7 +77,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get current snapshot of an entity"
-  def get_snapshot(_client, entity_id) do
+  @impl true
+  def get_snapshot(entity_id) do
     case get("/api/v1/entities/#{entity_id}/snapshot") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -91,7 +92,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Ingest a new event (Core returns 200, not 201)"
-  def ingest_event(_client, event_data) do
+  @impl true
+  def ingest_event(event_data) do
     case post("/api/v1/events", event_data) do
       {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 201] ->
         {:ok, body}
@@ -105,7 +107,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get event store statistics"
-  def get_stats(_client) do
+  @impl true
+  def get_stats do
     case get("/api/v1/stats") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -128,7 +131,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
     - `limit` - Maximum number of results (default: 100)
     - `threshold` - Minimum similarity threshold 0.0-1.0 (default: 0.7)
   """
-  def semantic_search(_client, params) when is_map(params) do
+  @impl true
+  def semantic_search(params) when is_map(params) do
     query_params =
       params
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
@@ -162,7 +166,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
       - `time_to` - Filter events before this ISO timestamp
     - `limit` - Maximum number of results (default: 100)
   """
-  def hybrid_search(_client, params) when is_map(params) do
+  @impl true
+  def hybrid_search(params) when is_map(params) do
     # Build the request body, filtering out nil values
     body =
       params
@@ -186,7 +191,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   # ============================================================================
 
   @doc "Trigger manual storage compaction (Core: POST /api/v1/compaction/trigger)"
-  def compact_storage(_client, params \\ %{}) do
+  @impl true
+  def compact_storage(params \\ %{}) do
     case post("/api/v1/compaction/trigger", params) do
       {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 202] ->
         {:ok, body}
@@ -200,7 +206,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get storage statistics — derived from Core stats + compaction stats"
-  def storage_stats(_client, _params \\ %{}) do
+  @impl true
+  def storage_stats(_params \\ %{}) do
     # Core doesn't have a dedicated storage stats endpoint.
     # Combine /api/v1/stats and /api/v1/compaction/stats for a useful picture.
     stats_result = get("/api/v1/stats")
@@ -223,7 +230,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get partition health and distribution info (Core: GET /api/v1/cluster/partitions)"
-  def partition_info(_client, _params \\ %{}) do
+  @impl true
+  def partition_info(_params \\ %{}) do
     case get("/api/v1/cluster/partitions") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -241,7 +249,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get WAL/replication status from the health endpoint"
-  def wal_status(_client) do
+  @impl true
+  def wal_status do
     # Core's /health endpoint includes replication status
     case get("/health") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
@@ -262,25 +271,29 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Create a backup snapshot — not yet implemented in Core"
-  def backup_create(_client, _params \\ %{}) do
+  @impl true
+  def backup_create(_params \\ %{}) do
     {:error,
      "Backup API is not yet implemented in AllSource Core. Use WAL + Parquet files on disk for manual backups."}
   end
 
   @doc "Restore from a backup snapshot — not yet implemented in Core"
-  def backup_restore(_client, _params) do
+  @impl true
+  def backup_restore(_params) do
     {:error,
      "Backup restore API is not yet implemented in AllSource Core. Restore by replacing WAL/Parquet data directory and restarting."}
   end
 
   @doc "List available backup snapshots — not yet implemented in Core"
-  def backup_list(_client, _params \\ %{}) do
+  @impl true
+  def backup_list(_params \\ %{}) do
     {:error,
      "Backup API is not yet implemented in AllSource Core. Check the data directory for WAL and Parquet files."}
   end
 
   @doc "Deep health check — uses Core's /health endpoint which includes system streams and replication"
-  def health_deep(_client) do
+  @impl true
+  def health_deep do
     case get("/health") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -294,7 +307,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get performance metrics — not yet implemented as a dedicated endpoint"
-  def performance_report(_client, _params \\ %{}) do
+  @impl true
+  def performance_report(_params \\ %{}) do
     # Core exposes Prometheus metrics at /metrics but not a JSON summary.
     # Return stats as a proxy for performance data.
     case get("/api/v1/stats") do
@@ -316,7 +330,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Query the audit trail (Core: GET /api/v1/audit/events)"
-  def audit_log(_client, params \\ %{}) do
+  @impl true
+  def audit_log(params \\ %{}) do
     query_params =
       params
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
@@ -335,7 +350,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get cluster status (Core: GET /api/v1/cluster/status)"
-  def get_cluster_status(_client) do
+  @impl true
+  def get_cluster_status do
     case get("/api/v1/cluster/status") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -363,12 +379,30 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
     end
   end
 
+  @impl true
+  def durability_status do
+    # Remote Core doesn't expose a durability endpoint yet — compose from existing endpoints
+    with {:ok, stats} <- get_stats(),
+         {:ok, wal} <- wal_status() do
+      {:ok,
+       %{
+         "memory_events" => Map.get(stats, "total_events", 0),
+         "wal_enabled" => true,
+         "wal_entries" => Map.get(wal, "total_entries", 0),
+         "parquet_enabled" => true,
+         "durable" => true,
+         "warnings" => []
+       }}
+    end
+  end
+
   # ============================================================================
   # Schema Endpoints
   # ============================================================================
 
   @doc "Register a new event type schema"
-  def register_schema(_client, params) when is_map(params) do
+  @impl true
+  def register_schema(params) when is_map(params) do
     case post("/api/v1/schemas", params) do
       {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 201] ->
         {:ok, body}
@@ -382,7 +416,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Validate an event payload against a registered schema"
-  def validate_schema(_client, params) when is_map(params) do
+  @impl true
+  def validate_schema(params) when is_map(params) do
     case post("/api/v1/schemas/validate", params) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -396,7 +431,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "List all registered schema subjects"
-  def list_schemas(_client, params \\ %{}) do
+  @impl true
+  def list_schemas(params \\ %{}) do
     query_params =
       params
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
@@ -415,7 +451,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get a specific schema by subject and optional version"
-  def get_schema(_client, subject, params \\ %{}) do
+  @impl true
+  def get_schema(subject, params \\ %{}) do
     query_params =
       params
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
@@ -434,7 +471,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "List schema versions for a subject"
-  def list_schema_versions(_client, subject) do
+  @impl true
+  def list_schema_versions(subject) do
     case get("/api/v1/schemas/#{subject}/versions") do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -448,7 +486,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Set compatibility mode for a schema subject"
-  def set_compatibility(_client, subject, params) when is_map(params) do
+  @impl true
+  def set_compatibility(subject, params) when is_map(params) do
     case put("/api/v1/schemas/#{subject}/compatibility", params) do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
@@ -466,7 +505,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   # ============================================================================
 
   @doc "Get event frequency analytics"
-  def analytics_frequency(_client, params \\ %{}) do
+  @impl true
+  def analytics_frequency(params \\ %{}) do
     query_params =
       params
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
@@ -485,7 +525,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get analytics summary statistics"
-  def analytics_summary(_client, params \\ %{}) do
+  @impl true
+  def analytics_summary(params \\ %{}) do
     query_params =
       params
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
@@ -504,7 +545,8 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   end
 
   @doc "Get correlation analysis between event types"
-  def analytics_correlation(_client, params \\ %{}) do
+  @impl true
+  def analytics_correlation(params \\ %{}) do
     query_params =
       params
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)

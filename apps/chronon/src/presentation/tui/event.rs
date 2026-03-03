@@ -1,7 +1,7 @@
-use std::time::Duration;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
-use crate::domain::repository::TaskRepository;
 use super::app::{App, View};
+use crate::domain::repository::TaskRepository;
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use std::time::Duration;
 
 pub enum AppEvent {
     Tick,

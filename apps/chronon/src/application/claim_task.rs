@@ -1,5 +1,4 @@
-use crate::domain::error::ChronError;
-use crate::domain::repository::TaskRepository;
+use crate::domain::{error::ChronError, repository::TaskRepository};
 
 pub async fn claim_task(
     repo: &impl TaskRepository,

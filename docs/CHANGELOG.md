@@ -4,6 +4,18 @@ All notable changes to AllSource Chronos are documented here.
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-03-03
+
+### Fixed
+- **WAL recovery checkpoint bug** (Issue #84): `EventStore::with_config` recovery path now buffers WAL events into Parquet's `current_batch` before flushing. Previously `flush_storage()` was a silent no-op (empty batch), then the WAL was truncated — leaving events only in volatile memory, lost on next restart.
+
+### Added
+- **`EmbeddedCore::durability_status()`**: New API that compares in-memory, WAL, and Parquet layers, returning per-layer counts and warnings when data exists only in volatile memory.
+- **Real durability data in MCP tools**: `wal_status`, `storage_stats`, and `health_deep` tools now return actual WAL/Parquet metrics (entries, bytes, file count, pending batch) instead of stub `total_events` from in-memory store. `health_deep` reports `"degraded"` with warnings when data is not durable.
+- **`DurabilityStatus` struct**: Exported from `allsource_core::embedded` with `memory_events`, `wal_enabled/entries/bytes/sequence`, `parquet_enabled/files/bytes/pending_batch`, `durable` flag, and `warnings` vec.
+- **Regression test**: `test_wal_recovery_checkpoints_to_parquet` — 3-session test (ingest → crash → reopen → verify → reopen → verify) proving events survive restart via Parquet checkpoint.
+- **NIF `nif_durability_status`**: Full durability status exposed through Rustler NIF to Elixir MCP server.
+
 ## [0.12.0] - 2026-03-01
 
 ### Added

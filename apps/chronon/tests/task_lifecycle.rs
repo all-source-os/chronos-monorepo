@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use allsource_core::embedded::{Config, EmbeddedCore};
-use chronon::domain::error::ChronError;
-use chronon::domain::repository::TaskRepository;
-use chronon::infrastructure::core_task_repo::CoreTaskRepository;
-use chronon::infrastructure::projection::TaskProjection;
+use chronon::{
+    domain::{error::ChronError, repository::TaskRepository},
+    infrastructure::{core_task_repo::CoreTaskRepository, projection::TaskProjection},
+};
 
 async fn setup() -> CoreTaskRepository {
     let config = Config::builder()
@@ -22,7 +22,9 @@ async fn setup() -> CoreTaskRepository {
 #[tokio::test]
 async fn create_and_list_task() {
     let repo = setup().await;
-    repo.create_task("t-0001", "Write tests", "p1", &[]).await.unwrap();
+    repo.create_task("t-0001", "Write tests", "p1", &[])
+        .await
+        .unwrap();
 
     let tasks = repo.list_tasks(None).unwrap();
     assert_eq!(tasks.len(), 1);
@@ -35,7 +37,9 @@ async fn create_and_list_task() {
 #[tokio::test]
 async fn full_lifecycle_create_claim_done() {
     let repo = setup().await;
-    repo.create_task("t-0001", "Build feature", "p0", &[]).await.unwrap();
+    repo.create_task("t-0001", "Build feature", "p0", &[])
+        .await
+        .unwrap();
 
     repo.claim_task("t-0001", "agent-1").await.unwrap();
     let task = repo.get_task("t-0001").unwrap();
@@ -120,7 +124,9 @@ async fn get_task_returns_timeline() {
 #[tokio::test]
 async fn approve_task() {
     let repo = setup().await;
-    repo.create_task("t-0001", "Review", "p1", &[]).await.unwrap();
+    repo.create_task("t-0001", "Review", "p1", &[])
+        .await
+        .unwrap();
     repo.approve_task("t-0001").await.unwrap();
 
     let task = repo.get_task("t-0001").unwrap();

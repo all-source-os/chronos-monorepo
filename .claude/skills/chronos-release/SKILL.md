@@ -52,16 +52,36 @@ Check for any other version references that `set-version` might miss:
 
 ### 4. Run CI to green
 
+**IMPORTANT: Run the three quality gates in PARALLEL, not sequentially.**
+
+`make ci` runs Rust → Go → Elixir sequentially, which takes 10+ minutes per iteration. Instead, launch all three as background tasks:
+
 ```bash
-make ci
+# Launch all three in parallel (use run_in_background for each)
+make quality-rust 2>&1 | tail -5      # ~3-4 min (clippy + test + doc)
+make quality-go 2>&1 | tail -5        # ~30 sec
+make quality-elixir-full 2>&1 | tail -10  # ~4-5 min (dialyzer + tests)
 ```
 
-If CI fails, fix all issues iteratively:
-- **Rust**: `cargo +nightly fmt`, `cargo +nightly sort`, clippy fixes, doc link fixes
+Wait for all three to complete, then check results. This cuts CI time from 10+ min to ~4 min per iteration.
+
+**For targeted re-checks after fixes**, only re-run the affected gate:
+- Rust fix → `make quality-rust`
+- Elixir fix → `make quality-elixir-full`
+- Go fix → `make quality-go`
+
+**Pre-fix common issues before running gates** to minimize iterations:
+```bash
+# Always run these before the first CI attempt:
+cargo +nightly fmt --all
+cargo +nightly sort --workspace
+cd apps/mcp-server-elixir && mix format && cd ../query-service && mix format && cd ../..
+```
+
+If CI fails, fix issues and re-run only the failing gate(s):
+- **Rust**: `cargo +nightly fmt --all`, `cargo +nightly sort --workspace`, clippy fixes, doc link fixes
 - **Go**: `gofmt`, golangci-lint fixes
 - **Elixir**: `mix format`, `mix deps.unlock --unused`, credo fixes, test fixes
-
-Re-run `make ci` after each round of fixes until it passes.
 
 ### 5. Commit (single squashed commit)
 

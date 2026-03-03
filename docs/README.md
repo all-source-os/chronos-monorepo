@@ -91,6 +91,7 @@ How-to documentation for common tasks.
 | [Branch Protection](./guides/BRANCH_PROTECTION.md) | Git workflow protection | ✅ |
 | [MCP Demo Script](./guides/mcp-server/DEMO_SCRIPT.md) | MCP demonstration walkthrough | ✅ |
 | [MCP Quick Reference](./guides/mcp-server/QUICK_REFERENCE.md) | MCP tool reference card | ✅ |
+| [Claude Code Skills](./guides/CLAUDE_CODE_SKILLS.md) | Automated testing, release, and diagnostics skills | ✅ |
 
 ---
 

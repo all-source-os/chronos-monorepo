@@ -1,6 +1,7 @@
-use crate::domain::error::ChronError;
-use crate::domain::repository::TaskRepository;
-use crate::infrastructure::id::generate_task_id;
+use crate::{
+    domain::{error::ChronError, repository::TaskRepository},
+    infrastructure::id::generate_task_id,
+};
 
 pub struct CreateTaskInput<'a> {
     pub title: &'a str,

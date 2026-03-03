@@ -43,4 +43,4 @@ mod types;
 
 pub use self::core::EmbeddedCore;
 pub use config::{ConfigBuilder, EmbeddedConfig as Config};
-pub use types::{EventView, IngestEvent, Query};
+pub use types::{DurabilityStatus, EventView, IngestEvent, Query};

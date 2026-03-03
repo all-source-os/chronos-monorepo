@@ -223,35 +223,34 @@ impl EventStore {
         };
 
         // Step 1: Load persisted events from Parquet (the durable baseline)
-        if let Some(ref storage) = store.storage {
-            if let Ok(persisted_events) = storage.read().load_all_events() {
-                if !persisted_events.is_empty() {
-                    tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
+        if let Some(ref storage) = store.storage
+            && let Ok(persisted_events) = storage.read().load_all_events()
+            && !persisted_events.is_empty()
+        {
+            tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
 
-                    for event in persisted_events {
-                        let offset = store.events.read().len();
-                        if let Err(e) = store.index.index_event(
-                            event.id,
-                            event.entity_id_str(),
-                            event.event_type_str(),
-                            event.timestamp,
-                            offset,
-                        ) {
-                            tracing::error!("Failed to re-index event {}: {}", event.id, e);
-                        }
-
-                        if let Err(e) = store.projections.read().process_event(&event) {
-                            tracing::error!("Failed to re-process event {}: {}", event.id, e);
-                        }
-
-                        store.events.write().push(event);
-                    }
-
-                    let total = store.events.read().len();
-                    *store.total_ingested.write() = total as u64;
-                    tracing::info!("✅ Successfully loaded {} events from storage", total);
+            for event in persisted_events {
+                let offset = store.events.read().len();
+                if let Err(e) = store.index.index_event(
+                    event.id,
+                    event.entity_id_str(),
+                    event.event_type_str(),
+                    event.timestamp,
+                    offset,
+                ) {
+                    tracing::error!("Failed to re-index event {}: {}", event.id, e);
                 }
+
+                if let Err(e) = store.projections.read().process_event(&event) {
+                    tracing::error!("Failed to re-process event {}: {}", event.id, e);
+                }
+
+                store.events.write().push(event);
             }
+
+            let total = store.events.read().len();
+            *store.total_ingested.write() = total as u64;
+            tracing::info!("✅ Successfully loaded {} events from storage", total);
         }
 
         // Step 2: Recover WAL events (written after last Parquet checkpoint)
@@ -296,15 +295,46 @@ impl EventStore {
                             total
                         );
 
-                        // Checkpoint WAL events to Parquet
-                        if store.storage.is_some() {
-                            tracing::info!("📸 Checkpointing WAL to Parquet storage...");
-                            if let Err(e) = store.flush_storage() {
-                                tracing::error!("Failed to checkpoint to Parquet: {}", e);
-                            } else if let Err(e) = wal.truncate() {
-                                tracing::error!("Failed to truncate WAL after checkpoint: {}", e);
-                            } else {
-                                tracing::info!("✅ WAL checkpointed and truncated");
+                        // Checkpoint WAL events to Parquet — buffer them into
+                        // the Parquet batch first, then flush. Without this,
+                        // flush_storage() finds an empty current_batch and
+                        // silently no-ops, then we truncate the WAL and the
+                        // events exist only in memory (lost on next restart).
+                        if let Some(ref storage) = store.storage {
+                            tracing::info!(
+                                "📸 Checkpointing {} WAL events to Parquet storage...",
+                                wal_new
+                            );
+                            let parquet = storage.read();
+                            let events = store.events.read();
+                            let mut buffered = 0usize;
+                            for event in events.iter().skip(events.len() - wal_new) {
+                                if let Err(e) = parquet.append_event(event.clone()) {
+                                    tracing::error!(
+                                        "Failed to buffer WAL event for Parquet: {}",
+                                        e
+                                    );
+                                } else {
+                                    buffered += 1;
+                                }
+                            }
+                            drop(events);
+                            drop(parquet);
+
+                            if buffered > 0 {
+                                if let Err(e) = store.flush_storage() {
+                                    tracing::error!("Failed to checkpoint to Parquet: {}", e);
+                                } else if let Err(e) = wal.truncate() {
+                                    tracing::error!(
+                                        "Failed to truncate WAL after checkpoint: {}",
+                                        e
+                                    );
+                                } else {
+                                    tracing::info!(
+                                        "✅ WAL checkpointed and truncated ({} events)",
+                                        buffered
+                                    );
+                                }
                             }
                         }
                     }
@@ -2379,5 +2409,115 @@ mod tests {
             "Expected system namespace rejection, got: {}",
             err
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Crash recovery: WAL events survive restart via Parquet checkpoint.
+    // Regression test for GitHub issue #84 — flush_storage() was a no-op
+    // during recovery because events were never buffered into Parquet's
+    // current_batch before flushing.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_wal_recovery_checkpoints_to_parquet() {
+        let data_dir = TempDir::new().unwrap();
+        let storage_dir = data_dir.path().join("storage");
+        let wal_dir = data_dir.path().join("wal");
+
+        // Session 1: ingest events with WAL + Parquet
+        {
+            let config = EventStoreConfig::production(
+                &storage_dir,
+                &wal_dir,
+                SnapshotConfig::default(),
+                WALConfig {
+                    sync_on_write: true,
+                    ..WALConfig::default()
+                },
+                CompactionConfig::default(),
+            );
+            let store = EventStore::with_config(config);
+
+            for i in 0..5 {
+                let event = Event::from_strings(
+                    "test.created".to_string(),
+                    format!("entity-{}", i),
+                    "default".to_string(),
+                    serde_json::json!({"index": i}),
+                    None,
+                )
+                .unwrap();
+                store.ingest(event).unwrap();
+            }
+
+            assert_eq!(store.stats().total_events, 5);
+
+            // Do NOT call flush_storage or shutdown — simulate a crash.
+            // Events are in WAL (sync_on_write: true) but NOT in Parquet.
+        }
+
+        // Verify WAL file has data
+        let wal_files: Vec<_> = std::fs::read_dir(&wal_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "log"))
+            .collect();
+        assert!(!wal_files.is_empty(), "WAL file should exist");
+        let wal_size = wal_files[0].metadata().unwrap().len();
+        assert!(wal_size > 0, "WAL file should have data (got 0 bytes)");
+
+        // Session 2: reopen — recovery should checkpoint WAL to Parquet, then truncate
+        {
+            let config = EventStoreConfig::production(
+                &storage_dir,
+                &wal_dir,
+                SnapshotConfig::default(),
+                WALConfig {
+                    sync_on_write: true,
+                    ..WALConfig::default()
+                },
+                CompactionConfig::default(),
+            );
+            let store = EventStore::with_config(config);
+
+            // Events should be recovered
+            assert_eq!(
+                store.stats().total_events,
+                5,
+                "Session 2 should have all 5 events after WAL recovery"
+            );
+
+            // Parquet should now have files (checkpoint happened)
+            let parquet_files: Vec<_> = std::fs::read_dir(&storage_dir)
+                .unwrap()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().extension().is_some_and(|ext| ext == "parquet"))
+                .collect();
+            assert!(
+                !parquet_files.is_empty(),
+                "Parquet file should exist after WAL checkpoint"
+            );
+        }
+
+        // Session 3: reopen again — events should load from Parquet (WAL was truncated)
+        {
+            let config = EventStoreConfig::production(
+                &storage_dir,
+                &wal_dir,
+                SnapshotConfig::default(),
+                WALConfig {
+                    sync_on_write: true,
+                    ..WALConfig::default()
+                },
+                CompactionConfig::default(),
+            );
+            let store = EventStore::with_config(config);
+
+            assert_eq!(
+                store.stats().total_events,
+                5,
+                "Session 3 should still have all 5 events from Parquet"
+            );
+        }
     }
 }

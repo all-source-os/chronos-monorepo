@@ -1,6 +1,4 @@
-use crate::domain::error::ChronError;
-use crate::domain::repository::TaskRepository;
-use crate::domain::task::Task;
+use crate::domain::{error::ChronError, repository::TaskRepository, task::Task};
 
 pub fn list_tasks(
     repo: &impl TaskRepository,

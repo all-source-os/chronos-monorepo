@@ -1,11 +1,13 @@
 mod handlers;
 mod state;
 
-use std::sync::Arc;
-use axum::routing::{get, post};
-use axum::Router;
 use crate::infrastructure::core_task_repo::CoreTaskRepository;
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use state::AppState;
+use std::sync::Arc;
 
 pub async fn run(repo: CoreTaskRepository, port: u16, open_browser: bool) -> anyhow::Result<()> {
     let state = AppState {
@@ -27,7 +29,10 @@ pub async fn run(repo: CoreTaskRepository, port: u16, open_browser: bool) -> any
         .route("/api/tasks/{id}/approve", post(handlers::api_approve))
         // HTMX partials
         .route("/partials/task-list", get(handlers::partial_task_list))
-        .route("/partials/task-detail/{id}", get(handlers::partial_task_detail))
+        .route(
+            "/partials/task-detail/{id}",
+            get(handlers::partial_task_detail),
+        )
         .route("/partials/kanban", get(handlers::partial_kanban))
         .with_state(state);
 

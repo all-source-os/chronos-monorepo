@@ -33,8 +33,20 @@ chronos-monorepo/
 │   ├── sales/             # Sales-facing docs
 │   └── checklists/        # Operational checklists
 │
+├── .claude/
+│   └── skills/            # Claude Code skills (auto-discovered)
+│       ├── chronos-data-flow/          # Docker stack data flow test
+│       ├── chronos-data-flow-embedded/ # Embedded backend data flow test
+│       ├── chronos-durability/         # Container restart durability test
+│       ├── chronos-embedded-durability/# Rust crate crash recovery test
+│       └── chronos-release/            # Versioned release automation
+│
 ├── scripts/               # Build and automation scripts
-├── tooling/               # Developer tooling (durability tests, etc.)
+├── tooling/               # Developer tooling
+│   ├── data-flow-test/             # Docker stack E2E test
+│   ├── durability-test/            # Container restart durability test
+│   ├── embedded-data-flow-test/    # Embedded backend E2E test
+│   └── embedded-durability-test/   # Rust crate crash recovery test
 └── test-results/          # CI test output artifacts
 ```
 

@@ -122,7 +122,6 @@ defmodule McpServerElixir.Infrastructure.CoreProducer do
       poll_interval_ms: poll_interval,
       batch_size: batch_size,
       cursor: initial_cursor,
-      core_client: CoreClient.new(),
       pending_demand: 0,
       events_produced: 0,
       poll_count: 0,
@@ -255,7 +254,7 @@ defmodule McpServerElixir.Infrastructure.CoreProducer do
 
     query_params = build_query_params(state.cursor, limit)
 
-    case CoreClient.query_events(state.core_client, query_params) do
+    case CoreClient.query_events(query_params) do
       {:ok, response} ->
         events = response["events"] || []
         events_count = length(events)

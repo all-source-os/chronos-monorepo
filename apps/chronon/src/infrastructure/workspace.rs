@@ -1,11 +1,12 @@
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use allsource_core::embedded::{Config, EmbeddedCore};
 
+use super::{core_task_repo::CoreTaskRepository, projection::TaskProjection};
 use crate::domain::error::{ChronError, CoreError};
-use super::core_task_repo::CoreTaskRepository;
-use super::projection::TaskProjection;
 
 const CHRONON_DIR: &str = ".chronon";
 
@@ -31,8 +32,7 @@ impl Workspace {
     /// Discover workspace from cwd and open Core with TaskProjection.
     pub async fn open() -> Result<Self, ChronError> {
         let cwd = std::env::current_dir()?;
-        let root = Self::find_root(&cwd)
-            .ok_or_else(|| ChronError::NoWorkspace(cwd))?;
+        let root = Self::find_root(&cwd).ok_or_else(|| ChronError::NoWorkspace(cwd))?;
 
         let data_dir = root.join(CHRONON_DIR);
         let config = Config::builder()
@@ -65,7 +65,10 @@ impl Workspace {
         // Arc::into_inner only works if this is the last Arc reference.
         // The repo should be dropped before shutdown is called.
         match Arc::into_inner(self.core) {
-            Some(core) => core.shutdown().await.map_err(|e| CoreError(e.to_string()).into()),
+            Some(core) => core
+                .shutdown()
+                .await
+                .map_err(|e| CoreError(e.to_string()).into()),
             None => Ok(()),
         }
     }

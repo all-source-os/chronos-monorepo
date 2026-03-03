@@ -1,6 +1,7 @@
-use crate::domain::repository::TaskRepository;
-use crate::domain::task::{Task, TaskStatus};
-use crate::domain::repository::TaskDetail;
+use crate::domain::{
+    repository::{TaskDetail, TaskRepository},
+    task::{Task, TaskStatus},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {

@@ -9,7 +9,7 @@ defmodule McpServerElixir.Protocol.McpTools do
   require Logger
 
   alias McpServerElixir.Context.ConversationContext
-  alias McpServerElixir.Infrastructure.{ControlPlaneClient, CoreClient}
+  alias McpServerElixir.Infrastructure.ControlPlaneClient
   alias McpServerElixir.Protocol.ToonEncoder
 
   @doc """
@@ -2139,7 +2139,7 @@ defmodule McpServerElixir.Protocol.McpTools do
   def handle_query_events(args, state, format) do
     params = Map.take(args, ["entity_id", "event_type", "as_of", "since", "until", "limit"])
 
-    case CoreClient.query_events(state.core_client, params) do
+    case state.backend.query_events(params) do
       {:ok, data} ->
         count = Map.get(data, "count", 0)
         summary = "📊 Found #{count} events"
@@ -2163,7 +2163,7 @@ defmodule McpServerElixir.Protocol.McpTools do
     entity_id = Map.fetch!(args, "entity_id")
     as_of = Map.get(args, "as_of")
 
-    case CoreClient.reconstruct_state(state.core_client, entity_id, as_of) do
+    case state.backend.reconstruct_state(entity_id, as_of) do
       {:ok, state_data} ->
         event_count = Map.get(state_data, "event_count", 0)
         last_updated = Map.get(state_data, "last_updated", "unknown")
@@ -2195,7 +2195,7 @@ defmodule McpServerElixir.Protocol.McpTools do
   def handle_get_snapshot(args, state, format) do
     entity_id = Map.fetch!(args, "entity_id")
 
-    case CoreClient.get_snapshot(state.core_client, entity_id) do
+    case state.backend.get_snapshot(entity_id) do
       {:ok, snapshot} ->
         summary = "⚡ Fast snapshot for \"#{entity_id}\""
         formatted_data = ToonEncoder.format_response(snapshot, format)
@@ -2220,10 +2220,10 @@ defmodule McpServerElixir.Protocol.McpTools do
     to_time = Map.get(args, "to_time")
 
     # Get state at from_time
-    case CoreClient.reconstruct_state(state.core_client, entity_id, from_time) do
+    case state.backend.reconstruct_state(entity_id, from_time) do
       {:ok, before_state} ->
         # Get state at to_time (or current)
-        case CoreClient.reconstruct_state(state.core_client, entity_id, to_time) do
+        case state.backend.reconstruct_state(entity_id, to_time) do
           {:ok, after_state} ->
             before_state_map = Map.get(before_state, "current_state", %{})
             after_state_map = Map.get(after_state, "current_state", %{})
@@ -2262,7 +2262,7 @@ defmodule McpServerElixir.Protocol.McpTools do
   def handle_find_patterns(args, state, format) do
     params = Map.take(args, ["entity_id", "event_type", "since"])
 
-    case CoreClient.query_events(state.core_client, params) do
+    case state.backend.query_events(params) do
       {:ok, data} ->
         events = Map.get(data, "events", [])
         pattern_type = Map.get(args, "pattern_type")
@@ -2300,7 +2300,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         params = if timeframe, do: Map.put(%{}, "since", timeframe), else: %{}
         params = Map.put(params, "entity_id", id)
 
-        case CoreClient.query_events(state.core_client, params) do
+        case state.backend.query_events(params) do
           {:ok, data} ->
             events = Map.get(data, "events", [])
             event_types = events |> Enum.map(&Map.get(&1, "event_type")) |> Enum.uniq()
@@ -2343,7 +2343,7 @@ defmodule McpServerElixir.Protocol.McpTools do
     params = Map.take(args, ["since", "until"])
     params = Map.put(params, "entity_id", entity_id)
 
-    case CoreClient.query_events(state.core_client, params) do
+    case state.backend.query_events(params) do
       {:ok, data} ->
         events = Map.get(data, "events", [])
 
@@ -2391,10 +2391,10 @@ defmodule McpServerElixir.Protocol.McpTools do
     entity_id = Map.fetch!(args, "entity_id")
 
     # Get current state
-    case CoreClient.reconstruct_state(state.core_client, entity_id, nil) do
+    case state.backend.reconstruct_state(entity_id, nil) do
       {:ok, state_data} ->
         # Get all events
-        case CoreClient.query_events(state.core_client, %{"entity_id" => entity_id}) do
+        case state.backend.query_events(%{"entity_id" => entity_id}) do
           {:ok, events_data} ->
             events = Map.get(events_data, "events", [])
             event_types = events |> Enum.map(&Map.get(&1, "event_type")) |> Enum.uniq()
@@ -2451,7 +2451,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       "metadata" => Map.get(args, "metadata")
     }
 
-    case CoreClient.ingest_event(state.core_client, event_data) do
+    case state.backend.ingest_event(event_data) do
       {:ok, result} ->
         event_id = Map.get(result, "event_id", "unknown")
         timestamp = Map.get(result, "timestamp", "unknown")
@@ -2483,7 +2483,7 @@ defmodule McpServerElixir.Protocol.McpTools do
 
   @doc false
   def handle_get_stats(state, format) do
-    case CoreClient.get_stats(state.core_client) do
+    case state.backend.get_stats() do
       {:ok, stats} ->
         summary = "📊 AllSource Statistics\n\n"
         formatted_data = ToonEncoder.format_response(stats, format)
@@ -2506,7 +2506,7 @@ defmodule McpServerElixir.Protocol.McpTools do
 
   @doc false
   def handle_get_cluster_status(state, format) do
-    case CoreClient.get_cluster_status(state.core_client) do
+    case state.backend.get_cluster_status() do
       {:ok, status} ->
         summary = "🎯 Cluster Status\n\n"
         formatted_data = ToonEncoder.format_response(status, format)
@@ -2539,7 +2539,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       "threshold" => threshold
     }
 
-    case CoreClient.semantic_search(state.core_client, params) do
+    case state.backend.semantic_search(params) do
       {:ok, data} ->
         results = Map.get(data, "results", [])
         count = length(results)
@@ -2591,7 +2591,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         params
       end
 
-    case CoreClient.hybrid_search(state.core_client, params) do
+    case state.backend.hybrid_search(params) do
       {:ok, data} ->
         results = Map.get(data, "results", [])
         count = length(results)
@@ -2688,7 +2688,7 @@ defmodule McpServerElixir.Protocol.McpTools do
     fetch_limit = min(sample_size * 3, 30000)
     params = Map.put(base_params, "limit", fetch_limit)
 
-    case CoreClient.query_events(state.core_client, params) do
+    case state.backend.query_events(params) do
       {:ok, data} ->
         events = Map.get(data, "events", [])
 
@@ -2749,10 +2749,10 @@ defmodule McpServerElixir.Protocol.McpTools do
     result =
       if entity_id || event_type do
         # Filtered query - need to compute from events
-        CoreClient.query_events(state.core_client, params)
+        state.backend.query_events(params)
       else
         # Unfiltered - can use get_stats for pre-computed values
-        CoreClient.get_stats(state.core_client)
+        state.backend.get_stats()
       end
 
     case result do
@@ -2988,6 +2988,12 @@ defmodule McpServerElixir.Protocol.McpTools do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp format_bytes(0), do: "0 B"
+  defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
+  defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"
+  defp format_bytes(bytes) when bytes < 1_073_741_824, do: "#{Float.round(bytes / 1_048_576, 1)} MB"
+  defp format_bytes(bytes), do: "#{Float.round(bytes / 1_073_741_824, 1)} GB"
 
   # ============================================================================
   # Conversation Context Handlers
@@ -4025,7 +4031,7 @@ defmodule McpServerElixir.Protocol.McpTools do
     # Build query params to find events to delete
     query_params = build_delete_query_params(args)
 
-    case CoreClient.query_events(state.core_client, query_params) do
+    case state.backend.query_events(query_params) do
       {:ok, data} ->
         events = Map.get(data, "events", [])
         count = length(events)
@@ -4099,7 +4105,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("event_type", event_type)
       |> maybe_put("until", older_than)
 
-    case CoreClient.query_events(state.core_client, query_params) do
+    case state.backend.query_events(query_params) do
       {:ok, data} ->
         events = Map.get(data, "events", [])
         count = length(events)
@@ -4179,7 +4185,7 @@ defmodule McpServerElixir.Protocol.McpTools do
     # Query for system deletion/archive events to find what can be restored
     tombstone_params = Map.put(query_params, "event_type", "system.event_deleted")
 
-    case CoreClient.query_events(state.core_client, tombstone_params) do
+    case state.backend.query_events(tombstone_params) do
       {:ok, data} ->
         tombstones = Map.get(data, "events", [])
 
@@ -4252,7 +4258,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("until", Map.get(args, "until"))
       |> maybe_put("limit", limit)
 
-    case CoreClient.query_events(state.core_client, query_params) do
+    case state.backend.query_events(query_params) do
       {:ok, data} ->
         events = Map.get(data, "events", [])
         count = length(events)
@@ -4397,7 +4403,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("since", Map.get(args, "since"))
       |> maybe_put("until", Map.get(args, "until"))
 
-    case CoreClient.query_events(state.core_client, query_params) do
+    case state.backend.query_events(query_params) do
       {:ok, data} ->
         events = Map.get(data, "events", [])
 
@@ -4476,7 +4482,7 @@ defmodule McpServerElixir.Protocol.McpTools do
     # Query events from all source entities
     all_events =
       Enum.flat_map(source_entity_ids, fn entity_id ->
-        case CoreClient.query_events(state.core_client, %{"entity_id" => entity_id}) do
+        case state.backend.query_events(%{"entity_id" => entity_id}) do
           {:ok, data} -> Map.get(data, "events", [])
           {:error, _} -> []
         end
@@ -4575,7 +4581,7 @@ defmodule McpServerElixir.Protocol.McpTools do
     delete_split_events = Map.get(args, "delete_split_events", false)
 
     # Query all events for source entity
-    case CoreClient.query_events(state.core_client, %{"entity_id" => source_entity_id}) do
+    case state.backend.query_events(%{"entity_id" => source_entity_id}) do
       {:ok, data} ->
         source_events = Map.get(data, "events", [])
 
@@ -4704,7 +4710,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         }
       }
 
-      case CoreClient.ingest_event(state.core_client, tombstone) do
+      case state.backend.ingest_event(tombstone) do
         {:ok, _} -> count + 1
         {:error, _} -> count
       end
@@ -4732,7 +4738,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         }
       }
 
-      case CoreClient.ingest_event(state.core_client, archive_event) do
+      case state.backend.ingest_event(archive_event) do
         {:ok, _} -> count + 1
         {:error, _} -> count
       end
@@ -4760,7 +4766,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         }
       }
 
-      case CoreClient.ingest_event(state.core_client, restore_event) do
+      case state.backend.ingest_event(restore_event) do
         {:ok, _} -> count + 1
         {:error, _} -> count
       end
@@ -4894,7 +4900,7 @@ defmodule McpServerElixir.Protocol.McpTools do
           })
       }
 
-      case CoreClient.ingest_event(state.core_client, import_event) do
+      case state.backend.ingest_event(import_event) do
         {:ok, _} ->
           {imported + 1, skipped, errors}
 
@@ -4930,7 +4936,7 @@ defmodule McpServerElixir.Protocol.McpTools do
           })
       }
 
-      case CoreClient.ingest_event(state.core_client, clone_event) do
+      case state.backend.ingest_event(clone_event) do
         {:ok, _} -> count + 1
         {:error, _} -> count
       end
@@ -4956,7 +4962,7 @@ defmodule McpServerElixir.Protocol.McpTools do
           })
       }
 
-      case CoreClient.ingest_event(state.core_client, merge_event) do
+      case state.backend.ingest_event(merge_event) do
         {:ok, _} -> count + 1
         {:error, _} -> count
       end
@@ -5495,7 +5501,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("partition_id", Map.get(args, "partition_id"))
       |> maybe_put("dry_run", dry_run)
 
-    case CoreClient.compact_storage(state.core_client, params) do
+    case state.backend.compact_storage(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -5526,24 +5532,41 @@ defmodule McpServerElixir.Protocol.McpTools do
   end
 
   @doc false
-  def handle_storage_stats(args, state, format) do
+  def handle_storage_stats(args, state, _format) do
     params =
       %{}
       |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
       |> maybe_put("group_by", Map.get(args, "group_by"))
       |> maybe_put("refresh", Map.get(args, "refresh"))
 
-    case CoreClient.storage_stats(state.core_client, params) do
+    case state.backend.storage_stats(params) do
       {:ok, data} ->
-        formatted_data = ToonEncoder.format_response(data, format)
+        memory = Map.get(data, "memory_events", Map.get(data, "total_events", 0))
+        pq_on = Map.get(data, "parquet_enabled", false)
+        pq_files = Map.get(data, "parquet_files", 0)
+        pq_bytes = Map.get(data, "parquet_bytes", 0)
+        pq_batch = Map.get(data, "parquet_pending_batch", 0)
+        wal_n = Map.get(data, "wal_entries", 0)
+        wal_bytes = Map.get(data, "wal_bytes", 0)
+        durable = Map.get(data, "durable", true)
+
+        durability_line =
+          if durable,
+            do: "Durable: true",
+            else: "⚠️  Durable: FALSE — #{memory} events at risk of loss on restart"
 
         text = """
         💾 Storage Statistics
 
-        #{formatted_data}
+        Memory events: #{memory}
+        WAL entries: #{wal_n} (#{format_bytes(wal_bytes)})
+        Parquet: #{if pq_on, do: "enabled", else: "disabled"}
+        Parquet files: #{pq_files} (#{format_bytes(pq_bytes)})
+        Parquet pending batch: #{pq_batch}
+        #{durability_line}
         """
 
-        {:ok, %{content: [%{type: "text", text: text}]}}
+        {:ok, %{content: [%{type: "text", text: String.trim(text)}]}}
 
       {:error, reason} ->
         {:error, "Failed to get storage stats: #{inspect(reason)}"}
@@ -5557,7 +5580,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("partition_id", Map.get(args, "partition_id"))
       |> maybe_put("include_replicas", Map.get(args, "include_replicas"))
 
-    case CoreClient.partition_info(state.core_client, params) do
+    case state.backend.partition_info(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -5575,18 +5598,28 @@ defmodule McpServerElixir.Protocol.McpTools do
   end
 
   @doc false
-  def handle_wal_status(_args, state, format) do
-    case CoreClient.wal_status(state.core_client) do
+  def handle_wal_status(_args, state, _format) do
+    case state.backend.wal_status() do
       {:ok, data} ->
-        formatted_data = ToonEncoder.format_response(data, format)
+        wal_on = Map.get(data, "wal_enabled", false)
+        entries = Map.get(data, "wal_entries", 0)
+        bytes = Map.get(data, "wal_bytes", 0)
+        seq = Map.get(data, "wal_sequence", 0)
+        memory = Map.get(data, "memory_events", 0)
+        durable = Map.get(data, "durable", false)
 
         text = """
         📝 WAL Status
 
-        #{formatted_data}
+        Enabled: #{wal_on}
+        Entries: #{entries}
+        Bytes: #{format_bytes(bytes)}
+        Sequence: #{seq}
+        Memory events: #{memory}
+        Durable: #{durable}
         """
 
-        {:ok, %{content: [%{type: "text", text: text}]}}
+        {:ok, %{content: [%{type: "text", text: String.trim(text)}]}}
 
       {:error, reason} ->
         {:error, "Failed to get WAL status: #{inspect(reason)}"}
@@ -5651,18 +5684,39 @@ defmodule McpServerElixir.Protocol.McpTools do
   end
 
   @doc false
-  def handle_health_deep(_args, state, format) do
-    case CoreClient.health_deep(state.core_client) do
+  def handle_health_deep(_args, state, _format) do
+    case state.backend.health_deep() do
       {:ok, data} ->
-        formatted_data = ToonEncoder.format_response(data, format)
+        status = Map.get(data, "status", "unknown")
+        mode = Map.get(data, "mode", "unknown")
+        memory = Map.get(data, "memory_events", 0)
+        wal_on = Map.get(data, "wal_enabled", false)
+        wal_n = Map.get(data, "wal_entries", 0)
+        pq_on = Map.get(data, "parquet_enabled", false)
+        pq_n = Map.get(data, "parquet_files", 0)
+        durable = Map.get(data, "durable", false)
+        warnings = Map.get(data, "warnings", [])
+
+        warning_block =
+          case warnings do
+            [] -> ""
+            list -> "\n⚠️  WARNINGS:\n" <> Enum.map_join(list, "\n", &("  - " <> &1)) <> "\n"
+          end
 
         text = """
         🏥 Deep Health Check
 
-        #{formatted_data}
+        Status: #{status}
+        Mode: #{mode}
+        Durable: #{durable}
+
+        Memory events: #{memory}
+        WAL: #{if wal_on, do: "enabled (#{wal_n} entries)", else: "disabled"}
+        Parquet: #{if pq_on, do: "enabled (#{pq_n} files)", else: "disabled"}
+        #{warning_block}
         """
 
-        {:ok, %{content: [%{type: "text", text: text}]}}
+        {:ok, %{content: [%{type: "text", text: String.trim(text)}]}}
 
       {:error, reason} ->
         {:error, "Failed to perform deep health check: #{inspect(reason)}"}
@@ -5676,7 +5730,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("period", Map.get(args, "period"))
       |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
 
-    case CoreClient.performance_report(state.core_client, params) do
+    case state.backend.performance_report(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -5704,7 +5758,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("until", Map.get(args, "until"))
       |> maybe_put("limit", Map.get(args, "limit"))
 
-    case CoreClient.audit_log(state.core_client, params) do
+    case state.backend.audit_log(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7367,7 +7421,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("compatibility", Map.get(args, "compatibility"))
       |> maybe_put("tags", Map.get(args, "tags"))
 
-    case CoreClient.register_schema(state.core_client, params) do
+    case state.backend.register_schema(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7393,7 +7447,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       %{"subject" => Map.fetch!(args, "subject"), "payload" => Map.fetch!(args, "payload")}
       |> maybe_put("version", Map.get(args, "version"))
 
-    case CoreClient.validate_schema(state.core_client, params) do
+    case state.backend.validate_schema(params) do
       {:ok, data} ->
         valid = Map.get(data, "valid", false)
         icon = if valid, do: "✅", else: "❌"
@@ -7420,7 +7474,7 @@ defmodule McpServerElixir.Protocol.McpTools do
 
     if dry_run do
       # Fetch current schema and compare with proposed
-      case CoreClient.get_schema(state.core_client, subject) do
+      case state.backend.get_schema(subject) do
         {:ok, current} ->
           new_def = Map.fetch!(args, "new_definition")
 
@@ -7453,7 +7507,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         |> maybe_put("description", Map.get(args, "description"))
         |> maybe_put("transformations", Map.get(args, "transformations"))
 
-      case CoreClient.register_schema(state.core_client, params) do
+      case state.backend.register_schema(params) do
         {:ok, data} ->
           formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7482,7 +7536,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("include_versions", Map.get(args, "include_versions"))
       |> maybe_put("refresh", Map.get(args, "refresh"))
 
-    case CoreClient.list_schemas(state.core_client, params) do
+    case state.backend.list_schemas(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7513,7 +7567,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       %{"event_type" => event_type, "limit" => sample_size}
       |> maybe_put("entity_id", Map.get(args, "entity_id"))
 
-    case CoreClient.query_events(state.core_client, query_params) do
+    case state.backend.query_events(query_params) do
       {:ok, data} ->
         events = Map.get(data, "events", [])
 
@@ -7558,16 +7612,16 @@ defmodule McpServerElixir.Protocol.McpTools do
         version_a = Map.get(args, "version_a")
         version_b = Map.get(args, "version_b")
 
-        with {:ok, versions} <- CoreClient.list_schema_versions(state.core_client, subject) do
+        with {:ok, versions} <- state.backend.list_schema_versions(subject) do
           version_list = if is_list(versions), do: versions, else: Map.get(versions, "versions", [])
 
           v_a = version_a || max(length(version_list) - 1, 1)
           v_b = version_b || length(version_list)
 
           with {:ok, schema_a} <-
-                 CoreClient.get_schema(state.core_client, subject, %{"version" => v_a}),
+                 state.backend.get_schema(subject, %{"version" => v_a}),
                {:ok, schema_b} <-
-                 CoreClient.get_schema(state.core_client, subject, %{"version" => v_b}) do
+                 state.backend.get_schema(subject, %{"version" => v_b}) do
             def_a = Map.get(schema_a, "definition", %{})
             def_b = Map.get(schema_b, "definition", %{})
 
@@ -7594,7 +7648,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         version_a = Map.get(args, "version_a")
         params = if version_a, do: %{"version" => version_a}, else: %{}
 
-        case CoreClient.get_schema(state.core_client, subject, params) do
+        case state.backend.get_schema(subject, params) do
           {:ok, schema_a} ->
             def_a = Map.get(schema_a, "definition", %{})
             diff = compute_schema_diff(def_a, proposed)
@@ -7637,7 +7691,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("until", Map.get(args, "until"))
       |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
 
-    case CoreClient.analytics_frequency(state.core_client, params) do
+    case state.backend.analytics_frequency(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7673,7 +7727,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("until", Map.get(args, "until"))
       |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
 
-    case CoreClient.analytics_correlation(state.core_client, params) do
+    case state.backend.analytics_correlation(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7706,7 +7760,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("event_type", Map.get(args, "event_type"))
       |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
 
-    case CoreClient.analytics_frequency(state.core_client, params) do
+    case state.backend.analytics_frequency(params) do
       {:ok, data} ->
         buckets = if is_list(data), do: data, else: Map.get(data, "buckets", [])
 
@@ -7745,7 +7799,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("until", Map.get(args, "until"))
       |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
 
-    case CoreClient.analytics_summary(state.core_client, params) do
+    case state.backend.analytics_summary(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7785,7 +7839,7 @@ defmodule McpServerElixir.Protocol.McpTools do
         |> maybe_put("until", Map.get(args, "until"))
         |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
 
-      case CoreClient.analytics_summary(state.core_client, params) do
+      case state.backend.analytics_summary(params) do
         {:ok, data} ->
           formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7826,7 +7880,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("until", Map.get(args, "until"))
       |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
 
-    case CoreClient.analytics_summary(state.core_client, params) do
+    case state.backend.analytics_summary(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7860,7 +7914,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       %{"event_type" => activity_event}
       |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
 
-    case CoreClient.analytics_summary(state.core_client, params) do
+    case state.backend.analytics_summary(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7896,7 +7950,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("until", Map.get(args, "until"))
       |> maybe_put("tenant_id", Map.get(args, "tenant_id"))
 
-    case CoreClient.analytics_summary(state.core_client, params) do
+    case state.backend.analytics_summary(params) do
       {:ok, data} ->
         formatted_data = ToonEncoder.format_response(data, format)
 
@@ -7983,7 +8037,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       results =
         Enum.map(batches, fn batch ->
           Enum.map(batch, fn event ->
-            CoreClient.ingest_event(state.core_client, event)
+            state.backend.ingest_event(event)
           end)
         end)
 
@@ -8015,7 +8069,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       |> maybe_put("limit", Map.get(args, "limit"))
 
     # Get stats to estimate query cost
-    case CoreClient.get_stats(state.core_client) do
+    case state.backend.get_stats() do
       {:ok, stats} ->
         plan = build_query_plan(params, stats)
         formatted_plan = ToonEncoder.format_response(plan, format)
@@ -8041,14 +8095,14 @@ defmodule McpServerElixir.Protocol.McpTools do
 
     # Run warmup iterations (discard results)
     for _i <- 1..warmup do
-      CoreClient.query_events(state.core_client, query)
+      state.backend.query_events(query)
     end
 
     # Run measured iterations
     timings =
       for _i <- 1..iterations do
         start = System.monotonic_time(:microsecond)
-        result = CoreClient.query_events(state.core_client, query)
+        result = state.backend.query_events(query)
         elapsed = System.monotonic_time(:microsecond) - start
         {elapsed, result}
       end

@@ -88,6 +88,37 @@ pub struct EventView {
     pub version: i64,
 }
 
+/// Durability status comparing in-memory, WAL, and Parquet layers.
+///
+/// Returned by [`EmbeddedCore::durability_status`](super::EmbeddedCore::durability_status).
+/// When `durable` is `false`, events exist only in volatile memory and will
+/// be lost on process exit.
+#[derive(Debug, Clone, Serialize)]
+pub struct DurabilityStatus {
+    /// Events currently in the in-memory store.
+    pub memory_events: usize,
+    /// Whether WAL persistence is configured.
+    pub wal_enabled: bool,
+    /// Number of entries written to WAL since last truncate.
+    pub wal_entries: u64,
+    /// Total bytes written to WAL since last truncate.
+    pub wal_bytes: u64,
+    /// Current WAL sequence number.
+    pub wal_sequence: u64,
+    /// Whether Parquet persistence is configured.
+    pub parquet_enabled: bool,
+    /// Number of Parquet files on disk.
+    pub parquet_files: usize,
+    /// Total bytes in Parquet files.
+    pub parquet_bytes: u64,
+    /// Events buffered in Parquet batch (not yet flushed to file).
+    pub parquet_pending_batch: usize,
+    /// Whether all in-memory events are backed by at least one durable layer.
+    pub durable: bool,
+    /// Human-readable warnings about data loss risks.
+    pub warnings: Vec<String>,
+}
+
 impl From<&crate::domain::entities::Event> for EventView {
     fn from(e: &crate::domain::entities::Event) -> Self {
         Self {

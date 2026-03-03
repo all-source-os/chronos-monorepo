@@ -37,7 +37,10 @@ mod tests {
         // Pull with version vector past all events = get nothing new
         let full_vv = core.version_vector();
         let events_after = core.events_for_sync(&full_vv).await.unwrap();
-        assert!(events_after.is_empty(), "expected no new events after full sync");
+        assert!(
+            events_after.is_empty(),
+            "expected no new events after full sync"
+        );
     }
 
     #[tokio::test]

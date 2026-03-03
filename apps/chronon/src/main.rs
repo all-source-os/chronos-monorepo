@@ -1,7 +1,11 @@
+use chronon::{
+    infrastructure::workspace::Workspace,
+    presentation::{
+        cli::{Cli, Command},
+        dispatch,
+    },
+};
 use clap::Parser;
-use chronon::infrastructure::workspace::Workspace;
-use chronon::presentation::cli::{Cli, Command};
-use chronon::presentation::dispatch;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]

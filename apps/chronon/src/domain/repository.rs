@@ -1,5 +1,4 @@
-use super::error::ChronError;
-use super::task::Task;
+use super::{error::ChronError, task::Task};
 
 /// Timeline entry for a task event.
 pub struct TimelineEntry {

@@ -1,9 +1,12 @@
-use crate::application::{approve_task, claim_task, complete_task, create_task, get_task, list_tasks};
-use crate::domain::error::ChronError;
-use crate::domain::repository::TaskRepository;
-use crate::infrastructure::workspace;
-use crate::presentation::cli::{Command, TaskCommands};
-use crate::presentation::output::print_task_table;
+use crate::{
+    application::{approve_task, claim_task, complete_task, create_task, get_task, list_tasks},
+    domain::{error::ChronError, repository::TaskRepository},
+    infrastructure::workspace,
+    presentation::{
+        cli::{Command, TaskCommands},
+        output::print_task_table,
+    },
+};
 
 pub fn dispatch_init() -> Result<(), ChronError> {
     let cwd = std::env::current_dir()?;
@@ -59,8 +62,7 @@ pub async fn dispatch(cmd: &Command, repo: &impl TaskRepository) -> Result<(), C
             print_task_table(&tasks);
         }
         Command::Claim(args) => {
-            let agent =
-                std::env::var("CN_AGENT_ID").unwrap_or_else(|_| "human".to_string());
+            let agent = std::env::var("CN_AGENT_ID").unwrap_or_else(|_| "human".to_string());
             claim_task::claim_task(repo, &args.id, &agent).await?;
             println!("Claimed task {} (agent: {agent})", args.id);
         }

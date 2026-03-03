@@ -1,17 +1,21 @@
-use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::{
+    Frame,
+    layout::{Constraint, Layout},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::Paragraph,
+};
 
+use super::{
+    app::{App, View},
+    views::{dashboard, kanban},
+};
 use crate::domain::repository::TaskRepository;
-use super::app::{App, View};
-use super::views::{dashboard, kanban};
 
 pub fn render<R: TaskRepository>(f: &mut Frame, app: &App<R>) {
     let chunks = Layout::vertical([
         Constraint::Length(1), // title bar
-        Constraint::Min(0),   // main view
+        Constraint::Min(0),    // main view
         Constraint::Length(1), // status bar
     ])
     .split(f.area());
@@ -53,10 +57,7 @@ pub fn render<R: TaskRepository>(f: &mut Frame, app: &App<R>) {
         ])
     } else {
         Line::from(vec![
-            Span::styled(
-                " q",
-                Style::default().fg(Color::Yellow),
-            ),
+            Span::styled(" q", Style::default().fg(Color::Yellow)),
             Span::raw(" quit  "),
             Span::styled("Tab", Style::default().fg(Color::Yellow)),
             Span::raw(" view  "),

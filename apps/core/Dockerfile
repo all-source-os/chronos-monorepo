@@ -38,13 +38,17 @@ COPY tooling/performance/Cargo.toml tooling/performance/Cargo.toml
 COPY sdks/rust/Cargo.toml sdks/rust/Cargo.toml
 COPY apps/registry/Cargo.toml apps/registry/Cargo.toml
 COPY apps/chronon/ apps/chronon/
-RUN mkdir -p tooling/performance/src && \
+# core_nif is a cdylib (Rustler NIF) which musl cannot produce, so we stub it
+# as a plain lib to satisfy workspace resolution without triggering cdylib builds
+RUN mkdir -p tooling/performance/src sdks/rust/src apps/registry/src \
+            apps/mcp-server-elixir/native/core_nif/src \
+            apps/core/benches apps/core/tests/stress_tests && \
     echo 'fn main() {}' > tooling/performance/src/main.rs && \
-    mkdir -p sdks/rust/src && \
     echo '' > sdks/rust/src/lib.rs && \
-    mkdir -p apps/registry/src && \
     echo 'fn main() {}' > apps/registry/src/main.rs && \
-    mkdir -p apps/core/benches apps/core/tests/stress_tests && \
+    printf '[package]\nname = "core_nif"\nversion = "0.1.0"\nedition = "2021"\n\n[lib]\nname = "core_nif"\npath = "src/lib.rs"\n\n[dependencies]\n' \
+        > apps/mcp-server-elixir/native/core_nif/Cargo.toml && \
+    echo '' > apps/mcp-server-elixir/native/core_nif/src/lib.rs && \
     echo 'fn main() {}' > apps/core/benches/performance_benchmarks.rs && \
     echo 'fn main() {}' > apps/core/tests/stress_tests/seven_day_stress.rs && \
     cargo chef prepare --recipe-path recipe.json
@@ -65,11 +69,15 @@ COPY tooling/performance/Cargo.toml tooling/performance/
 COPY sdks/rust/Cargo.toml sdks/rust/
 COPY apps/registry/Cargo.toml apps/registry/
 COPY apps/chronon/ apps/chronon/
-RUN mkdir -p apps/core/src tooling/performance/src sdks/rust/src apps/registry/src && \
+RUN mkdir -p apps/core/src tooling/performance/src sdks/rust/src apps/registry/src \
+            apps/mcp-server-elixir/native/core_nif/src && \
     echo 'fn main() {}' > apps/core/src/main.rs && \
     echo 'fn main() {}' > tooling/performance/src/main.rs && \
     echo '' > sdks/rust/src/lib.rs && \
-    echo 'fn main() {}' > apps/registry/src/main.rs
+    echo 'fn main() {}' > apps/registry/src/main.rs && \
+    printf '[package]\nname = "core_nif"\nversion = "0.1.0"\nedition = "2021"\n\n[lib]\nname = "core_nif"\npath = "src/lib.rs"\n\n[dependencies]\n' \
+        > apps/mcp-server-elixir/native/core_nif/Cargo.toml && \
+    echo '' > apps/mcp-server-elixir/native/core_nif/src/lib.rs
 
 # Cook dependencies from recipe (cached layer)
 COPY --from=planner /app/recipe.json recipe.json

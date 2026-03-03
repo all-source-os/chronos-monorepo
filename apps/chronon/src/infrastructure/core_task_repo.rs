@@ -1,12 +1,13 @@
-use std::collections::HashSet;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use allsource_core::embedded::{EmbeddedCore, IngestEvent, Query};
 use serde_json::json;
 
-use crate::domain::error::{ChronError, CoreError};
-use crate::domain::repository::{TaskDetail, TaskRepository, TimelineEntry};
-use crate::domain::task::{Task, TaskStatus};
+use crate::domain::{
+    error::{ChronError, CoreError},
+    repository::{TaskDetail, TaskRepository, TimelineEntry},
+    task::{Task, TaskStatus},
+};
 
 pub struct CoreTaskRepository {
     core: Arc<EmbeddedCore>,

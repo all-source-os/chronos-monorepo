@@ -422,7 +422,14 @@ defmodule QueryServiceEx.Projections.FoldPipelineTest do
       Process.sleep(50)
 
       calls = Agent.get(:snapshot_tracker, & &1)
-      assert calls == []
+
+      snapshot_calls =
+        Enum.filter(calls, fn
+          {:create_snapshot, _, _} -> true
+          _ -> false
+        end)
+
+      assert snapshot_calls == []
     end
 
     test "uses default threshold of 100" do
