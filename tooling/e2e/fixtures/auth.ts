@@ -60,15 +60,13 @@ type AuthFixtures = {
  * Requires TEST_EMAIL and TEST_PASSWORD environment variables (or .env.test).
  */
 export const test = base.extend<AuthFixtures>({
-  authenticatedPage: async ({ browser }, use) => {
+  authenticatedPage: async ({ browser }, use, testInfo) => {
     const email = process.env.TEST_EMAIL;
     const password = process.env.TEST_PASSWORD;
 
     if (!email || !password) {
-      throw new Error(
-        "TEST_EMAIL and TEST_PASSWORD must be set. " +
-          "Copy .env.test and fill in valid credentials."
-      );
+      testInfo.skip(true, "TEST_EMAIL and TEST_PASSWORD must be set");
+      return;
     }
 
     // Reuse existing storage state if available

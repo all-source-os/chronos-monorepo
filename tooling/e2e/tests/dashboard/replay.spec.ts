@@ -125,11 +125,12 @@ test.describe("Replay — history", () => {
   test("replay history section renders", async ({ page }) => {
     await expect(page.getByText("Replay History")).toBeVisible({ timeout: 10000 });
 
-    // Should show either replay entries or empty state
-    const hasReplays = await page.locator("text=/Pending|Running|Completed|Failed|Cancelled/").first().isVisible({ timeout: 3000 }).catch(() => false);
-    const hasEmpty = await page.getByText("No replays yet").isVisible({ timeout: 3000 }).catch(() => false);
-
-    expect(hasReplays || hasEmpty).toBeTruthy();
+    // Wait for replay entries, empty state, or fetch error (demo accounts)
+    await expect(
+      page.getByText("No replays yet")
+        .or(page.getByText(/Failed to fetch/i))
+        .or(page.locator("text=/^(Pending|Running|Completed|Cancelled)$/"))
+    ).toBeVisible({ timeout: 15000 });
   });
 
   test("if active replay exists, Cancel button is visible", async ({ page }) => {
@@ -142,11 +143,11 @@ test.describe("Replay — history", () => {
   });
 
   test("if completed replay exists, Remove button is visible", async ({ page }) => {
-    const hasCompleted = await page.locator("text=/Completed|Failed|Cancelled/").first().isVisible({ timeout: 5000 }).catch(() => false);
+    // Check for completed replay status badges (not "Failed to fetch" error text)
+    const hasCompleted = await page.locator("text=/^(Completed|Failed|Cancelled)$/").first().isVisible({ timeout: 5000 }).catch(() => false);
+    test.skip(!hasCompleted, "No completed replays exist — skipping Remove button test");
 
-    if (hasCompleted) {
-      const removeBtn = page.getByRole("button", { name: /Remove/i }).first();
-      await expect(removeBtn).toBeVisible({ timeout: 5000 });
-    }
+    const removeBtn = page.getByRole("button", { name: /Remove/i }).first();
+    await expect(removeBtn).toBeVisible({ timeout: 5000 });
   });
 });

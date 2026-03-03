@@ -1,14 +1,22 @@
 import { test, expect } from "@playwright/test";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
+const baseURL = process.env.BASE_URL || "https://all-source.xyz";
+const isLocal = baseURL.includes("localhost");
 
 /**
  * Authentication E2E Tests
  *
  * Tests the full auth flow using the Query Service dev-token endpoint
  * (requires AUTH_DISABLED=true on the Query Service).
+ *
+ * NOTE: These tests require a local QS with AUTH_DISABLED=true.
+ * Automatically skipped when running against production.
  */
 test.describe("Authentication", () => {
+  test.beforeEach(() => {
+    test.skip(!isLocal, "Local-only tests — requires local QS with AUTH_DISABLED=true");
+  });
   test("login page renders correctly", async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();

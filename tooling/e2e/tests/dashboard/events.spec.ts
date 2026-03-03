@@ -42,9 +42,9 @@ test.describe("Events — page renders", () => {
 
   test("event list renders on /dashboard/events", async ({ page }) => {
     await expect(page.getByText("Event Explorer")).toBeVisible({ timeout: 10000 });
-    // Should show event count or empty state
-    const eventsHeading = page.getByText(/Events \(\d+ results?\)|No events yet/);
-    await expect(eventsHeading).toBeVisible({ timeout: 10000 });
+    // Should show event count, empty state, or live feed section
+    const eventsContent = page.getByText(/Events \(\d+ results?\)|No events yet|Live Event/);
+    await expect(eventsContent).toBeVisible({ timeout: 10000 });
   });
 });
 

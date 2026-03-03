@@ -200,7 +200,7 @@ export default function OnboardingWizardPage() {
       for (const [key, value] of Object.entries(updates)) {
         params.set(key, value);
       }
-      router.push(`/demo/onboarding?${params.toString()}`);
+      router.push(`/dashboard/demo/onboarding?${params.toString()}`);
     },
     [router, searchParams],
   );

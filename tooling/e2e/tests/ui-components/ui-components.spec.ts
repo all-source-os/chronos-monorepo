@@ -1,10 +1,16 @@
 import { expect, test } from "../../fixtures/pages";
 
+const baseURL = process.env.BASE_URL || "https://all-source.xyz";
+const isLocal = baseURL.includes("localhost");
+
 /**
  * UI Components Test Suite
  *
  * Tests the shared UI components from @allsource/ui package
  * displayed on the /ui-test page.
+ *
+ * NOTE: The /ui-test page only exists in local dev builds.
+ * These tests are automatically skipped when running against production.
  *
  * Components tested:
  * - Button (5 variants: default, destructive, outline, secondary, ghost)
@@ -13,6 +19,7 @@ import { expect, test } from "../../fixtures/pages";
  */
 test.describe("UI Components", () => {
   test.beforeEach(async ({ uiTestPage }) => {
+    test.skip(!isLocal, "/ui-test page only exists in local dev builds");
     await uiTestPage.goto();
     await uiTestPage.waitForPageLoad();
   });

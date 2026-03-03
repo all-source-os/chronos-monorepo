@@ -138,6 +138,7 @@ test.describe("Event Explorer (/dashboard/events)", () => {
     await expect(
       page.getByText("No events yet")
         .or(page.getByText(/\(\d+ results\)/))
+        .first()
     ).toBeVisible({ timeout: 15000 });
   });
 });

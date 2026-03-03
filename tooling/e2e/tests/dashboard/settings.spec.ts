@@ -39,13 +39,13 @@ test.describe("Settings — page renders", () => {
   });
 
   test("page renders with heading and tab navigation", async ({ page }) => {
-    await expect(page.getByText("Settings")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: /settings/i }).first()).toBeVisible({ timeout: 10000 });
 
-    // All 4 tabs should be visible
-    await expect(page.getByText("Profile")).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Workspace")).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Security")).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Notifications")).toBeVisible({ timeout: 5000 });
+    // All 4 tabs should be visible — use exact match and first() to avoid sidebar matches
+    await expect(page.getByText("Profile", { exact: true }).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Workspace", { exact: true }).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Security", { exact: true }).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Notifications", { exact: true }).first()).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -118,8 +118,8 @@ test.describe("Settings — Workspace tab", () => {
   });
 
   test("Workspace tab shows name, slug, and Tenant ID", async ({ page }) => {
-    // Click Workspace tab
-    await page.getByText("Workspace").click();
+    // Click Workspace tab — use first() to avoid matching sidebar nav
+    await page.getByText("Workspace", { exact: true }).first().click();
     await page.waitForTimeout(500);
 
     // Workspace Name input
@@ -135,7 +135,7 @@ test.describe("Settings — Workspace tab", () => {
   });
 
   test("typing in URL slug sanitizes to lowercase", async ({ page }) => {
-    await page.getByText("Workspace").click();
+    await page.getByText("Workspace", { exact: true }).first().click();
     await page.waitForTimeout(500);
 
     const slugInput = page.locator("#workspace-slug");

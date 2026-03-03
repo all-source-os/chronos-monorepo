@@ -40,7 +40,7 @@ test.describe("Demo Zone — page renders", () => {
   });
 
   test("page renders with heading", async ({ page }) => {
-    await expect(page.getByText("Demo Zone")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: /Demo Zone/i }).first()).toBeVisible({ timeout: 10000 });
   });
 
   test("view toggle shows Live Fire and MCP Showdown buttons", async ({ page }) => {

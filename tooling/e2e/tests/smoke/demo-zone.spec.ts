@@ -1122,11 +1122,11 @@ test.describe("Onboarding Wizard - Send & Query", () => {
 
   test("code snippets render for all SDK languages", async ({ page }) => {
     for (const sdk of ["rust", "go", "python"]) {
-      await page.goto(`/demo/onboarding?step=3&sdk=${sdk}`);
+      await page.goto(`/dashboard/demo/onboarding?step=3&sdk=${sdk}`);
       await expect(page.getByTestId("send-event-snippet")).toBeVisible();
       await expect(page.getByTestId("run-it-button")).toBeVisible();
 
-      await page.goto(`/demo/onboarding?step=4&sdk=${sdk}`);
+      await page.goto(`/dashboard/demo/onboarding?step=4&sdk=${sdk}`);
       await expect(page.getByTestId("query-snippet")).toBeVisible();
       await expect(page.getByTestId("try-it-button")).toBeVisible();
     }

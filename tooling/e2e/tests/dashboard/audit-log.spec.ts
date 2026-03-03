@@ -39,7 +39,7 @@ test.describe("Audit Log — page renders", () => {
   });
 
   test("page renders with heading", async ({ page }) => {
-    await expect(page.getByText("Audit Log")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: /audit log/i }).first()).toBeVisible({ timeout: 10000 });
   });
 
   test("'All' filter pill is active by default", async ({ page }) => {

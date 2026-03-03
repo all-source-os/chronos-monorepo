@@ -32,15 +32,17 @@ test.describe("Header — theme toggle", () => {
   test("clicking theme toggle changes theme class on html element", async ({
     page,
   }) => {
-    const toggleBtn = page.getByRole("button", { name: "Toggle theme" });
-    await expect(toggleBtn).toBeVisible({ timeout: 10000 });
+    const toggleBtn = page.getByRole("button", { name: /toggle theme/i }).or(
+      page.locator("[aria-label='Toggle theme']")
+    );
+    await expect(toggleBtn.first()).toBeVisible({ timeout: 10000 });
 
     // Read the initial theme class
     const initialClass = await page.locator("html").getAttribute("class");
     const wasDark = initialClass?.includes("dark") ?? false;
 
     // Click the toggle
-    await toggleBtn.click();
+    await toggleBtn.first().click();
 
     // Verify the class changed
     if (wasDark) {
@@ -54,7 +56,7 @@ test.describe("Header — theme toggle", () => {
     }
 
     // Click again to verify it toggles back
-    await toggleBtn.click();
+    await toggleBtn.first().click();
 
     if (wasDark) {
       await expect(page.locator("html")).toHaveClass(/dark/, {

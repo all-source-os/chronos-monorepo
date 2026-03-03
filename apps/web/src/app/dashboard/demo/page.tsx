@@ -36,7 +36,7 @@ export default function DemoPage() {
     (view: DemoView) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("view", view);
-      router.push(`/demo?${params.toString()}`);
+      router.push(`/dashboard/demo?${params.toString()}`);
     },
     [router, searchParams]
   );
@@ -103,7 +103,7 @@ export default function DemoPage() {
             </div>
             {seeded && (
               <Button asChild size="sm" data-testid="build-your-own-cta">
-                <Link href="/demo/onboarding">
+                <Link href="/dashboard/demo/onboarding">
                   <Rocket className="mr-2 h-4 w-4" />
                   Build Your Own
                 </Link>

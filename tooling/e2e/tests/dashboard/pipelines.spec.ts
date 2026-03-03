@@ -40,7 +40,7 @@ test.describe("Pipelines — page renders", () => {
   });
 
   test("page renders with heading", async ({ page }) => {
-    await expect(page.getByText("Pipelines")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: /pipelines/i }).first()).toBeVisible({ timeout: 10000 });
   });
 
   test("status overview cards or empty state renders", async ({ page }) => {

@@ -222,18 +222,52 @@ impl EventStore {
             schema_evolution: Arc::new(SchemaEvolutionManager::new()),
         };
 
-        // Recover from WAL first (most recent data)
-        let mut wal_recovered = false;
+        // Step 1: Load persisted events from Parquet (the durable baseline)
+        if let Some(ref storage) = store.storage {
+            if let Ok(persisted_events) = storage.read().load_all_events() {
+                if !persisted_events.is_empty() {
+                    tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
+
+                    for event in persisted_events {
+                        let offset = store.events.read().len();
+                        if let Err(e) = store.index.index_event(
+                            event.id,
+                            event.entity_id_str(),
+                            event.event_type_str(),
+                            event.timestamp,
+                            offset,
+                        ) {
+                            tracing::error!("Failed to re-index event {}: {}", event.id, e);
+                        }
+
+                        if let Err(e) = store.projections.read().process_event(&event) {
+                            tracing::error!("Failed to re-process event {}: {}", event.id, e);
+                        }
+
+                        store.events.write().push(event);
+                    }
+
+                    let total = store.events.read().len();
+                    *store.total_ingested.write() = total as u64;
+                    tracing::info!("✅ Successfully loaded {} events from storage", total);
+                }
+            }
+        }
+
+        // Step 2: Recover WAL events (written after last Parquet checkpoint)
         if let Some(ref wal) = store.wal {
             match wal.recover() {
                 Ok(recovered_events) if !recovered_events.is_empty() => {
-                    tracing::info!(
-                        "🔄 Recovering {} events from WAL...",
-                        recovered_events.len()
-                    );
+                    // Collect IDs already loaded from Parquet to skip duplicates
+                    let existing_ids: std::collections::HashSet<uuid::Uuid> =
+                        store.events.read().iter().map(|e| e.id).collect();
 
+                    let mut wal_new = 0usize;
                     for event in recovered_events {
-                        // Re-index and process events from WAL
+                        if existing_ids.contains(&event.id) {
+                            continue; // already loaded from Parquet
+                        }
+
                         let offset = store.events.read().len();
                         if let Err(e) = store.index.index_event(
                             event.id,
@@ -250,25 +284,30 @@ impl EventStore {
                         }
 
                         store.events.write().push(event);
+                        wal_new += 1;
                     }
 
-                    let total = store.events.read().len();
-                    *store.total_ingested.write() = total as u64;
-                    tracing::info!("✅ Successfully recovered {} events from WAL", total);
+                    if wal_new > 0 {
+                        let total = store.events.read().len();
+                        *store.total_ingested.write() = total as u64;
+                        tracing::info!(
+                            "✅ Recovered {} new events from WAL ({} total)",
+                            wal_new,
+                            total
+                        );
 
-                    // After successful recovery, checkpoint to Parquet if enabled
-                    if store.storage.is_some() {
-                        tracing::info!("📸 Checkpointing WAL to Parquet storage...");
-                        if let Err(e) = store.flush_storage() {
-                            tracing::error!("Failed to checkpoint to Parquet: {}", e);
-                        } else if let Err(e) = wal.truncate() {
-                            tracing::error!("Failed to truncate WAL after checkpoint: {}", e);
-                        } else {
-                            tracing::info!("✅ WAL checkpointed and truncated");
+                        // Checkpoint WAL events to Parquet
+                        if store.storage.is_some() {
+                            tracing::info!("📸 Checkpointing WAL to Parquet storage...");
+                            if let Err(e) = store.flush_storage() {
+                                tracing::error!("Failed to checkpoint to Parquet: {}", e);
+                            } else if let Err(e) = wal.truncate() {
+                                tracing::error!("Failed to truncate WAL after checkpoint: {}", e);
+                            } else {
+                                tracing::info!("✅ WAL checkpointed and truncated");
+                            }
                         }
                     }
-
-                    wal_recovered = true;
                 }
                 Ok(_) => {
                     tracing::debug!("No events to recover from WAL");
@@ -277,40 +316,6 @@ impl EventStore {
                     tracing::error!("❌ WAL recovery failed: {}", e);
                 }
             }
-        }
-
-        // Load persisted events from Parquet only if we didn't recover from WAL
-        // (to avoid loading the same events twice after WAL checkpoint)
-        if !wal_recovered
-            && let Some(ref storage) = store.storage
-            && let Ok(persisted_events) = storage.read().load_all_events()
-        {
-            tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
-
-            for event in persisted_events {
-                // Re-index loaded events
-                let offset = store.events.read().len();
-                if let Err(e) = store.index.index_event(
-                    event.id,
-                    event.entity_id_str(),
-                    event.event_type_str(),
-                    event.timestamp,
-                    offset,
-                ) {
-                    tracing::error!("Failed to re-index event {}: {}", event.id, e);
-                }
-
-                // Re-process through projections
-                if let Err(e) = store.projections.read().process_event(&event) {
-                    tracing::error!("Failed to re-process event {}: {}", event.id, e);
-                }
-
-                store.events.write().push(event);
-            }
-
-            let total = store.events.read().len();
-            *store.total_ingested.write() = total as u64;
-            tracing::info!("✅ Successfully loaded {} events from storage", total);
         }
 
         store
