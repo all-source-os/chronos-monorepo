@@ -2,23 +2,25 @@ import { test, expect } from "@playwright/test";
 import { demoLogin } from "../../fixtures/demo-auth";
 
 /**
- * Helper: create demo credentials and log in through the normal flow.
- * Returns a JWT token that can be used to authenticate via the callback URL.
+ * Demo Zone Smoke Tests
+ *
+ * All tests require a running Control Plane for demo account creation.
+ * When the CP is unreachable, demoLogin returns null and tests skip.
  */
-// File-level auth: every test gets an authenticated session before running
-let fileToken: string | null = null;
+test.describe("Demo Zone Smoke Tests", () => {
+  let fileToken: string | null = null;
 
-test.beforeAll(async ({ request }) => {
-  fileToken = await demoLogin(request);
-});
+  test.beforeAll(async ({ request }) => {
+    fileToken = await demoLogin(request);
+  });
 
-test.beforeEach(async ({ page }) => {
-  test.skip(!fileToken, "Demo login failed (Control Plane not running)");
-  await page.goto(
-    `/api/auth/callback?token=${encodeURIComponent(fileToken!)}&new_user=true`
-  );
-  await page.waitForURL(/\/(dashboard|onboarding|demo)/, { timeout: 15000 });
-});
+  test.beforeEach(async ({ page }) => {
+    test.skip(!fileToken, "Demo login failed (Control Plane not running)");
+    await page.goto(
+      `/api/auth/callback?token=${encodeURIComponent(fileToken!)}&new_user=true`
+    );
+    await page.waitForURL(/\/(dashboard|onboarding|demo)/, { timeout: 15000 });
+  });
 
 /**
  * Demo Zone - Page Shell & Navigation (US-005)
@@ -1503,3 +1505,5 @@ test.describe("Demo Account Flow @demo", () => {
     await expect(page).toHaveURL(/view=mcp-showdown/);
   });
 });
+
+}); // end: Demo Zone Smoke Tests

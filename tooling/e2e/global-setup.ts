@@ -56,10 +56,13 @@ export default async function globalSetup() {
       required: true,
     },
     {
+      // Control Plane is only required for local runs.
+      // For production/staging, individual test files handle CP
+      // unavailability via demoLogin() returning null → test.skip().
       name: "Control Plane",
       url: CP_URL,
       healthPath: "/health",
-      required: true,
+      required: isLocal,
     },
   ];
 

@@ -3,8 +3,9 @@ playwright-report/
 test-results/
 test-results.json
 
-# Credentials
+# Credentials / local overrides
 .env.test
+.env.local
 
 # Node modules
 node_modules/
