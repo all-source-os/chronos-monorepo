@@ -1,8 +1,18 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project supports **cn** (chronon) and **bd** (beads) for issue tracking. Chronon is the primary tracker. Run `cn init` to get started, or use `bd onboard` for legacy beads.
 
-## Quick Reference
+## Quick Reference (Chronon — preferred)
+
+```bash
+cn ready              # Find available work (open + unblocked)
+cn show <id>          # View task details, children, timeline
+cn claim <id>         # Claim a task (uses CN_AGENT_ID env var)
+cn done <id>          # Complete a task
+cn sync --git         # Sync with git (add .chronon/, commit, push)
+```
+
+## Quick Reference (Beads — legacy)
 
 ```bash
 bd ready              # Find available work
@@ -24,7 +34,7 @@ bd sync               # Sync with git
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
+   cn sync --git       # or: bd sync
    git push
    git status  # MUST show "up to date with origin"
    ```
@@ -43,9 +53,79 @@ bd sync               # Sync with git
 
 ---
 
-## Beads Workflow Integration
+## Chronon Workflow Integration
 
-This project uses [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) for issue tracking. Issues are stored in `.beads/` and tracked in git.
+This project uses [chronon](apps/chronon/) as the primary event-sourced task tracker. Tasks are stored in `.chronon/` and tracked in git.
+
+### Essential Commands
+
+```bash
+# Task management
+cn task create "Title" -p p0 --type=epic         # Create epic
+cn task create "Subtask" --parent=<id> -p p1      # Create child task
+cn task create "Bug fix" --type=bug               # Create bug
+cn list                                           # All tasks
+cn list --status=open                             # Filter by status
+cn ready                                          # Unblocked open tasks
+cn show <id>                                      # Details + children + timeline
+cn claim <id>                                     # Claim (reads CN_AGENT_ID)
+cn done <id> --reason="Completed"                 # Complete
+cn approve <id>                                   # Approve
+
+# Dependencies
+cn dep add <task-id> <blocker-id>                 # Add blocker
+cn dep remove <task-id> <blocker-id>              # Remove blocker
+
+# Migration & sync
+cn migrate-beads                                  # Import from .beads/
+cn sync --git                                     # Git add/commit/push .chronon/
+
+# Visualization
+cn tui                                            # Interactive TUI
+cn serve                                          # Web viewer (port 3905)
+```
+
+### Workflow Pattern
+
+1. **Start**: Run `cn ready` to find actionable work
+2. **Claim**: Use `cn claim <id>`
+3. **Work**: Implement the task
+4. **Complete**: Use `cn done <id>`
+5. **Sync**: Always run `cn sync --git` at session end
+
+### Key Concepts
+
+- **Dependencies**: Tasks can block other tasks. `cn ready` shows only unblocked work.
+- **Priority**: p0=critical, p1=high, p2=medium, p3=low
+- **Types**: task, epic, bug, feature
+- **Parent-child**: Use `--parent=<id>` to create hierarchy under epics
+- **Blocking**: `cn dep add <task> <blocker>` to add post-creation dependencies
+
+### Session Protocol
+
+**Before ending any session, run this checklist:**
+
+```bash
+git status              # Check what changed
+git add <files>         # Stage code changes
+cn sync --git           # Commit chronon changes
+git commit -m "..."     # Commit code
+git push                # Push to remote
+```
+
+### Best Practices
+
+- Check `cn ready` at session start to find available work
+- Update status as you work (claim → done)
+- Create new tasks with `cn task create` when you discover work
+- Use descriptive titles and set appropriate priority/type
+- Always `cn sync --git` before ending session
+
+---
+
+## Beads Workflow Integration (Legacy)
+
+This project also has [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) for issue tracking. Issues are stored in `.beads/` and tracked in git.
 
 ### Essential Commands
 
@@ -64,40 +144,11 @@ bd close <id1> <id2>  # Close multiple issues at once
 bd sync               # Commit and push changes
 ```
 
-### Workflow Pattern
-
-1. **Start**: Run `bd ready` to find actionable work
-2. **Claim**: Use `bd update <id> --status=in_progress`
-3. **Work**: Implement the task
-4. **Complete**: Use `bd close <id>`
-5. **Sync**: Always run `bd sync` at session end
-
 ### Key Concepts
 
 - **Dependencies**: Issues can block other issues. `bd ready` shows only unblocked work.
 - **Priority**: P0=critical, P1=high, P2=medium, P3=low, P4=backlog (use numbers, not words)
 - **Types**: task, bug, feature, epic, question, docs
 - **Blocking**: `bd dep add <issue> <depends-on>` to add dependencies
-
-### Session Protocol
-
-**Before ending any session, run this checklist:**
-
-```bash
-git status              # Check what changed
-git add <files>         # Stage code changes
-bd sync                 # Commit beads changes
-git commit -m "..."     # Commit code
-bd sync                 # Commit any new beads changes
-git push                # Push to remote
-```
-
-### Best Practices
-
-- Check `bd ready` at session start to find available work
-- Update status as you work (in_progress → closed)
-- Create new issues with `bd create` when you discover tasks
-- Use descriptive titles and set appropriate priority/type
-- Always `bd sync` before ending session
 
 <!-- end-bv-agent-instructions -->

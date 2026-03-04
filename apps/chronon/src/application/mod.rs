@@ -1,6 +1,10 @@
+pub mod add_dependency;
 pub mod approve_task;
 pub mod claim_task;
 pub mod complete_task;
 pub mod create_task;
 pub mod get_task;
 pub mod list_tasks;
+pub mod migrate_beads;
+pub mod remove_dependency;
+pub mod sync_git;

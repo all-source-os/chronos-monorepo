@@ -1,4 +1,7 @@
-use super::{error::ChronError, task::Task};
+use super::{
+    error::ChronError,
+    task::{Task, TaskType},
+};
 
 /// Timeline entry for a task event.
 pub struct TimelineEntry {
@@ -23,7 +26,12 @@ pub trait TaskRepository: Send + Sync {
         title: &str,
         priority: &str,
         blocked_by: &[String],
+        task_type: TaskType,
+        parent: Option<&str>,
+        description: Option<&str>,
     ) -> impl std::future::Future<Output = Result<(), ChronError>> + Send;
+
+    fn children_of(&self, parent_id: &str) -> Result<Vec<Task>, ChronError>;
 
     fn claim_task(
         &self,
@@ -40,6 +48,18 @@ pub trait TaskRepository: Send + Sync {
     fn approve_task(
         &self,
         id: &str,
+    ) -> impl std::future::Future<Output = Result<(), ChronError>> + Send;
+
+    fn add_dependency(
+        &self,
+        task_id: &str,
+        blocker_id: &str,
+    ) -> impl std::future::Future<Output = Result<(), ChronError>> + Send;
+
+    fn remove_dependency(
+        &self,
+        task_id: &str,
+        blocker_id: &str,
     ) -> impl std::future::Future<Output = Result<(), ChronError>> + Send;
 
     fn get_task_detail(

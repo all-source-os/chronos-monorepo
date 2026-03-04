@@ -49,17 +49,32 @@ impl Projection for TaskProjection {
                     .and_then(|v| v.as_str())
                     .unwrap_or("p2")
                     .to_string();
-                self.states.insert(
-                    entity_id,
-                    json!({
-                        "title": title,
-                        "priority": priority,
-                        "status": "open",
-                        "claimed_by": null,
-                        "blocked_by": [],
-                        "created_at": event.timestamp().to_rfc3339(),
-                    }),
-                );
+                let task_type = payload
+                    .get("task_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("task")
+                    .to_string();
+                let parent = payload.get("parent").and_then(|v| v.as_str()).map(String::from);
+                let description = payload
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let mut state = json!({
+                    "title": title,
+                    "priority": priority,
+                    "status": "open",
+                    "task_type": task_type,
+                    "claimed_by": null,
+                    "blocked_by": [],
+                    "created_at": event.timestamp().to_rfc3339(),
+                });
+                if let Some(p) = parent {
+                    state["parent"] = json!(p);
+                }
+                if let Some(d) = description {
+                    state["description"] = json!(d);
+                }
+                self.states.insert(entity_id, state);
             }
             "task.updated" => {
                 if let Some(mut state) = self.states.get_mut(&entity_id) {

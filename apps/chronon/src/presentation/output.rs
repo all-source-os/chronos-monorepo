@@ -6,6 +6,8 @@ use crate::domain::task::Task;
 pub struct TaskRow {
     #[tabled(rename = "ID")]
     pub id: String,
+    #[tabled(rename = "Type")]
+    pub task_type: String,
     #[tabled(rename = "Title")]
     pub title: String,
     #[tabled(rename = "Pri")]
@@ -34,6 +36,7 @@ impl From<&Task> for TaskRow {
 
         Self {
             id: task.id.clone(),
+            task_type: task.task_type.to_string(),
             title,
             priority: task.priority.to_string(),
             status: task.status.to_string(),

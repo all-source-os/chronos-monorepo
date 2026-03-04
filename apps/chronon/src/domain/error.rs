@@ -27,6 +27,9 @@ pub enum ChronError {
     #[error("unknown priority: {0} (expected p0-p3)")]
     InvalidPriority(String),
 
+    #[error("unknown task type: {0} (expected task, epic, bug, feature)")]
+    InvalidTaskType(String),
+
     #[error(transparent)]
     Core(#[from] CoreError),
 

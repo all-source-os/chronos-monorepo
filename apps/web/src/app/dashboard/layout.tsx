@@ -101,18 +101,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           onCommandPaletteOpen={() => setCommandPaletteOpen(true)}
         />
 
-        {/* Banners */}
-        <div
-          className={cn(
-            "fixed top-16 right-0 left-0 z-20 transition-all duration-300",
-            sidebarCollapsed ? "md:left-16" : "md:left-64"
-          )}
-        >
-          <DemoBanner />
-          <EarlyAccessBanner />
-          <HistoricalModeBanner />
-        </div>
-
         {/* Main content */}
         <main
           className={cn(
@@ -120,6 +108,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             sidebarCollapsed ? "md:ml-16" : "md:ml-64"
           )}
         >
+          {/* Banners — inside main flow so they push content down */}
+          <DemoBanner />
+          <EarlyAccessBanner />
+          <HistoricalModeBanner />
+
           <div className="container mx-auto max-w-7xl p-4 md:p-6 lg:p-8">{children}</div>
         </main>
 

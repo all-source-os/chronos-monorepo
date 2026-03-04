@@ -6,7 +6,7 @@ use serde_json::json;
 use crate::domain::{
     error::{ChronError, CoreError},
     repository::{TaskDetail, TaskRepository, TimelineEntry},
-    task::{Task, TaskStatus},
+    task::{Task, TaskStatus, TaskType},
 };
 
 pub struct CoreTaskRepository {
@@ -79,21 +79,41 @@ impl TaskRepository for CoreTaskRepository {
         ready.iter().map(|v| self.value_to_task(v)).collect()
     }
 
+    fn children_of(&self, parent_id: &str) -> Result<Vec<Task>, ChronError> {
+        let raw = self.all_tasks_raw();
+        raw.into_iter()
+            .filter(|t| t["parent"].as_str() == Some(parent_id))
+            .map(|v| self.value_to_task(&v))
+            .collect()
+    }
+
     async fn create_task(
         &self,
         id: &str,
         title: &str,
         priority: &str,
         blocked_by: &[String],
+        task_type: TaskType,
+        parent: Option<&str>,
+        description: Option<&str>,
     ) -> Result<(), ChronError> {
+        let mut payload = json!({
+            "title": title,
+            "priority": priority,
+            "task_type": task_type.to_string(),
+        });
+        if let Some(parent) = parent {
+            payload["parent"] = json!(parent);
+        }
+        if let Some(desc) = description {
+            payload["description"] = json!(desc);
+        }
+
         self.core
             .ingest(IngestEvent {
                 entity_id: id,
                 event_type: "task.created",
-                payload: json!({
-                    "title": title,
-                    "priority": priority,
-                }),
+                payload,
                 metadata: None,
                 tenant_id: None,
             })
@@ -177,6 +197,42 @@ impl TaskRepository for CoreTaskRepository {
                 entity_id: id,
                 event_type: "workflow.approval.granted",
                 payload: json!({}),
+                metadata: None,
+                tenant_id: None,
+            })
+            .await
+            .map_err(|e| CoreError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn add_dependency(&self, task_id: &str, blocker_id: &str) -> Result<(), ChronError> {
+        // Validate both tasks exist
+        self.get_task(task_id)?;
+        self.get_task(blocker_id)?;
+
+        self.core
+            .ingest(IngestEvent {
+                entity_id: task_id,
+                event_type: "task.dependency.added",
+                payload: json!({ "depends_on": blocker_id }),
+                metadata: None,
+                tenant_id: None,
+            })
+            .await
+            .map_err(|e| CoreError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn remove_dependency(&self, task_id: &str, blocker_id: &str) -> Result<(), ChronError> {
+        self.get_task(task_id)?;
+
+        self.core
+            .ingest(IngestEvent {
+                entity_id: task_id,
+                event_type: "task.dependency.removed",
+                payload: json!({ "depends_on": blocker_id }),
                 metadata: None,
                 tenant_id: None,
             })
