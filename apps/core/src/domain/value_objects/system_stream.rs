@@ -41,6 +41,8 @@ pub enum SystemDomain {
     Schema,
     /// Policies: access policies and retention rules
     Policy,
+    /// Consumer: durable subscription cursor positions
+    Consumer,
 }
 
 impl SystemDomain {
@@ -52,6 +54,7 @@ impl SystemDomain {
             Self::Config => "config",
             Self::Schema => "schema",
             Self::Policy => "policy",
+            Self::Consumer => "consumer",
         }
     }
 
@@ -63,6 +66,7 @@ impl SystemDomain {
             Self::Config,
             Self::Schema,
             Self::Policy,
+            Self::Consumer,
         ]
     }
 }
@@ -101,6 +105,13 @@ pub mod policy_events {
     pub const CREATED: &str = "_system.policy.created";
     pub const UPDATED: &str = "_system.policy.updated";
     pub const DELETED: &str = "_system.policy.deleted";
+}
+
+/// System event types for consumer cursor tracking.
+pub mod consumer_events {
+    pub const REGISTERED: &str = "_system.consumer.registered";
+    pub const ACK_UPDATED: &str = "_system.consumer.ack_updated";
+    pub const DELETED: &str = "_system.consumer.deleted";
 }
 
 /// Check whether an event type string belongs to the system namespace.
@@ -194,7 +205,7 @@ mod tests {
     #[test]
     fn test_system_domain_all() {
         let domains = SystemDomain::all();
-        assert_eq!(domains.len(), 5);
+        assert_eq!(domains.len(), 6);
     }
 
     #[test]
@@ -217,6 +228,9 @@ mod tests {
             policy_events::CREATED,
             policy_events::UPDATED,
             policy_events::DELETED,
+            consumer_events::REGISTERED,
+            consumer_events::ACK_UPDATED,
+            consumer_events::DELETED,
         ];
 
         for constant in constants {

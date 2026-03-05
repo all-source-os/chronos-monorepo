@@ -4,6 +4,23 @@ All notable changes to AllSource Chronos are documented here.
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-03-05
+
+### Added
+- **WAL-backed consumer cursors**: `ConsumerRegistry` now persists cursor positions as system events (`_system.consumer.registered`, `_system.consumer.ack_updated`, `_system.consumer.deleted`) via `SystemMetadataStore`. On Core restart, consumer state is rebuilt from WAL during Stage 2 bootstrap. Previously, all cursor positions were lost on restart.
+- **`Consumer` system domain**: New `SystemDomain::Consumer` variant with `consumer_events` module in `system_stream.rs`
+- **Dual-mode `ConsumerRegistry`**: `new()` for in-memory (tests/backward compat), `new_durable(system_store)` for WAL-backed persistence
+- **`ConsumerRegistry::count()`**: Returns number of registered consumers, used in bootstrap logging
+- **`EventStore::set_consumer_registry()`**: Allows replacing the default in-memory registry with a durable one during startup
+- 4 new durability tests: `test_durable_register_persists`, `test_durable_ack_persists`, `test_durable_recovery_multiple_acks`, `test_in_memory_mode_still_works`
+
+### Changed
+- `SystemBootstrap` Stage 2 now creates and recovers `ConsumerRegistry` alongside tenants, audit, and config repositories
+- `SystemRepositories` struct includes `consumer_registry: Arc<ConsumerRegistry>`
+- `ServiceContainer` and `ContainerBuilder` thread `consumer_registry` through DI layer
+- System metadata bootstrap moved before `Arc::new(store)` in `main.rs` to allow `&mut` access for `set_consumer_registry`
+- `SystemDomain::all()` now returns 6 domains (was 5)
+
 ## [0.14.0] - 2026-03-05
 
 ### Added

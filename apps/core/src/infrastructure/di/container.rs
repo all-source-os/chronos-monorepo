@@ -34,6 +34,7 @@ use crate::application::use_cases::{
     ValidateTokenUseCase,
 };
 use crate::{
+    application::services::consumer::ConsumerRegistry,
     domain::repositories::{
         AccessTokenRepository, ArticleRepository, AuditEventRepository, CreatorRepository,
         EventStreamRepository, ForkRepository, TenantRepository, TransactionRepository,
@@ -96,6 +97,7 @@ pub struct ServiceContainer {
     pub(super) audit_repository: Option<Arc<dyn AuditEventRepository>>,
     pub(super) config_repository: Option<Arc<EventSourcedConfigRepository>>,
     pub(super) system_store: Option<Arc<SystemMetadataStore>>,
+    pub(super) consumer_registry: Option<Arc<ConsumerRegistry>>,
 }
 
 impl ServiceContainer {
@@ -121,6 +123,7 @@ impl ServiceContainer {
             audit_repository: None,
             config_repository: None,
             system_store: None,
+            consumer_registry: None,
         }
     }
 
@@ -188,6 +191,11 @@ impl ServiceContainer {
     /// Returns `None` when system metadata is not configured (in-memory mode).
     pub fn system_store(&self) -> Option<Arc<SystemMetadataStore>> {
         self.system_store.clone()
+    }
+
+    /// Returns the durable consumer registry, if configured.
+    pub fn consumer_registry(&self) -> Option<Arc<ConsumerRegistry>> {
+        self.consumer_registry.clone()
     }
 
     /// Returns true if event-sourced system repositories are configured.

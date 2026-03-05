@@ -1,4 +1,5 @@
 use crate::{
+    application::services::consumer::ConsumerRegistry,
     domain::{entities::TenantQuotas, repositories::TenantRepository, value_objects::TenantId},
     error::Result,
     infrastructure::{
@@ -27,6 +28,9 @@ pub struct SystemRepositories {
 
     /// Event-sourced config repository
     pub config_repository: Arc<EventSourcedConfigRepository>,
+
+    /// Durable consumer registry for subscription cursor tracking
+    pub consumer_registry: Arc<ConsumerRegistry>,
 }
 
 /// Staged system initialization with static stability.
@@ -77,12 +81,14 @@ impl SystemBootstrap {
         let tenant_repository = Arc::new(EventSourcedTenantRepository::new(system_store.clone()));
         let audit_repository = Arc::new(EventSourcedAuditRepository::new(system_store.clone()));
         let config_repository = Arc::new(EventSourcedConfigRepository::new(system_store.clone()));
+        let consumer_registry = Arc::new(ConsumerRegistry::new_durable(system_store.clone()));
 
         let tenant_count = tenant_repository.count().await.unwrap_or(0);
         tracing::info!(
-            "System caches populated: {} tenants, {} config entries",
+            "System caches populated: {} tenants, {} config entries, {} consumers",
             tenant_count,
-            config_repository.count()
+            config_repository.count(),
+            consumer_registry.count()
         );
 
         // Stage 3: First-boot bootstrap (if needed)
@@ -136,6 +142,7 @@ impl SystemBootstrap {
             tenant_repository,
             audit_repository,
             config_repository,
+            consumer_registry,
         })
     }
 

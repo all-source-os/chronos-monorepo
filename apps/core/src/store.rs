@@ -794,6 +794,14 @@ impl EventStore {
         &self.consumer_registry
     }
 
+    /// Replace the default in-memory consumer registry with a durable one.
+    ///
+    /// Called during startup when system repositories are available, so that
+    /// consumer cursors survive Core restarts via WAL persistence.
+    pub fn set_consumer_registry(&mut self, registry: Arc<ConsumerRegistry>) {
+        self.consumer_registry = registry;
+    }
+
     /// Get the total number of events in the store (used as max offset for consumer ack).
     pub fn total_events(&self) -> usize {
         self.events.read().len()

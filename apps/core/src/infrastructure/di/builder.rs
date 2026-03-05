@@ -5,6 +5,7 @@
 
 use super::ServiceContainer;
 use crate::{
+    application::services::consumer::ConsumerRegistry,
     domain::repositories::{
         AccessTokenRepository, ArticleRepository, AuditEventRepository, CreatorRepository,
         EventStreamRepository, ForkRepository, TenantRepository, TransactionRepository,
@@ -54,6 +55,7 @@ pub struct ContainerBuilder {
     audit_repository: Option<Arc<dyn AuditEventRepository>>,
     config_repository: Option<Arc<EventSourcedConfigRepository>>,
     system_store: Option<Arc<SystemMetadataStore>>,
+    consumer_registry: Option<Arc<ConsumerRegistry>>,
 }
 
 impl ContainerBuilder {
@@ -133,6 +135,7 @@ impl ContainerBuilder {
         self.tenant_repository = Some(repos.tenant_repository);
         self.audit_repository = Some(repos.audit_repository);
         self.config_repository = Some(repos.config_repository);
+        self.consumer_registry = Some(repos.consumer_registry);
         self
     }
 
@@ -175,6 +178,7 @@ impl ContainerBuilder {
         container.audit_repository = self.audit_repository;
         container.config_repository = self.config_repository;
         container.system_store = self.system_store;
+        container.consumer_registry = self.consumer_registry;
 
         container
     }
@@ -212,6 +216,7 @@ impl ContainerBuilder {
         container.audit_repository = self.audit_repository;
         container.config_repository = self.config_repository;
         container.system_store = self.system_store;
+        container.consumer_registry = self.consumer_registry;
 
         Ok(container)
     }

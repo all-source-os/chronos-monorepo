@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
             config.wal_dir
         );
     }
-    let store = EventStore::with_config(config);
+    let mut store = EventStore::with_config(config);
 
     // Initialize WAL replication if this is a leader with replication enabled
     let replication_enabled = std::env::var("ALLSOURCE_REPLICATION_ENABLED")
@@ -94,6 +94,28 @@ async fn main() -> Result<()> {
         }
         None
     };
+
+    // Initialize system metadata (event-sourced repositories) BEFORE Arc-wrapping the store,
+    // so we can set the durable consumer registry via &mut self.
+    let system_data_dir = std::env::var("ALLSOURCE_SYSTEM_DATA_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var("ALLSOURCE_DATA_DIR")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .map(|d| std::path::PathBuf::from(d).join("__system"))
+        });
+    let bootstrap_tenant = std::env::var("ALLSOURCE_BOOTSTRAP_TENANT")
+        .ok()
+        .filter(|s| !s.is_empty());
+    let system_repos = SystemBootstrap::try_initialize(system_data_dir, bootstrap_tenant).await;
+
+    // Wire durable consumer registry into EventStore before Arc wrapping
+    if let Some(ref repos) = system_repos {
+        store.set_consumer_registry(repos.consumer_registry.clone());
+    }
 
     let store = Arc::new(store);
 
@@ -168,25 +190,6 @@ async fn main() -> Result<()> {
         }
     });
     let rate_limiter = Arc::new(RateLimiter::new(RateLimitConfig::professional()));
-
-    // Initialize system metadata (event-sourced repositories)
-    // ALLSOURCE_SYSTEM_DATA_DIR: path to durable system metadata storage
-    //   (defaults to {ALLSOURCE_DATA_DIR}/__system/ if not set)
-    // ALLSOURCE_BOOTSTRAP_TENANT: name of default tenant to create on first boot
-    let system_data_dir = std::env::var("ALLSOURCE_SYSTEM_DATA_DIR")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .map(std::path::PathBuf::from)
-        .or_else(|| {
-            std::env::var("ALLSOURCE_DATA_DIR")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .map(|d| std::path::PathBuf::from(d).join("__system"))
-        });
-    let bootstrap_tenant = std::env::var("ALLSOURCE_BOOTSTRAP_TENANT")
-        .ok()
-        .filter(|s| !s.is_empty());
-    let system_repos = SystemBootstrap::try_initialize(system_data_dir, bootstrap_tenant).await;
 
     // Use event-sourced tenant repository when system repositories are available,
     // otherwise fall back to in-memory only (dev/test mode).
