@@ -18,7 +18,7 @@ name = "cn"
 path = "src/main.rs"
 
 [dependencies]
-allsource-core = { version = "0.13.1", path = "../core", default-features = false, features = [
+allsource-core = { version = "0.14.0", path = "../core", default-features = false, features = [
     "embedded",
     "embedded-replicant",
     "embedded-projections",

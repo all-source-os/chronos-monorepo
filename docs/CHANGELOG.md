@@ -4,6 +4,19 @@ All notable changes to AllSource Chronos are documented here.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-03-05
+
+### Added
+- **Optimistic concurrency control**: Per-entity version tracking in EventStore, `expected_version` field on event ingestion with 409 Conflict on mismatch, `entity_version` in query responses
+- **Durable subscriptions**: Consumer registration (`POST /api/v1/consumers`), pull-based event polling with cursor tracking, acknowledgment with durable position persistence (survives restart)
+- **WebSocket durable subscription**: `WS /ws?consumer_id=X` auto-replays missed events since last ack before switching to real-time delivery
+- **Server-side event filtering**: WebSocket `subscribe` message with prefix filters (`scheduler.*`, `trade.*`), RESP3 `SUBSCRIBE scheduler.* index.*` with server-side prefix matching
+- **JWT `is_demo` claim**: Control plane includes `is_demo` in JWT claims based on Core tenant data; Query Service reads from JWT instead of brittle tenant ID prefix matching
+
+### Changed
+- **Unified tenant management**: Retired duplicated `TenantManager` (application layer); all tenant operations now use `EventSourcedTenantRepository` via DI container as single source of truth
+- Updated admin CLI and integration tests to use domain `Tenant` entity and `InMemoryTenantRepository`
+
 ## [0.13.1] - 2026-03-03
 
 ### Fixed

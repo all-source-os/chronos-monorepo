@@ -2,7 +2,7 @@
 title: "AllSource Event Store - Monorepo"
 status: CURRENT
 last_updated: 2026-03-03
-version: "0.13.1"
+version: "0.14.0"
 ---
 
 <div align="center">
@@ -17,16 +17,16 @@ version: "0.13.1"
 [![Release](https://img.shields.io/github/v/release/all-source-os/all-source?label=release&color=blue)](https://github.com/all-source-os/all-source/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[![Core](https://img.shields.io/badge/Core-v0.13.1-orange?logo=rust&logoColor=white)](apps/core/)
-[![Control Plane](https://img.shields.io/badge/Control_Plane-v0.13.1-00ADD8?logo=go&logoColor=white)](apps/control-plane/)
-[![Query Service](https://img.shields.io/badge/Query_Service-v0.13.1-4B275F?logo=elixir&logoColor=white)](apps/query-service/)
-[![Web](https://img.shields.io/badge/Web-v0.13.1-000000?logo=next.js&logoColor=white)](apps/web/)
+[![Core](https://img.shields.io/badge/Core-v0.14.0-orange?logo=rust&logoColor=white)](apps/core/)
+[![Control Plane](https://img.shields.io/badge/Control_Plane-v0.14.0-00ADD8?logo=go&logoColor=white)](apps/control-plane/)
+[![Query Service](https://img.shields.io/badge/Query_Service-v0.14.0-4B275F?logo=elixir&logoColor=white)](apps/query-service/)
+[![Web](https://img.shields.io/badge/Web-v0.14.0-000000?logo=next.js&logoColor=white)](apps/web/)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-61_tools-8A2BE2)](apps/mcp-server-elixir/)
 
-[![Core Image](https://img.shields.io/badge/ghcr.io-allsource--core:0.13.1-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-core)
-[![Control Plane Image](https://img.shields.io/badge/ghcr.io-allsource--control--plane:0.13.1-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-control-plane)
-[![Query Service Image](https://img.shields.io/badge/ghcr.io-allsource--query--service:0.13.1-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-query-service)
-[![Web Image](https://img.shields.io/badge/ghcr.io-allsource--web:0.13.1-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-web)
+[![Core Image](https://img.shields.io/badge/ghcr.io-allsource--core:0.14.0-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-core)
+[![Control Plane Image](https://img.shields.io/badge/ghcr.io-allsource--control--plane:0.14.0-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-control-plane)
+[![Query Service Image](https://img.shields.io/badge/ghcr.io-allsource--query--service:0.14.0-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-query-service)
+[![Web Image](https://img.shields.io/badge/ghcr.io-allsource--web:0.14.0-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-web)
 
 </div>
 
@@ -81,17 +81,19 @@ tooling/
 
 ---
 
-## Project Status & Roadmap (v0.13.1)
+## Project Status & Roadmap (v0.14.0)
 
-### What's New in v0.13.1
+### What's New in v0.14.0
 
-- **WebSocket Mint migration**: Replaced WebSockex with Mint.WebSocket for native IPv6 support on Fly.io
-- **Service JWT auth**: Query Service generates service JWTs for authenticated Core WebSocket connections
-- **Chronis CLI** (`apps/chronis`): Event-sourced task management CLI with TUI (ratatui) and web (htmx) interfaces, powered by Embedded Core
-- **Fly.io production deploy**: All services deployed and healthy on Fly.io with internal networking
+- **Optimistic concurrency control**: `expected_version` on writes with 409 Conflict on mismatch, `entity_version` in query responses
+- **Durable subscriptions**: Persistent consumer cursors, pull-based polling, acknowledgment, WebSocket auto-replay on reconnect
+- **Server-side event filtering**: WebSocket and RESP3 prefix-based subscription filters (`scheduler.*`, `trade.*`)
+- **Unified tenant management**: Retired duplicated TenantManager, single EventSourcedTenantRepository as source of truth
+- **JWT `is_demo` claim**: Demo tenant detection via explicit JWT claim instead of brittle tenant ID prefix matching
 
 ### Previous releases
 
+- **v0.13.1**: WebSocket Mint migration, service JWT auth, Chronis CLI, Fly.io production deploy
 - **v0.12.0**: Network sync transport, configurable conflict resolution, MCP tool event emission, WebSocket backpressure
 - **v0.11.0**: Embedded Core library (8 phases), full dependency upgrade (arrow 57, datafusion 52, rand 0.10, reqwest 0.13, tantivy 0.25, fastembed 5)
 
@@ -159,21 +161,21 @@ AI-native interface for Claude Desktop or any MCP client.
 
 ## Docker Images
 
-All services ship at **v0.13.1**. Total production footprint: **~129 MB**.
+All services ship at **v0.14.0**. Total production footprint: **~129 MB**.
 
 | Service | Image | Size | Base |
 |---------|-------|:----:|------|
-| Core | `ghcr.io/all-source-os/allsource-core:0.13.1` | 15.7 MB | Distroless |
-| Control Plane | `ghcr.io/all-source-os/allsource-control-plane:0.13.1` | 27.9 MB | Distroless |
-| Query Service | `ghcr.io/all-source-os/allsource-query-service:0.13.1` | 35.1 MB | Alpine |
-| Web | `ghcr.io/all-source-os/allsource-web:0.13.1` | ~50 MB | Alpine |
+| Core | `ghcr.io/all-source-os/allsource-core:0.14.0` | 15.7 MB | Distroless |
+| Control Plane | `ghcr.io/all-source-os/allsource-control-plane:0.14.0` | 27.9 MB | Distroless |
+| Query Service | `ghcr.io/all-source-os/allsource-query-service:0.14.0` | 35.1 MB | Alpine |
+| Web | `ghcr.io/all-source-os/allsource-web:0.14.0` | ~50 MB | Alpine |
 
 ```bash
 # Quick start
 docker compose up -d
 
 # Pull specific version
-docker pull ghcr.io/all-source-os/allsource-core:0.13.1
+docker pull ghcr.io/all-source-os/allsource-core:0.14.0
 ```
 
 See [Docker Guide](docs/deployment/DOCKER.md) · [Release Guide](docs/guides/RELEASE.md)
