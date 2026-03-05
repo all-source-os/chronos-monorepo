@@ -129,6 +129,9 @@ impl EventSourcedTenantRepository {
                         let desc = payload["description"].as_str().map(|s| s.to_string());
                         tenant.update_description(desc);
                     }
+                    if let Some(is_demo) = payload["is_demo"].as_bool() {
+                        tenant.set_is_demo(is_demo);
+                    }
                     if let Some(metadata) = payload.get("metadata") {
                         tenant.update_metadata(metadata.clone());
                     }
@@ -218,6 +221,7 @@ impl TenantRepository for EventSourcedTenantRepository {
             let payload = json!({
                 "name": tenant.name(),
                 "description": tenant.description(),
+                "is_demo": tenant.is_demo(),
                 "metadata": tenant.metadata(),
             });
             self.emit_event(tenant_events::UPDATED, &id_str, payload)?;

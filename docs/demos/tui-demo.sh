@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Scripted demo for asciinema recording of chronon CLI + TUI + web viewer
+# Scripted demo for asciinema recording of chronis CLI + TUI + web viewer
 #
 # To record:
-#   asciinema rec --cols 110 --rows 32 docs/demos/chronon.cast -c "bash docs/demos/tui-demo.sh"
+#   asciinema rec --cols 110 --rows 32 docs/demos/chronis.cast -c "bash docs/demos/tui-demo.sh"
 #
 # To render GIF:
-#   agg docs/demos/chronon.cast docs/demos/chronon.gif --theme monokai --speed 1.5
+#   agg docs/demos/chronis.cast docs/demos/chronis.gif --theme monokai --speed 1.5
 #
 # To upload:
-#   asciinema upload docs/demos/chronon.cast
+#   asciinema upload docs/demos/chronis.cast
 
 set -e
 
@@ -38,7 +38,7 @@ header() {
 # ============================================================
 clear
 echo ""
-echo -e "  \033[1;36mchronon\033[0m  event-sourced task management"
+echo -e "  \033[1;36mchronis\033[0m  event-sourced task management"
 echo -e "  \033[0;90mnew: cn tui (ratatui dashboard) + cn serve (web viewer)\033[0m"
 echo ""
 pause 2
@@ -125,7 +125,7 @@ kill $SERVER_PID 2>/dev/null
 wait $SERVER_PID 2>/dev/null
 
 echo ""
-echo -e "  \033[1;36mchronon\033[0m  tasks as events, not rows."
+echo -e "  \033[1;36mchronis\033[0m  tasks as events, not rows."
 echo -e "  \033[0;90mgithub.com/all-source-os/chronos-monorepo\033[0m"
 echo ""
 pause 3

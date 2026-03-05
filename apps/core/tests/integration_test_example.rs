@@ -8,10 +8,14 @@
 use allsource_core::{
     QueryEventsRequest,
     auth::{AuthManager, Permission, Role},
-    domain::entities::Event,
+    domain::{
+        entities::{Event, TenantQuotas},
+        repositories::TenantRepository,
+        value_objects::TenantId,
+    },
+    infrastructure::repositories::InMemoryTenantRepository,
     rate_limit::{RateLimitConfig, RateLimiter},
     store::EventStore,
-    tenant::{TenantManager, TenantQuotas},
 };
 use std::sync::Arc;
 
@@ -70,51 +74,35 @@ fn test_complete_auth_flow() {
     println!("Complete auth flow test passed!");
 }
 
-#[test]
-fn test_multi_tenant_isolation() {
-    let tenant_manager = Arc::new(TenantManager::new());
+#[tokio::test]
+async fn test_multi_tenant_isolation() {
+    let repo = InMemoryTenantRepository::new();
 
     // 1. Create two tenants
-    let tenant1 = tenant_manager
-        .create_tenant(
-            "tenant1".to_string(),
+    let tenant1 = repo
+        .create(
+            TenantId::new("tenant1".to_string()).unwrap(),
             "Tenant 1".to_string(),
             TenantQuotas::professional(),
         )
+        .await
         .expect("Failed to create tenant1");
 
-    let tenant2 = tenant_manager
-        .create_tenant(
-            "tenant2".to_string(),
+    let tenant2 = repo
+        .create(
+            TenantId::new("tenant2".to_string()).unwrap(),
             "Tenant 2".to_string(),
             TenantQuotas::free_tier(),
         )
+        .await
         .expect("Failed to create tenant2");
 
-    assert_eq!(tenant1.id, "tenant1");
-    assert_eq!(tenant2.id, "tenant2");
+    assert_eq!(tenant1.id().as_str(), "tenant1");
+    assert_eq!(tenant2.id().as_str(), "tenant2");
 
     // 2. Verify different quota tiers
-    assert_eq!(tenant1.quotas.max_events_per_day, 1_000_000); // Professional
-    assert_eq!(tenant2.quotas.max_events_per_day, 10_000); // Free
-
-    // 3. Track usage separately (using record_ingestion with event size)
-    tenant_manager
-        .record_ingestion(&tenant1.id, 100)
-        .expect("Failed to record ingestion");
-    tenant_manager
-        .record_ingestion(&tenant2.id, 100)
-        .expect("Failed to record ingestion");
-
-    let stats1 = tenant_manager
-        .get_stats(&tenant1.id)
-        .expect("Failed to get stats");
-    let stats2 = tenant_manager
-        .get_stats(&tenant2.id)
-        .expect("Failed to get stats");
-
-    assert_eq!(stats1["usage"]["events_today"], 1);
-    assert_eq!(stats2["usage"]["events_today"], 1);
+    assert_eq!(tenant1.quotas().max_events_per_day(), 1_000_000); // Professional
+    assert_eq!(tenant2.quotas().max_events_per_day(), 10_000); // Free
 
     println!("Multi-tenant isolation test passed!");
 }
@@ -241,35 +229,37 @@ fn test_permission_based_access() {
     println!("Permission-based access test passed!");
 }
 
-#[test]
-fn test_quota_enforcement() {
-    let tenant_manager = Arc::new(TenantManager::new());
+#[tokio::test]
+async fn test_quota_enforcement() {
+    let repo = InMemoryTenantRepository::new();
 
     // Create tenant with very low quota (1 event per day)
-    let quotas = TenantQuotas {
-        max_events_per_day: 1,
-        ..TenantQuotas::default()
-    };
+    let quotas = TenantQuotas::new(1, 10_737_418_240, 100_000, 10, 50, 20);
 
-    let tenant = tenant_manager
-        .create_tenant(
-            "low_quota".to_string(),
+    let tenant = repo
+        .create(
+            TenantId::new("low_quota".to_string()).unwrap(),
             "Low Quota Tenant".to_string(),
             quotas,
         )
+        .await
         .expect("Failed to create tenant");
 
-    // First event should succeed (check_can_ingest is the correct API)
-    let result1 = tenant_manager.check_can_ingest(&tenant.id);
-    assert!(result1.is_ok(), "First event should be allowed");
+    // First event should succeed (domain Tenant enforces quotas)
+    let mut tenant = tenant;
+    assert!(tenant.can_ingest_event().is_ok());
 
-    tenant_manager
-        .record_ingestion(&tenant.id, 100)
-        .expect("Failed to record ingestion");
+    // Record an event via usage tracking
+    tenant.usage_mut().record_event();
+    let tid = TenantId::new("low_quota".to_string()).unwrap();
+    repo.save(&tenant).await.unwrap();
 
     // Second event should fail (quota exceeded)
-    let result2 = tenant_manager.check_can_ingest(&tenant.id);
-    assert!(result2.is_err(), "Second event should exceed quota");
+    let mut tenant = repo.find_by_id(&tid).await.unwrap().unwrap();
+    assert!(
+        tenant.can_ingest_event().is_err(),
+        "Second event should exceed quota"
+    );
 
     println!("Quota enforcement test passed!");
 }

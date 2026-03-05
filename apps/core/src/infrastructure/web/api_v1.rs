@@ -1,7 +1,7 @@
 /// v1.0 API router with authentication and multi-tenancy
 use crate::infrastructure::di::ServiceContainer;
 use crate::{
-    application::services::tenant_service::TenantManager,
+    domain::repositories::TenantRepository,
     infrastructure::{
         cluster::{
             ClusterManager, ClusterMember, GeoReplicationManager, GeoSyncRequest, VoteRequest,
@@ -120,7 +120,7 @@ impl AtomicNodeRole {
 pub struct AppState {
     pub store: Arc<EventStore>,
     pub auth_manager: Arc<AuthManager>,
-    pub tenant_manager: Arc<TenantManager>,
+    pub tenant_repo: Arc<dyn TenantRepository>,
     /// Service container for paywall domain use cases (Creator, Article, Payment, etc.)
     pub service_container: ServiceContainer,
     /// Node role for leader-follower replication (runtime-mutable for failover)
@@ -149,7 +149,7 @@ impl axum::extract::FromRef<AppState> for Arc<EventStore> {
 pub async fn serve_v1(
     store: Arc<EventStore>,
     auth_manager: Arc<AuthManager>,
-    tenant_manager: Arc<TenantManager>,
+    tenant_repo: Arc<dyn TenantRepository>,
     rate_limiter: Arc<RateLimiter>,
     service_container: ServiceContainer,
     addr: &str,
@@ -163,7 +163,7 @@ pub async fn serve_v1(
     let app_state = AppState {
         store,
         auth_manager: auth_manager.clone(),
-        tenant_manager,
+        tenant_repo,
         service_container,
         role: AtomicNodeRole::new(role),
         wal_shipper: Arc::new(tokio::sync::RwLock::new(wal_shipper)),
@@ -398,6 +398,20 @@ pub async fn serve_v1(
         .route(
             "/api/v1/webhooks/{webhook_id}/deliveries",
             get(super::api::list_webhook_deliveries),
+        )
+        // v0.14: Durable consumer subscriptions
+        .route("/api/v1/consumers", post(super::api::register_consumer))
+        .route(
+            "/api/v1/consumers/{consumer_id}",
+            get(super::api::get_consumer),
+        )
+        .route(
+            "/api/v1/consumers/{consumer_id}/events",
+            get(super::api::poll_consumer_events),
+        )
+        .route(
+            "/api/v1/consumers/{consumer_id}/ack",
+            post(super::api::ack_consumer),
         )
         // v1.8: Cluster membership management API
         .route("/api/v1/cluster/status", get(cluster_status_handler))

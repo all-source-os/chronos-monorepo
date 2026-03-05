@@ -16,7 +16,6 @@ import {
 import { ArrowLeft, CheckCircle2, Loader2, Mail } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useState } from "react";
-import { getApiUrl } from "@/lib/api/client";
 
 function ForgotPasswordContent() {
   const [email, setEmail] = useState("");
@@ -30,8 +29,7 @@ function ForgotPasswordContent() {
     setIsSubmitting(true);
 
     try {
-      const apiUrl = getApiUrl();
-      const _response = await fetch(`${apiUrl}/api/auth/forgot-password`, {
+      const _response = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),

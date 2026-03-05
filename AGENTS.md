@@ -1,15 +1,15 @@
 # Agent Instructions
 
-This project supports **cn** (chronon) and **bd** (beads) for issue tracking. Chronon is the primary tracker. Run `cn init` to get started, or use `bd onboard` for legacy beads.
+This project supports **cn** (chronis) and **bd** (beads) for issue tracking. Chronis is the primary tracker. Run `cn init` to get started, or use `bd onboard` for legacy beads.
 
-## Quick Reference (Chronon — preferred)
+## Quick Reference (Chronis — preferred)
 
 ```bash
 cn ready              # Find available work (open + unblocked)
 cn show <id>          # View task details, children, timeline
 cn claim <id>         # Claim a task (uses CN_AGENT_ID env var)
 cn done <id>          # Complete a task
-cn sync --git         # Sync with git (add .chronon/, commit, push)
+cn sync --git         # Sync with git (add .chronis/, commit, push)
 ```
 
 ## Quick Reference (Beads — legacy)
@@ -53,9 +53,9 @@ bd sync               # Sync with git
 
 ---
 
-## Chronon Workflow Integration
+## Chronis Workflow Integration
 
-This project uses [chronon](apps/chronon/) as the primary event-sourced task tracker. Tasks are stored in `.chronon/` and tracked in git.
+This project uses [chronis](apps/chronis/) as the primary event-sourced task tracker. Tasks are stored in `.chronis/` and tracked in git.
 
 ### Essential Commands
 
@@ -78,7 +78,7 @@ cn dep remove <task-id> <blocker-id>              # Remove blocker
 
 # Migration & sync
 cn migrate-beads                                  # Import from .beads/
-cn sync --git                                     # Git add/commit/push .chronon/
+cn sync --git                                     # Git add/commit/push .chronis/
 
 # Visualization
 cn tui                                            # Interactive TUI
@@ -108,7 +108,7 @@ cn serve                                          # Web viewer (port 3905)
 ```bash
 git status              # Check what changed
 git add <files>         # Stage code changes
-cn sync --git           # Commit chronon changes
+cn sync --git           # Commit chronis changes
 git commit -m "..."     # Commit code
 git push                # Push to remote
 ```

@@ -16,13 +16,16 @@
 /// 10. WAL durability
 use allsource_core::{
     QueryEventsRequest,
-    TenantManager,
     // Auth and security (optional in embedded mode)
     auth::{AuthManager, Permission, Role},
-    domain::entities::Event,
+    domain::{
+        entities::{Event, TenantQuotas},
+        repositories::TenantRepository,
+        value_objects::TenantId,
+    },
+    infrastructure::repositories::InMemoryTenantRepository,
     rate_limit::{RateLimitConfig, RateLimiter},
     store::EventStore,
-    tenant::TenantQuotas,
 };
 use serde_json::json;
 use std::{sync::Arc, thread};
@@ -254,33 +257,35 @@ fn test_embedded_schema_registry() {
 // Test 7: Multi-Tenant Isolation Without HTTP Server
 // =============================================================================
 
-#[test]
-fn test_embedded_multi_tenant_isolation() {
+#[tokio::test]
+async fn test_embedded_multi_tenant_isolation() {
     let store = Arc::new(EventStore::new());
-    let tenant_manager = Arc::new(TenantManager::new());
+    let repo = InMemoryTenantRepository::new();
 
     // Create tenants
-    let tenant_a = tenant_manager
-        .create_tenant(
-            "tenant-a".to_string(),
+    let tenant_a = repo
+        .create(
+            TenantId::new("tenant-a".to_string()).unwrap(),
             "Tenant A".to_string(),
             TenantQuotas::professional(),
         )
+        .await
         .expect("Failed to create tenant A");
 
-    let tenant_b = tenant_manager
-        .create_tenant(
-            "tenant-b".to_string(),
+    let tenant_b = repo
+        .create(
+            TenantId::new("tenant-b".to_string()).unwrap(),
             "Tenant B".to_string(),
             TenantQuotas::free_tier(),
         )
+        .await
         .expect("Failed to create tenant B");
 
     // Ingest events for different tenants
     let event_a = Event::from_strings(
         "data.created".to_string(),
         "entity-1".to_string(),
-        tenant_a.id.clone(),
+        tenant_a.id().as_str().to_string(),
         json!({"value": "tenant_a_data"}),
         None,
     )
@@ -289,7 +294,7 @@ fn test_embedded_multi_tenant_isolation() {
     let event_b = Event::from_strings(
         "data.created".to_string(),
         "entity-1".to_string(), // Same entity_id, different tenant
-        tenant_b.id.clone(),
+        tenant_b.id().as_str().to_string(),
         json!({"value": "tenant_b_data"}),
         None,
     )
@@ -320,7 +325,7 @@ fn test_embedded_multi_tenant_isolation() {
     assert!(tenant_ids.contains(&"tenant-a"));
     assert!(tenant_ids.contains(&"tenant-b"));
 
-    println!("✅ Test 7: Embedded multi-tenant isolation successful");
+    println!("Test 7: Embedded multi-tenant isolation successful");
 }
 
 // =============================================================================
@@ -577,25 +582,28 @@ fn test_embedded_projection_state_cache() {
 // Test 16: Full Embedded Workflow Without HTTP Server
 // =============================================================================
 
-#[test]
-fn test_embedded_full_workflow() {
+#[tokio::test]
+async fn test_embedded_full_workflow() {
     // This test demonstrates a complete embedded workflow
 
     // 1. Create store
     let store = Arc::new(EventStore::new());
 
     // 2. Create supporting services
-    let tenant_manager = Arc::new(TenantManager::new());
+    let repo = InMemoryTenantRepository::new();
     let auth_manager = Arc::new(AuthManager::default());
 
     // 3. Set up tenant
-    let tenant = tenant_manager
-        .create_tenant(
-            "workflow-tenant".to_string(),
+    let tenant = repo
+        .create(
+            TenantId::new("workflow-tenant".to_string()).unwrap(),
             "Workflow Test Tenant".to_string(),
             TenantQuotas::professional(),
         )
+        .await
         .unwrap();
+
+    let tenant_id_str = tenant.id().as_str().to_string();
 
     // 4. Create user
     let user = auth_manager
@@ -604,7 +612,7 @@ fn test_embedded_full_workflow() {
             "workflow@example.com".to_string(),
             "password123",
             Role::Developer,
-            tenant.id.clone(),
+            tenant_id_str.clone(),
         )
         .unwrap();
 
@@ -614,7 +622,7 @@ fn test_embedded_full_workflow() {
     let order_created = Event::from_strings(
         "order.created".to_string(),
         "order-workflow-1".to_string(),
-        tenant.id.clone(),
+        tenant_id_str.clone(),
         json!({
             "customer_id": user.id.to_string(),
             "items": [
@@ -632,7 +640,7 @@ fn test_embedded_full_workflow() {
     let order_confirmed = Event::from_strings(
         "order.confirmed".to_string(),
         "order-workflow-1".to_string(),
-        tenant.id.clone(),
+        tenant_id_str.clone(),
         json!({
             "status": "confirmed",
             "payment_id": "PAY-12345"
@@ -646,7 +654,7 @@ fn test_embedded_full_workflow() {
     let order_shipped = Event::from_strings(
         "order.shipped".to_string(),
         "order-workflow-1".to_string(),
-        tenant.id.clone(),
+        tenant_id_str.clone(),
         json!({
             "status": "shipped",
             "tracking_number": "TRACK-67890",
@@ -687,8 +695,8 @@ fn test_embedded_full_workflow() {
     let stats = store.stats();
     assert_eq!(stats.total_events, 3);
 
-    println!("✅ Test 16: Full embedded workflow successful");
-    println!("   - Tenant created: {}", tenant.id);
+    println!("Test 16: Full embedded workflow successful");
+    println!("   - Tenant created: {}", tenant_id_str);
     println!("   - User registered: {}", user.username);
     println!("   - Order events: 3");
     println!("   - Final status: shipped");

@@ -1,4 +1,5 @@
 pub mod access_token_dto;
+pub mod consumer_dto;
 pub mod article_dto;
 pub mod common_dto;
 pub mod creator_dto;
@@ -12,6 +13,7 @@ pub mod transaction_dto;
 pub mod vector_search_dto;
 
 pub use access_token_dto::*;
+pub use consumer_dto::*;
 pub use article_dto::*;
 pub use common_dto::*;
 pub use creator_dto::*;

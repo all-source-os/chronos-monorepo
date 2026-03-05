@@ -21,12 +21,14 @@ apps/              — Deployable services ONLY
   query-service/   — Elixir/Phoenix API gateway (auth, billing, routing to Core)
   web/             — Next.js frontend dashboard
   mcp-server-elixir/ — Elixir MCP server (separate from Rust MCP Docker binary)
+  chronis/         — Event-sourced task CLI (standalone workspace, excluded from root)
+crates/            — Shared Rust library crates (NOT binaries, NOT SDKs)
 sdks/              — Client SDKs — ALL languages, NO EXCEPTIONS
   rust/            — Rust SDK
   go/              — Go SDK
   python-client/   — Python SDK
   typescript/      — TypeScript SDK (@allsource/client)
-packages/          — Shared internal packages (NOT SDKs)
+packages/          — Shared non-Rust packages (NOT SDKs, NOT crates)
   ui/              — Shared UI component library
 docs/
   proposals/       — Design proposals (e.g., CORE_REPLICATION_DESIGN.md)
@@ -37,6 +39,26 @@ tooling/           — Developer tools (durability tests, etc.)
 ```
 
 **DO NOT** put SDKs in `packages/`, `apps/`, or anywhere else. SDKs go in `sdks/`.
+**DO NOT** put shared Rust crates in `packages/`, `apps/`, or `sdks/`. Shared Rust libraries go in `crates/`.
+
+## Isolation (CRITICAL)
+
+**Apps, SDKs, and crates are fully isolated.** See `docs/MONOREPO_STRUCTURE.md` Rules 3 and 6 for details.
+
+The dependency graph is strictly one-directional:
+
+```
+apps/ → crates/ → (external)
+sdks/ → (external only — SDKs are standalone HTTP clients)
+```
+
+- No app may COPY, import, or depend on another app's source code
+- No SDK may import from `apps/`, `crates/`, or another SDK
+- Each app's Dockerfile references only its own source, plus `crates/` stubs if needed
+- Apps that would create cross-contamination in Dockerfiles must be **excluded** from the root Cargo workspace (`workspace.exclude`)
+- Apps communicate over the network, not via direct function calls
+
+**DO NOT** add `COPY apps/<other-app>/` to any Dockerfile. **DO NOT** add new apps to `workspace.members` if it forces other Dockerfiles to stub them out. **DO NOT** create dependencies from `sdks/` → `apps/` or `crates/` → `apps/`.
 
 ## Service Architecture
 

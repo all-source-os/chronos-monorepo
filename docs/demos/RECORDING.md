@@ -1,4 +1,4 @@
-# Recording the chronon Demo
+# Recording the chronis Demo
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ brew install asciinema
 cargo install --locked agg
 
 # cn must be on PATH
-cargo install --path apps/chronon
+cargo install --path apps/chronis
 ```
 
 ## Record
@@ -18,7 +18,7 @@ cargo install --path apps/chronon
 From the repo root:
 
 ```bash
-asciinema rec --cols 110 --rows 32 docs/demos/chronon.cast -c "bash docs/demos/tui-demo.sh"
+asciinema rec --cols 110 --rows 32 docs/demos/chronis.cast -c "bash docs/demos/tui-demo.sh"
 ```
 
 The script (`docs/demos/tui-demo.sh`) runs through:
@@ -36,7 +36,7 @@ Total runtime: ~45 seconds.
 ## Render to GIF
 
 ```bash
-agg docs/demos/chronon.cast docs/demos/chronon.gif --theme monokai --speed 1.5
+agg docs/demos/chronis.cast docs/demos/chronis.gif --theme monokai --speed 1.5
 ```
 
 Other theme options: `dracula`, `solarized-dark`, `nord`.
@@ -46,7 +46,7 @@ Adjust `--speed` to taste (1.0 = real-time, 2.0 = 2x).
 ## Upload to asciinema.org
 
 ```bash
-asciinema upload docs/demos/chronon.cast
+asciinema upload docs/demos/chronis.cast
 ```
 
 Returns a shareable URL like `https://asciinema.org/a/xxxxx`.
@@ -56,7 +56,7 @@ Returns a shareable URL like `https://asciinema.org/a/xxxxx`.
 If the automated script has issues with the TUI/expect portion, record manually:
 
 ```bash
-asciinema rec --cols 110 --rows 32 docs/demos/chronon.cast
+asciinema rec --cols 110 --rows 32 docs/demos/chronis.cast
 ```
 
 Then type the commands yourself:

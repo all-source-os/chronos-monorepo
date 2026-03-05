@@ -40,6 +40,9 @@ pub enum AllSourceError {
     #[error("Concurrency error: {0}")]
     ConcurrencyError(String),
 
+    #[error("Version conflict: expected {expected}, current {current}")]
+    VersionConflict { expected: u64, current: u64 },
+
     #[error("Queue full: {0}")]
     QueueFull(String),
 
@@ -55,6 +58,7 @@ impl AllSourceError {
             self,
             AllSourceError::StorageError(_)
                 | AllSourceError::ConcurrencyError(_)
+                | AllSourceError::VersionConflict { .. }
                 | AllSourceError::QueueFull(_)
         )
     }
@@ -113,6 +117,14 @@ mod axum_impl {
                 | AllSourceError::InvalidQuery(_)
                 | AllSourceError::InvalidInput(_)
                 | AllSourceError::ValidationError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+                AllSourceError::VersionConflict { expected, current } => {
+                    let body = serde_json::json!({
+                        "error": "version_conflict",
+                        "expected_version": expected,
+                        "current_version": current,
+                    });
+                    return (StatusCode::CONFLICT, axum::Json(body)).into_response();
+                }
                 AllSourceError::TenantAlreadyExists(_) | AllSourceError::ConcurrencyError(_) => {
                     (StatusCode::CONFLICT, self.to_string())
                 }

@@ -18,7 +18,6 @@ import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Mail } from "lucide-re
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useId, useState } from "react";
-import { getControlPlaneUrl } from "@/lib/api/client";
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing_token: "Authentication failed. Please try again.",
@@ -80,8 +79,7 @@ function SignUpContent() {
     setIsSubmitting(true);
 
     try {
-      const cpUrl = getControlPlaneUrl();
-      const response = await fetch(`${cpUrl}/api/v1/auth/register`, {
+      const response = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),

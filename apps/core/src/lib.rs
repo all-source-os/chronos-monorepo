@@ -120,7 +120,6 @@ pub use application::{
     services::{
         AnalyticsEngine, ExactlyOnceConfig, ExactlyOnceRegistry, Pipeline, PipelineConfig,
         PipelineManager, ProjectionManager, ReplayManager, SchemaEvolutionManager, SchemaRegistry,
-        TenantManager,
     },
 };
 
@@ -157,10 +156,7 @@ pub mod rate_limit {
 
 /// Tenant module re-export
 pub mod tenant {
-    pub use crate::{
-        application::services::tenant_service::{TenantManager, TenantQuotas},
-        domain::entities::Tenant,
-    };
+    pub use crate::domain::entities::{Tenant, TenantQuotas};
 }
 
 /// Config module re-export

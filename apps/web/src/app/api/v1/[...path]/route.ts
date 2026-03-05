@@ -46,8 +46,8 @@ async function proxyToQueryService(
     headers,
   };
 
-  // Forward body for POST/PUT/PATCH
-  if (["POST", "PUT", "PATCH"].includes(request.method)) {
+  // Forward body for POST/PUT/PATCH/DELETE
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) && request.body) {
     fetchOptions.body = await request.text();
   }
 
@@ -55,11 +55,18 @@ async function proxyToQueryService(
     const response = await fetch(url.toString(), fetchOptions);
     const body = await response.text();
 
+    // Forward set-cookie headers from backend
+    const responseHeaders: Record<string, string> = {
+      "content-type": response.headers.get("content-type") || "application/json",
+    };
+    const setCookie = response.headers.get("set-cookie");
+    if (setCookie) {
+      responseHeaders["set-cookie"] = setCookie;
+    }
+
     return new NextResponse(body, {
       status: response.status,
-      headers: {
-        "content-type": response.headers.get("content-type") || "application/json",
-      },
+      headers: responseHeaders,
     });
   } catch (error) {
     return NextResponse.json(

@@ -8,18 +8,15 @@ COPY Cargo.toml Cargo.lock ./
 COPY apps/registry/ apps/registry/
 # Stubs for other workspace members (must satisfy Cargo.toml declarations)
 COPY apps/core/Cargo.toml apps/core/
-COPY apps/chronon/Cargo.toml apps/chronon/
 COPY tooling/performance/Cargo.toml tooling/performance/
 COPY sdks/rust/Cargo.toml sdks/rust/
 RUN mkdir -p apps/core/src apps/core/benches apps/core/tests/stress_tests \
-            apps/chronon/src apps/mcp-server-elixir/native/core_nif/src \
+            apps/mcp-server-elixir/native/core_nif/src \
             tooling/performance/src sdks/rust/src && \
     echo 'fn main() {}' > apps/core/src/main.rs && \
     echo '' > apps/core/src/lib.rs && \
     echo 'fn main() {}' > apps/core/benches/performance_benchmarks.rs && \
     echo 'fn main() {}' > apps/core/tests/stress_tests/seven_day_stress.rs && \
-    echo 'fn main() {}' > apps/chronon/src/main.rs && \
-    echo '' > apps/chronon/src/lib.rs && \
     printf '[package]\nname = "core_nif"\nversion = "0.1.0"\nedition = "2021"\n\n[lib]\nname = "core_nif"\npath = "src/lib.rs"\n\n[dependencies]\n' \
         > apps/mcp-server-elixir/native/core_nif/Cargo.toml && \
     echo '' > apps/mcp-server-elixir/native/core_nif/src/lib.rs && \

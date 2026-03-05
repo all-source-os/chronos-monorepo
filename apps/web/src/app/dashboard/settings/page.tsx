@@ -14,7 +14,7 @@ import {
   Label,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Bell, Building2, Check, Loader2, Shield, User } from "lucide-react";
+import { Bell, Shield, User } from "lucide-react";
 import { useState } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
@@ -22,7 +22,7 @@ import {
   type NotificationPreferences,
 } from "@/hooks/use-notification-preferences";
 
-type Tab = "profile" | "workspace" | "security" | "notifications";
+type Tab = "profile" | "security" | "notifications";
 
 function parseProvider(user: { id: string; provider?: string } | null): string | null {
   if (!user) return null;
@@ -41,31 +41,8 @@ export default function SettingsPage() {
   const provider = parseProvider(user);
   const { preferences, updatePreference } = useNotificationPreferences();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  // Form states
-  const [profileData, setProfileData] = useState({
-    name: user?.name || "",
-    email: user?.email || "",
-  });
-
-  const [workspaceData, setWorkspaceData] = useState({
-    name: tenant?.name || "",
-    slug: tenant?.slug || "",
-  });
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
   const tabs = [
     { id: "profile" as const, label: "Profile", icon: User },
-    { id: "workspace" as const, label: "Workspace", icon: Building2 },
     { id: "security" as const, label: "Security", icon: Shield },
     { id: "notifications" as const, label: "Notifications", icon: Bell },
   ];
@@ -108,170 +85,71 @@ export default function SettingsPage() {
           <div className="flex-1 space-y-6">
             {/* Profile Tab */}
             {activeTab === "profile" && (
-              <>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Profile Information</CardTitle>
-                    <CardDescription>Update your personal information</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Avatar */}
-                    <div className="flex items-center gap-4">
-                      {user?.avatar_url ? (
-                        <img
-                          src={user.avatar_url}
-                          alt={user.name}
-                          className="h-16 w-16 rounded-full"
-                        />
-                      ) : (
-                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-xl font-medium text-primary">
-                          {user?.name?.charAt(0).toUpperCase() || "U"}
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-sm font-medium">Profile Picture</p>
-                        <p className="text-xs text-muted-foreground">
-                          Managed by {user?.provider || "OAuth provider"}
-                        </p>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Profile Information</CardTitle>
+                  <CardDescription>Your profile is managed by your authentication provider</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Avatar */}
+                  <div className="flex items-center gap-4">
+                    {user?.avatar_url ? (
+                      <img
+                        src={user.avatar_url}
+                        alt={user?.name || "Profile"}
+                        className="h-16 w-16 rounded-full"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-xl font-medium text-primary">
+                        {user?.name?.charAt(0).toUpperCase() || "U"}
                       </div>
-                    </div>
-
-                    {/* Name */}
+                    )}
                     <div>
-                      <Label htmlFor="name">Full Name</Label>
-                      <Input
-                        id="name"
-                        value={profileData.name}
-                        onChange={(e) => setProfileData((p) => ({ ...p, name: e.target.value }))}
-                        className="mt-1.5"
-                      />
-                    </div>
-
-                    {/* Email */}
-                    <div>
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={profileData.email}
-                        disabled
-                        className="mt-1.5"
-                      />
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Email is managed by your authentication provider
+                      <p className="text-sm font-medium">Profile Picture</p>
+                      <p className="text-xs text-muted-foreground">
+                        Managed by {provider || "your OAuth provider"}
                       </p>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
 
-                {/* Save button */}
-                <div className="flex justify-end">
-                  <Button onClick={handleSave} disabled={isSaving}>
-                    {saved ? (
-                      <>
-                        <Check className="mr-2 h-4 w-4" />
-                        Saved
-                      </>
-                    ) : isSaving ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save Changes"
-                    )}
-                  </Button>
-                </div>
-              </>
-            )}
+                  {/* Name */}
+                  <div>
+                    <Label>Full Name</Label>
+                    <Input
+                      value={user?.name || ""}
+                      disabled
+                      className="mt-1.5"
+                    />
+                  </div>
 
-            {/* Workspace Tab */}
-            {activeTab === "workspace" && (
-              <>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Workspace Settings</CardTitle>
-                    <CardDescription>Manage your workspace details</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Workspace icon */}
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-xl font-bold text-primary">
-                        {tenant?.name?.charAt(0).toUpperCase() || "W"}
-                      </div>
-                      <div>
-                        <p className="font-medium">{tenant?.name}</p>
-                        <Badge variant="secondary" className="mt-1 capitalize">
-                          {tenant?.subscription_tier || "free"} plan
-                        </Badge>
-                      </div>
+                  {/* Email */}
+                  <div>
+                    <Label>Email Address</Label>
+                    <Input
+                      type="email"
+                      value={user?.email || ""}
+                      disabled
+                      className="mt-1.5"
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Email is managed by your authentication provider
+                    </p>
+                  </div>
+
+                  {/* Tenant ID */}
+                  <div>
+                    <Label>Tenant ID</Label>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm">
+                        {tenant?.id || "—"}
+                      </code>
                     </div>
-
-                    {/* Name */}
-                    <div>
-                      <Label htmlFor="workspace-name">Workspace Name</Label>
-                      <Input
-                        id="workspace-name"
-                        value={workspaceData.name}
-                        onChange={(e) => setWorkspaceData((w) => ({ ...w, name: e.target.value }))}
-                        className="mt-1.5"
-                      />
-                    </div>
-
-                    {/* Slug */}
-                    <div>
-                      <Label htmlFor="workspace-slug">Workspace URL</Label>
-                      <div className="mt-1.5 flex">
-                        <span className="flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-sm text-muted-foreground">
-                          all-source.xyz/
-                        </span>
-                        <Input
-                          id="workspace-slug"
-                          value={workspaceData.slug}
-                          onChange={(e) =>
-                            setWorkspaceData((w) => ({
-                              ...w,
-                              slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""),
-                            }))
-                          }
-                          className="rounded-l-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Tenant ID */}
-                    <div>
-                      <Label>Tenant ID</Label>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm">
-                          {tenant?.id || "tenant-id"}
-                        </code>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Use this ID for API authentication
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <div className="flex justify-end">
-                  <Button onClick={handleSave} disabled={isSaving}>
-                    {saved ? (
-                      <>
-                        <Check className="mr-2 h-4 w-4" />
-                        Saved
-                      </>
-                    ) : isSaving ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save Changes"
-                    )}
-                  </Button>
-                </div>
-              </>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Use this ID for API authentication
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Security Tab */}

@@ -1,8 +1,7 @@
 // API Client for Query Service
-// All dashboard operations go through this client
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
-const CONTROL_PLANE_URL = process.env.NEXT_PUBLIC_CONTROL_PLANE_URL || "http://localhost:3901";
+// All dashboard operations go through this client.
+// Uses relative URLs so browser requests go through the Next.js API proxy,
+// avoiding CORS issues. Server-side code should use getServerApiUrl() for absolute URLs.
 
 export interface ApiError {
   code: string;
@@ -19,7 +18,7 @@ export class ApiClient {
   private baseUrl: string;
   private asOf: string | null = null;
 
-  constructor(baseUrl: string = API_URL) {
+  constructor(baseUrl: string = "") {
     this.baseUrl = baseUrl;
   }
 
@@ -810,11 +809,24 @@ export interface UsageAnalyticsResponse {
   ingestion_rate: IngestionDataPoint[];
 }
 
-// Export singleton instance
+// Export singleton instance — uses relative URLs for browser requests
 export const apiClient = new ApiClient();
 
-// Export API URL for Query Service requests
-export const getApiUrl = () => API_URL;
+/**
+ * Absolute URLs for server-side route handlers ONLY.
+ * NEVER call these from client components — use the `apiClient` singleton instead,
+ * which uses relative URLs to go through the Next.js proxy.
+ */
+export function getServerApiUrl(): string {
+  if (typeof window !== "undefined") {
+    throw new Error("getServerApiUrl() must only be called from server-side code");
+  }
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
+}
 
-// Export Control Plane URL for auth requests (login, register, OAuth)
-export const getControlPlaneUrl = () => CONTROL_PLANE_URL;
+export function getServerControlPlaneUrl(): string {
+  if (typeof window !== "undefined") {
+    throw new Error("getServerControlPlaneUrl() must only be called from server-side code");
+  }
+  return process.env.NEXT_PUBLIC_CONTROL_PLANE_URL || "http://localhost:3901";
+}

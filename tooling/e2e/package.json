@@ -5,12 +5,16 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
+    "test:integration": "playwright test --project=integration",
+    "test:e2e": "playwright test --project=e2e",
+    "test:smoke": "playwright test --project=smoke",
+    "test:ui": "playwright test --project=ui",
+    "test:ui-components": "playwright test --project=ui-components",
+    "test:ci": "playwright test --project=integration --project=e2e --project=smoke",
     "test:headed": "playwright test --headed",
-    "test:ui": "playwright test --ui",
+    "test:browser": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "test:report": "playwright show-report",
-    "test:ui-components": "playwright test tests/ui-components",
-    "test:api": "playwright test tests/api",
     "codegen": "playwright codegen"
   },
   "devDependencies": {

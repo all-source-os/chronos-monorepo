@@ -12,6 +12,16 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "localhost"
   port = String.to_integer(System.get_env("PORT") || "3902")
 
+  # Allowed origins for both WebSocket (check_origin) and HTTP (CORSPlug).
+  # The frontend at www.all-source.xyz connects cross-origin to the QS.
+  allowed_origins =
+    case System.get_env("ALLOWED_ORIGINS") do
+      nil -> ["https://www.all-source.xyz", "https://all-source.xyz"]
+      origins -> origins |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+    end
+
+  config :query_service_ex, cors_origins: allowed_origins
+
   config :query_service_ex, QueryServiceExWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
@@ -19,7 +29,8 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    check_origin: allowed_origins
 
   # Configure Rust Core backend URLs and authentication
   #

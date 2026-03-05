@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chronis - Event-Sourced Task CLI for Rust</title>
+    <meta name="description" content="Chronis is an event-sourced task CLI powered by AllSource Core. Every action is an immutable event. State is derived from projections over the event stream.">
+    <meta name="keywords" content="rust, cli, task management, event sourcing, cqrs, wal, parquet, tui, developer tools">
+    <link rel="canonical" href="https://all-source-os.github.io/all-source/chronis/">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Chronis - Event-Sourced Task CLI for Rust">
+    <meta property="og:description" content="Event-sourced task CLI powered by AllSource Core. Immutable events, derived state, 12us reads.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://all-source-os.github.io/all-source/chronis/">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Chronis - Event-Sourced Task CLI for Rust">
+    <meta name="twitter:description" content="Event-sourced task CLI powered by AllSource Core. Immutable events, derived state, 12us reads.">
+
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --primary-dark: #7c3aed;
+            --primary-glow: rgba(139, 92, 246, 0.15);
+            --bg: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --border: #30363d;
+            --green: #3fb950;
+            --blue: #58a6ff;
+            --amber: #d29922;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        a {
+            color: var(--blue);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            z-index: 100;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo span {
+            color: var(--primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        /* Hero */
+        .hero {
+            padding: 80px 0 64px;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--primary), var(--blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero .tagline {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 640px;
+            margin: 0 auto 32px;
+        }
+
+        .badges {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        .badge-purple { border-color: var(--primary); color: var(--primary); }
+        .badge-green { border-color: var(--green); color: var(--green); }
+        .badge-amber { border-color: var(--amber); color: var(--amber); }
+
+        .install-block {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 28px;
+            max-width: 520px;
+            margin: 0 auto 32px;
+            text-align: left;
+        }
+
+        .install-block code {
+            font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+
+        .install-block .prompt {
+            color: var(--primary);
+            user-select: none;
+        }
+
+        .install-block .comment {
+            color: var(--text-muted);
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            text-decoration: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--text-muted);
+            text-decoration: none;
+        }
+
+        /* Features */
+        .features {
+            padding: 64px 0;
+        }
+
+        .features h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .feature-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            transition: border-color 0.2s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary);
+        }
+
+        .feature-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .feature-tag {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tag-core { background: rgba(139, 92, 246, 0.15); color: var(--primary); }
+        .tag-event { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+        .tag-ui { background: rgba(88, 166, 255, 0.15); color: var(--blue); }
+
+        /* Workflow */
+        .workflow {
+            padding: 64px 0;
+        }
+
+        .workflow h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .workflow .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 48px;
+        }
+
+        .workflow-steps {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 32px;
+        }
+
+        .step {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            text-align: center;
+            min-width: 160px;
+            position: relative;
+        }
+
+        .step .cmd {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .step .desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .step-arrow {
+            display: flex;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 1.2rem;
+        }
+
+        /* Architecture */
+        .architecture {
+            padding: 64px 0;
+        }
+
+        .architecture h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .arch-diagram {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 700px;
+            margin: 0 auto;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+            overflow-x: auto;
+        }
+
+        .arch-diagram .layer {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .arch-diagram .arrow {
+            color: var(--text-muted);
+        }
+
+        .arch-diagram .component {
+            color: var(--green);
+        }
+
+        .arch-diagram .storage {
+            color: var(--amber);
+        }
+
+        /* Stats */
+        .stats {
+            padding: 64px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Commands */
+        .commands {
+            padding: 64px 0;
+        }
+
+        .commands h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .cmd-table {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            border-collapse: collapse;
+        }
+
+        .cmd-table th {
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 2px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .cmd-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        .cmd-table code {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--primary);
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        /* Events */
+        .events {
+            padding: 64px 0;
+        }
+
+        .events h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .events .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 48px;
+        }
+
+        .event-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .event-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .event-item code {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--green);
+        }
+
+        .event-item .source {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* CTA */
+        .cta {
+            padding: 80px 0;
+            text-align: center;
+        }
+
+        .cta h2 {
+            font-size: 2rem;
+            margin-bottom: 16px;
+        }
+
+        .cta p {
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 32px 0;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .footer-copy {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5rem; }
+            .nav-links { display: none; }
+            .workflow-steps { flex-direction: column; align-items: center; }
+            .step-arrow { transform: rotate(90deg); }
+            .footer-content { flex-direction: column; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <nav>
+                <div class="logo">
+                    <span>cn</span> Chronis
+                </div>
+                <div class="nav-links">
+                    <a href="#features">Features</a>
+                    <a href="#workflow">Workflow</a>
+                    <a href="#commands">Commands</a>
+                    <a href="#architecture">Architecture</a>
+                    <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis">GitHub</a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <h1>Event-Sourced Task CLI</h1>
+            <p class="tagline">
+                Every action is an immutable event. State is derived from projections over the event stream.
+                Powered by <a href="https://github.com/all-source-os/all-source/tree/main/apps/core">AllSource Core</a>.
+            </p>
+            <div class="badges">
+                <span class="badge badge-purple">Rust 2024 Edition</span>
+                <span class="badge badge-green">Event Sourced</span>
+                <span class="badge badge-amber">~12us Reads</span>
+            </div>
+            <div class="install-block">
+                <code>
+                    <span class="comment"># Install from source</span><br>
+                    <span class="prompt">$</span> cargo install --path apps/chronis<br><br>
+                    <span class="comment"># Initialize workspace</span><br>
+                    <span class="prompt">$</span> cn init<br><br>
+                    <span class="comment"># Create your first task</span><br>
+                    <span class="prompt">$</span> cn task create "Design auth module" -p p0
+                </code>
+            </div>
+            <div class="cta-buttons">
+                <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis" class="btn btn-primary">View on GitHub</a>
+                <a href="#commands" class="btn btn-secondary">Read the Docs</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features" id="features">
+        <div class="container">
+            <h2>Why Chronis?</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>Immutable Event Log <span class="feature-tag tag-event">Event Sourcing</span></h3>
+                    <p>Every mutation emits an event into Core's WAL. Full audit trail, time-travel debugging, and reproducible state from any point in history.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Microsecond Reads <span class="feature-tag tag-core">Core</span></h3>
+                    <p>TaskProjection folds events into a DashMap for ~12us concurrent reads. 469K events/sec write throughput with CRC32 integrity checks.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Full Durability <span class="feature-tag tag-core">Core</span></h3>
+                    <p>WAL with configurable fsync (default 100ms) and Parquet columnar storage with Snappy compression. Data survives crashes and restarts.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Task Hierarchy <span class="feature-tag tag-core">Core</span></h3>
+                    <p>Epics contain child tasks. Dependencies with blocking semantics. The <code>cn ready</code> command shows only unblocked, actionable work.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Agent Orchestration <span class="feature-tag tag-event">Event Sourcing</span></h3>
+                    <p>Set <code>CN_AGENT_ID</code> to coordinate multiple agents. First-write-wins claiming prevents conflicts. Every claim is an auditable event.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Interactive TUI <span class="feature-tag tag-ui">UI</span></h3>
+                    <p>Full ratatui terminal interface with j/k navigation, Tab views, and c/d/a action keys. Or launch the embedded Axum + HTMX web viewer.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Git Sync <span class="feature-tag tag-core">Core</span></h3>
+                    <p>One command to stage, commit, and push your <code>.chronis/</code> workspace. Tasks travel with your repository.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Beads Migration <span class="feature-tag tag-event">Event Sourcing</span></h3>
+                    <p>Import existing issues from <code>.beads/</code> directories. Preserves history as creation events in the new event stream.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Zero Config <span class="feature-tag tag-core">Core</span></h3>
+                    <p><code>cn init</code> creates a <code>.chronis/</code> workspace. No external database, no daemon, no configuration file to edit. Just works.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Workflow -->
+    <section class="workflow" id="workflow">
+        <div class="container">
+            <h2>Workflow</h2>
+            <p class="subtitle">From backlog to shipped in four commands</p>
+            <div class="workflow-steps">
+                <div class="step">
+                    <div class="cmd">cn ready</div>
+                    <div class="desc">Find actionable work</div>
+                </div>
+                <div class="step-arrow">&rarr;</div>
+                <div class="step">
+                    <div class="cmd">cn claim &lt;id&gt;</div>
+                    <div class="desc">Claim the task</div>
+                </div>
+                <div class="step-arrow">&rarr;</div>
+                <div class="step">
+                    <div class="cmd">(do work)</div>
+                    <div class="desc">Write code</div>
+                </div>
+                <div class="step-arrow">&rarr;</div>
+                <div class="step">
+                    <div class="cmd">cn done &lt;id&gt;</div>
+                    <div class="desc">Mark complete</div>
+                </div>
+                <div class="step-arrow">&rarr;</div>
+                <div class="step">
+                    <div class="cmd">cn sync --git</div>
+                    <div class="desc">Push to remote</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Commands -->
+    <section class="commands" id="commands">
+        <div class="container">
+            <h2>Commands</h2>
+            <table class="cmd-table">
+                <thead>
+                    <tr>
+                        <th>Command</th>
+                        <th>Alias</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>cn init</code></td>
+                        <td></td>
+                        <td>Initialize a <code>.chronis/</code> workspace</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn task create &lt;title&gt;</code></td>
+                        <td></td>
+                        <td>Create a task with optional flags</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn list</code></td>
+                        <td><code>cn ls</code></td>
+                        <td>List tasks, optionally filtered by status</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn ready</code></td>
+                        <td><code>cn r</code></td>
+                        <td>Show open, unblocked tasks</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn show &lt;id&gt;</code></td>
+                        <td><code>cn s</code></td>
+                        <td>Task details, children, and event timeline</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn claim &lt;id&gt;</code></td>
+                        <td><code>cn c</code></td>
+                        <td>Claim a task (first-write-wins)</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn done &lt;id&gt;</code></td>
+                        <td><code>cn d</code></td>
+                        <td>Mark a task as done</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn approve &lt;id&gt;</code></td>
+                        <td></td>
+                        <td>Approve a completed task</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn dep add &lt;id&gt; &lt;blocker&gt;</code></td>
+                        <td></td>
+                        <td>Add a blocking dependency</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn dep remove &lt;id&gt; &lt;blocker&gt;</code></td>
+                        <td></td>
+                        <td>Remove a blocking dependency</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn tui</code></td>
+                        <td></td>
+                        <td>Interactive terminal UI</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn serve</code></td>
+                        <td></td>
+                        <td>Embedded web viewer (Axum + HTMX)</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn sync --git</code></td>
+                        <td></td>
+                        <td>Stage, commit, and push .chronis/</td>
+                    </tr>
+                    <tr>
+                        <td><code>cn migrate-beads</code></td>
+                        <td></td>
+                        <td>Import issues from .beads/ directory</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Task Creation Flags -->
+    <section class="events">
+        <div class="container">
+            <h2>Task Creation Flags</h2>
+            <p class="subtitle">Fine-grained control over every task</p>
+            <div class="install-block" style="max-width: 600px">
+                <code>
+                    <span class="prompt">$</span> cn task create "Title" \<br>
+                    &nbsp;&nbsp;-p p1 \<span class="comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# p0 (critical), p1, p2 (default), p3</span><br>
+                    &nbsp;&nbsp;--type=epic \<span class="comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# task, epic, bug, feature</span><br>
+                    &nbsp;&nbsp;--parent=&lt;id&gt; \<span class="comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Parent task for hierarchy</span><br>
+                    &nbsp;&nbsp;--blocked-by=&lt;id&gt; \<span class="comment">&nbsp;&nbsp;&nbsp;# Dependency</span><br>
+                    &nbsp;&nbsp;-d "Description"<span class="comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Optional description</span>
+                </code>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="architecture" id="architecture">
+        <div class="container">
+            <h2>Architecture</h2>
+            <div class="arch-diagram">
+                <span class="layer">cn CLI (clap)</span><br>
+                <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;|</span><br>
+                <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;v</span><br>
+                <span class="layer">TaskRepository trait</span><br>
+                <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;|</span><br>
+                <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;v</span><br>
+                <span class="layer">EmbeddedCore</span> <span class="component">(allsource-core)</span><br>
+                <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;|</span><br>
+                <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;+--> </span><span class="storage">WAL</span> (CRC32, fsync) --> <span class="storage">Parquet</span> (Snappy)<br>
+                <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;+--> </span><span class="storage">DashMap</span> (in-memory reads, ~12us)<br>
+                <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;+--> </span><span class="component">TaskProjection</span> (event folding)
+            </div>
+        </div>
+    </section>
+
+    <!-- Event Types -->
+    <section class="events" id="events">
+        <div class="container">
+            <h2>Event Types</h2>
+            <p class="subtitle">All state is derived from these immutable events</p>
+            <div class="event-grid">
+                <div class="event-item">
+                    <code>task.created</code>
+                    <span class="source">cn task create</span>
+                </div>
+                <div class="event-item">
+                    <code>task.updated</code>
+                    <span class="source">cn task update</span>
+                </div>
+                <div class="event-item">
+                    <code>task.dependency.added</code>
+                    <span class="source">cn dep add</span>
+                </div>
+                <div class="event-item">
+                    <code>task.dependency.removed</code>
+                    <span class="source">cn dep remove</span>
+                </div>
+                <div class="event-item">
+                    <code>workflow.claimed</code>
+                    <span class="source">cn claim</span>
+                </div>
+                <div class="event-item">
+                    <code>workflow.step.completed</code>
+                    <span class="source">cn done</span>
+                </div>
+                <div class="event-item">
+                    <code>workflow.approval.granted</code>
+                    <span class="source">cn approve</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats">
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="value">~12us</div>
+                    <div class="label">Query Latency</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">469K</div>
+                    <div class="label">Events/sec Write</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">11</div>
+                    <div class="label">Integration Tests</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">0</div>
+                    <div class="label">External Dependencies</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta">
+        <div class="container">
+            <h2>Get Started</h2>
+            <p>Chronis is part of the AllSource ecosystem. Clone the monorepo and start managing tasks with immutable events.</p>
+            <div class="cta-buttons">
+                <a href="https://github.com/all-source-os/all-source" class="btn btn-primary">View Repository</a>
+                <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis/README.md" class="btn btn-secondary">Read the README</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-links">
+                    <a href="https://github.com/all-source-os/all-source">GitHub</a>
+                    <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis">Source</a>
+                    <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis/README.md">Docs</a>
+                </div>
+                <div class="footer-copy">
+                    &copy; 2025 AllSource. Chronis is open source.
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

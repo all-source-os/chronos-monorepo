@@ -3,7 +3,7 @@
 //! Accepts Redis-protocol connections and dispatches commands to the EventStore.
 //! Runs alongside the HTTP API server on a separate port (default 6380).
 
-use crate::{domain::entities::Event, store::EventStore};
+use crate::store::EventStore;
 use std::sync::Arc;
 use tokio::{
     io::BufReader,
@@ -102,8 +102,8 @@ impl RespServer {
             protocol::write_value(&mut writer, &response).await?;
 
             // If we got a subscription, enter pub/sub mode
-            if let Some(mut rx) = subscription {
-                self.run_subscription(&mut writer, &mut rx).await?;
+            if let Some(sub_info) = subscription {
+                self.run_subscription(&mut writer, sub_info).await?;
                 return Ok(()); // subscription mode exits on error/disconnect
             }
         }
@@ -111,14 +111,27 @@ impl RespServer {
 
     /// Run in subscription mode: forward broadcast events to the client
     /// as Redis pub/sub messages until the connection drops.
+    /// Events are filtered server-side by prefix patterns from SUBSCRIBE args.
     async fn run_subscription(
         &self,
         writer: &mut (impl tokio::io::AsyncWrite + Unpin),
-        rx: &mut tokio::sync::broadcast::Receiver<Arc<Event>>,
+        mut sub_info: commands::SubscriptionInfo,
     ) -> anyhow::Result<()> {
+        use crate::application::services::consumer::ConsumerRegistry;
+
         loop {
-            match rx.recv().await {
+            match sub_info.rx.recv().await {
                 Ok(event) => {
+                    // Apply server-side prefix filters
+                    if !sub_info.filters.is_empty()
+                        && !ConsumerRegistry::matches_filters(
+                            event.event_type_str(),
+                            &sub_info.filters,
+                        )
+                    {
+                        continue;
+                    }
+
                     // Format as Redis pub/sub message:
                     // *3\r\n$7\r\nmessage\r\n$<channel_len>\r\n<channel>\r\n$<payload_len>\r\n<payload>\r\n
                     let channel = format!("events:{}", event.event_type_str());

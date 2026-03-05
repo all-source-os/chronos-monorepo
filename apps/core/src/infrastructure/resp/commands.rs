@@ -18,14 +18,21 @@ use tokio::sync::broadcast;
 
 use super::protocol::RespValue;
 
+/// Subscription info returned by SUBSCRIBE command.
+pub struct SubscriptionInfo {
+    pub rx: broadcast::Receiver<Arc<Event>>,
+    /// Event type prefix filters (e.g. ["scheduler.*"]). Empty = all events.
+    pub filters: Vec<String>,
+}
+
 /// Execute a parsed RESP command against the EventStore.
 ///
 /// Returns `(response, Option<subscription>)` — subscription is `Some` only for
-/// SUBSCRIBE, giving the caller a broadcast receiver for events.
+/// SUBSCRIBE, giving the caller a broadcast receiver and filters.
 pub fn execute(
     args: &[RespValue],
     store: &Arc<EventStore>,
-) -> (RespValue, Option<broadcast::Receiver<Arc<Event>>>) {
+) -> (RespValue, Option<SubscriptionInfo>) {
     if args.is_empty() {
         return (RespValue::err("empty command"), None);
     }
@@ -50,7 +57,7 @@ pub fn execute(
 
 // ── PING ────────────────────────────────────────────────────────────────────
 
-fn handle_ping(args: &[RespValue]) -> (RespValue, Option<broadcast::Receiver<Arc<Event>>>) {
+fn handle_ping(args: &[RespValue]) -> (RespValue, Option<SubscriptionInfo>) {
     if let Some(msg) = args.first().and_then(|v| v.as_str()) {
         (RespValue::bulk_string(msg), None)
     } else {
@@ -67,7 +74,7 @@ fn handle_ping(args: &[RespValue]) -> (RespValue, Option<broadcast::Receiver<Arc
 fn handle_xadd(
     args: &[RespValue],
     store: &Arc<EventStore>,
-) -> (RespValue, Option<broadcast::Receiver<Arc<Event>>>) {
+) -> (RespValue, Option<SubscriptionInfo>) {
     // Minimum: stream_key, id_arg, field, value (4 args for one field pair — but we need 2 fields minimum)
     if args.len() < 6 {
         return (
@@ -179,7 +186,7 @@ fn handle_xadd(
 fn handle_xrange(
     args: &[RespValue],
     store: &Arc<EventStore>,
-) -> (RespValue, Option<broadcast::Receiver<Arc<Event>>>) {
+) -> (RespValue, Option<SubscriptionInfo>) {
     if args.len() < 3 {
         return (
             RespValue::err("wrong number of arguments for 'XRANGE' command"),
@@ -289,7 +296,7 @@ fn handle_xrange(
 fn handle_xlen(
     args: &[RespValue],
     store: &Arc<EventStore>,
-) -> (RespValue, Option<broadcast::Receiver<Arc<Event>>>) {
+) -> (RespValue, Option<SubscriptionInfo>) {
     if args.is_empty() {
         return (
             RespValue::err("wrong number of arguments for 'XLEN' command"),
@@ -329,15 +336,16 @@ fn handle_xlen(
 }
 
 // ── SUBSCRIBE ───────────────────────────────────────────────────────────────
-// Usage: SUBSCRIBE <channel> [<channel> ...]
+// Usage: SUBSCRIBE <pattern> [<pattern> ...]
 //
-// Subscribes to real-time event broadcasts. Channel names are informational
-// (all events are broadcast to all subscribers — filtering is client-side).
+// Subscribes to real-time event broadcasts with server-side prefix filtering.
+// Patterns use `prefix.*` syntax (e.g. `scheduler.*` matches `scheduler.started`).
+// `SUBSCRIBE *` receives all events (backwards compatible).
 
 fn handle_subscribe(
     args: &[RespValue],
     store: &Arc<EventStore>,
-) -> (RespValue, Option<broadcast::Receiver<Arc<Event>>>) {
+) -> (RespValue, Option<SubscriptionInfo>) {
     if args.is_empty() {
         return (
             RespValue::err("wrong number of arguments for 'SUBSCRIBE' command"),
@@ -350,6 +358,13 @@ fn handle_subscribe(
     // Get a broadcast receiver from the WebSocket manager's event channel
     let rx = ws_manager.subscribe_events();
 
+    // Collect channel patterns as prefix filters
+    let filters: Vec<String> = args
+        .iter()
+        .filter_map(|a| a.as_str().map(String::from))
+        .filter(|f| f != "*") // "*" means all events — no filter needed
+        .collect();
+
     // Build subscription confirmation per Redis protocol (one per channel)
     let mut confirmations = Vec::new();
     for (i, arg) in args.iter().enumerate() {
@@ -361,27 +376,29 @@ fn handle_subscribe(
         ]));
     }
 
+    let sub_info = SubscriptionInfo { rx, filters };
+
     // Return the first confirmation; the server loop will send the rest
     // and then enter subscription mode
     if confirmations.len() == 1 {
-        (confirmations.into_iter().next().unwrap(), Some(rx))
+        (confirmations.into_iter().next().unwrap(), Some(sub_info))
     } else {
         // For multiple channels, wrap all confirmations
         // The server loop handles writing each one
-        (RespValue::Array(confirmations), Some(rx))
+        (RespValue::Array(confirmations), Some(sub_info))
     }
 }
 
 // ── COMMAND ─────────────────────────────────────────────────────────────────
 
-fn handle_command(args: &[RespValue]) -> (RespValue, Option<broadcast::Receiver<Arc<Event>>>) {
+fn handle_command(args: &[RespValue]) -> (RespValue, Option<SubscriptionInfo>) {
     // redis-cli sends `COMMAND DOCS` on connect — return empty array
     (RespValue::Array(vec![]), None)
 }
 
 // ── INFO ────────────────────────────────────────────────────────────────────
 
-fn handle_info(store: &Arc<EventStore>) -> (RespValue, Option<broadcast::Receiver<Arc<Event>>>) {
+fn handle_info(store: &Arc<EventStore>) -> (RespValue, Option<SubscriptionInfo>) {
     let info = format!(
         "# Server\r\n\
          redis_version:7.0.0-allsource\r\n\
@@ -575,6 +592,22 @@ mod tests {
             }
             _ => panic!("expected array confirmation"),
         }
+    }
+
+    #[test]
+    fn test_subscribe_with_prefix_filters() {
+        let store = make_store();
+        let (_, sub) = execute(&cmd(&["SUBSCRIBE", "scheduler.*", "index.*"]), &store);
+        let sub_info = sub.unwrap();
+        assert_eq!(sub_info.filters, vec!["scheduler.*", "index.*"]);
+    }
+
+    #[test]
+    fn test_subscribe_wildcard_has_no_filters() {
+        let store = make_store();
+        let (_, sub) = execute(&cmd(&["SUBSCRIBE", "*"]), &store);
+        let sub_info = sub.unwrap();
+        assert!(sub_info.filters.is_empty(), "wildcard should produce no filters");
     }
 
     #[test]

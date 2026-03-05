@@ -1,12 +1,14 @@
 [workspace]
 resolver = "3"
 members = [
-    "apps/chronon",
     "apps/core",
     "apps/mcp-server-elixir/native/core_nif",
     "apps/registry",
     "sdks/rust",
     "tooling/performance",
+]
+exclude = [
+    "apps/chronis",
 ]
 
 [workspace.dependencies]

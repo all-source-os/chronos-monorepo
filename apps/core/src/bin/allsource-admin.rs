@@ -6,7 +6,12 @@ use allsource_core::{
     auth::{AuthManager, Role},
     backup::{BackupConfig, BackupManager},
     config::Config,
-    tenant::TenantManager,
+    domain::{
+        entities::TenantQuotas,
+        repositories::TenantRepository,
+        value_objects::TenantId,
+    },
+    infrastructure::repositories::InMemoryTenantRepository,
 };
 use anyhow::Result;
 use std::sync::Arc;
@@ -254,7 +259,8 @@ fn parse_args() -> Result<Command> {
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
@@ -276,7 +282,7 @@ fn main() -> Result<()> {
                 role.clone(),
                 "default".to_string(),
             )?;
-            println!("✅ User created successfully!");
+            println!("User created successfully!");
             println!("   ID: {}", user.id);
             println!("   Username: {}", user.username);
             println!("   Role: {:?}", role);
@@ -289,7 +295,7 @@ fn main() -> Result<()> {
             println!("\nTotal users: {}\n", users.len());
             for user in users {
                 println!(
-                    "  • {} ({}) - Role: {:?}, Tenant: {}",
+                    "  - {} ({}) - Role: {:?}, Tenant: {}",
                     user.username, user.email, user.role, user.tenant_id
                 );
             }
@@ -302,52 +308,71 @@ fn main() -> Result<()> {
             let users = auth_manager.list_users();
             if let Some(user) = users.iter().find(|u| u.username == username) {
                 auth_manager.delete_user(&user.id)?;
-                println!("✅ User deleted successfully!");
+                println!("User deleted successfully!");
             } else {
-                println!("❌ User not found: {}", username);
+                println!("User not found: {}", username);
             }
         }
 
         Command::TenantCreate { id, name, tier } => {
             println!("Creating tenant: {} ({})", id, name);
-            let tenant_manager = Arc::new(TenantManager::new());
+            let repo = InMemoryTenantRepository::new();
             let quotas = match tier.as_str() {
-                "free" => allsource_core::tenant::TenantQuotas::free_tier(),
-                "professional" => allsource_core::tenant::TenantQuotas::professional(),
-                "unlimited" => allsource_core::tenant::TenantQuotas::unlimited(),
-                _ => allsource_core::tenant::TenantQuotas::professional(),
+                "free" => TenantQuotas::free_tier(),
+                "professional" => TenantQuotas::professional(),
+                "unlimited" => TenantQuotas::unlimited(),
+                _ => TenantQuotas::professional(),
             };
-            let tenant = tenant_manager.create_tenant(id.clone(), name, quotas)?;
-            println!("✅ Tenant created successfully!");
-            println!("   ID: {}", tenant.id);
+            let tenant_id = TenantId::new(id.clone())?;
+            let tenant = repo.create(tenant_id, name, quotas).await?;
+            println!("Tenant created successfully!");
+            println!("   ID: {}", tenant.id().as_str());
             println!("   Tier: {}", tier);
         }
 
         Command::TenantList => {
             println!("Listing all tenants...");
-            let tenant_manager = Arc::new(TenantManager::new());
-            let tenants = tenant_manager.list_tenants();
+            let repo = InMemoryTenantRepository::new();
+            let tenants = repo.find_all(10_000, 0).await?;
             println!("\nTotal tenants: {}\n", tenants.len());
-            for tenant in tenants {
+            for tenant in &tenants {
                 println!(
-                    "  • {} - {} (Active: {})",
-                    tenant.id, tenant.name, tenant.active
+                    "  - {} - {} (Active: {})",
+                    tenant.id().as_str(),
+                    tenant.name(),
+                    tenant.is_active()
                 );
             }
         }
 
         Command::TenantStats { id } => {
             println!("Fetching stats for tenant: {}", id);
-            let tenant_manager = Arc::new(TenantManager::new());
-            let stats = tenant_manager.get_stats(&id)?;
-            println!("\n{}", serde_json::to_string_pretty(&stats)?);
+            let repo = InMemoryTenantRepository::new();
+            let tenant_id = TenantId::new(id.clone())?;
+            match repo.find_by_id(&tenant_id).await? {
+                Some(tenant) => {
+                    let stats = serde_json::json!({
+                        "tenant_id": tenant.id().as_str(),
+                        "name": tenant.name(),
+                        "active": tenant.is_active(),
+                        "quotas": tenant.quotas(),
+                        "usage": tenant.usage(),
+                    });
+                    println!("\n{}", serde_json::to_string_pretty(&stats)?);
+                }
+                None => println!("Tenant not found: {}", id),
+            }
         }
 
         Command::TenantDeactivate { id } => {
             println!("Deactivating tenant: {}", id);
-            let tenant_manager = Arc::new(TenantManager::new());
-            tenant_manager.deactivate_tenant(&id)?;
-            println!("✅ Tenant deactivated successfully!");
+            let repo = InMemoryTenantRepository::new();
+            let tenant_id = TenantId::new(id.clone())?;
+            if repo.deactivate(&tenant_id).await? {
+                println!("Tenant deactivated successfully!");
+            } else {
+                println!("Tenant not found: {}", id);
+            }
         }
 
         Command::BackupCreate => {
@@ -355,7 +380,7 @@ fn main() -> Result<()> {
             let config = BackupConfig::default();
             let _manager = BackupManager::new(config)?;
             // Note: In real usage, you'd pass actual events from the store
-            println!("⚠️  Backup creation requires event store access");
+            println!("Backup creation requires event store access");
             println!("    Use the API endpoint: POST /api/v1/backups");
         }
 
@@ -367,7 +392,7 @@ fn main() -> Result<()> {
             println!("\nTotal backups: {}\n", backups.len());
             for backup in backups {
                 println!(
-                    "  • {} - {} events ({} bytes)",
+                    "  - {} - {} events ({} bytes)",
                     backup.backup_id, backup.event_count, backup.size_bytes
                 );
                 println!("    Created: {}", backup.created_at);
@@ -379,7 +404,7 @@ fn main() -> Result<()> {
             let config = BackupConfig::default();
             let manager = BackupManager::new(config)?;
             let events = manager.restore_from_backup(&backup_id)?;
-            println!("✅ Restored {} events successfully!", events.len());
+            println!("Restored {} events successfully!", events.len());
         }
 
         Command::Config { show, generate } => {
@@ -390,7 +415,7 @@ fn main() -> Result<()> {
                         println!("\n{}", toml::to_string_pretty(&config)?);
                     }
                     Err(e) => {
-                        println!("❌ Failed to load config: {}", e);
+                        println!("Failed to load config: {}", e);
                     }
                 }
             } else if generate {
@@ -405,18 +430,20 @@ fn main() -> Result<()> {
             println!("=================\n");
 
             let auth_manager = Arc::new(AuthManager::default());
-            let tenant_manager = Arc::new(TenantManager::new());
+            let repo = InMemoryTenantRepository::new();
 
             let users = auth_manager.list_users();
-            let tenants = tenant_manager.list_tenants();
+            let tenants = repo.find_all(10_000, 0).await?;
 
             println!("Users:   {}", users.len());
             println!("Tenants: {}", tenants.len());
             println!("\nTenant Breakdown:");
-            for tenant in tenants {
+            for tenant in &tenants {
                 println!(
-                    "  • {}: {} (Active: {})",
-                    tenant.id, tenant.name, tenant.active
+                    "  - {}: {} (Active: {})",
+                    tenant.id().as_str(),
+                    tenant.name(),
+                    tenant.is_active()
                 );
             }
         }

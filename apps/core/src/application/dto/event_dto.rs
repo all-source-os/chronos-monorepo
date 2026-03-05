@@ -11,6 +11,9 @@ pub struct IngestEventRequest {
     pub tenant_id: Option<String>, // Optional, defaults to "default"
     pub payload: serde_json::Value,
     pub metadata: Option<serde_json::Value>,
+    /// Optional optimistic concurrency control: if set, the write is rejected
+    /// with 409 Conflict unless the entity's current version matches this value.
+    pub expected_version: Option<u64>,
 }
 
 /// DTO for event ingestion response
@@ -18,6 +21,9 @@ pub struct IngestEventRequest {
 pub struct IngestEventResponse {
     pub event_id: Uuid,
     pub timestamp: DateTime<Utc>,
+    /// The entity's version after this event was appended
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<u64>,
 }
 
 impl IngestEventResponse {
@@ -25,6 +31,7 @@ impl IngestEventResponse {
         Self {
             event_id: event.id(),
             timestamp: event.timestamp(),
+            version: None,
         }
     }
 }
@@ -68,6 +75,9 @@ pub struct QueryEventsResponse {
     pub count: usize,
     pub total_count: usize,
     pub has_more: bool,
+    /// Current version of the entity (present only when query filters by entity_id)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_version: Option<u64>,
 }
 
 /// DTO for a single event in responses

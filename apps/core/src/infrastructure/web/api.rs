@@ -2,9 +2,10 @@ use crate::{
     application::{
         dto::{
             DetectDuplicatesRequest, DetectDuplicatesResponse, DuplicateGroup, EntitySummary,
+            AckRequest, ConsumerEventDto, ConsumerEventsResponse, ConsumerResponse,
             EventDto, IngestEventRequest, IngestEventResponse, IngestEventsBatchRequest,
             IngestEventsBatchResponse, ListEntitiesRequest, ListEntitiesResponse,
-            QueryEventsRequest, QueryEventsResponse,
+            QueryEventsRequest, QueryEventsResponse, RegisterConsumerRequest,
         },
         services::{
             analytics::{
@@ -274,6 +275,8 @@ pub async fn ingest_event(
     State(store): State<SharedStore>,
     Json(req): Json<IngestEventRequest>,
 ) -> Result<Json<IngestEventResponse>> {
+    let expected_version = req.expected_version;
+
     // Create event using from_strings with default tenant
     let event = Event::from_strings(
         req.event_type,
@@ -286,13 +289,14 @@ pub async fn ingest_event(
     let event_id = event.id;
     let timestamp = event.timestamp;
 
-    store.ingest(event)?;
+    let new_version = store.ingest_with_expected_version(event, expected_version)?;
 
     tracing::info!("Event ingested: {}", event_id);
 
     Ok(Json(IngestEventResponse {
         event_id,
         timestamp,
+        version: Some(new_version),
     }))
 }
 
@@ -303,6 +307,8 @@ pub async fn ingest_event_v1(
     State(state): State<AppState>,
     Json(req): Json<IngestEventRequest>,
 ) -> Result<Json<IngestEventResponse>> {
+    let expected_version = req.expected_version;
+
     let event = Event::from_strings(
         req.event_type,
         req.entity_id,
@@ -314,7 +320,9 @@ pub async fn ingest_event_v1(
     let event_id = event.id;
     let timestamp = event.timestamp;
 
-    state.store.ingest(event)?;
+    let new_version = state
+        .store
+        .ingest_with_expected_version(event, expected_version)?;
 
     // Semi-sync/sync: wait for follower ACK(s) before returning
     await_replication_ack(&state).await;
@@ -324,6 +332,7 @@ pub async fn ingest_event_v1(
     Ok(Json(IngestEventResponse {
         event_id,
         timestamp,
+        version: Some(new_version),
     }))
 }
 
@@ -340,6 +349,7 @@ pub async fn ingest_events_batch(
 
     for event_req in req.events {
         let tenant_id = event_req.tenant_id.unwrap_or_else(|| "default".to_string());
+        let expected_version = event_req.expected_version;
 
         let event = Event::from_strings(
             event_req.event_type,
@@ -352,11 +362,12 @@ pub async fn ingest_events_batch(
         let event_id = event.id;
         let timestamp = event.timestamp;
 
-        store.ingest(event)?;
+        let new_version = store.ingest_with_expected_version(event, expected_version)?;
 
         ingested_events.push(IngestEventResponse {
             event_id,
             timestamp,
+            version: Some(new_version),
         });
     }
 
@@ -382,6 +393,7 @@ pub async fn ingest_events_batch_v1(
 
     for event_req in req.events {
         let tenant_id = event_req.tenant_id.unwrap_or_else(|| "default".to_string());
+        let expected_version = event_req.expected_version;
 
         let event = Event::from_strings(
             event_req.event_type,
@@ -394,11 +406,14 @@ pub async fn ingest_events_batch_v1(
         let event_id = event.id;
         let timestamp = event.timestamp;
 
-        state.store.ingest(event)?;
+        let new_version = state
+            .store
+            .ingest_with_expected_version(event, expected_version)?;
 
         ingested_events.push(IngestEventResponse {
             event_id,
             timestamp,
+            version: Some(new_version),
         });
     }
 
@@ -420,6 +435,7 @@ pub async fn query_events(
     Query(req): Query<QueryEventsRequest>,
 ) -> Result<Json<QueryEventsResponse>> {
     let requested_limit = req.limit;
+    let queried_entity_id = req.entity_id.clone();
 
     // Query without limit to get total count
     let unlimited_req = QueryEventsRequest {
@@ -447,6 +463,11 @@ pub async fn query_events(
     let has_more = count < total_count;
     let events: Vec<EventDto> = limited_events.iter().map(EventDto::from).collect();
 
+    // Include entity_version only when filtering by a single entity_id
+    let entity_version = queried_entity_id
+        .as_deref()
+        .map(|eid| store.get_entity_version(eid));
+
     tracing::debug!("Query returned {} events (total: {})", count, total_count);
 
     Ok(Json(QueryEventsResponse {
@@ -454,6 +475,7 @@ pub async fn query_events(
         count,
         total_count,
         has_more,
+        entity_version,
     }))
 }
 
@@ -749,11 +771,26 @@ pub async fn list_event_types(
 }
 
 // v0.2: WebSocket endpoint for real-time event streaming
-pub async fn events_websocket(ws: WebSocketUpgrade, State(store): State<SharedStore>) -> Response {
+#[derive(Debug, Deserialize)]
+pub struct WebSocketParams {
+    pub consumer_id: Option<String>,
+}
+
+pub async fn events_websocket(
+    ws: WebSocketUpgrade,
+    State(store): State<SharedStore>,
+    Query(params): Query<WebSocketParams>,
+) -> Response {
     let websocket_manager = store.websocket_manager();
 
     ws.on_upgrade(move |socket| async move {
-        websocket_manager.handle_socket(socket).await;
+        if let Some(consumer_id) = params.consumer_id {
+            websocket_manager
+                .handle_socket_with_consumer(socket, consumer_id, store)
+                .await;
+        } else {
+            websocket_manager.handle_socket(socket).await;
+        }
     })
 }
 
@@ -2100,6 +2137,92 @@ pub async fn sync_push_handler(
         skipped,
         version_vector: std::collections::BTreeMap::new(),
     }))
+}
+
+// =============================================================================
+// Consumer endpoints for durable subscriptions (v0.14)
+// =============================================================================
+
+/// POST /api/v1/consumers — Register a durable consumer
+pub async fn register_consumer(
+    State(store): State<SharedStore>,
+    Json(req): Json<RegisterConsumerRequest>,
+) -> Result<Json<ConsumerResponse>> {
+    let consumer = store
+        .consumer_registry()
+        .register(req.consumer_id, req.event_type_filters);
+
+    Ok(Json(ConsumerResponse {
+        consumer_id: consumer.consumer_id,
+        event_type_filters: consumer.event_type_filters,
+        cursor_position: consumer.cursor_position,
+    }))
+}
+
+/// GET /api/v1/consumers/{consumer_id} — Get consumer metadata and cursor position
+pub async fn get_consumer(
+    State(store): State<SharedStore>,
+    Path(consumer_id): Path<String>,
+) -> Result<Json<ConsumerResponse>> {
+    let consumer = store.consumer_registry().get_or_create(&consumer_id);
+
+    Ok(Json(ConsumerResponse {
+        consumer_id: consumer.consumer_id,
+        event_type_filters: consumer.event_type_filters,
+        cursor_position: consumer.cursor_position,
+    }))
+}
+
+/// GET /api/v1/consumers/{consumer_id}/events — Poll for events since last ack
+#[derive(Debug, Deserialize)]
+pub struct ConsumerPollQuery {
+    pub limit: Option<usize>,
+}
+
+pub async fn poll_consumer_events(
+    State(store): State<SharedStore>,
+    Path(consumer_id): Path<String>,
+    Query(query): Query<ConsumerPollQuery>,
+) -> Result<Json<ConsumerEventsResponse>> {
+    let consumer = store.consumer_registry().get_or_create(&consumer_id);
+    let offset = consumer.cursor_position.unwrap_or(0);
+    let limit = query.limit.unwrap_or(100);
+
+    let events = store.events_after_offset(offset, &consumer.event_type_filters, limit);
+    let count = events.len();
+
+    let consumer_events: Vec<ConsumerEventDto> = events
+        .into_iter()
+        .map(|(position, event)| ConsumerEventDto {
+            position,
+            event: EventDto::from(&event),
+        })
+        .collect();
+
+    Ok(Json(ConsumerEventsResponse {
+        events: consumer_events,
+        count,
+    }))
+}
+
+/// POST /api/v1/consumers/{consumer_id}/ack — Acknowledge processed events
+pub async fn ack_consumer(
+    State(store): State<SharedStore>,
+    Path(consumer_id): Path<String>,
+    Json(req): Json<AckRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let max_offset = store.total_events() as u64;
+
+    store
+        .consumer_registry()
+        .ack(&consumer_id, req.position, max_offset)
+        .map_err(crate::error::AllSourceError::InvalidInput)?;
+
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "consumer_id": consumer_id,
+        "position": req.position,
+    })))
 }
 
 #[cfg(test)]

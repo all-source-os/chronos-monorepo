@@ -4,13 +4,13 @@
  * Verifies all required services are healthy before any tests run.
  * Fails fast with a clear error message if any service is unreachable.
  *
- * Required services:
- *   - Web app (BASE_URL, default http://localhost:3000)
- *   - Control Plane (CONTROL_PLANE_URL, default http://localhost:3901)
+ * Required services (all environments):
+ *   - Web app (BASE_URL)
+ *   - Control Plane (CONTROL_PLANE_URL)
+ *   - Query Service (QS_URL) — integration and e2e tests need it
  *
- * Optional services (checked but warn-only when targeting production):
- *   - Core (CORE_URL, default http://localhost:3900)
- *   - Query Service (QS_URL, default http://localhost:3902)
+ * Optional services (local only):
+ *   - Core (CORE_URL) — only directly reachable in local dev
  */
 
 const BASE_URL = process.env.BASE_URL || "https://all-source.xyz";
@@ -56,33 +56,29 @@ export default async function globalSetup() {
       required: true,
     },
     {
-      // Control Plane is only required for local runs.
-      // For production/staging, individual test files handle CP
-      // unavailability via demoLogin() returning null → test.skip().
       name: "Control Plane",
       url: CP_URL,
       healthPath: "/health",
-      required: isLocal,
+      required: true,
+    },
+    {
+      // QS is required — integration and e2e tests need it.
+      name: "Query Service",
+      url: QS_URL,
+      healthPath: "/api/health",
+      required: true,
     },
   ];
 
-  // Core and QS are only checked for local runs — in production they're
-  // behind the QS/CP and not directly reachable by the browser.
+  // Core is only directly reachable in local dev — in production
+  // it sits behind the Query Service.
   if (isLocal) {
-    services.push(
-      {
-        name: "Core",
-        url: CORE_URL,
-        healthPath: "/health",
-        required: true,
-      },
-      {
-        name: "Query Service",
-        url: QS_URL,
-        healthPath: "/api/health",
-        required: true,
-      }
-    );
+    services.push({
+      name: "Core",
+      url: CORE_URL,
+      healthPath: "/health",
+      required: true,
+    });
   }
 
   console.log("\n🏥 Checking service health before running tests...\n");

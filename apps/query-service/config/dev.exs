@@ -11,8 +11,11 @@ config :query_service_ex, QueryServiceExWeb.Endpoint,
   secret_key_base: "development_secret_key_base_at_least_64_bytes_long_for_security_purposes",
   watchers: []
 
-# Enable dev routes for debugging
-config :query_service_ex, dev_routes: true
+# #10 fix: allow localhost origins for dev so direct QS calls work without
+# CORS errors (e.g., when bypassing the Next.js proxy during development).
+config :query_service_ex,
+  dev_routes: true,
+  cors_origins: ["http://localhost:3000", "http://localhost:3001", "http://localhost:3902"]
 
 # Include metadata in development logs for debugging
 config :logger, :console,

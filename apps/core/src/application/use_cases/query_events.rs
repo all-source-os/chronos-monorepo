@@ -86,6 +86,7 @@ impl QueryEventsUseCase {
             count,
             total_count,
             has_more,
+            entity_version: None,
         })
     }
 }

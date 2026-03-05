@@ -4,7 +4,7 @@ import { Button, Card, CardContent } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { History, Lock, Pause, Play, Radio, Unlock, Wifi, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useWebSocket } from "@/hooks/use-websocket";
+import { usePhoenixChannel } from "@/hooks/use-phoenix-channel";
 
 /**
  * Event shape matching Core's WebSocket event format.
@@ -24,10 +24,7 @@ function categorizeEvent(event: StreamEvent): EventCategory {
   if (event.payload._embedding || event.event_type.includes("vector")) {
     return "vector-indexed";
   }
-  if (
-    event.event_type.includes("search") ||
-    event.event_type.includes("keyword")
-  ) {
+  if (event.event_type.includes("search") || event.event_type.includes("keyword")) {
     return "keyword-hit";
   }
   return "ingested";
@@ -51,55 +48,7 @@ const CATEGORY_LABELS: Record<EventCategory, string> = {
   "keyword-hit": "Keyword hit",
 };
 
-const WS_EVENTS_ENDPOINT = "/api/v1/events/stream";
 const MAX_EVENTS = 200;
-
-// Simulated event types matching Core seed data
-const SIM_EVENT_TYPES = [
-  "log.info",
-  "log.warning",
-  "log.error",
-  "metric.cpu",
-  "metric.memory",
-  "metric.latency",
-  "user.signup",
-  "user.login",
-  "user.action",
-  "user.search",
-];
-
-const SIM_ENTITIES = [
-  "srv-web-01",
-  "srv-web-02",
-  "srv-api-01",
-  "srv-db-01",
-  "usr-1042",
-  "usr-2091",
-  "usr-3847",
-  "svc-auth",
-  "svc-billing",
-];
-
-function generateSimEvent(counter: number): StreamEvent {
-  const eventType =
-    SIM_EVENT_TYPES[Math.floor(Math.random() * SIM_EVENT_TYPES.length)]!;
-  const entityId =
-    SIM_ENTITIES[Math.floor(Math.random() * SIM_ENTITIES.length)]!;
-  const hasEmbedding = Math.random() > 0.6;
-
-  return {
-    id: `evt_${Date.now()}_${counter}`,
-    entity_id: entityId,
-    event_type: eventType,
-    payload: {
-      source: "demo",
-      value: Math.floor(Math.random() * 1000),
-      ...(hasEmbedding ? { _embedding: [0.1, 0.2, 0.3] } : {}),
-    },
-    timestamp: new Date().toISOString(),
-    version: counter,
-  };
-}
 
 function formatTime(ts: string): string {
   const d = new Date(ts);
@@ -121,7 +70,6 @@ export function LiveEventStreamPanel() {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [isPaused, setIsPaused] = useState(false);
   const [scrollLock, setScrollLock] = useState(false);
-  const [useSimulation, setUseSimulation] = useState(false);
   const [hoveredEvent, setHoveredEvent] = useState<StreamEvent | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [stats, setStats] = useState<StatsState>({
@@ -133,7 +81,6 @@ export function LiveEventStreamPanel() {
   const [replayedEventIds, setReplayedEventIds] = useState<Set<string>>(new Set());
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const eventCounterRef = useRef(0);
   const rateWindowRef = useRef<number[]>([]); // timestamps of events in last second
   const replayTimeoutRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -142,14 +89,12 @@ export function LiveEventStreamPanel() {
     rateWindowRef.current.push(timestamp);
     const now = Date.now();
     // Keep only events from last 2 seconds
-    rateWindowRef.current = rateWindowRef.current.filter(
-      (t) => now - t < 2000
-    );
+    rateWindowRef.current = rateWindowRef.current.filter((t) => now - t < 2000);
     const rate = Math.round(rateWindowRef.current.length / 2);
     setStats((prev) => ({
       currentRate: rate,
       peakRate: Math.max(prev.peakRate, rate),
-      latency: Math.max(1, Math.round(Math.random() * 5 + 8)), // Simulated latency 8-13ms
+      latency: prev.latency,
     }));
   }, []);
 
@@ -186,9 +131,7 @@ export function LiveEventStreamPanel() {
     // Fallback: use events already in the stream from the last 10s
     if (replayEvents.length === 0) {
       const cutoff = Date.now() - 10_000;
-      replayEvents = events
-        .filter((e) => new Date(e.timestamp).getTime() >= cutoff)
-        .reverse(); // oldest first for replay order
+      replayEvents = events.filter((e) => new Date(e.timestamp).getTime() >= cutoff).reverse(); // oldest first for replay order
     }
 
     if (replayEvents.length === 0) {
@@ -231,13 +174,12 @@ export function LiveEventStreamPanel() {
     });
   }, [events, recordEvent]);
 
-  // Handle incoming WebSocket events
-  const handleWebSocketMessage = useCallback(
+  // Handle incoming Phoenix Channel events
+  const handleChannelEvent = useCallback(
     (data: unknown) => {
       if (isPaused) return;
-      const eventData = data as { event?: StreamEvent; type?: string };
-      const event = eventData.event ?? (eventData.type === "event" ? (data as StreamEvent) : null);
-      if (event) {
+      const event = data as StreamEvent;
+      if (event?.id) {
         setEvents((prev) => [event, ...prev].slice(0, MAX_EVENTS));
         recordEvent(Date.now());
       }
@@ -245,45 +187,9 @@ export function LiveEventStreamPanel() {
     [isPaused, recordEvent]
   );
 
-  const { isConnected, connect } = useWebSocket(WS_EVENTS_ENDPOINT, {
-    onMessage: handleWebSocketMessage,
-    onError: () => setUseSimulation(true),
-    reconnectAttempts: 3,
+  const { isConnected, connect } = usePhoenixChannel("events:all", {
+    onEvent: handleChannelEvent,
   });
-
-  useEffect(() => {
-    if (isConnected) setUseSimulation(false);
-  }, [isConnected]);
-
-  // Fallback simulation — burst of 2-5 events every 1-2 seconds
-  useEffect(() => {
-    if (isPaused || !useSimulation) return;
-
-    const tick = () => {
-      const burstSize = Math.floor(Math.random() * 4) + 2;
-      const newEvents: StreamEvent[] = [];
-      for (let i = 0; i < burstSize; i++) {
-        eventCounterRef.current += 1;
-        newEvents.push(generateSimEvent(eventCounterRef.current));
-        recordEvent(Date.now());
-      }
-      setEvents((prev) => [...newEvents, ...prev].slice(0, MAX_EVENTS));
-    };
-
-    // Initial burst
-    tick();
-
-    const interval = setInterval(tick, Math.random() * 1000 + 1000);
-    return () => clearInterval(interval);
-  }, [isPaused, useSimulation, recordEvent]);
-
-  // Wait for WS before falling back to simulation
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!isConnected) setUseSimulation(true);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [isConnected]);
 
   // Auto-scroll when not locked
   useEffect(() => {
@@ -296,9 +202,7 @@ export function LiveEventStreamPanel() {
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
-      rateWindowRef.current = rateWindowRef.current.filter(
-        (t) => now - t < 2000
-      );
+      rateWindowRef.current = rateWindowRef.current.filter((t) => now - t < 2000);
       const rate = Math.round(rateWindowRef.current.length / 2);
       setStats((prev) => ({
         ...prev,
@@ -308,21 +212,23 @@ export function LiveEventStreamPanel() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleMouseEnter = useCallback(
-    (event: StreamEvent, e: React.MouseEvent) => {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      setTooltipPos({ x: rect.right + 8, y: rect.top });
-      setHoveredEvent(event);
-    },
-    []
-  );
+  const handleMouseEnter = useCallback((event: StreamEvent, e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setTooltipPos({ x: rect.right + 8, y: rect.top });
+    setHoveredEvent(event);
+  }, []);
 
   const handleMouseLeave = useCallback(() => {
     setHoveredEvent(null);
   }, []);
 
   return (
-    <Card className="flex h-full flex-col" data-testid="event-stream-panel" role="region" aria-label="Live event stream">
+    <Card
+      className="flex h-full flex-col"
+      data-testid="event-stream-panel"
+      role="region"
+      aria-label="Live event stream"
+    >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
@@ -335,18 +241,8 @@ export function LiveEventStreamPanel() {
           <h3 className="text-sm font-semibold">Live Event Stream</h3>
           {isConnected ? (
             <Wifi className="h-3 w-3 text-green-500" aria-label="Connected" />
-          ) : useSimulation ? (
-            <span
-              className="text-[10px] text-muted-foreground"
-              aria-label="Demo mode"
-            >
-              (demo)
-            </span>
           ) : (
-            <WifiOff
-              className="h-3 w-3 text-muted-foreground"
-              aria-label="Disconnected"
-            />
+            <WifiOff className="h-3 w-3 text-muted-foreground" aria-label="Disconnected" />
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -362,16 +258,8 @@ export function LiveEventStreamPanel() {
             <History className={cn("mr-1 h-3 w-3", isReplaying && "animate-spin")} />
             {isReplaying ? "Replaying..." : "Replay 10s"}
           </Button>
-          {!isConnected && useSimulation && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => {
-                setUseSimulation(false);
-                connect();
-              }}
-            >
+          {!isConnected && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => connect()}>
               <Wifi className="mr-1 h-3 w-3" />
               Connect
             </Button>
@@ -383,11 +271,7 @@ export function LiveEventStreamPanel() {
             onClick={() => setScrollLock(!scrollLock)}
             aria-label={scrollLock ? "Unlock scroll" : "Lock scroll"}
           >
-            {scrollLock ? (
-              <Lock className="h-3.5 w-3.5" />
-            ) : (
-              <Unlock className="h-3.5 w-3.5" />
-            )}
+            {scrollLock ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
           </Button>
           <Button
             variant="ghost"
@@ -396,11 +280,7 @@ export function LiveEventStreamPanel() {
             onClick={() => setIsPaused(!isPaused)}
             aria-label={isPaused ? "Resume" : "Pause"}
           >
-            {isPaused ? (
-              <Play className="h-3.5 w-3.5" />
-            ) : (
-              <Pause className="h-3.5 w-3.5" />
-            )}
+            {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </div>
@@ -424,17 +304,12 @@ export function LiveEventStreamPanel() {
         <span>
           Peak:{" "}
           <span className="font-semibold text-foreground">
-            {stats.peakRate >= 1000
-              ? `${(stats.peakRate / 1000).toFixed(1)}k`
-              : stats.peakRate}
+            {stats.peakRate >= 1000 ? `${(stats.peakRate / 1000).toFixed(1)}k` : stats.peakRate}
             /sec
           </span>
         </span>
         <span>
-          Latency:{" "}
-          <span className="font-semibold text-foreground">
-            {stats.latency}ms
-          </span>
+          Latency: <span className="font-semibold text-foreground">{stats.latency}ms</span>
         </span>
       </div>
 
@@ -449,7 +324,11 @@ export function LiveEventStreamPanel() {
         >
           {events.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              {isPaused ? "Feed paused" : "Waiting for events..."}
+              {isPaused
+                ? "Feed paused"
+                : isConnected
+                  ? "Waiting for events..."
+                  : "No events — WebSocket disconnected"}
             </div>
           ) : (
             <div className="divide-y divide-border/50">
@@ -463,9 +342,7 @@ export function LiveEventStreamPanel() {
                       CATEGORY_ROW_COLORS[category],
                       replayedEventIds.has(event.id)
                         ? "ring-1 ring-purple-500/50 bg-purple-500/10"
-                        : index === 0 &&
-                          !isPaused &&
-                          "animate-in slide-in-from-top-1 duration-200"
+                        : index === 0 && !isPaused && "animate-in slide-in-from-top-1 duration-200"
                     )}
                     data-replayed={replayedEventIds.has(event.id) || undefined}
                     onMouseEnter={(e) => handleMouseEnter(event, e)}
@@ -483,9 +360,7 @@ export function LiveEventStreamPanel() {
                     />
 
                     {/* Event type */}
-                    <span className="min-w-0 flex-1 truncate font-medium">
-                      {event.event_type}
-                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{event.event_type}</span>
 
                     {/* Entity */}
                     <span className="shrink-0 text-muted-foreground max-w-[80px] truncate">

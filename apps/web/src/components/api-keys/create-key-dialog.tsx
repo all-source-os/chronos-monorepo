@@ -106,29 +106,32 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={handleClose} />
+      <button
+        type="button"
+        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+        onClick={handleClose}
+        aria-label="Close dialog"
+      />
 
       {/* Dialog */}
-      <Card className="relative z-10 w-full max-w-lg mx-4">
+      <Card className="relative z-10 w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Key className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle>{createdKey ? "API Key Created" : "Create API Key"}</CardTitle>
-                <CardDescription>
-                  {createdKey
-                    ? "Save your key now - you won't see it again"
-                    : "Generate a new API key for your applications"}
-                </CardDescription>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <Key className="h-5 w-5 text-primary" />
             </div>
-            <Button variant="ghost" size="icon" onClick={handleClose}>
-              <X className="h-4 w-4" />
-            </Button>
+            <div>
+              <CardTitle>{createdKey ? "API Key Created" : "Create API Key"}</CardTitle>
+              <CardDescription>
+                {createdKey
+                  ? "Save your key now - you won't see it again"
+                  : "Generate a new API key for your applications"}
+              </CardDescription>
+            </div>
           </div>
+          <Button variant="ghost" size="icon" onClick={handleClose} data-slot="card-action">
+            <X className="h-4 w-4" />
+          </Button>
         </CardHeader>
 
         <CardContent>

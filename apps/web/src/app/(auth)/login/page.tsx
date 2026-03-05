@@ -17,7 +17,6 @@ import { AlertCircle, Eye, EyeOff, FlaskConical, Loader2, Mail } from "lucide-re
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useId, useState } from "react";
-import { getControlPlaneUrl } from "@/lib/api/client";
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing_token: "Authentication failed. Please try again.",
@@ -65,8 +64,7 @@ function LoginContent() {
     setIsSubmitting(true);
 
     try {
-      const cpUrl = getControlPlaneUrl();
-      const response = await fetch(`${cpUrl}/api/v1/auth/login`, {
+      const response = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -99,8 +97,7 @@ function LoginContent() {
     setError(null);
     try {
       // Step 1: Create demo credentials via Control Plane
-      const cpUrl = getControlPlaneUrl();
-      const response = await fetch(`${cpUrl}/api/v1/demo/start`, {
+      const response = await fetch("/api/v1/demo/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -116,7 +113,7 @@ function LoginContent() {
       setShowEmailForm(true);
 
       // Step 3: Log in with the demo credentials through the normal flow
-      const loginResponse = await fetch(`${cpUrl}/api/v1/auth/login`, {
+      const loginResponse = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: data.email, password: data.password }),
@@ -341,9 +338,7 @@ function LoginContent() {
                   <span className="w-full border-t border-border" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Or
-                  </span>
+                  <span className="bg-background px-2 text-muted-foreground">Or</span>
                 </div>
               </div>
 

@@ -3,18 +3,19 @@ use allsource_core::{
     api_v1::NodeRole,
     auth::AuthManager,
     config::ServerConfig,
+    domain::repositories::TenantRepository,
     infrastructure::{
         cluster::{
             ClusterManager, ClusterMember, GeoReplicationConfig, GeoReplicationManager, MemberRole,
         },
         di::ContainerBuilder,
         persistence::SystemBootstrap,
+        repositories::InMemoryTenantRepository,
     },
     rate_limit::{RateLimitConfig, RateLimiter},
     replication::{ReplicationMode, WalReceiver, WalShipper},
     resp::RespServer,
     store::EventStore,
-    tenant::TenantManager,
 };
 use anyhow::Result;
 use std::sync::Arc;
@@ -166,7 +167,6 @@ async fn main() -> Result<()> {
             AuthManager::default()
         }
     });
-    let tenant_manager = Arc::new(TenantManager::new());
     let rate_limiter = Arc::new(RateLimiter::new(RateLimitConfig::professional()));
 
     // Initialize system metadata (event-sourced repositories)
@@ -188,6 +188,14 @@ async fn main() -> Result<()> {
         .filter(|s| !s.is_empty());
     let system_repos = SystemBootstrap::try_initialize(system_data_dir, bootstrap_tenant).await;
 
+    // Use event-sourced tenant repository when system repositories are available,
+    // otherwise fall back to in-memory only (dev/test mode).
+    let tenant_repo: Arc<dyn TenantRepository> = if let Some(ref repos) = system_repos {
+        repos.tenant_repository.clone()
+    } else {
+        Arc::new(InMemoryTenantRepository::new())
+    };
+
     // Initialize DI container for paywall domain + system repositories
     let mut builder = ContainerBuilder::new().with_in_memory_repositories();
     if let Some(repos) = system_repos {
@@ -208,7 +216,7 @@ async fn main() -> Result<()> {
 
     tracing::info!("✅ Event store initialized");
     tracing::info!("✅ Authentication manager initialized");
-    tracing::info!("✅ Tenant manager initialized (default tenant created)");
+    tracing::info!("✅ Tenant repository initialized");
     tracing::info!("✅ Rate limiter initialized (professional tier defaults)");
     if service_container.has_system_repositories() {
         tracing::info!("✅ Service container initialized (event-sourced system repositories)");
@@ -325,7 +333,7 @@ async fn main() -> Result<()> {
     api_v1::serve_v1(
         store,
         auth_manager,
-        tenant_manager,
+        tenant_repo,
         rate_limiter,
         service_container,
         &addr,

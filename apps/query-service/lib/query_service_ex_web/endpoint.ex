@@ -47,5 +47,25 @@ defmodule QueryServiceExWeb.Endpoint do
 
   plug(Plug.MethodOverride)
   plug(Plug.Head)
+
+  # #9 fix: credentials: false — cross-origin requests use Authorization
+  # header / X-API-Key, not cookies. This also avoids the browser-level
+  # conflict where Access-Control-Allow-Origin: * + credentials: true is
+  # rejected by all browsers.
+  plug(CORSPlug,
+    origin: &QueryServiceExWeb.Endpoint.cors_origins/0,
+    credentials: false,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    headers: ["authorization", "content-type", "x-api-key", "x-correlation-id", "x-requested-with"],
+    expose: ["x-correlation-id"],
+    max_age: 86_400
+  )
+
   plug(QueryServiceExWeb.Router)
+
+  @doc false
+  def cors_origins do
+    Application.get_env(:query_service_ex, :cors_origins) ||
+      ["https://www.all-source.xyz", "https://all-source.xyz"]
+  end
 end

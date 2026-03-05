@@ -37,7 +37,6 @@ COPY apps/core/src apps/core/src
 COPY tooling/performance/Cargo.toml tooling/performance/Cargo.toml
 COPY sdks/rust/Cargo.toml sdks/rust/Cargo.toml
 COPY apps/registry/Cargo.toml apps/registry/Cargo.toml
-COPY apps/chronon/ apps/chronon/
 # core_nif is a cdylib (Rustler NIF) which musl cannot produce, so we stub it
 # as a plain lib to satisfy workspace resolution without triggering cdylib builds
 RUN mkdir -p tooling/performance/src sdks/rust/src apps/registry/src \
@@ -68,7 +67,6 @@ COPY apps/core/Cargo.toml apps/core/
 COPY tooling/performance/Cargo.toml tooling/performance/
 COPY sdks/rust/Cargo.toml sdks/rust/
 COPY apps/registry/Cargo.toml apps/registry/
-COPY apps/chronon/ apps/chronon/
 RUN mkdir -p apps/core/src tooling/performance/src sdks/rust/src apps/registry/src \
             apps/mcp-server-elixir/native/core_nif/src && \
     echo 'fn main() {}' > apps/core/src/main.rs && \

@@ -53,7 +53,29 @@ export default defineConfig({
   },
   projects: [
     {
-      name: "chromium",
+      name: "integration",
+      testDir: "./tests/integration",
+      // API-only tests — no browser needed
+      use: {},
+    },
+    {
+      name: "e2e",
+      testDir: "./tests/e2e",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "smoke",
+      testDir: "./tests/smoke",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "ui",
+      testDir: "./tests/ui",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "ui-components",
+      testDir: "./tests/ui-components",
       use: { ...devices["Desktop Chrome"] },
     },
   ],

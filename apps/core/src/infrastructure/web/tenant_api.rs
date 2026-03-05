@@ -1,9 +1,11 @@
 use crate::{
-    application::services::tenant_service::{Tenant, TenantQuotas},
+    domain::{
+        entities::TenantQuotas,
+        value_objects::TenantId,
+    },
     infrastructure::security::middleware::{Admin, Authenticated},
 };
 use axum::{Json, extract::State, http::StatusCode};
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 // AppState is defined in api_v1.rs
@@ -36,17 +38,17 @@ pub struct TenantResponse {
     pub is_demo: bool,
 }
 
-impl From<Tenant> for TenantResponse {
-    fn from(tenant: Tenant) -> Self {
+impl TenantResponse {
+    fn from_domain(tenant: &crate::domain::entities::Tenant) -> Self {
         Self {
-            id: tenant.id,
-            name: tenant.name,
-            description: tenant.description,
-            quotas: tenant.quotas,
-            created_at: tenant.created_at,
-            updated_at: tenant.updated_at,
-            active: tenant.active,
-            is_demo: tenant.is_demo,
+            id: tenant.id().as_str().to_string(),
+            name: tenant.name().to_string(),
+            description: tenant.description().map(|s| s.to_string()),
+            quotas: tenant.quotas().clone(),
+            created_at: tenant.created_at(),
+            updated_at: tenant.updated_at(),
+            active: tenant.is_active(),
+            is_demo: tenant.is_demo(),
         }
     }
 }
@@ -89,23 +91,31 @@ pub async fn create_tenant_handler(
         TenantQuotas::default()
     };
 
-    let mut tenant = state
-        .tenant_manager
-        .create_tenant(req.id, req.name, quotas)
+    let tenant_id = TenantId::new(req.id)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    if let Some(desc) = req.description {
-        tenant.description = Some(desc);
-    }
-    tenant.is_demo = req.is_demo;
+    let mut tenant = state
+        .tenant_repo
+        .create(tenant_id, req.name, quotas)
+        .await
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    // Persist the updated fields back
+    // Apply optional fields that aren't part of create()
+    if let Some(desc) = req.description {
+        tenant.update_description(Some(desc));
+    }
+    if req.is_demo {
+        tenant.set_is_demo(true);
+    }
+
+    // Persist the updated fields
     state
-        .tenant_manager
-        .save_tenant(&tenant)
+        .tenant_repo
+        .save(&tenant)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok((StatusCode::CREATED, Json(tenant.into())))
+    Ok((StatusCode::CREATED, Json(TenantResponse::from_domain(&tenant))))
 }
 
 /// Get tenant
@@ -127,12 +137,17 @@ pub async fn get_tenant_handler(
             })?;
     }
 
-    let tenant = state
-        .tenant_manager
-        .get_tenant(&tenant_id)
-        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+    let tid = TenantId::new(tenant_id.clone())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    Ok(Json(tenant.into()))
+    let tenant = state
+        .tenant_repo
+        .find_by_id(&tid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)))?;
+
+    Ok(Json(TenantResponse::from_domain(&tenant)))
 }
 
 /// List all tenants (admin only)
@@ -140,9 +155,13 @@ pub async fn get_tenant_handler(
 pub async fn list_tenants_handler(
     State(state): State<AppState>,
     Admin(_): Admin,
-) -> Json<Vec<TenantResponse>> {
-    let tenants = state.tenant_manager.list_tenants();
-    Json(tenants.into_iter().map(TenantResponse::from).collect())
+) -> Result<Json<Vec<TenantResponse>>, (StatusCode, String)> {
+    let tenants = state
+        .tenant_repo
+        .find_all(10_000, 0)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(tenants.iter().map(TenantResponse::from_domain).collect()))
 }
 
 /// Get tenant statistics
@@ -164,11 +183,17 @@ pub async fn get_tenant_stats_handler(
             })?;
     }
 
-    let stats = state
-        .tenant_manager
-        .get_stats(&tenant_id)
-        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+    let tid = TenantId::new(tenant_id.clone())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
+    let tenant = state
+        .tenant_repo
+        .find_by_id(&tid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)))?;
+
+    let stats = build_tenant_stats(&tenant);
     Ok(Json(stats))
 }
 
@@ -180,10 +205,18 @@ pub async fn update_quotas_handler(
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
     Json(req): Json<UpdateQuotasRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    state
-        .tenant_manager
-        .update_quotas(&tenant_id, req.quotas)
-        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+    let tid = TenantId::new(tenant_id.clone())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let updated = state
+        .tenant_repo
+        .update_quotas(&tid, req.quotas)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if !updated {
+        return Err((StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)));
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -195,10 +228,18 @@ pub async fn deactivate_tenant_handler(
     Admin(_): Admin,
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    state
-        .tenant_manager
-        .deactivate_tenant(&tenant_id)
+    let tid = TenantId::new(tenant_id.clone())
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let deactivated = state
+        .tenant_repo
+        .deactivate(&tid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if !deactivated {
+        return Err((StatusCode::BAD_REQUEST, format!("Tenant not found: {}", tenant_id)));
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -210,10 +251,18 @@ pub async fn activate_tenant_handler(
     Admin(_): Admin,
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    state
-        .tenant_manager
-        .activate_tenant(&tenant_id)
-        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+    let tid = TenantId::new(tenant_id.clone())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let activated = state
+        .tenant_repo
+        .activate(&tid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if !activated {
+        return Err((StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)));
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -226,31 +275,37 @@ pub async fn update_tenant_handler(
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
     Json(req): Json<UpdateTenantRequest>,
 ) -> Result<Json<TenantResponse>, (StatusCode, String)> {
+    let tid = TenantId::new(tenant_id.clone())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
     let mut tenant = state
-        .tenant_manager
-        .get_tenant(&tenant_id)
-        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+        .tenant_repo
+        .find_by_id(&tid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)))?;
 
     if let Some(name) = req.name {
-        tenant.name = name;
+        tenant.update_name(name)
+            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     }
     if let Some(desc) = req.description {
-        tenant.description = Some(desc);
+        tenant.update_description(Some(desc));
     }
     if let Some(is_demo) = req.is_demo {
-        tenant.is_demo = is_demo;
+        tenant.set_is_demo(is_demo);
     }
     if let Some(quotas) = req.quotas {
-        tenant.quotas = quotas;
+        tenant.update_quotas(quotas);
     }
-    tenant.updated_at = Utc::now();
 
     state
-        .tenant_manager
-        .save_tenant(&tenant)
+        .tenant_repo
+        .save(&tenant)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(tenant.into()))
+    Ok(Json(TenantResponse::from_domain(&tenant)))
 }
 
 /// Delete tenant (admin only)
@@ -260,10 +315,74 @@ pub async fn delete_tenant_handler(
     Admin(_): Admin,
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    state
-        .tenant_manager
-        .delete_tenant(&tenant_id)
+    let tid = TenantId::new(tenant_id.clone())
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
+    let deleted = state
+        .tenant_repo
+        .delete(&tid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if !deleted {
+        return Err((StatusCode::BAD_REQUEST, format!("Tenant not found: {}", tenant_id)));
+    }
+
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/// Build tenant statistics JSON (presentation concern).
+fn build_tenant_stats(tenant: &crate::domain::entities::Tenant) -> serde_json::Value {
+    let quotas = tenant.quotas();
+    let usage = tenant.usage();
+
+    let events_pct = if quotas.max_events_per_day() > 0 {
+        (usage.events_today() as f64 / quotas.max_events_per_day() as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    let storage_pct = if quotas.max_storage_bytes() > 0 {
+        (usage.storage_bytes() as f64 / quotas.max_storage_bytes() as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    let queries_pct = if quotas.max_queries_per_hour() > 0 {
+        (usage.queries_this_hour() as f64 / quotas.max_queries_per_hour() as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    serde_json::json!({
+        "tenant_id": tenant.id().as_str(),
+        "name": tenant.name(),
+        "active": tenant.is_active(),
+        "is_demo": tenant.is_demo(),
+        "usage": tenant.usage(),
+        "quotas": tenant.quotas(),
+        "utilization": {
+            "events_today": {
+                "used": usage.events_today(),
+                "limit": quotas.max_events_per_day(),
+                "percentage": events_pct.min(100.0)
+            },
+            "storage": {
+                "used_bytes": usage.storage_bytes(),
+                "limit_bytes": quotas.max_storage_bytes(),
+                "percentage": storage_pct.min(100.0)
+            },
+            "queries_this_hour": {
+                "used": usage.queries_this_hour(),
+                "limit": quotas.max_queries_per_hour(),
+                "percentage": queries_pct.min(100.0)
+            }
+        },
+        "created_at": tenant.created_at(),
+        "updated_at": tenant.updated_at()
+    })
 }

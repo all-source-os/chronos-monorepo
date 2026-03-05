@@ -108,6 +108,7 @@ type TenantResponse struct {
 	ID       string         `json:"id"`
 	Name     string         `json:"name"`
 	Status   string         `json:"status"`
+	IsDemo   bool           `json:"is_demo,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 

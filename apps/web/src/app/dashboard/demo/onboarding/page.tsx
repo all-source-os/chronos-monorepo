@@ -477,6 +477,7 @@ function StepSendEvent({
       const res = await fetch("/api/v1/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           event_type: "user.signup",
           entity_id: "user-001",
@@ -554,7 +555,9 @@ function StepQueryBack({ sdk }: { sdk: SDK }) {
         entity_id: "user-001",
         limit: "10",
       });
-      const res = await fetch(`/api/v1/events/query?${params.toString()}`);
+      const res = await fetch(`/api/v1/events/query?${params.toString()}`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setQueryResult(data.events ?? []);

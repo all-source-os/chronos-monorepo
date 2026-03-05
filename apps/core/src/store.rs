@@ -8,6 +8,7 @@ use crate::{
     application::{
         dto::QueryEventsRequest,
         services::{
+            consumer::ConsumerRegistry,
             exactly_once::{ExactlyOnceConfig, ExactlyOnceRegistry},
             pipeline::PipelineManager,
             projection::{EntitySnapshotProjection, EventCounterProjection, ProjectionManager},
@@ -104,6 +105,13 @@ pub struct EventStore {
 
     /// Autonomous schema evolution manager (v2.0 feature)
     schema_evolution: Arc<SchemaEvolutionManager>,
+
+    /// Per-entity version counters for optimistic concurrency control (v0.14 feature)
+    /// Key: entity_id string, Value: monotonic version (number of events for that entity)
+    entity_versions: Arc<DashMap<String, u64>>,
+
+    /// Durable consumer registry for subscription cursor tracking (v0.14 feature)
+    consumer_registry: Arc<ConsumerRegistry>,
 }
 
 /// A task queued for async webhook delivery
@@ -220,6 +228,8 @@ impl EventStore {
             geo_index: Arc::new(GeoIndex::new()),
             exactly_once: Arc::new(ExactlyOnceRegistry::new(ExactlyOnceConfig::default())),
             schema_evolution: Arc::new(SchemaEvolutionManager::new()),
+            entity_versions: Arc::new(DashMap::new()),
+            consumer_registry: Arc::new(ConsumerRegistry::new()),
         };
 
         // Step 1: Load persisted events from Parquet (the durable baseline)
@@ -244,6 +254,12 @@ impl EventStore {
                 if let Err(e) = store.projections.read().process_event(&event) {
                     tracing::error!("Failed to re-process event {}: {}", event.id, e);
                 }
+
+                // Track per-entity version
+                *store
+                    .entity_versions
+                    .entry(event.entity_id_str().to_string())
+                    .or_insert(0) += 1;
 
                 store.events.write().push(event);
             }
@@ -281,6 +297,12 @@ impl EventStore {
                         if let Err(e) = store.projections.read().process_event(&event) {
                             tracing::error!("Failed to re-process WAL event {}: {}", event.id, e);
                         }
+
+                        // Track per-entity version
+                        *store
+                            .entity_versions
+                            .entry(event.entity_id_str().to_string())
+                            .or_insert(0) += 1;
 
                         store.events.write().push(event);
                         wal_new += 1;
@@ -351,6 +373,143 @@ impl EventStore {
         store
     }
 
+    /// Ingest a new event with optional optimistic concurrency check.
+    ///
+    /// If `expected_version` is `Some(v)`, the write is rejected with
+    /// `VersionConflict` unless the entity's current version equals `v`.
+    /// The version check and WAL append are atomic (locked together).
+    ///
+    /// Returns the new entity version after the append.
+    pub fn ingest_with_expected_version(
+        &self,
+        event: Event,
+        expected_version: Option<u64>,
+    ) -> Result<u64> {
+        // Validate event first (before any locking)
+        self.validate_event(&event)?;
+
+        let entity_id = event.entity_id_str().to_string();
+
+        // Atomic version check + append: hold the DashMap entry lock
+        // to prevent TOCTOU races between check and write.
+        let new_version = {
+            let mut version_entry = self.entity_versions.entry(entity_id.clone()).or_insert(0);
+            let current = *version_entry;
+
+            if let Some(expected) = expected_version
+                && current != expected
+            {
+                return Err(crate::error::AllSourceError::VersionConflict {
+                    expected,
+                    current,
+                });
+            }
+
+            // Write to WAL FIRST for durability (under version lock to keep atomicity)
+            if let Some(ref wal) = self.wal {
+                wal.append(event.clone())?;
+            }
+
+            *version_entry += 1;
+            *version_entry
+        };
+
+        // From here on, the event is durable (WAL) and version is bumped.
+        // Continue with indexing, projections, storage, and broadcast.
+        self.ingest_post_wal(event)?;
+
+        Ok(new_version)
+    }
+
+    /// Post-WAL ingestion: index, projections, storage, broadcast.
+    /// Called after WAL append and version bump are complete.
+    fn ingest_post_wal(&self, event: Event) -> Result<()> {
+        #[cfg(feature = "server")]
+        let timer = self.metrics.ingestion_duration_seconds.start_timer();
+
+        let mut events = self.events.write();
+        let offset = events.len();
+
+        // Index the event
+        self.index.index_event(
+            event.id,
+            event.entity_id_str(),
+            event.event_type_str(),
+            event.timestamp,
+            offset,
+        )?;
+
+        // Process through projections
+        let projections = self.projections.read();
+        projections.process_event(&event)?;
+        drop(projections);
+
+        // Process through pipelines
+        let pipeline_results = self.pipeline_manager.process_event(&event);
+        if !pipeline_results.is_empty() {
+            tracing::debug!(
+                "Event {} processed by {} pipeline(s)",
+                event.id,
+                pipeline_results.len()
+            );
+            for (pipeline_id, result) in pipeline_results {
+                tracing::trace!("Pipeline {} result: {:?}", pipeline_id, result);
+            }
+        }
+
+        // Persist to Parquet storage if enabled
+        if let Some(ref storage) = self.storage {
+            let storage = storage.read();
+            storage.append_event(event.clone())?;
+        }
+
+        // Store the event in memory
+        events.push(event.clone());
+        let total_events = events.len();
+        drop(events);
+
+        // Broadcast to WebSocket clients
+        #[cfg(feature = "server")]
+        self.websocket_manager
+            .broadcast_event(Arc::new(event.clone()));
+
+        // Dispatch to matching webhook subscriptions
+        #[cfg(feature = "server")]
+        self.dispatch_webhooks(&event);
+
+        // Update geospatial index
+        self.geo_index.index_event(&event);
+
+        // Autonomous schema evolution
+        self.schema_evolution
+            .analyze_event(event.event_type_str(), &event.payload);
+
+        // Check if automatic snapshot should be created
+        self.check_auto_snapshot(event.entity_id_str(), &event);
+
+        // Update metrics
+        #[cfg(feature = "server")]
+        {
+            self.metrics.events_ingested_total.inc();
+            self.metrics
+                .events_ingested_by_type
+                .with_label_values(&[event.event_type_str()])
+                .inc();
+            self.metrics.storage_events_total.set(total_events as i64);
+        }
+
+        // Update legacy total counter
+        let mut total = self.total_ingested.write();
+        *total += 1;
+
+        #[cfg(feature = "server")]
+        timer.observe_duration();
+
+        tracing::debug!("Event ingested: {} (offset: {})", event.id, offset);
+
+        Ok(())
+    }
+
     /// Ingest a new event into the store
     pub fn ingest(&self, event: Event) -> Result<()> {
         // Start metrics timer (v0.6 feature)
@@ -380,6 +539,12 @@ impl EventStore {
             }
             return Err(e);
         }
+
+        // Track per-entity version (unconditional increment, no version check)
+        *self
+            .entity_versions
+            .entry(event.entity_id_str().to_string())
+            .or_insert(0) += 1;
 
         let mut events = self.events.write();
         let offset = events.len();
@@ -517,6 +682,12 @@ impl EventStore {
             self.schema_evolution
                 .analyze_event(event.event_type_str(), &event.payload);
 
+            // Track per-entity version
+            *self
+                .entity_versions
+                .entry(event.entity_id_str().to_string())
+                .or_insert(0) += 1;
+
             events.push(event);
         }
 
@@ -567,6 +738,12 @@ impl EventStore {
             );
         }
 
+        // Track per-entity version
+        *self
+            .entity_versions
+            .entry(event.entity_id_str().to_string())
+            .or_insert(0) += 1;
+
         // Store the event in memory
         events.push(event.clone());
         let total_events = events.len();
@@ -601,6 +778,50 @@ impl EventStore {
         );
 
         Ok(())
+    }
+
+    /// Get the current version for an entity (number of events appended for it).
+    /// Returns 0 if the entity has no events.
+    pub fn get_entity_version(&self, entity_id: &str) -> u64 {
+        self.entity_versions
+            .get(entity_id)
+            .map(|v| *v)
+            .unwrap_or(0)
+    }
+
+    /// Get the consumer registry for durable subscriptions.
+    pub fn consumer_registry(&self) -> &ConsumerRegistry {
+        &self.consumer_registry
+    }
+
+    /// Get the total number of events in the store (used as max offset for consumer ack).
+    pub fn total_events(&self) -> usize {
+        self.events.read().len()
+    }
+
+    /// Get events after a given offset, optionally filtered by event type prefixes.
+    /// Used by consumer polling to fetch unprocessed events.
+    pub fn events_after_offset(
+        &self,
+        offset: u64,
+        filters: &[String],
+        limit: usize,
+    ) -> Vec<(u64, Event)> {
+        let events = self.events.read();
+        let start = offset as usize;
+        if start >= events.len() {
+            return vec![];
+        }
+
+        events[start..]
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| {
+                ConsumerRegistry::matches_filters(event.event_type_str(), filters)
+            })
+            .take(limit)
+            .map(|(i, event)| ((start + i + 1) as u64, event.clone()))
+            .collect()
     }
 
     /// Get the WebSocket manager for this store

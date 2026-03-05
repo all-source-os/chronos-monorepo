@@ -23,6 +23,7 @@ type Claims struct {
 	Role     entities.Role `json:"role"`
 	Provider string        `json:"provider,omitempty"`
 	IsAPIKey bool          `json:"is_api_key,omitempty"`
+	IsDemo   bool          `json:"is_demo,omitempty"`
 	jwt.StandardClaims
 }
 
@@ -390,6 +391,14 @@ func (cp *ControlPlane) LoginHandler(c *gin.Context) {
 		displayName = username
 	}
 
+	// Check if tenant is a demo tenant by looking it up from Core
+	isDemo := false
+	if cp.coreClient != nil {
+		if tenantResp, err := cp.coreClient.GetTenant(c.Request.Context(), tenantID); err == nil {
+			isDemo = tenantResp.IsDemo
+		}
+	}
+
 	now := time.Now()
 	claims := &Claims{
 		UserID:   userID,
@@ -399,6 +408,7 @@ func (cp *ControlPlane) LoginHandler(c *gin.Context) {
 		TenantID: tenantID,
 		Role:     entities.RoleDeveloper,
 		Provider: "email",
+		IsDemo:   isDemo,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: now.Add(7 * 24 * time.Hour).Unix(),
 			IssuedAt:  now.Unix(),

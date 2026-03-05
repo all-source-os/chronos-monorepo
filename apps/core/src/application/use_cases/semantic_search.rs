@@ -750,6 +750,7 @@ mod tests {
                 tenant_id: Some("tenant-1".to_string()),
                 payload: json!({"name": "Alice", "role": "admin"}),
                 metadata: None,
+                expected_version: None,
             })
             .await
             .unwrap();
@@ -761,6 +762,7 @@ mod tests {
                 tenant_id: Some("tenant-1".to_string()),
                 payload: json!({"amount": 99.99, "item": "widget"}),
                 metadata: None,
+                expected_version: None,
             })
             .await
             .unwrap();
@@ -772,6 +774,7 @@ mod tests {
                 tenant_id: Some("tenant-1".to_string()),
                 payload: json!({"name": "Alice", "role": "superadmin"}),
                 metadata: None,
+                expected_version: None,
             })
             .await
             .unwrap();

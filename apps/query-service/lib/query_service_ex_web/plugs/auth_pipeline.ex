@@ -107,7 +107,8 @@ defmodule QueryServiceExWeb.Plugs.AuthPipeline do
         name: claims["name"],
         tenant_id: claims["tenant_id"],
         role: claims["role"],
-        provider: claims["provider"]
+        provider: claims["provider"],
+        is_demo: claims["is_demo"] == true
       }
 
       conn

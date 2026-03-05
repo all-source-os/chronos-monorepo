@@ -10,9 +10,10 @@ pub mod pipeline;
 pub mod projection;
 pub mod replay;
 pub mod schema;
-pub mod tenant_service;
 pub mod vector_search;
 pub mod webhook;
+// v0.14: Durable subscriptions
+pub mod consumer;
 // v2.0: Advanced features
 pub mod exactly_once;
 pub mod schema_evolution;
@@ -34,11 +35,11 @@ pub use schema::{
     SchemaRegistryConfig, ValidateEventRequest, ValidateEventResponse,
 };
 pub use schema_evolution::{EvolutionAction, SchemaEvolutionManager, SchemaEvolutionStats};
-pub use tenant_service::{Tenant, TenantManager, TenantQuotas, TenantUsage};
 pub use vector_search::{
     BatchIndexResult, IndexEventRequest, IndexStats, SemanticSearchRequest, SemanticSearchResponse,
     SemanticSearchResultItem, VectorSearchConfig, VectorSearchService,
 };
+pub use consumer::{Consumer, ConsumerRegistry};
 pub use webhook::{
     DeliveryStatus, RegisterWebhookRequest, UpdateWebhookRequest, WebhookDelivery, WebhookRegistry,
     WebhookSubscription,

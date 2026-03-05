@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
+function getApiUrl(): string {
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
+}
 
 // GET /api/auth/session - Get current user session
 export async function GET(request: NextRequest) {
@@ -14,8 +16,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const apiUrl = getApiUrl();
+
     // Fetch user info from backend
-    const meResponse = await fetch(`${API_URL}/api/auth/me`, {
+    const meResponse = await fetch(`${apiUrl}/api/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -34,7 +38,7 @@ export async function GET(request: NextRequest) {
     const userData = await meResponse.json();
 
     // Also fetch tenant info
-    const tenantResponse = await fetch(`${API_URL}/api/tenant`, {
+    const tenantResponse = await fetch(`${apiUrl}/api/tenant`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -66,7 +70,7 @@ export async function DELETE(request: NextRequest) {
   if (token) {
     // Call backend logout to revoke token
     try {
-      await fetch(`${API_URL}/api/auth/logout`, {
+      await fetch(`${getApiUrl()}/api/auth/logout`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

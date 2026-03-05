@@ -1,4 +1,5 @@
 use crate::domain::entities::Event;
+use crate::store::EventStore;
 use axum::extract::ws::{Message, WebSocket};
 use dashmap::DashMap;
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -51,6 +52,20 @@ struct ClientInfo {
 pub struct EventFilters {
     pub entity_id: Option<String>,
     pub event_type: Option<String>,
+    /// Prefix-based event type filters (e.g. ["scheduler.*", "index.*"]).
+    /// If non-empty, only events matching at least one prefix are delivered.
+    #[serde(default)]
+    pub event_type_prefixes: Vec<String>,
+}
+
+/// Client message for setting prefix-based subscription filters.
+/// Sent as: `{"type": "subscribe", "filters": ["scheduler.*", "index.*"]}`
+#[derive(Debug, serde::Deserialize)]
+struct SubscribeMessage {
+    #[serde(rename = "type")]
+    msg_type: String,
+    #[serde(default)]
+    filters: Vec<String>,
 }
 
 impl WebSocketManager {
@@ -80,23 +95,98 @@ impl WebSocketManager {
         self.event_tx.subscribe()
     }
 
-    /// Handle a new WebSocket connection
+    /// Handle a new WebSocket connection (fire-and-forget, no consumer tracking)
     pub async fn handle_socket(&self, socket: WebSocket) {
-        let client_id = Uuid::new_v4();
-        tracing::info!("🔌 WebSocket client connected: {}", client_id);
+        self.handle_socket_inner(socket, None, None).await;
+    }
 
-        // Subscribe to broadcast channel
+    /// Handle a WebSocket connection with a durable consumer for auto-replay.
+    ///
+    /// Replays all events since the consumer's last acked position, then switches
+    /// to real-time delivery. The consumer's event_type_filters are applied during replay.
+    pub async fn handle_socket_with_consumer(
+        &self,
+        socket: WebSocket,
+        consumer_id: String,
+        store: Arc<EventStore>,
+    ) {
+        self.handle_socket_inner(socket, Some(consumer_id), Some(store))
+            .await;
+    }
+
+    async fn handle_socket_inner(
+        &self,
+        socket: WebSocket,
+        consumer_id: Option<String>,
+        store: Option<Arc<EventStore>>,
+    ) {
+        let client_id = Uuid::new_v4();
+        tracing::info!(
+            "🔌 WebSocket client connected: {} (consumer: {:?})",
+            client_id,
+            consumer_id
+        );
+
+        // Subscribe to broadcast channel BEFORE replay so we don't miss events
         let event_rx = self.event_tx.subscribe();
 
         // Split socket into sender and receiver
-        let (sender, mut receiver) = socket.split();
+        let (mut sender, mut receiver) = socket.split();
 
-        // Register client
+        // Replay missed events for durable consumers
+        let mut consumer_filters: Vec<String> = Vec::new();
+        if let (Some(cid), Some(store)) = (&consumer_id, &store) {
+            let registry = store.consumer_registry();
+            let consumer = registry.get_or_create(cid);
+            consumer_filters = consumer.event_type_filters.clone();
+            let cursor = consumer.cursor_position.unwrap_or(0);
+
+            let replay_events =
+                store.events_after_offset(cursor, &consumer_filters, usize::MAX);
+
+            tracing::info!(
+                "Replaying {} events for consumer '{}' from offset {}",
+                replay_events.len(),
+                cid,
+                cursor
+            );
+
+            for (position, event) in &replay_events {
+                let dto = serde_json::json!({
+                    "type": "replay",
+                    "position": position,
+                    "event": event,
+                });
+                if let Ok(json) = serde_json::to_string(&dto)
+                    && sender.send(Message::Text(json.into())).await.is_err()
+                {
+                    tracing::warn!("Failed to send replay event to client {}", client_id);
+                    return;
+                }
+            }
+
+            // Send replay-complete sentinel
+            let sentinel = serde_json::json!({"type": "replay_complete", "replayed": replay_events.len()});
+            if let Ok(json) = serde_json::to_string(&sentinel) {
+                let _ = sender.send(Message::Text(json.into())).await;
+            }
+        }
+
+        // Register client with consumer's prefix filters (if any)
+        let initial_filters = if !consumer_filters.is_empty() {
+            EventFilters {
+                event_type_prefixes: consumer_filters,
+                ..Default::default()
+            }
+        } else {
+            EventFilters::default()
+        };
+
         self.clients.insert(
             client_id,
             ClientInfo {
                 id: client_id,
-                filters: EventFilters::default(),
+                filters: initial_filters,
             },
         );
 
@@ -124,8 +214,25 @@ impl WebSocketManager {
         let recv_task = tokio::spawn(async move {
             while let Some(Ok(msg)) = receiver.next().await {
                 if let Message::Text(text) = msg {
-                    // Parse filter commands (text is Utf8Bytes in axum 0.8+)
-                    if let Ok(filters) = serde_json::from_str::<EventFilters>(text.as_str()) {
+                    let text_str = text.as_str();
+                    // Try subscribe message first (prefix-based filtering)
+                    if let Ok(sub) = serde_json::from_str::<SubscribeMessage>(text_str)
+                        && sub.msg_type == "subscribe"
+                    {
+                        tracing::info!(
+                            "Setting prefix filters for client {}: {:?}",
+                            client_id,
+                            sub.filters
+                        );
+                        if let Some(mut client) = clients.get_mut(&client_id) {
+                            client.filters.event_type_prefixes = sub.filters;
+                            // Clear exact-match filter when prefix filters are set
+                            client.filters.event_type = None;
+                        }
+                        continue;
+                    }
+                    // Fall back to legacy exact-match filter
+                    if let Ok(filters) = serde_json::from_str::<EventFilters>(text_str) {
                         tracing::info!("Setting filters for client {}: {:?}", client_id, filters);
                         if let Some(mut client) = clients.get_mut(&client_id) {
                             client.filters = filters;
@@ -290,10 +397,27 @@ impl WebSocketManager {
             return false;
         }
 
+        // Exact match filter (legacy)
         if let Some(ref event_type) = filters.event_type
             && event.event_type_str() != event_type
         {
             return false;
+        }
+
+        // Prefix-based filters: if set, event must match at least one prefix
+        if !filters.event_type_prefixes.is_empty() {
+            let event_type = event.event_type_str();
+            let matches = filters.event_type_prefixes.iter().any(|pattern| {
+                if let Some(prefix) = pattern.strip_suffix(".*") {
+                    event_type.starts_with(prefix)
+                        && event_type.as_bytes().get(prefix.len()) == Some(&b'.')
+                } else {
+                    event_type == pattern
+                }
+            });
+            if !matches {
+                return false;
+            }
         }
 
         true
@@ -433,6 +557,157 @@ mod tests {
         };
         let manager = WebSocketManager::with_config(config);
         assert_eq!(manager.config.max_batch_size, 5);
+    }
+
+    #[test]
+    fn test_prefix_filter_matching() {
+        let manager = WebSocketManager::new();
+        let client_id = Uuid::new_v4();
+
+        // Register client with prefix filters
+        manager.clients.insert(
+            client_id,
+            ClientInfo {
+                id: client_id,
+                filters: EventFilters {
+                    entity_id: None,
+                    event_type: None,
+                    event_type_prefixes: vec!["scheduler.*".to_string()],
+                },
+            },
+        );
+
+        // Matching event
+        let matching = Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            "scheduler.started".to_string(),
+            "e1".to_string(),
+            "default".to_string(),
+            json!({}),
+            chrono::Utc::now(),
+            None,
+            1,
+        );
+        assert!(WebSocketManager::passes_filters(
+            &manager.clients,
+            client_id,
+            &matching
+        ));
+
+        // Non-matching event
+        let non_matching = Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            "trade.executed".to_string(),
+            "e2".to_string(),
+            "default".to_string(),
+            json!({}),
+            chrono::Utc::now(),
+            None,
+            1,
+        );
+        assert!(!WebSocketManager::passes_filters(
+            &manager.clients,
+            client_id,
+            &non_matching
+        ));
+    }
+
+    #[test]
+    fn test_prefix_filter_multiple() {
+        let manager = WebSocketManager::new();
+        let client_id = Uuid::new_v4();
+
+        manager.clients.insert(
+            client_id,
+            ClientInfo {
+                id: client_id,
+                filters: EventFilters {
+                    entity_id: None,
+                    event_type: None,
+                    event_type_prefixes: vec![
+                        "scheduler.*".to_string(),
+                        "index.*".to_string(),
+                    ],
+                },
+            },
+        );
+
+        let scheduler_event = Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            "scheduler.completed".to_string(),
+            "e1".to_string(),
+            "default".to_string(),
+            json!({}),
+            chrono::Utc::now(),
+            None,
+            1,
+        );
+        assert!(WebSocketManager::passes_filters(
+            &manager.clients,
+            client_id,
+            &scheduler_event
+        ));
+
+        let index_event = Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            "index.created".to_string(),
+            "e1".to_string(),
+            "default".to_string(),
+            json!({}),
+            chrono::Utc::now(),
+            None,
+            1,
+        );
+        assert!(WebSocketManager::passes_filters(
+            &manager.clients,
+            client_id,
+            &index_event
+        ));
+
+        let trade_event = Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            "trade.executed".to_string(),
+            "e1".to_string(),
+            "default".to_string(),
+            json!({}),
+            chrono::Utc::now(),
+            None,
+            1,
+        );
+        assert!(!WebSocketManager::passes_filters(
+            &manager.clients,
+            client_id,
+            &trade_event
+        ));
+    }
+
+    #[test]
+    fn test_no_prefix_filters_matches_all() {
+        let manager = WebSocketManager::new();
+        let client_id = Uuid::new_v4();
+
+        manager.clients.insert(
+            client_id,
+            ClientInfo {
+                id: client_id,
+                filters: EventFilters::default(),
+            },
+        );
+
+        let event = create_test_event();
+        assert!(WebSocketManager::passes_filters(
+            &manager.clients,
+            client_id,
+            &event
+        ));
+    }
+
+    #[test]
+    fn test_subscribe_message_parsing() {
+        let json = r#"{"type": "subscribe", "filters": ["scheduler.*", "index.*"]}"#;
+        let msg: SubscribeMessage = serde_json::from_str(json).unwrap();
+        assert_eq!(msg.msg_type, "subscribe");
+        assert_eq!(msg.filters, vec!["scheduler.*", "index.*"]);
     }
 
     #[test]

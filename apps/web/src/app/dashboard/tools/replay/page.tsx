@@ -121,7 +121,7 @@ export default function ReplayPage() {
 
       {/* Start Replay Form */}
       <BlurFade delay={0.15} inView>
-        <Card>
+        <Card className="max-w-3xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <RotateCcw className="h-5 w-5" />
@@ -239,7 +239,7 @@ export default function ReplayPage() {
 
       {/* Replay History */}
       <BlurFade delay={0.2} inView>
-        <Card>
+        <Card className="max-w-3xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />

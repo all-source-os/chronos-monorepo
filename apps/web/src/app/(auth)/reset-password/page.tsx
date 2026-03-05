@@ -18,7 +18,6 @@ import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, XCircle } from "lucide
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { getApiUrl } from "@/lib/api/client";
 
 const PASSWORD_REQUIREMENTS = [
   { regex: /.{8,}/, label: "At least 8 characters" },
@@ -65,8 +64,7 @@ function ResetPasswordContent() {
     setIsSubmitting(true);
 
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/auth/reset-password`, {
+      const response = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),

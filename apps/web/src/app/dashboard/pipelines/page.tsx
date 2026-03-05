@@ -291,7 +291,7 @@ export default function PipelinesPage() {
               Manage projections and stream processing pipelines
             </p>
           </div>
-          <Button>
+          <Button onClick={() => window.open("https://docs.all-source.xyz/pipelines", "_blank")}>
             <Plus className="mr-2 h-4 w-4" />
             Create Pipeline
           </Button>
@@ -389,7 +389,10 @@ export default function PipelinesPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               Create your first pipeline to start processing events
             </p>
-            <Button className="mt-4">
+            <Button
+              className="mt-4"
+              onClick={() => window.open("https://docs.all-source.xyz/pipelines", "_blank")}
+            >
               <Plus className="mr-2 h-4 w-4" />
               Create Pipeline
             </Button>

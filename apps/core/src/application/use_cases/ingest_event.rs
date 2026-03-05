@@ -210,6 +210,7 @@ mod tests {
             tenant_id: Some("tenant-1".to_string()),
             payload: json!({"name": "Alice"}),
             metadata: None,
+            expected_version: None,
         };
 
         let response = use_case.execute(request).await;
@@ -230,6 +231,7 @@ mod tests {
             tenant_id: None, // Should default to "default"
             payload: json!({"amount": 100}),
             metadata: None,
+            expected_version: None,
         };
 
         let response = use_case.execute(request).await;
@@ -252,6 +254,7 @@ mod tests {
                 tenant_id: Some("t1".to_string()),
                 payload: json!({}),
                 metadata: None,
+                expected_version: None,
             },
             IngestEventRequest {
                 event_type: "event.2".to_string(),
@@ -259,6 +262,7 @@ mod tests {
                 tenant_id: Some("t1".to_string()),
                 payload: json!({}),
                 metadata: None,
+                expected_version: None,
             },
         ];
 

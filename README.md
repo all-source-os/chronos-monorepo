@@ -87,7 +87,7 @@ tooling/
 
 - **WebSocket Mint migration**: Replaced WebSockex with Mint.WebSocket for native IPv6 support on Fly.io
 - **Service JWT auth**: Query Service generates service JWTs for authenticated Core WebSocket connections
-- **Chronon CLI** (`apps/chronon`): Event-sourced task management CLI with TUI (ratatui) and web (htmx) interfaces, powered by Embedded Core
+- **Chronis CLI** (`apps/chronis`): Event-sourced task management CLI with TUI (ratatui) and web (htmx) interfaces, powered by Embedded Core
 - **Fly.io production deploy**: All services deployed and healthy on Fly.io with internal networking
 
 ### Previous releases

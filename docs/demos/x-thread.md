@@ -1,4 +1,4 @@
-# X Thread: chronon TUI + Web Viewer
+# X Thread: chronis TUI + Web Viewer
 
 ## Tweet 1 (hook)
 
@@ -9,7 +9,7 @@ Built a task manager where every action is an immutable event.
 
 Both read from the same event-sourced Core — no database, no ORM, just events and projections.
 
-[attach: chronon.gif or screenshot of TUI]
+[attach: chronis.gif or screenshot of TUI]
 
 ## Tweet 2 (architecture)
 
@@ -54,7 +54,7 @@ One data model. Two frontends. No glue code.
 
 ## Tweet 6 (CTA)
 
-chronon is the local task CLI for the AllSource Chronos monorepo.
+chronis is the local task CLI for the AllSource Chronos monorepo.
 
 Event sourcing isn't just for distributed systems — it's the right abstraction for any workflow with state transitions.
 
@@ -66,11 +66,11 @@ Ship: github.com/all-source-os/chronos-monorepo
 
 ```bash
 # From repo root:
-asciinema rec --cols 110 --rows 32 docs/demos/chronon.cast -c "bash docs/demos/tui-demo.sh"
+asciinema rec --cols 110 --rows 32 docs/demos/chronis.cast -c "bash docs/demos/tui-demo.sh"
 
 # Render to GIF:
-agg docs/demos/chronon.cast docs/demos/chronon.gif --theme monokai --speed 1.5
+agg docs/demos/chronis.cast docs/demos/chronis.gif --theme monokai --speed 1.5
 
 # Or upload to asciinema.org:
-asciinema upload docs/demos/chronon.cast
+asciinema upload docs/demos/chronis.cast
 ```

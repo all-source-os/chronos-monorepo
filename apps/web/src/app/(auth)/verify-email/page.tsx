@@ -5,7 +5,6 @@ import { CheckCircle2, Loader2, Mail, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { getApiUrl } from "@/lib/api/client";
 
 type VerificationState = "verifying" | "success" | "error" | "expired";
 
@@ -26,8 +25,7 @@ function VerifyEmailContent() {
       }
 
       try {
-        const apiUrl = getApiUrl();
-        const response = await fetch(`${apiUrl}/api/auth/verify-email`, {
+        const response = await fetch("/api/auth/verify-email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
@@ -68,8 +66,7 @@ function VerifyEmailContent() {
     }
 
     try {
-      const apiUrl = getApiUrl();
-      await fetch(`${apiUrl}/api/auth/resend-verification`, {
+      await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
