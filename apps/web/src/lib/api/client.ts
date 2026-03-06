@@ -191,7 +191,13 @@ export class ApiClient {
 
   // API Keys endpoints
   async listApiKeys(): Promise<ApiResponse<ApiKey[]>> {
-    return this.request<ApiKey[]>("/api/api-keys");
+    // Backend wraps response in {keys: [...], count: N}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const response = await this.request<any>("/api/api-keys");
+    if (response.data?.keys && Array.isArray(response.data.keys)) {
+      return { data: response.data.keys };
+    }
+    return { data: response.data ?? [] };
   }
 
   async createApiKey(data: CreateApiKeyRequest): Promise<ApiResponse<ApiKeyWithSecret>> {

@@ -78,10 +78,13 @@ export default function DashboardPage() {
       const response = await apiClient.createCheckout("growth");
       if (response.data?.checkout_url) {
         window.location.href = response.data.checkout_url;
+        return;
       }
     } catch (error) {
       console.error("Failed to create checkout:", error);
     }
+    // Fallback: navigate to billing page if checkout fails
+    window.location.href = "/dashboard/billing";
   };
 
   return (

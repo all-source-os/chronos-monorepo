@@ -1,13 +1,13 @@
 # Chronis
 
-Event-sourced task CLI powered by [AllSource Core](../core/). Every action is an immutable event — state is derived from projections over the event stream.
+Event-sourced task CLI powered by [AllSource](https://all-source.xyz), the embedded event database. Every action is an immutable event — state is derived from projections over the event stream.
 
-Binary: `cn` | Crate: `chronis` | Storage: `.chronis/`
+Binary: `cn` | Crate: `chronis` | Storage: `.chronis/` | Author: [Decebal Dobrica](https://decebaldobrica.com)
 
 ## Install
 
 ```bash
-cargo install --path apps/chronis
+cargo install chronis
 ```
 
 ## Quick Start
@@ -87,7 +87,7 @@ cn claim <id>     # Records "agent-1" as the claimer
 
 ## Architecture
 
-Chronis wraps AllSource Core's embedded library. Every mutation (create, claim, done, approve, dependency change) emits an event into Core's WAL. A `TaskProjection` folds these events into queryable task state stored in a DashMap (~12us reads).
+Chronis wraps [AllSource](https://all-source.xyz)'s embedded library. Every mutation (create, claim, done, approve, dependency change) emits an event into the WAL. A `TaskProjection` folds these events into queryable task state stored in a DashMap (~12us reads).
 
 ```
 cn CLI (clap)

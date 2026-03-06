@@ -14,10 +14,24 @@
       <nav>
         <a href="/">Dashboard</a>
         <a href="/kanban" class="active">Kanban</a>
+        <a href="/graph">Graph</a>
       </nav>
+      <div class="stats-bar"
+           hx-get="/partials/stats"
+           hx-trigger="load, every 2s, refresh from:body"
+           hx-swap="innerHTML">
+      </div>
     </header>
 
-    <div style="display: grid; grid-template-columns: 1fr 350px; gap: 16px;">
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search cards..."
+               oninput="filterCards()">
+      </div>
+      <a href="/api/export" class="export-btn" download>Export .md</a>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 380px; gap: 16px;">
       <div id="kanban-container"
            hx-get="/partials/kanban"
            hx-trigger="load, every 2s, refresh from:body"
@@ -28,6 +42,46 @@
         <p class="empty-state">Click a card to see details</p>
       </div>
     </div>
+
+    <div class="shortcut-bar">
+      <span><kbd class="kbd">/</kbd> search</span>
+      <span><kbd class="kbd">e</kbd> export</span>
+    </div>
   </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    function filterCards() {
+      const query = document.getElementById('search-input').value.toLowerCase();
+      document.querySelectorAll('.kanban-card').forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = !query || text.includes(query) ? '' : 'none';
+      });
+    }
+
+    document.addEventListener('keydown', function(e) {
+      const searchInput = document.getElementById('search-input');
+      if (e.key === '/' && document.activeElement !== searchInput) {
+        e.preventDefault();
+        searchInput.focus();
+        return;
+      }
+      if (e.key === 'Escape') {
+        searchInput.blur();
+        searchInput.value = '';
+        filterCards();
+        return;
+      }
+      if (document.activeElement === searchInput) return;
+      if (e.key === 'e') window.location.href = '/api/export';
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+      if (e.detail.target.id === 'kanban-container') {
+        filterCards();
+      }
+    });
+  </script>
 </body>
 </html>

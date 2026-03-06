@@ -1,15 +1,19 @@
+use serde::{Deserialize, Serialize};
+
 use super::{
     error::ChronError,
     task::{Task, TaskType},
 };
 
 /// Timeline entry for a task event.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimelineEntry {
     pub timestamp: String,
     pub event_type: String,
 }
 
 /// Task with its event timeline.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskDetail {
     pub task: Task,
     pub timeline: Vec<TimelineEntry>,

@@ -18,6 +18,7 @@ pub async fn run(repo: CoreTaskRepository, port: u16, open_browser: bool) -> any
         // Pages
         .route("/", get(handlers::index))
         .route("/kanban", get(handlers::kanban_page))
+        .route("/graph", get(handlers::graph_page))
         // Static assets
         .route("/style.css", get(handlers::style_css))
         .route("/htmx.min.js", get(handlers::htmx_js))
@@ -27,13 +28,16 @@ pub async fn run(repo: CoreTaskRepository, port: u16, open_browser: bool) -> any
         .route("/api/tasks/{id}/claim", post(handlers::api_claim))
         .route("/api/tasks/{id}/done", post(handlers::api_done))
         .route("/api/tasks/{id}/approve", post(handlers::api_approve))
+        .route("/api/export", get(handlers::api_export))
         // HTMX partials
+        .route("/partials/stats", get(handlers::partial_stats))
         .route("/partials/task-list", get(handlers::partial_task_list))
         .route(
             "/partials/task-detail/{id}",
             get(handlers::partial_task_detail),
         )
         .route("/partials/kanban", get(handlers::partial_kanban))
+        .route("/partials/graph", get(handlers::partial_graph))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{port}");

@@ -29,11 +29,14 @@ defmodule QueryServiceExWeb.ApiKeyController do
         %{
           id: k["id"],
           name: k["name"],
+          description: k["description"],
+          key_prefix: k["key_prefix"],
+          scopes: k["scopes"] || [],
           tenant_id: k["tenant_id"],
           created_at: k["created_at"],
           expires_at: k["expires_at"],
-          active: k["active"] != false,
-          last_used: k["last_used"]
+          last_used_at: k["last_used"] || k["last_used_at"],
+          active: k["active"] != false
         }
       end)
 
@@ -59,13 +62,21 @@ defmodule QueryServiceExWeb.ApiKeyController do
     # Sign a JWT as the API key
     case sign_api_key(key_id, tenant_id, name) do
       {:ok, secret} ->
+        description = params["description"]
+        scopes = params["scopes"] || ["events:read", "events:write", "queries:execute", "projections:read"]
+        expires_at = params["expires_at"]
+        key_prefix = String.slice(secret, 0, 12)
+
         metadata = %{
           "id" => key_id,
           "name" => name,
+          "description" => description,
+          "key_prefix" => key_prefix,
+          "scopes" => scopes,
           "tenant_id" => tenant_id,
           "created_by" => user[:id] || user["id"],
           "created_at" => now,
-          "expires_at" => nil,
+          "expires_at" => expires_at,
           "active" => true,
           "last_used" => nil
         }
@@ -77,9 +88,14 @@ defmodule QueryServiceExWeb.ApiKeyController do
         |> json(%{
           id: key_id,
           name: name,
+          description: description,
           key: secret,
+          key_prefix: key_prefix,
+          scopes: scopes,
           tenant_id: tenant_id,
-          created_at: now
+          created_at: now,
+          expires_at: expires_at,
+          last_used_at: nil
         })
 
       {:error, reason} ->

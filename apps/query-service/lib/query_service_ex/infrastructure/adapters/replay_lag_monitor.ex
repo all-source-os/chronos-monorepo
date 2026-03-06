@@ -67,13 +67,23 @@ defmodule QueryServiceEx.Infrastructure.Adapters.ReplayLagMonitor do
   defp poll_core(state) do
     core_url = Application.get_env(:query_service_ex, :core_url, "http://localhost:3900")
 
+    middleware = [
+      {Tesla.Middleware.BaseUrl, core_url},
+      Tesla.Middleware.JSON,
+      {Tesla.Middleware.Timeout, timeout: 5_000}
+    ]
+
+    # Add Authorization header if CORE_API_KEY is configured
+    middleware =
+      case Application.get_env(:query_service_ex, :core_api_key) do
+        nil -> middleware
+        "" -> middleware
+        api_key -> [{Tesla.Middleware.Headers, [{"authorization", api_key}]} | middleware]
+      end
+
     client =
       Tesla.client(
-        [
-          {Tesla.Middleware.BaseUrl, core_url},
-          Tesla.Middleware.JSON,
-          {Tesla.Middleware.Timeout, timeout: 5_000}
-        ],
+        middleware,
         {Tesla.Adapter.Hackney, [connect_options: [:inet6]]}
       )
 

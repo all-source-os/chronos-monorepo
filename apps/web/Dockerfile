@@ -55,6 +55,9 @@ COPY apps/web/next-env.d.ts apps/web/
 COPY apps/web/components.json apps/web/
 COPY apps/web/content apps/web/content
 
+# Docs needed for changelog page (reads ../../docs/CHANGELOG.md at build time)
+COPY docs/CHANGELOG.md docs/
+
 # Environment for build
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production \

@@ -65,7 +65,7 @@ fn render_column<R: TaskRepository>(
         .iter()
         .map(|task| {
             let title_text = if task.title.len() > 25 {
-                format!("{}...", &task.title[..22])
+                format!("{}...", &task.title[..task.title.floor_char_boundary(22)])
             } else {
                 task.title.clone()
             };

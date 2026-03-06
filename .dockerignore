@@ -27,10 +27,11 @@
 *.swo
 .cursor/
 
-# Documentation (but keep content for blogs)
+# Documentation (but keep content for blogs and changelog)
 *.md
 !README.md
 !**/content/**
+!docs/CHANGELOG.md
 
 # Test artifacts
 **/coverage/
@@ -75,7 +76,8 @@ Thumbs.db
 
 # CI/CD and docs
 .github/
-docs/
+docs/*
+!docs/CHANGELOG.md
 deploy/
 scripts/
 

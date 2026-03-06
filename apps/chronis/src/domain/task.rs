@@ -1,5 +1,6 @@
 use std::{fmt, str::FromStr};
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::error::ChronError;
@@ -113,11 +114,11 @@ pub struct Task {
     pub parent: Option<String>,
     pub claimed_by: Option<String>,
     pub blocked_by: Vec<String>,
-    pub created_at: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
     pub done_reason: Option<String>,
-    pub done_at: Option<String>,
+    pub done_at: Option<DateTime<Utc>>,
     pub awaiting_approval: Option<bool>,
     pub approved: Option<bool>,
-    pub approved_at: Option<String>,
+    pub approved_at: Option<DateTime<Utc>>,
     pub description: Option<String>,
 }

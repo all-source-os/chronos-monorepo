@@ -4,20 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chronis - Event-Sourced Task CLI for Rust</title>
-    <meta name="description" content="Chronis is an event-sourced task CLI powered by AllSource Core. Every action is an immutable event. State is derived from projections over the event stream.">
+    <meta name="description" content="Chronis is an event-sourced task CLI powered by the AllSource embedded database (all-source.xyz). Every action is an immutable event. State is derived from projections over the event stream.">
     <meta name="keywords" content="rust, cli, task management, event sourcing, cqrs, wal, parquet, tui, developer tools">
     <link rel="canonical" href="https://all-source-os.github.io/all-source/chronis/">
 
     <!-- Open Graph -->
     <meta property="og:title" content="Chronis - Event-Sourced Task CLI for Rust">
-    <meta property="og:description" content="Event-sourced task CLI powered by AllSource Core. Immutable events, derived state, 12us reads.">
+    <meta property="og:description" content="Event-sourced task CLI powered by the AllSource embedded database (all-source.xyz). Immutable events, derived state, 12us reads.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://all-source-os.github.io/all-source/chronis/">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Chronis - Event-Sourced Task CLI for Rust">
-    <meta name="twitter:description" content="Event-sourced task CLI powered by AllSource Core. Immutable events, derived state, 12us reads.">
+    <meta name="twitter:description" content="Event-sourced task CLI powered by the AllSource embedded database (all-source.xyz). Immutable events, derived state, 12us reads.">
 
     <style>
         :root {
@@ -556,14 +556,15 @@
     <header>
         <div class="container">
             <nav>
-                <div class="logo">
+                <a href="https://decebaldobrica.com" class="logo" style="text-decoration:none;color:var(--text)">
                     <span>cn</span> Chronis
-                </div>
+                </a>
                 <div class="nav-links">
                     <a href="#features">Features</a>
                     <a href="#workflow">Workflow</a>
                     <a href="#commands">Commands</a>
                     <a href="#architecture">Architecture</a>
+                    <a href="https://crates.io/crates/chronis">crates.io</a>
                     <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis">GitHub</a>
                 </div>
             </nav>
@@ -576,7 +577,7 @@
             <h1>Event-Sourced Task CLI</h1>
             <p class="tagline">
                 Every action is an immutable event. State is derived from projections over the event stream.
-                Powered by <a href="https://github.com/all-source-os/all-source/tree/main/apps/core">AllSource Core</a>.
+                Powered by <a href="https://all-source.xyz">AllSource</a>, the embedded event database.
             </p>
             <div class="badges">
                 <span class="badge badge-purple">Rust 2024 Edition</span>
@@ -585,8 +586,8 @@
             </div>
             <div class="install-block">
                 <code>
-                    <span class="comment"># Install from source</span><br>
-                    <span class="prompt">$</span> cargo install --path apps/chronis<br><br>
+                    <span class="comment"># Install from crates.io</span><br>
+                    <span class="prompt">$</span> cargo install chronis<br><br>
                     <span class="comment"># Initialize workspace</span><br>
                     <span class="prompt">$</span> cn init<br><br>
                     <span class="comment"># Create your first task</span><br>
@@ -871,10 +872,10 @@
     <section class="cta">
         <div class="container">
             <h2>Get Started</h2>
-            <p>Chronis is part of the AllSource ecosystem. Clone the monorepo and start managing tasks with immutable events.</p>
+            <p>Created by <a href="https://decebaldobrica.com">Decebal Dobrica</a>. Part of the <a href="https://all-source.xyz">AllSource</a> ecosystem. Install from crates.io and start managing tasks with immutable events.</p>
             <div class="cta-buttons">
-                <a href="https://github.com/all-source-os/all-source" class="btn btn-primary">View Repository</a>
-                <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis/README.md" class="btn btn-secondary">Read the README</a>
+                <a href="https://crates.io/crates/chronis" class="btn btn-primary">crates.io</a>
+                <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis" class="btn btn-secondary">GitHub</a>
             </div>
         </div>
     </section>
@@ -884,12 +885,12 @@
         <div class="container">
             <div class="footer-content">
                 <div class="footer-links">
-                    <a href="https://github.com/all-source-os/all-source">GitHub</a>
-                    <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis">Source</a>
-                    <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis/README.md">Docs</a>
+                    <a href="https://all-source.xyz">AllSource</a>
+                    <a href="https://crates.io/crates/chronis">crates.io</a>
+                    <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis">GitHub</a>
                 </div>
                 <div class="footer-copy">
-                    &copy; 2025 AllSource. Chronis is open source.
+                    &copy; 2026 <a href="https://decebaldobrica.com">Decebal Dobrica</a>. Chronis is open source.
                 </div>
             </div>
         </div>

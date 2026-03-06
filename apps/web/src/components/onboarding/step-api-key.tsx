@@ -4,6 +4,7 @@ import { Button, Card, CardContent, Input, Label } from "@allsource/ui";
 import { AlertTriangle, ArrowRight, Check, Copy, Eye, EyeOff, Key, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useOnboarding } from "@/hooks/use-onboarding";
+import { apiClient } from "@/lib/api/client";
 
 interface StepApiKeyProps {
   onNext: () => void;
@@ -14,16 +15,29 @@ export function StepApiKey({ onNext }: StepApiKeyProps) {
   const [keyName, setKeyName] = useState("My First API Key");
   const [isCreating, setIsCreating] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(true);
   const [copied, setCopied] = useState(false);
 
   const handleCreate = async () => {
     setIsCreating(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setApiKey(`qs_live_demo_${Math.random().toString(36).slice(2, 30)}`);
-    setIsCreating(false);
-    setApiKeyCreated(true);
+    setError(null);
+    try {
+      const response = await apiClient.createApiKey({
+        name: keyName.trim(),
+        scopes: ["events:read", "events:write", "queries:execute", "projections:read"],
+      });
+      if (response.error) {
+        setError(response.error.message);
+      } else if (response.data?.key) {
+        setApiKey(response.data.key);
+        setApiKeyCreated(true);
+      }
+    } catch {
+      setError("Failed to create API key. Please try again.");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleCopy = async () => {
@@ -78,6 +92,12 @@ export function StepApiKey({ onNext }: StepApiKeyProps) {
                   )}
                 </div>
               </div>
+
+              {error && (
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+                  <p className="text-sm text-destructive">{error}</p>
+                </div>
+              )}
 
               <Button
                 className="w-full"

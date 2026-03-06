@@ -1,8 +1,9 @@
 [package]
 name = "chronis"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
-description = "Event-sourced task CLI powered by AllSource Core"
+description = "Event-sourced task CLI powered by the AllSource embedded database (all-source.xyz)"
+authors = ["Decebal Dobrica <decebal@decebaldobrica.com>"]
 license = "MIT"
 repository = "https://github.com/all-source-os/all-source"
 homepage = "https://all-source-os.github.io/all-source/chronis/"
@@ -28,6 +29,9 @@ axum = { version = "0.8", features = ["json", "ws"] }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
 crossterm = "0.28"
+arboard = "3.4"
+fuzzy-matcher = "0.3"
+notify = "7.0"
 dashmap = "6.1"
 rand = "0.10"
 ratatui = "0.29"

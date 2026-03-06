@@ -14,15 +14,36 @@
       <nav>
         <a href="/" class="active">Dashboard</a>
         <a href="/kanban">Kanban</a>
+        <a href="/graph">Graph</a>
       </nav>
+      <div class="stats-bar"
+           hx-get="/partials/stats"
+           hx-trigger="load, every 2s, refresh from:body"
+           hx-swap="innerHTML">
+      </div>
     </header>
 
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search tasks..."
+               oninput="filterTasks()" autofocus>
+      </div>
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+        <button class="filter-btn" data-filter="open" onclick="setFilter('open')">Open</button>
+        <button class="filter-btn" data-filter="in-progress" onclick="setFilter('in-progress')">In Progress</button>
+        <button class="filter-btn" data-filter="done" onclick="setFilter('done')">Done</button>
+      </div>
+      <a href="/api/export" class="export-btn" download>Export .md</a>
+    </div>
+
     <div class="layout">
-      <div class="panel">
+      <div class="panel" style="overflow: auto; max-height: calc(100vh - 220px);">
         <table>
           <thead>
             <tr>
               <th>ID</th>
+              <th>Type</th>
               <th>Title</th>
               <th>Pri</th>
               <th>Status</th>
@@ -43,6 +64,108 @@
         <p class="empty-state">Click a task to see details</p>
       </div>
     </div>
+
+    <div class="shortcut-bar">
+      <span><kbd class="kbd">/</kbd> search</span>
+      <span><kbd class="kbd">1</kbd> open</span>
+      <span><kbd class="kbd">2</kbd> in-progress</span>
+      <span><kbd class="kbd">3</kbd> done</span>
+      <span><kbd class="kbd">0</kbd> all</span>
+      <span><kbd class="kbd">j</kbd><kbd class="kbd">k</kbd> navigate</span>
+      <span><kbd class="kbd">Enter</kbd> detail</span>
+      <span><kbd class="kbd">e</kbd> export</span>
+    </div>
   </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let currentFilter = 'all';
+    let selectedRow = -1;
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === filter);
+      });
+      filterTasks();
+    }
+
+    function filterTasks() {
+      const query = document.getElementById('search-input').value.toLowerCase();
+      const rows = document.querySelectorAll('#task-list .task-row');
+      rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        const status = row.dataset.status || '';
+        const matchSearch = !query || text.includes(query);
+        const matchFilter = currentFilter === 'all' || status === currentFilter;
+        row.style.display = matchSearch && matchFilter ? '' : 'none';
+      });
+      selectedRow = -1;
+    }
+
+    function getVisibleRows() {
+      return Array.from(document.querySelectorAll('#task-list .task-row')).filter(r => r.style.display !== 'none');
+    }
+
+    function selectRow(index) {
+      const rows = getVisibleRows();
+      rows.forEach(r => r.classList.remove('selected'));
+      if (index >= 0 && index < rows.length) {
+        selectedRow = index;
+        rows[index].classList.add('selected');
+        rows[index].scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    document.addEventListener('keydown', function(e) {
+      const searchInput = document.getElementById('search-input');
+      const isSearchFocused = document.activeElement === searchInput;
+
+      if (e.key === '/' && !isSearchFocused) {
+        e.preventDefault();
+        searchInput.focus();
+        return;
+      }
+
+      if (e.key === 'Escape' && isSearchFocused) {
+        searchInput.blur();
+        searchInput.value = '';
+        filterTasks();
+        return;
+      }
+
+      if (isSearchFocused) return;
+
+      switch (e.key) {
+        case 'j': selectRow(selectedRow + 1); break;
+        case 'k': selectRow(Math.max(0, selectedRow - 1)); break;
+        case 'Enter': {
+          const rows = getVisibleRows();
+          if (selectedRow >= 0 && selectedRow < rows.length) rows[selectedRow].click();
+          break;
+        }
+        case '1': setFilter('open'); break;
+        case '2': setFilter('in-progress'); break;
+        case '3': setFilter('done'); break;
+        case '0': setFilter('all'); break;
+        case 'e': window.location.href = '/api/export'; break;
+      }
+    });
+
+    // Re-apply filter after HTMX swaps
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+      if (e.detail.target.id === 'task-list') {
+        filterTasks();
+      }
+    });
+  </script>
 </body>
 </html>

@@ -63,6 +63,7 @@ impl Projection for TaskProjection {
                     .and_then(|v| v.as_str())
                     .map(String::from);
                 let mut state = json!({
+                    "id": entity_id,
                     "title": title,
                     "priority": priority,
                     "status": "open",

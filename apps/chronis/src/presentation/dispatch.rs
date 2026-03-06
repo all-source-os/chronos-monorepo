@@ -86,7 +86,7 @@ pub async fn dispatch(cmd: &Command, repo: &impl TaskRepository) -> Result<(), C
             print_task_table(&tasks);
         }
         Command::Claim(args) => {
-            let agent = std::env::var("CN_AGENT_ID").unwrap_or_else(|_| "human".to_string());
+            let agent = crate::infrastructure::agent_id();
             claim_task::claim_task(repo, &args.id, &agent).await?;
             println!("Claimed task {} (agent: {agent})", args.id);
         }
