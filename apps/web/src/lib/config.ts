@@ -17,8 +17,8 @@ export const siteConfig = {
   links: {
     email: "hello@all-source.xyz",
     twitter: "https://twitter.com/allsourcedev",
-    discord: "https://discord.gg/allsource",
-    github: "https://github.com/allsource/allsource",
+    discord: "https://github.com/all-source-os/all-source/discussions",
+    github: "https://github.com/all-source-os/all-source",
     instagram: "https://instagram.com/allsourcedev",
   },
   header: [
@@ -43,7 +43,7 @@ export const siteConfig = {
             description: "Real-time pipelines with filter, map, and reduce.",
           },
           {
-            href: "#",
+            href: "/docs/mcp",
             title: "AI-Native Tools",
             description: "43 MCP tools for Claude Desktop integration.",
           },
@@ -195,18 +195,18 @@ export const siteConfig = {
       links: [
         { href: "#", text: "Event Store", icon: null },
         { href: "#", text: "Stream Processing", icon: null },
-        { href: "#", text: "MCP Server", icon: null },
-        { href: "#", text: "Documentation", icon: null },
+        { href: "/docs/mcp", text: "MCP Server", icon: null },
+        { href: "/docs", text: "Documentation", icon: null },
       ],
     },
     {
       title: "Developers",
       links: [
-        { href: "#", text: "Getting Started", icon: null },
-        { href: "#", text: "API Reference", icon: null },
+        { href: "/docs", text: "Getting Started", icon: null },
+        { href: "/docs/api", text: "API Reference", icon: null },
         { href: "#", text: "SDKs", icon: null },
         { href: "#", text: "Examples", icon: null },
-        { href: "#", text: "Changelog", icon: null },
+        { href: "/changelog", text: "Changelog", icon: null },
       ],
     },
     {
@@ -222,7 +222,7 @@ export const siteConfig = {
       title: "Connect",
       links: [
         {
-          href: "https://github.com/allsource/allsource",
+          href: "https://github.com/all-source-os/all-source",
           text: "GitHub",
           icon: "github" as const,
         },
@@ -232,8 +232,8 @@ export const siteConfig = {
           icon: "twitter" as const,
         },
         {
-          href: "https://discord.gg/allsource",
-          text: "Discord",
+          href: "https://github.com/all-source-os/all-source/discussions",
+          text: "Community",
           icon: "discord" as const,
         },
       ],

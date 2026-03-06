@@ -63,6 +63,9 @@ apps/control-plane/control-plane
 .beads
 tasks
 
+# Chronis (local event store data)
+.chronis/
+
 # AI Tools / IDE Assistants
 .agent/
 .cursor/
