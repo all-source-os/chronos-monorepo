@@ -10,6 +10,7 @@ defmodule QueryServiceExWeb.ApiKeyController do
   use Phoenix.Controller, formats: [:json]
 
   alias QueryServiceEx.ApiKeyStore
+  alias QueryServiceEx.AuditLog
 
   require Logger
 
@@ -87,6 +88,16 @@ defmodule QueryServiceExWeb.ApiKeyController do
 
         {:ok, _} = ApiKeyStore.create_key(tenant_id, metadata)
 
+        actor = user[:email] || user["email"] || "unknown"
+
+        Task.start(fn ->
+          AuditLog.record(tenant_id, "api_key.created", actor, %{
+            key_id: key_id,
+            name: name,
+            scopes: scopes
+          })
+        end)
+
         conn
         |> put_status(:created)
         |> json(%{
@@ -118,9 +129,16 @@ defmodule QueryServiceExWeb.ApiKeyController do
   """
   def revoke(conn, %{"id" => key_id}) do
     tenant_id = get_tenant_id(conn)
+    user = conn.assigns[:current_user]
 
     case ApiKeyStore.revoke_key(tenant_id, key_id) do
       :ok ->
+        actor = user[:email] || user["email"] || "unknown"
+
+        Task.start(fn ->
+          AuditLog.record(tenant_id, "api_key.revoked", actor, %{key_id: key_id})
+        end)
+
         conn
         |> put_status(:ok)
         |> json(%{data: %{message: "API key revoked", id: key_id}})

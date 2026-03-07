@@ -17,15 +17,21 @@ import { PlanCards } from "@/components/billing/plan-cards";
 import { UsageChart } from "@/components/billing/usage-chart";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { apiClient } from "@/lib/api/client";
+import { siteConfig } from "@/lib/config";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
+function getPlanConfig(tier: string) {
+  return siteConfig.pricing.find((p) => p.tier === tier) ?? siteConfig.pricing[0]!;
+}
+
 export default function BillingPage() {
-  const { tenant } = useAuthStore();
+  const { tenant, user } = useAuthStore();
   const { stats } = useDashboardStats();
   const [isYearly, setIsYearly] = useState(false);
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
 
-  const currentPlan = tenant?.subscription_tier || "free";
+  const currentTier = tenant?.subscription_tier || "free";
+  const planConfig = getPlanConfig(currentTier);
   const eventsUsed = stats.events.used || tenant?.events_used || 0;
   const eventsQuota = stats.events.quota || tenant?.events_quota || 10000;
   const queriesUsed = stats.queries.used || tenant?.queries_used || 0;
@@ -33,10 +39,13 @@ export default function BillingPage() {
   const trialEndsAt = tenant?.trial_ends_at;
   const subscriptionEndsAt = tenant?.subscription_ends_at;
 
+  const displayPrice =
+    tenant?.billing_period === "annual" ? planConfig.yearlyPrice : planConfig.price;
+
   const handleManageSubscription = async () => {
     setIsLoadingPortal(true);
     try {
-      const response = await apiClient.getBillingPortal();
+      const response = await apiClient.getBillingPortal(tenant?.id);
       if (response.data?.portal_url) {
         window.open(response.data.portal_url, "_blank");
       }
@@ -56,7 +65,11 @@ export default function BillingPage() {
       return;
     }
     try {
-      const response = await apiClient.createCheckout(planTier, billingPeriod);
+      const response = await apiClient.createCheckout(planTier, billingPeriod, {
+        tenantId: tenant?.id,
+        email: user?.email,
+        redirectUrl: `${window.location.origin}/dashboard/billing`,
+      });
       if (response.data?.checkout_url) {
         window.location.href = response.data.checkout_url;
       }
@@ -83,7 +96,7 @@ export default function BillingPage() {
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Billing & Usage</h1>
             <p className="mt-1 text-muted-foreground">Manage your subscription and monitor usage</p>
           </div>
-          {currentPlan !== "free" && (
+          {currentTier !== "free" && (
             <Button variant="outline" onClick={handleManageSubscription} disabled={isLoadingPortal}>
               {isLoadingPortal ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -128,10 +141,10 @@ export default function BillingPage() {
               <CardDescription>Your active subscription details</CardDescription>
             </div>
             <Badge
-              variant={currentPlan === "free" ? "secondary" : "default"}
-              className="text-sm capitalize"
+              variant={currentTier === "free" ? "secondary" : "default"}
+              className="text-sm"
             >
-              {currentPlan === "free" ? "Developer" : currentPlan}
+              {planConfig.name}
             </Badge>
           </CardHeader>
           <CardContent>
@@ -143,19 +156,18 @@ export default function BillingPage() {
                     {tenant?.billing_period === "annual" ? "Annual Price" : "Monthly Price"}
                   </p>
                   <p className="text-2xl font-bold">
-                    {currentPlan === "free"
-                      ? "$0"
-                      : currentPlan === "growth"
-                        ? tenant?.billing_period === "annual"
-                          ? "$79/mo"
-                          : "$99/mo"
-                        : "Custom"}
+                    {displayPrice}
+                    {displayPrice !== "Custom" && (
+                      <span className="text-base font-normal text-muted-foreground">
+                        /{planConfig.period}
+                      </span>
+                    )}
                   </p>
-                  {tenant?.billing_period === "annual" && currentPlan !== "free" && (
+                  {tenant?.billing_period === "annual" && currentTier !== "free" && (
                     <p className="text-xs text-muted-foreground">billed annually</p>
                   )}
                 </div>
-                {tenant?.billing_period && currentPlan !== "free" && (
+                {tenant?.billing_period && currentTier !== "free" && (
                   <div>
                     <p className="text-sm text-muted-foreground">Billing Period</p>
                     <p className="font-medium capitalize">{tenant.billing_period}</p>
@@ -167,27 +179,26 @@ export default function BillingPage() {
                     <p className="font-medium">{formatDate(subscriptionEndsAt)}</p>
                   </div>
                 )}
+                {currentTier === "free" && (
+                  <Button
+                    size="sm"
+                    onClick={() => handleUpgrade("growth")}
+                  >
+                    Upgrade
+                  </Button>
+                )}
               </div>
 
-              {/* Plan features */}
+              {/* Plan features from config */}
               <div className="col-span-2 space-y-2">
                 <p className="text-sm font-medium">Plan Features</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {[
-                    `${(eventsQuota / 1000).toFixed(0)}K events/month`,
-                    currentPlan === "free" ? "1 Stream" : "Unlimited Streams",
-                    currentPlan === "free" ? "Community Support" : "Priority Support",
-                    currentPlan === "free" ? "7-day retention" : "90-day retention",
-                    "Basic Analytics",
-                    currentPlan !== "free" && "MCP Server Access",
-                  ]
-                    .filter(Boolean)
-                    .map((feature) => (
-                      <div key={feature as string} className="flex items-center gap-2 text-sm">
-                        <Check className="h-4 w-4 text-primary" />
-                        <span>{feature}</span>
-                      </div>
-                    ))}
+                  {planConfig.features.map((feature) => (
+                    <div key={feature} className="flex items-center gap-2 text-sm">
+                      <Check className="h-4 w-4 text-primary" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -246,7 +257,7 @@ export default function BillingPage() {
             </div>
           </div>
 
-          <PlanCards currentPlan={currentPlan} isYearly={isYearly} onUpgrade={handleUpgrade} />
+          <PlanCards currentPlan={currentTier} isYearly={isYearly} onUpgrade={handleUpgrade} />
         </div>
       </BlurFade>
 

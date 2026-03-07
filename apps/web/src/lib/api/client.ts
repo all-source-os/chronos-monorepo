@@ -236,17 +236,25 @@ export class ApiClient {
 
   // Billing endpoints
   async createCheckout(
-    variantId: string,
-    billingPeriod: "monthly" | "annual" = "monthly"
+    tier: string,
+    billingPeriod: "monthly" | "annual" = "monthly",
+    options?: { tenantId?: string; email?: string; redirectUrl?: string }
   ): Promise<ApiResponse<CheckoutResponse>> {
     return this.request<CheckoutResponse>("/api/billing/checkout", {
       method: "POST",
-      body: JSON.stringify({ variant_id: variantId, billing_period: billingPeriod }),
+      body: JSON.stringify({
+        tenant_id: options?.tenantId,
+        tier,
+        billing_period: billingPeriod,
+        email: options?.email,
+        redirect_url: options?.redirectUrl,
+      }),
     });
   }
 
-  async getBillingPortal(): Promise<ApiResponse<BillingPortalResponse>> {
-    return this.request<BillingPortalResponse>("/api/billing/portal");
+  async getBillingPortal(tenantId?: string): Promise<ApiResponse<BillingPortalResponse>> {
+    const qs = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : "";
+    return this.request<BillingPortalResponse>(`/api/billing/portal${qs}`);
   }
 
   async getOverage(): Promise<ApiResponse<OverageResponse>> {
@@ -580,13 +588,16 @@ export interface UpdateApiKeyRequest {
 }
 
 export interface CheckoutResponse {
+  checkout_id: string;
   checkout_url: string;
+  tenant_id: string;
+  tier: string;
+  provider: string;
 }
 
 export interface BillingPortalResponse {
   portal_url?: string;
-  has_subscription: boolean;
-  message?: string;
+  tenant_id?: string;
 }
 
 export interface OverageResponse {

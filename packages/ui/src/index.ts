@@ -15,6 +15,10 @@ export { Badge, badgeVariants } from "./components/badge";
 export type { ButtonProps } from "./components/button";
 // Component exports
 export { Button, buttonVariants } from "./components/button";
+// Calendar & DatePicker
+export { Calendar } from "./components/calendar";
+export type { DatePickerProps } from "./components/date-picker";
+export { DatePicker } from "./components/date-picker";
 export type { CardTitleProps } from "./components/card";
 export {
   Card,
@@ -71,6 +75,13 @@ export { FlickeringGrid } from "./components/magicui/flickering-grid";
 export { HeroVideoDialog } from "./components/magicui/hero-video";
 export { Marquee } from "./components/magicui/marquee";
 export { Ripple } from "./components/magicui/ripple";
+// Popover
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverAnchor,
+} from "./components/popover";
 // Navigation Menu
 export {
   NavigationMenu,

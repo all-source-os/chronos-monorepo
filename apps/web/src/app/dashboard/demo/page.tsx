@@ -184,11 +184,7 @@ function LiveFireView({ seeded, seeding, seedError, onSeed }: ViewProps) {
   );
 }
 
-function McpShowdownView({ seeded, seeding, seedError, onSeed }: ViewProps) {
-  if (!seeded) {
-    return <EmptyState seeding={seeding} seedError={seedError} onSeed={onSeed} />;
-  }
-
+function McpShowdownView(_props: ViewProps) {
   return (
     <div className="space-y-4">
       <McpShowdownPanel />

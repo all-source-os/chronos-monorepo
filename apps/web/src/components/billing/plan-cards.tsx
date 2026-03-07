@@ -14,18 +14,10 @@ interface PlanCardsProps {
 export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }: PlanCardsProps) {
   const plans = siteConfig.pricing;
 
-  const getPlanTier = (name: string) => {
-    const lower = name.toLowerCase();
-    if (lower.includes("enterprise")) return "enterprise";
-    if (lower.includes("team")) return "growth";
-    return "free";
-  };
-
   return (
     <div className="grid gap-6 md:grid-cols-3">
       {plans.map((plan) => {
-        const planTier = getPlanTier(plan.name);
-        const isCurrent = planTier === currentPlan;
+        const isCurrent = plan.tier === currentPlan;
         const isPopular = plan.isPopular;
         const displayPrice = isYearly ? plan.yearlyPrice : plan.price;
 
@@ -88,16 +80,16 @@ export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }:
                 className="w-full"
                 variant={isPopular ? "default" : "outline"}
                 disabled={isCurrent}
-                onClick={() => onUpgrade?.(planTier, isYearly ? "annual" : "monthly")}
+                onClick={() => onUpgrade?.(plan.tier, isYearly ? "annual" : "monthly")}
               >
                 {isCurrent ? (
                   "Current Plan"
-                ) : plan.price === "Custom" ? (
+                ) : plan.tier === "enterprise" ? (
                   "Contact Sales"
                 ) : (
                   <>
                     {isPopular && <Sparkles className="mr-2 h-4 w-4" />}
-                    {plan.buttonText}
+                    Upgrade
                   </>
                 )}
               </Button>

@@ -174,19 +174,20 @@ export default function AnalyticsPage() {
                         <XAxis
                           dataKey="timestamp"
                           tickFormatter={(ts) => formatTimestamp(ts, range)}
-                          className="text-xs"
-                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                          fontSize={12}
+                          tick={{ fill: "var(--color-muted-foreground)" }}
                         />
                         <YAxis
-                          className="text-xs"
-                          tick={{ fill: "hsl(var(--muted-foreground))" }}
+                          fontSize={12}
+                          tick={{ fill: "var(--color-muted-foreground)" }}
                         />
                         <Tooltip
                           labelFormatter={(ts) => formatTimestamp(String(ts), range)}
                           contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
+                            backgroundColor: "var(--color-card)",
+                            border: "1px solid var(--color-border)",
                             borderRadius: "8px",
+                            color: "var(--color-card-foreground)",
                           }}
                         />
                         <Area
@@ -308,18 +309,18 @@ export default function AnalyticsPage() {
                           />
                           <XAxis
                             type="number"
-                            className="text-xs"
+                            fontSize={12}
                             tick={{
-                              fill: "hsl(var(--muted-foreground))",
+                              fill: "var(--color-muted-foreground)",
                             }}
                           />
                           <YAxis
                             type="category"
                             dataKey="entity_id"
                             width={120}
-                            className="text-xs"
+                            fontSize={12}
                             tick={{
-                              fill: "hsl(var(--muted-foreground))",
+                              fill: "var(--color-muted-foreground)",
                             }}
                             tickFormatter={(v: string) =>
                               v.length > 16 ? `${v.slice(0, 14)}...` : v

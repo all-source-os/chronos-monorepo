@@ -15,6 +15,21 @@ function getQueryServiceUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
 }
 
+async function buildProxyResponse(response: Response): Promise<NextResponse> {
+  const body = await response.text();
+  const responseHeaders: Record<string, string> = {
+    "content-type": response.headers.get("content-type") || "application/json",
+  };
+  const setCookie = response.headers.get("set-cookie");
+  if (setCookie) {
+    responseHeaders["set-cookie"] = setCookie;
+  }
+  return new NextResponse(body, {
+    status: response.status,
+    headers: responseHeaders,
+  });
+}
+
 async function proxyToQueryService(request: NextRequest, path: string): Promise<NextResponse> {
   const url = new URL(`/api/${path}`, getQueryServiceUrl());
 
@@ -53,22 +68,19 @@ async function proxyToQueryService(request: NextRequest, path: string): Promise<
   }
 
   try {
-    const response = await fetch(url.toString(), fetchOptions);
-    const body = await response.text();
+    // Use manual redirect so we can re-issue POST requests with body to the new location
+    const response = await fetch(url.toString(), { ...fetchOptions, redirect: "manual" });
 
-    // Forward set-cookie headers from backend
-    const responseHeaders: Record<string, string> = {
-      "content-type": response.headers.get("content-type") || "application/json",
-    };
-    const setCookie = response.headers.get("set-cookie");
-    if (setCookie) {
-      responseHeaders["set-cookie"] = setCookie;
+    // Follow redirects server-side, preserving method, body, and auth headers
+    if (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308) {
+      const location = response.headers.get("location");
+      if (location) {
+        const redirectResponse = await fetch(location, fetchOptions);
+        return buildProxyResponse(redirectResponse);
+      }
     }
 
-    return new NextResponse(body, {
-      status: response.status,
-      headers: responseHeaders,
-    });
+    return buildProxyResponse(response);
   } catch (_error) {
     return NextResponse.json({ error: "Failed to reach Query Service" }, { status: 502 });
   }

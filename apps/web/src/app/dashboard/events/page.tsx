@@ -1,6 +1,6 @@
 "use client";
 
-import { BlurFade, Button, Card, CardContent, Input } from "@allsource/ui";
+import { BlurFade, Button, Card, CardContent, DatePicker, Input } from "@allsource/ui";
 import { BookOpen, Download, Filter, Inbox, Plus, RefreshCw, Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -188,7 +188,7 @@ export default function EventsPage() {
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium">Date Range</label>
-                  <Input type="date" placeholder="Select date..." />
+                  <DatePicker placeholder="Select date..." />
                 </div>
               </div>
             )}

@@ -1,8 +1,9 @@
 "use client";
 
-import { Button } from "@allsource/ui";
+import { Button, Calendar as CalendarComponent, Popover, PopoverContent, PopoverTrigger } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Calendar, ChevronDown, Clock, History, RotateCcw, X } from "lucide-react";
+import { CalendarIcon, ChevronDown, Clock, History, RotateCcw, X } from "lucide-react";
+import { format } from "date-fns";
 import { useCallback, useEffect, useState } from "react";
 import {
   DEMO_PRESETS,
@@ -172,16 +173,32 @@ export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTra
               <p className="mb-2 text-xs font-medium text-muted-foreground">Custom date & time</p>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="sr-only">Date</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      type="date"
-                      value={customDate}
-                      onChange={(e) => setCustomDate(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-muted/50 py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"
-                    />
-                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal text-sm",
+                          !customDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDate || "Pick date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={customDate ? new Date(`${customDate}T00:00:00`) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            setCustomDate(format(date, "yyyy-MM-dd"));
+                          }
+                        }}
+                        autoFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="w-24">
                   <label className="sr-only">Time</label>

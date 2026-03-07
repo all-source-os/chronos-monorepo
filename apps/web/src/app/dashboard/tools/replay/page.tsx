@@ -1,8 +1,10 @@
 "use client";
 
-import { Badge, BlurFade, Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
+import { Badge, BlurFade, Button, Card, CardContent, CardHeader, CardTitle, Popover, PopoverContent, PopoverTrigger, Calendar } from "@allsource/ui";
+import { format } from "date-fns";
 import {
   AlertCircle,
+  CalendarIcon,
   CheckCircle2,
   Clock,
   Loader2,
@@ -136,13 +138,26 @@ export default function ReplayPage() {
                   From Date
                 </label>
                 <div className="flex gap-2">
-                  <input
-                    id="from-date"
-                    type="date"
-                    value={fromTimestamp}
-                    onChange={(e) => setFromTimestamp(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="from-date"
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {fromTimestamp || "Pick date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={fromTimestamp ? new Date(`${fromTimestamp}T00:00:00`) : undefined}
+                        onSelect={(date) => date && setFromTimestamp(format(date, "yyyy-MM-dd"))}
+                        autoFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <input
                     type="time"
                     value={fromTime}
@@ -157,13 +172,26 @@ export default function ReplayPage() {
                   To Date
                 </label>
                 <div className="flex gap-2">
-                  <input
-                    id="to-date"
-                    type="date"
-                    value={toTimestamp}
-                    onChange={(e) => setToTimestamp(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="to-date"
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {toTimestamp || "Pick date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={toTimestamp ? new Date(`${toTimestamp}T00:00:00`) : undefined}
+                        onSelect={(date) => date && setToTimestamp(format(date, "yyyy-MM-dd"))}
+                        autoFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <input
                     type="time"
                     value={toTime}

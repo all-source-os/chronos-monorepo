@@ -105,6 +105,7 @@ export const siteConfig = {
   pricing: [
     {
       name: "DEVELOPER",
+      tier: "free" as const,
       href: "#",
       price: "$0",
       period: "month",
@@ -122,6 +123,7 @@ export const siteConfig = {
     },
     {
       name: "TEAM",
+      tier: "growth" as const,
       href: "#",
       price: "$99",
       period: "month",
@@ -140,6 +142,7 @@ export const siteConfig = {
     },
     {
       name: "ENTERPRISE",
+      tier: "enterprise" as const,
       href: "#",
       price: "Custom",
       period: "month",

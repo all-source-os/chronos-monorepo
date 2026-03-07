@@ -10,6 +10,7 @@ defmodule QueryServiceExWeb.TeamController do
 
   use Phoenix.Controller, formats: [:json]
 
+  alias QueryServiceEx.AuditLog
   alias QueryServiceEx.DevMode
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceEx.TeamStore
@@ -37,8 +38,9 @@ defmodule QueryServiceExWeb.TeamController do
       tier = get_tier(tenant)
       seat_limit = TeamStore.seat_limit(tier)
 
-      # Include the owner as the first member
-      owner = build_owner(tenant)
+      # Include the owner as the first member, enriched with current user data
+      user = conn.assigns[:current_user]
+      owner = build_owner(tenant, user)
       all_members = [owner | members]
 
       conn
@@ -75,6 +77,13 @@ defmodule QueryServiceExWeb.TeamController do
 
       case TeamStore.invite_member(tenant_id, email, role, invited_by) do
         {:ok, invitation} ->
+          Task.start(fn ->
+            AuditLog.record(tenant_id, "member.invited", invited_by, %{
+              email: email,
+              role: role
+            })
+          end)
+
           conn
           |> put_status(:created)
           |> json(%{data: invitation})
@@ -105,6 +114,12 @@ defmodule QueryServiceExWeb.TeamController do
 
       case TeamStore.remove_member(tenant_id, user_id) do
         :ok ->
+          actor = get_actor_email(conn)
+
+          Task.start(fn ->
+            AuditLog.record(tenant_id, "member.removed", actor, %{user_id: user_id})
+          end)
+
           conn
           |> put_status(:ok)
           |> json(%{data: %{message: "Member removed"}})
@@ -194,16 +209,26 @@ defmodule QueryServiceExWeb.TeamController do
     subscription["tier"] || "free"
   end
 
-  defp build_owner(tenant) do
+  defp build_owner(tenant, user \\ nil) do
+    user_email = get_in_any(user, ["email", :email])
+    user_name = get_in_any(user, ["name", :name])
+
     %{
       "id" => "owner",
       "user_id" => tenant["owner_id"] || tenant["id"],
-      "email" => tenant["owner_email"] || "owner@#{tenant["slug"] || "workspace"}.com",
-      "name" => tenant["owner_name"] || tenant["name"] || "Owner",
+      "email" =>
+        tenant["owner_email"] || user_email || "owner@#{tenant["slug"] || "workspace"}.com",
+      "name" => tenant["owner_name"] || user_name || tenant["name"] || "Owner",
       "role" => "owner",
       "joined_at" => tenant["inserted_at"] || DateTime.utc_now() |> DateTime.to_iso8601(),
       "status" => "active"
     }
+  end
+
+  defp get_in_any(nil, _keys), do: nil
+
+  defp get_in_any(map, keys) do
+    Enum.find_value(keys, fn key -> map[key] end)
   end
 
   defp validate_email(nil) do
@@ -258,6 +283,11 @@ defmodule QueryServiceExWeb.TeamController do
     else
       :ok
     end
+  end
+
+  defp get_actor_email(conn) do
+    user = conn.assigns[:current_user]
+    user["email"] || user[:email] || "unknown"
   end
 
   defp check_not_self_remove(conn, user_id) do

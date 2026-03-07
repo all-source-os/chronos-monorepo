@@ -298,12 +298,14 @@ export function McpShowdownPanel() {
                     dataKey="time"
                     tickFormatter={(v: number) => `${v}s`}
                     fontSize={11}
-                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: "var(--color-muted-foreground)" }}
+                    stroke="var(--color-muted-foreground)"
                   />
                   <YAxis
                     tickFormatter={(v: number) => `${v}ms`}
                     fontSize={11}
-                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: "var(--color-muted-foreground)" }}
+                    stroke="var(--color-muted-foreground)"
                     domain={[0, "auto"]}
                   />
                   <Tooltip
@@ -313,13 +315,14 @@ export function McpShowdownPanel() {
                     ]}
                     labelFormatter={(label: number) => `${label}s`}
                     contentStyle={{
-                      backgroundColor: "hsl(var(--background))",
-                      border: "1px solid hsl(var(--border))",
+                      backgroundColor: "var(--color-background)",
+                      border: "1px solid var(--color-border)",
                       borderRadius: "6px",
                       fontSize: "12px",
+                      color: "var(--color-foreground)",
                     }}
                   />
-                  <ReferenceLine y={100} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" opacity={0.4} />
+                  <ReferenceLine y={100} stroke="var(--color-muted-foreground)" strokeDasharray="5 5" opacity={0.4} />
                   <Line
                     type="monotone"
                     dataKey="raw"
