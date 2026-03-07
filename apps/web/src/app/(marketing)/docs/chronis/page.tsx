@@ -137,6 +137,42 @@ cn list --all                    # Show everything`}</code>
 
         <section>
           <h2 className="text-xl font-semibold text-foreground mb-3">
+            Agent / TOON Output
+          </h2>
+          <p className="text-muted-foreground leading-relaxed mb-3">
+            Pass <code className="text-primary">--toon</code> to any command for{" "}
+            <a
+              href="https://github.com/toon-format/toon"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground underline underline-offset-4 hover:opacity-80"
+            >
+              TOON (Token-Oriented Object Notation)
+            </a>{" "}
+            output — ~50% fewer tokens than JSON. Pipe-delimited, no braces or
+            quotes. Ideal for LLM agents and scripts.
+          </p>
+          <pre className="rounded-lg border border-border bg-muted/50 p-4 text-sm overflow-x-auto">
+            <code>{`cn list --toon
+[id|type|title|pri|status|claimed|blocked_by|parent|archived]
+t-abc1|task|Design auth|p0|open||||false
+t-abc2|bug|Fix login|p1|in-progress|agent-1|||false
+
+cn claim t-abc1 --toon
+ok:claimed:t-abc1
+
+cn done t-abc1 --toon
+ok:done:t-abc1`}</code>
+          </pre>
+          <p className="text-muted-foreground leading-relaxed mt-3">
+            Agent workflow: <code className="text-primary">cn ready --toon</code>{" "}
+            → pick a task → <code className="text-primary">cn claim &lt;id&gt; --toon</code>{" "}
+            → do work → <code className="text-primary">cn done &lt;id&gt; --toon</code>
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-semibold text-foreground mb-3">
             Architecture
           </h2>
           <p className="text-muted-foreground leading-relaxed mb-3">

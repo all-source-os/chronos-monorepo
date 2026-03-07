@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
         _ => {
             let ws = Workspace::open().await?;
             let repo = ws.repo();
-            let result = dispatch::dispatch(&cli.command, &repo, &ws.root).await;
+            let result = dispatch::dispatch(&cli.command, &repo, &ws.root, cli.toon).await;
             drop(repo);
             ws.shutdown().await?;
             result?;

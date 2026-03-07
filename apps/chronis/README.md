@@ -130,6 +130,43 @@ cn migrate-beads              # Import issues from .beads/ directory
 cn migrate-beads --beads-dir=/path/to/.beads
 ```
 
+### Agent / TOON Output
+
+Pass `--toon` to any command for [TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) output — ~50% fewer tokens than JSON. Pipe-delimited, no braces or quotes.
+
+```bash
+cn list --toon
+# [id|type|title|pri|status|claimed|blocked_by|parent|archived]
+# t-abc1|task|Design auth|p0|open||||false
+# t-abc2|bug|Fix login|p1|in-progress|agent-1|||false
+
+cn show t-abc1 --toon
+# id:t-abc1
+# type:task
+# title:Design auth
+# priority:p0
+# status:open
+# archived:false
+# ---
+
+cn claim t-abc1 --toon
+# ok:claimed:t-abc1
+
+cn done t-abc1 --toon
+# ok:done:t-abc1
+```
+
+Agent workflow with minimal token overhead:
+
+```bash
+export CN_AGENT_ID=agent-1
+cn ready --toon              # Pick a task
+cn claim <id> --toon         # Claim it
+# ... do work ...
+cn done <id> --toon          # Mark done
+cn list --toon               # Verify state
+```
+
 ## Workflow
 
 ```
