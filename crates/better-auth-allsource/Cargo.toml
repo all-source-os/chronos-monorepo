@@ -1,0 +1,29 @@
+[package]
+name = "better-auth-allsource"
+version = "0.14.1"
+edition = "2021"
+description = "Allsource DatabaseAdapter for better-auth-rs — event-sourced auth persistence"
+license = "MIT"
+repository = "https://github.com/all-source-os/all-source"
+keywords = ["better-auth", "allsource", "event-sourcing", "authentication"]
+categories = ["authentication", "database"]
+
+[features]
+default = ["rustls"]
+rustls = ["reqwest/rustls"]
+native-tls = ["reqwest/native-tls"]
+
+[dependencies]
+async-trait = "0.1"
+better-auth-core = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.13", features = ["json", "query"], default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["sync"] }
+tracing = "0.1"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
