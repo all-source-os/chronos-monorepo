@@ -21,6 +21,7 @@ cn ready                                         # Show unblocked open tasks
 cn claim <id>                                    # Claim a task
 cn done <id> --reason="Shipped"                  # Complete a task
 cn show <id>                                     # Task detail + event timeline
+cn sync --git                                    # Sync via git (pull/push)
 ```
 
 ## Commands
@@ -49,11 +50,49 @@ cn task create "Title" \
   -d "Description text"      # Description
 ```
 
+### Bulk Actions (Cascade)
+
+Cascade operations apply to a task and all its children — useful for closing out an entire epic:
+
+```bash
+cn claim <epic-id> --cascade             # Claim epic + all children
+cn done <epic-id> --cascade              # Mark epic + all children as done
+cn done <epic-id> --cascade --reason="Sprint complete"
+```
+
+Cascade walks the parent-child tree depth-first, processing children before the parent. Tasks already in the target state are skipped.
+
 ### Dependencies
 
 ```bash
 cn dep add <task-id> <blocker-id>      # Add a blocker
 cn dep remove <task-id> <blocker-id>   # Remove a blocker
+```
+
+### Git Sync
+
+Sync chronis state across machines via git. Events are exported to an append-only JSONL file that git can merge naturally.
+
+```bash
+cn sync --git     # Pull remote events, export local events, commit, push
+```
+
+**How it works:**
+
+1. `git pull --rebase` — fetch remote changes
+2. Import new events from `.chronis/sync/events.jsonl` into local Core
+3. Append new local events to the JSONL file
+4. `git commit` + `git push`
+
+Deduplication is handled via UUID tracking — each event is written once by its creating machine and never duplicated. Two local-only ID sets (`.remote_ids`, `.local_ids`) prevent re-import and re-export.
+
+**Multi-machine workflow:**
+
+```bash
+# Machine A                    # Machine B
+cn task create "Auth" -p p0    cn task create "Docs" -p p2
+cn sync --git                  cn sync --git   # pulls A's tasks, pushes B's
+cn sync --git                  # pulls B's task
 ```
 
 ### Visualization
@@ -64,10 +103,9 @@ cn serve [--port=3905]        # Embedded web viewer (Axum + HTMX)
 cn serve --open               # Auto-open browser
 ```
 
-### Sync & Migration
+### Migration
 
 ```bash
-cn sync --git                 # Stage .chronis/, commit, push
 cn migrate-beads              # Import issues from .beads/ directory
 cn migrate-beads --beads-dir=/path/to/.beads
 ```
@@ -107,9 +145,11 @@ Data lives in `.chronis/` at the project root:
 
 ```
 .chronis/
-  wal/          # Write-ahead log segments
-  parquet/      # Columnar event storage
-  config.toml   # Workspace config
+  wal/            # Write-ahead log segments
+  storage/        # Columnar event storage (Parquet)
+  sync/           # Git sync exchange (events.jsonl)
+  config.toml     # Workspace config
+  .gitignore      # Excludes binary data, tracks sync files
 ```
 
 ## Event Types
@@ -131,5 +171,5 @@ All state is derived from these events:
 ```bash
 cargo fmt --check             # Formatting
 cargo clippy -- -D warnings   # Lints (zero warnings)
-cargo test                    # 11 integration tests
+cargo test                    # Integration tests
 ```

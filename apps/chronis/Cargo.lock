@@ -608,7 +608,7 @@ dependencies = [
 
 [[package]]
 name = "chronis"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "allsource-core",
  "anyhow",
@@ -631,6 +631,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

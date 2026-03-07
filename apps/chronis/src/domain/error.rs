@@ -30,6 +30,9 @@ pub enum ChronError {
     #[error("unknown task type: {0} (expected task, epic, bug, feature)")]
     InvalidTaskType(String),
 
+    #[error("sync: {0}")]
+    Sync(String),
+
     #[error(transparent)]
     Core(#[from] CoreError),
 

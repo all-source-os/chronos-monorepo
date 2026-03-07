@@ -111,6 +111,10 @@ pub struct ShowArgs {
 pub struct ClaimArgs {
     /// Task ID
     pub id: String,
+
+    /// Also claim all children (for epics)
+    #[arg(long)]
+    pub cascade: bool,
 }
 
 #[derive(clap::Args)]
@@ -121,6 +125,10 @@ pub struct DoneArgs {
     /// Reason or summary for completion
     #[arg(long)]
     pub reason: Option<String>,
+
+    /// Also mark all children as done (for epics)
+    #[arg(long)]
+    pub cascade: bool,
 }
 
 #[derive(clap::Args)]

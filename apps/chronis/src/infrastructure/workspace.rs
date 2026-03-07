@@ -85,6 +85,17 @@ pub fn init_workspace(path: &Path) -> Result<(), ChronError> {
     let config_path = chronis_dir.join("config.toml");
     std::fs::write(&config_path, "# Chronis workspace config\n")?;
 
+    // Create sync directory for git-based sync exchange
+    let sync_dir = chronis_dir.join("sync");
+    std::fs::create_dir_all(&sync_dir)?;
+
+    // Write .gitignore to track only sync exchange files
+    let gitignore_path = chronis_dir.join(".gitignore");
+    std::fs::write(
+        &gitignore_path,
+        "wal/\nstorage/\nsync/.remote_ids\nsync/.local_ids\n",
+    )?;
+
     println!("Initialized chronis workspace in {}", chronis_dir.display());
     Ok(())
 }

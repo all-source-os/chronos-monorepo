@@ -1,22 +1,52 @@
+use std::path::Path;
+
 use crate::{
     application::{
         add_dependency, approve_task, claim_task, complete_task, create_task, get_task, list_tasks,
         migrate_beads, remove_dependency, sync_git,
     },
     domain::{error::ChronError, repository::TaskRepository},
-    infrastructure::workspace,
+    infrastructure::{core_task_repo::CoreTaskRepository, workspace},
     presentation::{
         cli::{Command, DepCommands, TaskCommands},
         output::print_task_table,
     },
 };
 
+/// Collect task IDs for a cascade operation: the target plus all descendants.
+/// Without cascade, returns just the target ID.
+fn collect_cascade_ids(
+    repo: &CoreTaskRepository,
+    root_id: &str,
+    cascade: bool,
+) -> Result<Vec<String>, ChronError> {
+    if !cascade {
+        return Ok(vec![root_id.to_string()]);
+    }
+    let mut ids = Vec::new();
+    let mut stack = vec![root_id.to_string()];
+    while let Some(id) = stack.pop() {
+        let children = repo.children_of(&id)?;
+        for child in &children {
+            stack.push(child.id.clone());
+        }
+        ids.push(id);
+    }
+    // Children first, parent last (bottom-up order)
+    ids.reverse();
+    Ok(ids)
+}
+
 pub fn dispatch_init() -> Result<(), ChronError> {
     let cwd = std::env::current_dir()?;
     workspace::init_workspace(&cwd)
 }
 
-pub async fn dispatch(cmd: &Command, repo: &impl TaskRepository) -> Result<(), ChronError> {
+pub async fn dispatch(
+    cmd: &Command,
+    repo: &CoreTaskRepository,
+    workspace_root: &Path,
+) -> Result<(), ChronError> {
     match cmd {
         Command::Init => unreachable!(),
         Command::Task(args) => match &args.subcommand {
@@ -87,12 +117,26 @@ pub async fn dispatch(cmd: &Command, repo: &impl TaskRepository) -> Result<(), C
         }
         Command::Claim(args) => {
             let agent = crate::infrastructure::agent_id();
-            claim_task::claim_task(repo, &args.id, &agent).await?;
-            println!("Claimed task {} (agent: {agent})", args.id);
+            let ids = collect_cascade_ids(repo, &args.id, args.cascade)?;
+            for id in &ids {
+                let task = repo.get_task(id)?;
+                if task.status != crate::domain::task::TaskStatus::Open {
+                    continue;
+                }
+                claim_task::claim_task(repo, id, &agent).await?;
+                println!("Claimed task {id} (agent: {agent})");
+            }
         }
         Command::Done(args) => {
-            complete_task::complete_task(repo, &args.id, args.reason.as_deref()).await?;
-            println!("Completed task {}", args.id);
+            let ids = collect_cascade_ids(repo, &args.id, args.cascade)?;
+            for id in &ids {
+                let task = repo.get_task(id)?;
+                if task.status == crate::domain::task::TaskStatus::Done {
+                    continue;
+                }
+                complete_task::complete_task(repo, id, args.reason.as_deref()).await?;
+                println!("Completed task {id}");
+            }
         }
         Command::Approve(args) => {
             approve_task::approve_task(repo, &args.id).await?;
@@ -123,7 +167,7 @@ pub async fn dispatch(cmd: &Command, repo: &impl TaskRepository) -> Result<(), C
         }
         Command::Sync(args) => {
             if args.git {
-                sync_git::sync_git()?;
+                sync_git::sync_git(repo.core(), workspace_root).await?;
             } else {
                 println!("Use --git for git-based sync. CRDT sync is not yet implemented.");
             }

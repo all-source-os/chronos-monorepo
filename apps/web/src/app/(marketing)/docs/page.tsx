@@ -30,6 +30,13 @@ const cards = [
     external: false,
   },
   {
+    title: "Chronis CLI",
+    description:
+      "Event-sourced task CLI with git sync, cascade actions, and embedded TUI.",
+    href: "/docs/chronis",
+    external: false,
+  },
+  {
     title: "SDKs",
     description:
       "Client libraries for Rust, Go, Python, and TypeScript.",
