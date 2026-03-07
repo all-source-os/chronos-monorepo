@@ -58,18 +58,24 @@ export class ApiClient {
         credentials: "include", // Include cookies for auth
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      let data: Record<string, unknown>;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
         return {
-          error: data.error || {
+          error: (data.error as { code: string; message: string }) || {
             code: "unknown_error",
-            message: response.statusText,
+            message: response.statusText || `HTTP ${response.status}`,
           },
         };
       }
 
-      return { data: data.data ?? data };
+      return { data: ((data.data ?? data) as T) };
     } catch (error) {
       return {
         error: {

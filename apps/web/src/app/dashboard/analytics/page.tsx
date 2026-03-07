@@ -235,7 +235,7 @@ export default function AnalyticsPage() {
                               innerRadius={40}
                               outerRadius={80}
                               strokeWidth={2}
-                              stroke="hsl(var(--card))"
+                              stroke="var(--color-card)"
                             >
                               {eventTypeDistribution.slice(0, 10).map((_, i) => (
                                 <Cell
@@ -246,9 +246,10 @@ export default function AnalyticsPage() {
                             </Pie>
                             <Tooltip
                               contentStyle={{
-                                backgroundColor: "hsl(var(--card))",
-                                border: "1px solid hsl(var(--border))",
+                                backgroundColor: "var(--color-card)",
+                                border: "1px solid var(--color-border)",
                                 borderRadius: "8px",
+                                color: "var(--color-card-foreground)",
                               }}
                             />
                           </PieChart>
@@ -328,9 +329,10 @@ export default function AnalyticsPage() {
                           />
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              border: "1px solid hsl(var(--border))",
+                              backgroundColor: "var(--color-card)",
+                              border: "1px solid var(--color-border)",
                               borderRadius: "8px",
+                              color: "var(--color-card-foreground)",
                             }}
                           />
                           <Bar
