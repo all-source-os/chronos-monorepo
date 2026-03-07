@@ -1,8 +1,26 @@
 # Chronis
 
-Event-sourced task CLI powered by [AllSource](https://all-source.xyz), the embedded event database. Every action is an immutable event — state is derived from projections over the event stream.
+**The agent-native task CLI.** Event-sourced, TOON-optimized, built for AI agents and humans alike.
 
-Binary: `cn` | Crate: `chronis` | Storage: `.chronis/` | Author: [Decebal Dobrica](https://decebaldobrica.com)
+Inspired by [beads_rust](https://github.com/Dicklesworthstone/beads_rust) — the pioneering local-first issue tracker that proved agents can self-manage tasks via CLI. Chronis takes that idea further: every action is an immutable event, state is derived from projections, and output is optimized for LLM token consumption.
+
+Binary: `cn` | Crate: [`chronis`](https://crates.io/crates/chronis) | Storage: `.chronis/` | Powered by [AllSource](https://all-source.xyz)
+
+## Why Chronis?
+
+We built hundreds of tasks with beads_rust — 62+ issues across 280+ agent iterations. It works. But we kept hitting walls:
+
+| Problem with flat task trackers | Chronis solution |
+|---|---|
+| No event history — "how long was this blocked?" requires grepping git log | **Event sourcing** — every mutation is an immutable event with timestamps |
+| Agent output burns tokens — JSON lists, ASCII tables, verbose prose | **TOON output** — `--toon` flag cuts token consumption ~50% on every command |
+| No undo — agent closes wrong task, manual re-open is the only fix | **Temporal replay** — reconstruct state at any point from the event stream |
+| Cascade operations require scripting — closing an epic means N separate commands | **`--cascade`** — claim or close an epic and all children in one command |
+| Completed tasks clutter listings forever | **Archiving** — `cn archive --all-done` hides completed work, `cn unarchive` restores |
+| Git sync = `git commit && push`, merge conflicts stall agents | **Append-only JSONL sync** with UUID dedup — no merge conflicts, no duplicates |
+| No approval gates or workflow orchestration | **Event-sourced workflows** — claim, complete, approve with first-write-wins semantics |
+
+Credit where it's due: beads_rust by [@Dicklesworthstone](https://github.com/Dicklesworthstone) got the core workflow right — `ready -> claim -> done -> sync`. Chronis preserves that simplicity while adding the observability and durability that production agent systems need.
 
 ## Install
 
@@ -16,14 +34,74 @@ cargo install chronis
 cn init                                          # Create .chronis/ workspace
 cn task create "Design auth module" -p p0        # Create a task
 cn task create "Write tests" --type=bug          # Create a bug
-cn list                                          # List all tasks
-cn ready                                         # Show unblocked open tasks
-cn claim <id>                                    # Claim a task
-cn done <id> --reason="Shipped"                  # Complete a task
-cn show <id>                                     # Task detail + event timeline
-cn archive --all-done                            # Archive completed tasks
-cn sync --git                                    # Sync via git (pull/push)
+cn list                                          # List all tasks (human-readable)
+cn list --toon                                   # List all tasks (agent-optimized)
+cn ready --toon                                  # Show unblocked open tasks
+cn claim <id> --toon                             # Claim a task
+cn done <id> --toon                              # Complete a task
+cn archive --all-done                            # Clean up finished work
+cn sync                                          # Sync via git (pull/push)
 ```
+
+## TOON: Agent-Native Output
+
+This is chronis's signature feature. Pass `--toon` to **any command** for [TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) output — the same format used by AllSource's MCP server. No braces, no quotes, no wasted tokens.
+
+### The problem
+
+Traditional CLI tools output for humans. When an LLM agent runs `cn list`, it gets:
+
+```
+╭──────────┬──────┬──────────────────────┬─────┬─────────────┬─────────┬─────────╮
+│ ID       │ Type │ Title                │ Pri │ Status      │ Claimed │ Blocked │
+├──────────┼──────┼──────────────────────┼─────┼─────────────┼─────────┼─────────┤
+│ t-abc1   │ task │ Design auth module   │ p0  │ open        │ -       │ -       │
+│ t-abc2   │ bug  │ Fix login redirect   │ p1  │ in-progress │ agent-1 │ -       │
+│ t-abc3   │ task │ Write integration... │ p2  │ done        │ agent-2 │ -       │
+╰──────────┴──────┴──────────────────────┴─────┴─────────────┴─────────┴─────────╯
+```
+
+That's **~180 tokens** of box-drawing characters, padding, and repeated dashes that carry zero information for the model.
+
+### The solution
+
+```bash
+cn list --toon
+```
+
+```
+[id|type|title|pri|status|claimed|blocked_by|parent|archived]
+t-abc1|task|Design auth module|p0|open||||false
+t-abc2|bug|Fix login redirect|p1|in-progress|agent-1|||false
+t-abc3|task|Write integration tests|p2|done|agent-2|||false
+```
+
+**~60 tokens.** Same information, ~50% fewer tokens. Every field is positional, pipe-delimited, with a header row. LLMs parse this natively.
+
+### TOON across all commands
+
+| Command | Human output | TOON output |
+|---------|-------------|-------------|
+| `cn list --toon` | ASCII table | `[header]\nrow\nrow` |
+| `cn ready --toon` | ASCII table | `[header]\nrow\nrow` |
+| `cn show <id> --toon` | Multi-line prose | `key:value` lines + child/timeline tables |
+| `cn claim <id> --toon` | "Claimed task t-abc1 (agent: agent-1)" | `ok:claimed:t-abc1` |
+| `cn done <id> --toon` | "Completed task t-abc1" | `ok:done:t-abc1` |
+| `cn task create --toon` | "Created task t-abc1: Title" | `created:task:t-abc1:Title` |
+| `cn archive --toon` | "Archived task t-abc1" | `ok:archived:t-abc1` |
+
+### Agent workflow (4 commands, ~20 tokens of overhead)
+
+```bash
+export CN_AGENT_ID=agent-1
+cn ready --toon              # → [id|type|title|pri|status|...]\nt-abc1|task|...
+cn claim t-abc1 --toon       # → ok:claimed:t-abc1
+# ... agent does work ...
+cn done t-abc1 --toon        # → ok:done:t-abc1
+cn list --toon               # → verify state
+```
+
+Compare to JSON-based tools where the same loop burns ~200+ tokens on structural overhead alone.
 
 ## Commands
 
@@ -43,6 +121,8 @@ cn sync --git                                    # Sync via git (pull/push)
 | `cn archive --all-done` | | Archive all completed tasks |
 | `cn archive --done-before=30` | | Archive tasks done 30+ days ago |
 | `cn unarchive <ids...>` | | Restore archived tasks |
+
+All commands accept `--toon` for agent-optimized output.
 
 ### Task Creation Flags
 
@@ -94,7 +174,7 @@ cn dep remove <task-id> <blocker-id>   # Remove a blocker
 Sync chronis state across machines via git. Events are exported to an append-only JSONL file that git can merge naturally.
 
 ```bash
-cn sync --git     # Pull remote events, export local events, commit, push
+cn sync     # Pull remote events, export local events, commit, push
 ```
 
 **How it works:**
@@ -104,15 +184,15 @@ cn sync --git     # Pull remote events, export local events, commit, push
 3. Append new local events to the JSONL file
 4. `git commit` + `git push`
 
-Deduplication is handled via UUID tracking — each event is written once by its creating machine and never duplicated. Two local-only ID sets (`.remote_ids`, `.local_ids`) prevent re-import and re-export.
+Deduplication is handled via UUID tracking — each event is written once by its creating machine and never duplicated.
 
 **Multi-machine workflow:**
 
 ```bash
 # Machine A                    # Machine B
 cn task create "Auth" -p p0    cn task create "Docs" -p p2
-cn sync --git                  cn sync --git   # pulls A's tasks, pushes B's
-cn sync --git                  # pulls B's task
+cn sync                        cn sync          # pulls A's tasks, pushes B's
+cn sync                        # pulls B's task
 ```
 
 ### Visualization
@@ -123,54 +203,40 @@ cn serve [--port=3905]        # Embedded web viewer (Axum + HTMX)
 cn serve --open               # Auto-open browser
 ```
 
-### Migration
+### Migration from beads_rust
+
+One command migrates your existing beads issues to chronis — preserving IDs, status, priorities, dependencies, and parent-child relationships:
 
 ```bash
 cn migrate-beads              # Import issues from .beads/ directory
 cn migrate-beads --beads-dir=/path/to/.beads
 ```
 
-### Agent / TOON Output
+Both `.beads/` and `.chronis/` can coexist during transition. Nothing is deleted.
 
-Pass `--toon` to any command for [TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) output — ~50% fewer tokens than JSON. Pipe-delimited, no braces or quotes.
+## Chronis vs beads_rust
 
-```bash
-cn list --toon
-# [id|type|title|pri|status|claimed|blocked_by|parent|archived]
-# t-abc1|task|Design auth|p0|open||||false
-# t-abc2|bug|Fix login|p1|in-progress|agent-1|||false
+| Feature | beads_rust (`bd`) | Chronis (`cn`) |
+|---------|-------------------|----------------|
+| Storage model | SQLite + JSONL snapshot | Event-sourced (WAL + Parquet) |
+| History | Current state only | Full temporal event stream |
+| Agent output | JSON / human text | **TOON** (~50% fewer tokens) |
+| Cascade operations | Manual scripting | `--cascade` flag |
+| Archiving | Not available | `cn archive --all-done` |
+| Approval workflows | Not available | `cn approve` with event trail |
+| Git sync | `git commit && push` | Append-only JSONL with UUID dedup |
+| Undo | Manual re-open | Replay from event stream |
+| TUI | Separate binary (beads_viewer) | Built-in (`cn tui`) |
+| Web UI | Separate project | Built-in (`cn serve`) |
+| Queryable timeline | No | `cn show <id>` with full event history |
+| Data durability | SQLite | CRC32 WAL + Snappy Parquet |
 
-cn show t-abc1 --toon
-# id:t-abc1
-# type:task
-# title:Design auth
-# priority:p0
-# status:open
-# archived:false
-# ---
-
-cn claim t-abc1 --toon
-# ok:claimed:t-abc1
-
-cn done t-abc1 --toon
-# ok:done:t-abc1
-```
-
-Agent workflow with minimal token overhead:
-
-```bash
-export CN_AGENT_ID=agent-1
-cn ready --toon              # Pick a task
-cn claim <id> --toon         # Claim it
-# ... do work ...
-cn done <id> --toon          # Mark done
-cn list --toon               # Verify state
-```
+Both tools share the same core workflow: `ready -> claim -> done -> sync`. If you're coming from beads_rust, the transition is straightforward — and `cn migrate-beads` handles the data.
 
 ## Workflow
 
 ```
-cn ready  -->  cn claim <id>  -->  (do work)  -->  cn done <id>  -->  cn archive --all-done  -->  cn sync --git
+cn ready  -->  cn claim <id>  -->  (do work)  -->  cn done <id>  -->  cn archive --all-done  -->  cn sync
 ```
 
 For agent orchestration, set `CN_AGENT_ID` to identify which agent claims tasks:
@@ -232,3 +298,7 @@ cargo fmt --check             # Formatting
 cargo clippy -- -D warnings   # Lints (zero warnings)
 cargo test                    # Integration tests
 ```
+
+## Acknowledgments
+
+Chronis exists because [beads_rust](https://github.com/Dicklesworthstone/beads_rust) proved that agents can self-manage tasks through a simple CLI. The `ready -> claim -> done -> sync` workflow that beads_rust pioneered is the foundation chronis builds on. We're grateful to [@Dicklesworthstone](https://github.com/Dicklesworthstone) and the beads community for blazing that trail.

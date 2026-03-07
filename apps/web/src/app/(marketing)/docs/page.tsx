@@ -32,7 +32,7 @@ const cards = [
   {
     title: "Chronis CLI",
     description:
-      "Event-sourced task CLI with git sync, cascade actions, and embedded TUI.",
+      "Agent-native task CLI with TOON output (~50% fewer tokens), event sourcing, cascade actions, and archiving.",
     href: "/docs/chronis",
     external: false,
   },

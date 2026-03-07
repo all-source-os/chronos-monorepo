@@ -5,18 +5,21 @@ use crate::domain::task::{Priority, TaskType};
 #[derive(Parser)]
 #[command(
     name = "cn",
-    about = "Chronis — event-sourced task CLI",
-    long_about = "Chronis — event-sourced task CLI powered by AllSource.\n\n\
-        Every action emits an immutable event. State is derived from projections.\n\n\
-        AGENT USAGE:\n  \
-          Pass --toon for TOON (Token-Oriented Object Notation) output.\n  \
-          TOON uses ~50% fewer tokens than JSON — pipe-delimited, no braces/quotes.\n  \
-          Format: [col|col]\\nval|val\\nval|val\n\n\
-        AGENT WORKFLOW:\n  \
-          cn ready --toon          → pick a task\n  \
-          cn claim <id>  --toon    → claim it\n  \
-          cn done <id>   --toon    → mark done\n  \
-          cn list --toon           → verify state\n\n\
+    about = "Chronis — the agent-native task CLI",
+    long_about = "Chronis — the agent-native task CLI. Event-sourced, TOON-optimized.\n\n\
+        Inspired by beads_rust. Every action is an immutable event.\n\
+        State is derived from projections over the event stream.\n\n\
+        TOON OUTPUT (the key differentiator):\n  \
+          Pass --toon to ANY command for TOON (Token-Oriented Object Notation).\n  \
+          ~50% fewer tokens than JSON — pipe-delimited, no braces, no quotes.\n  \
+          Lists:    [id|type|title|pri|status|...]\\n val|val|val\n  \
+          Details:  key:value lines\n  \
+          Actions:  ok:verb:id (single-line ack)\n\n\
+        AGENT WORKFLOW (4 commands, ~20 tokens overhead):\n  \
+          cn ready --toon          → pick a task from TOON table\n  \
+          cn claim <id>  --toon    → ok:claimed:<id>\n  \
+          cn done <id>   --toon    → ok:done:<id>\n  \
+          cn list --toon           → verify final state\n\n\
         QUICK REFERENCE:\n  \
           cn task create <title>   Create task (-p priority, -t type, --parent, --blocked-by, -d desc)\n  \
           cn list [--status=S]     List tasks (--archived, --all, --toon)\n  \
@@ -30,7 +33,9 @@ use crate::domain::task::{Priority, TaskType};
           cn dep add|remove        Manage blockers\n  \
           cn sync                  Git-based sync (pull→import→export→push)\n  \
           cn tui                   Interactive TUI\n  \
-          cn serve                 Web viewer"
+          cn serve                 Web viewer\n\n\
+        MIGRATE FROM BEADS:\n  \
+          cn migrate-beads         Import .beads/issues.jsonl → chronis events"
 )]
 pub struct Cli {
     /// Output TOON format (Token-Oriented Object Notation) for agents/scripts — ~50% fewer tokens
