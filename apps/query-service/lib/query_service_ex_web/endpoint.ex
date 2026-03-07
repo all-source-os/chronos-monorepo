@@ -56,7 +56,13 @@ defmodule QueryServiceExWeb.Endpoint do
     origin: &QueryServiceExWeb.Endpoint.cors_origins/0,
     credentials: false,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    headers: ["authorization", "content-type", "x-api-key", "x-correlation-id", "x-requested-with"],
+    headers: [
+      "authorization",
+      "content-type",
+      "x-api-key",
+      "x-correlation-id",
+      "x-requested-with"
+    ],
     expose: ["x-correlation-id"],
     max_age: 86_400
   )

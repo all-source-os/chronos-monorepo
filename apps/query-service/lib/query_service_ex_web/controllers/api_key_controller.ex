@@ -63,7 +63,11 @@ defmodule QueryServiceExWeb.ApiKeyController do
     case sign_api_key(key_id, tenant_id, name) do
       {:ok, secret} ->
         description = params["description"]
-        scopes = params["scopes"] || ["events:read", "events:write", "queries:execute", "projections:read"]
+
+        scopes =
+          params["scopes"] ||
+            ["events:read", "events:write", "queries:execute", "projections:read"]
+
         expires_at = params["expires_at"]
         key_prefix = String.slice(secret, 0, 12)
 
