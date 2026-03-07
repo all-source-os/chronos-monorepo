@@ -1,8 +1,4 @@
-use std::collections::HashSet;
-use std::fs::OpenOptions;
-use std::io::Write as _;
-use std::path::Path;
-use std::process::Command;
+use std::{collections::HashSet, fs::OpenOptions, io::Write as _, path::Path, process::Command};
 
 use allsource_core::embedded::{EmbeddedCore, IngestEvent, Query};
 use serde::{Deserialize, Serialize};
@@ -57,9 +53,7 @@ fn ensure_git_repo() -> Result<(), ChronError> {
 }
 
 fn git_pull() -> Result<(), ChronError> {
-    let output = Command::new("git")
-        .args(["pull", "--rebase"])
-        .output()?;
+    let output = Command::new("git").args(["pull", "--rebase"]).output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(ChronError::Sync(format!(

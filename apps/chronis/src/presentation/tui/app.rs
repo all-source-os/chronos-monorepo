@@ -158,7 +158,10 @@ impl<R: TaskRepository> App<R> {
     /// Get the currently focused task (works for both views)
     pub fn focused_task_id(&self) -> Option<String> {
         match self.view {
-            View::Dashboard | View::Graph => self.filtered_tasks().get(self.selected_index).map(|t| t.id.clone()),
+            View::Dashboard | View::Graph => self
+                .filtered_tasks()
+                .get(self.selected_index)
+                .map(|t| t.id.clone()),
             View::Kanban => {
                 let status = match self.kanban_column {
                     KanbanColumn::Open => TaskStatus::Open,
@@ -238,7 +241,10 @@ impl<R: TaskRepository> App<R> {
 
     pub fn copy_focused(&mut self) {
         let task = match self.focused_task_id().and_then(|id| {
-            self.filtered_tasks().into_iter().find(|t| t.id == id).cloned()
+            self.filtered_tasks()
+                .into_iter()
+                .find(|t| t.id == id)
+                .cloned()
         }) {
             Some(t) => t,
             None => {
@@ -258,7 +264,10 @@ impl<R: TaskRepository> App<R> {
             md.push_str(&format!("- **Claimed:** {claimed}\n"));
         }
         if !task.blocked_by.is_empty() {
-            md.push_str(&format!("- **Blocked by:** {}\n", task.blocked_by.join(", ")));
+            md.push_str(&format!(
+                "- **Blocked by:** {}\n",
+                task.blocked_by.join(", ")
+            ));
         }
         if let Some(ref desc) = task.description {
             md.push_str(&format!("\n{desc}\n"));
@@ -276,7 +285,10 @@ impl<R: TaskRepository> App<R> {
         let md = crate::presentation::shared::export_markdown(&self.tasks);
 
         match std::fs::write(&filename, &md) {
-            Ok(()) => self.status_message = Some(format!("Exported {} tasks to {filename}", self.tasks.len())),
+            Ok(()) => {
+                self.status_message =
+                    Some(format!("Exported {} tasks to {filename}", self.tasks.len()))
+            }
             Err(e) => self.status_message = Some(format!("Export failed: {e}")),
         }
     }

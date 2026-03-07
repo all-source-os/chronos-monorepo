@@ -1,14 +1,16 @@
 use std::path::Path;
 
+use chrono::Utc;
+
 use crate::{
     application::{
-        add_dependency, approve_task, claim_task, complete_task, create_task, get_task, list_tasks,
-        migrate_beads, remove_dependency, sync_git,
+        add_dependency, approve_task, archive_task, claim_task, complete_task, create_task,
+        get_task, list_tasks, migrate_beads, remove_dependency, sync_git,
     },
     domain::{error::ChronError, repository::TaskRepository},
     infrastructure::{core_task_repo::CoreTaskRepository, workspace},
     presentation::{
-        cli::{Command, DepCommands, TaskCommands},
+        cli::{ArchiveArgs, Command, DepCommands, TaskCommands},
         output::print_task_table,
     },
 };
@@ -35,6 +37,46 @@ fn collect_cascade_ids(
     // Children first, parent last (bottom-up order)
     ids.reverse();
     Ok(ids)
+}
+
+/// Resolve which task IDs to archive based on CLI args.
+fn resolve_archive_ids(
+    repo: &CoreTaskRepository,
+    args: &ArchiveArgs,
+) -> Result<Vec<String>, ChronError> {
+    use crate::domain::task::TaskStatus;
+
+    if !args.ids.is_empty() {
+        return Ok(args.ids.clone());
+    }
+
+    // Get all tasks including non-archived ones via list_tasks_all
+    let all = repo.list_tasks_all(None)?;
+
+    if args.all_done {
+        return Ok(all
+            .into_iter()
+            .filter(|t| t.status == TaskStatus::Done && !t.archived)
+            .map(|t| t.id)
+            .collect());
+    }
+
+    if let Some(days) = args.done_before {
+        let cutoff = Utc::now() - chrono::Duration::days(days as i64);
+        return Ok(all
+            .into_iter()
+            .filter(|t| {
+                t.status == TaskStatus::Done
+                    && !t.archived
+                    && t.done_at.is_some_and(|done_at| done_at < cutoff)
+            })
+            .map(|t| t.id)
+            .collect());
+    }
+
+    Err(ChronError::Sync(
+        "specify task IDs, --all-done, or --done-before".to_string(),
+    ))
 }
 
 pub fn dispatch_init() -> Result<(), ChronError> {
@@ -70,7 +112,13 @@ pub async fn dispatch(
             }
         },
         Command::List(args) => {
-            let tasks = list_tasks::list_tasks(repo, args.status.as_deref())?;
+            let tasks = if args.archived {
+                repo.list_tasks_archived()?
+            } else if args.all {
+                repo.list_tasks_all(args.status.as_deref())?
+            } else {
+                list_tasks::list_tasks(repo, args.status.as_deref())?
+            };
             print_task_table(&tasks);
         }
         Command::Show(args) => {
@@ -142,6 +190,22 @@ pub async fn dispatch(
             approve_task::approve_task(repo, &args.id).await?;
             println!("Approved task {}", args.id);
         }
+        Command::Archive(args) => {
+            let ids = resolve_archive_ids(repo, args)?;
+            if ids.is_empty() {
+                println!("No tasks to archive.");
+            }
+            for id in &ids {
+                archive_task::archive_task(repo, id).await?;
+                println!("Archived task {id}");
+            }
+        }
+        Command::Unarchive(args) => {
+            for id in &args.ids {
+                archive_task::unarchive_task(repo, id).await?;
+                println!("Unarchived task {id}");
+            }
+        }
         Command::Dep(args) => match &args.subcommand {
             DepCommands::Add(a) => {
                 add_dependency::add_dependency(repo, &a.task_id, &a.blocker_id).await?;
@@ -165,12 +229,8 @@ pub async fn dispatch(
                 result.migrated, result.skipped
             );
         }
-        Command::Sync(args) => {
-            if args.git {
-                sync_git::sync_git(repo.core(), workspace_root).await?;
-            } else {
-                println!("Use --git for git-based sync. CRDT sync is not yet implemented.");
-            }
+        Command::Sync(_) => {
+            sync_git::sync_git(repo.core(), workspace_root).await?;
         }
         Command::Tui | Command::Serve(_) => {
             unreachable!("handled in main.rs")

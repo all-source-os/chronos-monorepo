@@ -16,10 +16,10 @@ pub fn render<R: TaskRepository>(f: &mut Frame, app: &App<R>) {
     let is_searching = app.input_mode == InputMode::Search || !app.search_query.is_empty();
 
     let chunks = Layout::vertical([
-        Constraint::Length(1), // title bar
+        Constraint::Length(1),                                // title bar
         Constraint::Length(if is_searching { 1 } else { 0 }), // search bar
-        Constraint::Min(0),    // main view
-        Constraint::Length(1), // status bar
+        Constraint::Min(0),                                   // main view
+        Constraint::Length(1),                                // status bar
     ])
     .split(f.area());
 
@@ -29,9 +29,21 @@ pub fn render<R: TaskRepository>(f: &mut Frame, app: &App<R>) {
         View::Kanban => "Kanban",
         View::Graph => "Graph",
     };
-    let open = app.tasks.iter().filter(|t| t.status == TaskStatus::Open).count();
-    let progress = app.tasks.iter().filter(|t| t.status == TaskStatus::InProgress).count();
-    let done = app.tasks.iter().filter(|t| t.status == TaskStatus::Done).count();
+    let open = app
+        .tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Open)
+        .count();
+    let progress = app
+        .tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::InProgress)
+        .count();
+    let done = app
+        .tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Done)
+        .count();
 
     let title = Line::from(vec![
         Span::styled(
@@ -46,7 +58,10 @@ pub fn render<R: TaskRepository>(f: &mut Frame, app: &App<R>) {
         Span::raw("  "),
         Span::styled(format!("{open} open"), Style::default().fg(Color::Green)),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
-        Span::styled(format!("{progress} in-progress"), Style::default().fg(Color::Yellow)),
+        Span::styled(
+            format!("{progress} in-progress"),
+            Style::default().fg(Color::Yellow),
+        ),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
         Span::styled(format!("{done} done"), Style::default().fg(Color::DarkGray)),
     ]);
@@ -56,10 +71,20 @@ pub fn render<R: TaskRepository>(f: &mut Frame, app: &App<R>) {
     if is_searching {
         let match_count = app.filtered_tasks().len();
         let search_line = Line::from(vec![
-            Span::styled(" /", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " /",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(&app.search_query),
             if app.input_mode == InputMode::Search {
-                Span::styled("_", Style::default().fg(Color::White).add_modifier(Modifier::SLOW_BLINK))
+                Span::styled(
+                    "_",
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::SLOW_BLINK),
+                )
             } else {
                 Span::raw("")
             },

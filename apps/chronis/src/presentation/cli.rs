@@ -40,6 +40,12 @@ pub enum Command {
     /// Approve a task
     Approve(ApproveArgs),
 
+    /// Archive tasks (hide from default listings)
+    Archive(ArchiveArgs),
+
+    /// Unarchive a task
+    Unarchive(UnarchiveArgs),
+
     /// Manage task dependencies
     Dep(DepArgs),
 
@@ -99,6 +105,14 @@ pub struct ListArgs {
     /// Filter by status (open, in-progress, done)
     #[arg(short, long)]
     pub status: Option<String>,
+
+    /// Show only archived tasks
+    #[arg(long)]
+    pub archived: bool,
+
+    /// Show all tasks (including archived)
+    #[arg(long)]
+    pub all: bool,
 }
 
 #[derive(clap::Args)]
@@ -135,6 +149,26 @@ pub struct DoneArgs {
 pub struct ApproveArgs {
     /// Task ID
     pub id: String,
+}
+
+#[derive(clap::Args)]
+pub struct ArchiveArgs {
+    /// Task IDs to archive
+    pub ids: Vec<String>,
+
+    /// Archive all done tasks
+    #[arg(long)]
+    pub all_done: bool,
+
+    /// Archive tasks done before N days ago (e.g., 30)
+    #[arg(long, value_name = "DAYS")]
+    pub done_before: Option<u64>,
+}
+
+#[derive(clap::Args)]
+pub struct UnarchiveArgs {
+    /// Task IDs to unarchive
+    pub ids: Vec<String>,
 }
 
 #[derive(clap::Args)]
@@ -176,8 +210,8 @@ pub struct MigrateBeadsArgs {
 
 #[derive(clap::Args)]
 pub struct SyncArgs {
-    /// Sync via git (add .chronis/, commit, push)
-    #[arg(long)]
+    /// Sync via git (pull, import, export, commit, push) [default]
+    #[arg(long, default_value_t = true)]
     pub git: bool,
 }
 

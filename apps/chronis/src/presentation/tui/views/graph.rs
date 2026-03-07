@@ -7,8 +7,10 @@ use ratatui::{
 };
 
 use super::super::app::App;
-use crate::domain::{repository::TaskRepository, task::TaskStatus};
-use crate::presentation::shared::TaskTree;
+use crate::{
+    domain::{repository::TaskRepository, task::TaskStatus},
+    presentation::shared::TaskTree,
+};
 
 pub fn render<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
     let block = Block::default()
@@ -39,7 +41,9 @@ pub fn render<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
     if !tree.standalone.is_empty() && !tree.epics.is_empty() {
         lines.push(Line::styled(
             "Standalone Tasks",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ));
     }
 
@@ -57,10 +61,15 @@ pub fn render<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
     }
 
     if lines.is_empty() {
-        lines.push(Line::styled("No tasks", Style::default().fg(Color::DarkGray)));
+        lines.push(Line::styled(
+            "No tasks",
+            Style::default().fg(Color::DarkGray),
+        ));
     }
 
-    let paragraph = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .wrap(Wrap { trim: false });
     f.render_widget(paragraph, area);
 }
 

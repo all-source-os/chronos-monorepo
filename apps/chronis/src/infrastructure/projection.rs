@@ -141,6 +141,16 @@ impl Projection for TaskProjection {
                     state["approved_at"] = json!(event.timestamp().to_rfc3339());
                 }
             }
+            "task.archived" => {
+                if let Some(mut state) = self.states.get_mut(&entity_id) {
+                    state["archived"] = json!(true);
+                }
+            }
+            "task.unarchived" => {
+                if let Some(mut state) = self.states.get_mut(&entity_id) {
+                    state["archived"] = json!(false);
+                }
+            }
             _ => {}
         }
 

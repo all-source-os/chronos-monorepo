@@ -3,13 +3,17 @@ mod event;
 mod ui;
 mod views;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use crate::infrastructure::core_task_repo::CoreTaskRepository;
 use app::App;
-use event::{handle_event, poll_event, AppEvent};
+use event::{AppEvent, handle_event, poll_event};
 
 pub async fn run(repo: CoreTaskRepository) -> anyhow::Result<()> {
     // Install panic hook that restores terminal before printing panic

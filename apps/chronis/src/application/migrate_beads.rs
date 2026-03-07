@@ -126,15 +126,18 @@ pub async fn migrate_beads(
 
         // Apply status transitions
         match issue.status.as_str() {
-            "in_progress" | "in-progress" => {
+            "open" => {} // no transition needed
+            "in_progress" | "in-progress" | "inprogress" => {
                 repo.claim_task(&id, "migrated").await?;
             }
-            "closed" => {
+            "closed" | "done" => {
                 repo.claim_task(&id, "migrated").await?;
                 repo.complete_task(&id, issue.close_reason.as_deref())
                     .await?;
             }
-            _ => {} // "open" — no transition needed
+            other => {
+                eprintln!("Warning: unknown status '{other}' for {id}, leaving as open");
+            }
         }
 
         migrated += 1;

@@ -116,14 +116,8 @@ fn render_detail<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
         let label = Style::default().fg(Color::Yellow);
 
         let mut lines = vec![
-            Line::from(vec![
-                Span::styled("ID: ", label),
-                Span::raw(&task.id),
-            ]),
-            Line::from(vec![
-                Span::styled("Title: ", label),
-                Span::raw(&task.title),
-            ]),
+            Line::from(vec![Span::styled("ID: ", label), Span::raw(&task.id)]),
+            Line::from(vec![Span::styled("Title: ", label), Span::raw(&task.title)]),
             Line::from(vec![
                 Span::styled("Type: ", label),
                 Span::raw(task.task_type.to_string()),
@@ -174,7 +168,10 @@ fn render_detail<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
             ]));
         } else if task.approved == Some(true) {
             let approved_text = if let Some(ref at) = task.approved_at {
-                format!("approved at {}", crate::presentation::shared::fmt_timestamp(at))
+                format!(
+                    "approved at {}",
+                    crate::presentation::shared::fmt_timestamp(at)
+                )
             } else {
                 "approved".to_string()
             };
@@ -228,7 +225,9 @@ fn render_detail<R: TaskRepository>(f: &mut Frame, area: Rect, app: &App<R>) {
             }
         }
 
-        let paragraph = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
+        let paragraph = Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false });
         f.render_widget(paragraph, area);
     } else {
         let hint = Paragraph::new("Press Enter to load task detail")
@@ -257,10 +256,7 @@ fn render_markdown<'a>(text: &'a str, lines: &mut Vec<Line<'a>>) {
         if in_code_block {
             lines.push(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(
-                    raw_line,
-                    Style::default().fg(Color::Green),
-                ),
+                Span::styled(raw_line, Style::default().fg(Color::Green)),
             ]));
             continue;
         }

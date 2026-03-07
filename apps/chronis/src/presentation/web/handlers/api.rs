@@ -6,8 +6,10 @@ use axum::{
 use serde::Deserialize;
 
 use super::error::AppError;
-use crate::domain::{repository::TaskRepository, task::Task};
-use crate::presentation::web::state::AppState;
+use crate::{
+    domain::{repository::TaskRepository, task::Task},
+    presentation::web::state::AppState,
+};
 
 #[derive(Deserialize)]
 pub struct TaskFilter {
@@ -55,9 +57,7 @@ pub async fn api_approve(
     Ok((StatusCode::OK, [("HX-Trigger", "refresh")], "OK"))
 }
 
-pub async fn api_export(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
+pub async fn api_export(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let tasks = state.repo.list_tasks(None)?;
     let md = crate::presentation::shared::export_markdown(&tasks);
 

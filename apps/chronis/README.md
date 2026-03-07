@@ -21,6 +21,7 @@ cn ready                                         # Show unblocked open tasks
 cn claim <id>                                    # Claim a task
 cn done <id> --reason="Shipped"                  # Complete a task
 cn show <id>                                     # Task detail + event timeline
+cn archive --all-done                            # Archive completed tasks
 cn sync --git                                    # Sync via git (pull/push)
 ```
 
@@ -38,6 +39,10 @@ cn sync --git                                    # Sync via git (pull/push)
 | `cn claim <id>` | `cn c` | Claim a task (uses `CN_AGENT_ID` env var, defaults to "human") |
 | `cn done <id> [--reason=...]` | `cn d` | Mark a task as done |
 | `cn approve <id>` | | Approve a task |
+| `cn archive <ids...>` | | Archive tasks (hide from default listings) |
+| `cn archive --all-done` | | Archive all completed tasks |
+| `cn archive --done-before=30` | | Archive tasks done 30+ days ago |
+| `cn unarchive <ids...>` | | Restore archived tasks |
 
 ### Task Creation Flags
 
@@ -61,6 +66,21 @@ cn done <epic-id> --cascade --reason="Sprint complete"
 ```
 
 Cascade walks the parent-child tree depth-first, processing children before the parent. Tasks already in the target state are skipped.
+
+### Archiving
+
+Archive tasks to declutter your default listings. Archived tasks are hidden from `cn list` and `cn ready` but preserved in the event stream — nothing is deleted.
+
+```bash
+cn archive t-abc1 t-abc2                 # Archive specific tasks
+cn archive --all-done                    # Archive all completed tasks
+cn archive --done-before 30              # Archive tasks done 30+ days ago
+cn unarchive t-abc1                      # Restore an archived task
+
+cn list                                  # Excludes archived (default)
+cn list --archived                       # Show only archived tasks
+cn list --all                            # Show everything including archived
+```
 
 ### Dependencies
 
@@ -113,7 +133,7 @@ cn migrate-beads --beads-dir=/path/to/.beads
 ## Workflow
 
 ```
-cn ready  -->  cn claim <id>  -->  (do work)  -->  cn done <id>  -->  cn sync --git
+cn ready  -->  cn claim <id>  -->  (do work)  -->  cn done <id>  -->  cn archive --all-done  -->  cn sync --git
 ```
 
 For agent orchestration, set `CN_AGENT_ID` to identify which agent claims tasks:
@@ -165,6 +185,8 @@ All state is derived from these events:
 | `workflow.claimed` | `cn claim` (first-write-wins) |
 | `workflow.step.completed` | `cn done` |
 | `workflow.approval.granted` | `cn approve` |
+| `task.archived` | `cn archive` |
+| `task.unarchived` | `cn unarchive` |
 
 ## Quality Gates
 

@@ -34,6 +34,27 @@ impl CoreTaskRepository {
             .unwrap_or_else(|| json!({ "tasks": [] }));
         all["tasks"].as_array().cloned().unwrap_or_default()
     }
+
+    pub fn list_tasks_archived(&self) -> Result<Vec<Task>, ChronError> {
+        let raw = self.all_tasks_raw();
+        let filtered: Vec<_> = raw
+            .into_iter()
+            .filter(|t| t["archived"].as_bool().unwrap_or(false))
+            .collect();
+        filtered.iter().map(|v| self.value_to_task(v)).collect()
+    }
+
+    pub fn list_tasks_all(&self, status: Option<&str>) -> Result<Vec<Task>, ChronError> {
+        let raw = self.all_tasks_raw();
+        let filtered: Vec<_> = if let Some(status) = status {
+            raw.into_iter()
+                .filter(|t| t["status"].as_str().unwrap_or("") == status)
+                .collect()
+        } else {
+            raw
+        };
+        filtered.iter().map(|v| self.value_to_task(v)).collect()
+    }
 }
 
 impl TaskRepository for CoreTaskRepository {
@@ -47,13 +68,17 @@ impl TaskRepository for CoreTaskRepository {
 
     fn list_tasks(&self, status: Option<&str>) -> Result<Vec<Task>, ChronError> {
         let raw = self.all_tasks_raw();
-        let filtered: Vec<_> = if let Some(status) = status {
-            raw.into_iter()
-                .filter(|t| t["status"].as_str().unwrap_or("") == status)
-                .collect()
-        } else {
-            raw
-        };
+        let filtered: Vec<_> = raw
+            .into_iter()
+            .filter(|t| {
+                if let Some(status) = status {
+                    t["status"].as_str().unwrap_or("") == status
+                } else {
+                    true
+                }
+            })
+            .filter(|t| !t["archived"].as_bool().unwrap_or(false))
+            .collect();
         filtered.iter().map(|v| self.value_to_task(v)).collect()
     }
 
@@ -68,6 +93,7 @@ impl TaskRepository for CoreTaskRepository {
 
         let ready: Vec<_> = raw
             .into_iter()
+            .filter(|t| !t["archived"].as_bool().unwrap_or(false))
             .filter(|t| t["status"].as_str() == Some("open"))
             .filter(|t| {
                 let blocked_by = t["blocked_by"].as_array();
@@ -237,6 +263,40 @@ impl TaskRepository for CoreTaskRepository {
                 entity_id: task_id,
                 event_type: "task.dependency.removed",
                 payload: json!({ "depends_on": blocker_id }),
+                metadata: None,
+                tenant_id: None,
+            })
+            .await
+            .map_err(|e| CoreError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn archive_task(&self, id: &str) -> Result<(), ChronError> {
+        self.get_task(id)?;
+
+        self.core
+            .ingest(IngestEvent {
+                entity_id: id,
+                event_type: "task.archived",
+                payload: json!({}),
+                metadata: None,
+                tenant_id: None,
+            })
+            .await
+            .map_err(|e| CoreError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn unarchive_task(&self, id: &str) -> Result<(), ChronError> {
+        self.get_task(id)?;
+
+        self.core
+            .ingest(IngestEvent {
+                entity_id: id,
+                event_type: "task.unarchived",
+                payload: json!({}),
                 metadata: None,
                 tenant_id: None,
             })

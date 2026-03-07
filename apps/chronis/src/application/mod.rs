@@ -1,5 +1,6 @@
 pub mod add_dependency;
 pub mod approve_task;
+pub mod archive_task;
 pub mod claim_task;
 pub mod complete_task;
 pub mod create_task;

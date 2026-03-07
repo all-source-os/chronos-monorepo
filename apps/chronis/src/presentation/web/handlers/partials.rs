@@ -10,20 +10,28 @@ use super::{
         task_row_html, type_badge,
     },
 };
-use crate::domain::{
-    repository::TaskRepository,
-    task::{Task, TaskStatus},
+use crate::{
+    domain::{
+        repository::TaskRepository,
+        task::{Task, TaskStatus},
+    },
+    presentation::{shared::TaskTree, web::state::AppState},
 };
-use crate::presentation::{shared::TaskTree, web::state::AppState};
 
 pub async fn partial_stats(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let tasks = state.repo.list_tasks(None)?;
-    let open = tasks.iter().filter(|t| t.status == TaskStatus::Open).count();
+    let open = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Open)
+        .count();
     let progress = tasks
         .iter()
         .filter(|t| t.status == TaskStatus::InProgress)
         .count();
-    let done = tasks.iter().filter(|t| t.status == TaskStatus::Done).count();
+    let done = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Done)
+        .count();
 
     Ok(Html(format!(
         r#"<span class="stat"><span class="stat-dot open"></span>{open} open</span>
@@ -97,9 +105,9 @@ pub async fn partial_task_detail(
     // Created at
     if let Some(ref created) = task.created_at {
         html.push_str("  <dt>Created</dt><dd>");
-        html.push_str(&html_escape(
-            &crate::presentation::shared::fmt_timestamp(created),
-        ));
+        html.push_str(&html_escape(&crate::presentation::shared::fmt_timestamp(
+            created,
+        )));
         html.push_str("</dd>\n");
     }
 
@@ -124,9 +132,7 @@ pub async fn partial_task_detail(
         } else {
             String::from("approved")
         };
-        html.push_str(
-            "<dl><dt>Approval</dt><dd><span class=\"approval-badge approval-approved\">",
-        );
+        html.push_str("<dl><dt>Approval</dt><dd><span class=\"approval-badge approval-approved\">");
         html.push_str(&html_escape(&text));
         html.push_str("</span></dd></dl>");
     }
@@ -139,9 +145,9 @@ pub async fn partial_task_detail(
     }
     if let Some(ref done_at) = task.done_at {
         html.push_str("<dl><dt>Done at</dt><dd>");
-        html.push_str(&html_escape(
-            &crate::presentation::shared::fmt_timestamp(done_at),
-        ));
+        html.push_str(&html_escape(&crate::presentation::shared::fmt_timestamp(
+            done_at,
+        )));
         html.push_str("</dd></dl>");
     }
 

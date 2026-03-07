@@ -71,4 +71,14 @@ pub trait TaskRepository: Send + Sync {
         &self,
         id: &str,
     ) -> impl std::future::Future<Output = Result<TaskDetail, ChronError>> + Send;
+
+    fn archive_task(
+        &self,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<(), ChronError>> + Send;
+
+    fn unarchive_task(
+        &self,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<(), ChronError>> + Send;
 }

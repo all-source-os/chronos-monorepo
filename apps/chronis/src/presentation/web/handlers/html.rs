@@ -23,7 +23,10 @@ pub fn pri_badge(task: &Task) -> String {
         Priority::P2 => "pri-p2",
         Priority::P3 => "pri-p3",
     };
-    format!(r#"<span class="pri-badge {class}">{}</span>"#, task.priority)
+    format!(
+        r#"<span class="pri-badge {class}">{}</span>"#,
+        task.priority
+    )
 }
 
 pub fn task_row_html(task: &Task) -> String {

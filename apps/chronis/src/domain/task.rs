@@ -121,4 +121,6 @@ pub struct Task {
     pub approved: Option<bool>,
     pub approved_at: Option<DateTime<Utc>>,
     pub description: Option<String>,
+    #[serde(default)]
+    pub archived: bool,
 }
