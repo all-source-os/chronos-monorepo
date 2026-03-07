@@ -27,10 +27,15 @@ async function proxyToQueryService(request: NextRequest, path: string): Promise<
     "content-type": request.headers.get("content-type") || "application/json",
   };
 
-  // Forward auth headers
+  // Forward auth: prefer explicit Authorization header, fall back to auth_token cookie
   const authorization = request.headers.get("authorization");
   if (authorization) {
     headers.authorization = authorization;
+  } else {
+    const authToken = request.cookies.get("auth_token")?.value;
+    if (authToken) {
+      headers.authorization = `Bearer ${authToken}`;
+    }
   }
   const cookie = request.headers.get("cookie");
   if (cookie) {
