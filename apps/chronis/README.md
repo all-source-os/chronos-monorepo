@@ -246,6 +246,54 @@ export CN_AGENT_ID=agent-1
 cn claim <id>     # Records "agent-1" as the claimer
 ```
 
+## Best Practices
+
+### Git Ignore for `.chronis/`
+
+Add these rules to your project's `.gitignore`. The principle: **ignore binary, track text.**
+
+```gitignore
+# Chronis (local event store data — sync exchange files are tracked)
+.chronis/wal/
+.chronis/storage/
+.chronis/sync/.remote_ids
+.chronis/sync/.local_ids
+```
+
+| Path | Contents | Git? | Why |
+|------|----------|------|-----|
+| `.chronis/wal/` | WAL segments (binary, CRC32) | **Ignore** | Machine-local binary, causes merge conflicts |
+| `.chronis/storage/` | Parquet files (binary, Snappy) | **Ignore** | Machine-local, rebuilt from WAL on startup |
+| `.chronis/sync/events.jsonl` | Append-only event log | **Track** | How `cn sync` shares events between machines |
+| `.chronis/sync/.remote_ids` | Imported event UUIDs | **Ignore** | Local dedup state per machine |
+| `.chronis/sync/.local_ids` | Exported event UUIDs | **Ignore** | Local dedup state per machine |
+| `.chronis/config.toml` | Workspace config | **Track** | Shared settings, consistent across team |
+
+**Common mistakes:**
+- Ignoring all of `.chronis/` — breaks `cn sync` (other machines won't receive events)
+- Tracking `wal/` or `storage/` — bloats repo with binary files that change on every write
+- Tracking `.remote_ids` / `.local_ids` — causes false "new events" on other machines
+
+### When to Use TOON
+
+**Use `--toon` when the consumer is an LLM or a script. Don't use it when a human is reading.**
+
+| Use `--toon` | Don't use `--toon` |
+|---|---|
+| AI agents consuming output (MCP, orchestration) | Interactive terminal use by humans |
+| CI/CD pipelines parsing task state | Debugging with `cn show` |
+| Piping to `cut`, `awk`, or scripts | Demos and screenshots |
+| Large task lists (50+) where savings compound | Onboarding new team members |
+| Repeated polling (`cn ready` in a loop) | TUI (`cn tui`) or web viewer (`cn serve`) |
+
+For agent environments, set the flag once:
+
+```bash
+alias cn='cn --toon'
+```
+
+See [docs/BEST_PRACTICES.md](docs/BEST_PRACTICES.md) for the full guide.
+
 ## Architecture
 
 Chronis wraps [AllSource](https://all-source.xyz)'s embedded library. Every mutation (create, claim, done, approve, dependency change) emits an event into the WAL. A `TaskProjection` folds these events into queryable task state stored in a DashMap (~12us reads).

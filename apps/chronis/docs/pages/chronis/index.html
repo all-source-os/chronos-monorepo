@@ -541,6 +541,143 @@
             font-size: 0.85rem;
         }
 
+        /* Best Practices */
+        .best-practices {
+            padding: 64px 0;
+        }
+
+        .best-practices h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .best-practices .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 48px;
+        }
+
+        .best-practices h3 {
+            font-size: 1.3rem;
+            margin-bottom: 24px;
+            margin-top: 48px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .best-practices h3:first-of-type {
+            margin-top: 0;
+        }
+
+        .bp-table {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto 32px;
+            border-collapse: collapse;
+        }
+
+        .bp-table th {
+            text-align: left;
+            padding: 10px 14px;
+            border-bottom: 2px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .bp-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.88rem;
+        }
+
+        .bp-table code {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.82rem;
+            color: var(--primary);
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .bp-table .ignore { color: #f85149; }
+        .bp-table .track { color: var(--green); }
+
+        .bp-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 900px;
+            margin: 0 auto 32px;
+        }
+
+        .bp-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .bp-card h4 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+        }
+
+        .bp-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .bp-card ul li {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            padding: 4px 0;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .bp-card ul li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 10px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .bp-card-do ul li::before { background: var(--green); }
+        .bp-card-dont ul li::before { background: #f85149; }
+
+        .bp-card code {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.82rem;
+            background: var(--bg-tertiary);
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        .bp-rule {
+            background: var(--bg-secondary);
+            border: 1px solid var(--primary);
+            border-radius: 12px;
+            padding: 20px 28px;
+            max-width: 700px;
+            margin: 32px auto;
+            text-align: center;
+            font-size: 1rem;
+        }
+
+        .bp-rule strong {
+            color: var(--primary);
+        }
+
+        @media (max-width: 768px) {
+            .bp-grid { grid-template-columns: 1fr; }
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .hero h1 { font-size: 2.5rem; }
@@ -563,6 +700,7 @@
                     <a href="#features">Features</a>
                     <a href="#workflow">Workflow</a>
                     <a href="#commands">Commands</a>
+                    <a href="#best-practices">Best Practices</a>
                     <a href="#architecture">Architecture</a>
                     <a href="https://crates.io/crates/chronis">crates.io</a>
                     <a href="https://github.com/all-source-os/all-source/tree/main/apps/chronis">GitHub</a>
@@ -783,6 +921,126 @@
                     &nbsp;&nbsp;-d "Description"<span class="comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Optional description</span>
                 </code>
             </div>
+        </div>
+    </section>
+
+    <!-- Best Practices -->
+    <section class="best-practices" id="best-practices">
+        <div class="container">
+            <h2>Best Practices</h2>
+            <p class="subtitle">Git ignore rules and when to use TOON</p>
+
+            <h3>Git Ignore for <code>.chronis/</code></h3>
+
+            <div class="install-block" style="max-width: 640px">
+                <code>
+                    <span class="comment"># Chronis (local event store data &mdash; sync exchange files are tracked)</span><br>
+                    .chronis/wal/<br>
+                    .chronis/storage/<br>
+                    .chronis/sync/.remote_ids<br>
+                    .chronis/sync/.local_ids
+                </code>
+            </div>
+
+            <table class="bp-table">
+                <thead>
+                    <tr>
+                        <th>Path</th>
+                        <th>Contents</th>
+                        <th>Git?</th>
+                        <th>Why</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>.chronis/wal/</code></td>
+                        <td>WAL segments (binary, CRC32)</td>
+                        <td class="ignore">Ignore</td>
+                        <td>Machine-local binary data, causes merge conflicts</td>
+                    </tr>
+                    <tr>
+                        <td><code>.chronis/storage/</code></td>
+                        <td>Parquet files (binary, Snappy)</td>
+                        <td class="ignore">Ignore</td>
+                        <td>Machine-local, rebuilt from WAL on startup</td>
+                    </tr>
+                    <tr>
+                        <td><code>.chronis/sync/events.jsonl</code></td>
+                        <td>Append-only event log</td>
+                        <td class="track">Track</td>
+                        <td>How <code>cn sync</code> shares events between machines</td>
+                    </tr>
+                    <tr>
+                        <td><code>.chronis/sync/.remote_ids</code></td>
+                        <td>Imported event UUIDs</td>
+                        <td class="ignore">Ignore</td>
+                        <td>Local dedup state, per-machine import cursor</td>
+                    </tr>
+                    <tr>
+                        <td><code>.chronis/sync/.local_ids</code></td>
+                        <td>Exported event UUIDs</td>
+                        <td class="ignore">Ignore</td>
+                        <td>Local dedup state, per-machine export cursor</td>
+                    </tr>
+                    <tr>
+                        <td><code>.chronis/config.toml</code></td>
+                        <td>Workspace configuration</td>
+                        <td class="track">Track</td>
+                        <td>Shared settings should be consistent across team</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="bp-rule">
+                <strong>Ignore binary, track text.</strong> WAL and Parquet are binary formats that cause unsolvable merge conflicts. The JSONL sync file and config are text designed for git.
+            </div>
+
+            <h3>When to Use TOON</h3>
+
+            <div class="bp-grid">
+                <div class="bp-card bp-card-do">
+                    <h4 style="color: var(--green)">Use <code>--toon</code> when</h4>
+                    <ul>
+                        <li>AI agents consume the output (MCP tools, orchestration)</li>
+                        <li>CI/CD pipelines parse task state</li>
+                        <li>Piping to other tools (<code>cut</code>, <code>awk</code>, scripts)</li>
+                        <li>Large task lists (50+ tasks) where token savings compound</li>
+                        <li>Repeated polling (<code>cn ready</code> in a loop)</li>
+                    </ul>
+                </div>
+                <div class="bp-card bp-card-dont">
+                    <h4 style="color: #f85149">Don't use <code>--toon</code> when</h4>
+                    <ul>
+                        <li>A human is reading output in the terminal</li>
+                        <li>Debugging task state with <code>cn show</code></li>
+                        <li>Taking screenshots or recording demos</li>
+                        <li>Onboarding new team members</li>
+                        <li>Using TUI (<code>cn tui</code>) or web viewer (<code>cn serve</code>)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="bp-rule">
+                If the consumer is an <strong>LLM or a script</strong>, use <code>--toon</code>. If the consumer is a <strong>human eyeball</strong>, don't.
+            </div>
+
+            <div class="install-block" style="max-width: 640px">
+                <code>
+                    <span class="comment"># Agent workflow &mdash; always use --toon</span><br>
+                    <span class="prompt">$</span> export CN_AGENT_ID=agent-1<br>
+                    <span class="prompt">$</span> cn ready --toon<br>
+                    <span class="comment"># &rarr; [id|type|title|pri|status|claimed|blocked_by|parent|archived]</span><br>
+                    <span class="comment"># &rarr; t-abc1|task|Design auth module|p0|open||||false</span><br><br>
+                    <span class="prompt">$</span> cn claim t-abc1 --toon<br>
+                    <span class="comment"># &rarr; ok:claimed:t-abc1</span><br><br>
+                    <span class="prompt">$</span> cn done t-abc1 --toon<br>
+                    <span class="comment"># &rarr; ok:done:t-abc1</span>
+                </code>
+            </div>
+
+            <p style="text-align: center; color: var(--text-muted); margin-top: 24px;">
+                Full guide: <a href="https://github.com/all-source-os/all-source/blob/main/apps/chronis/docs/BEST_PRACTICES.md">BEST_PRACTICES.md</a>
+            </p>
         </div>
     </section>
 
