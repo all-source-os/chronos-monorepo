@@ -67,10 +67,10 @@ impl AllsourceClient {
 
         let status = resp.status();
         if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
+            let message = extract_error_message(resp).await;
             return Err(AllsourceAuthError::Api {
                 status: status.as_u16(),
-                message: body,
+                message,
             });
         }
 
@@ -97,10 +97,10 @@ impl AllsourceClient {
 
         let status = resp.status();
         if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
+            let message = extract_error_message(resp).await;
             return Err(AllsourceAuthError::Api {
                 status: status.as_u16(),
-                message: body,
+                message,
             });
         }
 
@@ -143,10 +143,10 @@ impl AllsourceClient {
 
         let status = resp.status();
         if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
+            let message = extract_error_message(resp).await;
             return Err(AllsourceAuthError::Api {
                 status: status.as_u16(),
-                message: body,
+                message,
             });
         }
 
@@ -218,10 +218,10 @@ impl AllsourceClient {
             if status.as_u16() == 400 || status.as_u16() == 422 {
                 return self.find_by_field_scan(event_type_prefix, field, value).await;
             }
-            let body = resp.text().await.unwrap_or_default();
+            let message = extract_error_message(resp).await;
             return Err(AllsourceAuthError::Api {
                 status: status.as_u16(),
-                message: body,
+                message,
             });
         }
 
@@ -265,10 +265,10 @@ impl AllsourceClient {
 
         let status = resp.status();
         if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
+            let message = extract_error_message(resp).await;
             return Err(AllsourceAuthError::Api {
                 status: status.as_u16(),
-                message: body,
+                message,
             });
         }
 
@@ -329,10 +329,10 @@ impl AllsourceClient {
 
         let status = resp.status();
         if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
+            let message = extract_error_message(resp).await;
             return Err(AllsourceAuthError::Api {
                 status: status.as_u16(),
-                message: body,
+                message,
             });
         }
 
@@ -385,4 +385,19 @@ impl AllsourceClient {
         )
         .await
     }
+}
+
+/// Extract a human-readable error message from an API error response.
+///
+/// Core returns `{"error": "..."}`, so we parse the JSON and extract the
+/// `error` field. Falls back to the raw response body if parsing fails.
+async fn extract_error_message(resp: reqwest::Response) -> String {
+    let body = resp.text().await.unwrap_or_default();
+    // Try to extract structured error from Core's JSON response
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
+        if let Some(msg) = json.get("error").and_then(|e| e.as_str()) {
+            return msg.to_string();
+        }
+    }
+    body
 }

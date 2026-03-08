@@ -2,7 +2,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 
-use crate::{circuit_breaker::CircuitBreaker, error::Error, fold::EventFolder, types::*};
+use crate::{circuit_breaker::CircuitBreaker, error::Error, fold::EventFolder, normalize::normalize_event_type, types::*};
 
 /// Retry configuration for transient failures.
 #[derive(Debug, Clone)]
@@ -359,15 +359,25 @@ impl CoreClient {
     }
 
     /// Ingest a single event.
-    pub async fn ingest_event(&self, input: IngestEventInput) -> Result<IngestResponse, Error> {
+    ///
+    /// Event types are automatically normalized to AllSource's `lowercase.dot.separated`
+    /// convention. For example, `VerificationCreated` becomes `verification.created`.
+    pub async fn ingest_event(&self, mut input: IngestEventInput) -> Result<IngestResponse, Error> {
+        input.event_type = normalize_event_type(&input.event_type);
         self.transport.post("/api/v1/events", &input).await
     }
 
     /// Ingest a batch of events.
+    ///
+    /// Event types are automatically normalized to AllSource's `lowercase.dot.separated`
+    /// convention. For example, `VerificationCreated` becomes `verification.created`.
     pub async fn ingest_batch(
         &self,
-        events: Vec<IngestEventInput>,
+        mut events: Vec<IngestEventInput>,
     ) -> Result<BatchIngestResponse, Error> {
+        for event in &mut events {
+            event.event_type = normalize_event_type(&event.event_type);
+        }
         #[derive(Serialize)]
         struct BatchRequest {
             events: Vec<IngestEventInput>,

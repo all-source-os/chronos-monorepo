@@ -39,6 +39,11 @@ impl Error {
         matches!(self, Error::Api { status: 429, .. })
     }
 
+    /// Returns true if this is a 400 Bad Request error (e.g., invalid event type format).
+    pub fn is_bad_request(&self) -> bool {
+        matches!(self, Error::Api { status: 400, .. })
+    }
+
     /// Returns true if this is a 404 Not Found error.
     pub fn is_not_found(&self) -> bool {
         matches!(self, Error::Api { status: 404, .. })

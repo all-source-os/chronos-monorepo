@@ -69,12 +69,14 @@ mod circuit_breaker;
 mod client;
 mod error;
 mod fold;
+mod normalize;
 mod types;
 
 pub use circuit_breaker::CircuitBreaker;
 pub use client::{ClientConfig, CoreClient, QueryClient, RetryConfig};
 pub use error::Error;
 pub use fold::{fold_events, EventFolder};
+pub use normalize::normalize_event_type;
 pub use types::*;
 
 // Re-export for payload construction

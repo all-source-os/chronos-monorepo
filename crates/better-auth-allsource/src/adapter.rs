@@ -87,7 +87,7 @@ impl UserOps for AllsourceAuthAdapter {
         if let Some(email) = &input.email {
             if let Some(_existing) = self
                 .client
-                .find_by_field::<User>("UserCreated", "email", email)
+                .find_by_field::<User>("auth.user.created", "email", email)
                 .await
                 .map_err(AuthError::from)?
             {
@@ -99,7 +99,7 @@ impl UserOps for AllsourceAuthAdapter {
         if let Some(username) = &input.username {
             if let Some(_existing) = self
                 .client
-                .find_by_field::<User>("UserCreated", "username", username)
+                .find_by_field::<User>("auth.user.created", "username", username)
                 .await
                 .map_err(AuthError::from)?
             {
@@ -130,7 +130,7 @@ impl UserOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&user).map_err(AuthError::from)?;
         self.client
-            .append_event(&user_entity(&id), "UserCreated", payload)
+            .append_event(&user_entity(&id), "auth.user.created", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -149,14 +149,14 @@ impl UserOps for AllsourceAuthAdapter {
 
     async fn get_user_by_email(&self, email: &str) -> AuthResult<Option<User>> {
         self.client
-            .find_by_field("UserCreated", "email", email)
+            .find_by_field("auth.user.created", "email", email)
             .await
             .map_err(AuthError::from)
     }
 
     async fn get_user_by_username(&self, username: &str) -> AuthResult<Option<User>> {
         self.client
-            .find_by_field("UserCreated", "username", username)
+            .find_by_field("auth.user.created", "username", username)
             .await
             .map_err(AuthError::from)
     }
@@ -207,7 +207,7 @@ impl UserOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&user).map_err(AuthError::from)?;
         self.client
-            .append_event(&user_entity(id), "UserUpdated", payload)
+            .append_event(&user_entity(id), "auth.user.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -216,7 +216,7 @@ impl UserOps for AllsourceAuthAdapter {
 
     async fn delete_user(&self, id: &str) -> AuthResult<()> {
         self.client
-            .append_delete(&user_entity(id), "UserDeleted")
+            .append_delete(&user_entity(id), "auth.user.deleted")
             .await
             .map_err(AuthError::from)
     }
@@ -224,7 +224,7 @@ impl UserOps for AllsourceAuthAdapter {
     async fn list_users(&self, params: ListUsersParams) -> AuthResult<(Vec<User>, usize)> {
         let mut users: Vec<User> = self
             .client
-            .query_all("UserCreated", 10000)
+            .query_all("auth.user.created", 10000)
             .await
             .map_err(AuthError::from)?;
 
@@ -303,7 +303,7 @@ impl SessionOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&session).map_err(AuthError::from)?;
         self.client
-            .append_event(&session_entity(&token), "SessionCreated", payload)
+            .append_event(&session_entity(&token), "auth.session.created", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -319,7 +319,7 @@ impl SessionOps for AllsourceAuthAdapter {
 
     async fn get_user_sessions(&self, user_id: &str) -> AuthResult<Vec<Session>> {
         self.client
-            .find_all_by_field("SessionCreated", "user_id", user_id)
+            .find_all_by_field("auth.session.created", "user_id", user_id)
             .await
             .map_err(AuthError::from)
     }
@@ -334,7 +334,7 @@ impl SessionOps for AllsourceAuthAdapter {
             session.updated_at = Utc::now();
             let payload = serde_json::to_value(&session).map_err(AuthError::from)?;
             self.client
-                .append_event(&session_entity(token), "SessionExpiryUpdated", payload)
+                .append_event(&session_entity(token), "auth.session.expiry_updated", payload)
                 .await
                 .map_err(AuthError::from)?;
         }
@@ -343,7 +343,7 @@ impl SessionOps for AllsourceAuthAdapter {
 
     async fn delete_session(&self, token: &str) -> AuthResult<()> {
         self.client
-            .append_delete(&session_entity(token), "SessionDeleted")
+            .append_delete(&session_entity(token), "auth.session.deleted")
             .await
             .map_err(AuthError::from)
     }
@@ -359,7 +359,7 @@ impl SessionOps for AllsourceAuthAdapter {
     async fn delete_expired_sessions(&self) -> AuthResult<usize> {
         let all: Vec<Session> = self
             .client
-            .query_all("SessionCreated", 10000)
+            .query_all("auth.session.created", 10000)
             .await
             .map_err(AuthError::from)?;
 
@@ -389,7 +389,7 @@ impl SessionOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&session).map_err(AuthError::from)?;
         self.client
-            .append_event(&session_entity(token), "SessionUpdated", payload)
+            .append_event(&session_entity(token), "auth.session.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -425,7 +425,7 @@ impl AccountOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&account).map_err(AuthError::from)?;
         self.client
-            .append_event(&account_entity(&id), "AccountCreated", payload)
+            .append_event(&account_entity(&id), "auth.account.created", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -440,7 +440,7 @@ impl AccountOps for AllsourceAuthAdapter {
         // Need to scan accounts matching provider + account_id
         let all: Vec<Account> = self
             .client
-            .query_all("AccountCreated", 10000)
+            .query_all("auth.account.created", 10000)
             .await
             .map_err(AuthError::from)?;
 
@@ -451,7 +451,7 @@ impl AccountOps for AllsourceAuthAdapter {
 
     async fn get_user_accounts(&self, user_id: &str) -> AuthResult<Vec<Account>> {
         self.client
-            .find_all_by_field("AccountCreated", "user_id", user_id)
+            .find_all_by_field("auth.account.created", "user_id", user_id)
             .await
             .map_err(AuthError::from)
     }
@@ -489,7 +489,7 @@ impl AccountOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&account).map_err(AuthError::from)?;
         self.client
-            .append_event(&account_entity(id), "AccountUpdated", payload)
+            .append_event(&account_entity(id), "auth.account.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -498,7 +498,7 @@ impl AccountOps for AllsourceAuthAdapter {
 
     async fn delete_account(&self, id: &str) -> AuthResult<()> {
         self.client
-            .append_delete(&account_entity(id), "AccountDeleted")
+            .append_delete(&account_entity(id), "auth.account.deleted")
             .await
             .map_err(AuthError::from)
     }
@@ -527,7 +527,7 @@ impl VerificationOps for AllsourceAuthAdapter {
         self.client
             .append_event(
                 &verification_entity(&id),
-                "VerificationCreated",
+                "auth.verification.created",
                 payload,
             )
             .await
@@ -543,7 +543,7 @@ impl VerificationOps for AllsourceAuthAdapter {
     ) -> AuthResult<Option<Verification>> {
         let all: Vec<Verification> = self
             .client
-            .query_all("VerificationCreated", 10000)
+            .query_all("auth.verification.created", 10000)
             .await
             .map_err(AuthError::from)?;
 
@@ -556,7 +556,7 @@ impl VerificationOps for AllsourceAuthAdapter {
     async fn get_verification_by_value(&self, value: &str) -> AuthResult<Option<Verification>> {
         let all: Vec<Verification> = self
             .client
-            .query_all("VerificationCreated", 10000)
+            .query_all("auth.verification.created", 10000)
             .await
             .map_err(AuthError::from)?;
 
@@ -572,7 +572,7 @@ impl VerificationOps for AllsourceAuthAdapter {
     ) -> AuthResult<Option<Verification>> {
         let all: Vec<Verification> = self
             .client
-            .query_all("VerificationCreated", 10000)
+            .query_all("auth.verification.created", 10000)
             .await
             .map_err(AuthError::from)?;
 
@@ -590,7 +590,7 @@ impl VerificationOps for AllsourceAuthAdapter {
         let verification = self.get_verification(identifier, value).await?;
         if let Some(ref v) = verification {
             self.client
-                .append_delete(&verification_entity(&v.id), "VerificationConsumed")
+                .append_delete(&verification_entity(&v.id), "auth.verification.consumed")
                 .await
                 .map_err(AuthError::from)?;
         }
@@ -599,7 +599,7 @@ impl VerificationOps for AllsourceAuthAdapter {
 
     async fn delete_verification(&self, id: &str) -> AuthResult<()> {
         self.client
-            .append_delete(&verification_entity(id), "VerificationDeleted")
+            .append_delete(&verification_entity(id), "auth.verification.deleted")
             .await
             .map_err(AuthError::from)
     }
@@ -607,7 +607,7 @@ impl VerificationOps for AllsourceAuthAdapter {
     async fn delete_expired_verifications(&self) -> AuthResult<usize> {
         let all: Vec<Verification> = self
             .client
-            .query_all("VerificationCreated", 10000)
+            .query_all("auth.verification.created", 10000)
             .await
             .map_err(AuthError::from)?;
 
@@ -633,7 +633,7 @@ impl OrganizationOps for AllsourceAuthAdapter {
         // Check slug uniqueness
         if self
             .client
-            .find_by_field::<Organization>("OrgCreated", "slug", &input.slug)
+            .find_by_field::<Organization>("auth.org.created", "slug", &input.slug)
             .await
             .map_err(AuthError::from)?
             .is_some()
@@ -659,7 +659,7 @@ impl OrganizationOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&org).map_err(AuthError::from)?;
         self.client
-            .append_event(&org_entity(&id), "OrgCreated", payload)
+            .append_event(&org_entity(&id), "auth.org.created", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -675,7 +675,7 @@ impl OrganizationOps for AllsourceAuthAdapter {
 
     async fn get_organization_by_slug(&self, slug: &str) -> AuthResult<Option<Organization>> {
         self.client
-            .find_by_field("OrgCreated", "slug", slug)
+            .find_by_field("auth.org.created", "slug", slug)
             .await
             .map_err(AuthError::from)
     }
@@ -706,7 +706,7 @@ impl OrganizationOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&org).map_err(AuthError::from)?;
         self.client
-            .append_event(&org_entity(id), "OrgUpdated", payload)
+            .append_event(&org_entity(id), "auth.org.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -715,31 +715,31 @@ impl OrganizationOps for AllsourceAuthAdapter {
 
     async fn delete_organization(&self, id: &str) -> AuthResult<()> {
         self.client
-            .append_delete(&org_entity(id), "OrgDeleted")
+            .append_delete(&org_entity(id), "auth.org.deleted")
             .await
             .map_err(AuthError::from)?;
 
         // Also delete members and invitations for this org
         let members: Vec<Member> = self
             .client
-            .find_all_by_field("MemberCreated", "organization_id", id)
+            .find_all_by_field("auth.member.created", "organization_id", id)
             .await
             .map_err(AuthError::from)?;
         for m in members {
             self.client
-                .append_delete(&member_entity(&m.id), "MemberDeleted")
+                .append_delete(&member_entity(&m.id), "auth.member.deleted")
                 .await
                 .map_err(AuthError::from)?;
         }
 
         let invitations: Vec<Invitation> = self
             .client
-            .find_all_by_field("InvitationCreated", "organization_id", id)
+            .find_all_by_field("auth.invitation.created", "organization_id", id)
             .await
             .map_err(AuthError::from)?;
         for i in invitations {
             self.client
-                .append_delete(&invitation_entity(&i.id), "InvitationDeleted")
+                .append_delete(&invitation_entity(&i.id), "auth.invitation.deleted")
                 .await
                 .map_err(AuthError::from)?;
         }
@@ -750,7 +750,7 @@ impl OrganizationOps for AllsourceAuthAdapter {
     async fn list_user_organizations(&self, user_id: &str) -> AuthResult<Vec<Organization>> {
         let members: Vec<Member> = self
             .client
-            .find_all_by_field("MemberCreated", "user_id", user_id)
+            .find_all_by_field("auth.member.created", "user_id", user_id)
             .await
             .map_err(AuthError::from)?;
 
@@ -774,7 +774,7 @@ impl MemberOps for AllsourceAuthAdapter {
         // Check if already a member
         let existing: Vec<Member> = self
             .client
-            .find_all_by_field("MemberCreated", "organization_id", &input.organization_id)
+            .find_all_by_field("auth.member.created", "organization_id", &input.organization_id)
             .await
             .map_err(AuthError::from)?;
 
@@ -797,7 +797,7 @@ impl MemberOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&member).map_err(AuthError::from)?;
         self.client
-            .append_event(&member_entity(&id), "MemberCreated", payload)
+            .append_event(&member_entity(&id), "auth.member.created", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -811,7 +811,7 @@ impl MemberOps for AllsourceAuthAdapter {
     ) -> AuthResult<Option<Member>> {
         let members: Vec<Member> = self
             .client
-            .find_all_by_field("MemberCreated", "organization_id", organization_id)
+            .find_all_by_field("auth.member.created", "organization_id", organization_id)
             .await
             .map_err(AuthError::from)?;
 
@@ -835,7 +835,7 @@ impl MemberOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&member).map_err(AuthError::from)?;
         self.client
-            .append_event(&member_entity(member_id), "MemberUpdated", payload)
+            .append_event(&member_entity(member_id), "auth.member.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -844,14 +844,14 @@ impl MemberOps for AllsourceAuthAdapter {
 
     async fn delete_member(&self, member_id: &str) -> AuthResult<()> {
         self.client
-            .append_delete(&member_entity(member_id), "MemberDeleted")
+            .append_delete(&member_entity(member_id), "auth.member.deleted")
             .await
             .map_err(AuthError::from)
     }
 
     async fn list_organization_members(&self, organization_id: &str) -> AuthResult<Vec<Member>> {
         self.client
-            .find_all_by_field("MemberCreated", "organization_id", organization_id)
+            .find_all_by_field("auth.member.created", "organization_id", organization_id)
             .await
             .map_err(AuthError::from)
     }
@@ -889,7 +889,7 @@ impl InvitationOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&invitation).map_err(AuthError::from)?;
         self.client
-            .append_event(&invitation_entity(&id), "InvitationCreated", payload)
+            .append_event(&invitation_entity(&id), "auth.invitation.created", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -910,7 +910,7 @@ impl InvitationOps for AllsourceAuthAdapter {
     ) -> AuthResult<Option<Invitation>> {
         let invitations: Vec<Invitation> = self
             .client
-            .find_all_by_field("InvitationCreated", "organization_id", organization_id)
+            .find_all_by_field("auth.invitation.created", "organization_id", organization_id)
             .await
             .map_err(AuthError::from)?;
 
@@ -934,7 +934,7 @@ impl InvitationOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&invitation).map_err(AuthError::from)?;
         self.client
-            .append_event(&invitation_entity(id), "InvitationUpdated", payload)
+            .append_event(&invitation_entity(id), "auth.invitation.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -946,7 +946,7 @@ impl InvitationOps for AllsourceAuthAdapter {
         organization_id: &str,
     ) -> AuthResult<Vec<Invitation>> {
         self.client
-            .find_all_by_field("InvitationCreated", "organization_id", organization_id)
+            .find_all_by_field("auth.invitation.created", "organization_id", organization_id)
             .await
             .map_err(AuthError::from)
     }
@@ -954,7 +954,7 @@ impl InvitationOps for AllsourceAuthAdapter {
     async fn list_user_invitations(&self, email: &str) -> AuthResult<Vec<Invitation>> {
         let all: Vec<Invitation> = self
             .client
-            .find_all_by_field("InvitationCreated", "email", email)
+            .find_all_by_field("auth.invitation.created", "email", email)
             .await
             .map_err(AuthError::from)?;
 
@@ -998,7 +998,7 @@ impl TwoFactorOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&two_factor).map_err(AuthError::from)?;
         self.client
-            .append_event(&two_factor_entity(&id), "TwoFactorCreated", payload)
+            .append_event(&two_factor_entity(&id), "auth.two_factor.created", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -1007,7 +1007,7 @@ impl TwoFactorOps for AllsourceAuthAdapter {
 
     async fn get_two_factor_by_user_id(&self, user_id: &str) -> AuthResult<Option<TwoFactor>> {
         self.client
-            .find_by_field("TwoFactorCreated", "user_id", user_id)
+            .find_by_field("auth.two_factor.created", "user_id", user_id)
             .await
             .map_err(AuthError::from)
     }
@@ -1027,7 +1027,7 @@ impl TwoFactorOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&tf).map_err(AuthError::from)?;
         self.client
-            .append_event(&two_factor_entity(&tf.id), "TwoFactorUpdated", payload)
+            .append_event(&two_factor_entity(&tf.id), "auth.two_factor.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -1037,7 +1037,7 @@ impl TwoFactorOps for AllsourceAuthAdapter {
     async fn delete_two_factor(&self, user_id: &str) -> AuthResult<()> {
         if let Some(tf) = self.get_two_factor_by_user_id(user_id).await? {
             self.client
-                .append_delete(&two_factor_entity(&tf.id), "TwoFactorDeleted")
+                .append_delete(&two_factor_entity(&tf.id), "auth.two_factor.deleted")
                 .await
                 .map_err(AuthError::from)?;
         }
@@ -1090,7 +1090,7 @@ impl ApiKeyOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&api_key).map_err(AuthError::from)?;
         self.client
-            .append_event(&api_key_entity(&id), "ApiKeyCreated", payload)
+            .append_event(&api_key_entity(&id), "auth.api_key.created", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -1106,7 +1106,7 @@ impl ApiKeyOps for AllsourceAuthAdapter {
 
     async fn get_api_key_by_hash(&self, hash: &str) -> AuthResult<Option<ApiKey>> {
         self.client
-            .find_by_field("ApiKeyCreated", "key", hash)
+            .find_by_field("auth.api_key.created", "key", hash)
             .await
             .map_err(AuthError::from)
     }
@@ -1114,7 +1114,7 @@ impl ApiKeyOps for AllsourceAuthAdapter {
     async fn list_api_keys_by_user(&self, user_id: &str) -> AuthResult<Vec<ApiKey>> {
         let mut keys: Vec<ApiKey> = self
             .client
-            .find_all_by_field("ApiKeyCreated", "user_id", user_id)
+            .find_all_by_field("auth.api_key.created", "user_id", user_id)
             .await
             .map_err(AuthError::from)?;
 
@@ -1174,7 +1174,7 @@ impl ApiKeyOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&key).map_err(AuthError::from)?;
         self.client
-            .append_event(&api_key_entity(id), "ApiKeyUpdated", payload)
+            .append_event(&api_key_entity(id), "auth.api_key.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -1183,7 +1183,7 @@ impl ApiKeyOps for AllsourceAuthAdapter {
 
     async fn delete_api_key(&self, id: &str) -> AuthResult<()> {
         self.client
-            .append_delete(&api_key_entity(id), "ApiKeyDeleted")
+            .append_delete(&api_key_entity(id), "auth.api_key.deleted")
             .await
             .map_err(AuthError::from)
     }
@@ -1191,7 +1191,7 @@ impl ApiKeyOps for AllsourceAuthAdapter {
     async fn delete_expired_api_keys(&self) -> AuthResult<usize> {
         let all: Vec<ApiKey> = self
             .client
-            .query_all("ApiKeyCreated", 10000)
+            .query_all("auth.api_key.created", 10000)
             .await
             .map_err(AuthError::from)?;
 
@@ -1247,7 +1247,7 @@ impl PasskeyOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&passkey).map_err(AuthError::from)?;
         self.client
-            .append_event(&passkey_entity(&id), "PasskeyCreated", payload)
+            .append_event(&passkey_entity(&id), "auth.passkey.created", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -1266,7 +1266,7 @@ impl PasskeyOps for AllsourceAuthAdapter {
         credential_id: &str,
     ) -> AuthResult<Option<Passkey>> {
         self.client
-            .find_by_field("PasskeyCreated", "credentialID", credential_id)
+            .find_by_field("auth.passkey.created", "credentialID", credential_id)
             .await
             .map_err(AuthError::from)
     }
@@ -1274,7 +1274,7 @@ impl PasskeyOps for AllsourceAuthAdapter {
     async fn list_passkeys_by_user(&self, user_id: &str) -> AuthResult<Vec<Passkey>> {
         let mut passkeys: Vec<Passkey> = self
             .client
-            .find_all_by_field("PasskeyCreated", "user_id", user_id)
+            .find_all_by_field("auth.passkey.created", "user_id", user_id)
             .await
             .map_err(AuthError::from)?;
 
@@ -1292,7 +1292,7 @@ impl PasskeyOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&passkey).map_err(AuthError::from)?;
         self.client
-            .append_event(&passkey_entity(id), "PasskeyUpdated", payload)
+            .append_event(&passkey_entity(id), "auth.passkey.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -1309,7 +1309,7 @@ impl PasskeyOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&passkey).map_err(AuthError::from)?;
         self.client
-            .append_event(&passkey_entity(id), "PasskeyUpdated", payload)
+            .append_event(&passkey_entity(id), "auth.passkey.updated", payload)
             .await
             .map_err(AuthError::from)?;
 
@@ -1318,7 +1318,7 @@ impl PasskeyOps for AllsourceAuthAdapter {
 
     async fn delete_passkey(&self, id: &str) -> AuthResult<()> {
         self.client
-            .append_delete(&passkey_entity(id), "PasskeyDeleted")
+            .append_delete(&passkey_entity(id), "auth.passkey.deleted")
             .await
             .map_err(AuthError::from)
     }
