@@ -1005,6 +1005,47 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
+  @doc """
+  Get raw Prometheus text metrics from Core's /metrics endpoint.
+
+  Uses a plain HTTP client (no JSON middleware) to preserve the raw
+  Prometheus text format for parsing by PrometheusParser.
+  """
+  def get_metrics_raw do
+    base_url =
+      Application.get_env(:query_service_ex, :core_url, @default_base_url)
+
+    middleware = [
+      {Tesla.Middleware.BaseUrl, base_url},
+      {Tesla.Middleware.Timeout, timeout: @default_timeout}
+    ]
+
+    # Add Authorization header if CORE_API_KEY is configured
+    middleware =
+      case Application.get_env(:query_service_ex, :core_api_key) do
+        nil -> middleware
+        "" -> middleware
+        api_key -> [{Tesla.Middleware.Headers, [{"authorization", api_key}]} | middleware]
+      end
+
+    client = Tesla.client(middleware, {Tesla.Adapter.Hackney, [connect_options: [:inet6]]})
+
+    case Tesla.get(client, "/metrics") do
+      {:ok, %Tesla.Env{status: 200, body: body}} when is_binary(body) ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        # Body was decoded somehow — convert back to string
+        {:ok, inspect(body)}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   @doc "Check health status"
   def health_check do
     case Tesla.get(read_client(), "/health") do

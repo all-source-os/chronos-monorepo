@@ -285,6 +285,17 @@ defmodule QueryServiceExWeb.Router do
   end
 
   # -------------------------------------------------------------------
+  # Admin Metrics Routes
+  # -------------------------------------------------------------------
+
+  scope "/api/admin/metrics", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    get("/summary", AdminMetricsController, :summary)
+    get("/timeseries", AdminMetricsController, :timeseries)
+  end
+
+  # -------------------------------------------------------------------
   # API Key Management Routes
   # -------------------------------------------------------------------
 

@@ -56,6 +56,9 @@ defmodule QueryServiceEx.Application do
         # ETS-backed API key metadata store
         QueryServiceEx.ApiKeyStore,
 
+        # Admin metrics cache (15s TTL, time-series ring buffer)
+        QueryServiceEx.MetricsCache,
+
         # Health checker for Core read nodes (polls /health, tracks lag in ETS)
         QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker,
 
