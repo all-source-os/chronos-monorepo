@@ -48,6 +48,16 @@ export {
   ChartTooltip,
   ChartTooltipContent,
 } from "./components/chart";
+// Dialog
+export {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogTitle,
+} from "./components/dialog";
 // Drawer
 export {
   Drawer,
@@ -97,6 +107,8 @@ export {
 export type { SafariProps } from "./components/safari";
 // Safari
 export { Safari } from "./components/safari";
+// Select
+export { Select } from "./components/select";
 // Section
 export { Section } from "./components/section";
 export type { SeparatorProps } from "./components/separator";
@@ -105,6 +117,24 @@ export { Separator } from "./components/separator";
 export type { SkeletonProps } from "./components/skeleton";
 export { Skeleton } from "./components/skeleton";
 export { Switch } from "./components/switch";
+// Tabs
+export {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "./components/tabs";
+// Table
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+} from "./components/table";
 export type { TextareaProps } from "./components/textarea";
 export { Textarea } from "./components/textarea";
 export { cn } from "./lib/utils";

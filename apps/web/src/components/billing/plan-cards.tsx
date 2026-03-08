@@ -2,8 +2,10 @@
 
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Check, Sparkles } from "lucide-react";
+import { ArrowDown, Check, Sparkles } from "lucide-react";
 import { siteConfig } from "@/lib/config";
+
+const TIER_RANK: Record<string, number> = { free: 0, growth: 1, enterprise: 2 };
 
 interface PlanCardsProps {
   currentPlan?: string;
@@ -13,11 +15,15 @@ interface PlanCardsProps {
 
 export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }: PlanCardsProps) {
   const plans = siteConfig.pricing;
+  const currentRank = TIER_RANK[currentPlan] ?? 0;
 
   return (
     <div className="grid gap-6 md:grid-cols-3">
       {plans.map((plan) => {
+        const planRank = TIER_RANK[plan.tier] ?? 0;
         const isCurrent = plan.tier === currentPlan;
+        const isAbove = planRank > currentRank;
+        const isBelow = planRank < currentRank;
         const isPopular = plan.isPopular;
         const displayPrice = isYearly ? plan.yearlyPrice : plan.price;
 
@@ -31,7 +37,7 @@ export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }:
             )}
           >
             {/* Popular badge */}
-            {isPopular && (
+            {isPopular && !isCurrent && (
               <div className="absolute -right-8 top-4 rotate-45 bg-primary px-10 py-1 text-xs font-medium text-primary-foreground">
                 Popular
               </div>
@@ -76,23 +82,42 @@ export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }:
               </ul>
 
               {/* CTA */}
-              <Button
-                className="w-full"
-                variant={isPopular ? "default" : "outline"}
-                disabled={isCurrent}
-                onClick={() => onUpgrade?.(plan.tier, isYearly ? "annual" : "monthly")}
-              >
-                {isCurrent ? (
-                  "Current Plan"
-                ) : plan.tier === "enterprise" ? (
-                  "Contact Sales"
-                ) : (
-                  <>
-                    {isPopular && <Sparkles className="mr-2 h-4 w-4" />}
-                    Upgrade
-                  </>
-                )}
-              </Button>
+              {isCurrent ? (
+                <Button className="w-full" variant="outline" disabled>
+                  Current Plan
+                </Button>
+              ) : plan.tier === "enterprise" ? (
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => onUpgrade?.(plan.tier, isYearly ? "annual" : "monthly")}
+                >
+                  Contact Sales
+                </Button>
+              ) : isAbove ? (
+                <Button
+                  className="w-full"
+                  variant={isPopular ? "default" : "outline"}
+                  onClick={() => onUpgrade?.(plan.tier, isYearly ? "annual" : "monthly")}
+                >
+                  {isPopular && <Sparkles className="mr-2 h-4 w-4" />}
+                  Upgrade
+                </Button>
+              ) : isBelow && plan.tier !== "free" ? (
+                <Button
+                  className="w-full"
+                  variant="ghost"
+                  onClick={() => onUpgrade?.(plan.tier, isYearly ? "annual" : "monthly")}
+                >
+                  <ArrowDown className="mr-2 h-4 w-4" />
+                  Downgrade
+                </Button>
+              ) : (
+                // Free plan when user is on a paid plan — no button, cancel via portal
+                <p className="text-center text-xs text-muted-foreground">
+                  Cancel via Manage Subscription
+                </p>
+              )}
             </CardContent>
           </Card>
         );

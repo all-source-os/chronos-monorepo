@@ -33,44 +33,41 @@ const SDK_OPTIONS: { id: SDK; label: string; icon: string }[] = [
 
 const INSTALL_COMMANDS: Record<SDK, { cmd: string; registry?: string }> = {
   rust: {
-    cmd: 'cargo add allsource-client --registry allsource\n\n# Or add to Cargo.toml:\n[dependencies]\nallsource-client = "0.10"',
-    registry:
-      '[registries.allsource]\nindex = "https://registry.all-source.xyz/crates"',
+    cmd: 'cargo add allsource\n\n# Or add to Cargo.toml:\n[dependencies]\nallsource = "0.14"',
   },
   go: {
     cmd: "go get github.com/all-source-os/allsource-go@latest",
   },
   typescript: {
-    cmd: "npm install @allsource/client\n# or\nbun add @allsource/client",
-    registry:
-      '# .npmrc\n@allsource:registry=https://registry.all-source.xyz/npm',
+    cmd: "bun add @allsource/client\n# or\nnpm install @allsource/client",
   },
   python: {
     cmd: "pip install allsource-client",
-    registry:
-      "# pip.conf\n[global]\nextra-index-url = https://registry.all-source.xyz/pypi/simple",
   },
 };
 
 const SEND_EVENT_SNIPPETS: Record<SDK, string> = {
-  rust: `use allsource_client::Client;
+  rust: `use allsource::{CoreClient, IngestEventInput};
+use serde_json::json;
 
 #[tokio::main]
-async fn main() {
-    let client = Client::new("http://localhost:3902")
-        .api_key("your-api-key");
+async fn main() -> Result<(), allsource::Error> {
+    let client = CoreClient::new(
+        "http://localhost:3900",
+        "your-api-key",
+    )?;
 
-    let event = client
-        .create_event("user.signup", "user-001")
-        .payload(serde_json::json!({
+    let resp = client.ingest_event(IngestEventInput {
+        event_type: "user.signup".into(),
+        entity_id: "user-001".into(),
+        payload: json!({
             "email": "dev@example.com",
             "plan": "pro"
-        }))
-        .send()
-        .await
-        .unwrap();
+        }),
+    }).await?;
 
-    println!("Created event: {}", event.id);
+    println!("Created event: {}", resp.event_id);
+    Ok(())
 }`,
   go: `package main
 
@@ -81,50 +78,48 @@ import (
 )
 
 func main() {
-    client := allsource.NewClient("http://localhost:3902",
-        allsource.WithAPIKey("your-api-key"),
-    )
+    client := allsource.New("your-api-key", "http://localhost:3900")
 
-    event, err := client.CreateEvent(context.Background(),
+    resp, err := client.Ingest(context.Background(),
         "user.signup", "user-001",
-        allsource.WithPayload(map[string]any{
+        map[string]any{
             "email": "dev@example.com",
             "plan":  "pro",
-        }),
+        },
     )
     if err != nil {
         panic(err)
     }
-    fmt.Printf("Created event: %s\\n", event.ID)
+    fmt.Printf("Created event: %s\\n", resp.EventID)
 }`,
   typescript: `import { AllSourceClient } from "@allsource/client";
 
 const client = new AllSourceClient({
-  baseUrl: "http://localhost:3902",
+  baseUrl: "http://localhost:3900",
   apiKey: "your-api-key",
 });
 
-const event = await client.createEvent({
-  eventType: "user.signup",
-  entityId: "user-001",
+const resp = await client.ingestEvent({
+  event_type: "user.signup",
+  entity_id: "user-001",
   payload: {
     email: "dev@example.com",
     plan: "pro",
   },
 });
 
-console.log("Created event:", event.id);`,
-  python: `from allsource import Client
+console.log("Created event:", resp.event_id);`,
+  python: `from allsource_client import AllSourceClient
 
-client = Client(
-    base_url="http://localhost:3902",
+client = AllSourceClient(
     api_key="your-api-key",
+    base_url="http://localhost:3900",
 )
 
-event = client.create_event(
+event = client.ingest(
     event_type="user.signup",
     entity_id="user-001",
-    payload={
+    data={
         "email": "dev@example.com",
         "plan": "pro",
     },
@@ -134,45 +129,52 @@ print(f"Created event: {event.id}")`,
 };
 
 const QUERY_SNIPPETS: Record<SDK, string> = {
-  rust: `let events = client
-    .query_events()
-    .event_type("user.signup")
-    .entity_id("user-001")
-    .limit(10)
-    .send()
-    .await
-    .unwrap();
+  rust: `use allsource::{QueryClient, QueryEventsParams};
 
-for event in &events {
+let qs = QueryClient::new(
+    "http://localhost:3902",
+    "your-api-key",
+)?;
+
+let result = qs.query_events(
+    QueryEventsParams::new()
+        .event_type("user.signup")
+        .entity_id("user-001")
+        .limit(10),
+).await?;
+
+for event in &result.events {
     println!("{}: {}", event.event_type, event.id);
 }`,
-  go: `events, err := client.QueryEvents(context.Background(),
-    allsource.WithEventType("user.signup"),
-    allsource.WithEntityID("user-001"),
-    allsource.WithLimit(10),
+  go: `result, err := client.Query(context.Background(),
+    allsource.QueryOptions{
+        EventType: "user.signup",
+        EntityID:  "user-001",
+        Limit:     10,
+    },
 )
 if err != nil {
     panic(err)
 }
-for _, e := range events {
+for _, e := range result.Events {
     fmt.Printf("%s: %s\\n", e.EventType, e.ID)
 }`,
-  typescript: `const events = await client.queryEvents({
-  eventType: "user.signup",
-  entityId: "user-001",
+  typescript: `const result = await client.queryEvents({
+  event_type: "user.signup",
+  entity_id: "user-001",
   limit: 10,
 });
 
-for (const event of events) {
-  console.log(\`\${event.eventType}: \${event.id}\`);
+for (const event of result.events) {
+  console.log(\`\${event.event_type}: \${event.id}\`);
 }`,
-  python: `events = client.query_events(
+  python: `result = client.query(
     event_type="user.signup",
     entity_id="user-001",
     limit=10,
 )
 
-for event in events:
+for event in result.events:
     print(f"{event.event_type}: {event.id}")`,
 };
 
