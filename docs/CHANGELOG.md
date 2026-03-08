@@ -4,6 +4,51 @@ All notable changes to AllSource Chronos are documented here.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-03-08
+
+### Added
+
+#### Admin Dashboard (`apps/admin/`) — NEW
+- **Full admin dashboard app** (Next.js, port 3001) for platform operations
+- **Tenant management**: list with search/filter/pagination, detail view with quotas, members, audit log, suspend/unsuspend
+- **Monitoring dashboard**: stat cards (uptime, events/sec, latency p99, error rate, active tenants), throughput/error-rate charts with configurable time ranges, cluster health with member roles and replication lag, 30s auto-refresh
+- **Billing management**: MRR/ARR/growth/churn metrics, revenue trend charts, invoice list with status filtering, refund processing with confirmation dialog, dunning (failed payments) tracking
+- **Alert rules**: CRUD for alert rules (metric, operator, threshold, duration, notification channel)
+- **SLO management**: create/delete SLOs with compliance gauges, error budget tracking, sparkline trends
+- **Security**: IP allowlist/blocklist CRUD, API token audit log with tenant filtering, suspicious activity detection (excessive auth failures, rate limit violations, token abuse, geo anomalies, query anomalies)
+- **Auth**: JWT cookie (`admin_token`) with `role: "admin"` claim, OAuth callback (Google, GitHub, email), middleware-enforced on all protected routes
+- **E2E tests (mock)**: 53 Playwright tests across 8 spec files using `page.route()` mocks for fast CI
+- **E2E tests (real stack)**: 25 Playwright tests in `e2e/real/` against a real Docker stack — isolated `docker-compose.e2e.yml` (Core:3090, Control Plane:3091, Admin:3011), HS256 JWT generator for auth seeding, global setup with health checks and data seeding
+- **Docker**: multi-stage Dockerfile (Bun builder → Node.js runtime, port 3001)
+
+#### Control Plane (`apps/control-plane/`)
+- **Admin route group** (`/api/v1/admin/*`) with `AdminAuthMiddleware` (JWT-based, requires `role: "admin"`)
+- **Tenant admin endpoints**: `GET /admin/tenants` (list with search/filter/pagination), `GET /admin/tenants/:id` (detail with quotas, members, subscription, audit log), `GET /admin/tenants/:id/usage` (daily breakdown), `PUT /admin/tenants/:id/quotas`, `POST /admin/tenants/:id/suspend|unsuspend`, `POST /admin/tenants/bulk`
+- **Admin billing endpoints**: `GET /admin/billing/revenue` (MRR, ARR, growth rate, churn rate, trend), `GET /admin/billing/invoices` (list with status filter), `POST /admin/billing/refund`, `GET /admin/billing/dunning`
+- **Alert rules**: CRUD at `/admin/alerts` with in-memory repository
+- **SLOs**: CRUD at `/admin/slos` with compliance calculation and in-memory repository
+- **Security endpoints**: CRUD `/admin/security/ip-rules`, `GET /admin/security/token-audit` (query + summary), `GET /admin/security/suspicious-activity` (anomaly detection)
+- **Domain entities**: `AlertRule`, `IPRule`, `SLO` with validation and unit tests
+- **LemonSqueezy client enhancements** for billing integration
+- Comprehensive test coverage: admin middleware, tenant handler, billing handler, IP rules, suspicious activity, token audit, alert rules, SLOs, quota updates
+
+#### Query Service (`apps/query-service/`)
+- **Admin metrics endpoints**: `GET /api/admin/metrics/summary` (aggregated cluster metrics), `GET /api/admin/metrics/timeseries` (chart data), `GET /api/cluster/members` (health and roles)
+- **MetricsCache** GenServer: 30s TTL cache for Core `/metrics` Prometheus scraping
+- **PrometheusParser**: Extracts counters/gauges/histograms from Core's Prometheus text format
+- Tests for cache TTL behavior and Prometheus text parsing
+
+#### Web Dashboard (`apps/web/`)
+- **Onboarding wizard rewrite**: All SDK snippets verified against actual SDK source code — Rust (`allsource` crate, `CoreClient`/`QueryClient`/`IngestEventInput`/`QueryEventsParams`), Go (`allsource-go`, `New`/`Ingest`/`Query`/`QueryOptions`), TypeScript (`@allsource/client`, `ingestEvent`/`queryEvents` with snake_case), Python (`allsource-client`, `AllSourceClient`/`ingest`/`query`)
+- **Vitest test suite**: 30 tests covering install commands, send/query snippet correctness, step navigation, Run It/Try It API calls
+- **Billing plan cards**: tier ranking system (free/growth/enterprise) for context-aware upgrade/downgrade/current buttons; free plan shows "Cancel via Manage Subscription" when user is on paid plan
+
+#### UI Library (`packages/ui/`)
+- New components: `Dialog`, `Select`, `Table`, `Tabs` (Radix-based)
+
+#### Chronis (`apps/chronis/`)
+- Best practices documentation (gitignore rules, sync exchange files)
+
 ## [0.14.1] - 2026-03-05
 
 ### Added
