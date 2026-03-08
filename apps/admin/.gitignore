@@ -1,0 +1,5 @@
+# Playwright
+playwright-report/
+playwright-report-real/
+test-results/
+e2e/real/.auth-state.json

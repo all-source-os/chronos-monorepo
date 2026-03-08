@@ -1,0 +1,63 @@
+# =============================================================================
+# Admin E2E Test Stack — isolated, disposable
+# =============================================================================
+# Usage:
+#   docker compose -f e2e/real/docker-compose.e2e.yml up -d --wait
+#   docker compose -f e2e/real/docker-compose.e2e.yml down -v
+#
+# All ports are offset from production to avoid conflicts:
+#   Core:          3090 (internal 3900)
+#   Control Plane: 3091 (internal 3901)
+#   Admin App:     3011 (internal 3001)
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # Core — Event Store
+  # ===========================================================================
+  e2e-core:
+    image: ghcr.io/all-source-os/allsource-core:0.14.1
+    platform: linux/amd64
+    container_name: e2e-admin-core
+    ports:
+      - "3090:3900"
+    environment:
+      RUST_LOG: allsource_core=info
+      ALLSOURCE_HOST: 0.0.0.0
+      ALLSOURCE_PORT: 3900
+      ALLSOURCE_DEV_MODE: "true"
+      ALLSOURCE_DATA_DIR: /app/data
+      ALLSOURCE_STORAGE_DIR: /app/data/storage
+      ALLSOURCE_WAL_DIR: /app/data/wal
+      ALLSOURCE_WAL_ENABLED: "true"
+      ALLSOURCE_PARQUET_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3900/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # ===========================================================================
+  # Control Plane — Admin API + Auth
+  # ===========================================================================
+  e2e-control-plane:
+    image: ghcr.io/all-source-os/allsource-control-plane:latest
+    platform: linux/amd64
+    container_name: e2e-admin-cp
+    ports:
+      - "3091:3901"
+    environment:
+      PORT: 3901
+      CORE_URL: http://e2e-core:3900
+      JWT_SECRET: e2e-test-jwt-secret-that-is-at-least-32-characters-long
+      LOG_LEVEL: info
+    depends_on:
+      e2e-core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3901/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
