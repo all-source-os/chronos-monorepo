@@ -5,12 +5,34 @@ import (
 	"time"
 )
 
+// TenantQuotas holds the resource limits for a tenant.
+type TenantQuotas struct {
+	EventLimit     int64 `json:"event_limit"`
+	QueryLimit     int64 `json:"query_limit"`
+	StorageLimitMB int64 `json:"storage_limit_mb"`
+}
+
+// Validate checks that all quota values are non-negative.
+func (q *TenantQuotas) Validate() error {
+	if q.EventLimit < 0 {
+		return errors.New("event_limit must not be negative")
+	}
+	if q.QueryLimit < 0 {
+		return errors.New("query_limit must not be negative")
+	}
+	if q.StorageLimitMB < 0 {
+		return errors.New("storage_limit_mb must not be negative")
+	}
+	return nil
+}
+
 // Tenant represents a tenant in the system
 type Tenant struct {
 	ID          string
 	Name        string
 	Description string
 	Status      TenantStatus
+	Quotas      TenantQuotas
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Metadata    map[string]interface{}
@@ -23,6 +45,7 @@ type TenantStatus string
 const (
 	TenantStatusActive    TenantStatus = "active"
 	TenantStatusSuspended TenantStatus = "suspended"
+	TenantStatusArchived  TenantStatus = "archived"
 	TenantStatusDeleted   TenantStatus = "deleted"
 )
 
@@ -80,10 +103,26 @@ func (t *Tenant) Suspend() {
 	t.UpdatedAt = time.Now()
 }
 
+// Archive marks tenant as archived
+func (t *Tenant) Archive() {
+	t.Status = TenantStatusArchived
+	t.UpdatedAt = time.Now()
+}
+
 // Activate marks tenant as active
 func (t *Tenant) Activate() {
 	t.Status = TenantStatusActive
 	t.UpdatedAt = time.Now()
+}
+
+// UpdateQuotas sets new quota values after validation.
+func (t *Tenant) UpdateQuotas(quotas TenantQuotas) error {
+	if err := quotas.Validate(); err != nil {
+		return err
+	}
+	t.Quotas = quotas
+	t.UpdatedAt = time.Now()
+	return nil
 }
 
 // MarkDeleted marks tenant as deleted

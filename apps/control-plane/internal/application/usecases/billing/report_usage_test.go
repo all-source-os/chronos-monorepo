@@ -40,6 +40,22 @@ func (m *mockLSClient) LookupVariantID(_ string) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
+func (m *mockLSClient) ListSubscriptions(_ context.Context, _ string, _ int) (*clients.SubscriptionListResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockLSClient) ListInvoices(_ context.Context, _ string, _ int, _ string) (*clients.InvoiceListResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockLSClient) RefundInvoice(_ context.Context, _ string, _ int) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockLSClient) GetStoreID() string {
+	return "test-store"
+}
+
 func TestReportUsage_NoOverage(t *testing.T) {
 	repo := persistence.NewMemoryTenantRepository()
 	auditRepo := persistence.NewMemoryAuditRepository()

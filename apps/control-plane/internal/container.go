@@ -18,15 +18,20 @@ type Container struct {
 	AuditRepo     repositories.AuditRepository
 	OperationRepo repositories.OperationRepository
 	ConfigRepo    repositories.ConfigRepository
+	AlertRuleRepo repositories.AlertRuleRepository
+	SLORepo       repositories.SLORepository
+	IPRuleRepo    repositories.IPRuleRepository
 
 	// Use Cases — Tenants
-	CreateTenantUC   *usecases.CreateTenantUseCase
-	GetTenantUC      *usecases.GetTenantUseCase
-	ListTenantsUC    *usecases.ListTenantsUseCase
-	UpdateTenantUC   *usecases.UpdateTenantUseCase
-	SuspendTenantUC  *usecases.SuspendTenantUseCase
-	ActivateTenantUC *usecases.ActivateTenantUseCase
-	DeleteTenantUC   *usecases.DeleteTenantUseCase
+	CreateTenantUC       *usecases.CreateTenantUseCase
+	GetTenantUC          *usecases.GetTenantUseCase
+	ListTenantsUC        *usecases.ListTenantsUseCase
+	UpdateTenantUC       *usecases.UpdateTenantUseCase
+	UpdateTenantQuotasUC *usecases.UpdateTenantQuotasUseCase
+	SuspendTenantUC      *usecases.SuspendTenantUseCase
+	ActivateTenantUC     *usecases.ActivateTenantUseCase
+	BulkTenantUC         *usecases.BulkTenantUseCase
+	DeleteTenantUC       *usecases.DeleteTenantUseCase
 
 	// Use Cases — Policies
 	EvaluatePolicyUC *usecases.EvaluatePolicyUseCase
@@ -51,7 +56,9 @@ type Container struct {
 	ValidateEventUC  *usecases.ValidateEventUseCase
 
 	// Use Cases — Audit Trail
-	QueryAuditUC *usecases.QueryAuditUseCase
+	QueryAuditUC               *usecases.QueryAuditUseCase
+	QueryTokenAuditUC          *usecases.QueryTokenAuditUseCase
+	DetectSuspiciousActivityUC *usecases.DetectSuspiciousActivityUseCase
 
 	// Use Cases — Config
 	CreateConfigUC *usecases.CreateConfigUseCase
@@ -59,6 +66,22 @@ type Container struct {
 	ListConfigsUC  *usecases.ListConfigsUseCase
 	UpdateConfigUC *usecases.UpdateConfigUseCase
 	DeleteConfigUC *usecases.DeleteConfigUseCase
+
+	// Use Cases — Alert Rules
+	CreateAlertRuleUC *usecases.CreateAlertRuleUseCase
+	ListAlertRulesUC  *usecases.ListAlertRulesUseCase
+	UpdateAlertRuleUC *usecases.UpdateAlertRuleUseCase
+	DeleteAlertRuleUC *usecases.DeleteAlertRuleUseCase
+
+	// Use Cases — IP Rules
+	CreateIPRuleUC *usecases.CreateIPRuleUseCase
+	ListIPRulesUC  *usecases.ListIPRulesUseCase
+	DeleteIPRuleUC *usecases.DeleteIPRuleUseCase
+
+	// Use Cases — SLOs
+	CreateSLOUC *usecases.CreateSLOUseCase
+	ListSLOsUC  *usecases.ListSLOsUseCase
+	DeleteSLOUC *usecases.DeleteSLOUseCase
 
 	// Use Cases — Billing
 	CreateCheckoutUC      *usecases.CreateCheckoutUseCase
@@ -72,6 +95,12 @@ type Container struct {
 	ReportUsageUC        *billing.ReportUsageUseCase
 	CheckUsageWarningsUC *billing.CheckUsageWarningsUseCase
 
+	// Use Cases — Admin Billing
+	AdminListInvoicesUC *billing.AdminListInvoicesUseCase
+	AdminRevenueUC      *billing.AdminRevenueUseCase
+	AdminRefundUC       *billing.AdminRefundUseCase
+	AdminDunningUC      *billing.AdminDunningUseCase
+
 	// Use Cases — Webhooks
 	ProcessLSWebhookUC     *usecases.ProcessLemonSqueezyWebhookUseCase
 	ProcessStripeWebhookUC *usecases.ProcessStripeWebhookUseCase
@@ -81,14 +110,21 @@ type Container struct {
 	Scheduler *usecases.OperationScheduler
 
 	// HTTP Handlers
-	TenantHandler     *httphandlers.TenantHandler
-	PolicyHandler     *httphandlers.PolicyHandler
-	OperationsHandler *httphandlers.OperationsHandler
-	SchemaHandler     *httphandlers.SchemaHandler
-	AuditHandler      *httphandlers.AuditHandler
-	ConfigHandler     *httphandlers.ConfigHandler
-	BillingHandler    *httphandlers.BillingHandler
-	WebhookHandler    *httphandlers.WebhookHandler
+	AlertHandler              *httphandlers.AlertHandler
+	SLOHandler                *httphandlers.SLOHandler
+	AdminTenantHandler        *httphandlers.AdminTenantHandler
+	TenantHandler             *httphandlers.TenantHandler
+	PolicyHandler             *httphandlers.PolicyHandler
+	OperationsHandler         *httphandlers.OperationsHandler
+	SchemaHandler             *httphandlers.SchemaHandler
+	AuditHandler              *httphandlers.AuditHandler
+	TokenAuditHandler         *httphandlers.TokenAuditHandler
+	SuspiciousActivityHandler *httphandlers.SuspiciousActivityHandler
+	ConfigHandler             *httphandlers.ConfigHandler
+	IPRuleHandler             *httphandlers.IPRuleHandler
+	BillingHandler            *httphandlers.BillingHandler
+	AdminBillingHandler       *httphandlers.AdminBillingHandler
+	WebhookHandler            *httphandlers.WebhookHandler
 }
 
 // ContainerConfig holds configuration for dependency injection.
@@ -123,6 +159,9 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	// In-memory repositories (CP-local concerns)
 	policyRepo := persistence.NewMemoryPolicyRepository()
 	operationRepo := persistence.NewMemoryOperationRepository()
+	alertRuleRepo := persistence.NewMemoryAlertRuleRepository()
+	sloRepo := persistence.NewMemorySLORepository()
+	ipRuleRepo := persistence.NewMemoryIPRuleRepository()
 
 	// Initialize use cases — Tenants (no coreClient needed, repo delegates directly)
 	createTenantUC := usecases.NewCreateTenantUseCase(tenantRepo, auditRepo)
@@ -131,7 +170,11 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	updateTenantUC := usecases.NewUpdateTenantUseCase(tenantRepo, auditRepo)
 	suspendTenantUC := usecases.NewSuspendTenantUseCase(tenantRepo, auditRepo)
 	activateTenantUC := usecases.NewActivateTenantUseCase(tenantRepo, auditRepo)
+	bulkTenantUC := usecases.NewBulkTenantUseCase(tenantRepo, auditRepo)
 	deleteTenantUC := usecases.NewDeleteTenantUseCase(tenantRepo, auditRepo)
+	updateTenantQuotasUC := usecases.NewUpdateTenantQuotasUseCase(tenantRepo, auditRepo)
+	getAdminTenantDetailUC := usecases.NewGetAdminTenantDetailUseCase(tenantRepo, cfg.CoreClient)
+	getTenantUsageUC := usecases.NewGetTenantUsageUseCase(tenantRepo, cfg.CoreClient)
 
 	// Initialize use cases — Policies (Layer 2)
 	evaluatePolicyUC := usecases.NewEvaluatePolicyUseCase(policyRepo)
@@ -157,6 +200,8 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 
 	// Initialize use cases — Audit Trail (Layer 2)
 	queryAuditUC := usecases.NewQueryAuditUseCase(auditRepo)
+	queryTokenAuditUC := usecases.NewQueryTokenAuditUseCase(auditRepo)
+	detectSuspiciousActivityUC := usecases.NewDetectSuspiciousActivityUseCase(auditRepo)
 
 	// Initialize use cases — Config (Layer 2)
 	createConfigUC := usecases.NewCreateConfigUseCase(configRepo, auditRepo)
@@ -164,6 +209,22 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	listConfigsUC := usecases.NewListConfigsUseCase(configRepo)
 	updateConfigUC := usecases.NewUpdateConfigUseCase(configRepo, auditRepo)
 	deleteConfigUC := usecases.NewDeleteConfigUseCase(configRepo, auditRepo)
+
+	// Initialize use cases — Alert Rules (Layer 2)
+	createAlertRuleUC := usecases.NewCreateAlertRuleUseCase(alertRuleRepo, auditRepo)
+	listAlertRulesUC := usecases.NewListAlertRulesUseCase(alertRuleRepo)
+	updateAlertRuleUC := usecases.NewUpdateAlertRuleUseCase(alertRuleRepo, auditRepo)
+	deleteAlertRuleUC := usecases.NewDeleteAlertRuleUseCase(alertRuleRepo, auditRepo)
+
+	// Initialize use cases — IP Rules (Layer 2)
+	createIPRuleUC := usecases.NewCreateIPRuleUseCase(ipRuleRepo, auditRepo)
+	listIPRulesUC := usecases.NewListIPRulesUseCase(ipRuleRepo)
+	deleteIPRuleUC := usecases.NewDeleteIPRuleUseCase(ipRuleRepo, auditRepo)
+
+	// Initialize use cases — SLOs (Layer 2)
+	createSLOUC := usecases.NewCreateSLOUseCase(sloRepo, auditRepo)
+	listSLOsUC := usecases.NewListSLOsUseCase(sloRepo, nil) // nil MetricsProvider: defaults to 100% compliance
+	deleteSLOUC := usecases.NewDeleteSLOUseCase(sloRepo, auditRepo)
 
 	// Initialize use cases — Billing (Layer 2)
 	// Checkout/portal require at least one payment provider (LS or Stripe)
@@ -195,6 +256,17 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		checkUsageWarningsUC = billing.NewCheckUsageWarningsUseCase(tenantRepo, auditRepo, cfg.EmailClient)
 	}
 
+	// Initialize use cases — Admin Billing
+	var adminListInvoicesUC *billing.AdminListInvoicesUseCase
+	var adminRevenueUC *billing.AdminRevenueUseCase
+	var adminRefundUC *billing.AdminRefundUseCase
+	adminDunningUC := billing.NewAdminDunningUseCase(tenantRepo, auditRepo)
+	adminRevenueUC = billing.NewAdminRevenueUseCase(tenantRepo, auditRepo, cfg.LSClient)
+	if cfg.LSClient != nil {
+		adminListInvoicesUC = billing.NewAdminListInvoicesUseCase(tenantRepo, auditRepo, cfg.LSClient)
+		adminRefundUC = billing.NewAdminRefundUseCase(auditRepo, cfg.LSClient)
+	}
+
 	// Initialize scheduler
 	scheduler := usecases.NewOperationScheduler(operationRepo, auditRepo, cfg.CoreClient)
 	if reportUsageUC != nil {
@@ -205,6 +277,9 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	}
 
 	// Initialize HTTP handlers (Layer 4)
+	alertHandler := httphandlers.NewAlertHandler(createAlertRuleUC, listAlertRulesUC, updateAlertRuleUC, deleteAlertRuleUC)
+	sloHandler := httphandlers.NewSLOHandler(createSLOUC, listSLOsUC, deleteSLOUC)
+	adminTenantHandler := httphandlers.NewAdminTenantHandler(listTenantsUC, getAdminTenantDetailUC, getTenantUsageUC, updateTenantQuotasUC, suspendTenantUC, activateTenantUC, bulkTenantUC)
 	tenantHandler := httphandlers.NewTenantHandler(
 		createTenantUC, getTenantUC, listTenantsUC, updateTenantUC,
 		suspendTenantUC, activateTenantUC, deleteTenantUC, cfg.CoreClient,
@@ -219,69 +294,101 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	)
 	schemaHandler := httphandlers.NewSchemaHandler(registerSchemaUC, listSchemasUC, validateEventUC)
 	auditHandler := httphandlers.NewAuditHandler(queryAuditUC)
+	tokenAuditHandler := httphandlers.NewTokenAuditHandler(queryTokenAuditUC)
+	suspiciousActivityHandler := httphandlers.NewSuspiciousActivityHandler(detectSuspiciousActivityUC)
 	configHandler := httphandlers.NewConfigHandler(
 		createConfigUC, getConfigUC, listConfigsUC, updateConfigUC, deleteConfigUC,
 	)
 	billingHandler := httphandlers.NewBillingHandler(
 		createCheckoutUC, getPortalUC, getOverageSummaryUC, setOverageEnabledUC, getProjectedChargesUC,
 	)
+	ipRuleHandler := httphandlers.NewIPRuleHandler(createIPRuleUC, listIPRulesUC, deleteIPRuleUC)
+	adminBillingHandler := httphandlers.NewAdminBillingHandler(adminListInvoicesUC, adminRevenueUC, adminRefundUC, adminDunningUC)
 	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC, processStripeWebhookUC)
 
 	return &Container{
-		TenantRepo:             tenantRepo,
-		PolicyRepo:             policyRepo,
-		AuditRepo:              auditRepo,
-		OperationRepo:          operationRepo,
-		ConfigRepo:             configRepo,
-		CreateTenantUC:         createTenantUC,
-		GetTenantUC:            getTenantUC,
-		ListTenantsUC:          listTenantsUC,
-		UpdateTenantUC:         updateTenantUC,
-		SuspendTenantUC:        suspendTenantUC,
-		ActivateTenantUC:       activateTenantUC,
-		DeleteTenantUC:         deleteTenantUC,
-		EvaluatePolicyUC:       evaluatePolicyUC,
-		CreatePolicyUC:         createPolicyUC,
-		GetPolicyUC:            getPolicyUC,
-		ListPoliciesUC:         listPoliciesUC,
-		UpdatePolicyUC:         updatePolicyUC,
-		DeletePolicyUC:         deletePolicyUC,
-		CreateSnapshotUC:       createSnapshotUC,
-		TriggerCompactionUC:    triggerCompactionUC,
-		StartReplayUC:          startReplayUC,
-		GetReplayProgressUC:    getReplayProgressUC,
-		CancelReplayUC:         cancelReplayUC,
-		ListOperationsUC:       listOperationsUC,
-		GetClusterStatusUC:     getClusterStatusUC,
-		RegisterSchemaUC:       registerSchemaUC,
-		ListSchemasUC:          listSchemasUC,
-		ValidateEventUC:        validateEventUC,
-		QueryAuditUC:           queryAuditUC,
-		CreateConfigUC:         createConfigUC,
-		GetConfigUC:            getConfigUC,
-		ListConfigsUC:          listConfigsUC,
-		UpdateConfigUC:         updateConfigUC,
-		DeleteConfigUC:         deleteConfigUC,
-		CreateCheckoutUC:       createCheckoutUC,
-		GetPortalUC:            getPortalUC,
-		GetOverageSummaryUC:    getOverageSummaryUC,
-		SetOverageEnabledUC:    setOverageEnabledUC,
-		GetProjectedChargesUC:  getProjectedChargesUC,
-		CalculateOverageUC:     calculateOverageUC,
-		ReportUsageUC:          reportUsageUC,
-		CheckUsageWarningsUC:   checkUsageWarningsUC,
-		Scheduler:              scheduler,
-		TenantHandler:          tenantHandler,
-		PolicyHandler:          policyHandler,
-		OperationsHandler:      operationsHandler,
-		SchemaHandler:          schemaHandler,
-		AuditHandler:           auditHandler,
-		ConfigHandler:          configHandler,
-		BillingHandler:         billingHandler,
-		WebhookHandler:         webhookHandler,
-		ProcessLSWebhookUC:     processLSWebhookUC,
-		ProcessStripeWebhookUC: processStripeWebhookUC,
-		UpdateSubscriptionUC:   updateSubscriptionUC,
+		TenantRepo:                 tenantRepo,
+		PolicyRepo:                 policyRepo,
+		AuditRepo:                  auditRepo,
+		OperationRepo:              operationRepo,
+		ConfigRepo:                 configRepo,
+		AlertRuleRepo:              alertRuleRepo,
+		SLORepo:                    sloRepo,
+		IPRuleRepo:                 ipRuleRepo,
+		CreateTenantUC:             createTenantUC,
+		GetTenantUC:                getTenantUC,
+		ListTenantsUC:              listTenantsUC,
+		UpdateTenantUC:             updateTenantUC,
+		UpdateTenantQuotasUC:       updateTenantQuotasUC,
+		SuspendTenantUC:            suspendTenantUC,
+		ActivateTenantUC:           activateTenantUC,
+		BulkTenantUC:               bulkTenantUC,
+		DeleteTenantUC:             deleteTenantUC,
+		EvaluatePolicyUC:           evaluatePolicyUC,
+		CreatePolicyUC:             createPolicyUC,
+		GetPolicyUC:                getPolicyUC,
+		ListPoliciesUC:             listPoliciesUC,
+		UpdatePolicyUC:             updatePolicyUC,
+		DeletePolicyUC:             deletePolicyUC,
+		CreateSnapshotUC:           createSnapshotUC,
+		TriggerCompactionUC:        triggerCompactionUC,
+		StartReplayUC:              startReplayUC,
+		GetReplayProgressUC:        getReplayProgressUC,
+		CancelReplayUC:             cancelReplayUC,
+		ListOperationsUC:           listOperationsUC,
+		GetClusterStatusUC:         getClusterStatusUC,
+		RegisterSchemaUC:           registerSchemaUC,
+		ListSchemasUC:              listSchemasUC,
+		ValidateEventUC:            validateEventUC,
+		QueryAuditUC:               queryAuditUC,
+		QueryTokenAuditUC:          queryTokenAuditUC,
+		DetectSuspiciousActivityUC: detectSuspiciousActivityUC,
+		CreateConfigUC:             createConfigUC,
+		GetConfigUC:                getConfigUC,
+		ListConfigsUC:              listConfigsUC,
+		UpdateConfigUC:             updateConfigUC,
+		DeleteConfigUC:             deleteConfigUC,
+		CreateAlertRuleUC:          createAlertRuleUC,
+		ListAlertRulesUC:           listAlertRulesUC,
+		UpdateAlertRuleUC:          updateAlertRuleUC,
+		DeleteAlertRuleUC:          deleteAlertRuleUC,
+		CreateIPRuleUC:             createIPRuleUC,
+		ListIPRulesUC:              listIPRulesUC,
+		DeleteIPRuleUC:             deleteIPRuleUC,
+		CreateSLOUC:                createSLOUC,
+		ListSLOsUC:                 listSLOsUC,
+		DeleteSLOUC:                deleteSLOUC,
+		CreateCheckoutUC:           createCheckoutUC,
+		GetPortalUC:                getPortalUC,
+		GetOverageSummaryUC:        getOverageSummaryUC,
+		SetOverageEnabledUC:        setOverageEnabledUC,
+		GetProjectedChargesUC:      getProjectedChargesUC,
+		CalculateOverageUC:         calculateOverageUC,
+		ReportUsageUC:              reportUsageUC,
+		CheckUsageWarningsUC:       checkUsageWarningsUC,
+		AdminListInvoicesUC:        adminListInvoicesUC,
+		AdminRevenueUC:             adminRevenueUC,
+		AdminRefundUC:              adminRefundUC,
+		AdminDunningUC:             adminDunningUC,
+		Scheduler:                  scheduler,
+		AlertHandler:               alertHandler,
+		SLOHandler:                 sloHandler,
+		AdminTenantHandler:         adminTenantHandler,
+		TenantHandler:              tenantHandler,
+		PolicyHandler:              policyHandler,
+		OperationsHandler:          operationsHandler,
+		SchemaHandler:              schemaHandler,
+		AuditHandler:               auditHandler,
+		TokenAuditHandler:          tokenAuditHandler,
+		SuspiciousActivityHandler:  suspiciousActivityHandler,
+		ConfigHandler:              configHandler,
+		IPRuleHandler:              ipRuleHandler,
+		BillingHandler:             billingHandler,
+		AdminBillingHandler:        adminBillingHandler,
+		WebhookHandler:             webhookHandler,
+		ProcessLSWebhookUC:         processLSWebhookUC,
+		ProcessStripeWebhookUC:     processStripeWebhookUC,
+		UpdateSubscriptionUC:       updateSubscriptionUC,
 	}
 }
 

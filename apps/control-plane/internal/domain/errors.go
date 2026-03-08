@@ -42,4 +42,22 @@ var (
 
 	// ErrCoreNotAvailable is returned when the Core service is not configured
 	ErrCoreNotAvailable = errors.New("core service not available")
+
+	// ErrAlertRuleNotFound is returned when an alert rule is not found
+	ErrAlertRuleNotFound = errors.New("alert rule not found")
+
+	// ErrAlertRuleAlreadyExists is returned when an alert rule already exists
+	ErrAlertRuleAlreadyExists = errors.New("alert rule already exists")
+
+	// ErrSLONotFound is returned when an SLO is not found
+	ErrSLONotFound = errors.New("SLO not found")
+
+	// ErrSLOAlreadyExists is returned when an SLO already exists
+	ErrSLOAlreadyExists = errors.New("SLO already exists")
+
+	// ErrIPRuleNotFound is returned when an IP rule is not found
+	ErrIPRuleNotFound = errors.New("IP rule not found")
+
+	// ErrIPRuleAlreadyExists is returned when an IP rule already exists
+	ErrIPRuleAlreadyExists = errors.New("IP rule already exists")
 )

@@ -92,6 +92,9 @@ func (r *CoreTenantRepository) Update(tenant *entities.Tenant) error {
 		return err
 	case entities.TenantStatusDeleted:
 		return r.client.DeleteTenant(ctx, tenant.ID)
+	case entities.TenantStatusArchived:
+		_, err := r.client.DeactivateTenant(ctx, tenant.ID)
+		return err
 	default:
 		return nil
 	}
@@ -121,6 +124,8 @@ func coreTenantToEntity(resp *clients.TenantResponse) *entities.Tenant {
 		status = entities.TenantStatusSuspended
 	case "deleted":
 		status = entities.TenantStatusDeleted
+	case "archived":
+		status = entities.TenantStatusArchived
 	}
 
 	return &entities.Tenant{

@@ -23,7 +23,11 @@ type LemonSqueezyClient interface {
 	GetCustomerPortalURL(ctx context.Context, subscriptionID string) (string, error)
 	ReportUsage(ctx context.Context, req ReportUsageRequest) error
 	GetSubscription(ctx context.Context, subscriptionID string) (*SubscriptionResponse, error)
+	ListSubscriptions(ctx context.Context, storeID string, page int) (*SubscriptionListResponse, error)
+	ListInvoices(ctx context.Context, storeID string, page int, status string) (*InvoiceListResponse, error)
+	RefundInvoice(ctx context.Context, orderID string, amount int) error
 	LookupVariantID(tier string) (string, error)
+	GetStoreID() string
 }
 
 // VariantMap maps plan tier names to LemonSqueezy variant IDs.
@@ -364,4 +368,245 @@ func (c *lemonSqueezyClient) LookupVariantID(tier string) (string, error) {
 		return "", fmt.Errorf("unknown plan tier: %s", tier)
 	}
 	return id, nil
+}
+
+// GetStoreID returns the configured LemonSqueezy store ID.
+func (c *lemonSqueezyClient) GetStoreID() string {
+	return c.storeID
+}
+
+// --- Subscription list types ---
+
+// SubscriptionListItem is a single subscription in a list response.
+type SubscriptionListItem struct {
+	ID         string `json:"id"`
+	Status     string `json:"status"`
+	CustomerID int    `json:"customer_id"`
+	ProductID  int    `json:"product_id"`
+	VariantID  int    `json:"variant_id"`
+	RenewsAt   string `json:"renews_at,omitempty"`
+	EndsAt     string `json:"ends_at,omitempty"`
+	CreatedAt  string `json:"created_at,omitempty"`
+	Price      int    `json:"price,omitempty"` // price in cents
+}
+
+// SubscriptionListResponse wraps a paginated list of subscriptions.
+type SubscriptionListResponse struct {
+	Subscriptions []SubscriptionListItem `json:"subscriptions"`
+	Total         int                    `json:"total"`
+	Page          int                    `json:"page"`
+	TotalPages    int                    `json:"total_pages"`
+}
+
+// ListSubscriptions retrieves a paginated list of subscriptions from LemonSqueezy.
+func (c *lemonSqueezyClient) ListSubscriptions(ctx context.Context, storeID string, page int) (*SubscriptionListResponse, error) {
+	if storeID == "" {
+		storeID = c.storeID
+	}
+
+	var respEnvelope struct {
+		Data []struct {
+			ID         string          `json:"id"`
+			Attributes json.RawMessage `json:"attributes"`
+		} `json:"data"`
+		Meta struct {
+			Page struct {
+				CurrentPage int `json:"currentPage"`
+				LastPage    int `json:"lastPage"`
+				Total       int `json:"total"`
+			} `json:"page"`
+		} `json:"meta"`
+	}
+
+	resp, err := c.client.R().
+		SetContext(ctx).
+		SetQueryParam("filter[store_id]", storeID).
+		SetQueryParam("page[number]", fmt.Sprintf("%d", page)).
+		SetQueryParam("page[size]", "20").
+		SetResult(&respEnvelope).
+		Get("/v1/subscriptions")
+
+	if err != nil {
+		return nil, fmt.Errorf("list subscriptions request failed: %w", err)
+	}
+	if resp.StatusCode() >= 400 {
+		return nil, fmt.Errorf("list subscriptions returned status %d: %s", resp.StatusCode(), resp.String())
+	}
+
+	var items []SubscriptionListItem
+	for _, d := range respEnvelope.Data {
+		var attrs struct {
+			Status     string `json:"status"`
+			CustomerID int    `json:"customer_id"`
+			ProductID  int    `json:"product_id"`
+			VariantID  int    `json:"variant_id"`
+			RenewsAt   string `json:"renews_at"`
+			EndsAt     string `json:"ends_at"`
+			CreatedAt  string `json:"created_at"`
+		}
+		if err := json.Unmarshal(d.Attributes, &attrs); err != nil {
+			continue
+		}
+		items = append(items, SubscriptionListItem{
+			ID:         d.ID,
+			Status:     attrs.Status,
+			CustomerID: attrs.CustomerID,
+			ProductID:  attrs.ProductID,
+			VariantID:  attrs.VariantID,
+			RenewsAt:   attrs.RenewsAt,
+			EndsAt:     attrs.EndsAt,
+			CreatedAt:  attrs.CreatedAt,
+		})
+	}
+
+	return &SubscriptionListResponse{
+		Subscriptions: items,
+		Total:         respEnvelope.Meta.Page.Total,
+		Page:          respEnvelope.Meta.Page.CurrentPage,
+		TotalPages:    respEnvelope.Meta.Page.LastPage,
+	}, nil
+}
+
+// --- Invoice list types ---
+
+// InvoiceItem represents a single invoice/order from LemonSqueezy.
+type InvoiceItem struct {
+	ID             string `json:"id"`
+	CustomerID     int    `json:"customer_id"`
+	SubscriptionID int    `json:"subscription_id,omitempty"`
+	Status         string `json:"status"` // paid, refunded, pending, failed
+	TotalFormatted string `json:"total_formatted"`
+	Total          int    `json:"total"` // in cents
+	Currency       string `json:"currency"`
+	CreatedAt      string `json:"created_at"`
+	RefundedAt     string `json:"refunded_at,omitempty"`
+}
+
+// InvoiceListResponse wraps a paginated list of invoices.
+type InvoiceListResponse struct {
+	Invoices   []InvoiceItem `json:"invoices"`
+	Total      int           `json:"total"`
+	Page       int           `json:"page"`
+	TotalPages int           `json:"total_pages"`
+}
+
+// ListInvoices retrieves a paginated list of orders (invoices) from LemonSqueezy.
+func (c *lemonSqueezyClient) ListInvoices(ctx context.Context, storeID string, page int, status string) (*InvoiceListResponse, error) {
+	if storeID == "" {
+		storeID = c.storeID
+	}
+
+	var respEnvelope struct {
+		Data []struct {
+			ID         string          `json:"id"`
+			Attributes json.RawMessage `json:"attributes"`
+		} `json:"data"`
+		Meta struct {
+			Page struct {
+				CurrentPage int `json:"currentPage"`
+				LastPage    int `json:"lastPage"`
+				Total       int `json:"total"`
+			} `json:"page"`
+		} `json:"meta"`
+	}
+
+	req := c.client.R().
+		SetContext(ctx).
+		SetQueryParam("filter[store_id]", storeID).
+		SetQueryParam("page[number]", fmt.Sprintf("%d", page)).
+		SetQueryParam("page[size]", "20").
+		SetResult(&respEnvelope)
+
+	if status != "" {
+		req.SetQueryParam("filter[status]", status)
+	}
+
+	resp, err := req.Get("/v1/orders")
+	if err != nil {
+		return nil, fmt.Errorf("list invoices request failed: %w", err)
+	}
+	if resp.StatusCode() >= 400 {
+		return nil, fmt.Errorf("list invoices returned status %d: %s", resp.StatusCode(), resp.String())
+	}
+
+	var invoices []InvoiceItem
+	for _, d := range respEnvelope.Data {
+		var attrs struct {
+			CustomerID     int    `json:"customer_id"`
+			SubscriptionID int    `json:"first_subscription_id"`
+			Status         string `json:"status"`
+			TotalFormatted string `json:"total_formatted"`
+			Total          int    `json:"total"`
+			Currency       string `json:"currency"`
+			CreatedAt      string `json:"created_at"`
+			RefundedAt     string `json:"refunded_at"`
+		}
+		if err := json.Unmarshal(d.Attributes, &attrs); err != nil {
+			continue
+		}
+		invoices = append(invoices, InvoiceItem{
+			ID:             d.ID,
+			CustomerID:     attrs.CustomerID,
+			SubscriptionID: attrs.SubscriptionID,
+			Status:         attrs.Status,
+			TotalFormatted: attrs.TotalFormatted,
+			Total:          attrs.Total,
+			Currency:       attrs.Currency,
+			CreatedAt:      attrs.CreatedAt,
+			RefundedAt:     attrs.RefundedAt,
+		})
+	}
+
+	return &InvoiceListResponse{
+		Invoices:   invoices,
+		Total:      respEnvelope.Meta.Page.Total,
+		Page:       respEnvelope.Meta.Page.CurrentPage,
+		TotalPages: respEnvelope.Meta.Page.LastPage,
+	}, nil
+}
+
+// RefundInvoice issues a refund for a given order via the LemonSqueezy API.
+func (c *lemonSqueezyClient) RefundInvoice(ctx context.Context, orderID string, amount int) error {
+	// LemonSqueezy refunds are issued via POST /v1/refunds
+	type refundAttrs struct {
+		Amount int    `json:"amount"`
+		Reason string `json:"reason,omitempty"`
+	}
+	attrs, err := json.Marshal(refundAttrs{Amount: amount, Reason: "admin_refund"})
+	if err != nil {
+		return fmt.Errorf("marshal refund attributes: %w", err)
+	}
+
+	rels := map[string]jsonAPIRelationship{
+		"order": {Data: struct {
+			Type string `json:"type"`
+			ID   string `json:"id"`
+		}{Type: "orders", ID: orderID}},
+	}
+	relsJSON, err := json.Marshal(rels)
+	if err != nil {
+		return fmt.Errorf("marshal refund relationships: %w", err)
+	}
+
+	body := jsonAPIEnvelope{
+		Data: jsonAPIData{
+			Type:          "refunds",
+			Attributes:    attrs,
+			Relationships: relsJSON,
+		},
+	}
+
+	resp, err := c.client.R().
+		SetContext(ctx).
+		SetBody(body).
+		Post("/v1/refunds")
+
+	if err != nil {
+		return fmt.Errorf("refund request failed: %w", err)
+	}
+	if resp.StatusCode() >= 400 {
+		return fmt.Errorf("refund returned status %d: %s", resp.StatusCode(), resp.String())
+	}
+
+	return nil
 }

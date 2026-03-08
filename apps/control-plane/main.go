@@ -22,6 +22,7 @@ import (
 	"github.com/allsource/control-plane/internal"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
+	httphandlers "github.com/allsource/control-plane/internal/interfaces/http"
 )
 
 //go:embed docs/openapi.yaml
@@ -360,6 +361,54 @@ func (cp *ControlPlane) setupRoutes() {
 	config.POST("", RequireAdmin(), cp.container.ConfigHandler.Create)
 	config.PUT("/:key", RequireAdmin(), cp.container.ConfigHandler.Update)
 	config.DELETE("/:key", RequireAdmin(), cp.container.ConfigHandler.Delete)
+
+	// Admin-only route group (self-contained JWT + admin role middleware)
+	admin := cp.router.Group("/api/v1/admin")
+	admin.Use(httphandlers.AdminAuthMiddleware(cp.authClient.jwtSecret))
+	admin.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"service": "allsource-control-plane-admin",
+			"version": Version,
+		})
+	})
+	admin.GET("/tenants", cp.container.AdminTenantHandler.ListTenants)
+	admin.POST("/tenants/bulk", cp.container.AdminTenantHandler.BulkAction)
+	admin.GET("/tenants/:id", cp.container.AdminTenantHandler.GetDetail)
+	admin.GET("/tenants/:id/usage", cp.container.AdminTenantHandler.GetUsage)
+	admin.PUT("/tenants/:id/quotas", cp.container.AdminTenantHandler.UpdateQuotas)
+	admin.POST("/tenants/:id/suspend", cp.container.AdminTenantHandler.SuspendTenant)
+	admin.POST("/tenants/:id/unsuspend", cp.container.AdminTenantHandler.UnsuspendTenant)
+
+	// Alert rules management
+	admin.POST("/alerts", cp.container.AlertHandler.Create)
+	admin.GET("/alerts", cp.container.AlertHandler.List)
+	admin.PUT("/alerts/:id", cp.container.AlertHandler.Update)
+	admin.DELETE("/alerts/:id", cp.container.AlertHandler.Delete)
+
+	// SLO management
+	admin.POST("/slos", cp.container.SLOHandler.Create)
+	admin.GET("/slos", cp.container.SLOHandler.List)
+	admin.DELETE("/slos/:id", cp.container.SLOHandler.Delete)
+
+	// Security — IP allowlist/blocklist management
+	admin.GET("/security/ip-rules", cp.container.IPRuleHandler.List)
+	admin.POST("/security/ip-rules", cp.container.IPRuleHandler.Create)
+	admin.DELETE("/security/ip-rules/:id", cp.container.IPRuleHandler.Delete)
+
+	// Security — Token audit
+	admin.GET("/security/token-audit", cp.container.TokenAuditHandler.Query)
+	admin.GET("/security/token-audit/summary", cp.container.TokenAuditHandler.Summary)
+
+	// Security — Suspicious activity detection
+	admin.GET("/security/suspicious-activity", cp.container.SuspiciousActivityHandler.Detect)
+
+	// Admin billing management
+	adminBilling := admin.Group("/billing")
+	adminBilling.GET("/invoices", cp.container.AdminBillingHandler.ListInvoices)
+	adminBilling.GET("/revenue", cp.container.AdminBillingHandler.GetRevenue)
+	adminBilling.POST("/refund", cp.container.AdminBillingHandler.ProcessRefund)
+	adminBilling.GET("/dunning", cp.container.AdminBillingHandler.GetDunning)
 }
 
 // Health handler reports Core connectivity status
