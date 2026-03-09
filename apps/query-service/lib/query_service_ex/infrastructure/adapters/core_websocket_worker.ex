@@ -27,10 +27,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketWorker do
     extra_headers = Keyword.get(opts, :extra_headers, [])
     timeout = Keyword.get(opts, :socket_connect_timeout, 10_000)
 
-    # Resolve hostname, preferring IPv6 for Fly.io .internal DNS (AAAA-only).
-    # Mint's transport_opts must be a keyword list, so we can't pass bare :inet6.
-    # Instead, resolve to an IP address and connect directly.
-    {connect_address, connect_opts} = resolve_host(host, timeout)
+    # Build connect options with IPv6 resolution and forced HTTP/1.1 protocol.
+    # HTTP/2 uses "extended CONNECT" for WebSocket which most proxies don't support.
+    {connect_address, connect_opts} = connect_opts(host, timeout)
 
     with {:ok, conn} <-
            Mint.HTTP.connect(scheme, connect_address, port, connect_opts),
@@ -197,18 +196,29 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketWorker do
     end
   end
 
-  # Resolve hostname, trying IPv6 first for Fly.io .internal DNS compatibility.
-  # Returns {address, connect_opts} where address is either an IP tuple or hostname string.
-  # When passing an IP tuple, Mint requires an explicit :hostname option.
-  defp resolve_host(host, timeout) do
+  @doc """
+  Build Mint connection options for the given host.
+
+  Returns `{address, opts}` where:
+  - `address` is an IPv6 tuple (if resolved) or the hostname string
+  - `opts` always includes `protocols: [:http1]` to force HTTP/1.1
+
+  HTTP/1.1 is required because WebSocket upgrade uses the standard
+  `Connection: Upgrade` mechanism. HTTP/2 requires "extended CONNECT"
+  (RFC 8441) which most reverse proxies (Fly.io, Cloudflare, ALBs)
+  do not support, causing `Mint.WebSocketError{reason: :extended_connect_disabled}`.
+  """
+  def connect_opts(host, timeout) do
+    base_opts = [protocols: [:http1], transport_opts: [timeout: timeout]]
+
     case :inet.getaddr(String.to_charlist(host), :inet6) do
       {:ok, ipv6_addr} ->
         Logger.info("[CoreWebSocketWorker] Resolved #{host} to IPv6: #{:inet.ntoa(ipv6_addr)}")
-        {ipv6_addr, [hostname: host, transport_opts: [timeout: timeout]]}
+        {ipv6_addr, Keyword.put(base_opts, :hostname, host)}
 
       {:error, _} ->
         # Fall back to letting Mint resolve (works for IPv4 / localhost)
-        {host, [transport_opts: [timeout: timeout]]}
+        {host, base_opts}
     end
   end
 end
