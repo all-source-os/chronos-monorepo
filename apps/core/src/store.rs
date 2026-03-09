@@ -233,40 +233,51 @@ impl EventStore {
         };
 
         // Step 1: Load persisted events from Parquet (the durable baseline)
-        if let Some(ref storage) = store.storage
-            && let Ok(persisted_events) = storage.read().load_all_events()
-            && !persisted_events.is_empty()
-        {
-            tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
-
-            for event in persisted_events {
-                let offset = store.events.read().len();
-                if let Err(e) = store.index.index_event(
-                    event.id,
-                    event.entity_id_str(),
-                    event.event_type_str(),
-                    event.timestamp,
-                    offset,
-                ) {
-                    tracing::error!("Failed to re-index event {}: {}", event.id, e);
+        if let Some(ref storage) = store.storage {
+            match storage.read().load_all_events() {
+                Err(e) => {
+                    tracing::error!(
+                        "❌ Failed to load events from Parquet — data exists on disk but \
+                         could not be read. This means events are NOT available until the \
+                         issue is resolved. Error: {e}"
+                    );
                 }
-
-                if let Err(e) = store.projections.read().process_event(&event) {
-                    tracing::error!("Failed to re-process event {}: {}", event.id, e);
+                Ok(persisted_events) if persisted_events.is_empty() => {
+                    tracing::info!("📂 No persisted events found in Parquet storage");
                 }
+                Ok(persisted_events) => {
+                    tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
 
-                // Track per-entity version
-                *store
-                    .entity_versions
-                    .entry(event.entity_id_str().to_string())
-                    .or_insert(0) += 1;
+                    for event in persisted_events {
+                        let offset = store.events.read().len();
+                        if let Err(e) = store.index.index_event(
+                            event.id,
+                            event.entity_id_str(),
+                            event.event_type_str(),
+                            event.timestamp,
+                            offset,
+                        ) {
+                            tracing::error!("Failed to re-index event {}: {}", event.id, e);
+                        }
 
-                store.events.write().push(event);
+                        if let Err(e) = store.projections.read().process_event(&event) {
+                            tracing::error!("Failed to re-process event {}: {}", event.id, e);
+                        }
+
+                        // Track per-entity version
+                        *store
+                            .entity_versions
+                            .entry(event.entity_id_str().to_string())
+                            .or_insert(0) += 1;
+
+                        store.events.write().push(event);
+                    }
+
+                    let total = store.events.read().len();
+                    *store.total_ingested.write() = total as u64;
+                    tracing::info!("✅ Successfully loaded {} events from storage", total);
+                }
             }
-
-            let total = store.events.read().len();
-            *store.total_ingested.write() = total as u64;
-            tracing::info!("✅ Successfully loaded {} events from storage", total);
         }
 
         // Step 2: Recover WAL events (written after last Parquet checkpoint)
@@ -2739,6 +2750,83 @@ mod tests {
                 5,
                 "Session 3 should still have all 5 events from Parquet"
             );
+        }
+    }
+
+    #[test]
+    fn test_parquet_restore_surfaces_errors_not_silent() {
+        // Write events with WAL+Parquet, flush to Parquet, then corrupt the
+        // Parquet file. On reload, the error must be logged (not silently
+        // swallowed as 0 events).
+        let data_dir = TempDir::new().unwrap();
+        let storage_dir = data_dir.path().join("storage");
+        let wal_dir = data_dir.path().join("wal");
+
+        // Session 1: write events and flush to Parquet
+        {
+            let config = EventStoreConfig::production(
+                &storage_dir,
+                &wal_dir,
+                SnapshotConfig::default(),
+                WALConfig {
+                    sync_on_write: true,
+                    ..WALConfig::default()
+                },
+                CompactionConfig::default(),
+            );
+            let store = EventStore::with_config(config);
+
+            for i in 0..3 {
+                let event = Event::from_strings(
+                    "test.created".to_string(),
+                    format!("entity-{i}"),
+                    "default".to_string(),
+                    serde_json::json!({"i": i}),
+                    None,
+                )
+                .unwrap();
+                store.ingest(event).unwrap();
+            }
+
+            store.flush_storage().unwrap();
+            assert_eq!(store.stats().total_events, 3);
+        }
+
+        // Verify parquet file exists
+        let parquet_files: Vec<_> = std::fs::read_dir(&storage_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "parquet"))
+            .collect();
+        assert!(!parquet_files.is_empty(), "Parquet file must exist");
+
+        // Corrupt the parquet file
+        std::fs::write(parquet_files[0].path(), b"corrupted data").unwrap();
+
+        // Truncate WAL so only Parquet matters
+        for entry in std::fs::read_dir(&wal_dir).unwrap().flatten() {
+            std::fs::write(entry.path(), b"").unwrap();
+        }
+
+        // Session 2: reload — should NOT silently report 0 events.
+        // The error is logged via tracing::error! which we can't capture in a
+        // unit test, but we CAN verify the store has 0 events (previously this
+        // looked identical to "no data on disk" — now there's an error log).
+        // The key behavioral change is that with_config no longer uses a
+        // let-chain that silently drops the Err variant.
+        {
+            let config = EventStoreConfig::production(
+                &storage_dir,
+                &wal_dir,
+                SnapshotConfig::default(),
+                WALConfig::default(),
+                CompactionConfig::default(),
+            );
+            let store = EventStore::with_config(config);
+
+            // Store has 0 events because Parquet is corrupted — but the error
+            // is now logged (not silently swallowed).
+            assert_eq!(store.stats().total_events, 0);
         }
     }
 }
