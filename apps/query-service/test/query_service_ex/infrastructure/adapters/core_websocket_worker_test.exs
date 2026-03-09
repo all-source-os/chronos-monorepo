@@ -23,7 +23,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketWorkerTest do
     end
 
     test "returns hostname string when IPv6 resolution fails" do
-      {address, _opts} = CoreWebSocketWorker.connect_opts("unlikely-host-that-wont-resolve.invalid", 10_000)
+      {address, _opts} =
+        CoreWebSocketWorker.connect_opts("unlikely-host-that-wont-resolve.invalid", 10_000)
+
       assert is_binary(address)
     end
   end
