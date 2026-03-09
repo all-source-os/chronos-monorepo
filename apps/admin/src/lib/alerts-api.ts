@@ -19,11 +19,17 @@ function getApiUrl(): string {
 
 export type AlertOperator = "gt" | "gte" | "lt" | "lte" | "eq";
 export type AlertChannel = "email" | "slack";
+export type AlertMetric =
+  | "events_per_second"
+  | "error_rate_percent"
+  | "query_latency_p99_ms"
+  | "cpu_usage_percent"
+  | "memory_usage_percent";
 
 export interface AlertRule {
   id: string;
   name: string;
-  metric: string;
+  metric: AlertMetric;
   operator: AlertOperator;
   threshold: number;
   duration_seconds: number;
@@ -35,7 +41,7 @@ export interface AlertRule {
 
 export interface CreateAlertPayload {
   name: string;
-  metric: string;
+  metric: AlertMetric;
   operator: AlertOperator;
   threshold: number;
   duration_seconds: number;

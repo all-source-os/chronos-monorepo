@@ -145,7 +145,7 @@ export default function SLOsPage() {
 
   // Form state
   const [formName, setFormName] = useState("");
-  const [formMetric, setFormMetric] = useState(ALERT_METRICS[0].value);
+  const [formMetric, setFormMetric] = useState<string>(ALERT_METRICS[0].value);
   const [formTarget, setFormTarget] = useState("99.9");
   const [formWindow, setFormWindow] = useState("30");
   const [formError, setFormError] = useState<string | null>(null);

@@ -113,7 +113,7 @@ export function MetricsChart({
                   <ChartTooltipContent
                     formatter={(value) => (
                       <span className="font-mono font-medium">
-                        {typeof value === "number" ? value.toFixed(2) : value}
+                        {typeof value === "number" ? value.toFixed(2) : String(value)}
                         {unit}
                       </span>
                     )}

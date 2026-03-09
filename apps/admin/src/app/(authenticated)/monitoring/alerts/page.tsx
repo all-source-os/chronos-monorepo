@@ -36,7 +36,7 @@ export default function AlertsPage() {
 
   // Form state
   const [formName, setFormName] = useState("");
-  const [formMetric, setFormMetric] = useState(ALERT_METRICS[0].value);
+  const [formMetric, setFormMetric] = useState<AlertRule["metric"]>(ALERT_METRICS[0].value);
   const [formOperator, setFormOperator] = useState<AlertOperator>("gt");
   const [formThreshold, setFormThreshold] = useState("");
   const [formDuration, setFormDuration] = useState("300");
@@ -203,7 +203,7 @@ export default function AlertsPage() {
                     id="alert-metric"
                     data-testid="alert-metric-select"
                     value={formMetric}
-                    onChange={(e) => setFormMetric(e.target.value)}
+                    onChange={(e) => setFormMetric(e.target.value as AlertRule["metric"])}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {ALERT_METRICS.map((m) => (
