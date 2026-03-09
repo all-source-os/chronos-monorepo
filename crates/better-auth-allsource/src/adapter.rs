@@ -311,17 +311,32 @@ impl SessionOps for AllsourceAuthAdapter {
     }
 
     async fn get_session(&self, token: &str) -> AuthResult<Option<Session>> {
-        self.client
+        let session: Option<Session> = self
+            .client
             .get_latest(&session_entity(token))
             .await
-            .map_err(AuthError::from)
+            .map_err(AuthError::from)?;
+        // Session.active is #[serde(skip)] so it defaults to false after deserialization.
+        // Non-deleted sessions retrieved from the store are active.
+        Ok(session.map(|mut s| {
+            s.active = true;
+            s
+        }))
     }
 
     async fn get_user_sessions(&self, user_id: &str) -> AuthResult<Vec<Session>> {
-        self.client
+        let sessions: Vec<Session> = self
+            .client
             .find_all_by_field("auth.session.created", "user_id", user_id)
             .await
-            .map_err(AuthError::from)
+            .map_err(AuthError::from)?;
+        Ok(sessions
+            .into_iter()
+            .map(|mut s| {
+                s.active = true;
+                s
+            })
+            .collect())
     }
 
     async fn update_session_expiry(

@@ -236,8 +236,14 @@ impl AllsourceClient {
                 {
                     return Ok(None);
                 }
-                let entity: T = serde_json::from_value(event.payload.clone())?;
-                Ok(Some(entity))
+                match serde_json::from_value::<T>(event.payload.clone()) {
+                    Ok(entity) => Ok(Some(entity)),
+                    Err(_) => {
+                        // event_type_prefix filter may be broken, returning wrong event types.
+                        // Fall back to in-memory scan which skips non-matching types gracefully.
+                        self.find_by_field_scan(event_type_prefix, field, value).await
+                    }
+                }
             }
             None => Ok(None),
         }
