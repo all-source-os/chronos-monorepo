@@ -2,14 +2,14 @@ import { type NextRequest, NextResponse } from "next/server";
 import { decodeJwt, isAdminRole } from "@/lib/auth";
 
 /**
- * Middleware that protects all authenticated routes.
+ * Proxy that protects all authenticated routes.
  *
  * - Public routes (/login, /api/auth/*, /api/v1/auth/*) are allowed through.
  * - All other routes require a valid `admin_token` cookie with `role: "admin"`.
  * - Non-admin users receive a 403 response.
  * - Unauthenticated users are redirected to /login.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes — no auth required
