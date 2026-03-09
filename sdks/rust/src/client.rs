@@ -2,7 +2,10 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 
-use crate::{circuit_breaker::CircuitBreaker, error::Error, fold::EventFolder, normalize::normalize_event_type, types::*};
+use crate::{
+    circuit_breaker::CircuitBreaker, error::Error, fold::EventFolder,
+    normalize::normalize_event_type, types::*,
+};
 
 /// Retry configuration for transient failures.
 #[derive(Debug, Clone)]

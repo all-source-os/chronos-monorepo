@@ -175,7 +175,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "allsource"
-version = "0.14.3"
+version = "0.14.2"
 dependencies = [
  "reqwest 0.13.2",
  "serde",
@@ -187,7 +187,7 @@ dependencies = [
 
 [[package]]
 name = "allsource-core"
-version = "0.14.1"
+version = "0.14.2"
 dependencies = [
  "aes-gcm",
  "anyhow",

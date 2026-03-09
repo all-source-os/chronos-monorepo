@@ -65,10 +65,16 @@ mod tests {
 
     #[test]
     fn test_pascal_case() {
-        assert_eq!(normalize_event_type("VerificationCreated"), "verification.created");
+        assert_eq!(
+            normalize_event_type("VerificationCreated"),
+            "verification.created"
+        );
         assert_eq!(normalize_event_type("UserCreated"), "user.created");
         assert_eq!(normalize_event_type("SessionDeleted"), "session.deleted");
-        assert_eq!(normalize_event_type("TwoFactorCreated"), "two.factor.created");
+        assert_eq!(
+            normalize_event_type("TwoFactorCreated"),
+            "two.factor.created"
+        );
         assert_eq!(normalize_event_type("ApiKeyDeleted"), "api.key.deleted");
     }
 
@@ -81,7 +87,10 @@ mod tests {
     #[test]
     fn test_snake_case() {
         assert_eq!(normalize_event_type("user_created"), "user.created");
-        assert_eq!(normalize_event_type("verification_deleted"), "verification.deleted");
+        assert_eq!(
+            normalize_event_type("verification_deleted"),
+            "verification.deleted"
+        );
         assert_eq!(normalize_event_type("USER_CREATED"), "user.created");
     }
 
@@ -93,13 +102,22 @@ mod tests {
     #[test]
     fn test_already_valid() {
         assert_eq!(normalize_event_type("user.created"), "user.created");
-        assert_eq!(normalize_event_type("auth.user.created"), "auth.user.created");
-        assert_eq!(normalize_event_type("auth.verification.created"), "auth.verification.created");
+        assert_eq!(
+            normalize_event_type("auth.user.created"),
+            "auth.user.created"
+        );
+        assert_eq!(
+            normalize_event_type("auth.verification.created"),
+            "auth.verification.created"
+        );
     }
 
     #[test]
     fn test_uppercase_dots() {
-        assert_eq!(normalize_event_type("Auth.User.Created"), "auth.user.created");
+        assert_eq!(
+            normalize_event_type("Auth.User.Created"),
+            "auth.user.created"
+        );
     }
 
     #[test]

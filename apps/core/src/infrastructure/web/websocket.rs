@@ -1,5 +1,4 @@
-use crate::domain::entities::Event;
-use crate::store::EventStore;
+use crate::{domain::entities::Event, store::EventStore};
 use axum::extract::ws::{Message, WebSocket};
 use dashmap::DashMap;
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -141,8 +140,7 @@ impl WebSocketManager {
             consumer_filters = consumer.event_type_filters.clone();
             let cursor = consumer.cursor_position.unwrap_or(0);
 
-            let replay_events =
-                store.events_after_offset(cursor, &consumer_filters, usize::MAX);
+            let replay_events = store.events_after_offset(cursor, &consumer_filters, usize::MAX);
 
             tracing::info!(
                 "Replaying {} events for consumer '{}' from offset {}",
@@ -166,7 +164,8 @@ impl WebSocketManager {
             }
 
             // Send replay-complete sentinel
-            let sentinel = serde_json::json!({"type": "replay_complete", "replayed": replay_events.len()});
+            let sentinel =
+                serde_json::json!({"type": "replay_complete", "replayed": replay_events.len()});
             if let Ok(json) = serde_json::to_string(&sentinel) {
                 let _ = sender.send(Message::Text(json.into())).await;
             }
@@ -624,10 +623,7 @@ mod tests {
                 filters: EventFilters {
                     entity_id: None,
                     event_type: None,
-                    event_type_prefixes: vec![
-                        "scheduler.*".to_string(),
-                        "index.*".to_string(),
-                    ],
+                    event_type_prefixes: vec!["scheduler.*".to_string(), "index.*".to_string()],
                 },
             },
         );

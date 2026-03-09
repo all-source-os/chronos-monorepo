@@ -1,15 +1,17 @@
 use async_trait::async_trait;
-use better_auth_core::adapters::traits::{
-    AccountOps, ApiKeyOps, InvitationOps, MemberOps, OrganizationOps, PasskeyOps, SessionOps,
-    TwoFactorOps, UserOps, VerificationOps,
-};
-use better_auth_core::error::{AuthError, AuthResult};
-use better_auth_core::types::{
-    Account, ApiKey, CreateAccount, CreateApiKey, CreateInvitation, CreateMember,
-    CreateOrganization, CreatePasskey, CreateSession, CreateTwoFactor, CreateUser,
-    CreateVerification, Invitation, InvitationStatus, ListUsersParams, Member, Organization,
-    Passkey, Session, TwoFactor, UpdateAccount, UpdateApiKey, UpdateOrganization, UpdateUser, User,
-    Verification,
+use better_auth_core::{
+    adapters::traits::{
+        AccountOps, ApiKeyOps, InvitationOps, MemberOps, OrganizationOps, PasskeyOps, SessionOps,
+        TwoFactorOps, UserOps, VerificationOps,
+    },
+    error::{AuthError, AuthResult},
+    types::{
+        Account, ApiKey, CreateAccount, CreateApiKey, CreateInvitation, CreateMember,
+        CreateOrganization, CreatePasskey, CreateSession, CreateTwoFactor, CreateUser,
+        CreateVerification, Invitation, InvitationStatus, ListUsersParams, Member, Organization,
+        Passkey, Session, TwoFactor, UpdateAccount, UpdateApiKey, UpdateOrganization, UpdateUser,
+        User, Verification,
+    },
 };
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -81,7 +83,10 @@ impl UserOps for AllsourceAuthAdapter {
     type User = User;
 
     async fn create_user(&self, input: CreateUser) -> AuthResult<User> {
-        let id = input.id.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+        let id = input
+            .id
+            .clone()
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
 
         // Check email uniqueness
         if let Some(email) = &input.email {
@@ -349,7 +354,11 @@ impl SessionOps for AllsourceAuthAdapter {
             session.updated_at = Utc::now();
             let payload = serde_json::to_value(&session).map_err(AuthError::from)?;
             self.client
-                .append_event(&session_entity(token), "auth.session.expiry_updated", payload)
+                .append_event(
+                    &session_entity(token),
+                    "auth.session.expiry_updated",
+                    payload,
+                )
                 .await
                 .map_err(AuthError::from)?;
         }
@@ -789,7 +798,11 @@ impl MemberOps for AllsourceAuthAdapter {
         // Check if already a member
         let existing: Vec<Member> = self
             .client
-            .find_all_by_field("auth.member.created", "organization_id", &input.organization_id)
+            .find_all_by_field(
+                "auth.member.created",
+                "organization_id",
+                &input.organization_id,
+            )
             .await
             .map_err(AuthError::from)?;
 
@@ -819,11 +832,7 @@ impl MemberOps for AllsourceAuthAdapter {
         Ok(member)
     }
 
-    async fn get_member(
-        &self,
-        organization_id: &str,
-        user_id: &str,
-    ) -> AuthResult<Option<Member>> {
+    async fn get_member(&self, organization_id: &str, user_id: &str) -> AuthResult<Option<Member>> {
         let members: Vec<Member> = self
             .client
             .find_all_by_field("auth.member.created", "organization_id", organization_id)
@@ -925,13 +934,16 @@ impl InvitationOps for AllsourceAuthAdapter {
     ) -> AuthResult<Option<Invitation>> {
         let invitations: Vec<Invitation> = self
             .client
-            .find_all_by_field("auth.invitation.created", "organization_id", organization_id)
+            .find_all_by_field(
+                "auth.invitation.created",
+                "organization_id",
+                organization_id,
+            )
             .await
             .map_err(AuthError::from)?;
 
         Ok(invitations.into_iter().find(|i| {
-            i.email.to_lowercase() == email.to_lowercase()
-                && i.status == InvitationStatus::Pending
+            i.email.to_lowercase() == email.to_lowercase() && i.status == InvitationStatus::Pending
         }))
     }
 
@@ -961,7 +973,11 @@ impl InvitationOps for AllsourceAuthAdapter {
         organization_id: &str,
     ) -> AuthResult<Vec<Invitation>> {
         self.client
-            .find_all_by_field("auth.invitation.created", "organization_id", organization_id)
+            .find_all_by_field(
+                "auth.invitation.created",
+                "organization_id",
+                organization_id,
+            )
             .await
             .map_err(AuthError::from)
     }
@@ -1042,7 +1058,11 @@ impl TwoFactorOps for AllsourceAuthAdapter {
 
         let payload = serde_json::to_value(&tf).map_err(AuthError::from)?;
         self.client
-            .append_event(&two_factor_entity(&tf.id), "auth.two_factor.updated", payload)
+            .append_event(
+                &two_factor_entity(&tf.id),
+                "auth.two_factor.updated",
+                payload,
+            )
             .await
             .map_err(AuthError::from)?;
 
@@ -1068,11 +1088,7 @@ impl ApiKeyOps for AllsourceAuthAdapter {
 
     async fn create_api_key(&self, input: CreateApiKey) -> AuthResult<ApiKey> {
         // Check hash uniqueness
-        if self
-            .get_api_key_by_hash(&input.key_hash)
-            .await?
-            .is_some()
-        {
+        if self.get_api_key_by_hash(&input.key_hash).await?.is_some() {
             return Err(AuthError::conflict("API key already exists"));
         }
 

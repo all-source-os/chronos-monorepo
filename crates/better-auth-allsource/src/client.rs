@@ -88,10 +88,7 @@ impl AllsourceClient {
             .http
             .get(&url)
             .header("X-API-Key", &self.api_key)
-            .query(&[
-                ("entity_id", entity_id),
-                ("limit", "1"),
-            ])
+            .query(&[("entity_id", entity_id), ("limit", "1")])
             .send()
             .await?;
 
@@ -216,7 +213,9 @@ impl AllsourceClient {
         if !status.is_success() {
             // If payload_filter is not supported, fall back to scanning
             if status.as_u16() == 400 || status.as_u16() == 422 {
-                return self.find_by_field_scan(event_type_prefix, field, value).await;
+                return self
+                    .find_by_field_scan(event_type_prefix, field, value)
+                    .await;
             }
             let message = extract_error_message(resp).await;
             return Err(AllsourceAuthError::Api {
@@ -241,7 +240,8 @@ impl AllsourceClient {
                     Err(_) => {
                         // event_type_prefix filter may be broken, returning wrong event types.
                         // Fall back to in-memory scan which skips non-matching types gracefully.
-                        self.find_by_field_scan(event_type_prefix, field, value).await
+                        self.find_by_field_scan(event_type_prefix, field, value)
+                            .await
                     }
                 }
             }
@@ -262,10 +262,7 @@ impl AllsourceClient {
             .http
             .get(&url)
             .header("X-API-Key", &self.api_key)
-            .query(&[
-                ("event_type_prefix", event_type_prefix),
-                ("limit", "10000"),
-            ])
+            .query(&[("event_type_prefix", event_type_prefix), ("limit", "10000")])
             .send()
             .await?;
 
@@ -326,10 +323,7 @@ impl AllsourceClient {
             .http
             .get(&url)
             .header("X-API-Key", &self.api_key)
-            .query(&[
-                ("event_type_prefix", event_type_prefix),
-                ("limit", "10000"),
-            ])
+            .query(&[("event_type_prefix", event_type_prefix), ("limit", "10000")])
             .send()
             .await?;
 

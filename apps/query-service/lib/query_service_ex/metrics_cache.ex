@@ -112,7 +112,7 @@ defmodule QueryServiceEx.MetricsCache do
           # Wrap it so callers can still use it, but it won't have Prometheus metrics.
           {:reply, {:ok, body}, %{state | cached_metrics: body, cached_at: now}}
 
-        {:error, reason} = err ->
+        {:error, _reason} = err ->
           # Return stale cache if available, otherwise propagate error
           if state.cached_metrics != nil do
             {:reply, {:ok, state.cached_metrics}, state}
@@ -209,7 +209,7 @@ defmodule QueryServiceEx.MetricsCache do
   end
 
   defp timeseries_cutoff("24h") do
-    DateTime.add(DateTime.utc_now(), -86400, :second)
+    DateTime.add(DateTime.utc_now(), -86_400, :second)
   end
 
   defp timeseries_cutoff("7d") do

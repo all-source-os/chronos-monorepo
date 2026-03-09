@@ -6,11 +6,7 @@ use allsource_core::{
     auth::{AuthManager, Role},
     backup::{BackupConfig, BackupManager},
     config::Config,
-    domain::{
-        entities::TenantQuotas,
-        repositories::TenantRepository,
-        value_objects::TenantId,
-    },
+    domain::{entities::TenantQuotas, repositories::TenantRepository, value_objects::TenantId},
     infrastructure::repositories::InMemoryTenantRepository,
 };
 use anyhow::Result;

@@ -178,23 +178,32 @@ pub async fn login_handler(
 
 /// Get current user info
 /// GET /api/v1/auth/me
+///
+/// Returns identity info for the authenticated caller. Works for:
+/// - JWT-authenticated users (looks up full user record)
+/// - API key authentication (returns identity from claims)
+/// - Dev mode (returns synthetic dev identity from claims)
 pub async fn me_handler(
     State(state): State<AppState>,
     Authenticated(auth_ctx): Authenticated,
 ) -> Result<Json<UserInfo>, (StatusCode, String)> {
-    let user_id = auth_ctx.user_id().parse::<Uuid>().map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Invalid user ID".to_string(),
-        )
-    })?;
+    // Try to look up a full user record if the subject is a valid UUID
+    if let Ok(user_id) = auth_ctx.user_id().parse::<Uuid>()
+        && let Some(user) = state.auth_manager.get_user(&user_id)
+    {
+        return Ok(Json(user.into()));
+    }
 
-    let user = state
-        .auth_manager
-        .get_user(&user_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "User not found".to_string()))?;
-
-    Ok(Json(user.into()))
+    // For API key auth and dev mode, synthesize identity from claims.
+    // This is the path Query Service uses to validate API keys — it only
+    // needs tenant_id and role, not a full user record.
+    Ok(Json(UserInfo {
+        id: auth_ctx.user_id().parse::<Uuid>().unwrap_or_default(),
+        username: auth_ctx.user_id().to_string(),
+        email: String::new(),
+        role: auth_ctx.claims.role.clone(),
+        tenant_id: auth_ctx.tenant_id().to_string(),
+    }))
 }
 
 /// Create API key

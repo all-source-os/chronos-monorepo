@@ -607,7 +607,10 @@ mod tests {
         let store = make_store();
         let (_, sub) = execute(&cmd(&["SUBSCRIBE", "*"]), &store);
         let sub_info = sub.unwrap();
-        assert!(sub_info.filters.is_empty(), "wildcard should produce no filters");
+        assert!(
+            sub_info.filters.is_empty(),
+            "wildcard should produce no filters"
+        );
     }
 
     #[test]

@@ -1,8 +1,8 @@
 use crate::{
     application::{
         dto::{
-            DetectDuplicatesRequest, DetectDuplicatesResponse, DuplicateGroup, EntitySummary,
             AckRequest, ConsumerEventDto, ConsumerEventsResponse, ConsumerResponse,
+            DetectDuplicatesRequest, DetectDuplicatesResponse, DuplicateGroup, EntitySummary,
             EventDto, IngestEventRequest, IngestEventResponse, IngestEventsBatchRequest,
             IngestEventsBatchResponse, ListEntitiesRequest, ListEntitiesResponse,
             QueryEventsRequest, QueryEventsResponse, RegisterConsumerRequest,

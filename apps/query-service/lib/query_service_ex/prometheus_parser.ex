@@ -130,6 +130,7 @@ defmodule QueryServiceEx.PrometheusParser do
     end)
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp parse_value(rest) do
     # Value may be followed by a timestamp: "123.45 1625000000"
     value_str =
@@ -139,14 +140,26 @@ defmodule QueryServiceEx.PrometheusParser do
       |> List.first()
 
     case value_str do
-      nil -> :error
-      "" -> :error
-      "+Inf" -> {:ok, :infinity}
-      "-Inf" -> {:ok, :neg_infinity}
-      "NaN" -> {:ok, :nan}
+      nil ->
+        :error
+
+      "" ->
+        :error
+
+      "+Inf" ->
+        {:ok, :infinity}
+
+      "-Inf" ->
+        {:ok, :neg_infinity}
+
+      "NaN" ->
+        {:ok, :nan}
+
       str ->
         case Float.parse(str) do
-          {value, _} -> {:ok, value}
+          {value, _} ->
+            {:ok, value}
+
           :error ->
             case Integer.parse(str) do
               {value, _} -> {:ok, value / 1}

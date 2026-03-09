@@ -73,7 +73,7 @@ defmodule QueryServiceEx.PrometheusParserTest do
       parsed = PrometheusParser.parse(@sample_prometheus_output)
 
       assert [%{value: value}] = parsed["allsource_wal_bytes_written"]
-      assert_in_delta value, 5.2428e9, 1.0
+      assert_in_delta value, 5.2_428e9, 1.0
     end
 
     test "ignores comment and blank lines" do
@@ -175,8 +175,7 @@ defmodule QueryServiceEx.PrometheusParserTest do
       summary = %{
         uptime_seconds: PrometheusParser.get_metric(parsed, "allsource_uptime_seconds"),
         events_total: PrometheusParser.get_metric(parsed, "allsource_events_total"),
-        events_per_second:
-          PrometheusParser.get_metric(parsed, "allsource_events_per_second"),
+        events_per_second: PrometheusParser.get_metric(parsed, "allsource_events_per_second"),
         query_latency_p99_ms:
           PrometheusParser.get_quantile(
             parsed,

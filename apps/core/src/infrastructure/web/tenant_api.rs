@@ -1,8 +1,5 @@
 use crate::{
-    domain::{
-        entities::TenantQuotas,
-        value_objects::TenantId,
-    },
+    domain::{entities::TenantQuotas, value_objects::TenantId},
     infrastructure::security::middleware::{Admin, Authenticated},
 };
 use axum::{Json, extract::State, http::StatusCode};
@@ -91,8 +88,7 @@ pub async fn create_tenant_handler(
         TenantQuotas::default()
     };
 
-    let tenant_id = TenantId::new(req.id)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let tenant_id = TenantId::new(req.id).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let mut tenant = state
         .tenant_repo
@@ -115,7 +111,10 @@ pub async fn create_tenant_handler(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok((StatusCode::CREATED, Json(TenantResponse::from_domain(&tenant))))
+    Ok((
+        StatusCode::CREATED,
+        Json(TenantResponse::from_domain(&tenant)),
+    ))
 }
 
 /// Get tenant
@@ -137,15 +136,20 @@ pub async fn get_tenant_handler(
             })?;
     }
 
-    let tid = TenantId::new(tenant_id.clone())
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let tenant = state
         .tenant_repo
         .find_by_id(&tid)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)))?;
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                format!("Tenant not found: {}", tenant_id),
+            )
+        })?;
 
     Ok(Json(TenantResponse::from_domain(&tenant)))
 }
@@ -161,7 +165,9 @@ pub async fn list_tenants_handler(
         .find_all(10_000, 0)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Ok(Json(tenants.iter().map(TenantResponse::from_domain).collect()))
+    Ok(Json(
+        tenants.iter().map(TenantResponse::from_domain).collect(),
+    ))
 }
 
 /// Get tenant statistics
@@ -183,15 +189,20 @@ pub async fn get_tenant_stats_handler(
             })?;
     }
 
-    let tid = TenantId::new(tenant_id.clone())
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let tenant = state
         .tenant_repo
         .find_by_id(&tid)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)))?;
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                format!("Tenant not found: {}", tenant_id),
+            )
+        })?;
 
     let stats = build_tenant_stats(&tenant);
     Ok(Json(stats))
@@ -205,8 +216,8 @@ pub async fn update_quotas_handler(
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
     Json(req): Json<UpdateQuotasRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let tid = TenantId::new(tenant_id.clone())
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let updated = state
         .tenant_repo
@@ -215,7 +226,10 @@ pub async fn update_quotas_handler(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !updated {
-        return Err((StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)));
+        return Err((
+            StatusCode::NOT_FOUND,
+            format!("Tenant not found: {}", tenant_id),
+        ));
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -228,8 +242,8 @@ pub async fn deactivate_tenant_handler(
     Admin(_): Admin,
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let tid = TenantId::new(tenant_id.clone())
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let deactivated = state
         .tenant_repo
@@ -238,7 +252,10 @@ pub async fn deactivate_tenant_handler(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !deactivated {
-        return Err((StatusCode::BAD_REQUEST, format!("Tenant not found: {}", tenant_id)));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Tenant not found: {}", tenant_id),
+        ));
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -251,8 +268,8 @@ pub async fn activate_tenant_handler(
     Admin(_): Admin,
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let tid = TenantId::new(tenant_id.clone())
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let activated = state
         .tenant_repo
@@ -261,7 +278,10 @@ pub async fn activate_tenant_handler(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !activated {
-        return Err((StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)));
+        return Err((
+            StatusCode::NOT_FOUND,
+            format!("Tenant not found: {}", tenant_id),
+        ));
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -275,18 +295,24 @@ pub async fn update_tenant_handler(
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
     Json(req): Json<UpdateTenantRequest>,
 ) -> Result<Json<TenantResponse>, (StatusCode, String)> {
-    let tid = TenantId::new(tenant_id.clone())
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let mut tenant = state
         .tenant_repo
         .find_by_id(&tid)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Tenant not found: {}", tenant_id)))?;
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                format!("Tenant not found: {}", tenant_id),
+            )
+        })?;
 
     if let Some(name) = req.name {
-        tenant.update_name(name)
+        tenant
+            .update_name(name)
             .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     }
     if let Some(desc) = req.description {
@@ -315,8 +341,8 @@ pub async fn delete_tenant_handler(
     Admin(_): Admin,
     axum::extract::Path(tenant_id): axum::extract::Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let tid = TenantId::new(tenant_id.clone())
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let deleted = state
         .tenant_repo
@@ -325,7 +351,10 @@ pub async fn delete_tenant_handler(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !deleted {
-        return Err((StatusCode::BAD_REQUEST, format!("Tenant not found: {}", tenant_id)));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Tenant not found: {}", tenant_id),
+        ));
     }
 
     Ok(StatusCode::NO_CONTENT)

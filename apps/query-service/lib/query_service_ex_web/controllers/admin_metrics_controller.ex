@@ -136,8 +136,7 @@ defmodule QueryServiceExWeb.AdminMetricsController do
       %{
         uptime_seconds: PrometheusParser.get_metric(parsed, "allsource_uptime_seconds"),
         events_total: PrometheusParser.get_metric(parsed, "allsource_events_total"),
-        events_per_second:
-          PrometheusParser.get_metric(parsed, "allsource_events_per_second"),
+        events_per_second: PrometheusParser.get_metric(parsed, "allsource_events_per_second"),
         query_latency_p99_ms:
           PrometheusParser.get_quantile(
             parsed,

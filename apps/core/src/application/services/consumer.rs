@@ -1,7 +1,7 @@
-use crate::domain::value_objects::system_stream::{
-    SystemDomain, consumer_events, system_entity_id_value,
+use crate::{
+    domain::value_objects::system_stream::{SystemDomain, consumer_events, system_entity_id_value},
+    infrastructure::persistence::SystemMetadataStore,
 };
-use crate::infrastructure::persistence::SystemMetadataStore;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -395,10 +395,7 @@ mod tests {
             "scheduler.started",
             &filters
         ));
-        assert!(ConsumerRegistry::matches_filters(
-            "index.created",
-            &filters
-        ));
+        assert!(ConsumerRegistry::matches_filters("index.created", &filters));
         assert!(!ConsumerRegistry::matches_filters(
             "trade.executed",
             &filters

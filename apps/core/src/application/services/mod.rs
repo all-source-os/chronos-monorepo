@@ -21,6 +21,7 @@ pub mod schema_evolution;
 // Re-exports for convenience
 pub use analytics::AnalyticsEngine;
 pub use audit_logger::{AuditLogger, RequestContext};
+pub use consumer::{Consumer, ConsumerRegistry};
 pub use creator_coordinator::{ArticlePerformance, CreatorCoordinator, CreatorDashboard};
 pub use event_coordinator::{BatchIngestResult, EntityHistory, EntitySnapshot, EventCoordinator};
 pub use exactly_once::{ExactlyOnceConfig, ExactlyOnceRegistry, ExactlyOnceStats};
@@ -39,7 +40,6 @@ pub use vector_search::{
     BatchIndexResult, IndexEventRequest, IndexStats, SemanticSearchRequest, SemanticSearchResponse,
     SemanticSearchResultItem, VectorSearchConfig, VectorSearchService,
 };
-pub use consumer::{Consumer, ConsumerRegistry};
 pub use webhook::{
     DeliveryStatus, RegisterWebhookRequest, UpdateWebhookRequest, WebhookDelivery, WebhookRegistry,
     WebhookSubscription,

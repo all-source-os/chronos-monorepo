@@ -46,9 +46,15 @@ fn test_entity_version_increments_on_ingest() {
 fn test_entity_versions_independent_per_entity() {
     let store = EventStore::new();
 
-    store.ingest(create_test_event("e1", "user.created")).unwrap();
-    store.ingest(create_test_event("e1", "user.updated")).unwrap();
-    store.ingest(create_test_event("e2", "user.created")).unwrap();
+    store
+        .ingest(create_test_event("e1", "user.created"))
+        .unwrap();
+    store
+        .ingest(create_test_event("e1", "user.updated"))
+        .unwrap();
+    store
+        .ingest(create_test_event("e2", "user.created"))
+        .unwrap();
 
     assert_eq!(store.get_entity_version("e1"), 2);
     assert_eq!(store.get_entity_version("e2"), 1);
@@ -70,9 +76,13 @@ fn test_entity_version_survives_wal_restart() {
         let store = EventStore::with_config(config);
 
         for _ in 0..3 {
-            store.ingest(create_test_event("e1", "user.created")).unwrap();
+            store
+                .ingest(create_test_event("e1", "user.created"))
+                .unwrap();
         }
-        store.ingest(create_test_event("e2", "user.created")).unwrap();
+        store
+            .ingest(create_test_event("e2", "user.created"))
+            .unwrap();
 
         assert_eq!(store.get_entity_version("e1"), 3);
         assert_eq!(store.get_entity_version("e2"), 1);
@@ -117,13 +127,13 @@ fn test_expected_version_mismatch_returns_conflict() {
     let store = EventStore::new();
 
     // Ingest first event (version becomes 1)
-    store.ingest(create_test_event("e1", "user.created")).unwrap();
+    store
+        .ingest(create_test_event("e1", "user.created"))
+        .unwrap();
 
     // Try to write with expected_version=0 (stale) — should fail
-    let result = store.ingest_with_expected_version(
-        create_test_event("e1", "user.updated"),
-        Some(0),
-    );
+    let result =
+        store.ingest_with_expected_version(create_test_event("e1", "user.updated"), Some(0));
 
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -143,8 +153,12 @@ fn test_no_expected_version_always_succeeds() {
     let store = EventStore::new();
 
     // Ingest some events first
-    store.ingest(create_test_event("e1", "user.created")).unwrap();
-    store.ingest(create_test_event("e1", "user.updated")).unwrap();
+    store
+        .ingest(create_test_event("e1", "user.created"))
+        .unwrap();
+    store
+        .ingest(create_test_event("e1", "user.updated"))
+        .unwrap();
 
     // Write without expected_version — always succeeds regardless of current version
     let v = store
@@ -158,18 +172,16 @@ fn test_concurrent_writes_one_wins_one_loses() {
     let store = EventStore::new();
 
     // Create entity at version 0
-    store.ingest(create_test_event("e1", "item.created")).unwrap();
+    store
+        .ingest(create_test_event("e1", "item.created"))
+        .unwrap();
     // Now version is 1
 
     // Two "concurrent" writes both expecting version 1
-    let result_a = store.ingest_with_expected_version(
-        create_test_event("e1", "item.claimed"),
-        Some(1),
-    );
-    let result_b = store.ingest_with_expected_version(
-        create_test_event("e1", "item.claimed"),
-        Some(1),
-    );
+    let result_a =
+        store.ingest_with_expected_version(create_test_event("e1", "item.claimed"), Some(1));
+    let result_b =
+        store.ingest_with_expected_version(create_test_event("e1", "item.claimed"), Some(1));
 
     // One succeeds, one fails
     assert!(result_a.is_ok());
@@ -196,10 +208,8 @@ fn test_expected_version_for_new_entity() {
     assert_eq!(v, 1);
 
     // Trying expected_version=0 again should fail
-    let result = store.ingest_with_expected_version(
-        create_test_event("new-entity", "item.created"),
-        Some(0),
-    );
+    let result = store
+        .ingest_with_expected_version(create_test_event("new-entity", "item.created"), Some(0));
     assert!(result.is_err());
 }
 
@@ -212,7 +222,9 @@ fn test_query_by_entity_includes_entity_version() {
     let store = EventStore::new();
 
     for _ in 0..3 {
-        store.ingest(create_test_event("e1", "user.created")).unwrap();
+        store
+            .ingest(create_test_event("e1", "user.created"))
+            .unwrap();
     }
 
     let events = store
@@ -320,9 +332,7 @@ fn test_consumer_poll_returns_all_events() {
             .unwrap();
     }
 
-    store
-        .consumer_registry()
-        .register("c1".into(), vec![]);
+    store.consumer_registry().register("c1".into(), vec![]);
 
     let events = store.events_after_offset(0, &[], 100);
     assert_eq!(events.len(), 5);
@@ -361,9 +371,15 @@ fn test_consumer_poll_after_ack() {
 fn test_consumer_poll_with_filters() {
     let store = EventStore::new();
 
-    store.ingest(create_test_event("e1", "scheduler.started")).unwrap();
-    store.ingest(create_test_event("e2", "trade.executed")).unwrap();
-    store.ingest(create_test_event("e3", "scheduler.completed")).unwrap();
+    store
+        .ingest(create_test_event("e1", "scheduler.started"))
+        .unwrap();
+    store
+        .ingest(create_test_event("e2", "trade.executed"))
+        .unwrap();
+    store
+        .ingest(create_test_event("e3", "scheduler.completed"))
+        .unwrap();
 
     let filters = vec!["scheduler.*".to_string()];
     let events = store.events_after_offset(0, &filters, 100);
@@ -376,8 +392,12 @@ fn test_consumer_poll_with_filters() {
 fn test_consumer_poll_empty_when_caught_up() {
     let store = EventStore::new();
 
-    store.ingest(create_test_event("e1", "user.created")).unwrap();
-    store.ingest(create_test_event("e2", "user.created")).unwrap();
+    store
+        .ingest(create_test_event("e1", "user.created"))
+        .unwrap();
+    store
+        .ingest(create_test_event("e2", "user.created"))
+        .unwrap();
 
     // Poll from offset 2 (after all events)
     let events = store.events_after_offset(2, &[], 100);
@@ -392,7 +412,9 @@ fn test_consumer_poll_empty_when_caught_up() {
 fn test_consumer_ack_advances_cursor() {
     let store = EventStore::new();
     for _ in 0..5 {
-        store.ingest(create_test_event("e1", "user.created")).unwrap();
+        store
+            .ingest(create_test_event("e1", "user.created"))
+            .unwrap();
     }
 
     let registry = store.consumer_registry();
@@ -405,7 +427,9 @@ fn test_consumer_ack_advances_cursor() {
 fn test_consumer_ack_idempotent() {
     let store = EventStore::new();
     for _ in 0..5 {
-        store.ingest(create_test_event("e1", "user.created")).unwrap();
+        store
+            .ingest(create_test_event("e1", "user.created"))
+            .unwrap();
     }
 
     let registry = store.consumer_registry();
@@ -420,7 +444,9 @@ fn test_consumer_ack_idempotent() {
 #[test]
 fn test_consumer_ack_beyond_max_fails() {
     let store = EventStore::new();
-    store.ingest(create_test_event("e1", "user.created")).unwrap();
+    store
+        .ingest(create_test_event("e1", "user.created"))
+        .unwrap();
 
     let registry = store.consumer_registry();
     registry.register("c1".into(), vec![]);
@@ -434,17 +460,32 @@ fn test_consumer_ack_beyond_max_fails() {
 
 #[test]
 fn test_filter_prefix_matching() {
-    assert!(ConsumerRegistry::matches_filters("scheduler.started", &["scheduler.*".into()]));
-    assert!(ConsumerRegistry::matches_filters("scheduler.completed", &["scheduler.*".into()]));
-    assert!(!ConsumerRegistry::matches_filters("trade.executed", &["scheduler.*".into()]));
+    assert!(ConsumerRegistry::matches_filters(
+        "scheduler.started",
+        &["scheduler.*".into()]
+    ));
+    assert!(ConsumerRegistry::matches_filters(
+        "scheduler.completed",
+        &["scheduler.*".into()]
+    ));
+    assert!(!ConsumerRegistry::matches_filters(
+        "trade.executed",
+        &["scheduler.*".into()]
+    ));
 }
 
 #[test]
 fn test_filter_multiple_prefixes() {
     let filters = vec!["scheduler.*".into(), "index.*".into()];
-    assert!(ConsumerRegistry::matches_filters("scheduler.started", &filters));
+    assert!(ConsumerRegistry::matches_filters(
+        "scheduler.started",
+        &filters
+    ));
     assert!(ConsumerRegistry::matches_filters("index.created", &filters));
-    assert!(!ConsumerRegistry::matches_filters("trade.executed", &filters));
+    assert!(!ConsumerRegistry::matches_filters(
+        "trade.executed",
+        &filters
+    ));
 }
 
 #[test]

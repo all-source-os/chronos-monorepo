@@ -399,10 +399,7 @@ impl EventStore {
             if let Some(expected) = expected_version
                 && current != expected
             {
-                return Err(crate::error::AllSourceError::VersionConflict {
-                    expected,
-                    current,
-                });
+                return Err(crate::error::AllSourceError::VersionConflict { expected, current });
             }
 
             // Write to WAL FIRST for durability (under version lock to keep atomicity)
@@ -783,10 +780,7 @@ impl EventStore {
     /// Get the current version for an entity (number of events appended for it).
     /// Returns 0 if the entity has no events.
     pub fn get_entity_version(&self, entity_id: &str) -> u64 {
-        self.entity_versions
-            .get(entity_id)
-            .map(|v| *v)
-            .unwrap_or(0)
+        self.entity_versions.get(entity_id).map(|v| *v).unwrap_or(0)
     }
 
     /// Get the consumer registry for durable subscriptions.
@@ -824,9 +818,7 @@ impl EventStore {
         events[start..]
             .iter()
             .enumerate()
-            .filter(|(_, event)| {
-                ConsumerRegistry::matches_filters(event.event_type_str(), filters)
-            })
+            .filter(|(_, event)| ConsumerRegistry::matches_filters(event.event_type_str(), filters))
             .take(limit)
             .map(|(i, event)| ((start + i + 1) as u64, event.clone()))
             .collect()
