@@ -5,7 +5,7 @@ FROM rust:${RUST_VERSION}-alpine AS builder
 RUN apk add --no-cache musl-dev
 WORKDIR /app
 # Registry is excluded from the root workspace — standalone build, no stubs needed
-COPY apps/registry/ .
+COPY . .
 RUN cargo build --release
 
 FROM alpine:${ALPINE_VERSION}
