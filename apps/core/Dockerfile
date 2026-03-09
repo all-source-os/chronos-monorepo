@@ -61,7 +61,13 @@ ARG VERSION=dev
 ARG REVISION=unknown
 ARG BUILDTIME=unknown
 
-# Set up workspace structure for dependency caching
+# Cook dependencies from recipe (cached layer — recipe is version-agnostic)
+# cargo-chef replaces version fields with placeholders, so version bumps in
+# Cargo.toml/Cargo.lock don't invalidate this expensive layer.
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Now copy real manifests (version-sensitive) and set up workspace structure
 COPY Cargo.toml Cargo.lock ./
 COPY apps/core/Cargo.toml apps/core/
 COPY tooling/performance/Cargo.toml tooling/performance/
@@ -74,16 +80,6 @@ RUN mkdir -p apps/core/src tooling/performance/src sdks/rust/src \
     printf '[package]\nname = "core_nif"\nversion = "0.1.0"\nedition = "2021"\n\n[lib]\nname = "core_nif"\npath = "src/lib.rs"\n\n[dependencies]\n' \
         > apps/mcp-server-elixir/native/core_nif/Cargo.toml && \
     echo '' > apps/mcp-server-elixir/native/core_nif/src/lib.rs
-
-# Cook dependencies from recipe (cached layer)
-COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
-
-# Re-copy real Cargo manifests after cook (cargo-chef replaces version fields
-# with placeholders to maximize cache hits, which causes env!("CARGO_PKG_VERSION")
-# to resolve to "0.0.1" instead of the actual version)
-COPY Cargo.toml Cargo.lock ./
-COPY apps/core/Cargo.toml apps/core/
 
 # Copy actual source files for binary build
 COPY apps/core/src apps/core/src

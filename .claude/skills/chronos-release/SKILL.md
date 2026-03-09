@@ -52,9 +52,19 @@ Check for any other version references that `set-version` might miss:
 
 ### 4. Run CI to green
 
-**IMPORTANT: Run the three quality gates in PARALLEL, not sequentially.**
+**HARD GATE: Do NOT proceed to step 5 until ALL three gates pass. No exceptions.**
 
-`make ci` runs Rust → Go → Elixir sequentially, which takes 10+ minutes per iteration. Instead, launch all three as background tasks:
+A tag is immutable. Once pushed, a broken release means burning another version number. The cost of re-running CI is minutes; the cost of a bad tag is permanent version pollution.
+
+**Pre-fix common issues BEFORE the first CI attempt** to minimize iterations:
+```bash
+# Always run these first:
+cargo +nightly fmt --all
+cargo +nightly sort --workspace
+cd apps/mcp-server-elixir && mix format && cd ../query-service && mix format && cd ../..
+```
+
+**Run the three quality gates in PARALLEL:**
 
 ```bash
 # Launch all three in parallel (use run_in_background for each)
@@ -63,25 +73,23 @@ make quality-go 2>&1 | tail -5        # ~30 sec
 make quality-elixir-full 2>&1 | tail -10  # ~4-5 min (dialyzer + tests)
 ```
 
-Wait for all three to complete, then check results. This cuts CI time from 10+ min to ~4 min per iteration.
+Wait for ALL THREE to complete and verify EACH returned exit code 0.
+
+**If any gate fails:**
+1. Fix the issue
+2. Re-run the failing gate(s)
+3. **Verify ALL gates pass before proceeding** — do not assume passing gates still pass after fixes
+
+**Known pre-existing failures to distinguish from new issues:**
+- Go: `TestAdminBillingGetDunning_WithPastDue` is flaky — passes on retry
+- Go: coverage tool version mismatch (go1.26.1 vs go1.26.0) — cosmetic, tests still pass
+- Rust `--all-targets`: testcontainers dep mismatch — `--lib` tests pass fine
+- Elixir MCP: ConversationContext GenServer not started in test env — 2 known failures
 
 **For targeted re-checks after fixes**, only re-run the affected gate:
 - Rust fix → `make quality-rust`
 - Elixir fix → `make quality-elixir-full`
 - Go fix → `make quality-go`
-
-**Pre-fix common issues before running gates** to minimize iterations:
-```bash
-# Always run these before the first CI attempt:
-cargo +nightly fmt --all
-cargo +nightly sort --workspace
-cd apps/mcp-server-elixir && mix format && cd ../query-service && mix format && cd ../..
-```
-
-If CI fails, fix issues and re-run only the failing gate(s):
-- **Rust**: `cargo +nightly fmt --all`, `cargo +nightly sort --workspace`, clippy fixes, doc link fixes
-- **Go**: `gofmt`, golangci-lint fixes
-- **Elixir**: `mix format`, `mix deps.unlock --unused`, credo fixes, test fixes
 
 ### 5. Commit (single squashed commit)
 
@@ -117,16 +125,30 @@ git show v<VERSION> --oneline --no-patch
 
 Confirm: single new commit, tag points to it.
 
-### 8. Report
+### 8. Report — DO NOT PUSH
+
+**CRITICAL: Do NOT push automatically. Do NOT offer to push. Do NOT push even if the user says "release it" or "push it" in the same message as the release request.**
 
 Tell the user:
 - Version: v<VERSION>
 - Commit: <hash>
 - Tag: v<VERSION>
-- CI: green
-- Remind them to `git push && git push --tags` when ready
+- CI: green (list which gates passed, note any pre-existing failures)
+- **The user must manually run `git push && git push --tags` when ready**
 
-Do NOT push automatically — let the user decide when to push.
+The user needs a chance to review the commit, verify the tag, and decide when to push. A tag cannot be undone.
+
+### 9. Batch fixes — do NOT release per-fix
+
+**If multiple issues need fixing, batch them into ONE release.** Do not cut a separate release for each fix. The version number is a scarce resource — every botched release wastes one permanently.
+
+Checklist before tagging:
+- [ ] All planned fixes are implemented and tested
+- [ ] ALL three CI gates pass (not just the ones related to your changes)
+- [ ] `mix format` has been run on ALL Elixir apps (not just the one you edited)
+- [ ] `cargo +nightly fmt --all` has been run
+- [ ] No unrelated dirty files will be swept into the commit (`git status`)
+- [ ] Dockerfiles have been verified against current workspace members
 
 ## Common CI Fix Patterns
 
