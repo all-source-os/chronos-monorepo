@@ -86,8 +86,7 @@ jobs:
           - name: query-service
             context: apps/query-service
           - name: registry
-            context: .
-            dockerfile: apps/registry/Dockerfile
+            context: apps/registry
 
     steps:
       - uses: actions/checkout@v6

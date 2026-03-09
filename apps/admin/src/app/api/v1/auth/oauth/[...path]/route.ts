@@ -7,6 +7,16 @@ import { getControlPlaneUrl } from "@/lib/auth";
  * request time, not build time.
  */
 
+function getPublicUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  return "http://localhost:3003";
+}
+
 async function proxyToControlPlane(
   request: NextRequest,
   path: string
@@ -16,6 +26,11 @@ async function proxyToControlPlane(
   request.nextUrl.searchParams.forEach((value, key) => {
     url.searchParams.set(key, value);
   });
+
+  // Tell the Control Plane to redirect back to this admin app after OAuth
+  if (!path.includes("callback")) {
+    url.searchParams.set("redirect_to", getPublicUrl());
+  }
 
   const headers: Record<string, string> = {};
   const cookie = request.headers.get("cookie");

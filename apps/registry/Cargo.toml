@@ -4,8 +4,8 @@ version = "0.10.5"
 edition = "2024"
 
 [dependencies]
-allframe = { workspace = true }
+allframe = "0.1"
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["tokio", "http1"] }
-sha2 = { workspace = true }
-tracing-subscriber = { workspace = true }
+sha2 = "0.10"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

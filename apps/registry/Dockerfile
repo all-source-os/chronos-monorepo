@@ -4,25 +4,9 @@ ARG ALPINE_VERSION=3.23
 FROM rust:${RUST_VERSION}-alpine AS builder
 RUN apk add --no-cache musl-dev
 WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
-COPY apps/registry/ apps/registry/
-# Stubs for other workspace members (must satisfy Cargo.toml declarations)
-COPY apps/core/Cargo.toml apps/core/
-COPY tooling/performance/Cargo.toml tooling/performance/
-COPY sdks/rust/Cargo.toml sdks/rust/
-RUN mkdir -p apps/core/src apps/core/benches apps/core/tests/stress_tests \
-            apps/mcp-server-elixir/native/core_nif/src \
-            tooling/performance/src sdks/rust/src && \
-    echo 'fn main() {}' > apps/core/src/main.rs && \
-    echo '' > apps/core/src/lib.rs && \
-    echo 'fn main() {}' > apps/core/benches/performance_benchmarks.rs && \
-    echo 'fn main() {}' > apps/core/tests/stress_tests/seven_day_stress.rs && \
-    printf '[package]\nname = "core_nif"\nversion = "0.1.0"\nedition = "2021"\n\n[lib]\nname = "core_nif"\npath = "src/lib.rs"\n\n[dependencies]\n' \
-        > apps/mcp-server-elixir/native/core_nif/Cargo.toml && \
-    echo '' > apps/mcp-server-elixir/native/core_nif/src/lib.rs && \
-    echo 'fn main() {}' > tooling/performance/src/main.rs && \
-    echo '' > sdks/rust/src/lib.rs
-RUN cargo build --release -p allsource-registry
+# Registry is excluded from the root workspace — standalone build, no stubs needed
+COPY apps/registry/ .
+RUN cargo build --release
 
 FROM alpine:${ALPINE_VERSION}
 RUN addgroup -S app && adduser -S app -G app && \

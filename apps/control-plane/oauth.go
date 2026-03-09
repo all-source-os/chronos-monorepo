@@ -33,7 +33,8 @@ const (
 	googleTokenURL     = "https://oauth2.googleapis.com/token" //nolint:gosec // URL, not a credential
 	googleUserInfoURL  = "https://www.googleapis.com/oauth2/v2/userinfo"
 
-	oauthStateCookieName = "oauth_state"
+	oauthStateCookieName    = "oauth_state"
+	oauthRedirectCookieName = "oauth_redirect_to"
 )
 
 // oauthProviderConfig holds client credentials for an OAuth provider.
@@ -69,6 +70,42 @@ func getFrontendURL() string {
 		return u
 	}
 	return "http://localhost:3000"
+}
+
+// getAllowedFrontendURLs returns the list of frontend URLs allowed as OAuth redirect targets.
+// Includes FRONTEND_URL (always allowed) plus any additional URLs from ALLOWED_FRONTEND_URLS.
+func getAllowedFrontendURLs() []string {
+	allowed := []string{getFrontendURL()}
+	if extra := os.Getenv("ALLOWED_FRONTEND_URLS"); extra != "" {
+		for _, u := range strings.Split(extra, ",") {
+			u = strings.TrimSpace(u)
+			if u != "" {
+				allowed = append(allowed, strings.TrimRight(u, "/"))
+			}
+		}
+	}
+	return allowed
+}
+
+// isAllowedRedirectURL checks if a redirect URL is in the allowlist.
+// Prevents open redirect attacks by only allowing known frontend origins.
+func isAllowedRedirectURL(redirectTo string) bool {
+	parsed, err := url.Parse(redirectTo)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return false
+	}
+	origin := parsed.Scheme + "://" + parsed.Host
+	for _, allowed := range getAllowedFrontendURLs() {
+		allowedParsed, err := url.Parse(allowed)
+		if err != nil {
+			continue
+		}
+		allowedOrigin := allowedParsed.Scheme + "://" + allowedParsed.Host
+		if origin == allowedOrigin {
+			return true
+		}
+	}
+	return false
 }
 
 // isSecureContext returns true if the deployment uses HTTPS.
@@ -133,6 +170,12 @@ func (cp *ControlPlane) OAuthAuthorize(c *gin.Context) {
 	secure := isSecureContext()
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(oauthStateCookieName, state, 600, "/api/v1/auth/oauth/", "", secure, true)
+
+	// Store redirect_to in a cookie so the callback knows which app to redirect to.
+	// If not provided or not in the allowlist, the callback falls back to FRONTEND_URL.
+	if redirectTo := c.Query("redirect_to"); redirectTo != "" && isAllowedRedirectURL(redirectTo) {
+		c.SetCookie(oauthRedirectCookieName, redirectTo, 600, "/api/v1/auth/oauth/", "", secure, true)
+	}
 
 	callbackURL := fmt.Sprintf("%s/api/v1/auth/oauth/%s/callback", getOAuthCallbackBaseURL(), provider)
 
@@ -207,9 +250,18 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(oauthStateCookieName, "", -1, "/api/v1/auth/oauth/", "", isSecureContext(), true)
 
+	// Read and clear the redirect_to cookie — determines which frontend app to redirect to
+	redirectTarget := frontendURL
+	if redirectTo, err := c.Cookie(oauthRedirectCookieName); err == nil && redirectTo != "" {
+		if isAllowedRedirectURL(redirectTo) {
+			redirectTarget = strings.TrimRight(redirectTo, "/")
+		}
+	}
+	c.SetCookie(oauthRedirectCookieName, "", -1, "/api/v1/auth/oauth/", "", isSecureContext(), true)
+
 	cfg := getOAuthConfig(provider)
 	if cfg == nil {
-		c.Redirect(http.StatusFound, frontendURL+"/login?error=auth_failed")
+		c.Redirect(http.StatusFound, redirectTarget+"/login?error=auth_failed")
 		return
 	}
 
@@ -223,7 +275,7 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 	providerToken, err := exchangeCode(oauthClient, provider, code, cfg, callbackURL)
 	if err != nil {
 		log.Printf("[OAuth] Code exchange failed for %s: %v", provider, err)
-		c.Redirect(http.StatusFound, frontendURL+"/login?error=auth_failed")
+		c.Redirect(http.StatusFound, redirectTarget+"/login?error=auth_failed")
 		return
 	}
 
@@ -231,7 +283,7 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 	userInfo, err := fetchUserInfo(oauthClient, provider, providerToken)
 	if err != nil {
 		log.Printf("[OAuth] User info fetch failed for %s: %v", provider, err)
-		c.Redirect(http.StatusFound, frontendURL+"/login?error=auth_failed")
+		c.Redirect(http.StatusFound, redirectTarget+"/login?error=auth_failed")
 		return
 	}
 
@@ -239,7 +291,7 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 	result, err := cp.findOrCreateOAuthUser(provider, userInfo.ProviderID, userInfo.Email, userInfo.Name)
 	if err != nil {
 		log.Printf("[OAuth] User creation/JWT signing failed: %v", err)
-		c.Redirect(http.StatusFound, frontendURL+"/login?error=auth_failed")
+		c.Redirect(http.StatusFound, redirectTarget+"/login?error=auth_failed")
 		return
 	}
 
@@ -247,7 +299,7 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 	// Replace with a short-lived authorization code that the callback exchanges server-side for the JWT.
 	// This requires CP to maintain a temporary code store (e.g., in-memory with TTL or Redis).
 	redirectURL := fmt.Sprintf("%s/api/auth/callback?token=%s&new_user=%t",
-		frontendURL, url.QueryEscape(result.Token), result.IsNewUser)
+		redirectTarget, url.QueryEscape(result.Token), result.IsNewUser)
 	c.Redirect(http.StatusFound, redirectURL)
 }
 

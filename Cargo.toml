@@ -3,13 +3,13 @@ resolver = "3"
 members = [
     "apps/core",
     "apps/mcp-server-elixir/native/core_nif",
-    "apps/registry",
-    "crates/better-auth-allsource",
     "sdks/rust",
     "tooling/performance",
 ]
 exclude = [
     "apps/chronis",
+    "apps/registry",
+    "crates/better-auth-allsource",
 ]
 
 [workspace.dependencies]
