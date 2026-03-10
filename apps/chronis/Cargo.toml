@@ -2,6 +2,7 @@
 name = "chronis"
 version = "0.5.2"
 edition = "2024"
+rust-version = "1.92"
 description = "Event-sourced task CLI powered by the AllSource embedded database (all-source.xyz)"
 authors = ["Decebal Dobrica <decebal@decebaldobrica.com>"]
 license = "MIT"
