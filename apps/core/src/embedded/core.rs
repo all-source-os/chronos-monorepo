@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use std::path::Path;
+
 use crate::{
     application::dto::QueryEventsRequest,
     domain::entities::Event,
@@ -9,7 +11,12 @@ use crate::{
             crdt::{ConflictResolution, CrdtResolver, ReplicatedEvent},
             hlc::{HlcTimestamp, HybridLogicalClock},
         },
-        persistence::{compaction::CompactionConfig, snapshot::SnapshotConfig, wal::WALConfig},
+        persistence::{
+            backup::{BackupConfig, BackupManager, BackupMetadata},
+            compaction::CompactionConfig,
+            snapshot::SnapshotConfig,
+            wal::WALConfig,
+        },
     },
     store::{EventStore, EventStoreConfig, StoreStats},
 };
@@ -722,6 +729,135 @@ impl EmbeddedCore {
         }
 
         Ok(replicated)
+    }
+
+    /// Get the total number of events in this store.
+    ///
+    /// Convenience wrapper around [`stats().total_events`](StoreStats).
+    pub fn event_count(&self) -> usize {
+        self.store.stats().total_events
+    }
+
+    /// Create a backup of all events at the given directory.
+    ///
+    /// Flushes storage first to ensure all in-memory data is durable,
+    /// then writes a gzip-compressed JSON backup with SHA256 verification.
+    ///
+    /// Returns [`BackupMetadata`] with the backup ID, event count,
+    /// size, and checksum. Use the backup ID with [`restore`](Self::restore)
+    /// to recover.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the store is empty (no events to back up),
+    /// or if writing to `backup_dir` fails.
+    pub async fn create_backup(&self, backup_dir: &Path) -> Result<BackupMetadata> {
+        // Flush storage so Parquet/WAL are consistent before snapshotting
+        let store = Arc::clone(&self.store);
+        tokio::task::spawn_blocking(move || store.flush_storage())
+            .await
+            .map_err(|e| {
+                crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+            })??;
+
+        let store = Arc::clone(&self.store);
+        let backup_dir = backup_dir.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            let manager = BackupManager::new(BackupConfig {
+                backup_dir,
+                ..BackupConfig::default()
+            })?;
+            let events = store.snapshot_events();
+            manager.create_backup(&events)
+        })
+        .await
+        .map_err(|e| {
+            crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+        })?
+    }
+
+    /// Restore from a backup, returning a new `EmbeddedCore` instance
+    /// with all events replayed into a fresh store.
+    ///
+    /// The `backup_dir` and `backup_id` identify which backup to restore.
+    /// The `config` determines where the restored data is persisted
+    /// (set `data_dir` for durable storage, or omit for in-memory).
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use allsource_core::embedded::{Config, EmbeddedCore};
+    /// # #[tokio::main]
+    /// # async fn main() -> allsource_core::error::Result<()> {
+    /// let restored = EmbeddedCore::restore(
+    ///     std::path::Path::new("/backups"),
+    ///     "full_abc123",
+    ///     Config::builder().data_dir("/restored-data").build()?,
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn restore(
+        backup_dir: &Path,
+        backup_id: &str,
+        config: EmbeddedConfig,
+    ) -> Result<Self> {
+        let backup_dir = backup_dir.to_path_buf();
+        let backup_id = backup_id.to_string();
+
+        let events = tokio::task::spawn_blocking(move || {
+            let manager = BackupManager::new(BackupConfig {
+                backup_dir,
+                ..BackupConfig::default()
+            })?;
+            manager.restore_from_backup(&backup_id)
+        })
+        .await
+        .map_err(|e| {
+            crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+        })??;
+
+        // Open a fresh core with the given config
+        let core = Self::open(config).await?;
+
+        // Ingest all restored events
+        let store = Arc::clone(&core.store);
+        tokio::task::spawn_blocking(move || store.ingest_batch(events))
+            .await
+            .map_err(|e| {
+                crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
+            })??;
+
+        Ok(core)
+    }
+
+    /// List all backups in the given directory, newest first.
+    pub fn list_backups(&self, backup_dir: &Path) -> Result<Vec<BackupMetadata>> {
+        let manager = BackupManager::new(BackupConfig {
+            backup_dir: backup_dir.to_path_buf(),
+            ..BackupConfig::default()
+        })?;
+        manager.list_backups()
+    }
+
+    /// Delete a specific backup from the given directory.
+    pub fn delete_backup(&self, backup_dir: &Path, backup_id: &str) -> Result<()> {
+        let manager = BackupManager::new(BackupConfig {
+            backup_dir: backup_dir.to_path_buf(),
+            ..BackupConfig::default()
+        })?;
+        manager.delete_backup(backup_id)
+    }
+
+    /// Remove old backups, keeping only the `keep_count` newest.
+    ///
+    /// Returns the number of backups deleted.
+    pub fn cleanup_old_backups(&self, backup_dir: &Path, keep_count: usize) -> Result<usize> {
+        let manager = BackupManager::new(BackupConfig {
+            backup_dir: backup_dir.to_path_buf(),
+            ..BackupConfig::default()
+        })?;
+        manager.cleanup_old_backups(keep_count)
     }
 
     /// Get a reference to the underlying `EventStore`.

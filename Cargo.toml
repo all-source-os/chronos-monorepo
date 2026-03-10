@@ -6,11 +6,7 @@ members = [
     "sdks/rust",
     "tooling/performance",
 ]
-exclude = [
-    "apps/chronis",
-    "apps/registry",
-    "crates/better-auth-allsource",
-]
+exclude = ["apps/chronis", "apps/registry", "crates/better-auth-allsource"]
 
 [workspace.dependencies]
 

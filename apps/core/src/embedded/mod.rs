@@ -42,5 +42,6 @@ pub mod sync_types;
 mod types;
 
 pub use self::core::EmbeddedCore;
+pub use crate::infrastructure::persistence::backup::BackupMetadata;
 pub use config::{ConfigBuilder, EmbeddedConfig as Config};
 pub use types::{DurabilityStatus, EventView, IngestEvent, Query};
