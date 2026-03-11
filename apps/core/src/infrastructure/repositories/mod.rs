@@ -1,4 +1,6 @@
 pub mod event_sourced_audit_repository;
+#[cfg(feature = "server")]
+pub mod event_sourced_auth_repository;
 pub mod event_sourced_config_repository;
 pub mod event_sourced_tenant_repository;
 pub mod in_memory_access_token_repository;
@@ -24,6 +26,8 @@ pub mod postgres_tenant_repository;
 pub mod rocksdb_event_stream_repository;
 
 pub use event_sourced_audit_repository::EventSourcedAuditRepository;
+#[cfg(feature = "server")]
+pub use event_sourced_auth_repository::EventSourcedAuthRepository;
 pub use event_sourced_config_repository::EventSourcedConfigRepository;
 pub use event_sourced_tenant_repository::EventSourcedTenantRepository;
 pub use in_memory_access_token_repository::InMemoryAccessTokenRepository;

@@ -218,6 +218,9 @@ pub struct AuthManager {
     api_keys: Arc<DashMap<Uuid, ApiKey>>,
     /// Username to user ID mapping
     username_index: Arc<DashMap<String, Uuid>>,
+    /// Optional event-sourced auth repository for durable key storage.
+    /// When set, API key operations are persisted to the system WAL.
+    auth_repo: Option<Arc<crate::infrastructure::repositories::EventSourcedAuthRepository>>,
 }
 
 impl AuthManager {
@@ -236,7 +239,29 @@ impl AuthManager {
             users: Arc::new(DashMap::new()),
             api_keys: Arc::new(DashMap::new()),
             username_index: Arc::new(DashMap::new()),
+            auth_repo: None,
         }
+    }
+
+    /// Attach an event-sourced auth repository for durable API key storage.
+    ///
+    /// Loads all previously persisted keys into the in-memory cache.
+    /// Subsequent `create_api_key` and `revoke_api_key` calls will also
+    /// write events to the system WAL.
+    pub fn with_auth_repository(
+        mut self,
+        repo: Arc<crate::infrastructure::repositories::EventSourcedAuthRepository>,
+    ) -> Self {
+        // Load persisted keys into the in-memory DashMap
+        for key in repo.all_keys() {
+            self.api_keys.insert(key.id, key);
+        }
+        let loaded = self.api_keys.len();
+        if loaded > 0 {
+            tracing::info!("Loaded {} API keys from durable storage", loaded);
+        }
+        self.auth_repo = Some(repo);
+        self
     }
 
     /// Register a new user
@@ -314,6 +339,9 @@ impl AuthManager {
     }
 
     /// Create API key
+    ///
+    /// When an auth repository is attached, the key is persisted to the
+    /// system WAL and survives restarts.
     pub fn create_api_key(
         &self,
         name: String,
@@ -323,6 +351,14 @@ impl AuthManager {
     ) -> (ApiKey, String) {
         let (api_key, key) = ApiKey::new(name, tenant_id, role, expires_at);
         self.api_keys.insert(api_key.id, api_key.clone());
+
+        // Persist to durable storage if available
+        if let Some(ref repo) = self.auth_repo
+            && let Err(e) = repo.persist_api_key(&api_key)
+        {
+            tracing::error!("Failed to persist API key to system store: {e}");
+        }
+
         (api_key, key)
     }
 
@@ -381,9 +417,20 @@ impl AuthManager {
     }
 
     /// Revoke API key
+    ///
+    /// When an auth repository is attached, the revocation is persisted
+    /// to the system WAL and survives restarts.
     pub fn revoke_api_key(&self, key_id: &Uuid) -> Result<()> {
         if let Some(mut api_key) = self.api_keys.get_mut(key_id) {
             api_key.active = false;
+
+            // Persist revocation to durable storage
+            if let Some(ref repo) = self.auth_repo
+                && let Err(e) = repo.persist_key_revocation(key_id)
+            {
+                tracing::error!("Failed to persist key revocation to system store: {e}");
+            }
+
             Ok(())
         } else {
             Err(AllSourceError::ValidationError(
@@ -401,12 +448,31 @@ impl AuthManager {
             .collect()
     }
 
-    /// Register a bootstrap API key with a specific key value
+    /// Register a bootstrap API key with a specific key value.
     ///
     /// This is used on startup to create a pre-configured API key from
-    /// the ALLSOURCE_BOOTSTRAP_API_KEY environment variable.
+    /// the `ALLSOURCE_BOOTSTRAP_API_KEY` environment variable.
+    ///
+    /// If an auth repository is attached, the key is persisted to the
+    /// system WAL. On subsequent restarts, the key is loaded from storage
+    /// automatically — the bootstrap only creates the key if it doesn't
+    /// already exist (idempotent).
     pub fn register_bootstrap_api_key(&self, key: &str, tenant_id: &str) -> ApiKey {
         let key_hash = hash_api_key(key);
+
+        // Check if this exact key already exists (idempotent bootstrap)
+        let existing = self.api_keys.iter().find_map(|entry| {
+            if entry.value().key_hash == key_hash && entry.value().active {
+                Some(entry.value().clone())
+            } else {
+                None
+            }
+        });
+
+        if let Some(existing_key) = existing {
+            tracing::debug!("Bootstrap API key already exists (idempotent)");
+            return existing_key;
+        }
 
         let api_key = ApiKey {
             id: Uuid::new_v4(),
@@ -415,20 +481,26 @@ impl AuthManager {
             role: Role::Admin,
             key_hash,
             created_at: Utc::now(),
-            expires_at: None, // Bootstrap key never expires
+            expires_at: None,
             active: true,
             last_used: None,
         };
 
         self.api_keys.insert(api_key.id, api_key.clone());
+
+        // Persist to durable storage if available
+        if let Some(ref repo) = self.auth_repo
+            && let Err(e) = repo.persist_api_key(&api_key)
+        {
+            tracing::error!("Failed to persist bootstrap API key: {e}");
+        }
+
         api_key
     }
 }
 
 impl Default for AuthManager {
     fn default() -> Self {
-        // Generate a random secret for development
-        // In production, this should come from configuration
         use base64::{Engine as _, engine::general_purpose};
         let secret = general_purpose::STANDARD.encode(rand::random::<[u8; 32]>());
         Self::new(&secret)

@@ -1,3 +1,5 @@
+#[cfg(feature = "server")]
+use crate::infrastructure::repositories::EventSourcedAuthRepository;
 use crate::{
     application::services::consumer::ConsumerRegistry,
     domain::{entities::TenantQuotas, repositories::TenantRepository, value_objects::TenantId},
@@ -28,6 +30,10 @@ pub struct SystemRepositories {
 
     /// Event-sourced config repository
     pub config_repository: Arc<EventSourcedConfigRepository>,
+
+    /// Event-sourced auth repository (API keys)
+    #[cfg(feature = "server")]
+    pub auth_repository: Arc<EventSourcedAuthRepository>,
 
     /// Durable consumer registry for subscription cursor tracking
     pub consumer_registry: Arc<ConsumerRegistry>,
@@ -81,9 +87,21 @@ impl SystemBootstrap {
         let tenant_repository = Arc::new(EventSourcedTenantRepository::new(system_store.clone()));
         let audit_repository = Arc::new(EventSourcedAuditRepository::new(system_store.clone()));
         let config_repository = Arc::new(EventSourcedConfigRepository::new(system_store.clone()));
+        #[cfg(feature = "server")]
+        let auth_repository = Arc::new(EventSourcedAuthRepository::new(system_store.clone()));
         let consumer_registry = Arc::new(ConsumerRegistry::new_durable(system_store.clone()));
 
         let tenant_count = tenant_repository.count().await.unwrap_or(0);
+        #[cfg(feature = "server")]
+        tracing::info!(
+            "System caches populated: {} tenants, {} config entries, {} API keys ({} active), {} consumers",
+            tenant_count,
+            config_repository.count(),
+            auth_repository.count(),
+            auth_repository.active_count(),
+            consumer_registry.count()
+        );
+        #[cfg(not(feature = "server"))]
         tracing::info!(
             "System caches populated: {} tenants, {} config entries, {} consumers",
             tenant_count,
@@ -142,6 +160,8 @@ impl SystemBootstrap {
             tenant_repository,
             audit_repository,
             config_repository,
+            #[cfg(feature = "server")]
+            auth_repository,
             consumer_registry,
         })
     }

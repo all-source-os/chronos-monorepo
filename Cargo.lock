@@ -117,7 +117,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "allsource"
-version = "0.14.6"
+version = "0.14.7"
 dependencies = [
  "reqwest 0.13.2",
  "serde",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "allsource-core"
-version = "0.14.6"
+version = "0.14.7"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -184,6 +184,36 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "uuid",
+]
+
+[[package]]
+name = "allsource-inspect"
+version = "0.1.0"
+dependencies = [
+ "allsource-core",
+ "anyhow",
+ "chrono",
+ "clap",
+ "comfy-table",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "allsource-mcp"
+version = "0.14.7"
+dependencies = [
+ "allsource-core",
+ "anyhow",
+ "chrono",
+ "clap",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 

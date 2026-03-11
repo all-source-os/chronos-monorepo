@@ -4,6 +4,8 @@ members = [
     "apps/core",
     "apps/mcp-server-elixir/native/core_nif",
     "sdks/rust",
+    "tooling/allsource-inspect",
+    "tooling/allsource-mcp",
     "tooling/performance",
 ]
 exclude = ["apps/chronis", "apps/registry", "crates/better-auth-allsource"]
@@ -16,7 +18,7 @@ aes-gcm = "0.10"
 # AllFrame web framework
 allframe = "0.1"
 # Internal crates
-allsource-core = { path = "apps/core" }
+allsource-core = { path = "apps/core", default-features = false }
 
 # Error handling
 anyhow = "1.0"

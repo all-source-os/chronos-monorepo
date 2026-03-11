@@ -43,6 +43,8 @@ pub enum SystemDomain {
     Policy,
     /// Consumer: durable subscription cursor positions
     Consumer,
+    /// Auth: API keys, users, and authentication metadata
+    Auth,
 }
 
 impl SystemDomain {
@@ -55,6 +57,7 @@ impl SystemDomain {
             Self::Schema => "schema",
             Self::Policy => "policy",
             Self::Consumer => "consumer",
+            Self::Auth => "auth",
         }
     }
 
@@ -67,6 +70,7 @@ impl SystemDomain {
             Self::Schema,
             Self::Policy,
             Self::Consumer,
+            Self::Auth,
         ]
     }
 }
@@ -105,6 +109,12 @@ pub mod policy_events {
     pub const CREATED: &str = "_system.policy.created";
     pub const UPDATED: &str = "_system.policy.updated";
     pub const DELETED: &str = "_system.policy.deleted";
+}
+
+/// System event types for authentication (API keys, users).
+pub mod auth_events {
+    pub const KEY_PROVISIONED: &str = "_system.auth.key_provisioned";
+    pub const KEY_REVOKED: &str = "_system.auth.key_revoked";
 }
 
 /// System event types for consumer cursor tracking.
@@ -205,7 +215,7 @@ mod tests {
     #[test]
     fn test_system_domain_all() {
         let domains = SystemDomain::all();
-        assert_eq!(domains.len(), 6);
+        assert_eq!(domains.len(), 7);
     }
 
     #[test]
@@ -228,6 +238,8 @@ mod tests {
             policy_events::CREATED,
             policy_events::UPDATED,
             policy_events::DELETED,
+            auth_events::KEY_PROVISIONED,
+            auth_events::KEY_REVOKED,
             consumer_events::REGISTERED,
             consumer_events::ACK_UPDATED,
             consumer_events::DELETED,

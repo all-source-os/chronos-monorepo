@@ -177,17 +177,26 @@ async fn main() -> Result<()> {
         None
     };
 
-    let auth_manager = Arc::new(match std::env::var("ALLSOURCE_JWT_SECRET") {
-        Ok(secret) if !secret.is_empty() => {
-            tracing::info!("Using ALLSOURCE_JWT_SECRET for JWT validation");
-            AuthManager::new(&secret)
+    let auth_manager = Arc::new({
+        let mut mgr = match std::env::var("ALLSOURCE_JWT_SECRET") {
+            Ok(secret) if !secret.is_empty() => {
+                tracing::info!("Using ALLSOURCE_JWT_SECRET for JWT validation");
+                AuthManager::new(&secret)
+            }
+            _ => {
+                tracing::warn!(
+                    "ALLSOURCE_JWT_SECRET not set — using random secret (tokens from other services will fail)"
+                );
+                AuthManager::default()
+            }
+        };
+
+        // Attach event-sourced auth repository for durable API key storage
+        if let Some(ref repos) = system_repos {
+            mgr = mgr.with_auth_repository(repos.auth_repository.clone());
         }
-        _ => {
-            tracing::warn!(
-                "ALLSOURCE_JWT_SECRET not set — using random secret (tokens from other services will fail)"
-            );
-            AuthManager::default()
-        }
+
+        mgr
     });
     let rate_limiter = Arc::new(RateLimiter::new(RateLimitConfig::professional()));
 
@@ -231,8 +240,15 @@ async fn main() -> Result<()> {
     if let Ok(bootstrap_key) = std::env::var("ALLSOURCE_BOOTSTRAP_API_KEY")
         && !bootstrap_key.is_empty()
     {
-        auth_manager.register_bootstrap_api_key(&bootstrap_key, "default");
-        tracing::info!("✅ Bootstrap API key configured");
+        let bootstrap_tenant = std::env::var("ALLSOURCE_BOOTSTRAP_TENANT_ID")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "default".to_string());
+        auth_manager.register_bootstrap_api_key(&bootstrap_key, &bootstrap_tenant);
+        tracing::info!(
+            "✅ Bootstrap API key configured (tenant: {})",
+            bootstrap_tenant
+        );
     }
 
     // Start RESP3 (Redis wire protocol) server if configured
