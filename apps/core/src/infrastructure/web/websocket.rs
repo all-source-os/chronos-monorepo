@@ -51,7 +51,7 @@ struct ClientInfo {
 pub struct EventFilters {
     pub entity_id: Option<String>,
     pub event_type: Option<String>,
-    /// Prefix-based event type filters (e.g. ["scheduler.*", "index.*"]).
+    /// Prefix-based event type filters (e.g. `["scheduler.*", "index.*"]`).
     /// If non-empty, only events matching at least one prefix are delivered.
     #[serde(default)]
     pub event_type_prefixes: Vec<String>,
@@ -84,6 +84,7 @@ impl WebSocketManager {
     }
 
     /// Broadcast an event to all connected WebSocket clients
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn broadcast_event(&self, event: Arc<Event>) {
         // Send to broadcast channel (non-blocking)
         let _ = self.event_tx.send(event);
@@ -95,6 +96,7 @@ impl WebSocketManager {
     }
 
     /// Handle a new WebSocket connection (fire-and-forget, no consumer tracking)
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub async fn handle_socket(&self, socket: WebSocket) {
         self.handle_socket_inner(socket, None, None).await;
     }
@@ -172,13 +174,13 @@ impl WebSocketManager {
         }
 
         // Register client with consumer's prefix filters (if any)
-        let initial_filters = if !consumer_filters.is_empty() {
+        let initial_filters = if consumer_filters.is_empty() {
+            EventFilters::default()
+        } else {
             EventFilters {
                 event_type_prefixes: consumer_filters,
                 ..Default::default()
             }
-        } else {
-            EventFilters::default()
         };
 
         self.clients.insert(
@@ -510,7 +512,7 @@ mod tests {
                 // Got an event — that's fine, lagged may come on next recv
             }
             Err(e) => {
-                panic!("unexpected error: {:?}", e);
+                panic!("unexpected error: {e:?}");
             }
         }
     }

@@ -13,6 +13,7 @@ fn escape(s: &str) -> String {
 }
 
 /// Encode a list of tasks as TOON.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn tasks(tasks: &[Task]) -> String {
     let mut out = String::from("[id|type|title|pri|status|claimed|blocked_by|parent|archived]\n");
     for t in tasks {
@@ -40,6 +41,7 @@ pub fn tasks(tasks: &[Task]) -> String {
 }
 
 /// Encode a task detail (show) as TOON.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn task_detail(detail: &TaskDetail) -> String {
     let t = &detail.task;
     let mut out = String::new();

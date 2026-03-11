@@ -48,7 +48,7 @@ fn bench_simd_json() {
     let parser = SimdJsonParser::new();
 
     let json_strings: Vec<String> = (0..100_000).map(create_test_json).collect();
-    let total_bytes: usize = json_strings.iter().map(|s| s.len()).sum();
+    let total_bytes: usize = json_strings.iter().map(std::string::String::len).sum();
 
     let start = Instant::now();
     for json_str in &json_strings {
@@ -61,16 +61,16 @@ fn bench_simd_json() {
     let throughput_mbps = (total_bytes as f64 / 1_000_000.0) / duration.as_secs_f64();
 
     println!("Events: 100,000");
-    println!("Duration: {:?}", duration);
-    println!("Events/sec: {:.0}", events_per_sec);
-    println!("Throughput: {:.2} MB/s", throughput_mbps);
+    println!("Duration: {duration:?}");
+    println!("Events/sec: {events_per_sec:.0}");
+    println!("Throughput: {throughput_mbps:.2} MB/s");
     println!("Parser stats: {:?}", parser.stats());
 
     let target = 500_000.0;
     if events_per_sec > target {
-        println!("PASS: {:.0} > {:.0}", events_per_sec, target);
+        println!("PASS: {events_per_sec:.0} > {target:.0}");
     } else {
-        println!("WARN: {:.0} < {:.0} (target)", events_per_sec, target);
+        println!("WARN: {events_per_sec:.0} < {target:.0} (target)");
     }
 }
 
@@ -94,19 +94,19 @@ fn bench_lock_free_queue() {
     let pop_duration = start.elapsed();
 
     let push_rate = 100_000.0 / push_duration.as_secs_f64();
-    let pop_rate = pop_count as f64 / pop_duration.as_secs_f64();
+    let pop_rate = f64::from(pop_count) / pop_duration.as_secs_f64();
 
     println!("Events: 100,000");
-    println!("Push duration: {:?}", push_duration);
-    println!("Pop duration: {:?}", pop_duration);
-    println!("Push rate: {:.0} events/sec", push_rate);
-    println!("Pop rate: {:.0} events/sec", pop_rate);
+    println!("Push duration: {push_duration:?}");
+    println!("Pop duration: {pop_duration:?}");
+    println!("Push rate: {push_rate:.0} events/sec");
+    println!("Pop rate: {pop_rate:.0} events/sec");
 
     let push_target = 1_000_000.0;
     if push_rate > push_target {
-        println!("PASS push: {:.0} > {:.0}", push_rate, push_target);
+        println!("PASS push: {push_rate:.0} > {push_target:.0}");
     } else {
-        println!("WARN push: {:.0} < {:.0} (target)", push_rate, push_target);
+        println!("WARN push: {push_rate:.0} < {push_target:.0} (target)");
     }
 }
 
@@ -130,19 +130,19 @@ fn bench_sharded_queue() {
         }
     });
     let push_duration = start.elapsed();
-    let push_rate = total_events as f64 / push_duration.as_secs_f64();
+    let push_rate = f64::from(total_events) / push_duration.as_secs_f64();
 
-    println!("Total events: {}", total_events);
-    println!("Threads: {}", thread_count);
-    println!("Push duration: {:?}", push_duration);
-    println!("Push rate: {:.0} events/sec", push_rate);
+    println!("Total events: {total_events}");
+    println!("Threads: {thread_count}");
+    println!("Push duration: {push_duration:?}");
+    println!("Push rate: {push_rate:.0} events/sec");
     println!("Queue stats: {:?}", queue.stats());
 
     let target = 2_000_000.0;
     if push_rate > target {
-        println!("PASS: {:.0} > {:.0}", push_rate, target);
+        println!("PASS: {push_rate:.0} > {target:.0}");
     } else {
-        println!("WARN: {:.0} < {:.0} (target)", push_rate, target);
+        println!("WARN: {push_rate:.0} < {target:.0} (target)");
     }
 }
 
@@ -177,20 +177,20 @@ fn bench_batch_processor() {
     }
     let duration = start.elapsed();
 
-    let events_per_sec = total_events as f64 / duration.as_secs_f64();
+    let events_per_sec = f64::from(total_events) / duration.as_secs_f64();
     let stats = processor.stats();
 
-    println!("Total events: {}", total_events);
-    println!("Batch size: {}", batch_size);
-    println!("Duration: {:?}", duration);
-    println!("Events/sec: {:.0}", events_per_sec);
-    println!("Stats: {:?}", stats);
+    println!("Total events: {total_events}");
+    println!("Batch size: {batch_size}");
+    println!("Duration: {duration:?}");
+    println!("Events/sec: {events_per_sec:.0}");
+    println!("Stats: {stats:?}");
 
     let target = 200_000.0;
     if events_per_sec > target {
-        println!("PASS: {:.0} > {:.0}", events_per_sec, target);
+        println!("PASS: {events_per_sec:.0} > {target:.0}");
     } else {
-        println!("WARN: {:.0} < {:.0} (target)", events_per_sec, target);
+        println!("WARN: {events_per_sec:.0} < {target:.0} (target)");
     }
 }
 
@@ -205,27 +205,27 @@ fn bench_arena_pool() {
     for _ in 0..iterations {
         let arena = get_arena();
         for i in 0..allocs_per_iter {
-            let _ = arena.alloc_str(&format!("test-string-{}", i));
+            let _ = arena.alloc_str(&format!("test-string-{i}"));
         }
     }
     let duration = start.elapsed();
 
     let total_allocs = iterations * allocs_per_iter;
-    let allocs_per_sec = total_allocs as f64 / duration.as_secs_f64();
+    let allocs_per_sec = f64::from(total_allocs) / duration.as_secs_f64();
     let stats = arena_stats();
 
-    println!("Total allocations: {}", total_allocs);
-    println!("Duration: {:?}", duration);
-    println!("Allocations/sec: {:.0}", allocs_per_sec);
+    println!("Total allocations: {total_allocs}");
+    println!("Duration: {duration:?}");
+    println!("Allocations/sec: {allocs_per_sec:.0}");
     println!("Arenas created: {}", stats.arenas_created);
     println!("Arenas recycled: {}", stats.arenas_recycled);
     println!("Recycle rate: {:.1}%", stats.recycle_rate * 100.0);
 
     let target = 10_000_000.0;
     if allocs_per_sec > target {
-        println!("PASS: {:.0} > {:.0}", allocs_per_sec, target);
+        println!("PASS: {allocs_per_sec:.0} > {target:.0}");
     } else {
-        println!("WARN: {:.0} < {:.0} (target)", allocs_per_sec, target);
+        println!("WARN: {allocs_per_sec:.0} < {target:.0} (target)");
     }
 }
 
@@ -241,7 +241,7 @@ fn bench_simd_filter() {
                 format!("entity-{}", i % 1000),
                 format!("tenant-{}", i % 5),
                 json!({"index": i}),
-                Utc::now() - chrono::Duration::hours(event_count as i64 - i as i64),
+                Utc::now() - chrono::Duration::hours(i64::from(event_count) - i64::from(i)),
                 None,
                 1,
             )
@@ -249,7 +249,7 @@ fn bench_simd_filter() {
         .collect();
 
     let filter = SimdEventFilter::new();
-    let threshold = Utc::now() - chrono::Duration::hours((event_count / 2) as i64);
+    let threshold = Utc::now() - chrono::Duration::hours(i64::from(event_count / 2));
 
     // Warm up
     for _ in 0..10 {
@@ -264,19 +264,19 @@ fn bench_simd_filter() {
     }
     let duration = start.elapsed();
 
-    let events_per_sec = (event_count * iterations) as f64 / duration.as_secs_f64();
+    let events_per_sec = f64::from(event_count * iterations) / duration.as_secs_f64();
 
-    println!("Events: {}", event_count);
-    println!("Iterations: {}", iterations);
-    println!("Duration: {:?}", duration);
-    println!("Events/sec: {:.0}", events_per_sec);
+    println!("Events: {event_count}");
+    println!("Iterations: {iterations}");
+    println!("Duration: {duration:?}");
+    println!("Events/sec: {events_per_sec:.0}");
     println!("SIMD available: {}", filter.is_simd_available());
 
     let target = 1_000_000.0;
     if events_per_sec > target {
-        println!("PASS: {:.0} > {:.0}", events_per_sec, target);
+        println!("PASS: {events_per_sec:.0} > {target:.0}");
     } else {
-        println!("WARN: {:.0} < {:.0} (target)", events_per_sec, target);
+        println!("WARN: {events_per_sec:.0} < {target:.0} (target)");
     }
 }
 
@@ -316,20 +316,20 @@ fn bench_full_pipeline() {
     });
     let duration = start.elapsed();
 
-    let events_per_sec = total_events as f64 / duration.as_secs_f64();
+    let events_per_sec = f64::from(total_events) / duration.as_secs_f64();
     let stats = processor.stats();
 
-    println!("Total events: {}", total_events);
-    println!("Threads: {}", thread_count);
-    println!("Duration: {:?}", duration);
-    println!("Events/sec: {:.0}", events_per_sec);
+    println!("Total events: {total_events}");
+    println!("Threads: {thread_count}");
+    println!("Duration: {duration:?}");
+    println!("Events/sec: {events_per_sec:.0}");
     println!("Avg batch size: {:.1}", stats.avg_batch_size);
 
     let target = 300_000.0;
     if events_per_sec > target {
-        println!("PASS: {:.0} > {:.0}", events_per_sec, target);
+        println!("PASS: {events_per_sec:.0} > {target:.0}");
     } else {
-        println!("WARN: {:.0} < {:.0} (target)", events_per_sec, target);
+        println!("WARN: {events_per_sec:.0} < {target:.0} (target)");
     }
 }
 
@@ -357,15 +357,15 @@ fn bench_sustained() {
     let events_per_sec = total_events as f64 / total_duration.as_secs_f64();
 
     println!("Test duration: {:?}", start.elapsed());
-    println!("Processing time: {:?}", total_duration);
-    println!("Total events: {}", total_events);
-    println!("Events/sec: {:.0}", events_per_sec);
+    println!("Processing time: {total_duration:?}");
+    println!("Total events: {total_events}");
+    println!("Events/sec: {events_per_sec:.0}");
 
     let target = 200_000.0;
     if events_per_sec > target {
-        println!("PASS: {:.0} > {:.0}", events_per_sec, target);
+        println!("PASS: {events_per_sec:.0} > {target:.0}");
     } else {
-        println!("WARN: {:.0} < {:.0} (target)", events_per_sec, target);
+        println!("WARN: {events_per_sec:.0} < {target:.0} (target)");
     }
 }
 

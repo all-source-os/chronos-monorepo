@@ -285,8 +285,7 @@ impl ClusterManager {
             let self_offset = self
                 .members
                 .get(&self.self_id)
-                .map(|m| m.last_wal_offset)
-                .unwrap_or(0);
+                .map_or(0, |m| m.last_wal_offset);
 
             if request.last_wal_offset >= self_offset {
                 *voted_for = Some(request.candidate_id);
@@ -360,7 +359,7 @@ impl ClusterManager {
     pub fn select_leader_candidate(&self) -> Option<u32> {
         let mut best: Option<(u32, u64)> = None; // (node_id, wal_offset)
 
-        for member in self.members.iter() {
+        for member in &self.members {
             if !member.healthy {
                 continue;
             }
@@ -411,8 +410,8 @@ mod tests {
     fn make_member(id: u32, role: MemberRole, offset: u64) -> ClusterMember {
         ClusterMember {
             node_id: id,
-            api_address: format!("node-{}:3900", id),
-            replication_address: format!("node-{}:3910", id),
+            api_address: format!("node-{id}:3900"),
+            replication_address: format!("node-{id}:3910"),
             role,
             last_wal_offset: offset,
             last_heartbeat_ms: 0,

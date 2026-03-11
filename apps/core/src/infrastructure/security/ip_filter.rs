@@ -161,12 +161,11 @@ impl IpFilter {
                     allowed: true,
                     reason: "IP is in global allowlist".to_string(),
                 };
-            } else {
-                return FilterResult {
-                    allowed: false,
-                    reason: "IP not in global allowlist".to_string(),
-                };
             }
+            return FilterResult {
+                allowed: false,
+                reason: "IP not in global allowlist".to_string(),
+            };
         }
 
         // No rules matched, use default action
@@ -214,12 +213,11 @@ impl IpFilter {
                     allowed: true,
                     reason: format!("IP is in allowlist for tenant {}", tenant_id.as_str()),
                 };
-            } else {
-                return FilterResult {
-                    allowed: false,
-                    reason: format!("IP not in allowlist for tenant {}", tenant_id.as_str()),
-                };
             }
+            return FilterResult {
+                allowed: false,
+                reason: format!("IP not in allowlist for tenant {}", tenant_id.as_str()),
+            };
         }
 
         // Fall back to global rules

@@ -157,7 +157,7 @@ impl ReplayManager {
             payload_filter: None,
         };
 
-        let events = store.query(query)?;
+        let events = store.query(&query)?;
         let total_events = events.len();
 
         tracing::info!(
@@ -210,7 +210,7 @@ impl ReplayManager {
                 *state.completed_at.write() = Some(Utc::now());
 
                 match result {
-                    Ok(_) => {
+                    Ok(()) => {
                         if state.cancelled.load(Ordering::Relaxed) {
                             *state.status.write() = ReplayStatus::Cancelled;
                             tracing::info!("🛑 Replay {} cancelled", state.id);
@@ -255,8 +255,7 @@ impl ReplayManager {
                     vec![(name, proj)]
                 } else {
                     return Err(AllSourceError::ValidationError(format!(
-                        "Projection not found: {}",
-                        name
+                        "Projection not found: {name}"
                     )));
                 }
             } else {
@@ -373,8 +372,7 @@ impl ReplayManager {
         let status = *state.status.read();
         if status != ReplayStatus::Running {
             return Err(AllSourceError::ValidationError(format!(
-                "Cannot cancel replay in status: {:?}",
-                status
+                "Cannot cancel replay in status: {status:?}"
             )));
         }
 
@@ -479,7 +477,7 @@ mod tests {
                 None,
             )
             .unwrap();
-            store.ingest(event).unwrap();
+            store.ingest(&event).unwrap();
         }
 
         // Start replay

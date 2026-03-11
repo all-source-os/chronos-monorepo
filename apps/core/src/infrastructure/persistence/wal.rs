@@ -147,7 +147,7 @@ impl WALFile {
         // Serialize entry as JSON line
         let json = serde_json::to_string(entry)?;
 
-        let line = format!("{}\n", json);
+        let line = format!("{json}\n");
         let bytes_written = line.len();
 
         self.writer
@@ -172,7 +172,7 @@ impl WALFile {
     fn flush(&mut self) -> Result<()> {
         self.writer
             .flush()
-            .map_err(|e| AllSourceError::StorageError(format!("Failed to flush WAL: {}", e)))?;
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to flush WAL: {e}")))?;
         Ok(())
     }
 }
@@ -205,10 +205,11 @@ impl WriteAheadLog {
 
     /// Generate a WAL filename based on sequence
     fn generate_wal_filename(dir: &Path, sequence: u64) -> PathBuf {
-        dir.join(format!("wal-{:016x}.log", sequence))
+        dir.join(format!("wal-{sequence:016x}.log"))
     }
 
     /// Write an event to the WAL
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn append(&self, event: Event) -> Result<u64> {
         // Get next sequence number
         let mut seq = self.sequence.write();
@@ -250,6 +251,7 @@ impl WriteAheadLog {
     }
 
     /// Rotate to a new WAL file
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn rotate(&self) -> Result<()> {
         let seq = *self.sequence.read();
         let new_file_path = Self::generate_wal_filename(&self.wal_dir, seq);
@@ -274,6 +276,7 @@ impl WriteAheadLog {
     }
 
     /// Clean up old WAL files beyond the retention limit
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn cleanup_old_files(&self) -> Result<()> {
         let mut wal_files = self.list_wal_files()?;
         wal_files.sort();
@@ -321,6 +324,7 @@ impl WriteAheadLog {
     }
 
     /// Recover events from WAL files
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn recover(&self) -> Result<Vec<Event>> {
         tracing::info!("🔄 Starting WAL recovery...");
 
@@ -398,6 +402,7 @@ impl WriteAheadLog {
     }
 
     /// Manually flush the current WAL file
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn flush(&self) -> Result<()> {
         let mut current = self.current_file.write();
         current.flush()?;
@@ -409,6 +414,7 @@ impl WriteAheadLog {
     /// Called by the background interval-based fsync task. Acquires the write
     /// lock, flushes buffered data, then issues `sync_all()` to ensure the
     /// OS has persisted the data to durable storage.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn sync(&self) -> Result<()> {
         let mut current = self.current_file.write();
         current
@@ -429,6 +435,7 @@ impl WriteAheadLog {
     }
 
     /// Truncate WAL after successful checkpoint
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn truncate(&self) -> Result<()> {
         tracing::info!("🧹 Truncating WAL after checkpoint");
 
@@ -474,9 +481,8 @@ impl WriteAheadLog {
     /// if no WAL entries exist. Used by the replication catch-up protocol
     /// to determine whether a follower can catch up from WAL alone.
     pub fn oldest_sequence(&self) -> Option<u64> {
-        let mut wal_files = match self.list_wal_files() {
-            Ok(files) => files,
-            Err(_) => return None,
+        let Ok(mut wal_files) = self.list_wal_files() else {
+            return None;
         };
 
         if wal_files.is_empty() {
@@ -487,15 +493,13 @@ impl WriteAheadLog {
 
         // Read the first entry from the oldest WAL file
         for wal_file_path in &wal_files {
-            let file = match File::open(wal_file_path) {
-                Ok(f) => f,
-                Err(_) => continue,
+            let Ok(file) = File::open(wal_file_path) else {
+                continue;
             };
             let reader = BufReader::new(file);
             for line in reader.lines() {
-                let line = match line {
-                    Ok(l) => l,
-                    Err(_) => continue,
+                let Ok(line) = line else {
+                    continue;
                 };
                 if line.trim().is_empty() {
                     continue;

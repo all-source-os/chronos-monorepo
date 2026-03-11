@@ -162,8 +162,7 @@ pub fn system_tenant_id() -> TenantId {
 pub fn system_event_type(event_type_str: &str) -> EventType {
     debug_assert!(
         event_type_str.starts_with(SYSTEM_EVENT_TYPE_PREFIX),
-        "System event type must start with '{}'",
-        SYSTEM_EVENT_TYPE_PREFIX
+        "System event type must start with '{SYSTEM_EVENT_TYPE_PREFIX}'"
     );
     EventType::new_unchecked(event_type_str.to_string())
 }

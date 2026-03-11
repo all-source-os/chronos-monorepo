@@ -175,7 +175,7 @@ impl TenantRepository for InMemoryTenantRepository {
             let updated = Tenant::reconstruct(
                 tenant.id().clone(),
                 tenant.name().to_string(),
-                tenant.description().map(|s| s.to_string()),
+                tenant.description().map(std::string::ToString::to_string),
                 quotas,
                 tenant.usage().clone(),
                 tenant.created_at(),
@@ -199,7 +199,7 @@ impl TenantRepository for InMemoryTenantRepository {
             let updated = Tenant::reconstruct(
                 tenant.id().clone(),
                 tenant.name().to_string(),
-                tenant.description().map(|s| s.to_string()),
+                tenant.description().map(std::string::ToString::to_string),
                 tenant.quotas().clone(),
                 usage,
                 tenant.created_at(),
@@ -223,7 +223,7 @@ impl TenantRepository for InMemoryTenantRepository {
             let updated = Tenant::reconstruct(
                 tenant.id().clone(),
                 tenant.name().to_string(),
-                tenant.description().map(|s| s.to_string()),
+                tenant.description().map(std::string::ToString::to_string),
                 tenant.quotas().clone(),
                 tenant.usage().clone(),
                 tenant.created_at(),
@@ -247,7 +247,7 @@ impl TenantRepository for InMemoryTenantRepository {
             let updated = Tenant::reconstruct(
                 tenant.id().clone(),
                 tenant.name().to_string(),
-                tenant.description().map(|s| s.to_string()),
+                tenant.description().map(std::string::ToString::to_string),
                 tenant.quotas().clone(),
                 tenant.usage().clone(),
                 tenant.created_at(),
@@ -269,7 +269,7 @@ mod tests {
     use super::*;
 
     fn test_tenant_id(suffix: &str) -> TenantId {
-        TenantId::new(format!("test-tenant-{}", suffix)).unwrap()
+        TenantId::new(format!("test-tenant-{suffix}")).unwrap()
     }
 
     #[tokio::test]
@@ -358,7 +358,7 @@ mod tests {
         for i in 1..=5 {
             repo.create(
                 test_tenant_id(&i.to_string()),
-                format!("Tenant {}", i),
+                format!("Tenant {i}"),
                 quotas.clone(),
             )
             .await
@@ -382,7 +382,7 @@ mod tests {
         for i in 1..=5 {
             repo.create(
                 test_tenant_id(&i.to_string()),
-                format!("Tenant {}", i),
+                format!("Tenant {i}"),
                 quotas.clone(),
             )
             .await
@@ -412,7 +412,7 @@ mod tests {
         for i in 1..=3 {
             repo.create(
                 test_tenant_id(&i.to_string()),
-                format!("Tenant {}", i),
+                format!("Tenant {i}"),
                 quotas.clone(),
             )
             .await
@@ -430,7 +430,7 @@ mod tests {
         for i in 1..=4 {
             repo.create(
                 test_tenant_id(&i.to_string()),
-                format!("Tenant {}", i),
+                format!("Tenant {i}"),
                 quotas.clone(),
             )
             .await
@@ -559,7 +559,7 @@ mod tests {
         let updated_tenant = Tenant::reconstruct(
             tenant.id().clone(),
             "Updated Tenant".to_string(),
-            tenant.description().map(|s| s.to_string()),
+            tenant.description().map(std::string::ToString::to_string),
             quotas,
             tenant.usage().clone(),
             tenant.created_at(),
@@ -595,7 +595,7 @@ mod tests {
         for i in 1..=3 {
             repo.create(
                 test_tenant_id(&i.to_string()),
-                format!("Tenant {}", i),
+                format!("Tenant {i}"),
                 quotas.clone(),
             )
             .await

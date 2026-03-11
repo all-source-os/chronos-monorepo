@@ -73,7 +73,7 @@ fn test_embedded_event_ingestion() {
     .expect("Failed to create event");
 
     // Ingest event
-    store.ingest(event.clone()).expect("Failed to ingest event");
+    store.ingest(&event).expect("Failed to ingest event");
 
     // Verify event was stored
     let stats = store.stats();
@@ -115,12 +115,12 @@ fn test_embedded_event_querying() {
             None,
         )
         .unwrap();
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Query by entity_id
     let order1_events = store
-        .query(QueryEventsRequest {
+        .query(&QueryEventsRequest {
             entity_id: Some("order-001".to_string()),
             event_type: None,
             tenant_id: None,
@@ -136,7 +136,7 @@ fn test_embedded_event_querying() {
 
     // Query by event_type
     let created_events = store
-        .query(QueryEventsRequest {
+        .query(&QueryEventsRequest {
             entity_id: None,
             event_type: Some("order.created".to_string()),
             tenant_id: None,
@@ -170,14 +170,14 @@ fn test_embedded_state_reconstruction() {
 
     for (i, payload) in events.iter().enumerate() {
         let event = Event::from_strings(
-            format!("user.updated.{}", i),
+            format!("user.updated.{i}"),
             "user-state-test".to_string(),
             "default".to_string(),
             payload.clone(),
             None,
         )
         .unwrap();
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Reconstruct state
@@ -215,7 +215,7 @@ fn test_embedded_snapshot_management() {
             None,
         )
         .unwrap();
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Manually create a snapshot
@@ -300,12 +300,12 @@ async fn test_embedded_multi_tenant_isolation() {
     )
     .unwrap();
 
-    store.ingest(event_a).unwrap();
-    store.ingest(event_b).unwrap();
+    store.ingest(&event_a).unwrap();
+    store.ingest(&event_b).unwrap();
 
     // Verify tenant isolation in queries
     let all_events = store
-        .query(QueryEventsRequest {
+        .query(&QueryEventsRequest {
             entity_id: Some("entity-1".to_string()),
             event_type: None,
             tenant_id: None,
@@ -321,7 +321,10 @@ async fn test_embedded_multi_tenant_isolation() {
     assert_eq!(all_events.len(), 2);
 
     // Verify events have correct tenant IDs
-    let tenant_ids: Vec<&str> = all_events.iter().map(|e| e.tenant_id_str()).collect();
+    let tenant_ids: Vec<&str> = all_events
+        .iter()
+        .map(allsource_core::Event::tenant_id_str)
+        .collect();
     assert!(tenant_ids.contains(&"tenant-a"));
     assert!(tenant_ids.contains(&"tenant-b"));
 
@@ -344,7 +347,7 @@ fn test_embedded_concurrent_operations() {
             for i in 0..25 {
                 let event = Event::from_strings(
                     "concurrent.event".to_string(),
-                    format!("thread-{}-entity-{}", thread_id, i),
+                    format!("thread-{thread_id}-entity-{i}"),
                     "default".to_string(),
                     json!({
                         "thread_id": thread_id,
@@ -354,7 +357,9 @@ fn test_embedded_concurrent_operations() {
                 )
                 .unwrap();
 
-                store_clone.ingest(event).expect("Concurrent ingest failed");
+                store_clone
+                    .ingest(&event)
+                    .expect("Concurrent ingest failed");
             }
         });
         handles.push(handle);
@@ -390,7 +395,7 @@ fn test_embedded_projection_manager() {
             None,
         )
         .unwrap();
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Access projection manager
@@ -442,7 +447,7 @@ fn test_embedded_replay_manager() {
             None,
         )
         .unwrap();
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Access replay manager
@@ -539,7 +544,7 @@ fn test_embedded_metrics_registry() {
         None,
     )
     .unwrap();
-    store.ingest(event).unwrap();
+    store.ingest(&event).unwrap();
 
     // Access metrics registry
     let metrics = store.metrics();
@@ -567,7 +572,7 @@ fn test_embedded_projection_state_cache() {
         None,
     )
     .unwrap();
-    store.ingest(event).unwrap();
+    store.ingest(&event).unwrap();
 
     // Access projection state cache
     let cache = store.projection_state_cache();
@@ -634,7 +639,7 @@ async fn test_embedded_full_workflow() {
         Some(json!({"created_by": user.username.clone()})),
     )
     .unwrap();
-    store.ingest(order_created).unwrap();
+    store.ingest(&order_created).unwrap();
 
     // Update order status
     let order_confirmed = Event::from_strings(
@@ -648,7 +653,7 @@ async fn test_embedded_full_workflow() {
         None,
     )
     .unwrap();
-    store.ingest(order_confirmed).unwrap();
+    store.ingest(&order_confirmed).unwrap();
 
     // Ship order
     let order_shipped = Event::from_strings(
@@ -663,11 +668,11 @@ async fn test_embedded_full_workflow() {
         None,
     )
     .unwrap();
-    store.ingest(order_shipped).unwrap();
+    store.ingest(&order_shipped).unwrap();
 
     // 6. Query order history
     let order_events = store
-        .query(QueryEventsRequest {
+        .query(&QueryEventsRequest {
             entity_id: Some("order-workflow-1".to_string()),
             event_type: None,
             tenant_id: None,
@@ -696,7 +701,7 @@ async fn test_embedded_full_workflow() {
     assert_eq!(stats.total_events, 3);
 
     println!("Test 16: Full embedded workflow successful");
-    println!("   - Tenant created: {}", tenant_id_str);
+    println!("   - Tenant created: {tenant_id_str}");
     println!("   - User registered: {}", user.username);
     println!("   - Order events: 3");
     println!("   - Final status: shipped");

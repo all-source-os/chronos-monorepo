@@ -69,7 +69,7 @@ impl ForkId {
     /// ```
     pub fn parse(s: &str) -> Result<Self> {
         let uuid = Uuid::parse_str(s).map_err(|e| {
-            crate::error::AllSourceError::InvalidInput(format!("Invalid ForkId: {}", e))
+            crate::error::AllSourceError::InvalidInput(format!("Invalid ForkId: {e}"))
         })?;
         Ok(Self(uuid))
     }
@@ -165,10 +165,7 @@ mod tests {
     #[test]
     fn test_display() {
         let fork_id = ForkId::parse("550e8400-e29b-41d4-a716-446655440000").unwrap();
-        assert_eq!(
-            format!("{}", fork_id),
-            "550e8400-e29b-41d4-a716-446655440000"
-        );
+        assert_eq!(format!("{fork_id}"), "550e8400-e29b-41d4-a716-446655440000");
     }
 
     #[test]

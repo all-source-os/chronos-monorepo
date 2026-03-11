@@ -1,0 +1,63 @@
+name: Performance Benchmarks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/core/**'
+      - 'Cargo.lock'
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  benchmark:
+    name: Rust Benchmarks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/core
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/core -> target"
+          cache-on-failure: true
+
+      - name: Run benchmarks (PR)
+        run: cargo bench --bench performance_benchmarks -- --output-format bencher | tee /tmp/pr-bench.txt
+
+      - name: Checkout base branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          clean: false
+          path: base
+
+      - name: Run benchmarks (base)
+        working-directory: base/apps/core
+        run: cargo bench --bench performance_benchmarks -- --output-format bencher | tee /tmp/base-bench.txt
+
+      - name: Compare benchmarks
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: cargo
+          output-file-path: /tmp/pr-bench.txt
+          external-data-json-path: /tmp/base-bench.txt
+          comment-on-alert: true
+          alert-threshold: "115%"
+          fail-on-alert: false
+          summary-always: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-always: true

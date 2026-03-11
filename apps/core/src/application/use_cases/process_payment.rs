@@ -306,7 +306,7 @@ impl ResolveDisputeUseCase {
 pub struct ListTransactionsUseCase;
 
 impl ListTransactionsUseCase {
-    pub fn execute(transactions: Vec<Transaction>) -> ListTransactionsResponse {
+    pub fn execute(transactions: &[Transaction]) -> ListTransactionsResponse {
         let transaction_dtos: Vec<TransactionDto> =
             transactions.iter().map(TransactionDto::from).collect();
         let count = transaction_dtos.len();
@@ -827,7 +827,7 @@ mod tests {
             .unwrap(),
         ];
 
-        let response = ListTransactionsUseCase::execute(transactions);
+        let response = ListTransactionsUseCase::execute(&transactions);
         assert_eq!(response.count, 1);
         assert_eq!(response.transactions.len(), 1);
     }

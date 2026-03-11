@@ -131,7 +131,7 @@ impl EntityId {
         }
 
         // Rule: No control characters (check before whitespace checks)
-        if value.chars().any(|c| c.is_control()) {
+        if value.chars().any(char::is_control) {
             return Err(crate::error::AllSourceError::InvalidInput(
                 "Entity ID cannot contain control characters".to_string(),
             ));
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_entity_id() {
-        let result = EntityId::new("".to_string());
+        let result = EntityId::new(String::new());
         assert!(result.is_err());
 
         if let Err(e) = result {
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let entity_id = EntityId::new("user-123".to_string()).unwrap();
-        assert_eq!(format!("{}", entity_id), "user-123");
+        assert_eq!(format!("{entity_id}"), "user-123");
     }
 
     #[test]

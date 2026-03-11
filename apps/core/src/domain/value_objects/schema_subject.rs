@@ -191,8 +191,7 @@ impl SchemaSubject {
             .all(|c| c.is_lowercase() || c.is_numeric() || c == '.' || c == '_' || c == '-')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Schema subject '{}' must be lowercase with dots, underscores, or hyphens",
-                value
+                "Schema subject '{value}' must be lowercase with dots, underscores, or hyphens"
             )));
         }
 
@@ -205,16 +204,14 @@ impl SchemaSubject {
             || value.ends_with('_')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Schema subject '{}' cannot start or end with special characters",
-                value
+                "Schema subject '{value}' cannot start or end with special characters"
             )));
         }
 
         // Rule: Cannot have consecutive dots
         if value.contains("..") {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Schema subject '{}' cannot have consecutive dots",
-                value
+                "Schema subject '{value}' cannot have consecutive dots"
             )));
         }
 
@@ -284,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_subject() {
-        let result = SchemaSubject::new("".to_string());
+        let result = SchemaSubject::new(String::new());
         assert!(result.is_err());
 
         if let Err(e) = result {
@@ -436,7 +433,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let subject = SchemaSubject::new("user.created".to_string()).unwrap();
-        assert_eq!(format!("{}", subject), "user.created");
+        assert_eq!(format!("{subject}"), "user.created");
     }
 
     #[test]

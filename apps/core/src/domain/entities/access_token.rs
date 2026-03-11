@@ -22,8 +22,7 @@ impl AccessTokenId {
     pub fn parse(value: &str) -> Result<Self> {
         let uuid = Uuid::parse_str(value).map_err(|e| {
             crate::error::AllSourceError::InvalidInput(format!(
-                "Invalid access token ID '{}': {}",
-                value, e
+                "Invalid access token ID '{value}': {e}"
             ))
         })?;
         Ok(Self(uuid))
@@ -471,7 +470,7 @@ mod tests {
             test_creator_id(),
             test_wallet(),
             test_transaction_id(),
-            "".to_string(),
+            String::new(),
         );
 
         assert!(result.is_err());

@@ -33,20 +33,20 @@ impl PaymentCoordinator {
     pub fn new(
         transaction_repo: Arc<dyn TransactionRepository>,
         article_repo: Arc<dyn ArticleRepository>,
-        creator_repo: Arc<dyn CreatorRepository>,
+        creator_repo: &Arc<dyn CreatorRepository>,
         access_token_repo: Arc<dyn AccessTokenRepository>,
     ) -> Self {
         Self {
             initiate_payment: InitiatePaymentUseCase::new(
                 transaction_repo.clone(),
                 article_repo.clone(),
-                creator_repo.clone(),
+                Arc::clone(creator_repo),
             ),
             confirm_transaction: ConfirmTransactionUseCase::new(
                 transaction_repo,
                 access_token_repo.clone(),
                 article_repo.clone(),
-                creator_repo.clone(),
+                Arc::clone(creator_repo),
             ),
             check_access: CheckAccessUseCase::new(access_token_repo.clone()),
             grant_free_access: GrantFreeAccessUseCase::new(access_token_repo, article_repo),

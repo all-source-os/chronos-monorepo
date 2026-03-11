@@ -189,9 +189,9 @@ jobs:
       - name: Build
         run: |
           if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
-            cross build --release --locked --target ${{ matrix.target }} -p allsource-core --bin allsource-core
+            cross build --release --locked --target ${{ matrix.target }} -p allsource-core --bin allsource-core --features analytics
           else
-            cargo build --release --locked --target ${{ matrix.target }} -p allsource-core --bin allsource-core
+            cargo build --release --locked --target ${{ matrix.target }} -p allsource-core --bin allsource-core --features analytics
           fi
 
       - name: Package binary

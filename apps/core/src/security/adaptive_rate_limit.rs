@@ -219,16 +219,16 @@ impl AdaptiveRateLimiter {
 
             // Learning-based adjustment
             if profile.data_points >= 1000 {
-                let usage_factor = profile.avg_requests_per_hour / profile.current_limit as f64;
+                let usage_factor = profile.avg_requests_per_hour / f64::from(profile.current_limit);
 
                 if usage_factor > 0.8 {
                     // High utilization - increase limit
-                    new_limit =
-                        ((profile.current_limit as f64) * (1.0 + config.adjustment_factor)) as u32;
+                    new_limit = (f64::from(profile.current_limit)
+                        * (1.0 + config.adjustment_factor)) as u32;
                     reason = AdjustmentReason::NormalLearning;
                 } else if usage_factor < 0.3 {
                     // Low utilization - decrease limit (save resources)
-                    new_limit = ((profile.current_limit as f64)
+                    new_limit = (f64::from(profile.current_limit)
                         * (1.0 - config.adjustment_factor * 0.5))
                         as u32;
                     reason = AdjustmentReason::NormalLearning;
@@ -247,7 +247,7 @@ impl AdaptiveRateLimiter {
                 // If current rate is 3x average, throttle aggressively
                 let expected_in_5min = profile.avg_requests_per_hour / 12.0;
                 if very_recent_count as f64 > expected_in_5min * 3.0 {
-                    new_limit = ((profile.current_limit as f64) * 0.5) as u32;
+                    new_limit = (f64::from(profile.current_limit) * 0.5) as u32;
                     reason = AdjustmentReason::AnomalyDetected;
                 }
             }
@@ -258,7 +258,7 @@ impl AdaptiveRateLimiter {
                 && (load.cpu_usage > 0.8 || load.memory_usage > 0.8)
             {
                 // High system load - reduce limits
-                new_limit = ((profile.current_limit as f64) * 0.7) as u32;
+                new_limit = (f64::from(profile.current_limit) * 0.7) as u32;
                 reason = AdjustmentReason::HighLoad;
             }
 
@@ -305,7 +305,7 @@ impl AdaptiveRateLimiter {
 
             if profile.peak_times.contains(&current_hour) {
                 // Increase limit proactively
-                let predicted_limit = ((profile.current_limit as f64) * 1.2) as u32;
+                let predicted_limit = (f64::from(profile.current_limit) * 1.2) as u32;
                 return Ok(predicted_limit.min(config.max_rate_limit));
             }
         }
@@ -358,7 +358,7 @@ impl AdaptiveRateLimiter {
                 base_limit: profile.base_limit,
                 requests_last_hour: requests_last_hour as u32,
                 avg_requests_per_hour: profile.avg_requests_per_hour,
-                utilization: requests_last_hour as f64 / profile.current_limit as f64,
+                utilization: requests_last_hour as f64 / f64::from(profile.current_limit),
                 total_adjustments: profile.adjustment_history.len(),
                 last_adjustment: profile.adjustment_history.last().map(|a| a.timestamp),
             }

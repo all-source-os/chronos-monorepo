@@ -17,8 +17,7 @@ impl RegisterSchemaUseCase {
         // Determine compatibility mode (default to None)
         let compatibility_mode = request
             .compatibility_mode
-            .map(CompatibilityMode::from)
-            .unwrap_or(CompatibilityMode::None);
+            .map_or(CompatibilityMode::None, CompatibilityMode::from);
 
         // Create schema (version 1)
         let mut schema = Schema::new_v1(request.subject, request.schema, compatibility_mode)?;
@@ -106,7 +105,7 @@ impl UpdateSchemaMetadataUseCase {
 pub struct ListSchemasUseCase;
 
 impl ListSchemasUseCase {
-    pub fn execute(schemas: Vec<Schema>) -> ListSchemasResponse {
+    pub fn execute(schemas: &[Schema]) -> ListSchemasResponse {
         let schema_dtos: Vec<SchemaDto> = schemas.iter().map(SchemaDto::from).collect();
         let count = schema_dtos.len();
 
@@ -222,7 +221,7 @@ mod tests {
             .unwrap(),
         ];
 
-        let response = ListSchemasUseCase::execute(schemas);
+        let response = ListSchemasUseCase::execute(&schemas);
         assert_eq!(response.count, 2);
         assert_eq!(response.schemas.len(), 2);
     }

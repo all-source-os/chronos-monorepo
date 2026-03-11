@@ -391,13 +391,14 @@ impl EventStore {
     /// The version check and WAL append are atomic (locked together).
     ///
     /// Returns the new entity version after the append.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn ingest_with_expected_version(
         &self,
-        event: Event,
+        event: &Event,
         expected_version: Option<u64>,
     ) -> Result<u64> {
         // Validate event first (before any locking)
-        self.validate_event(&event)?;
+        self.validate_event(event)?;
 
         let entity_id = event.entity_id_str().to_string();
 
@@ -431,7 +432,8 @@ impl EventStore {
 
     /// Post-WAL ingestion: index, projections, storage, broadcast.
     /// Called after WAL append and version bump are complete.
-    fn ingest_post_wal(&self, event: Event) -> Result<()> {
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    fn ingest_post_wal(&self, event: &Event) -> Result<()> {
         #[cfg(feature = "server")]
         let timer = self.metrics.ingestion_duration_seconds.start_timer();
 
@@ -449,11 +451,11 @@ impl EventStore {
 
         // Process through projections
         let projections = self.projections.read();
-        projections.process_event(&event)?;
+        projections.process_event(event)?;
         drop(projections);
 
         // Process through pipelines
-        let pipeline_results = self.pipeline_manager.process_event(&event);
+        let pipeline_results = self.pipeline_manager.process_event(event);
         if !pipeline_results.is_empty() {
             tracing::debug!(
                 "Event {} processed by {} pipeline(s)",
@@ -483,17 +485,17 @@ impl EventStore {
 
         // Dispatch to matching webhook subscriptions
         #[cfg(feature = "server")]
-        self.dispatch_webhooks(&event);
+        self.dispatch_webhooks(event);
 
         // Update geospatial index
-        self.geo_index.index_event(&event);
+        self.geo_index.index_event(event);
 
         // Autonomous schema evolution
         self.schema_evolution
             .analyze_event(event.event_type_str(), &event.payload);
 
         // Check if automatic snapshot should be created
-        self.check_auto_snapshot(event.entity_id_str(), &event);
+        self.check_auto_snapshot(event.entity_id_str(), event);
 
         // Update metrics
         #[cfg(feature = "server")]
@@ -519,13 +521,14 @@ impl EventStore {
     }
 
     /// Ingest a new event into the store
-    pub fn ingest(&self, event: Event) -> Result<()> {
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    pub fn ingest(&self, event: &Event) -> Result<()> {
         // Start metrics timer (v0.6 feature)
         #[cfg(feature = "server")]
         let timer = self.metrics.ingestion_duration_seconds.start_timer();
 
         // Validate event
-        let validation_result = self.validate_event(&event);
+        let validation_result = self.validate_event(event);
         if let Err(e) = validation_result {
             #[cfg(feature = "server")]
             {
@@ -568,12 +571,12 @@ impl EventStore {
 
         // Process through projections
         let projections = self.projections.read();
-        projections.process_event(&event)?;
+        projections.process_event(event)?;
         drop(projections); // Release lock
 
         // Process through pipelines (v0.5 feature)
         // Pipelines can transform, filter, and aggregate events in real-time
-        let pipeline_results = self.pipeline_manager.process_event(&event);
+        let pipeline_results = self.pipeline_manager.process_event(event);
         if !pipeline_results.is_empty() {
             tracing::debug!(
                 "Event {} processed by {} pipeline(s)",
@@ -605,17 +608,17 @@ impl EventStore {
 
         // Dispatch to matching webhook subscriptions (v0.11 feature)
         #[cfg(feature = "server")]
-        self.dispatch_webhooks(&event);
+        self.dispatch_webhooks(event);
 
         // Update geospatial index (v2.0 feature)
-        self.geo_index.index_event(&event);
+        self.geo_index.index_event(event);
 
         // Autonomous schema evolution (v2.0 feature)
         self.schema_evolution
             .analyze_event(event.event_type_str(), &event.payload);
 
         // Check if automatic snapshot should be created (v0.2 feature)
-        self.check_auto_snapshot(event.entity_id_str(), &event);
+        self.check_auto_snapshot(event.entity_id_str(), event);
 
         // Update metrics (v0.6 feature)
         #[cfg(feature = "server")]
@@ -646,6 +649,7 @@ impl EventStore {
     /// events are stored (all-or-nothing validation). Events are then written
     /// to WAL, indexed, processed through projections, and pushed to the
     /// events vector under a single write lock.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn ingest_batch(&self, batch: Vec<Event>) -> Result<()> {
         if batch.is_empty() {
             return Ok(());
@@ -715,7 +719,8 @@ impl EventStore {
     /// - Skips WAL writing (the follower's WalReceiver manages its own local WAL)
     /// - Skips schema validation (the leader already validated)
     /// - Still indexes, processes projections/pipelines, and broadcasts to WebSocket clients
-    pub fn ingest_replicated(&self, event: Event) -> Result<()> {
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    pub fn ingest_replicated(&self, event: &Event) -> Result<()> {
         #[cfg(feature = "server")]
         let timer = self.metrics.ingestion_duration_seconds.start_timer();
 
@@ -733,11 +738,11 @@ impl EventStore {
 
         // Process through projections
         let projections = self.projections.read();
-        projections.process_event(&event)?;
+        projections.process_event(event)?;
         drop(projections);
 
         // Process through pipelines
-        let pipeline_results = self.pipeline_manager.process_event(&event);
+        let pipeline_results = self.pipeline_manager.process_event(event);
         if !pipeline_results.is_empty() {
             tracing::debug!(
                 "Replicated event {} processed by {} pipeline(s)",
@@ -790,8 +795,9 @@ impl EventStore {
 
     /// Get the current version for an entity (number of events appended for it).
     /// Returns 0 if the entity has no events.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn get_entity_version(&self, entity_id: &str) -> u64 {
-        self.entity_versions.get(entity_id).map(|v| *v).unwrap_or(0)
+        self.entity_versions.get(entity_id).map_or(0, |v| *v)
     }
 
     /// Get the consumer registry for durable subscriptions.
@@ -900,12 +906,12 @@ impl EventStore {
     /// internal state (typically DashMap) handles concurrent access.
     pub fn register_projection_with_backfill(
         &self,
-        projection: Arc<dyn crate::application::services::projection::Projection>,
+        projection: &Arc<dyn crate::application::services::projection::Projection>,
     ) -> Result<()> {
         // First register so future events are processed
         {
             let mut pm = self.projections.write();
-            pm.register(Arc::clone(&projection));
+            pm.register(Arc::clone(projection));
         }
 
         // Then replay existing events under read lock
@@ -1084,7 +1090,7 @@ impl EventStore {
     /// Manually create a snapshot for an entity
     pub fn create_snapshot(&self, entity_id: &str) -> Result<()> {
         // Get all events for this entity
-        let events = self.query(QueryEventsRequest {
+        let events = self.query(&QueryEventsRequest {
             entity_id: Some(entity_id.to_string()),
             event_type: None,
             tenant_id: None,
@@ -1114,7 +1120,7 @@ impl EventStore {
 
         let last_event = events.last().unwrap();
         self.snapshot_manager.create_snapshot(
-            entity_id.to_string(),
+            entity_id,
             state,
             last_event.timestamp,
             events.len(),
@@ -1130,8 +1136,7 @@ impl EventStore {
         let entity_event_count = self
             .index
             .get_by_entity(entity_id)
-            .map(|entries| entries.len())
-            .unwrap_or(0);
+            .map_or(0, |entries| entries.len());
 
         if self.snapshot_manager.should_create_snapshot(
             entity_id,
@@ -1221,7 +1226,8 @@ impl EventStore {
     }
 
     /// Query events based on filters (optimized with indices)
-    pub fn query(&self, request: QueryEventsRequest) -> Result<Vec<Event>> {
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    pub fn query(&self, request: &QueryEventsRequest) -> Result<Vec<Event>> {
         // Determine query type for metrics (v0.6 feature)
         let query_type = if request.entity_id.is_some() {
             "entity"
@@ -1255,18 +1261,18 @@ impl EventStore {
             // Use entity index
             self.index
                 .get_by_entity(entity_id)
-                .map(|entries| self.filter_entries(entries, &request))
+                .map(|entries| self.filter_entries(entries, request))
                 .unwrap_or_default()
         } else if let Some(event_type) = &request.event_type {
             // Use type index (exact match)
             self.index
                 .get_by_type(event_type)
-                .map(|entries| self.filter_entries(entries, &request))
+                .map(|entries| self.filter_entries(entries, request))
                 .unwrap_or_default()
         } else if let Some(prefix) = &request.event_type_prefix {
             // Use type index (prefix match)
             let entries = self.index.get_by_type_prefix(prefix);
-            self.filter_entries(entries, &request)
+            self.filter_entries(entries, request)
         } else {
             // Full scan (less efficient but necessary for complex queries)
             (0..events.len()).collect()
@@ -1276,7 +1282,7 @@ impl EventStore {
         let mut results: Vec<Event> = offsets
             .iter()
             .filter_map(|&offset| events.get(offset).cloned())
-            .filter(|event| self.apply_filters(event, &request))
+            .filter(|event| self.apply_filters(event, request))
             .collect();
 
         // Sort by timestamp (ascending)
@@ -1301,6 +1307,7 @@ impl EventStore {
     }
 
     /// Filter index entries based on query parameters
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn filter_entries(&self, entries: Vec<IndexEntry>, request: &QueryEventsRequest) -> Vec<usize> {
         entries
             .into_iter()
@@ -1328,6 +1335,7 @@ impl EventStore {
     }
 
     /// Apply filters to an event
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn apply_filters(&self, event: &Event, request: &QueryEventsRequest) -> bool {
         // Additional type filter if entity was primary
         if request.entity_id.is_some()
@@ -1364,6 +1372,7 @@ impl EventStore {
 
     /// Reconstruct entity state as of a specific timestamp
     /// v0.2: Now uses snapshots for fast reconstruction
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn reconstruct_state(
         &self,
         entity_id: &str,
@@ -1401,7 +1410,7 @@ impl EventStore {
         };
 
         // Query events after the snapshot (or all if no snapshot)
-        let events = self.query(QueryEventsRequest {
+        let events = self.query(&QueryEventsRequest {
             entity_id: Some(entity_id.to_string()),
             event_type: None,
             tenant_id: None,
@@ -1489,8 +1498,7 @@ impl EventStore {
                 let event_count = self
                     .index
                     .get_by_entity(&entity_id)
-                    .map(|entries| entries.len())
-                    .unwrap_or(0);
+                    .map_or(0, |entries| entries.len());
                 let last_event_at = self
                     .index
                     .get_by_entity(&entity_id)
@@ -1513,8 +1521,7 @@ impl EventStore {
                 let event_count = self
                     .index
                     .get_by_type(&event_type)
-                    .map(|entries| entries.len())
-                    .unwrap_or(0);
+                    .map_or(0, |entries| entries.len());
                 let last_event_at = self
                     .index
                     .get_by_type(&event_type)
@@ -1688,11 +1695,11 @@ impl EventStoreConfig {
         let data_dir = data_dir.filter(|s| !s.is_empty());
         let storage_dir = explicit_storage_dir
             .filter(|s| !s.is_empty())
-            .or_else(|| data_dir.as_ref().map(|d| format!("{}/storage", d)));
+            .or_else(|| data_dir.as_ref().map(|d| format!("{d}/storage")));
         let wal_dir = explicit_wal_dir
             .filter(|s| !s.is_empty())
-            .or_else(|| data_dir.as_ref().map(|d| format!("{}/wal", d)));
-        let wal_enabled = wal_enabled_var.map(|v| v == "true").unwrap_or(true);
+            .or_else(|| data_dir.as_ref().map(|d| format!("{d}/wal")));
+        let wal_enabled = wal_enabled_var.is_none_or(|v| v == "true");
 
         match (&storage_dir, &wal_dir) {
             (Some(sd), Some(wd)) if wal_enabled => {
@@ -1804,7 +1811,7 @@ mod tests {
         let store = EventStore::new();
         let event = create_test_event("entity-1", "user.created");
 
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
 
         assert_eq!(store.stats().total_events, 1);
         assert_eq!(store.stats().total_ingested, 1);
@@ -1815,8 +1822,8 @@ mod tests {
         let store = EventStore::new();
 
         for i in 0..10 {
-            let event = create_test_event(&format!("entity-{}", i), "user.created");
-            store.ingest(event).unwrap();
+            let event = create_test_event(&format!("entity-{i}"), "user.created");
+            store.ingest(&event).unwrap();
         }
 
         assert_eq!(store.stats().total_events, 10);
@@ -1828,17 +1835,17 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "user.created"))
+            .ingest(&create_test_event("entity-1", "user.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-2", "user.created"))
+            .ingest(&create_test_event("entity-2", "user.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-1", "user.updated"))
+            .ingest(&create_test_event("entity-1", "user.updated"))
             .unwrap();
 
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: Some("entity-1".to_string()),
                 event_type: None,
                 tenant_id: None,
@@ -1859,17 +1866,17 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "user.created"))
+            .ingest(&create_test_event("entity-1", "user.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-2", "user.updated"))
+            .ingest(&create_test_event("entity-2", "user.updated"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-3", "user.created"))
+            .ingest(&create_test_event("entity-3", "user.created"))
             .unwrap();
 
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: Some("user.created".to_string()),
                 tenant_id: None,
@@ -1890,12 +1897,12 @@ mod tests {
         let store = EventStore::new();
 
         for i in 0..10 {
-            let event = create_test_event(&format!("entity-{}", i), "user.created");
-            store.ingest(event).unwrap();
+            let event = create_test_event(&format!("entity-{i}"), "user.created");
+            store.ingest(&event).unwrap();
         }
 
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -1916,7 +1923,7 @@ mod tests {
         let store = EventStore::new();
 
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: Some("non-existent".to_string()),
                 event_type: None,
                 tenant_id: None,
@@ -1937,7 +1944,7 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "user.created"))
+            .ingest(&create_test_event("entity-1", "user.created"))
             .unwrap();
 
         let state = store.reconstruct_state("entity-1", None).unwrap();
@@ -1968,7 +1975,7 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "user.created"))
+            .ingest(&create_test_event("entity-1", "user.created"))
             .unwrap();
 
         store.create_snapshot("entity-1").unwrap();
@@ -2062,10 +2069,10 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "user.created"))
+            .ingest(&create_test_event("entity-1", "user.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-2", "order.placed"))
+            .ingest(&create_test_event("entity-2", "order.placed"))
             .unwrap();
 
         let stats = store.stats();
@@ -2181,9 +2188,9 @@ mod tests {
     #[test]
     fn test_from_env_vars_empty_strings_treated_as_none() {
         let (_, mode) = EventStoreConfig::from_env_vars(
-            Some("".to_string()),
-            Some("".to_string()),
-            Some("".to_string()),
+            Some(String::new()),
+            Some(String::new()),
+            Some(String::new()),
             None,
         );
         assert_eq!(mode, "in-memory");
@@ -2233,17 +2240,17 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "user.created"))
+            .ingest(&create_test_event("entity-1", "user.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-1", "user.updated"))
+            .ingest(&create_test_event("entity-1", "user.updated"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-2", "user.created"))
+            .ingest(&create_test_event("entity-2", "user.created"))
             .unwrap();
 
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: Some("entity-1".to_string()),
                 event_type: Some("user.created".to_string()),
                 tenant_id: None,
@@ -2266,24 +2273,24 @@ mod tests {
 
         // Ingest events with various types
         store
-            .ingest(create_test_event("entity-1", "index.created"))
+            .ingest(&create_test_event("entity-1", "index.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-2", "index.updated"))
+            .ingest(&create_test_event("entity-2", "index.updated"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-3", "trade.created"))
+            .ingest(&create_test_event("entity-3", "trade.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-4", "trade.completed"))
+            .ingest(&create_test_event("entity-4", "trade.completed"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-5", "balance.updated"))
+            .ingest(&create_test_event("entity-5", "balance.updated"))
             .unwrap();
 
         // Query with prefix "index." should return exactly 2
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -2309,15 +2316,15 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "index.created"))
+            .ingest(&create_test_event("entity-1", "index.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-2", "trade.created"))
+            .ingest(&create_test_event("entity-2", "trade.created"))
             .unwrap();
 
         // Empty prefix matches all types
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -2325,7 +2332,7 @@ mod tests {
                 since: None,
                 until: None,
                 limit: None,
-                event_type_prefix: Some("".to_string()),
+                event_type_prefix: Some(String::new()),
                 payload_filter: None,
             })
             .unwrap();
@@ -2338,11 +2345,11 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "index.created"))
+            .ingest(&create_test_event("entity-1", "index.created"))
             .unwrap();
 
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -2363,18 +2370,18 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "index.created"))
+            .ingest(&create_test_event("entity-1", "index.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-1", "trade.created"))
+            .ingest(&create_test_event("entity-1", "trade.created"))
             .unwrap();
         store
-            .ingest(create_test_event("entity-2", "index.updated"))
+            .ingest(&create_test_event("entity-2", "index.updated"))
             .unwrap();
 
         // Query entity-1 with prefix "index." should return 1
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: Some("entity-1".to_string()),
                 event_type: None,
                 tenant_id: None,
@@ -2397,12 +2404,12 @@ mod tests {
 
         for i in 0..5 {
             store
-                .ingest(create_test_event(&format!("entity-{}", i), "index.created"))
+                .ingest(&create_test_event(&format!("entity-{i}"), "index.created"))
                 .unwrap();
         }
 
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -2423,21 +2430,21 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event("entity-1", "index.created"))
+            .ingest(&create_test_event("entity-1", "index.created"))
             .unwrap();
         // Sleep briefly to ensure different timestamps
         std::thread::sleep(std::time::Duration::from_millis(10));
         store
-            .ingest(create_test_event("entity-2", "index.strategy.updated"))
+            .ingest(&create_test_event("entity-2", "index.strategy.updated"))
             .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(10));
         store
-            .ingest(create_test_event("entity-3", "index.deleted"))
+            .ingest(&create_test_event("entity-3", "index.deleted"))
             .unwrap();
 
         // Prefix with limit
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -2460,8 +2467,8 @@ mod tests {
         // Ingest 5 events with user_id=alice
         for i in 0..5 {
             store
-                .ingest(create_test_event_with_payload(
-                    &format!("entity-{}", i),
+                .ingest(&create_test_event_with_payload(
+                    &format!("entity-{i}"),
                     "user.action",
                     serde_json::json!({"user_id": "alice", "action": "click"}),
                 ))
@@ -2470,8 +2477,8 @@ mod tests {
         // Ingest 5 events with user_id=bob
         for i in 5..10 {
             store
-                .ingest(create_test_event_with_payload(
-                    &format!("entity-{}", i),
+                .ingest(&create_test_event_with_payload(
+                    &format!("entity-{i}"),
                     "user.action",
                     serde_json::json!({"user_id": "bob", "action": "view"}),
                 ))
@@ -2480,7 +2487,7 @@ mod tests {
 
         // Filter for alice
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: Some("user.action".to_string()),
                 tenant_id: None,
@@ -2501,7 +2508,7 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "entity-1",
                 "user.action",
                 serde_json::json!({"user_id": "alice"}),
@@ -2510,7 +2517,7 @@ mod tests {
 
         // Filter for a field that doesn't exist — returns 0, not error
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -2531,21 +2538,21 @@ mod tests {
         let store = EventStore::new();
 
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "entity-1",
                 "index.created",
                 serde_json::json!({"status": "active"}),
             ))
             .unwrap();
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "entity-2",
                 "index.created",
                 serde_json::json!({"status": "inactive"}),
             ))
             .unwrap();
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "entity-3",
                 "trade.created",
                 serde_json::json!({"status": "active"}),
@@ -2554,7 +2561,7 @@ mod tests {
 
         // Combine prefix + payload filter
         let results = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -2586,7 +2593,7 @@ mod tests {
         // Initial state
         store
             .ingest(
-                Event::from_strings(
+                &Event::from_strings(
                     "user.created".to_string(),
                     "user-1".to_string(),
                     "default".to_string(),
@@ -2600,7 +2607,7 @@ mod tests {
         // Update state
         store
             .ingest(
-                Event::from_strings(
+                &Event::from_strings(
                     "user.updated".to_string(),
                     "user-1".to_string(),
                     "default".to_string(),
@@ -2633,13 +2640,12 @@ mod tests {
             1,
         );
 
-        let result = store.ingest(event);
+        let result = store.ingest(&event);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
             err.to_string().contains("reserved for internal use"),
-            "Expected system namespace rejection, got: {}",
-            err
+            "Expected system namespace rejection, got: {err}"
         );
     }
 
@@ -2673,13 +2679,13 @@ mod tests {
             for i in 0..5 {
                 let event = Event::from_strings(
                     "test.created".to_string(),
-                    format!("entity-{}", i),
+                    format!("entity-{i}"),
                     "default".to_string(),
                     serde_json::json!({"index": i}),
                     None,
                 )
                 .unwrap();
-                store.ingest(event).unwrap();
+                store.ingest(&event).unwrap();
             }
 
             assert_eq!(store.stats().total_events, 5);
@@ -2691,7 +2697,7 @@ mod tests {
         // Verify WAL file has data
         let wal_files: Vec<_> = std::fs::read_dir(&wal_dir)
             .unwrap()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|e| e.path().extension().is_some_and(|ext| ext == "log"))
             .collect();
         assert!(!wal_files.is_empty(), "WAL file should exist");
@@ -2722,7 +2728,7 @@ mod tests {
             // Parquet should now have files (checkpoint happened)
             let parquet_files: Vec<_> = std::fs::read_dir(&storage_dir)
                 .unwrap()
-                .filter_map(|e| e.ok())
+                .filter_map(std::result::Result::ok)
                 .filter(|e| e.path().extension().is_some_and(|ext| ext == "parquet"))
                 .collect();
             assert!(
@@ -2785,7 +2791,7 @@ mod tests {
                     None,
                 )
                 .unwrap();
-                store.ingest(event).unwrap();
+                store.ingest(&event).unwrap();
             }
 
             store.flush_storage().unwrap();
@@ -2795,7 +2801,7 @@ mod tests {
         // Verify parquet file exists
         let parquet_files: Vec<_> = std::fs::read_dir(&storage_dir)
             .unwrap()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|e| e.path().extension().is_some_and(|ext| ext == "parquet"))
             .collect();
         assert!(!parquet_files.is_empty(), "Parquet file must exist");

@@ -196,7 +196,7 @@ impl WebhookRegistry {
         // from the event, but Core events currently use "default" tenant)
         let mut matching = Vec::new();
 
-        for entry in self.webhooks.iter() {
+        for entry in &self.webhooks {
             let webhook = entry.value();
             if !webhook.active {
                 continue;

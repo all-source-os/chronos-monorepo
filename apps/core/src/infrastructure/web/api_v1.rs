@@ -432,7 +432,6 @@ pub async fn serve_v1(
             get(cluster_partitions_handler),
         )
         // v2.0: Advanced query features
-        .route("/api/v1/eventql", post(super::api::eventql_query))
         .route("/api/v1/graphql", post(super::api::graphql_query))
         .route("/api/v1/geospatial/query", post(super::api::geo_query))
         .route("/api/v1/geospatial/stats", get(super::api::geo_stats))
@@ -966,7 +965,7 @@ async fn cluster_partitions_handler(State(state): State<AppState>) -> impl IntoR
 
     let registry = cm.registry();
     let distribution = registry.partition_distribution();
-    let total_partitions: usize = distribution.values().map(|v| v.len()).sum();
+    let total_partitions: usize = distribution.values().map(std::vec::Vec::len).sum();
 
     (
         axum::http::StatusCode::OK,
@@ -1109,10 +1108,10 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {
+        () = ctrl_c => {
             tracing::info!("📤 Received Ctrl+C, initiating graceful shutdown...");
         }
-        _ = terminate => {
+        () = terminate => {
             tracing::info!("📤 Received SIGTERM, initiating graceful shutdown...");
         }
     }

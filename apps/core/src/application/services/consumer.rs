@@ -12,7 +12,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Consumer {
     pub consumer_id: String,
-    /// Event type prefix filters (e.g. ["scheduler.*", "index.*"]).
+    /// Event type prefix filters (e.g. `["scheduler.*", "index.*"]`).
     /// Empty means "all events".
     pub event_type_filters: Vec<String>,
     /// Global event offset of the last acknowledged event.
@@ -63,13 +63,13 @@ impl ConsumerRegistry {
     }
 
     /// Register a consumer (or update its filters if it already exists).
-    pub fn register(&self, consumer_id: String, event_type_filters: Vec<String>) -> Consumer {
+    pub fn register(&self, consumer_id: &str, event_type_filters: &[String]) -> Consumer {
         let consumer = self
             .consumers
-            .entry(consumer_id.clone())
+            .entry(consumer_id.to_string())
             .or_insert_with(|| Consumer {
-                consumer_id: consumer_id.clone(),
-                event_type_filters: event_type_filters.clone(),
+                consumer_id: consumer_id.to_string(),
+                event_type_filters: event_type_filters.to_vec(),
                 cursor_position: None,
             });
 
@@ -77,8 +77,8 @@ impl ConsumerRegistry {
         let mut c = consumer.clone();
         if c.event_type_filters != event_type_filters {
             drop(consumer);
-            self.consumers.alter(&consumer_id, |_, mut existing| {
-                existing.event_type_filters = event_type_filters.clone();
+            self.consumers.alter(consumer_id, |_, mut existing| {
+                existing.event_type_filters = event_type_filters.to_vec();
                 c = existing.clone();
                 existing
             });
@@ -86,7 +86,7 @@ impl ConsumerRegistry {
 
         // Persist registration event
         if let Some(ref store) = self.system_store {
-            let entity_id = system_entity_id_value(SystemDomain::Consumer, &consumer_id);
+            let entity_id = system_entity_id_value(SystemDomain::Consumer, consumer_id);
             let payload = json!({
                 "consumer_id": consumer_id,
                 "event_type_filters": event_type_filters,
@@ -123,8 +123,7 @@ impl ConsumerRegistry {
     pub fn ack(&self, consumer_id: &str, position: u64, max_offset: u64) -> Result<(), String> {
         if position > max_offset {
             return Err(format!(
-                "Position {} is beyond the latest event offset {}",
-                position, max_offset
+                "Position {position} is beyond the latest event offset {max_offset}"
             ));
         }
 
@@ -229,7 +228,7 @@ impl ConsumerRegistry {
                     .and_then(|v| v.as_str())
                     .unwrap_or_default()
                     .to_string();
-                let position = payload.get("position").and_then(|v| v.as_u64());
+                let position = payload.get("position").and_then(serde_json::Value::as_u64);
 
                 if !consumer_id.is_empty() {
                     self.consumers
@@ -290,7 +289,7 @@ mod tests {
     #[test]
     fn test_register_and_get() {
         let registry = ConsumerRegistry::new();
-        let c = registry.register("c1".into(), vec!["scheduler.*".into()]);
+        let c = registry.register("c1", &["scheduler.*".into()]);
         assert_eq!(c.consumer_id, "c1");
         assert_eq!(c.event_type_filters, vec!["scheduler.*"]);
         assert_eq!(c.cursor_position, None);
@@ -316,7 +315,7 @@ mod tests {
     #[test]
     fn test_ack_advances_cursor() {
         let registry = ConsumerRegistry::new();
-        registry.register("c1".into(), vec![]);
+        registry.register("c1", &[]);
 
         registry.ack("c1", 5, 10).unwrap();
         assert_eq!(registry.get("c1").unwrap().cursor_position, Some(5));
@@ -329,7 +328,7 @@ mod tests {
     #[test]
     fn test_ack_idempotent_no_regression() {
         let registry = ConsumerRegistry::new();
-        registry.register("c1".into(), vec![]);
+        registry.register("c1", &[]);
 
         registry.ack("c1", 5, 10).unwrap();
         // Acking an earlier position is a no-op
@@ -340,7 +339,7 @@ mod tests {
     #[test]
     fn test_ack_beyond_max_fails() {
         let registry = ConsumerRegistry::new();
-        registry.register("c1".into(), vec![]);
+        registry.register("c1", &[]);
 
         let result = registry.ack("c1", 15, 10);
         assert!(result.is_err());
@@ -420,9 +419,9 @@ mod tests {
     fn test_count() {
         let registry = ConsumerRegistry::new();
         assert_eq!(registry.count(), 0);
-        registry.register("c1".into(), vec![]);
+        registry.register("c1", &[]);
         assert_eq!(registry.count(), 1);
-        registry.register("c2".into(), vec![]);
+        registry.register("c2", &[]);
         assert_eq!(registry.count(), 2);
     }
 
@@ -430,7 +429,7 @@ mod tests {
     fn test_in_memory_mode_still_works() {
         // Ensure new() works without a system store
         let registry = ConsumerRegistry::new();
-        registry.register("c1".into(), vec!["trade.*".into()]);
+        registry.register("c1", &["trade.*".into()]);
         registry.ack("c1", 10, 100).unwrap();
         let c = registry.get("c1").unwrap();
         assert_eq!(c.cursor_position, Some(10));
@@ -445,7 +444,7 @@ mod tests {
         // Register a consumer with durable registry
         {
             let registry = ConsumerRegistry::new_durable(store.clone());
-            registry.register("c1".into(), vec!["scheduler.*".into()]);
+            registry.register("c1", &["scheduler.*".into()]);
             assert_eq!(registry.count(), 1);
         }
 
@@ -468,7 +467,7 @@ mod tests {
         // Register + ack
         {
             let registry = ConsumerRegistry::new_durable(store.clone());
-            registry.register("c1".into(), vec![]);
+            registry.register("c1", &[]);
             registry.ack("c1", 42, 100).unwrap();
             assert_eq!(registry.get("c1").unwrap().cursor_position, Some(42));
         }
@@ -489,7 +488,7 @@ mod tests {
         // Ack multiple times
         {
             let registry = ConsumerRegistry::new_durable(store.clone());
-            registry.register("c1".into(), vec![]);
+            registry.register("c1", &[]);
             registry.ack("c1", 10, 100).unwrap();
             registry.ack("c1", 25, 100).unwrap();
             registry.ack("c1", 50, 100).unwrap();

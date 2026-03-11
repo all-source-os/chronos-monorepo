@@ -273,7 +273,7 @@ pub struct AuditLogEntry<'a, R: AuditEventRepository> {
     builder: AuditLogBuilder,
 }
 
-impl<'a, R: AuditEventRepository> AuditLogEntry<'a, R> {
+impl<R: AuditEventRepository> AuditLogEntry<'_, R> {
     pub fn with_outcome(mut self, outcome: AuditOutcome) -> Self {
         self.builder = self.builder.with_outcome(outcome);
         self

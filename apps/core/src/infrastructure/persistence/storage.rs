@@ -201,6 +201,7 @@ impl ParquetStorage {
     /// - Batch size reaches configured limit (default: 10,000)
     /// - Flush timeout is exceeded
     /// - Manual flush() is called
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn append_event(&self, event: Event) -> Result<()> {
         let should_flush = {
             let mut batch = self.current_batch.lock().unwrap();
@@ -220,6 +221,7 @@ impl ParquetStorage {
     ///
     /// This is the preferred method for high-throughput ingestion.
     /// Events are added atomically and flushed if batch size is reached.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn batch_write(&self, events: Vec<Event>) -> Result<BatchWriteResult> {
         let start = Instant::now();
         let event_count = events.len();
@@ -265,6 +267,7 @@ impl ParquetStorage {
     ///
     /// Call this periodically (e.g., from a background task) to ensure
     /// partial batches are flushed within the configured timeout.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn check_timeout_flush(&self) -> Result<bool> {
         let should_flush = {
             let last_flush = self.last_flush_time.lock().unwrap();
@@ -284,6 +287,7 @@ impl ParquetStorage {
     /// Flush current batch to a Parquet file
     ///
     /// Thread-safe: Can be called from multiple threads.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn flush(&self) -> Result<()> {
         let events_to_write = {
             let mut batch = self.current_batch.lock().unwrap();
@@ -332,7 +336,7 @@ impl ParquetStorage {
         if let Some(size) = file_metadata
             .row_groups()
             .first()
-            .map(|rg| rg.total_byte_size())
+            .map(parquet::file::metadata::RowGroupMetaData::total_byte_size)
         {
             self.bytes_written.fetch_add(size as u64, Ordering::Relaxed);
         }
@@ -358,6 +362,7 @@ impl ParquetStorage {
     /// Force flush any remaining events (for shutdown handling)
     ///
     /// This ensures partial batches are persisted on graceful shutdown.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn flush_on_shutdown(&self) -> Result<usize> {
         let batch_size = {
             let batch = self.current_batch.lock().unwrap();
@@ -417,6 +422,7 @@ impl ParquetStorage {
     }
 
     /// Convert events to Arrow RecordBatch
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn events_to_record_batch(&self, events: &[Event]) -> Result<RecordBatch> {
         let mut event_id_builder = StringBuilder::new();
         let mut event_type_builder = StringBuilder::new();
@@ -461,6 +467,7 @@ impl ParquetStorage {
     }
 
     /// Load events from all Parquet files
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn load_all_events(&self) -> Result<Vec<Event>> {
         let mut all_events = Vec::new();
 
@@ -470,13 +477,12 @@ impl ParquetStorage {
         })?;
 
         let mut parquet_files: Vec<PathBuf> = entries
-            .filter_map(|entry| entry.ok())
+            .filter_map(std::result::Result::ok)
             .map(|entry| entry.path())
             .filter(|path| {
                 path.extension()
                     .and_then(|ext| ext.to_str())
-                    .map(|ext| ext == "parquet")
-                    .unwrap_or(false)
+                    .is_some_and(|ext| ext == "parquet")
             })
             .collect();
 
@@ -495,6 +501,7 @@ impl ParquetStorage {
     }
 
     /// Load events from a single Parquet file
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn load_events_from_file(&self, file_path: &Path) -> Result<Vec<Event>> {
         use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
@@ -516,6 +523,7 @@ impl ParquetStorage {
     }
 
     /// Convert Arrow RecordBatch back to events
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn record_batch_to_events(&self, batch: &RecordBatch) -> Result<Vec<Event>> {
         let event_ids = batch
             .column(0)
@@ -601,13 +609,12 @@ impl ParquetStorage {
         })?;
 
         let mut parquet_files: Vec<PathBuf> = entries
-            .filter_map(|entry| entry.ok())
+            .filter_map(std::result::Result::ok)
             .map(|entry| entry.path())
             .filter(|path| {
                 path.extension()
                     .and_then(|ext| ext.to_str())
-                    .map(|ext| ext == "parquet")
-                    .unwrap_or(false)
+                    .is_some_and(|ext| ext == "parquet")
             })
             .collect();
 
@@ -697,7 +704,7 @@ mod tests {
 
         // Add events
         for i in 0..10 {
-            let event = create_test_event(&format!("entity-{}", i));
+            let event = create_test_event(&format!("entity-{i}"));
             storage.append_event(event).unwrap();
         }
 
@@ -717,7 +724,7 @@ mod tests {
         // Add and flush events
         for i in 0..5 {
             storage
-                .append_event(create_test_event(&format!("entity-{}", i)))
+                .append_event(create_test_event(&format!("entity-{i}")))
                 .unwrap();
         }
         storage.flush().unwrap();
@@ -762,7 +769,7 @@ mod tests {
 
         // Create 250 events (should trigger 2 flushes with 50 remaining)
         let events: Vec<Event> = (0..250)
-            .map(|i| create_test_event(&format!("entity-{}", i)))
+            .map(|i| create_test_event(&format!("entity-{i}")))
             .collect();
 
         let result = storage.batch_write(events).unwrap();
@@ -792,7 +799,7 @@ mod tests {
         // Add 15 events - should auto-flush at 10
         for i in 0..15 {
             storage
-                .append_event(create_test_event(&format!("entity-{}", i)))
+                .append_event(create_test_event(&format!("entity-{i}")))
                 .unwrap();
         }
 
@@ -813,7 +820,7 @@ mod tests {
         // Add some events without reaching batch size
         for i in 0..5 {
             storage
-                .append_event(create_test_event(&format!("entity-{}", i)))
+                .append_event(create_test_event(&format!("entity-{i}")))
                 .unwrap();
         }
 
@@ -846,7 +853,7 @@ mod tests {
                 let storage_ref = Arc::clone(&storage);
                 s.spawn(move || {
                     for i in 0..events_per_thread {
-                        let event = create_test_event(&format!("thread-{}-entity-{}", t, i));
+                        let event = create_test_event(&format!("thread-{t}-entity-{i}"));
                         storage_ref.append_event(event).unwrap();
                     }
                 });
@@ -872,7 +879,7 @@ mod tests {
 
         // Write 100 events (2 batches)
         let events: Vec<Event> = (0..100)
-            .map(|i| create_test_event(&format!("entity-{}", i)))
+            .map(|i| create_test_event(&format!("entity-{i}")))
             .collect();
 
         storage.batch_write(events).unwrap();
@@ -912,7 +919,7 @@ mod tests {
 
         // Benchmark batch write
         let events: Vec<Event> = (0..event_count)
-            .map(|i| create_test_event(&format!("entity-{}", i)))
+            .map(|i| create_test_event(&format!("entity-{i}")))
             .collect();
 
         let start = std::time::Instant::now();
@@ -923,8 +930,8 @@ mod tests {
         let batch_stats = storage.batch_stats();
 
         println!("\n=== Parquet Batch Write Performance (BATCH_SIZE=10,000) ===");
-        println!("Events: {}", event_count);
-        println!("Duration: {:?}", batch_duration);
+        println!("Events: {event_count}");
+        println!("Duration: {batch_duration:?}");
         println!("Events/sec: {:.0}", result.events_per_sec);
         println!("Batches written: {}", batch_stats.batches_written);
         println!("Avg batch size: {:.0}", batch_stats.avg_batch_size);
@@ -954,17 +961,17 @@ mod tests {
 
         let start = std::time::Instant::now();
         for i in 0..event_count {
-            let event = create_test_event(&format!("entity-{}", i));
+            let event = create_test_event(&format!("entity-{i}"));
             storage.append_event(event).unwrap();
         }
         let duration = start.elapsed();
 
-        let events_per_sec = event_count as f64 / duration.as_secs_f64();
+        let events_per_sec = f64::from(event_count) / duration.as_secs_f64();
 
         println!("\n=== Single-Event Write Baseline ===");
-        println!("Events: {}", event_count);
-        println!("Duration: {:?}", duration);
-        println!("Events/sec: {:.0}", events_per_sec);
+        println!("Events: {event_count}");
+        println!("Duration: {duration:?}");
+        println!("Events/sec: {events_per_sec:.0}");
 
         // This should be significantly slower than batch writes
         // Used as a baseline to demonstrate 40%+ improvement

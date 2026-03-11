@@ -211,7 +211,7 @@ impl DeactivateCreatorUseCase {
 pub struct ListCreatorsUseCase;
 
 impl ListCreatorsUseCase {
-    pub fn execute(creators: Vec<Creator>) -> ListCreatorsResponse {
+    pub fn execute(creators: &[Creator]) -> ListCreatorsResponse {
         let creator_dtos: Vec<CreatorDto> = creators.iter().map(CreatorDto::from).collect();
         let count = creator_dtos.len();
 
@@ -438,7 +438,7 @@ mod tests {
             Creator::new(tenant_id, "creator2@example.com".to_string(), wallet2, None).unwrap(),
         ];
 
-        let response = ListCreatorsUseCase::execute(creators);
+        let response = ListCreatorsUseCase::execute(&creators);
         assert_eq!(response.count, 2);
         assert_eq!(response.creators.len(), 2);
     }

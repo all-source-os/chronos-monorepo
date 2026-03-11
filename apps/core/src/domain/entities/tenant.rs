@@ -626,7 +626,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_name() {
-        let result = Tenant::new(test_tenant_id(), "".to_string(), TenantQuotas::standard());
+        let result = Tenant::new(test_tenant_id(), String::new(), TenantQuotas::standard());
 
         assert!(result.is_err());
     }

@@ -199,7 +199,7 @@ impl VectorSearchEngine {
             InitOptions::new(EmbeddingModel::AllMiniLML6V2).with_show_download_progress(false),
         )
         .map_err(|e| {
-            AllSourceError::InternalError(format!("Failed to load embedding model: {}", e))
+            AllSourceError::InternalError(format!("Failed to load embedding model: {e}"))
         })?;
 
         Ok(Self {
@@ -243,7 +243,7 @@ impl VectorSearchEngine {
             .lock()
             .embed(vec![text], None)
             .map_err(|e| {
-                AllSourceError::InternalError(format!("Embedding generation failed: {}", e))
+                AllSourceError::InternalError(format!("Embedding generation failed: {e}"))
             })?;
 
         let embedding = embeddings
@@ -414,9 +414,8 @@ impl VectorSearchEngine {
         }
 
         let index_guard = self.hnsw_index.read();
-        let index = match index_guard.as_ref() {
-            Some(idx) => idx,
-            None => return Ok(vec![]),
+        let Some(index) = index_guard.as_ref() else {
+            return Ok(vec![]);
         };
 
         let query_point = VectorPoint {
@@ -617,7 +616,10 @@ impl VectorSearchEngine {
     /// Get the number of indexed vectors
     pub fn count(&self, tenant_id: Option<&str>) -> usize {
         if let Some(tid) = tenant_id {
-            self.tenant_index.read().get(tid).map_or(0, |ids| ids.len())
+            self.tenant_index
+                .read()
+                .get(tid)
+                .map_or(0, std::vec::Vec::len)
         } else {
             self.vectors.read().len()
         }
@@ -681,7 +683,12 @@ impl VectorSearchEngine {
     /// Health check
     pub fn health_check(&self) -> Result<()> {
         let vec_count = self.vectors.read().len();
-        let idx_count: usize = self.tenant_index.read().values().map(|v| v.len()).sum();
+        let idx_count: usize = self
+            .tenant_index
+            .read()
+            .values()
+            .map(std::vec::Vec::len)
+            .sum();
 
         // Allow some discrepancy due to concurrent operations
         if vec_count > 0 && idx_count == 0 {

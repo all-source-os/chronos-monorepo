@@ -464,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_email() {
-        let result = Creator::new(test_tenant_id(), "".to_string(), test_wallet(), None);
+        let result = Creator::new(test_tenant_id(), String::new(), test_wallet(), None);
 
         assert!(result.is_err());
     }

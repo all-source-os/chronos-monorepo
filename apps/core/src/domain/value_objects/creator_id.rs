@@ -63,10 +63,7 @@ impl CreatorId {
     /// ```
     pub fn parse(value: &str) -> Result<Self> {
         let uuid = Uuid::parse_str(value).map_err(|e| {
-            crate::error::AllSourceError::InvalidInput(format!(
-                "Invalid creator ID '{}': {}",
-                value, e
-            ))
+            crate::error::AllSourceError::InvalidInput(format!("Invalid creator ID '{value}': {e}"))
         })?;
         Ok(Self(uuid))
     }
@@ -185,7 +182,7 @@ mod tests {
         let uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
         let creator_id = CreatorId::from_uuid(uuid);
         assert_eq!(
-            format!("{}", creator_id),
+            format!("{creator_id}"),
             "550e8400-e29b-41d4-a716-446655440000"
         );
     }

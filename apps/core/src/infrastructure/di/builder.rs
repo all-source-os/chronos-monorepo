@@ -233,7 +233,7 @@ impl std::fmt::Display for ContainerBuilderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ContainerBuilderError::MissingRepository(name) => {
-                write!(f, "{} not configured", name)
+                write!(f, "{name} not configured")
             }
         }
     }

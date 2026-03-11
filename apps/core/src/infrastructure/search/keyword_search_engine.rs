@@ -202,7 +202,7 @@ impl KeywordSearchEngine {
 
         // Create writer
         let writer = index.writer(config.writer_heap_size).map_err(|e| {
-            AllSourceError::InternalError(format!("Failed to create index writer: {}", e))
+            AllSourceError::InternalError(format!("Failed to create index writer: {e}"))
         })?;
 
         // Create reader with automatic reload
@@ -211,7 +211,7 @@ impl KeywordSearchEngine {
             .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()
             .map_err(|e| {
-                AllSourceError::InternalError(format!("Failed to create index reader: {}", e))
+                AllSourceError::InternalError(format!("Failed to create index reader: {e}"))
             })?;
 
         Ok(Self {
@@ -238,12 +238,12 @@ impl KeywordSearchEngine {
         let index = Index::create_in_dir(path_ref, schema)
             .or_else(|_| Index::open_in_dir(path_ref))
             .map_err(|e| {
-                AllSourceError::InternalError(format!("Failed to create/open index: {}", e))
+                AllSourceError::InternalError(format!("Failed to create/open index: {e}"))
             })?;
 
         // Create writer
         let writer = index.writer(config.writer_heap_size).map_err(|e| {
-            AllSourceError::InternalError(format!("Failed to create index writer: {}", e))
+            AllSourceError::InternalError(format!("Failed to create index writer: {e}"))
         })?;
 
         // Create reader
@@ -252,7 +252,7 @@ impl KeywordSearchEngine {
             .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()
             .map_err(|e| {
-                AllSourceError::InternalError(format!("Failed to create index reader: {}", e))
+                AllSourceError::InternalError(format!("Failed to create index reader: {e}"))
             })?;
 
         Ok(Self {
@@ -317,7 +317,7 @@ impl KeywordSearchEngine {
 
         writer
             .add_document(doc)
-            .map_err(|e| AllSourceError::InternalError(format!("Failed to add document: {}", e)))?;
+            .map_err(|e| AllSourceError::InternalError(format!("Failed to add document: {e}")))?;
 
         // Update tenant counts
         {
@@ -335,10 +335,10 @@ impl KeywordSearchEngine {
         if self.config.auto_commit {
             writer
                 .commit()
-                .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {}", e)))?;
+                .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {e}")))?;
             // Reload reader to see changes immediately
             self.reader.reload().map_err(|e| {
-                AllSourceError::InternalError(format!("Failed to reload reader: {}", e))
+                AllSourceError::InternalError(format!("Failed to reload reader: {e}"))
             })?;
         }
 
@@ -366,11 +366,11 @@ impl KeywordSearchEngine {
         let mut writer = self.writer.write();
         writer
             .commit()
-            .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {}", e)))?;
+            .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {e}")))?;
         // Reload the reader to see the committed changes immediately
-        self.reader.reload().map_err(|e| {
-            AllSourceError::InternalError(format!("Failed to reload reader: {}", e))
-        })?;
+        self.reader
+            .reload()
+            .map_err(|e| AllSourceError::InternalError(format!("Failed to reload reader: {e}")))?;
         Ok(())
     }
 
@@ -433,18 +433,18 @@ impl KeywordSearchEngine {
         let query_parser = QueryParser::for_index(&self.index, all_fields);
         let parsed_query = query_parser
             .parse_query(&query_str)
-            .map_err(|e| AllSourceError::InvalidInput(format!("Invalid query: {}", e)))?;
+            .map_err(|e| AllSourceError::InvalidInput(format!("Invalid query: {e}")))?;
 
         // Execute search with BM25 scoring
         let top_docs = searcher
             .search(&parsed_query, &TopDocs::with_limit(query.limit))
-            .map_err(|e| AllSourceError::InternalError(format!("Search failed: {}", e)))?;
+            .map_err(|e| AllSourceError::InternalError(format!("Search failed: {e}")))?;
 
         // Collect results
         let mut results = Vec::with_capacity(top_docs.len());
         for (score, doc_address) in top_docs {
             let doc: TantivyDocument = searcher.doc(doc_address).map_err(|e| {
-                AllSourceError::InternalError(format!("Failed to retrieve document: {}", e))
+                AllSourceError::InternalError(format!("Failed to retrieve document: {e}"))
             })?;
 
             // Extract fields from document
@@ -456,7 +456,7 @@ impl KeywordSearchEngine {
                 })?;
 
             let event_id = Uuid::parse_str(event_id_str)
-                .map_err(|e| AllSourceError::InternalError(format!("Invalid event_id: {}", e)))?;
+                .map_err(|e| AllSourceError::InternalError(format!("Invalid event_id: {e}")))?;
 
             let event_type = doc
                 .get_first(self.schema_fields.event_type)
@@ -467,7 +467,7 @@ impl KeywordSearchEngine {
             let entity_id = doc
                 .get_first(self.schema_fields.entity_id)
                 .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
+                .map(std::string::ToString::to_string);
 
             results.push(KeywordSearchResult {
                 event_id,
@@ -507,9 +507,9 @@ impl KeywordSearchEngine {
         if self.config.auto_commit {
             writer
                 .commit()
-                .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {}", e)))?;
+                .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {e}")))?;
             self.reader.reload().map_err(|e| {
-                AllSourceError::InternalError(format!("Failed to reload reader: {}", e))
+                AllSourceError::InternalError(format!("Failed to reload reader: {e}"))
             })?;
         }
 
@@ -546,9 +546,9 @@ impl KeywordSearchEngine {
         if self.config.auto_commit {
             writer
                 .commit()
-                .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {}", e)))?;
+                .map_err(|e| AllSourceError::InternalError(format!("Failed to commit: {e}")))?;
             self.reader.reload().map_err(|e| {
-                AllSourceError::InternalError(format!("Failed to reload reader: {}", e))
+                AllSourceError::InternalError(format!("Failed to reload reader: {e}"))
             })?;
         }
 

@@ -64,8 +64,7 @@ impl TransactionId {
     pub fn parse(value: &str) -> Result<Self> {
         let uuid = Uuid::parse_str(value).map_err(|e| {
             crate::error::AllSourceError::InvalidInput(format!(
-                "Invalid transaction ID '{}': {}",
-                value, e
+                "Invalid transaction ID '{value}': {e}"
             ))
         })?;
         Ok(Self(uuid))
@@ -185,7 +184,7 @@ mod tests {
         let uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
         let transaction_id = TransactionId::from_uuid(uuid);
         assert_eq!(
-            format!("{}", transaction_id),
+            format!("{transaction_id}"),
             "550e8400-e29b-41d4-a716-446655440000"
         );
     }

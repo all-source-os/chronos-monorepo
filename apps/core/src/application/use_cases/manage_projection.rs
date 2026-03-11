@@ -140,7 +140,7 @@ impl RebuildProjectionUseCase {
 pub struct ListProjectionsUseCase;
 
 impl ListProjectionsUseCase {
-    pub fn execute(projections: Vec<Projection>) -> ListProjectionsResponse {
+    pub fn execute(projections: &[Projection]) -> ListProjectionsResponse {
         let projection_dtos: Vec<ProjectionDto> =
             projections.iter().map(ProjectionDto::from).collect();
         let count = projection_dtos.len();
@@ -273,7 +273,7 @@ mod tests {
             .unwrap(),
         ];
 
-        let response = ListProjectionsUseCase::execute(projections);
+        let response = ListProjectionsUseCase::execute(&projections);
         assert_eq!(response.count, 2);
         assert_eq!(response.projections.len(), 2);
     }

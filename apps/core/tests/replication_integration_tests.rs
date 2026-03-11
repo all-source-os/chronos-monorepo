@@ -75,7 +75,7 @@ async fn test_leader_follower_wal_replication() {
     // ---------------------------------------------------------------
     let follower_store = Arc::new(EventStore::new());
 
-    let leader_addr = format!("127.0.0.1:{}", replication_port);
+    let leader_addr = format!("127.0.0.1:{replication_port}");
     let follower_wal_dir = follower_dir.path().join("follower-wal");
 
     let receiver = WalReceiver::new(leader_addr, &follower_wal_dir, Arc::clone(&follower_store))
@@ -98,12 +98,12 @@ async fn test_leader_follower_wal_replication() {
     let num_events: usize = 5;
     for i in 0..num_events {
         let event = test_event(
-            &format!("entity-{}", i),
+            &format!("entity-{i}"),
             "test.replicated",
             serde_json::json!({"index": i, "source": "leader"}),
         );
         leader_store
-            .ingest(event)
+            .ingest(&event)
             .expect("leader ingest should succeed");
     }
 
@@ -118,12 +118,12 @@ async fn test_leader_follower_wal_replication() {
         if follower_stats.total_events >= num_events {
             break;
         }
-        if tokio::time::Instant::now() >= deadline {
-            panic!(
-                "Timed out waiting for follower replication. Expected {} events, got {}",
-                num_events, follower_stats.total_events,
-            );
-        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "Timed out waiting for follower replication. Expected {} events, got {}",
+            num_events,
+            follower_stats.total_events,
+        );
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
 
@@ -140,7 +140,7 @@ async fn test_leader_follower_wal_replication() {
 
     // Query each entity on both leader and follower and compare.
     for i in 0..num_events {
-        let entity_id = format!("entity-{}", i);
+        let entity_id = format!("entity-{i}");
 
         let leader_query = QueryEventsRequest {
             entity_id: Some(entity_id.clone()),
@@ -163,14 +163,13 @@ async fn test_leader_follower_wal_replication() {
             ..Default::default()
         };
 
-        let leader_events = leader_store.query(leader_query).unwrap();
-        let follower_events = follower_store.query(follower_query).unwrap();
+        let leader_events = leader_store.query(&leader_query).unwrap();
+        let follower_events = follower_store.query(&follower_query).unwrap();
 
         assert_eq!(
             leader_events.len(),
             follower_events.len(),
-            "Event count mismatch for entity {}",
-            entity_id,
+            "Event count mismatch for entity {entity_id}",
         );
 
         // Verify event content matches.
@@ -239,12 +238,12 @@ async fn test_late_follower_catches_up_from_live_wal() {
     let num_events = 3;
     for i in 0..num_events {
         let event = test_event("late-entity", "test.late", serde_json::json!({"seq": i}));
-        leader_store.ingest(event).unwrap();
+        leader_store.ingest(&event).unwrap();
     }
 
     // Now connect the follower.
     let follower_store = Arc::new(EventStore::new());
-    let leader_addr = format!("127.0.0.1:{}", replication_port);
+    let leader_addr = format!("127.0.0.1:{replication_port}");
     let follower_wal_dir = follower_dir.path().join("follower-wal");
 
     let receiver =
@@ -267,7 +266,7 @@ async fn test_late_follower_catches_up_from_live_wal() {
             "test.late",
             serde_json::json!({"seq": num_events + i}),
         );
-        leader_store.ingest(event).unwrap();
+        leader_store.ingest(&event).unwrap();
     }
 
     // Wait for the additional events to replicate.
@@ -279,12 +278,12 @@ async fn test_late_follower_catches_up_from_live_wal() {
         if stats.total_events >= additional {
             break;
         }
-        if tokio::time::Instant::now() >= deadline {
-            panic!(
-                "Timed out waiting for late follower. Expected at least {} events, got {}",
-                additional, stats.total_events,
-            );
-        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "Timed out waiting for late follower. Expected at least {} events, got {}",
+            additional,
+            stats.total_events,
+        );
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
 
@@ -328,7 +327,7 @@ async fn test_replication_preserves_event_data_fidelity() {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     let follower_store = Arc::new(EventStore::new());
-    let leader_addr = format!("127.0.0.1:{}", replication_port);
+    let leader_addr = format!("127.0.0.1:{replication_port}");
     let follower_wal_dir = follower_dir.path().join("follower-wal");
 
     let receiver =
@@ -362,7 +361,7 @@ async fn test_replication_preserves_event_data_fidelity() {
 
     for (entity_id, event_type, payload) in &payloads {
         let event = test_event(entity_id, event_type, payload.clone());
-        leader_store.ingest(event).unwrap();
+        leader_store.ingest(&event).unwrap();
     }
 
     // Wait for replication.
@@ -371,20 +370,19 @@ async fn test_replication_preserves_event_data_fidelity() {
         if follower_store.stats().total_events >= payloads.len() {
             break;
         }
-        if tokio::time::Instant::now() >= deadline {
-            panic!(
-                "Timed out waiting for replication. Follower has {} of {} events",
-                follower_store.stats().total_events,
-                payloads.len(),
-            );
-        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "Timed out waiting for replication. Follower has {} of {} events",
+            follower_store.stats().total_events,
+            payloads.len(),
+        );
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
 
     // Verify each event's data is identical on the follower.
     for (entity_id, event_type, expected_payload) in &payloads {
         let query = QueryEventsRequest {
-            entity_id: Some(entity_id.to_string()),
+            entity_id: Some((*entity_id).to_string()),
             event_type: None,
             tenant_id: None,
             as_of: None,
@@ -394,12 +392,11 @@ async fn test_replication_preserves_event_data_fidelity() {
             ..Default::default()
         };
 
-        let follower_events = follower_store.query(query).unwrap();
+        let follower_events = follower_store.query(&query).unwrap();
         assert_eq!(
             follower_events.len(),
             1,
-            "Expected exactly 1 event for entity {} on follower",
-            entity_id,
+            "Expected exactly 1 event for entity {entity_id} on follower",
         );
 
         let fe = &follower_events[0];
@@ -407,8 +404,7 @@ async fn test_replication_preserves_event_data_fidelity() {
         assert_eq!(fe.entity_id.as_str(), *entity_id);
         assert_eq!(
             fe.payload, *expected_payload,
-            "Payload mismatch for entity {} through replication",
-            entity_id,
+            "Payload mismatch for entity {entity_id} through replication",
         );
     }
 

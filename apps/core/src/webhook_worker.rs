@@ -25,6 +25,7 @@ const BASE_BACKOFF_SECS: u64 = 2;
 ///
 /// Consumes tasks from the channel and delivers them asynchronously.
 /// Each delivery is spawned as an independent tokio task for parallelism.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub async fn run_webhook_delivery_worker(
     mut rx: mpsc::UnboundedReceiver<WebhookDeliveryTask>,
     registry: Arc<WebhookRegistry>,
@@ -103,44 +104,43 @@ async fn deliver_with_retry(
                         attempt
                     );
                     return;
-                } else {
-                    // Non-2xx response — retry
-                    let delay = backoff_delay(attempt);
-                    tracing::warn!(
-                        "Webhook delivery failed: {} -> {} (status {}, attempt {}/{}), retrying in {}s",
-                        event.id,
-                        webhook.url,
-                        status_code,
-                        attempt,
-                        MAX_ATTEMPTS,
-                        delay.as_secs()
-                    );
+                }
+                // Non-2xx response — retry
+                let delay = backoff_delay(attempt);
+                tracing::warn!(
+                    "Webhook delivery failed: {} -> {} (status {}, attempt {}/{}), retrying in {}s",
+                    event.id,
+                    webhook.url,
+                    status_code,
+                    attempt,
+                    MAX_ATTEMPTS,
+                    delay.as_secs()
+                );
 
-                    registry.record_delivery(WebhookDelivery {
-                        id: delivery_id,
-                        webhook_id: webhook.id,
-                        event_id: event.id,
-                        status: if attempt < MAX_ATTEMPTS {
-                            DeliveryStatus::Retrying
-                        } else {
-                            DeliveryStatus::Failed
-                        },
-                        attempt,
-                        max_attempts: MAX_ATTEMPTS,
-                        response_status: Some(status_code),
-                        response_body: Some(truncate_string(&body, 500)),
-                        error: None,
-                        created_at: Utc::now(),
-                        next_retry_at: if attempt < MAX_ATTEMPTS {
-                            Some(Utc::now() + chrono::Duration::seconds(delay.as_secs() as i64))
-                        } else {
-                            None
-                        },
-                    });
+                registry.record_delivery(WebhookDelivery {
+                    id: delivery_id,
+                    webhook_id: webhook.id,
+                    event_id: event.id,
+                    status: if attempt < MAX_ATTEMPTS {
+                        DeliveryStatus::Retrying
+                    } else {
+                        DeliveryStatus::Failed
+                    },
+                    attempt,
+                    max_attempts: MAX_ATTEMPTS,
+                    response_status: Some(status_code),
+                    response_body: Some(truncate_string(&body, 500)),
+                    error: None,
+                    created_at: Utc::now(),
+                    next_retry_at: if attempt < MAX_ATTEMPTS {
+                        Some(Utc::now() + chrono::Duration::seconds(delay.as_secs() as i64))
+                    } else {
+                        None
+                    },
+                });
 
-                    if attempt < MAX_ATTEMPTS {
-                        tokio::time::sleep(delay).await;
-                    }
+                if attempt < MAX_ATTEMPTS {
+                    tokio::time::sleep(delay).await;
                 }
             }
             Err(e) => {

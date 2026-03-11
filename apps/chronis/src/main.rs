@@ -8,6 +8,7 @@ use chronis::{
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
+#[cfg_attr(feature = "hotpath", hotpath::main)]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()

@@ -214,8 +214,7 @@ impl CrdtResolver {
         let is_new = self
             .version_vectors
             .get(&event.origin_region)
-            .map(|vv| vv.is_new(&event.origin_region, &event.hlc_timestamp))
-            .unwrap_or(true);
+            .is_none_or(|vv| vv.is_new(&event.origin_region, &event.hlc_timestamp));
 
         if !is_new {
             return ConflictResolution::Skip;
@@ -236,14 +235,14 @@ impl CrdtResolver {
         match self.strategy_for(event_type) {
             MergeStrategy::AppendOnly => ConflictResolution::Accept,
             MergeStrategy::LastWriteWins => {
-                let key = format!("{}\x00{}", entity_id, event_type);
+                let key = format!("{entity_id}\x00{event_type}");
                 match self.entity_type_winners.get(&key) {
                     Some(existing) if event.hlc_timestamp <= *existing => ConflictResolution::Skip,
                     _ => ConflictResolution::Accept,
                 }
             }
             MergeStrategy::FirstWriteWins => {
-                let key = format!("{}\x00{}", entity_id, event_type);
+                let key = format!("{entity_id}\x00{event_type}");
                 if self.entity_type_winners.contains_key(&key) {
                     ConflictResolution::Skip
                 } else {
@@ -275,7 +274,7 @@ impl CrdtResolver {
             .and_then(|v| v.as_str())
             .unwrap_or("");
         if !event_type.is_empty() && !entity_id.is_empty() {
-            let key = format!("{}\x00{}", entity_id, event_type);
+            let key = format!("{entity_id}\x00{event_type}");
             self.entity_type_winners
                 .entry(key)
                 .and_modify(|existing| {

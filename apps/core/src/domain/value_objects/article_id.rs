@@ -95,8 +95,7 @@ impl ArticleId {
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Article ID '{}' contains invalid characters. Only alphanumeric, hyphens, and underscores allowed",
-                value
+                "Article ID '{value}' contains invalid characters. Only alphanumeric, hyphens, and underscores allowed"
             )));
         }
 
@@ -156,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_article_id() {
-        let result = ArticleId::new("".to_string());
+        let result = ArticleId::new(String::new());
         assert!(result.is_err());
 
         if let Err(e) = result {
@@ -207,7 +206,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let article_id = ArticleId::new("test-article".to_string()).unwrap();
-        assert_eq!(format!("{}", article_id), "test-article");
+        assert_eq!(format!("{article_id}"), "test-article");
     }
 
     #[test]

@@ -60,7 +60,7 @@ impl AllsourceClient {
         let resp = self
             .http
             .post(&url)
-            .header("X-API-Key", &self.api_key)
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&event)
             .send()
             .await?;
@@ -87,7 +87,7 @@ impl AllsourceClient {
         let resp = self
             .http
             .get(&url)
-            .header("X-API-Key", &self.api_key)
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .query(&[("entity_id", entity_id), ("limit", "1")])
             .send()
             .await?;
@@ -130,7 +130,7 @@ impl AllsourceClient {
         let resp = self
             .http
             .get(&url)
-            .header("X-API-Key", &self.api_key)
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .query(&[
                 ("event_type_prefix", event_type_prefix),
                 ("limit", &limit.to_string()),
@@ -200,7 +200,7 @@ impl AllsourceClient {
         let resp = self
             .http
             .get(&url)
-            .header("X-API-Key", &self.api_key)
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .query(&[
                 ("event_type_prefix", event_type_prefix),
                 ("payload_filter", &filter.to_string()),
@@ -261,7 +261,7 @@ impl AllsourceClient {
         let resp = self
             .http
             .get(&url)
-            .header("X-API-Key", &self.api_key)
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .query(&[("event_type_prefix", event_type_prefix), ("limit", "10000")])
             .send()
             .await?;
@@ -322,7 +322,7 @@ impl AllsourceClient {
         let resp = self
             .http
             .get(&url)
-            .header("X-API-Key", &self.api_key)
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .query(&[("event_type_prefix", event_type_prefix), ("limit", "10000")])
             .send()
             .await?;

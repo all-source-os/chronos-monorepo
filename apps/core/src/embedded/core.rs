@@ -189,7 +189,7 @@ impl EmbeddedCore {
         }
 
         let store = Arc::clone(&self.store);
-        tokio::task::spawn_blocking(move || store.ingest(domain_event))
+        tokio::task::spawn_blocking(move || store.ingest(&domain_event))
             .await
             .map_err(|e| {
                 crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
@@ -260,7 +260,7 @@ impl EmbeddedCore {
 
         tokio::task::spawn_blocking(move || {
             // Query all token events for this entity
-            let all_events = store.query(QueryEventsRequest {
+            let all_events = store.query(&QueryEventsRequest {
                 entity_id: Some(entity_id.clone()),
                 event_type: Some("workflow.token".to_string()),
                 tenant_id: None,
@@ -282,8 +282,7 @@ impl EmbeddedCore {
             if all_events.iter().any(|e| e.tenant_id_str() != tenant_id) {
                 return Err(crate::error::AllSourceError::InvalidInput(
                     format!(
-                        "compact_tokens: entity '{}' has token events across multiple tenants — cannot merge",
-                        entity_id
+                        "compact_tokens: entity '{entity_id}' has token events across multiple tenants — cannot merge"
                     ),
                 ));
             }
@@ -292,7 +291,7 @@ impl EmbeddedCore {
             let mut tokens: Vec<(u64, String)> = all_events
                 .iter()
                 .map(|e| {
-                    let idx = e.payload.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let idx = e.payload.get("index").and_then(serde_json::Value::as_u64).unwrap_or(0);
                     let token = e
                         .payload
                         .get("token")
@@ -358,7 +357,7 @@ impl EmbeddedCore {
         // Get events from this store, filtered by version vector threshold
         let self_store = Arc::clone(&self.store);
         let all_events = tokio::task::spawn_blocking(move || {
-            self_store.query(QueryEventsRequest {
+            self_store.query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -418,7 +417,7 @@ impl EmbeddedCore {
             let peer_store = Arc::clone(&peer.store);
             tokio::task::spawn_blocking(move || {
                 for event in events_to_sync {
-                    peer_store.ingest(event)?;
+                    peer_store.ingest(&event)?;
                 }
                 Ok::<(), crate::error::AllSourceError>(())
             })
@@ -446,7 +445,7 @@ impl EmbeddedCore {
         };
 
         let store = Arc::clone(&self.store);
-        let events = tokio::task::spawn_blocking(move || store.query(request))
+        let events = tokio::task::spawn_blocking(move || store.query(&request))
             .await
             .map_err(|e| {
                 crate::error::AllSourceError::InvalidInput(format!("spawn_blocking failed: {e}"))
@@ -529,8 +528,7 @@ impl EmbeddedCore {
 
         if memory_events > 0 && !wal_enabled && !parquet_enabled {
             warnings.push(format!(
-                "{} events in memory only — no WAL or Parquet configured, data lost on restart",
-                memory_events
+                "{memory_events} events in memory only — no WAL or Parquet configured, data lost on restart"
             ));
         }
 
@@ -540,15 +538,13 @@ impl EmbeddedCore {
             && (wal_enabled || parquet_enabled)
         {
             warnings.push(format!(
-                "{} events in memory but 0 in WAL and 0 Parquet files — data loss on restart",
-                memory_events
+                "{memory_events} events in memory but 0 in WAL and 0 Parquet files — data loss on restart"
             ));
         }
 
         if parquet_pending_batch > 0 && parquet_files == 0 {
             warnings.push(format!(
-                "{} events buffered in Parquet batch but no Parquet files written yet",
-                parquet_pending_batch
+                "{parquet_pending_batch} events buffered in Parquet batch but no Parquet files written yet"
             ));
         }
 
@@ -651,7 +647,7 @@ impl EmbeddedCore {
 
                     let domain_event =
                         Event::from_strings(event_type, entity_id, tenant_id, payload, metadata)?;
-                    store.ingest(domain_event)?;
+                    store.ingest(&domain_event)?;
                 }
                 Ok::<(), crate::error::AllSourceError>(())
             })
@@ -688,7 +684,7 @@ impl EmbeddedCore {
 
         let store = Arc::clone(&self.store);
         let all_events = tokio::task::spawn_blocking(move || {
-            store.query(QueryEventsRequest {
+            store.query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,

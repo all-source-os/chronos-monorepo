@@ -254,11 +254,11 @@ impl Config {
     /// Load configuration from file
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = fs::read_to_string(path.as_ref()).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read config file: {}", e))
+            AllSourceError::StorageError(format!("Failed to read config file: {e}"))
         })?;
 
         toml::from_str(&content)
-            .map_err(|e| AllSourceError::ValidationError(format!("Invalid config format: {}", e)))
+            .map_err(|e| AllSourceError::ValidationError(format!("Invalid config format: {e}")))
     }
 
     /// Load configuration from environment variables
@@ -368,11 +368,11 @@ impl Config {
     /// Save configuration to TOML file
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let toml = toml::to_string_pretty(self).map_err(|e| {
-            AllSourceError::ValidationError(format!("Failed to serialize config: {}", e))
+            AllSourceError::ValidationError(format!("Failed to serialize config: {e}"))
         })?;
 
         fs::write(path.as_ref(), toml).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to write config file: {}", e))
+            AllSourceError::StorageError(format!("Failed to write config file: {e}"))
         })?;
 
         Ok(())

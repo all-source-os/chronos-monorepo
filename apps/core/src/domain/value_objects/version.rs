@@ -191,7 +191,7 @@ impl TryFrom<u32> for Version {
     type Error = crate::error::AllSourceError;
 
     fn try_from(value: u32) -> Result<Self> {
-        Version::new(value as u64)
+        Version::new(u64::from(value))
     }
 }
 
@@ -310,7 +310,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let version = Version::new(42).unwrap();
-        assert_eq!(format!("{}", version), "42");
+        assert_eq!(format!("{version}"), "42");
     }
 
     #[test]

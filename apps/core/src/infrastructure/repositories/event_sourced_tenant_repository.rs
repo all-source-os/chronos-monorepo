@@ -78,21 +78,20 @@ impl EventSourcedTenantRepository {
         let payload = event.payload();
 
         // Extract tenant_id from entity_id: _system:tenant:<tenant_id>
-        let tenant_id_str = match event.entity_id_str().strip_prefix("_system:tenant:") {
-            Some(id) => id,
-            None => {
-                tracing::warn!(
-                    "Unexpected entity_id in tenant stream: {}",
-                    event.entity_id_str()
-                );
-                return;
-            }
+        let Some(tenant_id_str) = event.entity_id_str().strip_prefix("_system:tenant:") else {
+            tracing::warn!(
+                "Unexpected entity_id in tenant stream: {}",
+                event.entity_id_str()
+            );
+            return;
         };
 
         match event_type {
             t if t == tenant_events::CREATED => {
                 let name = payload["name"].as_str().unwrap_or("").to_string();
-                let description = payload["description"].as_str().map(|s| s.to_string());
+                let description = payload["description"]
+                    .as_str()
+                    .map(std::string::ToString::to_string);
                 let quotas: TenantQuotas = payload
                     .get("quotas")
                     .and_then(|q| serde_json::from_value(q.clone()).ok())
@@ -126,7 +125,9 @@ impl EventSourcedTenantRepository {
                         let _ = tenant.update_name(name.to_string());
                     }
                     if payload.get("description").is_some() {
-                        let desc = payload["description"].as_str().map(|s| s.to_string());
+                        let desc = payload["description"]
+                            .as_str()
+                            .map(std::string::ToString::to_string);
                         tenant.update_description(desc);
                     }
                     if let Some(is_demo) = payload["is_demo"].as_bool() {
@@ -235,11 +236,7 @@ impl TenantRepository for EventSourcedTenantRepository {
             }
 
             // Sync active status
-            let is_cached_active = self
-                .cache
-                .get(&id_str)
-                .map(|t| t.is_active())
-                .unwrap_or(true);
+            let is_cached_active = self.cache.get(&id_str).map_or(true, |t| t.is_active());
             if tenant.is_active() != is_cached_active && tenant.is_active() {
                 self.emit_event(tenant_events::REACTIVATED, &id_str, json!({}))?;
             } else if tenant.is_active() != is_cached_active {
@@ -345,7 +342,7 @@ impl TenantRepository for EventSourcedTenantRepository {
                 let updated = Tenant::reconstruct(
                     tenant.id().clone(),
                     tenant.name().to_string(),
-                    tenant.description().map(|s| s.to_string()),
+                    tenant.description().map(std::string::ToString::to_string),
                     tenant.quotas().clone(),
                     usage,
                     tenant.created_at(),
@@ -463,8 +460,8 @@ mod tests {
         let (repo, _dir) = create_test_repo();
 
         for i in 0..5 {
-            let id = TenantId::new(format!("tenant-{}", i)).unwrap();
-            repo.create(id, format!("Tenant {}", i), TenantQuotas::standard())
+            let id = TenantId::new(format!("tenant-{i}")).unwrap();
+            repo.create(id, format!("Tenant {i}"), TenantQuotas::standard())
                 .await
                 .unwrap();
         }
@@ -646,7 +643,11 @@ mod tests {
 
         let active = repo.find_active(10, 0).await.unwrap();
         assert_eq!(active.len(), 2);
-        assert!(active.iter().all(|t| t.is_active()));
+        assert!(
+            active
+                .iter()
+                .all(crate::domain::entities::tenant::Tenant::is_active)
+        );
     }
 
     #[tokio::test]

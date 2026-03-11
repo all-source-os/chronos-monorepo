@@ -177,8 +177,7 @@ impl KmsClient for LocalKms {
             }
             _ => {
                 return Err(AllSourceError::ValidationError(format!(
-                    "Algorithm {:?} not supported in local KMS",
-                    algorithm
+                    "Algorithm {algorithm:?} not supported in local KMS"
                 )));
             }
         };

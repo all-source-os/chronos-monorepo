@@ -67,6 +67,7 @@ impl SystemBootstrap {
     ///
     /// # Returns
     /// `SystemRepositories` with all event-sourced repos initialized and caches populated.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub async fn initialize(
         system_data_dir: PathBuf,
         bootstrap_tenant: Option<String>,
@@ -175,24 +176,23 @@ impl SystemBootstrap {
         system_data_dir: Option<PathBuf>,
         bootstrap_tenant: Option<String>,
     ) -> Option<SystemRepositories> {
-        match system_data_dir {
-            Some(dir) => match Self::initialize(dir, bootstrap_tenant).await {
+        if let Some(dir) = system_data_dir {
+            match Self::initialize(dir, bootstrap_tenant).await {
                 Ok(repos) => Some(repos),
                 Err(e) => {
                     tracing::error!(
                         "Failed to initialize system metadata store: {}. \
-                         Falling back to in-memory repositories.",
+                     Falling back to in-memory repositories.",
                         e
                     );
                     None
                 }
-            },
-            None => {
-                tracing::info!(
-                    "No system_data_dir configured. Using in-memory repositories for metadata."
-                );
-                None
             }
+        } else {
+            tracing::info!(
+                "No system_data_dir configured. Using in-memory repositories for metadata."
+            );
+            None
         }
     }
 }

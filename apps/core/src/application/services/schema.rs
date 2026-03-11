@@ -179,11 +179,7 @@ impl SchemaRegistry {
         tags: Option<Vec<String>>,
     ) -> Result<RegisterSchemaResponse> {
         // Determine next version
-        let next_version = self
-            .latest_versions
-            .get(&subject)
-            .map(|v| *v + 1)
-            .unwrap_or(1);
+        let next_version = self.latest_versions.get(&subject).map_or(1, |v| *v + 1);
 
         // Check compatibility with previous version if it exists
         if next_version > 1 {
@@ -256,8 +252,7 @@ impl SchemaRegistry {
 
         subject_schemas.get(&version).cloned().ok_or_else(|| {
             AllSourceError::ValidationError(format!(
-                "Schema version {} not found for subject: {}",
-                version, subject
+                "Schema version {version} not found for subject: {subject}"
             ))
         })
     }
@@ -340,8 +335,7 @@ impl SchemaRegistry {
 
             if expected_type != actual_type {
                 errors.push(format!(
-                    "Type mismatch: expected {}, got {}",
-                    expected_type, actual_type
+                    "Type mismatch: expected {expected_type}, got {actual_type}"
                 ));
             }
         }
@@ -423,8 +417,7 @@ impl SchemaRegistry {
                     && !new_required.contains(&field_name)
                 {
                     issues.push(format!(
-                        "Backward compatibility: required field '{}' removed",
-                        field_name
+                        "Backward compatibility: required field '{field_name}' removed"
                     ));
                 }
             }
@@ -453,8 +446,7 @@ impl SchemaRegistry {
                     && !old_required.contains(&field_name)
                 {
                     issues.push(format!(
-                        "Forward compatibility: new required field '{}' added",
-                        field_name
+                        "Forward compatibility: new required field '{field_name}' added"
                     ));
                 }
             }
@@ -472,8 +464,7 @@ impl SchemaRegistry {
     pub fn get_compatibility_mode(&self, subject: &str) -> CompatibilityMode {
         self.compatibility_modes
             .get(subject)
-            .map(|entry| *entry.value())
-            .unwrap_or(self.config.default_compatibility)
+            .map_or(self.config.default_compatibility, |entry| *entry.value())
     }
 
     /// Delete a specific schema version

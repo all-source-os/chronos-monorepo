@@ -23,9 +23,8 @@ impl StdioTransport {
         let mut stdout = std::io::stdout();
 
         for line in stdin.lock().lines() {
-            let line = match line {
-                Ok(l) => l,
-                Err(_) => break, // EOF
+            let Ok(line) = line else {
+                break; // EOF
             };
 
             let line = line.trim().to_string();

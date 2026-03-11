@@ -240,7 +240,7 @@ pub async fn list_transactions_handler(
         state.transaction_repo.query(&query).await?
     };
 
-    let response = ListTransactionsUseCase::execute(transactions);
+    let response = ListTransactionsUseCase::execute(&transactions);
 
     tracing::debug!(count = response.count, "Listed transactions");
 
@@ -480,7 +480,7 @@ mod tests {
 
     #[test]
     fn test_list_transactions_params_default() {
-        let json = r#"{}"#;
+        let json = r"{}";
         let params: ListTransactionsParams = serde_json::from_str(json).unwrap();
         assert!(params.tenant_id.is_none());
         assert!(params.article_id.is_none());

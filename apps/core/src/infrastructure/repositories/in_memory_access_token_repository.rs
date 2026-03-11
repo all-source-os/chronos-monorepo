@@ -71,8 +71,7 @@ impl AccessTokenRepository for InMemoryAccessTokenRepository {
             let hash = token.token_hash();
             if tokens.values().any(|t| t.token_hash() == hash) {
                 return Err(crate::error::AllSourceError::ValidationError(format!(
-                    "Token with hash '{}' already exists",
-                    hash
+                    "Token with hash '{hash}' already exists"
                 )));
             }
         }
@@ -295,11 +294,11 @@ impl AccessTokenRepository for InMemoryAccessTokenRepository {
         }
 
         if query.valid_only {
-            result.retain(|t| t.is_valid());
+            result.retain(crate::domain::entities::access_token::AccessToken::is_valid);
         }
 
         if query.revoked_only {
-            result.retain(|t| t.is_revoked());
+            result.retain(crate::domain::entities::access_token::AccessToken::is_revoked);
         }
 
         if let Some(date) = query.issued_after {
@@ -530,7 +529,7 @@ mod tests {
         for i in 0..3 {
             let token = AccessToken::new_paid(
                 test_tenant_id(),
-                ArticleId::new(format!("article-{}", i)).unwrap(),
+                ArticleId::new(format!("article-{i}")).unwrap(),
                 test_creator_id(),
                 wallet.clone(),
                 test_transaction_id(),
@@ -574,7 +573,7 @@ mod tests {
         for i in 0..3 {
             let token = AccessToken::new_paid(
                 test_tenant_id(),
-                ArticleId::new(format!("article-{}", i)).unwrap(),
+                ArticleId::new(format!("article-{i}")).unwrap(),
                 creator_id,
                 test_wallet_n(i),
                 test_transaction_id(),
@@ -624,7 +623,7 @@ mod tests {
         for i in 0..3 {
             let token = AccessToken::new_paid(
                 test_tenant_id(),
-                ArticleId::new(format!("article-{}", i)).unwrap(),
+                ArticleId::new(format!("article-{i}")).unwrap(),
                 test_creator_id(),
                 test_wallet(),
                 transaction_id,
@@ -745,7 +744,7 @@ mod tests {
         for i in 0..5 {
             let token = AccessToken::new_paid(
                 test_tenant_id(),
-                ArticleId::new(format!("article-{}", i)).unwrap(),
+                ArticleId::new(format!("article-{i}")).unwrap(),
                 test_creator_id(),
                 test_wallet_n(i),
                 test_transaction_id(),
@@ -800,7 +799,7 @@ mod tests {
         let repo = InMemoryAccessTokenRepository::new();
 
         for i in 0..3 {
-            let token = create_test_token(&format!("{:04}", i));
+            let token = create_test_token(&format!("{i:04}"));
             repo.save(&token).await.unwrap();
         }
 

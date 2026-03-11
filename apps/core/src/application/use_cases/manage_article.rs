@@ -215,7 +215,7 @@ impl RecordArticlePurchaseUseCase {
 pub struct ListArticlesUseCase;
 
 impl ListArticlesUseCase {
-    pub fn execute(articles: Vec<PaywallArticle>) -> ListArticlesResponse {
+    pub fn execute(articles: &[PaywallArticle]) -> ListArticlesResponse {
         let article_dtos: Vec<ArticleDto> = articles.iter().map(ArticleDto::from).collect();
         let count = article_dtos.len();
 
@@ -534,7 +534,7 @@ mod tests {
             .unwrap(),
         ];
 
-        let response = ListArticlesUseCase::execute(articles);
+        let response = ListArticlesUseCase::execute(&articles);
         assert_eq!(response.count, 2);
         assert_eq!(response.articles.len(), 2);
     }

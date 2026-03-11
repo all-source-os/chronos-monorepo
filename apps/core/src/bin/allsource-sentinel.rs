@@ -152,7 +152,7 @@ impl SentinelClient {
             Ok(())
         } else {
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Promote failed on {}: {}", base_url, body)
+            anyhow::bail!("Promote failed on {base_url}: {body}")
         }
     }
 
@@ -169,7 +169,7 @@ impl SentinelClient {
             Ok(())
         } else {
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Repoint failed on {}: {}", base_url, body)
+            anyhow::bail!("Repoint failed on {base_url}: {body}")
         }
     }
 }
@@ -180,7 +180,7 @@ fn extract_follower_offset(health: &HealthResponse) -> u64 {
         .replication
         .as_ref()
         .and_then(|r| r.get("last_replayed_offset"))
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(0)
 }
 
@@ -193,7 +193,7 @@ fn replication_addr_from_url(http_url: &str, replication_port: u16) -> String {
     if let Ok(url) = url::Url::parse(http_url)
         && let Some(host) = url.host_str()
     {
-        return format!("{}:{}", host, replication_port);
+        return format!("{host}:{replication_port}");
     }
     // Fallback: try simple parsing
     let stripped = http_url
@@ -201,7 +201,7 @@ fn replication_addr_from_url(http_url: &str, replication_port: u16) -> String {
         .trim_start_matches("https://");
     let host = stripped.split(':').next().unwrap_or(stripped);
     let host = host.split('/').next().unwrap_or(host);
-    format!("{}:{}", host, replication_port)
+    format!("{host}:{replication_port}")
 }
 
 /// Run the sentinel failover loop.

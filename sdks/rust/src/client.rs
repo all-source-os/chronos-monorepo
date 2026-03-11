@@ -81,8 +81,8 @@ impl HttpTransport {
 
         let mut headers = HeaderMap::new();
         headers.insert(
-            "X-API-Key",
-            HeaderValue::from_str(&config.api_key)
+            "Authorization",
+            HeaderValue::from_str(&format!("Bearer {}", config.api_key))
                 .map_err(|e| Error::Config(format!("invalid API key: {e}")))?,
         );
         headers.insert("Accept", HeaderValue::from_static("application/json"));
@@ -232,6 +232,7 @@ impl QueryClient {
     }
 
     /// Create with full configuration.
+    #[allow(clippy::needless_pass_by_value)] // public API — taking ownership is idiomatic
     pub fn with_config(config: ClientConfig) -> Result<Self, Error> {
         Ok(Self {
             transport: Arc::new(HttpTransport::new(&config)?),
@@ -355,6 +356,7 @@ impl CoreClient {
     }
 
     /// Create with full configuration.
+    #[allow(clippy::needless_pass_by_value)] // public API — taking ownership is idiomatic
     pub fn with_config(config: ClientConfig) -> Result<Self, Error> {
         Ok(Self {
             transport: Arc::new(HttpTransport::new(&config)?),

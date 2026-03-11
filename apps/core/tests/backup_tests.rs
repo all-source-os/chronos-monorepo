@@ -31,13 +31,7 @@ fn test_backup_creation() {
 
     // Create test events
     let events: Vec<Event> = (0..100)
-        .map(|i| {
-            create_test_event(
-                &format!("entity-{}", i % 10),
-                &format!("test.event.{}", i),
-                i,
-            )
-        })
+        .map(|i| create_test_event(&format!("entity-{}", i % 10), &format!("test.event.{i}"), i))
         .collect();
 
     // Create backup
@@ -64,7 +58,7 @@ fn test_backup_restore() {
 
     // Create test events
     let events: Vec<Event> = (0..50)
-        .map(|i| create_test_event(&format!("entity-{}", i), "test.event", i))
+        .map(|i| create_test_event(&format!("entity-{i}"), "test.event", i))
         .collect();
 
     // Create backup
@@ -116,7 +110,7 @@ fn test_backup_compression() {
         .map(|i| {
             Event::from_strings(
                 "test.event".to_string(),
-                format!("entity-{}", i),
+                format!("entity-{i}"),
                 "test-tenant".to_string(),
                 json!({
                     "data": "x".repeat(1000),
@@ -148,7 +142,7 @@ fn test_list_backups() {
 
     // Create multiple backups
     for i in 0..3 {
-        let events: Vec<Event> = vec![create_test_event("entity-1", &format!("test.{}", i), i)];
+        let events: Vec<Event> = vec![create_test_event("entity-1", &format!("test.{i}"), i)];
 
         manager.create_backup(&events).unwrap();
     }

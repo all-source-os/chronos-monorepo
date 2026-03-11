@@ -68,8 +68,7 @@ impl ForkRepository for InMemoryForkRepository {
 
         if forks.contains_key(&id) {
             return Err(crate::error::AllSourceError::ValidationError(format!(
-                "Fork with ID '{}' already exists",
-                id
+                "Fork with ID '{id}' already exists"
             )));
         }
 
@@ -374,7 +373,7 @@ mod tests {
 
         // Create forks for test-tenant
         for i in 0..3 {
-            let fork = create_test_fork(&format!("fork-{}", i));
+            let fork = create_test_fork(&format!("fork-{i}"));
             repo.create(fork).await.unwrap();
         }
 
@@ -456,7 +455,7 @@ mod tests {
         let repo = InMemoryForkRepository::new();
 
         for i in 0..5 {
-            let fork = create_test_fork(&format!("fork-{}", i));
+            let fork = create_test_fork(&format!("fork-{i}"));
             repo.create(fork).await.unwrap();
         }
 
@@ -470,7 +469,7 @@ mod tests {
         let repo = InMemoryForkRepository::new();
 
         for i in 0..3 {
-            let fork = create_test_fork(&format!("fork-{}", i));
+            let fork = create_test_fork(&format!("fork-{i}"));
             repo.create(fork).await.unwrap();
         }
 
@@ -507,7 +506,7 @@ mod tests {
         let repo = InMemoryForkRepository::new();
 
         for i in 0..3 {
-            let fork = create_test_fork(&format!("fork-{}", i));
+            let fork = create_test_fork(&format!("fork-{i}"));
             repo.create(fork).await.unwrap();
         }
 

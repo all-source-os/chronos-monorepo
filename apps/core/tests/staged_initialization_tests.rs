@@ -173,11 +173,11 @@ async fn test_static_stability_data_plane_uses_cache() {
         None,
     )
     .unwrap();
-    store.ingest(event).unwrap();
+    store.ingest(&event).unwrap();
 
     // Verify data plane works
     let events = store
-        .query(QueryEventsRequest {
+        .query(&QueryEventsRequest {
             entity_id: Some("order-1".to_string()),
             event_type: None,
             tenant_id: None,
@@ -350,7 +350,7 @@ fn test_system_events_rejected_from_user_eventstore() {
     )
     .unwrap();
 
-    let result = store.ingest(event);
+    let result = store.ingest(&event);
     assert!(
         result.is_err(),
         "System events must be rejected from user-facing ingestion"

@@ -25,7 +25,7 @@ fn create_event(entity_id: &str, event_type: &str, payload: serde_json::Value) -
 fn bench_ingestion_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("ingestion_throughput");
 
-    for size in [100, 1_000, 10_000].iter() {
+    for size in &[100, 1_000, 10_000] {
         group.throughput(Throughput::Elements(*size as u64));
 
         group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
@@ -37,7 +37,7 @@ fn bench_ingestion_throughput(c: &mut Criterion) {
                         "benchmark.event",
                         json!({"index": i, "data": "payload"}),
                     );
-                    store.ingest(event).unwrap();
+                    store.ingest(&event).unwrap();
                 }
             });
         });
@@ -58,7 +58,7 @@ fn bench_query_performance(c: &mut Criterion) {
             "query.test",
             json!({"value": i}),
         );
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     group.bench_function("query_all_entity_events", |b| {
@@ -73,7 +73,7 @@ fn bench_query_performance(c: &mut Criterion) {
                 limit: None,
                 ..Default::default()
             };
-            black_box(store.query(query).unwrap());
+            black_box(store.query(&query).unwrap());
         });
     });
 
@@ -89,7 +89,7 @@ fn bench_query_performance(c: &mut Criterion) {
                 limit: Some(100),
                 ..Default::default()
             };
-            black_box(store.query(query).unwrap());
+            black_box(store.query(&query).unwrap());
         });
     });
 
@@ -109,7 +109,7 @@ fn bench_state_reconstruction(c: &mut Criterion) {
                 "state.update",
                 json!({"value": i, "timestamp": Utc::now()}),
             );
-            store.ingest(event).unwrap();
+            store.ingest(&event).unwrap();
         }
 
         group.bench_function("without_snapshot_1000_events", |b| {
@@ -145,7 +145,7 @@ fn bench_state_reconstruction(c: &mut Criterion) {
                 "state.update",
                 json!({"value": i}),
             );
-            store.ingest(event).unwrap();
+            store.ingest(&event).unwrap();
         }
 
         group.bench_function("with_snapshots_1000_events", |b| {
@@ -166,7 +166,7 @@ fn bench_state_reconstruction(c: &mut Criterion) {
 fn bench_concurrent_writes(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_writes");
 
-    for thread_count in [1, 2, 4, 8].iter() {
+    for thread_count in &[1, 2, 4, 8] {
         group.bench_with_input(
             BenchmarkId::from_parameter(thread_count),
             thread_count,
@@ -180,11 +180,11 @@ fn bench_concurrent_writes(c: &mut Criterion) {
                         let handle = std::thread::spawn(move || {
                             for i in 0..250 {
                                 let event = create_event(
-                                    &format!("thread-{}-entity-{}", thread_id, i),
+                                    &format!("thread-{thread_id}-entity-{i}"),
                                     "concurrent.write",
                                     json!({"thread": thread_id, "index": i}),
                                 );
-                                store_clone.ingest(event).unwrap();
+                                store_clone.ingest(&event).unwrap();
                             }
                         });
                         handles.push(handle);
@@ -211,11 +211,11 @@ fn bench_index_lookups(c: &mut Criterion) {
     for entity_id in 0..100 {
         for i in 0..100 {
             let event = create_event(
-                &format!("indexed-entity-{}", entity_id),
+                &format!("indexed-entity-{entity_id}"),
                 &format!("event.type.{}", i % 10),
                 json!({"value": i}),
             );
-            store.ingest(event).unwrap();
+            store.ingest(&event).unwrap();
         }
     }
 
@@ -231,7 +231,7 @@ fn bench_index_lookups(c: &mut Criterion) {
                 limit: None,
                 ..Default::default()
             };
-            black_box(store.query(query).unwrap());
+            black_box(store.query(&query).unwrap());
         });
     });
 
@@ -247,7 +247,7 @@ fn bench_index_lookups(c: &mut Criterion) {
                 limit: None,
                 ..Default::default()
             };
-            black_box(store.query(query).unwrap());
+            black_box(store.query(&query).unwrap());
         });
     });
 
@@ -270,7 +270,7 @@ fn bench_parquet_writes(c: &mut Criterion) {
                     "parquet.write",
                     json!({"index": i}),
                 );
-                store.ingest(event).unwrap();
+                store.ingest(&event).unwrap();
             }
 
             store.flush_storage().unwrap();
@@ -292,7 +292,7 @@ fn bench_snapshot_operations(c: &mut Criterion) {
             "data.update",
             json!({"value": i, "data": format!("Event {}", i)}),
         );
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     group.bench_function("create_snapshot", |b| {
@@ -328,7 +328,7 @@ fn bench_wal_writes(c: &mut Criterion) {
 
             for i in 0..100 {
                 let event = create_event("wal-entity", "wal.test", json!({"index": i}));
-                store.ingest(event).unwrap();
+                store.ingest(&event).unwrap();
             }
         });
     });
@@ -340,7 +340,7 @@ fn bench_wal_writes(c: &mut Criterion) {
 fn bench_memory_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("memory_scaling");
 
-    for event_count in [1_000, 5_000, 10_000].iter() {
+    for event_count in &[1_000, 5_000, 10_000] {
         group.bench_with_input(
             BenchmarkId::from_parameter(event_count),
             event_count,
@@ -353,7 +353,7 @@ fn bench_memory_scaling(c: &mut Criterion) {
                             "memory.test",
                             json!({"value": i}),
                         );
-                        store.ingest(event).unwrap();
+                        store.ingest(&event).unwrap();
                     }
                     black_box(store.stats());
                 });
@@ -375,7 +375,7 @@ fn bench_time_travel(c: &mut Criterion) {
     for i in 0..1_000 {
         let event = create_event("time-travel-entity", "history.event", json!({"version": i}));
         timestamps.push(event.timestamp);
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     group.bench_function("reconstruct_at_halfway", |b| {

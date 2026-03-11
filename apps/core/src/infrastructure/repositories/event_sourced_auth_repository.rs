@@ -47,14 +47,12 @@ impl EventSourcedAuthRepository {
             let event_type = event.event_type_str();
             let payload = event.payload();
 
-            let key_id_str = match event.entity_id_str().strip_prefix("_system:auth:") {
-                Some(k) => k,
-                None => continue,
+            let Some(key_id_str) = event.entity_id_str().strip_prefix("_system:auth:") else {
+                continue;
             };
 
-            let key_id = match Uuid::parse_str(key_id_str) {
-                Ok(id) => id,
-                Err(_) => continue,
+            let Ok(key_id) = Uuid::parse_str(key_id_str) else {
+                continue;
             };
 
             match event_type {

@@ -123,8 +123,7 @@ impl ProjectionName {
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Projection name '{}' must be alphanumeric with hyphens or underscores",
-                value
+                "Projection name '{value}' must be alphanumeric with hyphens or underscores"
             )));
         }
 
@@ -135,8 +134,7 @@ impl ProjectionName {
             || value.ends_with('_')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Projection name '{}' cannot start or end with hyphen or underscore",
-                value
+                "Projection name '{value}' cannot start or end with hyphen or underscore"
             )));
         }
 
@@ -198,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_name() {
-        let result = ProjectionName::new("".to_string());
+        let result = ProjectionName::new(String::new());
         assert!(result.is_err());
 
         if let Err(e) = result {
@@ -289,7 +287,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let name = ProjectionName::new("user_snapshot".to_string()).unwrap();
-        assert_eq!(format!("{}", name), "user_snapshot");
+        assert_eq!(format!("{name}"), "user_snapshot");
     }
 
     #[test]

@@ -113,13 +113,25 @@ impl AuthContext {
     }
 }
 
-/// Extract token from Authorization header
+/// Extract token from Authorization header, with X-API-Key fallback for backwards compatibility.
 fn extract_token(headers: &HeaderMap) -> Result<String, AllSourceError> {
-    let auth_header = headers
-        .get("authorization")
-        .ok_or_else(|| AllSourceError::ValidationError("Missing authorization header".to_string()))?
-        .to_str()
-        .map_err(|_| AllSourceError::ValidationError("Invalid authorization header".to_string()))?;
+    // Primary: Authorization header (Bearer <token> or plain <token>)
+    // Fallback: X-API-Key header (legacy, deprecated)
+    let auth_header = if let Some(val) = headers.get("authorization") {
+        val.to_str()
+            .map_err(|_| {
+                AllSourceError::ValidationError("Invalid authorization header".to_string())
+            })?
+            .to_string()
+    } else if let Some(val) = headers.get("x-api-key") {
+        val.to_str()
+            .map_err(|_| AllSourceError::ValidationError("Invalid X-API-Key header".to_string()))?
+            .to_string()
+    } else {
+        return Err(AllSourceError::ValidationError(
+            "Missing authorization header".to_string(),
+        ));
+    };
 
     // Support both "Bearer <token>" and "<token>" formats
     let token = if auth_header.starts_with("Bearer ") {
@@ -151,9 +163,23 @@ pub async fn auth_middleware(
         return Ok(next.run(request).await);
     }
 
-    // Dev mode: bypass authentication entirely
+    // Dev mode: if a valid token is present, authenticate normally so that
+    // /me returns the real tenant_id (not a hardcoded "dev-tenant").
+    // Fall back to the synthetic dev context only when no token is provided.
     if is_dev_mode() {
-        request.extensions_mut().insert(dev_mode_auth_context());
+        let headers = request.headers();
+        let auth_ctx = match extract_token(headers) {
+            Ok(token) => {
+                let claims = if token.starts_with("ask_") {
+                    auth_state.auth_manager.validate_api_key(&token).ok()
+                } else {
+                    auth_state.auth_manager.validate_token(&token).ok()
+                };
+                claims.map_or_else(dev_mode_auth_context, |c| AuthContext { claims: c })
+            }
+            Err(_) => dev_mode_auth_context(),
+        };
+        request.extensions_mut().insert(auth_ctx);
         return Ok(next.run(request).await);
     }
 
@@ -549,8 +575,7 @@ pub async fn request_id_middleware(mut request: Request, next: Next) -> Response
         .headers()
         .get("x-request-id")
         .and_then(|v| v.to_str().ok())
-        .map(|s| RequestId(s.to_string()))
-        .unwrap_or_else(RequestId::new);
+        .map_or_else(RequestId::new, |s| RequestId(s.to_string()));
 
     // Store request ID in extensions
     request.extensions_mut().insert(request_id.clone());
@@ -608,7 +633,7 @@ impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
             enable_hsts: true,
-            hsts_max_age: 31536000, // 1 year
+            hsts_max_age: 31_536_000, // 1 year
             enable_frame_options: true,
             frame_options: FrameOptions::Deny,
             enable_content_type_options: true,
@@ -953,16 +978,16 @@ mod tests {
         let allow_from = FrameOptions::AllowFrom("https://example.com".to_string());
 
         // Check that variants are distinct via debug formatting
-        assert!(format!("{:?}", deny).contains("Deny"));
-        assert!(format!("{:?}", same_origin).contains("SameOrigin"));
-        assert!(format!("{:?}", allow_from).contains("AllowFrom"));
+        assert!(format!("{deny:?}").contains("Deny"));
+        assert!(format!("{same_origin:?}").contains("SameOrigin"));
+        assert!(format!("{allow_from:?}").contains("AllowFrom"));
     }
 
     #[test]
     fn test_auth_error_from_validation_error() {
         let error = AllSourceError::ValidationError("test error".to_string());
         let auth_error = AuthError::from(error);
-        assert!(format!("{:?}", auth_error).contains("ValidationError"));
+        assert!(format!("{auth_error:?}").contains("ValidationError"));
     }
 
     #[test]
@@ -971,10 +996,10 @@ mod tests {
             retry_after: 60,
             limit: 100,
         };
-        assert!(format!("{:?}", error).contains("RateLimitExceeded"));
+        assert!(format!("{error:?}").contains("RateLimitExceeded"));
 
         let unauth_error = RateLimitError::Unauthorized;
-        assert!(format!("{:?}", unauth_error).contains("Unauthorized"));
+        assert!(format!("{unauth_error:?}").contains("Unauthorized"));
     }
 
     #[test]
@@ -989,7 +1014,7 @@ mod tests {
 
         for error in errors {
             // Ensure each variant can be debug-formatted
-            let _ = format!("{:?}", error);
+            let _ = format!("{error:?}");
         }
     }
 
@@ -1003,7 +1028,7 @@ mod tests {
         ];
 
         for error in errors {
-            let _ = format!("{:?}", error);
+            let _ = format!("{error:?}");
         }
     }
 

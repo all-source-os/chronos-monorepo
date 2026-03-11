@@ -95,8 +95,7 @@ impl EventStream {
         // Basic validation
         if watermark > current_version {
             return Err(AllSourceError::InvalidInput(format!(
-                "Watermark ({}) cannot exceed current version ({})",
-                watermark, current_version
+                "Watermark ({watermark}) cannot exceed current version ({current_version})"
             )));
         }
 
@@ -229,7 +228,7 @@ impl EventStream {
     /// Returns the tenant_id from the first event, or None if the stream is empty.
     /// All events in a stream should belong to the same tenant.
     pub fn tenant_id(&self) -> Option<&crate::domain::value_objects::TenantId> {
-        self.events.first().map(|e| e.tenant_id())
+        self.events.first().map(super::event::Event::tenant_id)
     }
 
     /// Validate that all events in the stream belong to the same tenant

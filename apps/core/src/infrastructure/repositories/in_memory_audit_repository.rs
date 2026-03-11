@@ -285,7 +285,7 @@ mod tests {
     };
 
     fn create_test_event(tenant_id: TenantId, action: AuditAction, actor_name: &str) -> AuditEvent {
-        let actor = Actor::user(format!("user-{}", actor_name), actor_name.to_string());
+        let actor = Actor::user(format!("user-{actor_name}"), actor_name.to_string());
         AuditEvent::new(tenant_id, action, actor, AuditOutcome::Success)
     }
 
@@ -471,7 +471,11 @@ mod tests {
 
         let results = repo.get_security_events(&tenant_id, 10).await.unwrap();
         assert_eq!(results.len(), 2);
-        assert!(results.iter().all(|e| e.is_security_event()));
+        assert!(
+            results
+                .iter()
+                .all(crate::domain::entities::audit_event::AuditEvent::is_security_event)
+        );
     }
 
     #[tokio::test]
@@ -481,7 +485,7 @@ mod tests {
 
         // Add 10 events
         for i in 0..10 {
-            let actor_name = format!("user-{}", i);
+            let actor_name = format!("user-{i}");
             repo.append(create_test_event(
                 tenant_id.clone(),
                 AuditAction::Login,
@@ -545,7 +549,7 @@ mod tests {
 
         // Add some events
         for i in 0..5 {
-            let actor_name = format!("user-{}", i);
+            let actor_name = format!("user-{i}");
             repo.append(create_test_event(
                 tenant_id.clone(),
                 AuditAction::Login,

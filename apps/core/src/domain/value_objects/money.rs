@@ -93,7 +93,7 @@ impl Money {
     /// assert_eq!(money.amount(), 50);
     /// ```
     pub fn from_decimal(decimal: f64, currency: Currency) -> Self {
-        let multiplier = 10_u64.pow(currency.decimals() as u32);
+        let multiplier = 10_u64.pow(u32::from(currency.decimals()));
         let amount = (decimal * multiplier as f64).round() as u64;
         Self { amount, currency }
     }
@@ -148,7 +148,7 @@ impl Money {
 
     /// Get the amount as a decimal
     pub fn as_decimal(&self) -> f64 {
-        let divisor = 10_u64.pow(self.currency.decimals() as u32);
+        let divisor = 10_u64.pow(u32::from(self.currency.decimals()));
         self.amount as f64 / divisor as f64
     }
 
@@ -403,19 +403,19 @@ mod tests {
     #[test]
     fn test_display_usd() {
         let money = Money::usd_cents(150);
-        assert_eq!(format!("{}", money), "$1.50");
+        assert_eq!(format!("{money}"), "$1.50");
     }
 
     #[test]
     fn test_display_usdc() {
         let money = Money::usdc_decimal(1.50);
-        assert_eq!(format!("{}", money), "1.50 USDC");
+        assert_eq!(format!("{money}"), "1.50 USDC");
     }
 
     #[test]
     fn test_display_sol() {
         let money = Money::sol(0.001);
-        assert_eq!(format!("{}", money), "0.0010 SOL");
+        assert_eq!(format!("{money}"), "0.0010 SOL");
     }
 
     #[test]

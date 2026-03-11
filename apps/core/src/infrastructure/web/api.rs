@@ -32,7 +32,6 @@ use crate::{
             },
         },
         query::{
-            eventql::EventQLRequest,
             geospatial::GeoQueryRequest,
             graphql::{GraphQLError, GraphQLRequest, GraphQLResponse},
         },
@@ -212,7 +211,6 @@ pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {
             get(list_webhook_deliveries),
         )
         // v2.0: Advanced query features
-        .route("/api/v1/eventql", post(eventql_query))
         .route("/api/v1/graphql", post(graphql_query))
         .route("/api/v1/geospatial/query", post(geo_query))
         .route("/api/v1/geospatial/stats", get(geo_stats))
@@ -289,7 +287,7 @@ pub async fn ingest_event(
     let event_id = event.id;
     let timestamp = event.timestamp;
 
-    let new_version = store.ingest_with_expected_version(event, expected_version)?;
+    let new_version = store.ingest_with_expected_version(&event, expected_version)?;
 
     tracing::info!("Event ingested: {}", event_id);
 
@@ -322,7 +320,7 @@ pub async fn ingest_event_v1(
 
     let new_version = state
         .store
-        .ingest_with_expected_version(event, expected_version)?;
+        .ingest_with_expected_version(&event, expected_version)?;
 
     // Semi-sync/sync: wait for follower ACK(s) before returning
     await_replication_ack(&state).await;
@@ -362,7 +360,7 @@ pub async fn ingest_events_batch(
         let event_id = event.id;
         let timestamp = event.timestamp;
 
-        let new_version = store.ingest_with_expected_version(event, expected_version)?;
+        let new_version = store.ingest_with_expected_version(&event, expected_version)?;
 
         ingested_events.push(IngestEventResponse {
             event_id,
@@ -408,7 +406,7 @@ pub async fn ingest_events_batch_v1(
 
         let new_version = state
             .store
-            .ingest_with_expected_version(event, expected_version)?;
+            .ingest_with_expected_version(&event, expected_version)?;
 
         ingested_events.push(IngestEventResponse {
             event_id,
@@ -449,7 +447,7 @@ pub async fn query_events(
         event_type_prefix: req.event_type_prefix,
         payload_filter: req.payload_filter,
     };
-    let all_events = store.query(unlimited_req)?;
+    let all_events = store.query(&unlimited_req)?;
     let total_count = all_events.len();
 
     // Apply limit
@@ -497,7 +495,7 @@ pub async fn list_entities(
         event_type_prefix: req.event_type_prefix,
         payload_filter: req.payload_filter,
     };
-    let events = store.query(query_req)?;
+    let events = store.query(&query_req)?;
 
     // Group by entity_id
     let mut entity_map: HashMap<String, Vec<&Event>> = HashMap::new();
@@ -553,7 +551,7 @@ pub async fn detect_duplicates(
 ) -> Result<Json<DetectDuplicatesResponse>> {
     use std::collections::HashMap;
 
-    let group_by_fields: Vec<&str> = req.group_by.split(',').map(|s| s.trim()).collect();
+    let group_by_fields: Vec<&str> = req.group_by.split(',').map(str::trim).collect();
 
     // Query events scoped by the required prefix
     let query_req = QueryEventsRequest {
@@ -567,7 +565,7 @@ pub async fn detect_duplicates(
         event_type_prefix: Some(req.event_type_prefix),
         payload_filter: None,
     };
-    let events = store.query(query_req)?;
+    let events = store.query(&query_req)?;
 
     // For each entity, extract the latest event's payload fields specified by group_by
     // Then group entities by those field values
@@ -594,7 +592,7 @@ pub async fn detect_duplicates(
                 .get(*field)
                 .cloned()
                 .unwrap_or(serde_json::Value::Null);
-            key_parts.insert(field.to_string(), value);
+            key_parts.insert((*field).to_string(), value);
         }
         let key_str = serde_json::to_string(&key_parts).unwrap_or_default();
         groups.entry(key_str).or_default().push(entity_id.clone());
@@ -799,7 +797,7 @@ pub async fn analytics_frequency(
     State(store): State<SharedStore>,
     Query(req): Query<EventFrequencyRequest>,
 ) -> Result<Json<EventFrequencyResponse>> {
-    let response = AnalyticsEngine::event_frequency(&store, req)?;
+    let response = AnalyticsEngine::event_frequency(&store, &req)?;
 
     tracing::debug!(
         "Frequency analysis returned {} buckets",
@@ -814,7 +812,7 @@ pub async fn analytics_summary(
     State(store): State<SharedStore>,
     Query(req): Query<StatsSummaryRequest>,
 ) -> Result<Json<StatsSummaryResponse>> {
-    let response = AnalyticsEngine::stats_summary(&store, req)?;
+    let response = AnalyticsEngine::stats_summary(&store, &req)?;
 
     tracing::debug!(
         "Stats summary: {} events across {} entities",
@@ -1215,10 +1213,7 @@ pub async fn get_pipeline(
     let pipeline_manager = store.pipeline_manager();
 
     let pipeline = pipeline_manager.get(pipeline_id).ok_or_else(|| {
-        crate::error::AllSourceError::ValidationError(format!(
-            "Pipeline not found: {}",
-            pipeline_id
-        ))
+        crate::error::AllSourceError::ValidationError(format!("Pipeline not found: {pipeline_id}"))
     })?;
 
     Ok(Json(pipeline.config().clone()))
@@ -1263,10 +1258,7 @@ pub async fn get_pipeline_stats(
     let pipeline_manager = store.pipeline_manager();
 
     let pipeline = pipeline_manager.get(pipeline_id).ok_or_else(|| {
-        crate::error::AllSourceError::ValidationError(format!(
-            "Pipeline not found: {}",
-            pipeline_id
-        ))
+        crate::error::AllSourceError::ValidationError(format!("Pipeline not found: {pipeline_id}"))
     })?;
 
     Ok(Json(pipeline.stats()))
@@ -1280,10 +1272,7 @@ pub async fn reset_pipeline(
     let pipeline_manager = store.pipeline_manager();
 
     let pipeline = pipeline_manager.get(pipeline_id).ok_or_else(|| {
-        crate::error::AllSourceError::ValidationError(format!(
-            "Pipeline not found: {}",
-            pipeline_id
-        ))
+        crate::error::AllSourceError::ValidationError(format!("Pipeline not found: {pipeline_id}"))
     })?;
 
     pipeline.reset();
@@ -1306,7 +1295,7 @@ pub async fn get_event_by_id(
     Path(event_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>> {
     let event = store.get_event_by_id(&event_id)?.ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Event '{}' not found", event_id))
+        crate::error::AllSourceError::EntityNotFound(format!("Event '{event_id}' not found"))
     })?;
 
     let dto = EventDto::from(&event);
@@ -1334,8 +1323,7 @@ pub async fn list_projections(State(store): State<SharedStore>) -> Json<serde_js
         .map(|(name, projection)| {
             let status = status_map
                 .get(name)
-                .map(|s| s.value().clone())
-                .unwrap_or_else(|| "running".to_string());
+                .map_or_else(|| "running".to_string(), |s| s.value().clone());
             serde_json::json!({
                 "name": name,
                 "type": format!("{:?}", projection.name()),
@@ -1718,7 +1706,7 @@ pub async fn get_webhook(
     let registry = store.webhook_registry();
 
     let webhook = registry.get(webhook_id).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{}' not found", webhook_id))
+        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{webhook_id}' not found"))
     })?;
 
     Ok(Json(serde_json::json!({
@@ -1736,7 +1724,7 @@ pub async fn update_webhook(
     let registry = store.webhook_registry();
 
     let webhook = registry.update(webhook_id, req).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{}' not found", webhook_id))
+        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{webhook_id}' not found"))
     })?;
 
     tracing::info!("Webhook updated: {}", webhook_id);
@@ -1755,7 +1743,7 @@ pub async fn delete_webhook(
     let registry = store.webhook_registry();
 
     let webhook = registry.delete(webhook_id).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{}' not found", webhook_id))
+        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{webhook_id}' not found"))
     })?;
 
     tracing::info!("Webhook deleted: {} ({})", webhook_id, webhook.url);
@@ -1782,7 +1770,7 @@ pub async fn list_webhook_deliveries(
 
     // Verify webhook exists
     registry.get(webhook_id).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{}' not found", webhook_id))
+        crate::error::AllSourceError::EntityNotFound(format!("Webhook '{webhook_id}' not found"))
     })?;
 
     let limit = params.limit.unwrap_or(50);
@@ -1801,9 +1789,10 @@ pub async fn list_webhook_deliveries(
 // =============================================================================
 
 /// EventQL: Execute SQL queries over events using DataFusion
+#[cfg(feature = "analytics")]
 pub async fn eventql_query(
     State(store): State<SharedStore>,
-    Json(req): Json<EventQLRequest>,
+    Json(req): Json<crate::infrastructure::query::eventql::EventQLRequest>,
 ) -> Result<Json<serde_json::Value>> {
     let events = store.snapshot_events();
     match crate::infrastructure::query::eventql::execute_eventql(&events, &req).await {
@@ -1851,7 +1840,7 @@ pub async fn graphql_query(
                     event_type_prefix: None,
                     payload_filter: None,
                 };
-                match store.query(request) {
+                match store.query(&request) {
                     Ok(events) => {
                         let json_events: Vec<serde_json::Value> = events
                             .iter()
@@ -2041,7 +2030,7 @@ pub async fn sync_pull_handler(
         .min()
         .and_then(|ms| chrono::DateTime::from_timestamp_millis(ms as i64));
 
-    let events = store.query(crate::application::dto::QueryEventsRequest {
+    let events = store.query(&crate::application::dto::QueryEventsRequest {
         entity_id: None,
         event_type: None,
         tenant_id: None,
@@ -2123,7 +2112,7 @@ pub async fn sync_push_handler(
 
         match Event::from_strings(event_type, entity_id, tenant_id, payload, metadata) {
             Ok(domain_event) => {
-                store.ingest(domain_event)?;
+                store.ingest(&domain_event)?;
                 accepted += 1;
             }
             Err(_) => {
@@ -2150,7 +2139,7 @@ pub async fn register_consumer(
 ) -> Result<Json<ConsumerResponse>> {
     let consumer = store
         .consumer_registry()
-        .register(req.consumer_id, req.event_type_filters);
+        .register(&req.consumer_id, &req.event_type_filters);
 
     Ok(Json(ConsumerResponse {
         consumer_id: consumer.consumer_id,
@@ -2255,7 +2244,7 @@ mod tests {
         // Ingest 50 events
         for i in 0..50 {
             store
-                .ingest(create_test_event(&format!("entity-{}", i), "user.created"))
+                .ingest(&create_test_event(&format!("entity-{i}"), "user.created"))
                 .unwrap();
         }
 
@@ -2287,7 +2276,7 @@ mod tests {
                 payload_filter: req.payload_filter,
             }
         };
-        let all_events = store.query(unlimited_req).unwrap();
+        let all_events = store.query(&unlimited_req).unwrap();
         let total_count = all_events.len();
         let limited_events: Vec<Event> = if let Some(limit) = requested_limit {
             all_events.into_iter().take(limit).collect()
@@ -2309,13 +2298,13 @@ mod tests {
         // Ingest 5 events
         for i in 0..5 {
             store
-                .ingest(create_test_event(&format!("entity-{}", i), "user.created"))
+                .ingest(&create_test_event(&format!("entity-{i}"), "user.created"))
                 .unwrap();
         }
 
         // Query with limit=100 — should get has_more=false, total_count=5
         let all_events = store
-            .query(QueryEventsRequest {
+            .query(&QueryEventsRequest {
                 entity_id: None,
                 event_type: None,
                 tenant_id: None,
@@ -2343,23 +2332,23 @@ mod tests {
 
         // 3 index entities
         store
-            .ingest(create_test_event("idx-1", "index.created"))
+            .ingest(&create_test_event("idx-1", "index.created"))
             .unwrap();
         store
-            .ingest(create_test_event("idx-1", "index.updated"))
+            .ingest(&create_test_event("idx-1", "index.updated"))
             .unwrap();
         store
-            .ingest(create_test_event("idx-2", "index.created"))
+            .ingest(&create_test_event("idx-2", "index.created"))
             .unwrap();
         store
-            .ingest(create_test_event("idx-3", "index.created"))
+            .ingest(&create_test_event("idx-3", "index.created"))
             .unwrap();
         // 2 trade entities
         store
-            .ingest(create_test_event("trade-1", "trade.created"))
+            .ingest(&create_test_event("trade-1", "trade.created"))
             .unwrap();
         store
-            .ingest(create_test_event("trade-2", "trade.created"))
+            .ingest(&create_test_event("trade-2", "trade.created"))
             .unwrap();
 
         // List entities for index.*
@@ -2380,7 +2369,7 @@ mod tests {
             event_type_prefix: req.event_type_prefix,
             payload_filter: req.payload_filter,
         };
-        let events = store.query(query_req).unwrap();
+        let events = store.query(&query_req).unwrap();
 
         // Group and verify
         let mut entity_map: std::collections::HashMap<String, Vec<&Event>> =
@@ -2419,35 +2408,35 @@ mod tests {
 
         // Create entities with duplicate "name" field values
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-1",
                 "index.created",
                 serde_json::json!({"name": "S&P 500", "user_id": "alice"}),
             ))
             .unwrap();
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-2",
                 "index.created",
                 serde_json::json!({"name": "S&P 500", "user_id": "bob"}),
             ))
             .unwrap();
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-3",
                 "index.created",
                 serde_json::json!({"name": "NASDAQ", "user_id": "alice"}),
             ))
             .unwrap();
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-4",
                 "index.created",
                 serde_json::json!({"name": "NASDAQ", "user_id": "carol"}),
             ))
             .unwrap();
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-5",
                 "index.created",
                 serde_json::json!({"name": "DAX", "user_id": "dave"}),
@@ -2466,7 +2455,7 @@ mod tests {
             event_type_prefix: Some("index.".to_string()),
             payload_filter: None,
         };
-        let events = store.query(query_req).unwrap();
+        let events = store.query(&query_req).unwrap();
 
         // Manually replicate the handler logic for testing
         let group_by_fields = vec!["name"];
@@ -2494,7 +2483,7 @@ mod tests {
                     .get(*field)
                     .cloned()
                     .unwrap_or(serde_json::Value::Null);
-                key_parts.insert(field.to_string(), value);
+                key_parts.insert((*field).to_string(), value);
             }
             let key_str = serde_json::to_string(&key_parts).unwrap_or_default();
             groups.entry(key_str).or_default().push(entity_id.clone());
@@ -2517,14 +2506,14 @@ mod tests {
 
         // All unique names
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-1",
                 "index.created",
                 serde_json::json!({"name": "A"}),
             ))
             .unwrap();
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-2",
                 "index.created",
                 serde_json::json!({"name": "B"}),
@@ -2542,7 +2531,7 @@ mod tests {
             event_type_prefix: Some("index.".to_string()),
             payload_filter: None,
         };
-        let events = store.query(query_req).unwrap();
+        let events = store.query(&query_req).unwrap();
 
         let mut entity_latest: std::collections::HashMap<String, &Event> =
             std::collections::HashMap::new();
@@ -2575,14 +2564,14 @@ mod tests {
 
         // Two entities with same name AND user_id = true duplicate
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-1",
                 "index.created",
                 serde_json::json!({"name": "S&P 500", "user_id": "alice"}),
             ))
             .unwrap();
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-2",
                 "index.created",
                 serde_json::json!({"name": "S&P 500", "user_id": "alice"}),
@@ -2590,7 +2579,7 @@ mod tests {
             .unwrap();
         // Same name but different user_id = NOT a duplicate in multi-field group
         store
-            .ingest(create_test_event_with_payload(
+            .ingest(&create_test_event_with_payload(
                 "idx-3",
                 "index.created",
                 serde_json::json!({"name": "S&P 500", "user_id": "bob"}),
@@ -2608,7 +2597,7 @@ mod tests {
             event_type_prefix: Some("index.".to_string()),
             payload_filter: None,
         };
-        let events = store.query(query_req).unwrap();
+        let events = store.query(&query_req).unwrap();
 
         let group_by_fields = vec!["name", "user_id"];
         let mut entity_latest: std::collections::HashMap<String, &Event> =
@@ -2634,7 +2623,7 @@ mod tests {
                     .get(*field)
                     .cloned()
                     .unwrap_or(serde_json::Value::Null);
-                key_parts.insert(field.to_string(), value);
+                key_parts.insert((*field).to_string(), value);
             }
             let key_str = serde_json::to_string(&key_parts).unwrap_or_default();
             groups.entry(key_str).or_default().push(entity_id.clone());
@@ -2695,7 +2684,7 @@ mod tests {
 
         // Ingest an event
         let event = create_test_event("user-456", "user.created");
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
 
         // Get projection state
         let projection_manager = store.projection_manager();
@@ -2718,7 +2707,7 @@ mod tests {
         // Insert multiple entities
         for i in 0..10 {
             cache.insert(
-                format!("entity_snapshots:entity-{}", i),
+                format!("entity_snapshots:entity-{i}"),
                 serde_json::json!({"id": i, "status": "active"}),
             );
         }
@@ -2728,7 +2717,7 @@ mod tests {
 
         // Verify each entity
         for i in 0..10 {
-            let key = format!("entity_snapshots:entity-{}", i);
+            let key = format!("entity_snapshots:entity-{i}");
             let state = cache.get(&key);
             assert!(state.is_some());
             assert_eq!(state.unwrap()["id"], i);
@@ -2763,13 +2752,13 @@ mod tests {
 
         // Ingest events of different types
         store
-            .ingest(create_test_event("user-1", "user.created"))
+            .ingest(&create_test_event("user-1", "user.created"))
             .unwrap();
         store
-            .ingest(create_test_event("user-2", "user.created"))
+            .ingest(&create_test_event("user-2", "user.created"))
             .unwrap();
         store
-            .ingest(create_test_event("user-1", "user.updated"))
+            .ingest(&create_test_event("user-1", "user.updated"))
             .unwrap();
 
         // Get event counter projection
@@ -2850,7 +2839,7 @@ mod tests {
                 let cache_clone = cache.clone();
                 tokio::spawn(async move {
                     cache_clone.insert(
-                        format!("concurrent:entity-{}", i),
+                        format!("concurrent:entity-{i}"),
                         serde_json::json!({"thread": i}),
                     );
                 })
@@ -2925,10 +2914,7 @@ mod tests {
 
         // Insert entries
         for i in 0..5 {
-            cache.insert(
-                format!("iter:entity-{}", i),
-                serde_json::json!({"index": i}),
-            );
+            cache.insert(format!("iter:entity-{i}"), serde_json::json!({"index": i}));
         }
 
         // Iterate over all entries
@@ -3028,8 +3014,8 @@ mod tests {
 
         // Ingest multiple events for different entities
         for i in 0..5 {
-            let event = create_test_event(&format!("bulk-user-{}", i), "user.created");
-            store.ingest(event).unwrap();
+            let event = create_test_event(&format!("bulk-user-{i}"), "user.created");
+            store.ingest(&event).unwrap();
         }
 
         // Get projection and verify bulk access
@@ -3040,8 +3026,8 @@ mod tests {
 
         // Verify we can access all entities
         for i in 0..5 {
-            let state = snapshot_projection.get_state(&format!("bulk-user-{}", i));
-            assert!(state.is_some(), "Entity bulk-user-{} should have state", i);
+            let state = snapshot_projection.get_state(&format!("bulk-user-{i}"));
+            assert!(state.is_some(), "Entity bulk-user-{i} should have state");
         }
     }
 
@@ -3137,7 +3123,7 @@ mod tests {
         // Simulate high volume save (1000 entities)
         for i in 0..1000 {
             cache.insert(
-                format!("volume_test:entity-{}", i),
+                format!("volume_test:entity-{i}"),
                 serde_json::json!({"index": i, "status": "active"}),
             );
         }
@@ -3159,7 +3145,7 @@ mod tests {
         // Save to multiple projections in bulk
         let projections = ["entity_snapshots", "event_counters", "custom_analytics"];
 
-        for proj in projections.iter() {
+        for proj in &projections {
             for i in 0..5 {
                 cache.insert(
                     format!("{proj}:entity-{i}"),
@@ -3172,7 +3158,7 @@ mod tests {
         assert_eq!(cache.len(), 15);
 
         // Verify each projection
-        for proj in projections.iter() {
+        for proj in &projections {
             let state = cache.get(&format!("{proj}:entity-0")).unwrap();
             assert_eq!(state["projection"], *proj);
         }

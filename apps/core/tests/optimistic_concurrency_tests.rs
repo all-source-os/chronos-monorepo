@@ -36,7 +36,7 @@ fn test_entity_version_increments_on_ingest() {
 
     for i in 1..=3 {
         let event = create_test_event("e1", "user.created");
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
         assert_eq!(store.get_entity_version("e1"), i);
     }
     assert_eq!(store.get_entity_version("e1"), 3);
@@ -47,13 +47,13 @@ fn test_entity_versions_independent_per_entity() {
     let store = EventStore::new();
 
     store
-        .ingest(create_test_event("e1", "user.created"))
+        .ingest(&create_test_event("e1", "user.created"))
         .unwrap();
     store
-        .ingest(create_test_event("e1", "user.updated"))
+        .ingest(&create_test_event("e1", "user.updated"))
         .unwrap();
     store
-        .ingest(create_test_event("e2", "user.created"))
+        .ingest(&create_test_event("e2", "user.created"))
         .unwrap();
 
     assert_eq!(store.get_entity_version("e1"), 2);
@@ -77,11 +77,11 @@ fn test_entity_version_survives_wal_restart() {
 
         for _ in 0..3 {
             store
-                .ingest(create_test_event("e1", "user.created"))
+                .ingest(&create_test_event("e1", "user.created"))
                 .unwrap();
         }
         store
-            .ingest(create_test_event("e2", "user.created"))
+            .ingest(&create_test_event("e2", "user.created"))
             .unwrap();
 
         assert_eq!(store.get_entity_version("e1"), 3);
@@ -112,12 +112,12 @@ fn test_expected_version_match_succeeds() {
 
     // Entity starts at version 0
     let v1 = store
-        .ingest_with_expected_version(create_test_event("e1", "user.created"), Some(0))
+        .ingest_with_expected_version(&create_test_event("e1", "user.created"), Some(0))
         .unwrap();
     assert_eq!(v1, 1);
 
     let v2 = store
-        .ingest_with_expected_version(create_test_event("e1", "user.updated"), Some(1))
+        .ingest_with_expected_version(&create_test_event("e1", "user.updated"), Some(1))
         .unwrap();
     assert_eq!(v2, 2);
 }
@@ -128,12 +128,12 @@ fn test_expected_version_mismatch_returns_conflict() {
 
     // Ingest first event (version becomes 1)
     store
-        .ingest(create_test_event("e1", "user.created"))
+        .ingest(&create_test_event("e1", "user.created"))
         .unwrap();
 
     // Try to write with expected_version=0 (stale) — should fail
     let result =
-        store.ingest_with_expected_version(create_test_event("e1", "user.updated"), Some(0));
+        store.ingest_with_expected_version(&create_test_event("e1", "user.updated"), Some(0));
 
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -141,7 +141,7 @@ fn test_expected_version_mismatch_returns_conflict() {
             assert_eq!(expected, 0);
             assert_eq!(current, 1);
         }
-        other => panic!("Expected VersionConflict, got: {:?}", other),
+        other => panic!("Expected VersionConflict, got: {other:?}"),
     }
 
     // Entity version should still be 1 (write was rejected)
@@ -154,15 +154,15 @@ fn test_no_expected_version_always_succeeds() {
 
     // Ingest some events first
     store
-        .ingest(create_test_event("e1", "user.created"))
+        .ingest(&create_test_event("e1", "user.created"))
         .unwrap();
     store
-        .ingest(create_test_event("e1", "user.updated"))
+        .ingest(&create_test_event("e1", "user.updated"))
         .unwrap();
 
     // Write without expected_version — always succeeds regardless of current version
     let v = store
-        .ingest_with_expected_version(create_test_event("e1", "user.updated"), None)
+        .ingest_with_expected_version(&create_test_event("e1", "user.updated"), None)
         .unwrap();
     assert_eq!(v, 3);
 }
@@ -173,15 +173,15 @@ fn test_concurrent_writes_one_wins_one_loses() {
 
     // Create entity at version 0
     store
-        .ingest(create_test_event("e1", "item.created"))
+        .ingest(&create_test_event("e1", "item.created"))
         .unwrap();
     // Now version is 1
 
     // Two "concurrent" writes both expecting version 1
     let result_a =
-        store.ingest_with_expected_version(create_test_event("e1", "item.claimed"), Some(1));
+        store.ingest_with_expected_version(&create_test_event("e1", "item.claimed"), Some(1));
     let result_b =
-        store.ingest_with_expected_version(create_test_event("e1", "item.claimed"), Some(1));
+        store.ingest_with_expected_version(&create_test_event("e1", "item.claimed"), Some(1));
 
     // One succeeds, one fails
     assert!(result_a.is_ok());
@@ -191,7 +191,7 @@ fn test_concurrent_writes_one_wins_one_loses() {
             assert_eq!(expected, 1);
             assert_eq!(current, 2); // first write bumped it to 2
         }
-        other => panic!("Expected VersionConflict, got: {:?}", other),
+        other => panic!("Expected VersionConflict, got: {other:?}"),
     }
 
     assert_eq!(store.get_entity_version("e1"), 2);
@@ -203,13 +203,13 @@ fn test_expected_version_for_new_entity() {
 
     // New entity — version is 0
     let v = store
-        .ingest_with_expected_version(create_test_event("new-entity", "item.created"), Some(0))
+        .ingest_with_expected_version(&create_test_event("new-entity", "item.created"), Some(0))
         .unwrap();
     assert_eq!(v, 1);
 
     // Trying expected_version=0 again should fail
     let result = store
-        .ingest_with_expected_version(create_test_event("new-entity", "item.created"), Some(0));
+        .ingest_with_expected_version(&create_test_event("new-entity", "item.created"), Some(0));
     assert!(result.is_err());
 }
 
@@ -223,12 +223,12 @@ fn test_query_by_entity_includes_entity_version() {
 
     for _ in 0..3 {
         store
-            .ingest(create_test_event("e1", "user.created"))
+            .ingest(&create_test_event("e1", "user.created"))
             .unwrap();
     }
 
     let events = store
-        .query(QueryEventsRequest {
+        .query(&QueryEventsRequest {
             entity_id: Some("e1".to_string()),
             ..Default::default()
         })
@@ -251,17 +251,17 @@ fn test_version_returned_on_successful_ingest() {
     let store = EventStore::new();
 
     let v1 = store
-        .ingest_with_expected_version(create_test_event("e1", "user.created"), None)
+        .ingest_with_expected_version(&create_test_event("e1", "user.created"), None)
         .unwrap();
     assert_eq!(v1, 1);
 
     let v2 = store
-        .ingest_with_expected_version(create_test_event("e1", "user.updated"), None)
+        .ingest_with_expected_version(&create_test_event("e1", "user.updated"), None)
         .unwrap();
     assert_eq!(v2, 2);
 
     let v3 = store
-        .ingest_with_expected_version(create_test_event("e1", "user.deleted"), Some(2))
+        .ingest_with_expected_version(&create_test_event("e1", "user.deleted"), Some(2))
         .unwrap();
     assert_eq!(v3, 3);
 }
@@ -275,7 +275,7 @@ fn test_consumer_register_and_get() {
     let store = EventStore::new();
     let registry = store.consumer_registry();
 
-    let c = registry.register("worker-1".into(), vec!["scheduler.*".into()]);
+    let c = registry.register("worker-1", &["scheduler.*".into()]);
     assert_eq!(c.consumer_id, "worker-1");
     assert_eq!(c.event_type_filters, vec!["scheduler.*"]);
     assert_eq!(c.cursor_position, None);
@@ -304,7 +304,7 @@ fn test_consumer_survives_wal_restart() {
     // Full WAL persistence of consumer state is tracked separately.
     let store = EventStore::new();
     let registry = store.consumer_registry();
-    registry.register("worker-1".into(), vec!["scheduler.*".into()]);
+    registry.register("worker-1", &["scheduler.*".into()]);
     registry.ack("worker-1", 5, 10).unwrap();
 
     // Restore into a new registry (simulating WAL recovery)
@@ -328,11 +328,11 @@ fn test_consumer_poll_returns_all_events() {
     // Ingest 5 events
     for i in 0..5 {
         store
-            .ingest(create_test_event("e1", &format!("event.type{}", i)))
+            .ingest(&create_test_event("e1", &format!("event.type{i}")))
             .unwrap();
     }
 
-    store.consumer_registry().register("c1".into(), vec![]);
+    store.consumer_registry().register("c1", &[]);
 
     let events = store.events_after_offset(0, &[], 100);
     assert_eq!(events.len(), 5);
@@ -347,12 +347,12 @@ fn test_consumer_poll_after_ack() {
 
     for i in 0..5 {
         store
-            .ingest(create_test_event("e1", &format!("event.type{}", i)))
+            .ingest(&create_test_event("e1", &format!("event.type{i}")))
             .unwrap();
     }
 
     let registry = store.consumer_registry();
-    registry.register("c1".into(), vec![]);
+    registry.register("c1", &[]);
     registry.ack("c1", 3, 5).unwrap();
 
     let consumer = registry.get("c1").unwrap();
@@ -372,13 +372,13 @@ fn test_consumer_poll_with_filters() {
     let store = EventStore::new();
 
     store
-        .ingest(create_test_event("e1", "scheduler.started"))
+        .ingest(&create_test_event("e1", "scheduler.started"))
         .unwrap();
     store
-        .ingest(create_test_event("e2", "trade.executed"))
+        .ingest(&create_test_event("e2", "trade.executed"))
         .unwrap();
     store
-        .ingest(create_test_event("e3", "scheduler.completed"))
+        .ingest(&create_test_event("e3", "scheduler.completed"))
         .unwrap();
 
     let filters = vec!["scheduler.*".to_string()];
@@ -393,10 +393,10 @@ fn test_consumer_poll_empty_when_caught_up() {
     let store = EventStore::new();
 
     store
-        .ingest(create_test_event("e1", "user.created"))
+        .ingest(&create_test_event("e1", "user.created"))
         .unwrap();
     store
-        .ingest(create_test_event("e2", "user.created"))
+        .ingest(&create_test_event("e2", "user.created"))
         .unwrap();
 
     // Poll from offset 2 (after all events)
@@ -413,12 +413,12 @@ fn test_consumer_ack_advances_cursor() {
     let store = EventStore::new();
     for _ in 0..5 {
         store
-            .ingest(create_test_event("e1", "user.created"))
+            .ingest(&create_test_event("e1", "user.created"))
             .unwrap();
     }
 
     let registry = store.consumer_registry();
-    registry.register("c1".into(), vec![]);
+    registry.register("c1", &[]);
     registry.ack("c1", 3, 5).unwrap();
     assert_eq!(registry.get("c1").unwrap().cursor_position, Some(3));
 }
@@ -428,12 +428,12 @@ fn test_consumer_ack_idempotent() {
     let store = EventStore::new();
     for _ in 0..5 {
         store
-            .ingest(create_test_event("e1", "user.created"))
+            .ingest(&create_test_event("e1", "user.created"))
             .unwrap();
     }
 
     let registry = store.consumer_registry();
-    registry.register("c1".into(), vec![]);
+    registry.register("c1", &[]);
     registry.ack("c1", 5, 5).unwrap();
 
     // Acking earlier position is a no-op
@@ -445,11 +445,11 @@ fn test_consumer_ack_idempotent() {
 fn test_consumer_ack_beyond_max_fails() {
     let store = EventStore::new();
     store
-        .ingest(create_test_event("e1", "user.created"))
+        .ingest(&create_test_event("e1", "user.created"))
         .unwrap();
 
     let registry = store.consumer_registry();
-    registry.register("c1".into(), vec![]);
+    registry.register("c1", &[]);
     let result = registry.ack("c1", 10, 1);
     assert!(result.is_err());
 }

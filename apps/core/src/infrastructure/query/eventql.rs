@@ -95,7 +95,7 @@ fn events_to_record_batch(events: &[Event]) -> Result<RecordBatch, arrow::error:
     let payloads: Vec<String> = events.iter().map(|e| e.payload.to_string()).collect();
     let metadatas: Vec<Option<String>> = events
         .iter()
-        .map(|e| e.metadata.as_ref().map(|m| m.to_string()))
+        .map(|e| e.metadata.as_ref().map(std::string::ToString::to_string))
         .collect();
     let timestamps: Vec<i64> = events
         .iter()

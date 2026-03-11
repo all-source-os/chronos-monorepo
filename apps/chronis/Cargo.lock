@@ -619,6 +619,7 @@ dependencies = [
  "crossterm",
  "dashmap",
  "fuzzy-matcher",
+ "hotpath",
  "notify",
  "rand 0.10.0",
  "ratatui",
@@ -1359,6 +1360,22 @@ checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest",
 ]
+
+[[package]]
+name = "hotpath"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fde50be006a0fe95cc2fd6d25d884aa6932218e4055d7df2fa0d95c386acf8d"
+dependencies = [
+ "hotpath-macros",
+ "tokio",
+]
+
+[[package]]
+name = "hotpath-macros"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd884cee056e269e41e1127549458e1c4e309f31897ebbc1416982a74d40a5b5"
 
 [[package]]
 name = "http"

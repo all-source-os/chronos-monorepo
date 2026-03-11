@@ -269,7 +269,7 @@ async fn main() -> Result<()> {
             password,
             role,
         } => {
-            println!("Creating user: {} ({})", username, email);
+            println!("Creating user: {username} ({email})");
             let auth_manager = Arc::new(AuthManager::default());
             let user = auth_manager.register_user(
                 username.clone(),
@@ -281,7 +281,7 @@ async fn main() -> Result<()> {
             println!("User created successfully!");
             println!("   ID: {}", user.id);
             println!("   Username: {}", user.username);
-            println!("   Role: {:?}", role);
+            println!("   Role: {role:?}");
         }
 
         Command::UserList => {
@@ -298,7 +298,7 @@ async fn main() -> Result<()> {
         }
 
         Command::UserDelete { username } => {
-            println!("Deleting user: {}", username);
+            println!("Deleting user: {username}");
             let auth_manager = Arc::new(AuthManager::default());
             // Find user by username first
             let users = auth_manager.list_users();
@@ -306,12 +306,12 @@ async fn main() -> Result<()> {
                 auth_manager.delete_user(&user.id)?;
                 println!("User deleted successfully!");
             } else {
-                println!("User not found: {}", username);
+                println!("User not found: {username}");
             }
         }
 
         Command::TenantCreate { id, name, tier } => {
-            println!("Creating tenant: {} ({})", id, name);
+            println!("Creating tenant: {id} ({name})");
             let repo = InMemoryTenantRepository::new();
             let quotas = match tier.as_str() {
                 "free" => TenantQuotas::free_tier(),
@@ -323,7 +323,7 @@ async fn main() -> Result<()> {
             let tenant = repo.create(tenant_id, name, quotas).await?;
             println!("Tenant created successfully!");
             println!("   ID: {}", tenant.id().as_str());
-            println!("   Tier: {}", tier);
+            println!("   Tier: {tier}");
         }
 
         Command::TenantList => {
@@ -342,7 +342,7 @@ async fn main() -> Result<()> {
         }
 
         Command::TenantStats { id } => {
-            println!("Fetching stats for tenant: {}", id);
+            println!("Fetching stats for tenant: {id}");
             let repo = InMemoryTenantRepository::new();
             let tenant_id = TenantId::new(id.clone())?;
             match repo.find_by_id(&tenant_id).await? {
@@ -356,18 +356,18 @@ async fn main() -> Result<()> {
                     });
                     println!("\n{}", serde_json::to_string_pretty(&stats)?);
                 }
-                None => println!("Tenant not found: {}", id),
+                None => println!("Tenant not found: {id}"),
             }
         }
 
         Command::TenantDeactivate { id } => {
-            println!("Deactivating tenant: {}", id);
+            println!("Deactivating tenant: {id}");
             let repo = InMemoryTenantRepository::new();
             let tenant_id = TenantId::new(id.clone())?;
             if repo.deactivate(&tenant_id).await? {
                 println!("Tenant deactivated successfully!");
             } else {
-                println!("Tenant not found: {}", id);
+                println!("Tenant not found: {id}");
             }
         }
 
@@ -396,7 +396,7 @@ async fn main() -> Result<()> {
         }
 
         Command::BackupRestore { backup_id } => {
-            println!("Restoring from backup: {}", backup_id);
+            println!("Restoring from backup: {backup_id}");
             let config = BackupConfig::default();
             let manager = BackupManager::new(config)?;
             let events = manager.restore_from_backup(&backup_id)?;
@@ -411,7 +411,7 @@ async fn main() -> Result<()> {
                         println!("\n{}", toml::to_string_pretty(&config)?);
                     }
                     Err(e) => {
-                        println!("Failed to load config: {}", e);
+                        println!("Failed to load config: {e}");
                     }
                 }
             } else if generate {

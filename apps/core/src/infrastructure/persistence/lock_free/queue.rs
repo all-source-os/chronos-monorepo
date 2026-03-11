@@ -131,7 +131,7 @@ mod tests {
     fn create_test_event(id: u32) -> Event {
         Event::from_strings(
             "test.event".to_string(),
-            format!("entity-{}", id),
+            format!("entity-{id}"),
             "default".to_string(),
             json!({"id": id}),
             None,

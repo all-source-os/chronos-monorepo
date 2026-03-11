@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_address() {
-        let result = WalletAddress::new("".to_string());
+        let result = WalletAddress::new(String::new());
         assert!(result.is_err());
 
         if let Err(e) = result {
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let wallet = WalletAddress::new(VALID_SOLANA_ADDRESS.to_string()).unwrap();
-        assert_eq!(format!("{}", wallet), VALID_SOLANA_ADDRESS);
+        assert_eq!(format!("{wallet}"), VALID_SOLANA_ADDRESS);
     }
 
     #[test]
@@ -310,7 +310,7 @@ mod tests {
 
         // Serialize
         let json = serde_json::to_string(&wallet).unwrap();
-        assert_eq!(json, format!("\"{}\"", VALID_SOLANA_ADDRESS));
+        assert_eq!(json, format!("\"{VALID_SOLANA_ADDRESS}\""));
 
         // Deserialize
         let deserialized: WalletAddress = serde_json::from_str(&json).unwrap();

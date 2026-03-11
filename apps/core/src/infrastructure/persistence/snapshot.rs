@@ -157,17 +157,24 @@ impl SnapshotManager {
     }
 
     /// Create a new snapshot for an entity
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn create_snapshot(
         &self,
-        entity_id: String,
+        entity_id: &str,
         state: serde_json::Value,
         as_of: DateTime<Utc>,
         event_count: usize,
         snapshot_type: SnapshotType,
     ) -> Result<Snapshot> {
-        let snapshot = Snapshot::new(entity_id.clone(), state, as_of, event_count, snapshot_type);
+        let snapshot = Snapshot::new(
+            entity_id.to_string(),
+            state,
+            as_of,
+            event_count,
+            snapshot_type,
+        );
 
-        let mut entity_snapshots = self.snapshots.entry(entity_id.clone()).or_default();
+        let mut entity_snapshots = self.snapshots.entry(entity_id.to_string()).or_default();
 
         // Add new snapshot
         entity_snapshots.push(snapshot.clone());
@@ -220,6 +227,7 @@ impl SnapshotManager {
     }
 
     /// Get the most recent snapshot for an entity
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn get_latest_snapshot(&self, entity_id: &str) -> Option<Snapshot> {
         self.snapshots
             .get(entity_id)
@@ -247,6 +255,7 @@ impl SnapshotManager {
     }
 
     /// Check if a new snapshot should be created for an entity
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn should_create_snapshot(
         &self,
         entity_id: &str,
@@ -284,11 +293,7 @@ impl SnapshotManager {
 
     /// Delete all snapshots for an entity
     pub fn delete_snapshots(&self, entity_id: &str) -> Result<usize> {
-        let removed = self
-            .snapshots
-            .remove(entity_id)
-            .map(|(_, v)| v.len())
-            .unwrap_or(0);
+        let removed = self.snapshots.remove(entity_id).map_or(0, |(_, v)| v.len());
 
         // Update stats
         let mut stats = self.stats.write();
@@ -432,7 +437,7 @@ mod tests {
         let manager = SnapshotManager::new(SnapshotConfig::default());
 
         let result = manager.create_snapshot(
-            "entity-1".to_string(),
+            "entity-1",
             json!({"value": 42}),
             Utc::now(),
             100,
@@ -458,7 +463,7 @@ mod tests {
         for i in 0..5 {
             manager
                 .create_snapshot(
-                    "entity-1".to_string(),
+                    "entity-1",
                     json!({"count": i}),
                     Utc::now(),
                     i,
@@ -491,7 +496,7 @@ mod tests {
         // Create a snapshot
         manager
             .create_snapshot(
-                "entity-1".to_string(),
+                "entity-1",
                 json!({"value": 1}),
                 Utc::now(),
                 100,
@@ -585,7 +590,7 @@ mod tests {
 
         manager
             .create_snapshot(
-                "entity-1".to_string(),
+                "entity-1",
                 json!({"value": 1}),
                 Utc::now(),
                 100,
@@ -606,7 +611,7 @@ mod tests {
 
         let snapshot = manager
             .create_snapshot(
-                "entity-1".to_string(),
+                "entity-1",
                 json!({"value": 1}),
                 Utc::now(),
                 100,
@@ -634,7 +639,7 @@ mod tests {
 
         manager
             .create_snapshot(
-                "entity-1".to_string(),
+                "entity-1",
                 json!({"value": 1}),
                 Utc::now(),
                 100,
@@ -643,7 +648,7 @@ mod tests {
             .unwrap();
         manager
             .create_snapshot(
-                "entity-2".to_string(),
+                "entity-2",
                 json!({"value": 2}),
                 Utc::now(),
                 200,
@@ -664,7 +669,7 @@ mod tests {
 
         manager
             .create_snapshot(
-                "entity-1".to_string(),
+                "entity-1",
                 json!({"value": 1}),
                 Utc::now(),
                 100,
@@ -673,7 +678,7 @@ mod tests {
             .unwrap();
         manager
             .create_snapshot(
-                "entity-2".to_string(),
+                "entity-2",
                 json!({"value": 2}),
                 Utc::now(),
                 200,
@@ -703,7 +708,7 @@ mod tests {
 
         manager
             .create_snapshot(
-                "entity-1".to_string(),
+                "entity-1",
                 json!({"value": 1}),
                 Utc::now(),
                 100,
@@ -727,7 +732,7 @@ mod tests {
         // Create snapshot in the past
         manager
             .create_snapshot(
-                "entity-1".to_string(),
+                "entity-1",
                 json!({"value": 1}),
                 past,
                 100,
@@ -759,7 +764,7 @@ mod tests {
         let past = Utc::now() - Duration::seconds(2);
         manager
             .create_snapshot(
-                "entity-1".to_string(),
+                "entity-1",
                 json!({"value": 1}),
                 past,
                 100,
@@ -808,7 +813,7 @@ mod tests {
         for i in 0..5 {
             manager
                 .create_snapshot(
-                    format!("entity-{}", i),
+                    &format!("entity-{i}"),
                     json!({"value": i}),
                     Utc::now(),
                     100 + i,

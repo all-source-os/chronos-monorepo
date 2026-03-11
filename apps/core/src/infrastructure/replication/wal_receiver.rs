@@ -159,8 +159,7 @@ impl WalReceiver {
         let leader = self
             .leader_addr
             .try_read()
-            .map(|g| g.clone())
-            .unwrap_or_else(|_| "unknown".to_string());
+            .map_or_else(|_| "unknown".to_string(), |g| g.clone());
 
         FollowerReplicationStatus {
             connected: self.connected.load(Ordering::Relaxed),
@@ -203,6 +202,7 @@ impl WalReceiver {
     /// Run the receiver loop with auto-reconnect. This runs until shutdown is signalled.
     ///
     /// Exponential backoff: 1s initial, doubles each attempt, capped at 30s.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub async fn run(self: Arc<Self>) {
         let mut backoff = Duration::from_secs(1);
         let max_backoff = Duration::from_secs(30);
@@ -250,8 +250,8 @@ impl WalReceiver {
 
             // Sleep with early wake on repoint/shutdown
             tokio::select! {
-                _ = tokio::time::sleep(backoff) => {}
-                _ = self.wake.notified() => {
+                () = tokio::time::sleep(backoff) => {}
+                () = self.wake.notified() => {
                     tracing::info!("WAL receiver woken early (repoint or shutdown)");
                     // Reset backoff on repoint so we reconnect quickly
                     backoff = Duration::from_secs(1);
@@ -268,7 +268,7 @@ impl WalReceiver {
         let leader_addr = self.leader_addr.read().await.clone();
         let stream = TcpStream::connect(&leader_addr)
             .await
-            .context(format!("TCP connect to leader at {}", leader_addr))?;
+            .context(format!("TCP connect to leader at {leader_addr}"))?;
         let peer = stream.peer_addr()?;
         tracing::info!("Connected to leader at {}", peer);
 
@@ -450,7 +450,7 @@ impl WalReceiver {
 
         let mut replayed = 0u64;
         for event in events {
-            if let Err(e) = store.ingest_replicated(event) {
+            if let Err(e) = store.ingest_replicated(&event) {
                 tracing::error!("Failed to replay snapshot event: {}", e);
             } else {
                 replayed += 1;
@@ -526,7 +526,7 @@ impl WalReceiver {
         }
 
         // Replay into EventStore (bypasses validation and local WAL write).
-        if let Err(e) = self.store.ingest_replicated(event) {
+        if let Err(e) = self.store.ingest_replicated(&event) {
             tracing::error!(
                 "Failed to replay event at offset {} into store: {}",
                 offset,

@@ -352,8 +352,7 @@ impl Pipeline {
             }
             _ => {
                 return Err(AllSourceError::ValidationError(format!(
-                    "Unknown filter operator: {}",
-                    op
+                    "Unknown filter operator: {op}"
                 )));
             }
         };
@@ -391,7 +390,7 @@ impl Pipeline {
                 // Try to parse as number operation
                 if let Some(stripped) = transform.strip_prefix("multiply:") {
                     if let Ok(multiplier) = stripped.parse::<f64>() {
-                        field_value.and_then(|v| v.as_f64()).map(|n| {
+                        field_value.and_then(serde_json::Value::as_f64).map(|n| {
                             JsonValue::Number(serde_json::Number::from_f64(n * multiplier).unwrap())
                         })
                     } else {
@@ -399,7 +398,7 @@ impl Pipeline {
                     }
                 } else if let Some(stripped) = transform.strip_prefix("add:") {
                     if let Ok(addend) = stripped.parse::<f64>() {
-                        field_value.and_then(|v| v.as_f64()).map(|n| {
+                        field_value.and_then(serde_json::Value::as_f64).map(|n| {
                             JsonValue::Number(serde_json::Number::from_f64(n + addend).unwrap())
                         })
                     } else {
@@ -437,7 +436,7 @@ impl Pipeline {
             "default".to_string()
         };
 
-        let state_key = format!("reduce_{}_{}", function, group_key);
+        let state_key = format!("reduce_{function}_{group_key}");
 
         // Get current aggregate value
         let current = self.state.get_state(&state_key);
@@ -452,13 +451,15 @@ impl Pipeline {
             }
             "sum" => {
                 let current_sum = current.and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let value_to_add = field_value.and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let value_to_add = field_value
+                    .and_then(serde_json::Value::as_f64)
+                    .unwrap_or(0.0);
                 JsonValue::Number(serde_json::Number::from_f64(current_sum + value_to_add).unwrap())
             }
             "avg" => {
                 // Store sum and count separately
-                let sum_key = format!("{}_sum", state_key);
-                let count_key = format!("{}_count", state_key);
+                let sum_key = format!("{state_key}_sum");
+                let count_key = format!("{state_key}_count");
 
                 let current_sum = self
                     .state
@@ -471,7 +472,9 @@ impl Pipeline {
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
 
-                let value_to_add = field_value.and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let value_to_add = field_value
+                    .and_then(serde_json::Value::as_f64)
+                    .unwrap_or(0.0);
 
                 let new_sum = current_sum + value_to_add;
                 let new_count = current_count + 1;
@@ -488,7 +491,7 @@ impl Pipeline {
             }
             "min" => {
                 let current_min = current.and_then(|v| v.as_f64());
-                let new_val = field_value.and_then(|v| v.as_f64());
+                let new_val = field_value.and_then(serde_json::Value::as_f64);
 
                 match (current_min, new_val) {
                     (Some(curr), Some(new)) => {
@@ -505,7 +508,7 @@ impl Pipeline {
             }
             "max" => {
                 let current_max = current.and_then(|v| v.as_f64());
-                let new_val = field_value.and_then(|v| v.as_f64());
+                let new_val = field_value.and_then(serde_json::Value::as_f64);
 
                 match (current_max, new_val) {
                     (Some(curr), Some(new)) => {
@@ -522,8 +525,7 @@ impl Pipeline {
             }
             _ => {
                 return Err(AllSourceError::ValidationError(format!(
-                    "Unknown reduce function: {}",
-                    function
+                    "Unknown reduce function: {function}"
                 )));
             }
         };
@@ -603,7 +605,7 @@ impl Pipeline {
         let mut result = value.clone();
 
         for field in fields {
-            let enriched_value = JsonValue::String(format!("enriched_{}", field));
+            let enriched_value = JsonValue::String(format!("enriched_{field}"));
             self.set_field(&mut result, field, enriched_value);
         }
 
@@ -660,14 +662,14 @@ impl Pipeline {
         for part in &parts[..parts.len() - 1] {
             if let JsonValue::Object(obj) = current {
                 current = obj
-                    .entry(part.to_string())
+                    .entry((*part).to_string())
                     .or_insert(JsonValue::Object(Default::default()));
             }
         }
 
         // Set final value
         if let JsonValue::Object(obj) = current {
-            obj.insert(parts.last().unwrap().to_string(), new_value);
+            obj.insert((*parts.last().unwrap()).to_string(), new_value);
         }
     }
 

@@ -71,7 +71,9 @@ impl EventSourcedConfigRepository {
                         .get("value")
                         .cloned()
                         .unwrap_or(serde_json::Value::Null);
-                    let updated_by = payload["changed_by"].as_str().map(|s| s.to_string());
+                    let updated_by = payload["changed_by"]
+                        .as_str()
+                        .map(std::string::ToString::to_string);
                     self.cache.insert(
                         key.clone(),
                         ConfigEntry {
@@ -124,7 +126,7 @@ impl EventSourcedConfigRepository {
                 key: key.to_string(),
                 value,
                 updated_at: event.timestamp(),
-                updated_by: changed_by.map(|s| s.to_string()),
+                updated_by: changed_by.map(std::string::ToString::to_string),
             },
         );
 

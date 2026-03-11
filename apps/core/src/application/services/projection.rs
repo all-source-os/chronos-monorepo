@@ -102,7 +102,7 @@ impl EventCounterProjection {
 
     /// Get count for a specific event type
     pub fn get_count(&self, event_type: &str) -> u64 {
-        self.counts.get(event_type).map(|v| *v).unwrap_or(0)
+        self.counts.get(event_type).map_or(0, |v| *v)
     }
 
     /// Get all event type counts
@@ -168,6 +168,7 @@ impl ProjectionManager {
     }
 
     /// Process an event through all projections
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn process_event(&self, event: &Event) -> Result<()> {
         let timer = self.metrics.projection_duration_seconds.start_timer();
 
@@ -175,7 +176,7 @@ impl ProjectionManager {
             let name = projection.name();
 
             match projection.process(event) {
-                Ok(_) => {
+                Ok(()) => {
                     self.metrics
                         .projection_events_processed
                         .with_label_values(&[name])

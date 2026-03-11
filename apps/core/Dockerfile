@@ -70,7 +70,7 @@ ARG BUILDTIME=unknown
 # cargo-chef replaces version fields with placeholders, so version bumps in
 # Cargo.toml/Cargo.lock don't invalidate this expensive layer.
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json -p allsource-core --features analytics
 
 # Now copy real manifests (version-sensitive) and set up workspace structure
 COPY Cargo.toml Cargo.lock ./
@@ -96,7 +96,7 @@ COPY apps/core/src apps/core/src
 RUN mkdir -p apps/core/benches apps/core/tests/stress_tests && \
     echo 'fn main() {}' > apps/core/benches/performance_benchmarks.rs && \
     echo 'fn main() {}' > apps/core/tests/stress_tests/seven_day_stress.rs && \
-    CARGO_BUILD_JOBS=4 cargo build --release -p allsource-core --bin allsource-core && \
+    CARGO_BUILD_JOBS=4 cargo build --release -p allsource-core --bin allsource-core --features analytics && \
     strip /app/target/release/allsource-core
 
 # =============================================================================

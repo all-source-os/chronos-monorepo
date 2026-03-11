@@ -90,14 +90,18 @@ impl From<&EventStoreFork> for ForkDto {
             id: fork.id().as_str(),
             tenant_id: fork.tenant_id().as_str().to_string(),
             name: fork.name().to_string(),
-            description: fork.description().map(|s| s.to_string()),
-            parent_fork_id: fork.parent_fork_id().map(|id| id.as_str()),
+            description: fork.description().map(std::string::ToString::to_string),
+            parent_fork_id: fork
+                .parent_fork_id()
+                .map(crate::domain::value_objects::fork_id::ForkId::as_str),
             parent_version: fork.parent_version(),
             status: fork.status().into(),
             isolation_level: fork.isolation_level().into(),
             event_count: fork.event_count(),
             expires_at: fork.expires_at(),
-            created_by_agent: fork.created_by_agent().map(|s| s.to_string()),
+            created_by_agent: fork
+                .created_by_agent()
+                .map(std::string::ToString::to_string),
             created_at: fork.created_at(),
             updated_at: fork.updated_at(),
         }

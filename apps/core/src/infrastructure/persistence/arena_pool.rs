@@ -51,16 +51,13 @@ thread_local! {
 pub fn get_arena() -> PooledArena {
     let arena = ARENA_POOL.with(|pool| pool.borrow_mut().pop());
 
-    let arena = match arena {
-        Some(mut arena) => {
-            arena.reset();
-            ARENAS_RECYCLED.fetch_add(1, Ordering::Relaxed);
-            arena
-        }
-        None => {
-            ARENAS_CREATED.fetch_add(1, Ordering::Relaxed);
-            Bump::with_capacity(DEFAULT_ARENA_SIZE)
-        }
+    let arena = if let Some(mut arena) = arena {
+        arena.reset();
+        ARENAS_RECYCLED.fetch_add(1, Ordering::Relaxed);
+        arena
+    } else {
+        ARENAS_CREATED.fetch_add(1, Ordering::Relaxed);
+        Bump::with_capacity(DEFAULT_ARENA_SIZE)
     };
 
     PooledArena { arena: Some(arena) }
@@ -275,25 +272,22 @@ impl SizedBufferPool {
             self.large.pop()
         };
 
-        match buf {
-            Some(mut b) => {
-                b.clear();
-                if b.capacity() >= min_size {
-                    b
-                } else {
-                    Vec::with_capacity(min_size)
-                }
+        if let Some(mut b) = buf {
+            b.clear();
+            if b.capacity() >= min_size {
+                b
+            } else {
+                Vec::with_capacity(min_size)
             }
-            None => {
-                let capacity = if min_size <= self.small_size {
-                    self.small_size
-                } else if min_size <= self.medium_size {
-                    self.medium_size
-                } else {
-                    self.large_size.max(min_size)
-                };
-                Vec::with_capacity(capacity)
-            }
+        } else {
+            let capacity = if min_size <= self.small_size {
+                self.small_size
+            } else if min_size <= self.medium_size {
+                self.medium_size
+            } else {
+                self.large_size.max(min_size)
+            };
+            Vec::with_capacity(capacity)
         }
     }
 

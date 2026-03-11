@@ -157,16 +157,14 @@ impl EventType {
         // Rule: Cannot start or end with a dot
         if value.starts_with('.') || value.ends_with('.') {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Event type '{}' cannot start or end with a dot",
-                value
+                "Event type '{value}' cannot start or end with a dot"
             )));
         }
 
         // Rule: Cannot have consecutive dots
         if value.contains("..") {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Event type '{}' cannot have consecutive dots",
-                value
+                "Event type '{value}' cannot have consecutive dots"
             )));
         }
 
@@ -229,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_event_type() {
-        let result = EventType::new("".to_string());
+        let result = EventType::new(String::new());
         assert!(result.is_err());
 
         if let Err(e) = result {
@@ -357,7 +355,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let event_type = EventType::new("order.placed".to_string()).unwrap();
-        assert_eq!(format!("{}", event_type), "order.placed");
+        assert_eq!(format!("{event_type}"), "order.placed");
     }
 
     #[test]

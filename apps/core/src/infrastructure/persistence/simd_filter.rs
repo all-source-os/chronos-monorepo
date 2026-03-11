@@ -149,6 +149,7 @@ impl SimdEventFilter {
     ///
     /// This is the main entry point for filtering. It automatically selects
     /// the best implementation based on the predicate type and platform.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn filter_events(&self, events: &[Event], predicate: &FilterPredicate) -> Vec<Event> {
         let start = Instant::now();
         let results = self.filter_events_internal(events, predicate);
@@ -170,6 +171,7 @@ impl SimdEventFilter {
     /// Filter events and return indices of matching events
     ///
     /// More efficient when you need indices rather than cloned events.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn filter_events_indices(
         &self,
         events: &[Event],
@@ -534,7 +536,7 @@ mod tests {
                 Event::reconstruct_from_strings(
                     uuid::Uuid::new_v4(),
                     event_type.to_string(),
-                    format!("entity-{}", i),
+                    format!("entity-{i}"),
                     if i % 2 == 0 { "tenant-a" } else { "tenant-b" }.to_string(),
                     json!({"index": i}),
                     Utc::now() - chrono::Duration::hours(count as i64 - i as i64),
@@ -791,8 +793,8 @@ mod tests {
         }
         let duration = start.elapsed();
 
-        let events_per_sec = (10_000 * 100) as f64 / duration.as_secs_f64();
-        println!("Throughput: {:.0} events/sec", events_per_sec);
+        let events_per_sec = f64::from(10_000 * 100) / duration.as_secs_f64();
+        println!("Throughput: {events_per_sec:.0} events/sec");
         println!(
             "SIMD utilization: {:.1}%",
             filter.stats().simd_utilization() * 100.0

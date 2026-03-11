@@ -117,7 +117,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "allsource"
-version = "0.14.7"
+version = "0.14.8"
 dependencies = [
  "reqwest 0.13.2",
  "serde",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "allsource-core"
-version = "0.14.7"
+version = "0.14.8"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -145,7 +145,6 @@ dependencies = [
  "crc32fast",
  "criterion",
  "crossbeam",
- "crossbeam-queue",
  "ctrlc",
  "dashmap",
  "datafusion",
@@ -154,10 +153,10 @@ dependencies = [
  "futures",
  "hex",
  "hmac",
+ "hotpath",
  "http",
  "instant-distance",
  "jsonwebtoken",
- "lz4",
  "parking_lot",
  "parquet",
  "prometheus",
@@ -203,7 +202,7 @@ dependencies = [
 
 [[package]]
 name = "allsource-mcp"
-version = "0.14.7"
+version = "0.14.8"
 dependencies = [
  "allsource-core",
  "anyhow",
@@ -3528,6 +3527,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "hotpath"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fde50be006a0fe95cc2fd6d25d884aa6932218e4055d7df2fa0d95c386acf8d"
+dependencies = [
+ "hotpath-macros",
+ "tokio",
+]
+
+[[package]]
+name = "hotpath-macros"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd884cee056e269e41e1127549458e1c4e309f31897ebbc1416982a74d40a5b5"
+
+[[package]]
 name = "htmlescape"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4369,15 +4384,6 @@ name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
-
-[[package]]
-name = "lz4"
-version = "1.28.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a20b523e860d03443e98350ceaac5e71c6ba89aea7d960769ec3ce37f4de5af4"
-dependencies = [
- "lz4-sys",
-]
 
 [[package]]
 name = "lz4-sys"

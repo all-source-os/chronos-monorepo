@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn test_display() {
         let embedding = EmbeddingVector::new(vec![0.1, 0.2, 0.3]).unwrap();
-        assert_eq!(format!("{}", embedding), "EmbeddingVector(dims=3)");
+        assert_eq!(format!("{embedding}"), "EmbeddingVector(dims=3)");
     }
 
     #[test]

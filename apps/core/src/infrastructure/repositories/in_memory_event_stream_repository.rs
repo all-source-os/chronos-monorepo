@@ -159,13 +159,7 @@ impl EventStreamRepository for InMemoryEventStreamRepository {
         let count = self
             .streams
             .iter()
-            .filter(|entry| {
-                entry
-                    .value()
-                    .tenant_id()
-                    .map(|t| t == tenant_id)
-                    .unwrap_or(false)
-            })
+            .filter(|entry| entry.value().tenant_id().is_some_and(|t| t == tenant_id))
             .count();
 
         Ok(count)
@@ -300,7 +294,7 @@ mod tests {
 
         // Create multiple streams
         for i in 0..10 {
-            let entity_id = EntityId::new(format!("entity-{}", i)).unwrap();
+            let entity_id = EntityId::new(format!("entity-{i}")).unwrap();
             EventStreamRepository::get_or_create_stream(&repo, &entity_id)
                 .await
                 .unwrap();
@@ -379,7 +373,7 @@ mod tests {
 
         // Create 100 streams
         for i in 0..100 {
-            let entity_id = EntityId::new(format!("entity-{}", i)).unwrap();
+            let entity_id = EntityId::new(format!("entity-{i}")).unwrap();
             EventStreamRepository::get_or_create_stream(&repo, &entity_id)
                 .await
                 .unwrap();
@@ -404,7 +398,7 @@ mod tests {
         );
 
         for i in 0..10 {
-            let entity_id = EntityId::new(format!("entity-{}", i)).unwrap();
+            let entity_id = EntityId::new(format!("entity-{i}")).unwrap();
             EventStreamRepository::get_or_create_stream(&repo, &entity_id)
                 .await
                 .unwrap();

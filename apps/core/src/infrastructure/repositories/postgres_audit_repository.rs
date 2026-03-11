@@ -94,14 +94,14 @@ impl PostgresAuditRepository {
     /// Helper: Convert AuditAction to string
     fn action_to_string(action: &AuditAction) -> String {
         serde_json::to_string(action)
-            .unwrap_or_else(|_| format!("{:?}", action))
+            .unwrap_or_else(|_| format!("{action:?}"))
             .trim_matches('"')
             .to_string()
     }
 
     /// Helper: Parse AuditAction from string
     fn string_to_action(s: &str) -> Result<AuditAction> {
-        serde_json::from_str(&format!("\"{}\"", s))
+        serde_json::from_str(&format!("\"{s}\""))
             .map_err(|e| AllSourceError::StorageError(format!("Invalid action: {e}")))
     }
 
@@ -212,10 +212,10 @@ impl AuditEventRepository for PostgresAuditRepository {
         let outcome_str = Self::outcome_to_string(event.outcome());
 
         // Convert IpAddr to String for sqlx compatibility
-        let ip_addr_str: Option<String> = event.ip_address().map(|s| s.to_string());
+        let ip_addr_str: Option<String> = event.ip_address().map(std::string::ToString::to_string);
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO audit_events (
                 id, tenant_id, timestamp, action, category,
                 actor_type, actor_id, actor_name,
@@ -223,7 +223,7 @@ impl AuditEventRepository for PostgresAuditRepository {
                 ip_address, user_agent, request_id,
                 error_message, metadata
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-            "#,
+            ",
         )
         .bind(event.id().as_uuid())
         .bind(event.tenant_id().as_str())
@@ -259,10 +259,11 @@ impl AuditEventRepository for PostgresAuditRepository {
             let category_str = format!("{:?}", event.category()).to_lowercase();
             let outcome_str = Self::outcome_to_string(event.outcome());
             // Convert IpAddr to String for sqlx compatibility
-            let ip_addr_str: Option<String> = event.ip_address().map(|s| s.to_string());
+            let ip_addr_str: Option<String> =
+                event.ip_address().map(std::string::ToString::to_string);
 
             sqlx::query(
-                r#"
+                r"
                 INSERT INTO audit_events (
                     id, tenant_id, timestamp, action, category,
                     actor_type, actor_id, actor_name,
@@ -270,7 +271,7 @@ impl AuditEventRepository for PostgresAuditRepository {
                     ip_address, user_agent, request_id,
                     error_message, metadata
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-                "#,
+                ",
             )
             .bind(event.id().as_uuid())
             .bind(event.tenant_id().as_str())
@@ -304,9 +305,9 @@ impl AuditEventRepository for PostgresAuditRepository {
 
     async fn get_by_id(&self, id: &AuditEventId) -> Result<Option<AuditEvent>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT * FROM audit_events WHERE id = $1
-            "#,
+            ",
         )
         .bind(id.as_uuid())
         .fetch_optional(&self.pool)
@@ -326,31 +327,31 @@ impl AuditEventRepository for PostgresAuditRepository {
         // Build dynamic query
         if query.start_time.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND timestamp >= ${}", param_count));
+            sql.push_str(&format!(" AND timestamp >= ${param_count}"));
         }
         if query.end_time.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND timestamp <= ${}", param_count));
+            sql.push_str(&format!(" AND timestamp <= ${param_count}"));
         }
         if query.action.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND action = ${}", param_count));
+            sql.push_str(&format!(" AND action = ${param_count}"));
         }
         if query.category.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND category = ${}", param_count));
+            sql.push_str(&format!(" AND category = ${param_count}"));
         }
         if query.actor_identifier.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND actor_id = ${}", param_count));
+            sql.push_str(&format!(" AND actor_id = ${param_count}"));
         }
         if query.resource_type.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND resource_type = ${}", param_count));
+            sql.push_str(&format!(" AND resource_type = ${param_count}"));
         }
         if query.resource_id.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND resource_id = ${}", param_count));
+            sql.push_str(&format!(" AND resource_id = ${param_count}"));
         }
         if query.security_events_only {
             sql.push_str(" AND action IN ('login_failed', 'permission_denied', 'rate_limit_exceeded', 'ip_blocked', 'suspicious_activity')");
@@ -360,11 +361,11 @@ impl AuditEventRepository for PostgresAuditRepository {
 
         if let Some(limit) = query.limit {
             param_count += 1;
-            sql.push_str(&format!(" LIMIT ${}", param_count));
+            sql.push_str(&format!(" LIMIT ${param_count}"));
         }
         if let Some(offset) = query.offset {
             param_count += 1;
-            sql.push_str(&format!(" OFFSET ${}", param_count));
+            sql.push_str(&format!(" OFFSET ${param_count}"));
         }
 
         // Build query with parameters
@@ -380,7 +381,7 @@ impl AuditEventRepository for PostgresAuditRepository {
             db_query = db_query.bind(Self::action_to_string(&action));
         }
         if let Some(category) = query.category {
-            db_query = db_query.bind(format!("{:?}", category).to_lowercase());
+            db_query = db_query.bind(format!("{category:?}").to_lowercase());
         }
         if let Some(actor_id) = query.actor_identifier {
             // Extract just the ID part after the colon and convert to owned String
@@ -419,19 +420,19 @@ impl AuditEventRepository for PostgresAuditRepository {
         // Build dynamic query (same logic as query())
         if query.start_time.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND timestamp >= ${}", param_count));
+            sql.push_str(&format!(" AND timestamp >= ${param_count}"));
         }
         if query.end_time.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND timestamp <= ${}", param_count));
+            sql.push_str(&format!(" AND timestamp <= ${param_count}"));
         }
         if query.action.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND action = ${}", param_count));
+            sql.push_str(&format!(" AND action = ${param_count}"));
         }
         if query.category.is_some() {
             param_count += 1;
-            sql.push_str(&format!(" AND category = ${}", param_count));
+            sql.push_str(&format!(" AND category = ${param_count}"));
         }
         if query.security_events_only {
             sql.push_str(" AND action IN ('login_failed', 'permission_denied', 'rate_limit_exceeded', 'ip_blocked', 'suspicious_activity')");
@@ -449,7 +450,7 @@ impl AuditEventRepository for PostgresAuditRepository {
             db_query = db_query.bind(Self::action_to_string(&action));
         }
         if let Some(category) = query.category {
-            db_query = db_query.bind(format!("{:?}", category).to_lowercase());
+            db_query = db_query.bind(format!("{category:?}").to_lowercase());
         }
 
         let row = db_query.fetch_one(&self.pool).await.map_err(|e| {
@@ -502,10 +503,10 @@ impl AuditEventRepository for PostgresAuditRepository {
         older_than: DateTime<Utc>,
     ) -> Result<usize> {
         let result = sqlx::query(
-            r#"
+            r"
             DELETE FROM audit_events
             WHERE tenant_id = $1 AND timestamp < $2
-            "#,
+            ",
         )
         .bind(tenant_id.as_str())
         .bind(older_than)
@@ -543,7 +544,7 @@ mod tests {
             .await
             .expect("Failed to get port");
 
-        let database_url = format!("postgresql://postgres:postgres@{}:{}/postgres", host, port);
+        let database_url = format!("postgresql://postgres:postgres@{host}:{port}/postgres");
 
         let pool = PgPoolOptions::new()
             .max_connections(5)

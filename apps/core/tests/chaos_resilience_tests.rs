@@ -182,7 +182,7 @@ async fn test_data_plane_continues_with_cached_metadata() {
     // Data plane (EventStore) is completely independent
     let store = EventStore::new();
     let event = create_data_event("user-1", "user.created");
-    store.ingest(event).unwrap();
+    store.ingest(&event).unwrap();
 
     let query = QueryEventsRequest {
         entity_id: Some("user-1".to_string()),
@@ -194,7 +194,7 @@ async fn test_data_plane_continues_with_cached_metadata() {
         limit: None,
         ..Default::default()
     };
-    let results = store.query(query).unwrap();
+    let results = store.query(&query).unwrap();
     assert_eq!(results.len(), 1);
 }
 
@@ -239,20 +239,17 @@ async fn test_corrupt_system_storage_graceful_degradation() {
 
     // The system either recovers with partial data or returns None (graceful fallback)
     // Either way, it must NOT panic
-    match result {
-        Some(_repos) => {
-            // Recovered (WAL was partially readable or created fresh)
-            // Data plane should still work regardless
-        }
-        None => {
-            // Graceful fallback to in-memory — this is acceptable behavior
-        }
+    if let Some(_repos) = result {
+        // Recovered (WAL was partially readable or created fresh)
+        // Data plane should still work regardless
+    } else {
+        // Graceful fallback to in-memory — this is acceptable behavior
     }
 
     // Data plane must still work regardless of system metadata status
     let store = EventStore::new();
     let event = create_data_event("user-1", "user.created");
-    store.ingest(event).unwrap();
+    store.ingest(&event).unwrap();
 
     let query = QueryEventsRequest {
         entity_id: Some("user-1".to_string()),
@@ -264,7 +261,7 @@ async fn test_corrupt_system_storage_graceful_degradation() {
         limit: None,
         ..Default::default()
     };
-    let results = store.query(query).unwrap();
+    let results = store.query(&query).unwrap();
     assert_eq!(results.len(), 1);
 }
 
@@ -288,8 +285,8 @@ async fn test_separate_storage_dirs_prevent_cross_contamination() {
     // Data plane uses a completely separate directory
     let store = EventStore::new();
     for i in 0..50 {
-        let event = create_data_event(&format!("entity-{}", i), "data.event");
-        store.ingest(event).unwrap();
+        let event = create_data_event(&format!("entity-{i}"), "data.event");
+        store.ingest(&event).unwrap();
     }
 
     let query = QueryEventsRequest {
@@ -302,7 +299,7 @@ async fn test_separate_storage_dirs_prevent_cross_contamination() {
         limit: None,
         ..Default::default()
     };
-    let results = store.query(query).unwrap();
+    let results = store.query(&query).unwrap();
     assert_eq!(results.len(), 50);
 
     // Deleting the system directory should NOT affect the data plane
@@ -311,7 +308,7 @@ async fn test_separate_storage_dirs_prevent_cross_contamination() {
 
     // Data plane still works
     let results2 = store
-        .query(QueryEventsRequest {
+        .query(&QueryEventsRequest {
             entity_id: None,
             event_type: Some("data.event".to_string()),
             tenant_id: None,
@@ -356,17 +353,14 @@ fn test_system_events_rejected_by_data_plane() {
         None,
     );
 
-    match result {
-        Ok(event) => {
-            // Even if Event construction succeeds, EventStore should reject it
-            let ingest_result = store.ingest(event);
-            assert!(
-                ingest_result.is_err(),
-                "System events must be rejected by the data plane"
-            );
-        }
-        Err(_) => {
-            // Event construction itself rejected — also acceptable
-        }
+    if let Ok(event) = result {
+        // Even if Event construction succeeds, EventStore should reject it
+        let ingest_result = store.ingest(&event);
+        assert!(
+            ingest_result.is_err(),
+            "System events must be rejected by the data plane"
+        );
+    } else {
+        // Event construction itself rejected — also acceptable
     }
 }

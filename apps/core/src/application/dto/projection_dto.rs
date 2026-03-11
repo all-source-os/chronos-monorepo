@@ -163,7 +163,7 @@ impl From<&Projection> for ProjectionDto {
             event_types: projection
                 .event_types()
                 .iter()
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect(),
             description: projection.description().map(String::from),
             config: projection.config().clone().into(),

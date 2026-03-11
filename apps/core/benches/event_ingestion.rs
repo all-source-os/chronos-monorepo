@@ -6,7 +6,7 @@ use std::hint::black_box;
 fn generate_test_event(entity_id: usize) -> Event {
     Event::from_strings(
         "benchmark.test".to_string(),
-        format!("entity-{}", entity_id),
+        format!("entity-{entity_id}"),
         "default".to_string(),
         json!({
             "value": entity_id,
@@ -26,7 +26,7 @@ fn bench_single_event_ingestion(c: &mut Criterion) {
 
         b.iter(|| {
             let event = generate_test_event(1);
-            store.ingest(black_box(event)).unwrap();
+            store.ingest(black_box(&event)).unwrap();
         });
     });
 
@@ -36,7 +36,7 @@ fn bench_single_event_ingestion(c: &mut Criterion) {
 fn bench_batch_event_ingestion(c: &mut Criterion) {
     let mut group = c.benchmark_group("batch_ingestion");
 
-    for batch_size in [100, 1000, 10000].iter() {
+    for batch_size in &[100, 1000, 10000] {
         group.throughput(Throughput::Elements(*batch_size as u64));
 
         group.bench_with_input(
@@ -48,7 +48,7 @@ fn bench_batch_event_ingestion(c: &mut Criterion) {
 
                     for i in 0..size {
                         let event = generate_test_event(i);
-                        store.ingest(black_box(event)).unwrap();
+                        store.ingest(black_box(&event)).unwrap();
                     }
                 });
             },
@@ -74,7 +74,7 @@ fn bench_concurrent_ingestion(c: &mut Criterion) {
                 let handle = thread::spawn(move || {
                     for i in 0..10 {
                         let event = generate_test_event(thread_id * 10 + i);
-                        store_clone.ingest(event).unwrap();
+                        store_clone.ingest(&event).unwrap();
                     }
                 });
 
@@ -99,7 +99,7 @@ fn bench_query_performance(c: &mut Criterion) {
     for i in 0..10000 {
         let entity_id = i % 1000;
         let event = generate_test_event(entity_id);
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     group.bench_function("query_by_entity", |b| {
@@ -115,7 +115,7 @@ fn bench_query_performance(c: &mut Criterion) {
                 ..Default::default()
             };
 
-            store.query(black_box(request)).unwrap();
+            store.query(black_box(&request)).unwrap();
         });
     });
 
@@ -132,7 +132,7 @@ fn bench_query_performance(c: &mut Criterion) {
                 ..Default::default()
             };
 
-            store.query(black_box(request)).unwrap();
+            store.query(black_box(&request)).unwrap();
         });
     });
 
@@ -152,7 +152,7 @@ fn bench_state_reconstruction(c: &mut Criterion) {
             "value": i * 10,
             "data": format!("step-{}", i)
         });
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     group.bench_function("reconstruct_100_events", |b| {

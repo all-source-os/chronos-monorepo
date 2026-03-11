@@ -69,11 +69,11 @@ struct TokenBucket {
 
 impl TokenBucket {
     fn new(config: &RateLimitConfig) -> Self {
-        let max_tokens = config.burst_size as f64;
+        let max_tokens = f64::from(config.burst_size);
         Self {
             tokens: max_tokens,
             max_tokens,
-            refill_rate: config.requests_per_minute as f64 / 60.0, // tokens per second
+            refill_rate: f64::from(config.requests_per_minute) / 60.0, // tokens per second
             last_refill: Utc::now(),
         }
     }
@@ -159,8 +159,7 @@ impl RateLimiter {
         let config = self
             .custom_configs
             .get(identifier)
-            .map(|c| c.clone())
-            .unwrap_or_else(|| self.default_config.clone());
+            .map_or_else(|| self.default_config.clone(), |c| c.clone());
 
         let mut entry = self
             .buckets
@@ -169,10 +168,10 @@ impl RateLimiter {
 
         let allowed = entry.try_consume(cost);
         let remaining = entry.remaining();
-        let retry_after = if !allowed {
-            Some(entry.retry_after())
-        } else {
+        let retry_after = if allowed {
             None
+        } else {
+            Some(entry.retry_after())
         };
 
         RateLimitResult {
@@ -296,8 +295,7 @@ mod tests {
         let remaining = bucket.remaining();
         assert!(
             (1..=3).contains(&remaining),
-            "Expected 1-3 tokens, got {}",
-            remaining
+            "Expected 1-3 tokens, got {remaining}"
         );
     }
 

@@ -106,6 +106,7 @@ impl SimdJsonParser {
     ///
     /// # Returns
     /// Parsed value or error
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn parse<T: DeserializeOwned>(&self, data: &mut [u8]) -> Result<T, SimdJsonError> {
         let start = Instant::now();
         let len = data.len();
@@ -135,6 +136,7 @@ impl SimdJsonParser {
     /// Parse multiple JSON documents in a batch
     ///
     /// Optimized for processing many small documents efficiently.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn parse_batch<T: DeserializeOwned>(
         &self,
         documents: &mut [Vec<u8>],
@@ -213,6 +215,7 @@ impl BatchEventParser {
     }
 
     /// Parse events from byte slices (more efficient - avoids string conversion)
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn parse_events_bytes<T: DeserializeOwned>(
         &self,
         events: &mut [Vec<u8>],
@@ -254,17 +257,23 @@ impl<'a> ZeroCopyJson<'a> {
 
     /// Get a numeric field
     pub fn get_i64(&self, key: &str) -> Option<i64> {
-        self.tape.get(key).and_then(|v| v.as_i64())
+        self.tape
+            .get(key)
+            .and_then(simd_json::prelude::ValueAsScalar::as_i64)
     }
 
     /// Get a float field
     pub fn get_f64(&self, key: &str) -> Option<f64> {
-        self.tape.get(key).and_then(|v| v.as_f64())
+        self.tape
+            .get(key)
+            .and_then(simd_json::prelude::ValueAsScalar::as_f64)
     }
 
     /// Get a boolean field
     pub fn get_bool(&self, key: &str) -> Option<bool> {
-        self.tape.get(key).and_then(|v| v.as_bool())
+        self.tape
+            .get(key)
+            .and_then(simd_json::prelude::ValueAsScalar::as_bool)
     }
 
     /// Check if a field exists

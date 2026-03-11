@@ -21,6 +21,7 @@ use anyhow::Result;
 use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+#[cfg_attr(feature = "hotpath", hotpath::main)]
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize tracing
@@ -295,8 +296,8 @@ async fn main() -> Result<()> {
 
         let self_member = ClusterMember {
             node_id: self_node_id,
-            api_address: format!("{}:{}", host, api_port),
-            replication_address: format!("{}:{}", host, replication_port),
+            api_address: format!("{host}:{api_port}"),
+            replication_address: format!("{host}:{replication_port}"),
             role: member_role,
             last_wal_offset: 0,
             last_heartbeat_ms: 0,

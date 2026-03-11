@@ -507,8 +507,7 @@ impl Projection {
             .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Projection name '{}' must be alphanumeric with underscores or hyphens",
-                name
+                "Projection name '{name}' must be alphanumeric with underscores or hyphens"
             )));
         }
 
@@ -580,7 +579,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_name() {
-        let result = Projection::new(test_tenant_id(), "".to_string(), 1, ProjectionType::Custom);
+        let result = Projection::new(test_tenant_id(), String::new(), 1, ProjectionType::Custom);
 
         assert!(result.is_err());
     }
@@ -616,7 +615,7 @@ mod tests {
                 1,
                 ProjectionType::Custom,
             );
-            assert!(result.is_ok(), "Name '{}' should be valid", name);
+            assert!(result.is_ok(), "Name '{name}' should be valid");
         }
     }
 

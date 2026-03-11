@@ -112,7 +112,7 @@ where
             .await?
     };
 
-    let response = ListArticlesUseCase::execute(articles);
+    let response = ListArticlesUseCase::execute(&articles);
 
     tracing::debug!(count = response.count, "Listed articles");
 
@@ -312,7 +312,7 @@ where
         .find_by_creator(&creator, limit, offset)
         .await?;
 
-    let response = ListArticlesUseCase::execute(articles);
+    let response = ListArticlesUseCase::execute(&articles);
 
     tracing::debug!(
         creator_id = %creator_id,
@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_list_articles_params_default() {
-        let json = r#"{}"#;
+        let json = r"{}";
         let params: ListArticlesParams = serde_json::from_str(json).unwrap();
         assert!(params.tenant_id.is_none());
         assert!(params.creator_id.is_none());

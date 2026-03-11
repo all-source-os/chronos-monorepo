@@ -77,7 +77,7 @@ impl GeoReplicationConfig {
             .filter(|s| !s.trim().is_empty())
             .enumerate()
             .map(|(i, url)| PeerRegion {
-                region_id: format!("peer-{}", i),
+                region_id: format!("peer-{i}"),
                 api_url: url.trim().to_string(),
                 healthy: true,
                 last_sync_ms: 0,
@@ -264,7 +264,7 @@ impl GeoReplicationManager {
     }
 
     /// Queue an event for replication to all peers.
-    pub fn queue_for_replication(&self, event: ReplicatedEvent) {
+    pub fn queue_for_replication(&self, event: &ReplicatedEvent) {
         for mut buffer in self.outbound_buffer.iter_mut() {
             buffer.value_mut().push(event.clone());
         }
@@ -341,8 +341,7 @@ impl GeoReplicationManager {
     pub fn peer_health(&self, peer_region: &str) -> PeerHealth {
         self.peer_health
             .get(peer_region)
-            .map(|h| *h)
-            .unwrap_or(PeerHealth::Unreachable)
+            .map_or(PeerHealth::Unreachable, |h| *h)
     }
 
     /// Get all peers.
@@ -390,8 +389,7 @@ impl GeoReplicationManager {
             .filter(|p| {
                 self.peer_health
                     .get(&p.region_id)
-                    .map(|h| *h == PeerHealth::Healthy)
-                    .unwrap_or(false)
+                    .is_some_and(|h| *h == PeerHealth::Healthy)
             })
             .max_by_key(|p| p.last_sync_ms) // most recently synced = least data loss
             .map(|p| p.region_id.clone())
@@ -407,8 +405,7 @@ impl GeoReplicationManager {
                 let health = self
                     .peer_health
                     .get(&p.region_id)
-                    .map(|h| *h)
-                    .unwrap_or(PeerHealth::Unreachable);
+                    .map_or(PeerHealth::Unreachable, |h| *h);
 
                 let lag_ms = if p.last_sync_ms > 0 {
                     let now_ms = std::time::SystemTime::now()
@@ -480,7 +477,7 @@ mod tests {
         let mgr = GeoReplicationManager::new(test_config("us-east"));
         let event = mgr.stamp_event("evt-1", serde_json::json!({}));
 
-        mgr.queue_for_replication(event);
+        mgr.queue_for_replication(&event);
 
         let batch = mgr.drain_outbound("eu-west", 10);
         assert_eq!(batch.len(), 1);
@@ -548,7 +545,7 @@ mod tests {
     fn test_build_sync_request() {
         let mgr = GeoReplicationManager::new(test_config("us-east"));
         let event = mgr.stamp_event("evt-1", serde_json::json!({}));
-        mgr.queue_for_replication(event);
+        mgr.queue_for_replication(&event);
 
         let req = mgr.build_sync_request("eu-west");
         assert!(req.is_some());
@@ -669,12 +666,12 @@ mod tests {
         // US writes event 1
         let evt1 = us.stamp_event("evt-1", serde_json::json!({"from": "us"}));
         us.resolver.resolve_and_accept(&evt1);
-        us.queue_for_replication(evt1);
+        us.queue_for_replication(&evt1);
 
         // EU writes event 2
         let evt2 = eu.stamp_event("evt-2", serde_json::json!({"from": "eu"}));
         eu.resolver.resolve_and_accept(&evt2);
-        eu.queue_for_replication(evt2);
+        eu.queue_for_replication(&evt2);
 
         // US → EU sync
         let us_req = us.build_sync_request("eu-west").unwrap();

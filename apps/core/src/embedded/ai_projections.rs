@@ -39,7 +39,7 @@ impl TokenUsageProjection {
 }
 
 impl Projection for TokenUsageProjection {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "token_usage"
     }
 
@@ -53,17 +53,17 @@ impl Projection for TokenUsageProjection {
 
         let input_tokens = payload
             .get("input_tokens")
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(0);
         let output_tokens = payload
             .get("output_tokens")
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(0);
         // Store costs as integer microdollars internally to avoid f64 drift.
         // Convert from f64 USD on input, accumulate as u64, convert back on read.
         let cost_microdollars = (payload
             .get("cost_usd")
-            .and_then(|v| v.as_f64())
+            .and_then(serde_json::Value::as_f64)
             .unwrap_or(0.0)
             * 1_000_000.0)
             .round() as u64;
@@ -167,7 +167,7 @@ impl ToolCallAuditProjection {
 }
 
 impl Projection for ToolCallAuditProjection {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "tool_call_audit"
     }
 
@@ -185,7 +185,9 @@ impl Projection for ToolCallAuditProjection {
             .unwrap_or("unknown")
             .to_string();
         let is_success = event_type == "mcp.tool.result";
-        let duration_ms = payload.get("duration_ms").and_then(|v| v.as_f64());
+        let duration_ms = payload
+            .get("duration_ms")
+            .and_then(serde_json::Value::as_f64);
 
         self.states
             .entry(entity_id)
@@ -202,10 +204,8 @@ impl Projection for ToolCallAuditProjection {
                         "durations": [],
                     }));
                 let total = tool["total_calls"].as_u64().unwrap_or(0) + 1;
-                let successes =
-                    tool["successes"].as_u64().unwrap_or(0) + if is_success { 1 } else { 0 };
-                let failures =
-                    tool["failures"].as_u64().unwrap_or(0) + if is_success { 0 } else { 1 };
+                let successes = tool["successes"].as_u64().unwrap_or(0) + u64::from(is_success);
+                let failures = tool["failures"].as_u64().unwrap_or(0) + u64::from(!is_success);
 
                 tool["total_calls"] = json!(total);
                 tool["successes"] = json!(successes);
@@ -220,9 +220,11 @@ impl Projection for ToolCallAuditProjection {
                         let excess = durations.len() - MAX_DURATION_SAMPLES;
                         durations.drain(..excess);
                     }
-                    let mut sorted: Vec<f64> =
-                        durations.iter().filter_map(|v| v.as_f64()).collect();
-                    sorted.sort_by(|a, b| a.total_cmp(b));
+                    let mut sorted: Vec<f64> = durations
+                        .iter()
+                        .filter_map(serde_json::Value::as_f64)
+                        .collect();
+                    sorted.sort_by(f64::total_cmp);
                     let len = sorted.len();
                     let p50_idx = len / 2;
                     let p95_idx = ((len as f64 * 0.95).ceil() as usize).min(len - 1);
@@ -233,8 +235,8 @@ impl Projection for ToolCallAuditProjection {
             .or_insert_with(|| {
                 let mut tool_state = json!({
                     "total_calls": 1,
-                    "successes": if is_success { 1 } else { 0 },
-                    "failures": if is_success { 0 } else { 1 },
+                    "successes": i32::from(is_success),
+                    "failures": i32::from(!is_success),
                     "success_rate": if is_success { 1.0 } else { 0.0 },
                     "durations": [],
                 });
@@ -286,7 +288,7 @@ impl HumanInLoopQueueProjection {
 }
 
 impl Projection for HumanInLoopQueueProjection {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "human_in_loop_queue"
     }
 
@@ -403,7 +405,7 @@ impl AgentUtilizationProjection {
 }
 
 impl Projection for AgentUtilizationProjection {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "agent_utilization"
     }
 
@@ -474,7 +476,7 @@ impl Projection for AgentUtilizationProjection {
             let mut idle = 0u64;
             let mut total = 0u64;
 
-            for entry in self.replicants.iter() {
+            for entry in &self.replicants {
                 let state = entry.value();
                 if state.status != "stale" {
                     total += 1;

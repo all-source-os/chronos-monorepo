@@ -118,7 +118,7 @@ impl NodeRegistry {
             .map(|entry| *entry.key())
             .collect();
 
-        healthy_nodes.sort();
+        healthy_nodes.sort_unstable();
 
         if healthy_nodes.is_empty() {
             return; // No healthy nodes available
@@ -409,7 +409,7 @@ mod tests {
         for i in 0..4 {
             let node = Node {
                 id: i,
-                address: format!("node-{}:8080", i),
+                address: format!("node-{i}:8080"),
                 healthy: true,
                 assigned_partitions: vec![],
             };

@@ -33,7 +33,7 @@ fn test_full_lifecycle_in_memory() {
             "score.updated",
             json!({"score": i * 10, "timestamp": Utc::now()}),
         );
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Query all events
@@ -48,7 +48,7 @@ fn test_full_lifecycle_in_memory() {
         ..Default::default()
     };
 
-    let events = store.query(query).unwrap();
+    let events = store.query(&query).unwrap();
     assert_eq!(events.len(), 100);
 
     // Reconstruct state
@@ -84,7 +84,7 @@ fn test_parquet_persistence_and_recovery() {
                 "order.updated",
                 json!({"amount": i * 100, "status": "pending"}),
             );
-            store.ingest(event).unwrap();
+            store.ingest(&event).unwrap();
         }
 
         // Flush to ensure persistence
@@ -130,7 +130,7 @@ fn test_wal_durability_and_recovery() {
                 "login.attempt",
                 json!({"attempt": i, "success": i % 2 == 0}),
             );
-            store.ingest(event).unwrap();
+            store.ingest(&event).unwrap();
         }
 
         // Don't flush Parquet - simulating crash before checkpoint
@@ -165,7 +165,7 @@ fn test_wal_durability_and_recovery() {
             limit: None,
             ..Default::default()
         };
-        let events = store.query(query).unwrap();
+        let events = store.query(&query).unwrap();
         assert_eq!(events.len(), 30, "Should have exactly 30 events for user-2");
     }
 }
@@ -196,7 +196,7 @@ fn test_snapshot_optimization() {
             "transaction.processed",
             json!({"amount": i * 50, "balance": 1000 + (i * 50)}),
         );
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Verify snapshot was created
@@ -235,7 +235,7 @@ fn test_time_travel_queries() {
                 json!({"version": i, "content": format!("Version {}", i)}),
             );
             let ts = event.timestamp();
-            store.ingest(event).unwrap();
+            store.ingest(&event).unwrap();
             ts
         })
         .collect();
@@ -265,11 +265,11 @@ fn test_multi_entity_queries() {
     for user_id in 1..=5 {
         for event_num in 1..=10 {
             let event = create_test_event(
-                &format!("user-{}", user_id),
+                &format!("user-{user_id}"),
                 "activity.logged",
                 json!({"activity": event_num, "user_id": user_id}),
             );
-            store.ingest(event).unwrap();
+            store.ingest(&event).unwrap();
         }
     }
 
@@ -284,7 +284,7 @@ fn test_multi_entity_queries() {
         limit: None,
         ..Default::default()
     };
-    let events = store.query(query).unwrap();
+    let events = store.query(&query).unwrap();
     assert_eq!(events.len(), 10);
 
     // Query all events of specific type
@@ -298,7 +298,7 @@ fn test_multi_entity_queries() {
         limit: None,
         ..Default::default()
     };
-    let events = store.query(query).unwrap();
+    let events = store.query(&query).unwrap();
     assert_eq!(events.len(), 50); // 5 users * 10 events
 
     // Stats should show all entities
@@ -331,11 +331,11 @@ fn test_compaction_reduces_files() {
     for batch in 0..3 {
         for i in 0..5 {
             let event = create_test_event(
-                &format!("item-{}", batch),
+                &format!("item-{batch}"),
                 "item.created",
                 json!({"batch": batch, "item": i}),
             );
-            store.ingest(event).unwrap();
+            store.ingest(&event).unwrap();
         }
         store.flush_storage().unwrap();
     }
@@ -366,8 +366,8 @@ fn test_projection_aggregations() {
             "user.updated"
         };
 
-        let event = create_test_event(&format!("user-{}", i), event_type, json!({"index": i}));
-        store.ingest(event).unwrap();
+        let event = create_test_event(&format!("user-{i}"), event_type, json!({"index": i}));
+        store.ingest(&event).unwrap();
     }
 
     // Get snapshot (uses projection)
@@ -390,11 +390,11 @@ fn test_concurrent_ingestion() {
         let handle = std::thread::spawn(move || {
             for i in 0..20 {
                 let event = create_test_event(
-                    &format!("thread-{}-entity-{}", thread_id, i),
+                    &format!("thread-{thread_id}-entity-{i}"),
                     "concurrent.write",
                     json!({"thread": thread_id, "index": i}),
                 );
-                store_clone.ingest(event).unwrap();
+                store_clone.ingest(&event).unwrap();
             }
         });
         handles.push(handle);
@@ -417,7 +417,7 @@ fn test_event_stream_ordering() {
     for i in 0..50 {
         let event = create_test_event("ordered-entity", "sequence.event", json!({"sequence": i}));
         timestamps.push(event.timestamp);
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     let query = QueryEventsRequest {
@@ -431,7 +431,7 @@ fn test_event_stream_ordering() {
         ..Default::default()
     };
 
-    let events = store.query(query).unwrap();
+    let events = store.query(&query).unwrap();
 
     // Verify events are returned in timestamp order
     for i in 1..events.len() {
@@ -477,7 +477,7 @@ fn test_full_production_config() {
     // Ingest events
     for i in 0..100 {
         let event = create_test_event("production-entity", "production.event", json!({"value": i}));
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Verify all components working
@@ -519,7 +519,7 @@ fn test_entity_not_found_error() {
         limit: None,
         ..Default::default()
     };
-    let events = store.query(query).unwrap();
+    let events = store.query(&query).unwrap();
     assert_eq!(events.len(), 0);
 }
 
@@ -529,7 +529,7 @@ fn test_event_validation() {
     // Empty entity_id should fail at construction time
     let result = Event::from_strings(
         "test".to_string(),
-        "".to_string(),
+        String::new(),
         "default".to_string(),
         json!({}),
         None,
@@ -538,7 +538,7 @@ fn test_event_validation() {
 
     // Empty event_type should fail at construction time
     let result = Event::from_strings(
-        "".to_string(),
+        String::new(),
         "entity-1".to_string(),
         "default".to_string(),
         json!({}),
@@ -559,7 +559,7 @@ fn test_snapshot_time_travel_optimization() {
             "data.update",
             json!({"value": i, "data": format!("Data {}", i)}),
         );
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Create snapshot manually
@@ -581,7 +581,7 @@ fn test_snapshot_time_travel_optimization() {
     // Ingest more events
     for i in 100..110 {
         let event = create_test_event("heavy-entity", "data.update", json!({"value": i}));
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
     }
 
     // Reconstruct should now only replay events after snapshot (snapshot optimization)
@@ -590,8 +590,7 @@ fn test_snapshot_time_travel_optimization() {
     let history_len = state["history"].as_array().unwrap().len();
     assert!(
         history_len <= 11,
-        "With snapshot optimization, history should contain only events after snapshot, got {}",
-        history_len
+        "With snapshot optimization, history should contain only events after snapshot, got {history_len}"
     );
 
     // Verify the final state is correct even though history is shortened
@@ -615,7 +614,7 @@ fn test_metadata_preservation() {
     )
     .unwrap();
 
-    store.ingest(event).unwrap();
+    store.ingest(&event).unwrap();
 
     let query = QueryEventsRequest {
         entity_id: Some("meta-entity".to_string()),
@@ -628,7 +627,7 @@ fn test_metadata_preservation() {
         ..Default::default()
     };
 
-    let events = store.query(query).unwrap();
+    let events = store.query(&query).unwrap();
     assert_eq!(events.len(), 1);
     assert!(events[0].metadata().is_some());
     assert_eq!(events[0].metadata().unwrap()["source"], "test");

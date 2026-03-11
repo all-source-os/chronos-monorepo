@@ -123,10 +123,11 @@ impl StressStats {
 }
 
 /// Run stress test with given configuration
+#[allow(clippy::needless_pass_by_value)]
 pub fn run_stress_test(config: StressConfig, stats: Arc<StressStats>, stop: Arc<AtomicBool>) {
     let start = Instant::now();
 
-    println!("🚀 Starting stress test with config: {:?}", config);
+    println!("🚀 Starting stress test with config: {config:?}");
     println!("Duration: {} seconds", config.duration.as_secs());
     println!("Target: {} events/sec", config.events_per_second);
     println!("Workers: {}", config.num_workers);
@@ -271,7 +272,7 @@ mod tests {
         );
 
         let events = stats.events_ingested.load(Ordering::Relaxed);
-        println!("Total events ingested: {}", events);
+        println!("Total events ingested: {events}");
 
         // Should have ingested millions of events over 7 days
         assert!(events > 1_000_000, "Should have ingested over 1M events");

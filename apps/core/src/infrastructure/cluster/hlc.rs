@@ -55,7 +55,9 @@ impl HlcTimestamp {
     /// Encode as a u128 for compact storage and comparison.
     /// Format: `[physical_ms:64][logical:32][node_id:32]`
     pub fn to_u128(&self) -> u128 {
-        ((self.physical_ms as u128) << 64) | ((self.logical as u128) << 32) | (self.node_id as u128)
+        (u128::from(self.physical_ms) << 64)
+            | (u128::from(self.logical) << 32)
+            | u128::from(self.node_id)
     }
 
     /// Decode from a u128.

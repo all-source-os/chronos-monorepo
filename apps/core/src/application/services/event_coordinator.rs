@@ -97,7 +97,7 @@ impl EventCoordinator {
         self.query(QueryEventsRequest {
             entity_id: None,
             event_type: Some(event_type.to_string()),
-            tenant_id: tenant_id.map(|s| s.to_string()),
+            tenant_id: tenant_id.map(std::string::ToString::to_string),
             as_of: None,
             since: None,
             until: None,
@@ -122,7 +122,7 @@ impl EventCoordinator {
             .await?;
 
         let event_dtos: Vec<EventDto> = events.iter().map(EventDto::from).collect();
-        let latest_version = event_dtos.last().map(|e| e.version).unwrap_or(0);
+        let latest_version = event_dtos.last().map_or(0, |e| e.version);
 
         Ok(EntitySnapshot {
             entity_id: entity_id.to_string(),

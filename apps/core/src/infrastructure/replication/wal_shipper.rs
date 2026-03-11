@@ -163,6 +163,7 @@ impl WalShipper {
     ///   or the timeout expires (returns `true` on success, `false` on timeout).
     /// - **Sync**: waits until ALL connected followers have ACKed `target_offset`,
     ///   or the timeout expires.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub async fn wait_for_ack(&self, target_offset: u64) -> bool {
         match self.replication_mode {
             ReplicationMode::Async => true,
@@ -265,6 +266,7 @@ impl WalShipper {
     }
 
     /// Start the replication TCP server. This runs until the process shuts down.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub async fn serve(self: Arc<Self>, port: u16) -> anyhow::Result<()> {
         let addr = format!("0.0.0.0:{port}");
         let listener = TcpListener::bind(&addr).await?;
@@ -445,11 +447,8 @@ impl WalShipper {
         reader.read_line(&mut line).await?;
 
         let subscribe_msg: FollowerMessage = serde_json::from_str(line.trim())?;
-        let last_offset = match subscribe_msg {
-            FollowerMessage::Subscribe { last_offset } => last_offset,
-            _ => {
-                anyhow::bail!("Expected Subscribe message, got: {:?}", subscribe_msg);
-            }
+        let FollowerMessage::Subscribe { last_offset } = subscribe_msg else {
+            anyhow::bail!("Expected Subscribe message, got: {subscribe_msg:?}");
         };
 
         tracing::info!(

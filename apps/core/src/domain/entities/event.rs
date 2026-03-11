@@ -340,7 +340,7 @@ mod tests {
 
         // Invalid: empty
         let result = Event::from_strings(
-            "".to_string(),
+            String::new(),
             "e1".to_string(),
             "t1".to_string(),
             json!({}),
@@ -354,7 +354,7 @@ mod tests {
         // Invalid: empty entity_id
         let result = Event::from_strings(
             "user.created".to_string(),
-            "".to_string(),
+            String::new(),
             "t1".to_string(),
             json!({}),
             None,
@@ -368,7 +368,7 @@ mod tests {
         let result = Event::from_strings(
             "user.created".to_string(),
             "e1".to_string(),
-            "".to_string(),
+            String::new(),
             json!({}),
             None,
         );

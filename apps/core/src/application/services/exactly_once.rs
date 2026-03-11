@@ -212,7 +212,7 @@ pub fn extract_idempotency_key(metadata: &Option<serde_json::Value>) -> Option<S
         .as_ref()?
         .get("idempotency_key")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 #[cfg(test)]
@@ -229,7 +229,7 @@ mod tests {
         let id = Uuid::new_v4();
         match reg.check_idempotency("key-1", id) {
             IdempotencyResult::New => {}
-            other => panic!("Expected New, got {other:?}"),
+            IdempotencyResult::Duplicate { .. } => panic!("Expected New, got Duplicate"),
         }
     }
 
@@ -243,7 +243,7 @@ mod tests {
             IdempotencyResult::Duplicate { original_event_id } => {
                 assert_eq!(original_event_id, id1);
             }
-            other => panic!("Expected Duplicate, got {other:?}"),
+            IdempotencyResult::New => panic!("Expected Duplicate, got New"),
         }
     }
 
@@ -258,7 +258,7 @@ mod tests {
         reg.check_idempotency("key-1", id1);
         match reg.check_idempotency("key-1", id2) {
             IdempotencyResult::New => {}
-            other => panic!("Expected New (expired), got {other:?}"),
+            IdempotencyResult::Duplicate { .. } => panic!("Expected New (expired), got Duplicate"),
         }
     }
 

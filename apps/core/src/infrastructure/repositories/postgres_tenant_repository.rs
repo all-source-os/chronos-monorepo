@@ -209,7 +209,7 @@ impl TenantRepository for PostgresTenantRepository {
 
         // Insert into database
         sqlx::query(
-            r#"
+            r"
             INSERT INTO tenants (
                 id, name, description,
                 quota_max_events_per_day, quota_max_storage_bytes, quota_max_queries_per_hour,
@@ -219,7 +219,7 @@ impl TenantRepository for PostgresTenantRepository {
                 usage_last_daily_reset, usage_last_hourly_reset,
                 active, metadata, created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-            "#,
+            ",
         )
         .bind(tenant.id().as_str())
         .bind(tenant.name())
@@ -252,7 +252,7 @@ impl TenantRepository for PostgresTenantRepository {
 
     async fn save(&self, tenant: &Tenant) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE tenants SET
                 name = $2,
                 description = $3,
@@ -275,7 +275,7 @@ impl TenantRepository for PostgresTenantRepository {
                 metadata = $20,
                 updated_at = $21
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(tenant.id().as_str())
         .bind(tenant.name())
@@ -403,7 +403,7 @@ impl TenantRepository for PostgresTenantRepository {
 
     async fn update_quotas(&self, id: &TenantId, quotas: TenantQuotas) -> Result<bool> {
         let result = sqlx::query(
-            r#"
+            r"
             UPDATE tenants SET
                 quota_max_events_per_day = $2,
                 quota_max_storage_bytes = $3,
@@ -413,7 +413,7 @@ impl TenantRepository for PostgresTenantRepository {
                 quota_max_pipelines = $7,
                 updated_at = NOW()
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(id.as_str())
         .bind(quotas.max_events_per_day() as i64)
@@ -431,7 +431,7 @@ impl TenantRepository for PostgresTenantRepository {
 
     async fn update_usage(&self, id: &TenantId, usage: TenantUsage) -> Result<bool> {
         let result = sqlx::query(
-            r#"
+            r"
             UPDATE tenants SET
                 usage_events_today = $2,
                 usage_total_events = $3,
@@ -442,7 +442,7 @@ impl TenantRepository for PostgresTenantRepository {
                 usage_active_pipelines = $8,
                 updated_at = NOW()
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(id.as_str())
         .bind(usage.events_today() as i64)
@@ -512,7 +512,7 @@ mod tests {
             .await
             .expect("Failed to get port");
 
-        let database_url = format!("postgresql://postgres:postgres@{}:{}/postgres", host, port);
+        let database_url = format!("postgresql://postgres:postgres@{host}:{port}/postgres");
 
         let pool = PgPoolOptions::new()
             .max_connections(5)

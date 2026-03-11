@@ -41,7 +41,7 @@ fn test_container_is_debug() {
         .with_in_memory_repositories()
         .build();
 
-    let debug_str = format!("{:?}", container);
+    let debug_str = format!("{container:?}");
     assert!(debug_str.contains("ServiceContainer"));
     assert!(debug_str.contains("creator_repository"));
     assert!(debug_str.contains("event_stream_repository"));

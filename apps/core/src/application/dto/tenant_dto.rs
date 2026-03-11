@@ -69,12 +69,12 @@ impl From<TenantQuotas> for TenantQuotasDto {
 impl From<TenantQuotasDto> for TenantQuotas {
     fn from(dto: TenantQuotasDto) -> Self {
         TenantQuotas::new(
-            dto.max_events_per_day.map(|v| v as u64).unwrap_or(0),
+            dto.max_events_per_day.map_or(0, |v| v as u64),
             dto.max_storage_bytes.unwrap_or(0),
-            dto.max_queries_per_hour.map(|v| v as u64).unwrap_or(0),
-            dto.max_api_keys.map(|v| v as u32).unwrap_or(0),
-            dto.max_projections.map(|v| v as u32).unwrap_or(0),
-            dto.max_pipelines.map(|v| v as u32).unwrap_or(0),
+            dto.max_queries_per_hour.map_or(0, |v| v as u64),
+            dto.max_api_keys.map_or(0, |v| v as u32),
+            dto.max_projections.map_or(0, |v| v as u32),
+            dto.max_pipelines.map_or(0, |v| v as u32),
         )
     }
 }

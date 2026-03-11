@@ -82,7 +82,7 @@ pub async fn list_creators_handler<R: CreatorRepository + 'static>(
         state.creator_repo.find_active(limit, offset).await?
     };
 
-    let response = ListCreatorsUseCase::execute(creators);
+    let response = ListCreatorsUseCase::execute(&creators);
 
     tracing::debug!(count = response.count, "Listed creators");
 
@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn test_list_creators_params_default() {
-        let json = r#"{}"#;
+        let json = r"{}";
         let params: ListCreatorsParams = serde_json::from_str(json).unwrap();
         assert!(params.tenant_id.is_none());
         assert!(params.limit.is_none());

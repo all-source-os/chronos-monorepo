@@ -85,6 +85,7 @@ pub fn dispatch_init() -> Result<(), ChronError> {
     workspace::init_workspace(&cwd)
 }
 
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub async fn dispatch(
     cmd: &Command,
     repo: &CoreTaskRepository,

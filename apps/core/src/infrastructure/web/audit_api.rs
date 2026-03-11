@@ -68,10 +68,10 @@ impl From<&AuditEvent> for AuditEventResponse {
             action: event.action().clone(),
             actor: event.actor().clone(),
             outcome: event.outcome().clone(),
-            resource_type: event.resource_type().map(|s| s.to_string()),
-            resource_id: event.resource_id().map(|s| s.to_string()),
-            ip_address: event.ip_address().map(|s| s.to_string()),
-            error_message: event.error_message().map(|s| s.to_string()),
+            resource_type: event.resource_type().map(std::string::ToString::to_string),
+            resource_id: event.resource_id().map(std::string::ToString::to_string),
+            ip_address: event.ip_address().map(std::string::ToString::to_string),
+            error_message: event.error_message().map(std::string::ToString::to_string),
             metadata: event.metadata().cloned(),
         }
     }

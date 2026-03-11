@@ -170,6 +170,7 @@ impl BatchProcessor {
     ///
     /// # Returns
     /// BatchResult with success/failure counts
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn process_batch(&self, json_events: Vec<String>) -> BatchResult {
         let start = Instant::now();
         let batch_size = json_events.len();
@@ -181,15 +182,12 @@ impl BatchProcessor {
         for json_str in json_events {
             bytes_parsed += json_str.len();
 
-            match self.parse_and_queue_event(json_str) {
-                Ok(()) => {
-                    success_count += 1;
-                    self.metrics.record_ingest();
-                }
-                Err(_) => {
-                    failure_count += 1;
-                    self.metrics.record_error();
-                }
+            if let Ok(()) = self.parse_and_queue_event(&json_str) {
+                success_count += 1;
+                self.metrics.record_ingest();
+            } else {
+                failure_count += 1;
+                self.metrics.record_error();
             }
         }
 
@@ -211,6 +209,7 @@ impl BatchProcessor {
     ///
     /// # Returns
     /// BatchResult with success/failure counts
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn process_batch_bytes(&self, mut json_bytes: Vec<Vec<u8>>) -> BatchResult {
         let start = Instant::now();
         let batch_size = json_bytes.len();
@@ -222,15 +221,12 @@ impl BatchProcessor {
         for bytes in &mut json_bytes {
             bytes_parsed += bytes.len();
 
-            match self.parse_and_queue_bytes(bytes) {
-                Ok(()) => {
-                    success_count += 1;
-                    self.metrics.record_ingest();
-                }
-                Err(_) => {
-                    failure_count += 1;
-                    self.metrics.record_error();
-                }
+            if let Ok(()) = self.parse_and_queue_bytes(bytes) {
+                success_count += 1;
+                self.metrics.record_ingest();
+            } else {
+                failure_count += 1;
+                self.metrics.record_error();
             }
         }
 
@@ -278,8 +274,8 @@ impl BatchProcessor {
     }
 
     /// Parse and queue a single JSON event string
-    fn parse_and_queue_event(&self, json_str: String) -> Result<()> {
-        let raw: RawEventData = self.json_parser.parse_str(&json_str)?;
+    fn parse_and_queue_event(&self, json_str: &str) -> Result<()> {
+        let raw: RawEventData = self.json_parser.parse_str(json_str)?;
 
         let event = Event::from_strings(
             raw.event_type,
@@ -321,6 +317,7 @@ impl BatchProcessor {
     ///
     /// # Arguments
     /// * `max_count` - Maximum number of events to retrieve
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn get_batch(&self, max_count: usize) -> Vec<Event> {
         self.event_queue.try_pop_batch(max_count)
     }
@@ -640,7 +637,7 @@ mod tests {
             .map(|i| {
                 Event::from_strings(
                     "test.event".to_string(),
-                    format!("entity-{}", i),
+                    format!("entity-{i}"),
                     "test-stream".to_string(),
                     json!({"value": i}),
                     None,

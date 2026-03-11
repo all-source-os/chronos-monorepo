@@ -274,15 +274,15 @@ fn try_extract_coord(value: &serde_json::Value) -> Option<Coordinate> {
     // Try nested location object
     if let Some(loc) = value.get("location") {
         if let (Some(lat), Some(lng)) = (
-            loc.get("lat").and_then(|v| v.as_f64()),
-            loc.get("lng").and_then(|v| v.as_f64()),
+            loc.get("lat").and_then(serde_json::Value::as_f64),
+            loc.get("lng").and_then(serde_json::Value::as_f64),
         ) && let Ok(c) = Coordinate::new(lat, lng)
         {
             return Some(c);
         }
         if let (Some(lat), Some(lng)) = (
-            loc.get("latitude").and_then(|v| v.as_f64()),
-            loc.get("longitude").and_then(|v| v.as_f64()),
+            loc.get("latitude").and_then(serde_json::Value::as_f64),
+            loc.get("longitude").and_then(serde_json::Value::as_f64),
         ) && let Ok(c) = Coordinate::new(lat, lng)
         {
             return Some(c);
@@ -291,8 +291,8 @@ fn try_extract_coord(value: &serde_json::Value) -> Option<Coordinate> {
 
     // Try flat lat/lng
     if let (Some(lat), Some(lng)) = (
-        value.get("lat").and_then(|v| v.as_f64()),
-        value.get("lng").and_then(|v| v.as_f64()),
+        value.get("lat").and_then(serde_json::Value::as_f64),
+        value.get("lng").and_then(serde_json::Value::as_f64),
     ) && let Ok(c) = Coordinate::new(lat, lng)
     {
         return Some(c);
@@ -300,8 +300,8 @@ fn try_extract_coord(value: &serde_json::Value) -> Option<Coordinate> {
 
     // Try flat latitude/longitude
     if let (Some(lat), Some(lng)) = (
-        value.get("latitude").and_then(|v| v.as_f64()),
-        value.get("longitude").and_then(|v| v.as_f64()),
+        value.get("latitude").and_then(serde_json::Value::as_f64),
+        value.get("longitude").and_then(serde_json::Value::as_f64),
     ) && let Ok(c) = Coordinate::new(lat, lng)
     {
         return Some(c);

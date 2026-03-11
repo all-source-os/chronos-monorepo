@@ -40,7 +40,7 @@ impl TenantResponse {
         Self {
             id: tenant.id().as_str().to_string(),
             name: tenant.name().to_string(),
-            description: tenant.description().map(|s| s.to_string()),
+            description: tenant.description().map(std::string::ToString::to_string),
             quotas: tenant.quotas().clone(),
             created_at: tenant.created_at(),
             updated_at: tenant.updated_at(),
@@ -147,7 +147,7 @@ pub async fn get_tenant_handler(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                format!("Tenant not found: {}", tenant_id),
+                format!("Tenant not found: {tenant_id}"),
             )
         })?;
 
@@ -200,7 +200,7 @@ pub async fn get_tenant_stats_handler(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                format!("Tenant not found: {}", tenant_id),
+                format!("Tenant not found: {tenant_id}"),
             )
         })?;
 
@@ -228,7 +228,7 @@ pub async fn update_quotas_handler(
     if !updated {
         return Err((
             StatusCode::NOT_FOUND,
-            format!("Tenant not found: {}", tenant_id),
+            format!("Tenant not found: {tenant_id}"),
         ));
     }
 
@@ -254,7 +254,7 @@ pub async fn deactivate_tenant_handler(
     if !deactivated {
         return Err((
             StatusCode::BAD_REQUEST,
-            format!("Tenant not found: {}", tenant_id),
+            format!("Tenant not found: {tenant_id}"),
         ));
     }
 
@@ -280,7 +280,7 @@ pub async fn activate_tenant_handler(
     if !activated {
         return Err((
             StatusCode::NOT_FOUND,
-            format!("Tenant not found: {}", tenant_id),
+            format!("Tenant not found: {tenant_id}"),
         ));
     }
 
@@ -306,7 +306,7 @@ pub async fn update_tenant_handler(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                format!("Tenant not found: {}", tenant_id),
+                format!("Tenant not found: {tenant_id}"),
             )
         })?;
 
@@ -353,7 +353,7 @@ pub async fn delete_tenant_handler(
     if !deleted {
         return Err((
             StatusCode::BAD_REQUEST,
-            format!("Tenant not found: {}", tenant_id),
+            format!("Tenant not found: {tenant_id}"),
         ));
     }
 

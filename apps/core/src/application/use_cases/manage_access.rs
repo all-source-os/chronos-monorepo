@@ -248,7 +248,7 @@ impl RecordAccessUseCase {
 pub struct ListAccessTokensUseCase;
 
 impl ListAccessTokensUseCase {
-    pub fn execute(tokens: Vec<AccessToken>) -> ListAccessTokensResponse {
+    pub fn execute(tokens: &[AccessToken]) -> ListAccessTokensResponse {
         let token_dtos: Vec<AccessTokenDto> = tokens.iter().map(AccessTokenDto::from).collect();
         let count = token_dtos.len();
 
@@ -683,7 +683,7 @@ mod tests {
             .unwrap(),
         ];
 
-        let response = ListAccessTokensUseCase::execute(tokens);
+        let response = ListAccessTokensUseCase::execute(&tokens);
         assert_eq!(response.count, 1);
         assert_eq!(response.tokens.len(), 1);
     }

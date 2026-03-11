@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_parse_simple_query() {
-        let q = r#"{ events { id event_type } }"#;
+        let q = r"{ events { id event_type } }";
         let fields = parse_query(q).unwrap();
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].name, "events");
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_parse_multiple_fields() {
-        let q = r#"{ events { id } stats }"#;
+        let q = r"{ events { id } stats }";
         let fields = parse_query(q).unwrap();
         assert_eq!(fields.len(), 2);
         assert_eq!(fields[0].name, "events");
@@ -296,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_parse_query_keyword() {
-        let q = r#"query { events { id } }"#;
+        let q = r"query { events { id } }";
         let fields = parse_query(q).unwrap();
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].name, "events");
@@ -312,7 +312,7 @@ mod tests {
 
     #[test]
     fn test_reject_subscription() {
-        let q = r#"subscription { newEvents { id } }"#;
+        let q = r"subscription { newEvents { id } }";
         let result = parse_query(q);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Subscriptions"));
@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_empty_query() {
-        let q = r#"{ }"#;
+        let q = r"{ }";
         let result = parse_query(q);
         assert!(result.is_err());
     }

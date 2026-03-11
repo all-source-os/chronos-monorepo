@@ -526,7 +526,7 @@ mod tests {
         }
 
         impl Projection for CountProjection {
-            fn name(&self) -> &str {
+            fn name(&self) -> &'static str {
                 "test_counter"
             }
             fn process(&self, event: &Event) -> allsource_core::error::Result<()> {
@@ -563,8 +563,9 @@ mod tests {
         let projection = Arc::new(CountProjection {
             counts: DashMap::new(),
         });
+        let dyn_proj: Arc<dyn Projection> = projection.clone();
         core.inner()
-            .register_projection_with_backfill(projection.clone())
+            .register_projection_with_backfill(&dyn_proj)
             .unwrap();
 
         // Projection should have seen all 5 historical events

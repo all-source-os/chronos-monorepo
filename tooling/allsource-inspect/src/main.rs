@@ -91,11 +91,11 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let since_dt = since
                 .as_deref()
-                .map(|s| s.parse::<DateTime<Utc>>())
+                .map(str::parse::<DateTime<Utc>>)
                 .transpose()?;
             let until_dt = until
                 .as_deref()
-                .map(|s| s.parse::<DateTime<Utc>>())
+                .map(str::parse::<DateTime<Utc>>)
                 .transpose()?;
 
             let mut query = Query::new();

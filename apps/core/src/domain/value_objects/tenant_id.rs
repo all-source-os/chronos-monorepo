@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_tenant_id() {
-        let result = TenantId::new("".to_string());
+        let result = TenantId::new(String::new());
         assert!(result.is_err());
 
         if let Err(e) = result {
@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
-        assert_eq!(format!("{}", tenant_id), "test-tenant");
+        assert_eq!(format!("{tenant_id}"), "test-tenant");
     }
 
     #[test]

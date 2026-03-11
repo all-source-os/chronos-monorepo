@@ -189,7 +189,7 @@ impl StorageIntegrity {
     /// Efficiently verify multiple files with progress reporting.
     pub fn batch_verify<P: AsRef<Path>>(
         paths: &[P],
-        progress_callback: Option<Box<dyn Fn(usize, usize)>>,
+        progress_callback: Option<&dyn Fn(usize, usize)>,
     ) -> Result<Vec<bool>> {
         let mut results = Vec::new();
 
@@ -208,7 +208,7 @@ impl StorageIntegrity {
             results.push(result);
 
             // Report progress
-            if let Some(ref callback) = progress_callback {
+            if let Some(callback) = progress_callback {
                 callback(idx + 1, paths.len());
             }
         }

@@ -82,7 +82,7 @@ pub struct ToolDef {
 }
 
 /// MCP tool result content block.
-pub fn tool_result(content: Value) -> Value {
+pub fn tool_result(content: &Value) -> Value {
     serde_json::json!({
         "content": [{
             "type": "text",

@@ -37,7 +37,7 @@ impl PartitionKey {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         entity_id.hash(&mut hasher);
         let hash = hasher.finish();
-        let partition_id = (hash % partition_count as u64) as u32;
+        let partition_id = (hash % u64::from(partition_count)) as u32;
 
         Self {
             partition_id,
@@ -49,8 +49,7 @@ impl PartitionKey {
     pub fn from_partition_id(partition_id: u32, partition_count: u32) -> Result<Self> {
         if partition_id >= partition_count {
             return Err(AllSourceError::InvalidInput(format!(
-                "Partition ID {} exceeds partition count {}",
-                partition_id, partition_count
+                "Partition ID {partition_id} exceeds partition count {partition_count}"
             )));
         }
 
@@ -110,15 +109,15 @@ mod tests {
         let mut partition_counts = vec![0; PartitionKey::DEFAULT_PARTITION_COUNT as usize];
 
         for i in 0..1000 {
-            let entity_id = format!("entity-{}", i);
+            let entity_id = format!("entity-{i}");
             let key = PartitionKey::from_entity_id(&entity_id);
             partition_counts[key.partition_id() as usize] += 1;
         }
 
         // Check reasonable distribution (no partition should be empty or overloaded)
         for (idx, &count) in partition_counts.iter().enumerate() {
-            assert!(count > 10, "Partition {} too few events: {}", idx, count);
-            assert!(count < 60, "Partition {} too many events: {}", idx, count);
+            assert!(count > 10, "Partition {idx} too few events: {count}");
+            assert!(count < 60, "Partition {idx} too many events: {count}");
         }
     }
 

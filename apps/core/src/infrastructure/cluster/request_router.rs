@@ -69,8 +69,7 @@ impl RequestRouter {
             .node_for_partition(partition_id)
             .ok_or_else(|| {
                 AllSourceError::StorageError(format!(
-                    "No healthy node available for partition {}",
-                    partition_id
+                    "No healthy node available for partition {partition_id}"
                 ))
             })?;
 
@@ -128,7 +127,7 @@ mod tests {
         for i in 0..4 {
             registry.register_node(Node {
                 id: i,
-                address: format!("node-{}:8080", i),
+                address: format!("node-{i}:8080"),
                 healthy: true,
                 assigned_partitions: vec![],
             });
@@ -189,7 +188,7 @@ mod tests {
             vec![node1.id, node2.id, node3.id].into_iter().collect();
 
         // Should have some distribution (not guaranteed, but likely)
-        println!("Unique nodes: {:?}", unique_nodes);
+        println!("Unique nodes: {unique_nodes:?}");
     }
 
     #[test]

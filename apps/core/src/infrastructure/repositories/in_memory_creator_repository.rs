@@ -68,8 +68,7 @@ impl CreatorRepository for InMemoryCreatorRepository {
         // Check for duplicate ID
         if creators.contains_key(&id) {
             return Err(crate::error::AllSourceError::ValidationError(format!(
-                "Creator with ID '{}' already exists",
-                id
+                "Creator with ID '{id}' already exists"
             )));
         }
 
@@ -77,8 +76,7 @@ impl CreatorRepository for InMemoryCreatorRepository {
         let email = creator.email();
         if creators.values().any(|c| c.email() == email) {
             return Err(crate::error::AllSourceError::ValidationError(format!(
-                "Creator with email '{}' already exists",
-                email
+                "Creator with email '{email}' already exists"
             )));
         }
 
@@ -177,7 +175,7 @@ impl CreatorRepository for InMemoryCreatorRepository {
         }
 
         if let Some(ref name_pattern) = query.name_contains {
-            result.retain(|c| c.name().map(|n| n.contains(name_pattern)).unwrap_or(false));
+            result.retain(|c| c.name().is_some_and(|n| n.contains(name_pattern)));
         }
 
         if let Some(date) = query.created_after {
@@ -309,7 +307,7 @@ mod tests {
         for i in 0..3 {
             let creator = Creator::new(
                 test_tenant_id(),
-                format!("creator{}@example.com", i),
+                format!("creator{i}@example.com"),
                 test_wallet_n(i),
                 None,
             )
@@ -434,7 +432,7 @@ mod tests {
         for i in 0..5 {
             let creator = Creator::new(
                 test_tenant_id(),
-                format!("creator{}@example.com", i),
+                format!("creator{i}@example.com"),
                 test_wallet_n(i),
                 None,
             )
@@ -509,7 +507,7 @@ mod tests {
         for i in 0..3 {
             let creator = Creator::new(
                 test_tenant_id(),
-                format!("creator{}@example.com", i),
+                format!("creator{i}@example.com"),
                 test_wallet_n(i),
                 None,
             )

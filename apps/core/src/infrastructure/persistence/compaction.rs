@@ -204,6 +204,7 @@ impl CompactionManager {
     }
 
     /// Check if compaction should run
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn should_compact(&self) -> bool {
         if !self.config.auto_compact {
             return false;
@@ -220,6 +221,7 @@ impl CompactionManager {
     }
 
     /// Perform compaction of Parquet files
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn compact(&self) -> Result<CompactionResult> {
         let start_time = std::time::Instant::now();
         tracing::info!("🔄 Starting Parquet compaction...");
@@ -449,6 +451,7 @@ impl CompactionManager {
     }
 
     /// Trigger manual compaction
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn compact_now(&self) -> Result<CompactionResult> {
         tracing::info!("Manual compaction triggered");
         self.compact()
@@ -481,6 +484,7 @@ impl CompactionTask {
     }
 
     /// Run the compaction task in a loop
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub async fn run(self) {
         let mut interval = tokio::time::interval(self.interval);
 

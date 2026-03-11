@@ -336,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_list_forks_params_default() {
-        let json = r#"{}"#;
+        let json = r"{}";
         let params: ListForksParams = serde_json::from_str(json).unwrap();
         assert!(params.tenant_id.is_none());
         assert!(params.status.is_none());

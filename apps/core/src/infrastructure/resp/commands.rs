@@ -21,7 +21,7 @@ use super::protocol::RespValue;
 /// Subscription info returned by SUBSCRIBE command.
 pub struct SubscriptionInfo {
     pub rx: broadcast::Receiver<Arc<Event>>,
-    /// Event type prefix filters (e.g. ["scheduler.*"]). Empty = all events.
+    /// Event type prefix filters (e.g. `["scheduler.*"]`). Empty = all events.
     pub filters: Vec<String>,
 }
 
@@ -37,10 +37,10 @@ pub fn execute(
         return (RespValue::err("empty command"), None);
     }
 
-    let cmd = match args[0].as_str() {
-        Some(s) => s.to_ascii_uppercase(),
-        None => return (RespValue::err("invalid command"), None),
+    let Some(s) = args[0].as_str() else {
+        return (RespValue::err("invalid command"), None);
     };
+    let cmd = s.to_ascii_uppercase();
 
     match cmd.as_str() {
         "PING" => handle_ping(&args[1..]),
@@ -85,10 +85,10 @@ fn handle_xadd(
         );
     }
 
-    let tenant_id = match args[0].as_str() {
-        Some(s) => s.to_string(),
-        None => return (RespValue::err("invalid stream key"), None),
+    let Some(s) = args[0].as_str() else {
+        return (RespValue::err("invalid stream key"), None);
     };
+    let tenant_id = s.to_string();
 
     // args[1] should be "*" or an explicit ID (we only support "*")
     match args[1].as_str() {
@@ -113,13 +113,11 @@ fn handle_xadd(
     let mut metadata: Option<serde_json::Value> = None;
 
     for chunk in pairs.chunks(2) {
-        let field = match chunk[0].as_str() {
-            Some(s) => s,
-            None => return (RespValue::err("field name must be a string"), None),
+        let Some(field) = chunk[0].as_str() else {
+            return (RespValue::err("field name must be a string"), None);
         };
-        let value = match chunk[1].as_str() {
-            Some(s) => s,
-            None => return (RespValue::err("field value must be a string"), None),
+        let Some(value) = chunk[1].as_str() else {
+            return (RespValue::err("field value must be a string"), None);
         };
 
         match field {
@@ -149,13 +147,11 @@ fn handle_xadd(
         }
     }
 
-    let event_type = match event_type {
-        Some(t) => t,
-        None => return (RespValue::err("missing required field 'event_type'"), None),
+    let Some(event_type) = event_type else {
+        return (RespValue::err("missing required field 'event_type'"), None);
     };
-    let entity_id = match entity_id {
-        Some(id) => id,
-        None => return (RespValue::err("missing required field 'entity_id'"), None),
+    let Some(entity_id) = entity_id else {
+        return (RespValue::err("missing required field 'entity_id'"), None);
     };
 
     // Create and ingest the event
@@ -167,7 +163,7 @@ fn handle_xadd(
     let event_id = event.id.to_string();
     let timestamp = event.timestamp.timestamp_millis();
 
-    match store.ingest(event) {
+    match store.ingest(&event) {
         Ok(()) => {
             // Return a Redis-style stream ID: "<timestamp>-0"
             let stream_id = format!("{timestamp}-0");
@@ -194,17 +190,14 @@ fn handle_xrange(
         );
     }
 
-    let stream_key = match args[0].as_str() {
-        Some(s) => s,
-        None => return (RespValue::err("invalid stream key"), None),
+    let Some(stream_key) = args[0].as_str() else {
+        return (RespValue::err("invalid stream key"), None);
     };
-    let _start = match args[1].as_str() {
-        Some(s) => s,
-        None => return (RespValue::err("invalid start"), None),
+    let Some(_start) = args[1].as_str() else {
+        return (RespValue::err("invalid start"), None);
     };
-    let _end = match args[2].as_str() {
-        Some(s) => s,
-        None => return (RespValue::err("invalid end"), None),
+    let Some(_end) = args[2].as_str() else {
+        return (RespValue::err("invalid end"), None);
     };
 
     // Parse optional COUNT
@@ -257,7 +250,7 @@ fn handle_xrange(
         request.until = chrono::DateTime::from_timestamp_millis(ms);
     }
 
-    match store.query(request) {
+    match store.query(&request) {
         Ok(events) => {
             // Return as array of [stream_id, [field, value, ...]] pairs (Redis XRANGE format)
             let entries: Vec<RespValue> = events
@@ -304,9 +297,8 @@ fn handle_xlen(
         );
     }
 
-    let stream_key = match args[0].as_str() {
-        Some(s) => s,
-        None => return (RespValue::err("invalid stream key"), None),
+    let Some(stream_key) = args[0].as_str() else {
+        return (RespValue::err("invalid stream key"), None);
     };
 
     // Query all events for this stream and return count
@@ -329,7 +321,7 @@ fn handle_xlen(
         request.tenant_id = Some(stream_key.to_string());
     }
 
-    match store.query(request) {
+    match store.query(&request) {
         Ok(events) => (RespValue::Integer(events.len() as i64), None),
         Err(e) => (RespValue::err(format!("query failed: {e}")), None),
     }
@@ -456,7 +448,7 @@ mod tests {
             &store,
         );
         // Should return a stream ID like "<timestamp>-0"
-        assert!(resp.as_str().unwrap().ends_with("-0"), "got: {:?}", resp);
+        assert!(resp.as_str().unwrap().ends_with("-0"), "got: {resp:?}");
 
         // XRANGE
         let (resp, _) = execute(&cmd(&["XRANGE", "default", "-", "+"]), &store);
@@ -477,7 +469,7 @@ mod tests {
                     }
                 }
             }
-            _ => panic!("expected array, got {:?}", resp),
+            _ => panic!("expected array, got {resp:?}"),
         }
     }
 

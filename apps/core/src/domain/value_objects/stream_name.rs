@@ -66,7 +66,7 @@ impl StreamName {
     /// assert_eq!(stream.as_str(), "user:123");
     /// ```
     pub fn for_entity(entity_type: &str, entity_id: &str) -> Result<Self> {
-        Self::new(format!("{}:{}", entity_type, entity_id))
+        Self::new(format!("{entity_type}:{entity_id}"))
     }
 
     /// Get the string value
@@ -153,8 +153,7 @@ impl StreamName {
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == ':')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Stream name '{}' must be alphanumeric with hyphens, underscores, or colons",
-                value
+                "Stream name '{value}' must be alphanumeric with hyphens, underscores, or colons"
             )));
         }
 
@@ -167,8 +166,7 @@ impl StreamName {
             || value.ends_with('_')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Stream name '{}' cannot start or end with special characters",
-                value
+                "Stream name '{value}' cannot start or end with special characters"
             )));
         }
 
@@ -180,8 +178,7 @@ impl StreamName {
             || value.contains("-:")
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Stream name '{}' cannot have consecutive special characters",
-                value
+                "Stream name '{value}' cannot have consecutive special characters"
             )));
         }
 
@@ -247,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_stream_name() {
-        let result = StreamName::new("".to_string());
+        let result = StreamName::new(String::new());
         assert!(result.is_err());
 
         if let Err(e) = result {
@@ -382,7 +379,7 @@ mod tests {
     #[test]
     fn test_display_trait() {
         let stream = StreamName::new("user:123".to_string()).unwrap();
-        assert_eq!(format!("{}", stream), "user:123");
+        assert_eq!(format!("{stream}"), "user:123");
     }
 
     #[test]

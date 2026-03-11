@@ -88,7 +88,7 @@ fn test_concurrent_rate_limiting() {
     for i in 0..10 {
         let limiter_clone = Arc::clone(&limiter);
         let handle = thread::spawn(move || {
-            let tenant = format!("tenant-{}", i);
+            let tenant = format!("tenant-{i}");
             for _ in 0..5 {
                 limiter_clone.check_rate_limit(&tenant);
             }
@@ -103,7 +103,7 @@ fn test_concurrent_rate_limiting() {
 
     // All tenants should have used 5 requests each
     for i in 0..10 {
-        let tenant = format!("tenant-{}", i);
+        let tenant = format!("tenant-{i}");
         let result = limiter.check_rate_limit(&tenant);
         // Should still be allowed (used 5, have 45 remaining)
         assert!(result.allowed);
@@ -211,8 +211,7 @@ fn test_rate_limit_recovery() {
     // Should have recovered at least 1 token (being more lenient for CI)
     assert!(
         recovered_count >= 1,
-        "Should have recovered at least 1 token, got {}",
-        recovered_count
+        "Should have recovered at least 1 token, got {recovered_count}"
     );
 }
 

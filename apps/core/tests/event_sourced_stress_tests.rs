@@ -36,7 +36,7 @@ fn make_audit_event(tenant_id: &str, index: usize) -> AuditEvent {
     AuditEvent::new(
         TenantId::new(tenant_id.to_string()).unwrap(),
         AuditAction::EventIngested,
-        Actor::system(format!("worker-{}", index)),
+        Actor::system(format!("worker-{index}")),
         AuditOutcome::Success,
     )
     .with_metadata(serde_json::json!({ "index": index }))
@@ -58,8 +58,8 @@ async fn stress_concurrent_tenant_creates() {
     for i in 0..count {
         let repo = Arc::clone(&repo);
         handles.push(tokio::spawn(async move {
-            let id = TenantId::new(format!("tenant-{}", i)).unwrap();
-            repo.create(id, format!("Tenant {}", i), TenantQuotas::standard())
+            let id = TenantId::new(format!("tenant-{i}")).unwrap();
+            repo.create(id, format!("Tenant {i}"), TenantQuotas::standard())
                 .await
         }));
     }
@@ -77,10 +77,10 @@ async fn stress_concurrent_tenant_creates() {
 
     // Every tenant is independently retrievable
     for i in 0..count {
-        let id = TenantId::new(format!("tenant-{}", i)).unwrap();
+        let id = TenantId::new(format!("tenant-{i}")).unwrap();
         let tenant = repo.find_by_id(&id).await.unwrap();
-        assert!(tenant.is_some(), "tenant-{} should exist", i);
-        assert_eq!(tenant.unwrap().name(), format!("Tenant {}", i));
+        assert!(tenant.is_some(), "tenant-{i} should exist");
+        assert_eq!(tenant.unwrap().name(), format!("Tenant {i}"));
     }
 }
 
@@ -97,8 +97,8 @@ async fn stress_concurrent_tenant_create_delete_cycle() {
     for i in 0..count {
         let repo = Arc::clone(&repo);
         handles.push(tokio::spawn(async move {
-            let id = TenantId::new(format!("cd-tenant-{}", i)).unwrap();
-            repo.create(id, format!("CD Tenant {}", i), TenantQuotas::standard())
+            let id = TenantId::new(format!("cd-tenant-{i}")).unwrap();
+            repo.create(id, format!("CD Tenant {i}"), TenantQuotas::standard())
                 .await
         }));
     }
@@ -112,7 +112,7 @@ async fn stress_concurrent_tenant_create_delete_cycle() {
     for i in (0..count).filter(|n| n % 2 == 0) {
         let repo = Arc::clone(&repo);
         handles.push(tokio::spawn(async move {
-            let id = TenantId::new(format!("cd-tenant-{}", i)).unwrap();
+            let id = TenantId::new(format!("cd-tenant-{i}")).unwrap();
             repo.delete(&id).await
         }));
     }
@@ -126,16 +126,15 @@ async fn stress_concurrent_tenant_create_delete_cycle() {
 
     // Verify only odd-numbered tenants remain
     for i in 0..count {
-        let id = TenantId::new(format!("cd-tenant-{}", i)).unwrap();
+        let id = TenantId::new(format!("cd-tenant-{i}")).unwrap();
         let found = repo.find_by_id(&id).await.unwrap();
         if i % 2 == 0 {
             assert!(
                 found.is_none(),
-                "even tenant cd-tenant-{} should be deleted",
-                i
+                "even tenant cd-tenant-{i} should be deleted"
             );
         } else {
-            assert!(found.is_some(), "odd tenant cd-tenant-{} should exist", i);
+            assert!(found.is_some(), "odd tenant cd-tenant-{i} should exist");
         }
     }
 }
@@ -150,8 +149,8 @@ async fn stress_concurrent_activate_deactivate() {
 
     // Create tenants first (sequential to avoid duplicate races on same ID)
     for i in 0..count {
-        let id = TenantId::new(format!("toggle-{}", i)).unwrap();
-        repo.create(id, format!("Toggle {}", i), TenantQuotas::standard())
+        let id = TenantId::new(format!("toggle-{i}")).unwrap();
+        repo.create(id, format!("Toggle {i}"), TenantQuotas::standard())
             .await
             .unwrap();
     }
@@ -161,7 +160,7 @@ async fn stress_concurrent_activate_deactivate() {
     for i in 0..count {
         let repo = Arc::clone(&repo);
         handles.push(tokio::spawn(async move {
-            let id = TenantId::new(format!("toggle-{}", i)).unwrap();
+            let id = TenantId::new(format!("toggle-{i}")).unwrap();
             repo.deactivate(&id).await
         }));
     }
@@ -177,7 +176,7 @@ async fn stress_concurrent_activate_deactivate() {
     for i in 0..count {
         let repo = Arc::clone(&repo);
         handles.push(tokio::spawn(async move {
-            let id = TenantId::new(format!("toggle-{}", i)).unwrap();
+            let id = TenantId::new(format!("toggle-{i}")).unwrap();
             repo.activate(&id).await
         }));
     }
@@ -238,7 +237,7 @@ async fn stress_concurrent_audit_appends_multi_tenant() {
     for t in 0..tenants {
         for e in 0..events_per_tenant {
             let repo = Arc::clone(&repo);
-            let tenant_id = format!("mt-tenant-{}", t);
+            let tenant_id = format!("mt-tenant-{t}");
             handles.push(tokio::spawn(async move {
                 let event = make_audit_event(&tenant_id, e);
                 repo.append(event).await
@@ -252,15 +251,13 @@ async fn stress_concurrent_audit_appends_multi_tenant() {
 
     // Verify per-tenant counts
     for t in 0..tenants {
-        let tid = TenantId::new(format!("mt-tenant-{}", t)).unwrap();
+        let tid = TenantId::new(format!("mt-tenant-{t}")).unwrap();
         let query = AuditEventQuery::new(tid);
         let results = repo.query(query).await.unwrap();
         assert_eq!(
             results.len(),
             events_per_tenant,
-            "tenant mt-tenant-{} should have {} events",
-            t,
-            events_per_tenant
+            "tenant mt-tenant-{t} should have {events_per_tenant} events"
         );
     }
 }
@@ -308,7 +305,7 @@ async fn stress_concurrent_config_sets() {
         let repo = Arc::clone(&repo);
         handles.push(tokio::spawn(async move {
             repo.set(
-                &format!("key-{}", i),
+                &format!("key-{i}"),
                 serde_json::json!(i),
                 Some("stress-test"),
             )
@@ -323,8 +320,8 @@ async fn stress_concurrent_config_sets() {
 
     // Verify each key has the correct value
     for i in 0..count {
-        let entry = repo.get(&format!("key-{}", i));
-        assert!(entry.is_some(), "key-{} should exist", i);
+        let entry = repo.get(&format!("key-{i}"));
+        assert!(entry.is_some(), "key-{i} should exist");
         assert_eq!(entry.unwrap().value, serde_json::json!(i));
     }
 }
@@ -369,7 +366,7 @@ async fn stress_concurrent_config_set_and_delete() {
 
     // Create keys first
     for i in 0..count {
-        repo.set(&format!("sd-key-{}", i), serde_json::json!(i), None)
+        repo.set(&format!("sd-key-{i}"), serde_json::json!(i), None)
             .unwrap();
     }
     assert_eq!(repo.count(), count);
@@ -379,7 +376,7 @@ async fn stress_concurrent_config_set_and_delete() {
     for i in (0..count).filter(|n| n % 2 == 0) {
         let repo = Arc::clone(&repo);
         handles.push(tokio::spawn(async move {
-            repo.delete(&format!("sd-key-{}", i), Some("deleter"))
+            repo.delete(&format!("sd-key-{i}"), Some("deleter"))
         }));
     }
 
@@ -391,11 +388,11 @@ async fn stress_concurrent_config_set_and_delete() {
     assert_eq!(repo.count(), count / 2);
 
     for i in 0..count {
-        let entry = repo.get(&format!("sd-key-{}", i));
+        let entry = repo.get(&format!("sd-key-{i}"));
         if i % 2 == 0 {
-            assert!(entry.is_none(), "sd-key-{} should be deleted", i);
+            assert!(entry.is_none(), "sd-key-{i} should be deleted");
         } else {
-            assert!(entry.is_some(), "sd-key-{} should exist", i);
+            assert!(entry.is_some(), "sd-key-{i} should exist");
         }
     }
 }
@@ -416,8 +413,8 @@ async fn stress_high_volume_tenant_writes_then_reads() {
     for i in 0..count {
         let repo = Arc::clone(&repo);
         handles.push(tokio::spawn(async move {
-            let id = TenantId::new(format!("hv-tenant-{}", i)).unwrap();
-            repo.create(id, format!("HV Tenant {}", i), TenantQuotas::standard())
+            let id = TenantId::new(format!("hv-tenant-{i}")).unwrap();
+            repo.create(id, format!("HV Tenant {i}"), TenantQuotas::standard())
                 .await
         }));
     }
@@ -467,8 +464,7 @@ async fn stress_high_volume_audit_then_query() {
     assert_eq!(
         results.len(),
         count,
-        "all {} audit events must be queryable",
-        count
+        "all {count} audit events must be queryable"
     );
 }
 
@@ -485,7 +481,7 @@ async fn stress_high_volume_config_then_list() {
         let repo = Arc::clone(&repo);
         handles.push(tokio::spawn(async move {
             repo.set(
-                &format!("hv-cfg-{}", i),
+                &format!("hv-cfg-{i}"),
                 serde_json::json!({ "index": i }),
                 Some("bulk-writer"),
             )
@@ -532,8 +528,8 @@ async fn stress_tenant_wal_recovery_after_concurrent_writes() {
         for i in 0..count {
             let repo = Arc::clone(&repo);
             handles.push(tokio::spawn(async move {
-                let id = TenantId::new(format!("wal-tenant-{}", i)).unwrap();
-                repo.create(id, format!("WAL Tenant {}", i), TenantQuotas::standard())
+                let id = TenantId::new(format!("wal-tenant-{i}")).unwrap();
+                repo.create(id, format!("WAL Tenant {i}"), TenantQuotas::standard())
                     .await
             }));
         }
@@ -552,14 +548,13 @@ async fn stress_tenant_wal_recovery_after_concurrent_writes() {
         assert_eq!(
             repo.count().await.unwrap(),
             count,
-            "all {} tenants must survive WAL recovery",
-            count
+            "all {count} tenants must survive WAL recovery"
         );
 
         for i in 0..count {
-            let id = TenantId::new(format!("wal-tenant-{}", i)).unwrap();
+            let id = TenantId::new(format!("wal-tenant-{i}")).unwrap();
             let tenant = repo.find_by_id(&id).await.unwrap();
-            assert!(tenant.is_some(), "wal-tenant-{} should survive recovery", i);
+            assert!(tenant.is_some(), "wal-tenant-{i} should survive recovery");
         }
     }
 }
@@ -580,7 +575,7 @@ async fn stress_config_wal_recovery_after_concurrent_writes() {
             let repo = Arc::clone(&repo);
             handles.push(tokio::spawn(async move {
                 repo.set(
-                    &format!("wal-cfg-{}", i),
+                    &format!("wal-cfg-{i}"),
                     serde_json::json!(i),
                     Some("recovery-test"),
                 )
@@ -600,13 +595,12 @@ async fn stress_config_wal_recovery_after_concurrent_writes() {
         assert_eq!(
             repo.count(),
             count,
-            "all {} config entries must survive WAL recovery",
-            count
+            "all {count} config entries must survive WAL recovery"
         );
 
         for i in 0..count {
-            let entry = repo.get(&format!("wal-cfg-{}", i));
-            assert!(entry.is_some(), "wal-cfg-{} should survive recovery", i);
+            let entry = repo.get(&format!("wal-cfg-{i}"));
+            assert!(entry.is_some(), "wal-cfg-{i} should survive recovery");
             assert_eq!(entry.unwrap().value, serde_json::json!(i));
         }
     }
@@ -647,8 +641,7 @@ async fn stress_audit_wal_recovery_after_concurrent_writes() {
         assert_eq!(
             results.len(),
             count,
-            "all {} audit events must survive WAL recovery",
-            count
+            "all {count} audit events must survive WAL recovery"
         );
     }
 }
@@ -672,8 +665,8 @@ async fn stress_mixed_operations_across_repositories() {
     for i in 0..count {
         let tr = Arc::clone(&tenant_repo);
         handles.push(tokio::spawn(async move {
-            let id = TenantId::new(format!("mixed-tenant-{}", i)).unwrap();
-            tr.create(id, format!("Mixed {}", i), TenantQuotas::standard())
+            let id = TenantId::new(format!("mixed-tenant-{i}")).unwrap();
+            tr.create(id, format!("Mixed {i}"), TenantQuotas::standard())
                 .await
                 .map(|_| ())
         }));
@@ -686,7 +679,7 @@ async fn stress_mixed_operations_across_repositories() {
 
         let cr = Arc::clone(&config_repo);
         handles.push(tokio::spawn(async move {
-            cr.set(&format!("mixed-cfg-{}", i), serde_json::json!(i), None)
+            cr.set(&format!("mixed-cfg-{i}"), serde_json::json!(i), None)
         }));
     }
 

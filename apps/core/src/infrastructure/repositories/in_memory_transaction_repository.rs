@@ -76,8 +76,7 @@ impl TransactionRepository for InMemoryTransactionRepository {
             let signature = transaction.tx_signature();
             if transactions.values().any(|t| t.tx_signature() == signature) {
                 return Err(crate::error::AllSourceError::ValidationError(format!(
-                    "Transaction with signature '{}' already exists (replay attack prevention)",
-                    signature
+                    "Transaction with signature '{signature}' already exists (replay attack prevention)"
                 )));
             }
         }
@@ -192,7 +191,7 @@ impl TransactionRepository for InMemoryTransactionRepository {
         Ok(transactions
             .values()
             .filter(|t| t.creator_id() == creator_id && t.is_confirmed())
-            .map(|t| t.creator_amount_cents())
+            .map(crate::domain::entities::transaction::Transaction::creator_amount_cents)
             .sum())
     }
 
@@ -201,7 +200,7 @@ impl TransactionRepository for InMemoryTransactionRepository {
         Ok(transactions
             .values()
             .filter(|t| t.article_id() == article_id && t.is_confirmed())
-            .map(|t| t.amount_cents())
+            .map(crate::domain::entities::transaction::Transaction::amount_cents)
             .sum())
     }
 
@@ -251,11 +250,11 @@ impl TransactionRepository for InMemoryTransactionRepository {
         }
 
         if let Some(date) = query.confirmed_after {
-            result.retain(|t| t.confirmed_at().map(|c| c > date).unwrap_or(false));
+            result.retain(|t| t.confirmed_at().is_some_and(|c| c > date));
         }
 
         if let Some(date) = query.confirmed_before {
-            result.retain(|t| t.confirmed_at().map(|c| c < date).unwrap_or(false));
+            result.retain(|t| t.confirmed_at().is_some_and(|c| c < date));
         }
 
         // Sort by created_at descending (newest first)
@@ -338,7 +337,7 @@ impl InMemoryTransactionRepository {
             RevenueGranularity::Weekly => {
                 // Truncate to start of week (Monday)
                 let days_from_monday = dt.weekday().num_days_from_monday();
-                let monday = dt - Duration::days(days_from_monday as i64);
+                let monday = dt - Duration::days(i64::from(days_from_monday));
                 monday
                     .with_hour(0)
                     .unwrap()
@@ -522,7 +521,7 @@ mod tests {
         for i in 0..3 {
             let tx = Transaction::new(
                 test_tenant_id(),
-                ArticleId::new(format!("article-{}", i)).unwrap(),
+                ArticleId::new(format!("article-{i}")).unwrap(),
                 creator_id,
                 test_wallet(),
                 Money::usd_cents(100),
@@ -546,7 +545,7 @@ mod tests {
         for i in 0..3 {
             let tx = Transaction::new(
                 test_tenant_id(),
-                ArticleId::new(format!("article-{}", i)).unwrap(),
+                ArticleId::new(format!("article-{i}")).unwrap(),
                 test_creator_id(),
                 wallet.clone(),
                 Money::usd_cents(100),
@@ -607,7 +606,7 @@ mod tests {
         for i in 0..3 {
             let mut tx = Transaction::new(
                 test_tenant_id(),
-                ArticleId::new(format!("article-{}", i)).unwrap(),
+                ArticleId::new(format!("article-{i}")).unwrap(),
                 creator_id,
                 test_wallet_n(i),
                 Money::usd_cents(100), // $1.00
@@ -736,7 +735,7 @@ mod tests {
         for i in 0..5 {
             let tx = Transaction::new(
                 test_tenant_id(),
-                ArticleId::new(format!("article-{}", i)).unwrap(),
+                ArticleId::new(format!("article-{i}")).unwrap(),
                 test_creator_id(),
                 test_wallet_n(i),
                 Money::usd_cents(100),
@@ -763,7 +762,7 @@ mod tests {
         for i in 0..3 {
             let mut tx = Transaction::new(
                 test_tenant_id(),
-                ArticleId::new(format!("article-{}", i)).unwrap(),
+                ArticleId::new(format!("article-{i}")).unwrap(),
                 creator_id,
                 test_wallet_n(i),
                 Money::usd_cents(100),
@@ -832,7 +831,7 @@ mod tests {
         let repo = InMemoryTransactionRepository::new();
 
         for i in 0..3 {
-            let tx = create_test_transaction(&format!("{:08}", i));
+            let tx = create_test_transaction(&format!("{i:08}"));
             repo.save(&tx).await.unwrap();
         }
 

@@ -1,0 +1,7 @@
+project_name = "rewind-project"
+
+[llm]
+
+[agents]
+max_concurrent = 3
+timeout_secs = 300

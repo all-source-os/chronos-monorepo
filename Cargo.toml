@@ -43,7 +43,6 @@ crc32fast = "1.4"
 # Dev / Test
 criterion = "0.8"
 crossbeam = "0.8"
-crossbeam-queue = "0.3"
 crossterm = "0.28"
 ctrlc = "3.5"
 
@@ -60,7 +59,6 @@ futures = "0.3"
 http = "1.0"
 instant-distance = { version = "0.6" }
 jsonwebtoken = { version = "10.3", features = ["rust_crypto"] }
-lz4 = "1.28"
 parking_lot = "0.12"
 parquet = { version = "57.3", features = ["arrow", "async"] }
 prometheus = "0.14"
@@ -91,6 +89,45 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.19", features = ["v4", "serde"] }
+
+[workspace.lints.clippy]
+# Enable pedantic group — then allow the noisy/impractical lints below
+pedantic = { level = "warn", priority = -1 }
+
+# --- Pedantic allow-list (too noisy or impractical to enforce) ---
+assigning_clones = "allow"           # clone_from suggestions are marginal wins
+cast_possible_truncation = "allow"   # u64→usize on 32-bit is fine for us
+cast_possible_wrap = "allow"         # u32→i32 wrapping is intentional in some spots
+cast_precision_loss = "allow"        # i64→f64 precision loss is acceptable
+cast_sign_loss = "allow"             # signed→unsigned in controlled contexts
+default_trait_access = "allow"       # Type::default() vs Default::default() is style
+doc_markdown = "allow"               # too many false positives on domain terms
+float_cmp = "allow"                  # test assertions use assert_eq! on floats
+format_push_string = "allow"         # write! vs push_str(&format!) is marginal
+ignore_without_reason = "allow"      # test #[ignore] doesn't need reasons yet
+items_after_statements = "allow"     # sometimes clearer to define helpers inline
+match_same_arms = "allow"            # explicit arms improve readability
+missing_errors_doc = "allow"         # would require documenting every Result fn
+missing_fields_in_debug = "allow"    # custom Debug impls intentionally omit fields
+missing_panics_doc = "allow"         # would require documenting every unwrap
+module_name_repetitions = "allow"    # e.g. EventStore inside event_store module
+must_use_candidate = "allow"         # too many false positives on builder methods
+return_self_not_must_use = "allow"   # builder pattern doesn't need #[must_use]
+similar_names = "allow"              # domain variables often have similar names
+struct_excessive_bools = "allow"     # config structs legitimately have many bools
+struct_field_names = "allow"         # field names matching struct name is fine
+too_many_lines = "allow"             # main() and handler fns are naturally long
+trivially_copy_pass_by_ref = "allow" # &bool, &u32 etc. are fine in our API
+unnecessary_wraps = "allow"          # Result/Option return types kept for API consistency
+unreadable_literal = "allow"         # port numbers, test IDs don't need separators
+unused_async = "allow"               # async fns that spawn tasks don't await directly
+unused_self = "allow"                # trait impls and future-proofing
+used_underscore_binding = "allow"    # _prefixed bindings used for clarity
+wildcard_imports = "allow"           # used in test modules and re-exports
+
+# Performance (supplemental — not in pedantic)
+inefficient_to_string = "warn"
+large_futures = "warn"
 
 [profile.release]
 codegen-units = 1

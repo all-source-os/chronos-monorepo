@@ -314,7 +314,7 @@ impl AnomalyDetector {
                 key_id,
                 key_name: _,
             } => key_id.clone(),
-            _ => return Ok(()),
+            crate::domain::entities::Actor::System { .. } => return Ok(()),
         };
 
         let profile_key = format!("{}-{user_id}", event.tenant_id().as_str());
@@ -424,7 +424,7 @@ impl AnomalyDetector {
             }
 
             if anomaly_indicators > 0 {
-                let score = (anomaly_indicators as f64 / 2.0).min(1.0);
+                let score = (f64::from(anomaly_indicators) / 2.0).min(1.0);
                 return Ok(Some((score, factors)));
             }
         }

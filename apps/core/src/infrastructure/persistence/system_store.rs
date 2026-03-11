@@ -113,8 +113,7 @@ impl SystemMetadataStore {
             Err(e) => {
                 tracing::error!("System WAL recovery failed: {}", e);
                 return Err(AllSourceError::StorageError(format!(
-                    "System WAL recovery failed: {}",
-                    e
+                    "System WAL recovery failed: {e}"
                 )));
             }
         }
@@ -269,7 +268,7 @@ impl SystemMetadataStore {
             .cloned()
             .collect();
 
-        results.sort_by_key(|e| e.timestamp());
+        results.sort_by_key(crate::domain::entities::event::Event::timestamp);
 
         if let Some(limit) = limit {
             results.truncate(limit);
@@ -439,7 +438,7 @@ mod tests {
             store
                 .append_system_event(
                     tenant_events::CREATED,
-                    system_entity_id_value(SystemDomain::Tenant, &format!("t{}", i)),
+                    system_entity_id_value(SystemDomain::Tenant, &format!("t{i}")),
                     serde_json::json!({"index": i}),
                     None,
                 )
@@ -551,7 +550,7 @@ mod tests {
     #[test]
     fn test_debug_impl() {
         let (store, _dir) = create_test_store();
-        let debug_str = format!("{:?}", store);
+        let debug_str = format!("{store:?}");
         assert!(debug_str.contains("SystemMetadataStore"));
         assert!(debug_str.contains("total_events"));
     }

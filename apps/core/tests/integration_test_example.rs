@@ -154,8 +154,8 @@ fn test_event_store_with_tenants() {
     let event1_entity_id = event1.entity_id().to_string();
 
     // Ingest events
-    store.ingest(event1).expect("Failed to ingest event1");
-    store.ingest(event2).expect("Failed to ingest event2");
+    store.ingest(&event1).expect("Failed to ingest event1");
+    store.ingest(&event2).expect("Failed to ingest event2");
 
     // Query by entity using query method
     let query = QueryEventsRequest {
@@ -168,7 +168,7 @@ fn test_event_store_with_tenants() {
         limit: None,
         ..Default::default()
     };
-    let entity_events = store.query(query).expect("Failed to query by entity");
+    let entity_events = store.query(&query).expect("Failed to query by entity");
 
     assert_eq!(entity_events.len(), 1);
     assert_eq!(entity_events[0].tenant_id_str(), "tenant1");

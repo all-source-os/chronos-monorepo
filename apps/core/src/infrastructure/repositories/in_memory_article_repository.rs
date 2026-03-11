@@ -229,11 +229,11 @@ impl ArticleRepository for InMemoryArticleRepository {
         }
 
         if let Some(date) = query.published_after {
-            result.retain(|a| a.published_at().map(|p| p > date).unwrap_or(false));
+            result.retain(|a| a.published_at().is_some_and(|p| p > date));
         }
 
         if let Some(date) = query.published_before {
-            result.retain(|a| a.published_at().map(|p| p < date).unwrap_or(false));
+            result.retain(|a| a.published_at().is_some_and(|p| p < date));
         }
 
         // Apply ordering
@@ -243,7 +243,9 @@ impl ArticleRepository for InMemoryArticleRepository {
                 result.sort_by_key(|b| std::cmp::Reverse(b.created_at()));
             }
             ArticleOrderBy::CreatedAtAsc => {
-                result.sort_by_key(|a| a.created_at());
+                result.sort_by_key(
+                    crate::domain::entities::paywall_article::PaywallArticle::created_at,
+                );
             }
             ArticleOrderBy::PublishedAtDesc => {
                 result.sort_by_key(|b| std::cmp::Reverse(b.published_at()));
@@ -262,7 +264,9 @@ impl ArticleRepository for InMemoryArticleRepository {
                 result.sort_by_key(|b| std::cmp::Reverse(b.price_cents()));
             }
             ArticleOrderBy::PriceAsc => {
-                result.sort_by_key(|a| a.price_cents());
+                result.sort_by_key(
+                    crate::domain::entities::paywall_article::PaywallArticle::price_cents,
+                );
             }
             ArticleOrderBy::TitleAsc => {
                 result.sort_by(|a, b| a.title().cmp(b.title()));
@@ -342,7 +346,7 @@ mod tests {
             test_tenant_id(),
             creator_id,
             title.to_string(),
-            format!("https://example.com/{}", slug),
+            format!("https://example.com/{slug}"),
             50, // $0.50
         )
         .unwrap()
@@ -391,11 +395,8 @@ mod tests {
 
         // Create articles for creator1
         for i in 0..3 {
-            let article = create_test_article(
-                &format!("article-{}", i),
-                &format!("Article {}", i),
-                creator1,
-            );
+            let article =
+                create_test_article(&format!("article-{i}"), &format!("Article {i}"), creator1);
             repo.save(&article).await.unwrap();
         }
 
@@ -413,11 +414,8 @@ mod tests {
         let creator_id = test_creator_id();
 
         for i in 0..3 {
-            let article = create_test_article(
-                &format!("article-{}", i),
-                &format!("Article {}", i),
-                creator_id,
-            );
+            let article =
+                create_test_article(&format!("article-{i}"), &format!("Article {i}"), creator_id);
             repo.save(&article).await.unwrap();
         }
 
@@ -599,11 +597,8 @@ mod tests {
         let creator_id = test_creator_id();
 
         for i in 0..5 {
-            let article = create_test_article(
-                &format!("article-{}", i),
-                &format!("Article {}", i),
-                creator_id,
-            );
+            let article =
+                create_test_article(&format!("article-{i}"), &format!("Article {i}"), creator_id);
             repo.save(&article).await.unwrap();
         }
 
@@ -619,11 +614,8 @@ mod tests {
 
         // Create articles with different revenues
         for i in 0..5 {
-            let mut article = create_test_article(
-                &format!("article-{}", i),
-                &format!("Article {}", i),
-                creator_id,
-            );
+            let mut article =
+                create_test_article(&format!("article-{i}"), &format!("Article {i}"), creator_id);
             // Give each article different revenue
             for _ in 0..i {
                 article.record_purchase(100);
@@ -672,11 +664,8 @@ mod tests {
 
         // Create articles for creator1
         for i in 0..3 {
-            let article = create_test_article(
-                &format!("article1-{}", i),
-                &format!("Article1 {}", i),
-                creator1,
-            );
+            let article =
+                create_test_article(&format!("article1-{i}"), &format!("Article1 {i}"), creator1);
             repo.save(&article).await.unwrap();
         }
 
@@ -699,11 +688,8 @@ mod tests {
         let creator_id = test_creator_id();
 
         for i in 0..3 {
-            let article = create_test_article(
-                &format!("article-{}", i),
-                &format!("Article {}", i),
-                creator_id,
-            );
+            let article =
+                create_test_article(&format!("article-{i}"), &format!("Article {i}"), creator_id);
             repo.save(&article).await.unwrap();
         }
 

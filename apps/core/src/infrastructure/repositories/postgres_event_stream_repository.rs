@@ -252,8 +252,7 @@ impl EventStreamRepository for PostgresEventStreamRepository {
             && expected != current_version as u64
         {
             return Err(AllSourceError::ConcurrencyError(format!(
-                "Version conflict: expected {}, got {}",
-                expected, current_version
+                "Version conflict: expected {expected}, got {current_version}"
             )));
         }
 
@@ -526,7 +525,7 @@ mod tests {
             .await
             .expect("Failed to get port");
 
-        let database_url = format!("postgresql://postgres:postgres@{}:{}/postgres", host, port);
+        let database_url = format!("postgresql://postgres:postgres@{host}:{port}/postgres");
 
         let pool = PgPoolOptions::new()
             .max_connections(5)

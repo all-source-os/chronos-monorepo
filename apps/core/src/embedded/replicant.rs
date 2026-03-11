@@ -48,7 +48,7 @@ impl WorkflowStatusProjection {
 }
 
 impl Projection for WorkflowStatusProjection {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "workflow_status"
     }
 
@@ -61,7 +61,7 @@ impl Projection for WorkflowStatusProjection {
             "workflow.dispatched" => {
                 let steps_total = payload
                     .get("steps_total")
-                    .and_then(|v| v.as_u64())
+                    .and_then(serde_json::Value::as_u64)
                     .unwrap_or(0);
                 self.states.insert(
                     entity_id,
@@ -91,7 +91,7 @@ impl Projection for WorkflowStatusProjection {
                 if status == "claimed" || status == "running" || status == "unknown" {
                     let completed = state
                         .get("steps_completed")
-                        .and_then(|v| v.as_u64())
+                        .and_then(serde_json::Value::as_u64)
                         .unwrap_or(0)
                         + 1;
                     state["status"] = json!("running");
@@ -167,7 +167,7 @@ impl ReplicantRegistryProjection {
 }
 
 impl Projection for ReplicantRegistryProjection {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "replicant_registry"
     }
 
@@ -243,7 +243,7 @@ impl TaskQueueProjection {
 }
 
 impl Projection for TaskQueueProjection {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "task_queue"
     }
 

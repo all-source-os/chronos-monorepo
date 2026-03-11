@@ -178,8 +178,7 @@ impl Schema {
 
         if self.tags.contains(&tag) {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Tag '{}' already exists",
-                tag
+                "Tag '{tag}' already exists"
             )));
         }
 
@@ -194,8 +193,7 @@ impl Schema {
 
         if self.tags.len() == initial_len {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Tag '{}' not found",
-                tag
+                "Tag '{tag}' not found"
             )));
         }
 
@@ -249,8 +247,7 @@ impl Schema {
             .all(|c| c.is_lowercase() || c.is_numeric() || c == '.' || c == '_' || c == '-')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Schema subject '{}' must be lowercase with dots, underscores, or hyphens",
-                subject
+                "Schema subject '{subject}' must be lowercase with dots, underscores, or hyphens"
             )));
         }
 
@@ -319,8 +316,7 @@ impl Schema {
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
             return Err(crate::error::AllSourceError::InvalidInput(format!(
-                "Tag '{}' must be alphanumeric with hyphens or underscores",
-                tag
+                "Tag '{tag}' must be alphanumeric with hyphens or underscores"
             )));
         }
 
@@ -375,7 +371,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_subject() {
-        let result = Schema::new("".to_string(), 1, valid_schema(), CompatibilityMode::None);
+        let result = Schema::new(String::new(), 1, valid_schema(), CompatibilityMode::None);
 
         assert!(result.is_err());
     }
@@ -416,7 +412,7 @@ mod tests {
                 valid_schema(),
                 CompatibilityMode::None,
             );
-            assert!(result.is_ok(), "Subject '{}' should be valid", subject);
+            assert!(result.is_ok(), "Subject '{subject}' should be valid");
         }
     }
 
@@ -599,7 +595,7 @@ mod tests {
         .unwrap();
 
         // Empty tag
-        assert!(schema.add_tag("".to_string()).is_err());
+        assert!(schema.add_tag(String::new()).is_err());
 
         // Too long tag
         assert!(schema.add_tag("a".repeat(51)).is_err());

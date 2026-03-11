@@ -1,5 +1,7 @@
 //! MCP tool definitions and execution.
 
+use std::fmt::Write;
+
 use allsource_core::embedded::{EmbeddedCore, Query};
 use anyhow::Result;
 use serde_json::Value;
@@ -105,7 +107,7 @@ pub fn tool_definitions() -> Vec<ToolDef> {
 /// Execute a tool call and return the MCP result.
 pub async fn execute_tool(core: &EmbeddedCore, name: &str, args: &Value) -> Value {
     match execute_tool_inner(core, name, args).await {
-        Ok(result) => tool_result(result),
+        Ok(ref result) => tool_result(result),
         Err(e) => tool_error(&format!("Tool '{name}' failed: {e}")),
     }
 }
@@ -133,17 +135,20 @@ async fn exec_query_events(core: &EmbeddedCore, args: &Value) -> Result<Value> {
     if let Some(event_type) = args.get("event_type").and_then(|v| v.as_str()) {
         query = query.event_type_prefix(event_type);
     }
-    if let Some(since) = args.get("since").and_then(|v| v.as_str()) {
-        if let Ok(t) = since.parse() {
-            query = query.since(t);
-        }
+    if let Some(since) = args.get("since").and_then(|v| v.as_str())
+        && let Ok(t) = since.parse()
+    {
+        query = query.since(t);
     }
-    if let Some(until) = args.get("until").and_then(|v| v.as_str()) {
-        if let Ok(t) = until.parse() {
-            query = query.until(t);
-        }
+    if let Some(until) = args.get("until").and_then(|v| v.as_str())
+        && let Ok(t) = until.parse()
+    {
+        query = query.until(t);
     }
-    let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
+    let limit = args
+        .get("limit")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(50) as usize;
     query = query.limit(limit);
 
     let events = core.query(query).await?;
@@ -169,7 +174,10 @@ async fn exec_query_events(core: &EmbeddedCore, args: &Value) -> Result<Value> {
 }
 
 async fn exec_sample_events(core: &EmbeddedCore, args: &Value) -> Result<Value> {
-    let count = args.get("count").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
+    let count = args
+        .get("count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(20) as usize;
 
     let events = core.query(Query::new().limit(count)).await?;
     let result: Vec<Value> = events
@@ -259,7 +267,10 @@ async fn exec_event_timeline(core: &EmbeddedCore, args: &Value) -> Result<Value>
         .get("entity_id")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("entity_id is required"))?;
-    let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+    let limit = args
+        .get("limit")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(100) as usize;
 
     let events = core
         .query(Query::new().entity_id(entity_id).limit(limit))
@@ -385,15 +396,15 @@ async fn exec_analyze_changes(core: &EmbeddedCore, args: &Value) -> Result<Value
         .ok_or_else(|| anyhow::anyhow!("entity_id is required"))?;
 
     let mut query = Query::new().entity_id(entity_id).limit(10000);
-    if let Some(since) = args.get("since").and_then(|v| v.as_str()) {
-        if let Ok(t) = since.parse() {
-            query = query.since(t);
-        }
+    if let Some(since) = args.get("since").and_then(|v| v.as_str())
+        && let Ok(t) = since.parse()
+    {
+        query = query.since(t);
     }
-    if let Some(until) = args.get("until").and_then(|v| v.as_str()) {
-        if let Ok(t) = until.parse() {
-            query = query.until(t);
-        }
+    if let Some(until) = args.get("until").and_then(|v| v.as_str())
+        && let Ok(t) = until.parse()
+    {
+        query = query.until(t);
     }
 
     let events = core.query(query).await?;
@@ -431,7 +442,7 @@ fn summarize_payload(payload: &Value) -> String {
                     .collect::<Vec<_>>()
                     .join(", ");
                 if map.len() > 5 {
-                    s.push_str(&format!(" (+{} more)", map.len() - 5));
+                    write!(s, " (+{} more)", map.len() - 5).unwrap();
                 }
                 s
             }

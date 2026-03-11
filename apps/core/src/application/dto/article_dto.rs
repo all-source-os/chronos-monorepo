@@ -122,9 +122,11 @@ impl From<&PaywallArticle> for ArticleDto {
             title: article.title().to_string(),
             url: article.url().to_string(),
             price_cents: article.price_cents(),
-            description: article.description().map(|s| s.to_string()),
+            description: article.description().map(std::string::ToString::to_string),
             estimated_reading_time_minutes: article.estimated_reading_time_minutes(),
-            preview_content: article.preview_content().map(|s| s.to_string()),
+            preview_content: article
+                .preview_content()
+                .map(std::string::ToString::to_string),
             status: article.status().into(),
             stats: article.stats().into(),
             is_purchasable: article.is_purchasable(),

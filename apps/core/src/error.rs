@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn test_error_debug() {
         let err = AllSourceError::EventNotFound("test".to_string());
-        let debug_str = format!("{:?}", err);
+        let debug_str = format!("{err:?}");
         assert!(debug_str.contains("EventNotFound"));
     }
 

@@ -27,10 +27,7 @@ pub fn normalize_event_type(event_type: &str) -> String {
 
     // Contains underscores or hyphens → split on those separators
     if event_type.contains('_') || event_type.contains('-') {
-        return event_type
-            .replace('-', ".")
-            .replace('_', ".")
-            .to_lowercase();
+        return event_type.replace(['-', '_'], ".").to_lowercase();
     }
 
     // PascalCase or camelCase → split on uppercase boundaries

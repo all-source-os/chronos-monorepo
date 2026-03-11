@@ -20,7 +20,7 @@ const EMBEDDING_DIM: usize = 384;
 /// immediately without duplicating data.
 pub async fn demo_seed_handler(State(state): State<AppState>) -> Result<Json<serde_json::Value>> {
     // Idempotency check: look for our marker event
-    let existing = state.store.query(QueryEventsRequest {
+    let existing = state.store.query(&QueryEventsRequest {
         entity_id: None,
         event_type: Some(DEMO_SEED_MARKER.to_string()),
         tenant_id: None,
@@ -146,7 +146,7 @@ pub async fn demo_seed_handler(State(state): State<AppState>) -> Result<Json<ser
                 })),
             )?;
 
-            state.store.ingest(event)?;
+            state.store.ingest(&event)?;
             total_count += 1;
         }
     }
@@ -162,7 +162,7 @@ pub async fn demo_seed_handler(State(state): State<AppState>) -> Result<Json<ser
         }),
         Some(serde_json::json!({ "source": "demo_seed" })),
     )?;
-    state.store.ingest(marker)?;
+    state.store.ingest(&marker)?;
 
     tracing::info!("Demo data seeded: {} events", total_count);
 

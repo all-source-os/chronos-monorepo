@@ -73,9 +73,7 @@ mod tests {
 
         assert!(
             toon_braces < json_braces,
-            "TOON ({} braces) should have fewer braces than JSON ({})",
-            toon_braces,
-            json_braces
+            "TOON ({toon_braces} braces) should have fewer braces than JSON ({json_braces})"
         );
 
         // TOON should not have quoted keys (JSON has "key": format)

@@ -140,7 +140,7 @@ impl RocksDBEventStreamRepository {
 
     /// Helper: Generate event key (stream_id:version)
     fn event_key(stream_id: &str, version: u64) -> String {
-        format!("{}:{:020}", stream_id, version)
+        format!("{stream_id}:{version:020}")
     }
 
     /// Helper: Load all events for a stream
@@ -174,7 +174,7 @@ impl RocksDBEventStreamRepository {
             AllSourceError::StorageError("Partition index CF not found".to_string())
         })?;
 
-        let partition_key = format!("partition:{}", partition_id);
+        let partition_key = format!("partition:{partition_id}");
 
         // Get existing stream IDs for this partition (using simd-json for faster parsing)
         let mut stream_ids: Vec<String> = if let Some(data) = self
@@ -183,7 +183,7 @@ impl RocksDBEventStreamRepository {
             .map_err(|e| {
                 AllSourceError::StorageError(format!("Failed to read partition index: {e}"))
             })? {
-            let mut data_mut = data.to_vec();
+            let mut data_mut = data.clone();
             simd_json::from_slice(&mut data_mut).map_err(|e| {
                 AllSourceError::SerializationError(serde_json::Error::custom(e.to_string()))
             })?
@@ -389,7 +389,7 @@ impl EventStreamRepository for RocksDBEventStreamRepository {
             .map_err(|e| {
                 AllSourceError::StorageError(format!("Failed to read partition index: {e}"))
             })? {
-            let mut data_mut = data.to_vec();
+            let mut data_mut = data.clone();
             simd_json::from_slice(&mut data_mut).map_err(|e| {
                 AllSourceError::SerializationError(serde_json::Error::custom(e.to_string()))
             })?
@@ -585,7 +585,7 @@ mod tests {
 
         // Create multiple streams
         for i in 0..5 {
-            let stream_id = EntityId::new(format!("stream-{}", i)).unwrap();
+            let stream_id = EntityId::new(format!("stream-{i}")).unwrap();
             repo.get_or_create_stream(&stream_id).await.unwrap();
         }
 

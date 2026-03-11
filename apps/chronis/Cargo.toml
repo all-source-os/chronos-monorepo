@@ -32,6 +32,7 @@ clap = { version = "4.5", features = ["derive"] }
 crossterm = "0.28"
 arboard = "3.4"
 fuzzy-matcher = "0.3"
+hotpath = { version = "0.14", optional = true }
 notify = "7.0"
 dashmap = "6.1"
 rand = "0.10"
@@ -45,6 +46,10 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 uuid = { version = "1", features = ["serde"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+hotpath = ["dep:hotpath"]
+hotpath-alloc = ["hotpath/hotpath-alloc"]
 
 [dev-dependencies]
 tempfile = "3.23"

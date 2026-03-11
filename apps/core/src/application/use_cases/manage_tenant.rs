@@ -91,7 +91,7 @@ impl DeactivateTenantUseCase {
 pub struct ListTenantsUseCase;
 
 impl ListTenantsUseCase {
-    pub fn execute(tenants: Vec<Tenant>) -> ListTenantsResponse {
+    pub fn execute(tenants: &[Tenant]) -> ListTenantsResponse {
         let tenant_dtos: Vec<TenantDto> = tenants.iter().map(TenantDto::from).collect();
         let count = tenant_dtos.len();
 
@@ -208,7 +208,7 @@ mod tests {
             .unwrap(),
         ];
 
-        let response = ListTenantsUseCase::execute(tenants);
+        let response = ListTenantsUseCase::execute(&tenants);
         assert_eq!(response.count, 2);
         assert_eq!(response.tenants.len(), 2);
     }

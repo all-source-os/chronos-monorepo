@@ -16,6 +16,7 @@ pub struct CreateTaskOutput {
     pub id: String,
 }
 
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub async fn create_task(
     repo: &impl TaskRepository,
     input: CreateTaskInput<'_>,

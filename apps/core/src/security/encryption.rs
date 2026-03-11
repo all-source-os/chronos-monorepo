@@ -225,8 +225,7 @@ impl FieldEncryption {
             active_key_version: active_key_id
                 .as_ref()
                 .and_then(|id| self.deks.get(id))
-                .map(|entry| entry.value().version)
-                .unwrap_or(0),
+                .map_or(0, |entry| entry.value().version),
             algorithm: self.config.read().algorithm.clone(),
         }
     }

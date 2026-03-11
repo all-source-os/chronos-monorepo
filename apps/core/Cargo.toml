@@ -1,6 +1,6 @@
 [package]
 name = "allsource-core"
-version = "0.14.7"
+version = "0.14.8"
 edition = "2024"
 rust-version = "1.92"
 authors = ["AllSource Team"]
@@ -34,7 +34,7 @@ path = "src/bin/allsource-sentinel.rs"
 required-features = ["server"]
 
 [features]
-default = ["server", "analytics"]
+default = ["server"]
 # Embedded-only rlib size: ~30MB (includes arrow, parquet, serde, chrono; measured 2026-02-28)
 # Server feature: includes HTTP server, auth, metrics, webhooks, and all infrastructure
 server = [
@@ -63,6 +63,9 @@ embedded-replicant = ["embedded"]
 embedded-streaming = ["embedded"]
 embedded-projections = ["embedded"]
 embedded-toon = ["embedded", "dep:toon-format"]
+# Zero-cost profiling — fully gated, no overhead when disabled
+hotpath = ["dep:hotpath"]
+hotpath-alloc = ["hotpath/hotpath-alloc"]
 
 [dependencies]
 aes-gcm = { workspace = true, optional = true }
@@ -80,7 +83,6 @@ bytes.workspace = true
 chrono.workspace = true
 crc32fast.workspace = true
 crossbeam.workspace = true
-crossbeam-queue.workspace = true
 dashmap.workspace = true
 datafusion = { workspace = true, optional = true }
 # Vector search dependencies (optional)
@@ -89,10 +91,10 @@ flate2.workspace = true
 futures.workspace = true
 hex = "0.4"
 hmac = "0.12"
+hotpath = { version = "0.14", optional = true }
 http = { workspace = true, optional = true }
 instant-distance = { workspace = true, optional = true }
 jsonwebtoken = { workspace = true, optional = true }
-lz4.workspace = true
 parking_lot.workspace = true
 parquet.workspace = true
 prometheus.workspace = true
@@ -126,6 +128,9 @@ ctrlc.workspace = true
 tempfile.workspace = true
 testcontainers = "0.26"
 testcontainers-modules = { version = "0.14", features = ["postgres"] }
+
+[lints]
+workspace = true
 
 [[bench]]
 name = "performance_benchmarks"

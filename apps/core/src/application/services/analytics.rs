@@ -54,7 +54,7 @@ impl TimeWindow {
                 .unwrap(),
             TimeWindow::Week => {
                 let days_from_monday = timestamp.weekday().num_days_from_monday();
-                (timestamp - Duration::days(days_from_monday as i64))
+                (timestamp - Duration::days(i64::from(days_from_monday)))
                     .with_hour(0)
                     .unwrap()
                     .with_minute(0)
@@ -212,12 +212,12 @@ impl AnalyticsEngine {
     /// Analyze event frequency over time windows
     pub fn event_frequency(
         store: &EventStore,
-        request: EventFrequencyRequest,
+        request: &EventFrequencyRequest,
     ) -> Result<EventFrequencyResponse> {
         let until = request.until.unwrap_or_else(Utc::now);
 
         // Query events in the time range
-        let events = store.query(crate::application::dto::QueryEventsRequest {
+        let events = store.query(&crate::application::dto::QueryEventsRequest {
             entity_id: request.entity_id.clone(),
             event_type: request.event_type.clone(),
             tenant_id: None,
@@ -318,10 +318,10 @@ impl AnalyticsEngine {
     /// Generate comprehensive statistical summary
     pub fn stats_summary(
         store: &EventStore,
-        request: StatsSummaryRequest,
+        request: &StatsSummaryRequest,
     ) -> Result<StatsSummaryResponse> {
         // Query events based on filters
-        let events = store.query(crate::application::dto::QueryEventsRequest {
+        let events = store.query(&crate::application::dto::QueryEventsRequest {
             entity_id: request.entity_id.clone(),
             event_type: request.event_type.clone(),
             tenant_id: None,
@@ -412,7 +412,7 @@ impl AnalyticsEngine {
         request: CorrelationRequest,
     ) -> Result<CorrelationResponse> {
         // Query both event types
-        let events_a = store.query(crate::application::dto::QueryEventsRequest {
+        let events_a = store.query(&crate::application::dto::QueryEventsRequest {
             entity_id: None,
             event_type: Some(request.event_type_a.clone()),
             tenant_id: None,
@@ -424,7 +424,7 @@ impl AnalyticsEngine {
             payload_filter: None,
         })?;
 
-        let events_b = store.query(crate::application::dto::QueryEventsRequest {
+        let events_b = store.query(&crate::application::dto::QueryEventsRequest {
             entity_id: None,
             event_type: Some(request.event_type_b.clone()),
             tenant_id: None,
@@ -483,10 +483,10 @@ impl AnalyticsEngine {
             }
         }
 
-        let correlation_percentage = if !events_a.is_empty() {
-            (correlated_pairs as f64 / events_a.len() as f64) * 100.0
-        } else {
+        let correlation_percentage = if events_a.is_empty() {
             0.0
+        } else {
+            (correlated_pairs as f64 / events_a.len() as f64) * 100.0
         };
 
         let avg_time_between = if correlated_pairs > 0 {

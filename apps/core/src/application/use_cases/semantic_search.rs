@@ -123,7 +123,7 @@ impl SemanticSearchUseCase {
             .get_embedding(event_id)
             .await?
             .ok_or_else(|| {
-                AllSourceError::EventNotFound(format!("No embedding found for event {}", event_id))
+                AllSourceError::EventNotFound(format!("No embedding found for event {event_id}"))
             })?;
 
         // Search for similar events (excluding the source event)
@@ -275,7 +275,7 @@ impl IndexEventEmbeddingUseCase {
                         })
                         .await
                     {
-                        Ok(_) => indexed += 1,
+                        Ok(()) => indexed += 1,
                         Err(e) => {
                             failed += 1;
                             errors.push(format!("Event {}: {}", request.event_id, e));

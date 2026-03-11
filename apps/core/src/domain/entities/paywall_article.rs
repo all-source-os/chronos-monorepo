@@ -369,8 +369,8 @@ impl PaywallArticle {
         let total = self.stats.total_purchases.max(1);
         self.stats.avg_read_duration_seconds =
             ((self.stats.avg_read_duration_seconds * (total - 1)) + duration_seconds) / total;
-        self.stats.avg_scroll_depth = (((self.stats.avg_scroll_depth as u64 * (total - 1))
-            + scroll_depth as u64)
+        self.stats.avg_scroll_depth = (((u64::from(self.stats.avg_scroll_depth) * (total - 1))
+            + u64::from(scroll_depth))
             / total) as u8;
         self.updated_at = Utc::now();
     }
@@ -507,7 +507,7 @@ mod tests {
             test_article_id(),
             test_tenant_id(),
             test_creator_id(),
-            "".to_string(),
+            String::new(),
             "https://blog.example.com/article".to_string(),
             50,
         );

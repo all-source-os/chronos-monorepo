@@ -170,7 +170,7 @@ impl SecurityScanner {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Dependency scan failed: {}", e);
+                    eprintln!("Dependency scan failed: {e}");
                 }
             }
         }
@@ -187,7 +187,7 @@ impl SecurityScanner {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Secrets scan failed: {}", e);
+                    eprintln!("Secrets scan failed: {e}");
                 }
             }
         }
@@ -202,7 +202,7 @@ impl SecurityScanner {
                     }
                 }
                 Err(e) => {
-                    eprintln!("SAST failed: {}", e);
+                    eprintln!("SAST failed: {e}");
                 }
             }
         }
@@ -218,7 +218,7 @@ impl SecurityScanner {
                     }
                 }
                 Err(e) => {
-                    eprintln!("License check failed: {}", e);
+                    eprintln!("License check failed: {e}");
                 }
             }
         }
@@ -556,7 +556,7 @@ impl SecurityScanner {
             None => true,
             Some(last) => {
                 let elapsed = Utc::now() - last;
-                elapsed.num_hours() >= self.config.scan_frequency_hours as i64
+                elapsed.num_hours() >= i64::from(self.config.scan_frequency_hours)
             }
         }
     }
@@ -568,7 +568,7 @@ pub struct CiCdIntegration;
 impl CiCdIntegration {
     /// Generate GitHub Actions workflow
     pub fn generate_github_actions_workflow() -> String {
-        r#"name: Security Scan
+        r"name: Security Scan
 
 on:
   push:
@@ -608,13 +608,13 @@ jobs:
           path: ./
           base: main
           head: HEAD
-"#
+"
         .to_string()
     }
 
     /// Generate GitLab CI configuration
     pub fn generate_gitlab_ci_config() -> String {
-        r#"security-scan:
+        r"security-scan:
   stage: test
   image: rust:latest
   script:
@@ -623,7 +623,7 @@ jobs:
     - cargo clippy -- -D warnings
     - cargo test --lib security
   allow_failure: false
-"#
+"
         .to_string()
     }
 }
@@ -965,7 +965,7 @@ mod tests {
 
     #[test]
     fn test_parse_license_findings_empty_input() {
-        let json = r#"[]"#;
+        let json = r"[]";
         let restricted = ["GPL-3.0", "AGPL-3.0", "SSPL"];
         let findings =
             SecurityScanner::parse_license_findings(json.as_bytes(), &restricted).unwrap();

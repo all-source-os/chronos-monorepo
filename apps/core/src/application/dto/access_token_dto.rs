@@ -118,7 +118,9 @@ impl From<&AccessToken> for AccessTokenDto {
             article_id: token.article_id().to_string(),
             creator_id: token.creator_id().as_uuid().to_string(),
             reader_wallet: token.reader_wallet().to_string(),
-            transaction_id: token.transaction_id().map(|t| t.as_uuid()),
+            transaction_id: token
+                .transaction_id()
+                .map(crate::domain::value_objects::transaction_id::TransactionId::as_uuid),
             access_method: token.access_method().into(),
             issued_at: token.issued_at(),
             expires_at: token.expires_at(),
@@ -126,7 +128,9 @@ impl From<&AccessToken> for AccessTokenDto {
             is_expired: token.is_expired(),
             is_revoked: token.is_revoked(),
             revoked_at: token.revoked_at(),
-            revocation_reason: token.revocation_reason().map(|s| s.to_string()),
+            revocation_reason: token
+                .revocation_reason()
+                .map(std::string::ToString::to_string),
             remaining_days: token.remaining_days(),
             access_count: token.access_count(),
             last_accessed_at: token.last_accessed_at(),

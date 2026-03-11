@@ -105,7 +105,7 @@ mod tests {
     fn test_store_fixture() {
         let store = test_store();
         let event = test_event("e-1", "test.event");
-        store.ingest(event).unwrap();
+        store.ingest(&event).unwrap();
         assert_eq!(store.stats().total_events, 1);
     }
 

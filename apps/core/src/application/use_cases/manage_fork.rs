@@ -163,7 +163,7 @@ impl UpdateForkUseCase {
     ) -> Result<UpdateForkResponse> {
         let id = ForkId::parse(fork_id)?;
         let mut fork = self.repository.find_by_id(&id).await?.ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", fork_id))
+            crate::error::AllSourceError::EntityNotFound(format!("Fork '{fork_id}' not found"))
         })?;
 
         if let Some(description) = request.description {
@@ -278,7 +278,7 @@ impl MergeForkUseCase {
             if let Some(ref store) = self.event_store {
                 let fork_events = fork.all_events();
                 for event in fork_events {
-                    store.ingest(event.clone())?;
+                    store.ingest(event)?;
                     events_committed += 1;
                 }
             } else {
@@ -444,7 +444,7 @@ impl GetForkUseCase {
     pub async fn execute(&self, fork_id: &str) -> Result<ForkDto> {
         let id = ForkId::parse(fork_id)?;
         let fork = self.repository.find_by_id(&id).await?.ok_or_else(|| {
-            crate::error::AllSourceError::EntityNotFound(format!("Fork '{}' not found", fork_id))
+            crate::error::AllSourceError::EntityNotFound(format!("Fork '{fork_id}' not found"))
         })?;
 
         Ok(ForkDto::from(&fork))
@@ -791,7 +791,7 @@ mod tests {
         for i in 0..3 {
             let request = CreateForkRequest {
                 tenant_id: "test-tenant".to_string(),
-                name: format!("fork-{}", i),
+                name: format!("fork-{i}"),
                 description: None,
                 parent_fork_id: None,
                 isolation_level: None,

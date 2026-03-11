@@ -67,7 +67,7 @@ mod tests {
         let parsed: FollowerMessage = serde_json::from_str(&json).unwrap();
         match parsed {
             FollowerMessage::Subscribe { last_offset } => assert_eq!(last_offset, 42),
-            _ => panic!("wrong variant"),
+            FollowerMessage::Ack { .. } => panic!("wrong variant"),
         }
     }
 
@@ -80,7 +80,7 @@ mod tests {
         let parsed: FollowerMessage = serde_json::from_str(&json).unwrap();
         match parsed {
             FollowerMessage::Ack { offset } => assert_eq!(offset, 100),
-            _ => panic!("wrong variant"),
+            FollowerMessage::Subscribe { .. } => panic!("wrong variant"),
         }
     }
 

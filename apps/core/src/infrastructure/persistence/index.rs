@@ -37,6 +37,7 @@ impl EventIndex {
     }
 
     /// Add an event to all relevant indices
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn index_event(
         &self,
         event_id: Uuid,
@@ -74,6 +75,7 @@ impl EventIndex {
     }
 
     /// Get all event offsets for an entity
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn get_by_entity(&self, entity_id: &str) -> Option<Vec<IndexEntry>> {
         self.entity_index
             .get(entity_id)
@@ -81,6 +83,7 @@ impl EventIndex {
     }
 
     /// Get all event offsets for an event type
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn get_by_type(&self, event_type: &str) -> Option<Vec<IndexEntry>> {
         self.type_index
             .get(event_type)
@@ -88,11 +91,13 @@ impl EventIndex {
     }
 
     /// Get event offset by ID
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn get_by_id(&self, event_id: &Uuid) -> Option<usize> {
         self.id_index.get(event_id).map(|offset| *offset)
     }
 
     /// Get all event entries matching a type prefix (e.g., "index." matches "index.created")
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn get_by_type_prefix(&self, prefix: &str) -> Vec<IndexEntry> {
         let mut entries = Vec::new();
         for item in self.type_index.iter() {

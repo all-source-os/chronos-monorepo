@@ -419,9 +419,7 @@ impl VectorSearchRepository for InMemoryVectorSearchRepository {
     }
 
     async fn delete_by_tenant(&self, tenant_id: &str) -> Result<usize> {
-        let event_ids = if let Some((_, ids)) = self.tenant_index.remove(tenant_id) {
-            ids
-        } else {
+        let Some((_, event_ids)) = self.tenant_index.remove(tenant_id) else {
             return Ok(0);
         };
 

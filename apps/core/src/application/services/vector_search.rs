@@ -236,8 +236,7 @@ impl VectorSearchService {
             Some("dot_product") => DistanceMetric::DotProduct,
             Some(m) => {
                 return Err(AllSourceError::InvalidInput(format!(
-                    "Unknown metric: {}. Supported: cosine, euclidean, dot_product",
-                    m
+                    "Unknown metric: {m}. Supported: cosine, euclidean, dot_product"
                 )));
             }
         };
@@ -291,7 +290,7 @@ impl VectorSearchService {
         Ok(SemanticSearchResponse {
             results,
             count,
-            metric: format!("{:?}", metric).to_lowercase(),
+            metric: format!("{metric:?}").to_lowercase(),
             stats: SearchStats {
                 vectors_searched,
                 search_time_us,
@@ -335,20 +334,17 @@ impl VectorSearchService {
         &self,
         results: Vec<SearchResult>,
     ) -> Result<Vec<SemanticSearchResultItem>> {
-        let event_repo = match &self.event_repo {
-            Some(repo) => repo,
-            None => {
-                // No event repo, return without events
-                return Ok(results
-                    .into_iter()
-                    .map(|r| SemanticSearchResultItem {
-                        event_id: r.event_id,
-                        score: r.score.value(),
-                        source_text: r.source_text,
-                        event: None,
-                    })
-                    .collect());
-            }
+        let Some(event_repo) = &self.event_repo else {
+            // No event repo, return without events
+            return Ok(results
+                .into_iter()
+                .map(|r| SemanticSearchResultItem {
+                    event_id: r.event_id,
+                    score: r.score.value(),
+                    source_text: r.source_text,
+                    event: None,
+                })
+                .collect());
         };
 
         let mut enriched = Vec::with_capacity(results.len());
@@ -445,7 +441,7 @@ mod tests {
                 event_id: Uuid::new_v4(),
                 tenant_id: "tenant-1".to_string(),
                 embedding: create_test_embedding(384, i as f32),
-                source_text: Some(format!("Document {}", i)),
+                source_text: Some(format!("Document {i}")),
             })
             .collect();
 

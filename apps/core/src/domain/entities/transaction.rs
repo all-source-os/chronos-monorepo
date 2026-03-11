@@ -429,7 +429,7 @@ mod tests {
             Money::usd_cents(100),
             7,
             Blockchain::Solana,
-            "".to_string(),
+            String::new(),
         );
 
         assert!(result.is_err());

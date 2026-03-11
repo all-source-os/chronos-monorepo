@@ -101,18 +101,15 @@ impl ShardedEventQueue {
         let shard_idx = self.shard_index(event.entity_id().as_str());
         let shard = &self.shards[shard_idx];
 
-        match shard.push(event) {
-            Ok(()) => {
-                self.total_pushed.fetch_add(1, Ordering::Relaxed);
-                Ok(())
-            }
-            Err(_) => {
-                self.push_failures.fetch_add(1, Ordering::Relaxed);
-                Err(AllSourceError::QueueFull(format!(
-                    "Shard {} at capacity ({})",
-                    shard_idx, self.capacity_per_shard
-                )))
-            }
+        if let Ok(()) = shard.push(event) {
+            self.total_pushed.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        } else {
+            self.push_failures.fetch_add(1, Ordering::Relaxed);
+            Err(AllSourceError::QueueFull(format!(
+                "Shard {} at capacity ({})",
+                shard_idx, self.capacity_per_shard
+            )))
         }
     }
 
@@ -286,7 +283,7 @@ mod tests {
     fn create_test_event(id: u32) -> Event {
         Event::from_strings(
             "test.event".to_string(),
-            format!("entity-{}", id),
+            format!("entity-{id}"),
             "default".to_string(),
             json!({"id": id}),
             None,

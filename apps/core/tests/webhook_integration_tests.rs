@@ -57,7 +57,7 @@ async fn test_webhook_register_ingest_delivery() {
     // Step 2: Ingest an event that matches the webhook filter
     let event = create_test_event("user-42", "user.created", json!({"name": "Alice"}));
     let event_id = event.id;
-    store.ingest(event).unwrap();
+    store.ingest(&event).unwrap();
 
     // Step 3: Wait for the delivery worker to process and exhaust retries.
     // The worker does exponential backoff (2s, 4s, 8s, 16s, 32s).
@@ -118,7 +118,7 @@ async fn test_webhook_event_type_filter() {
 
     // Ingest a user event (should NOT trigger webhook)
     let event = create_test_event("user-1", "user.created", json!({"name": "Bob"}));
-    store.ingest(event).unwrap();
+    store.ingest(&event).unwrap();
 
     // Wait a bit and verify no deliveries
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;

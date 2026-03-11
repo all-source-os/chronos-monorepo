@@ -356,7 +356,10 @@ impl EventStoreFork {
 
     /// Get entity IDs that have events in this fork
     pub fn entity_ids(&self) -> Vec<&str> {
-        self.events.keys().map(|s| s.as_str()).collect()
+        self.events
+            .keys()
+            .map(std::string::String::as_str)
+            .collect()
     }
 
     /// Set description
@@ -503,7 +506,7 @@ mod tests {
 
     #[test]
     fn test_reject_empty_name() {
-        let result = EventStoreFork::new(test_tenant_id(), "".to_string(), 0);
+        let result = EventStoreFork::new(test_tenant_id(), String::new(), 0);
         assert!(result.is_err());
     }
 
