@@ -4,11 +4,9 @@ members = [
     "apps/core",
     "apps/mcp-server-elixir/native/core_nif",
     "sdks/rust",
-    "tooling/allsource-inspect",
-    "tooling/allsource-mcp",
     "tooling/performance",
 ]
-exclude = ["apps/chronis", "apps/registry", "crates/better-auth-allsource"]
+exclude = ["apps/chronis", "apps/registry", "crates/better-auth-allsource", "tooling/allsource-inspect", "tooling/allsource-mcp"]
 
 [workspace.dependencies]
 
