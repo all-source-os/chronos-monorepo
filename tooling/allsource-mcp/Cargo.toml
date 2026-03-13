@@ -8,7 +8,7 @@ license = "MIT"
 repository = "https://github.com/all-source-os/all-source"
 homepage = "https://github.com/all-source-os/all-source"
 documentation = "https://docs.rs/allsource-mcp"
-keywords = ["mcp", "event-sourcing", "allsource", "debugging", "model-context-protocol"]
+keywords = ["mcp", "event-sourcing", "allsource", "debugging", "mcp-server"]
 categories = ["command-line-utilities", "development-tools::debugging"]
 readme = "README.md"
 
