@@ -53,6 +53,12 @@ Implement `EmbeddedCore` — a thin facade over `EventStore` behind an `embedded
 - **Batch atomicity**: `ingest_batch()` acquires write lock once for N events instead of N separate acquisitions
 - **Projection backfill**: `register_projection_with_backfill()` replays historical events through newly registered projections
 
+## Applications using Embedded Core
+
+- **[Chronis CLI](../../apps/chronis/)** — event-sourced task management for AI agents
+- **[allsource-mcp](../guides/ALLSOURCE_MCP.md)** — lightweight MCP server for local debugging (`cargo install allsource-mcp`). Reads WAL + Parquet files directly, no running server needed.
+- **[Longhand](https://github.com/technical-leaders/longhand)** — offline-first Tauri 2 desktop app
+
 ## Alternatives considered
 
 1. **gRPC interface**: Higher overhead, requires protobuf tooling, unnecessary for in-process use.

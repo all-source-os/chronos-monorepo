@@ -9,6 +9,8 @@ category: guide
 
 > **TOON Format**: This MCP server uses TOON format by default for responses, which uses ~50% fewer tokens than JSON. This reduces LLM API costs significantly.
 
+> **Looking for a lightweight alternative?** [`allsource-mcp`](../ALLSOURCE_MCP.md) is a single Rust binary that reads AllSource data files directly — no running servers needed. Install with `cargo install allsource-mcp`. Best for local debugging and offline analysis. This guide covers the full 61-tool Elixir MCP server for production use.
+
 ## 🎯 Quick Setup
 
 ### 1. Locate Claude Desktop Config

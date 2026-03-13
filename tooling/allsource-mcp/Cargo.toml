@@ -5,14 +5,19 @@ edition = "2024"
 rust-version = "1.92"
 description = "Lightweight MCP server for local AllSource debugging (stdio transport)"
 license = "MIT"
-publish = false
+repository = "https://github.com/all-source-os/all-source"
+homepage = "https://github.com/all-source-os/all-source"
+documentation = "https://docs.rs/allsource-mcp"
+keywords = ["mcp", "event-sourcing", "allsource", "debugging", "model-context-protocol"]
+categories = ["command-line-utilities", "development-tools::debugging"]
+readme = "README.md"
 
 [[bin]]
 name = "allsource-mcp"
 path = "src/main.rs"
 
 [dependencies]
-allsource-core = { path = "../../apps/core", default-features = false, features = ["embedded"] }
+allsource-core = { version = "0.14.8", path = "../../apps/core", default-features = false, features = ["embedded"] }
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive", "env"] }

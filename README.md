@@ -40,7 +40,7 @@ version: "0.14.8"
 | **Architecture** | [Clean Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [Tenant Model](docs/current/TENANT_ARCHITECTURE.md) · [Replication Design](docs/proposals/CORE_REPLICATION_DESIGN.md) |
 | **API & Specs** | [API Reference](docs/current/API_REFERENCE.md) · [Performance](docs/current/PERFORMANCE.md) · [Event Store Features](docs/current/EVENT_STORE_FEATURES.md) |
 | **Operations** | [Release Guide](docs/guides/RELEASE.md) · [Quality Gates](docs/current/QUALITY_GATES.md) · [WebSocket Config](docs/guides/WEBSOCKET_CONFIGURATION.md) |
-| **Services** | [Core](apps/core/) · [Control Plane](apps/control-plane/) · [Query Service](apps/query-service/) · [MCP Server](apps/mcp-server-elixir/) · [Web](apps/web/) |
+| **Services** | [Core](apps/core/) · [Control Plane](apps/control-plane/) · [Query Service](apps/query-service/) · [MCP Server](apps/mcp-server-elixir/) · [allsource-mcp](docs/guides/ALLSOURCE_MCP.md) · [Web](apps/web/) |
 | **Deploy** | [Helm Chart](deploy/helm/allsource/) · [Kubernetes](deploy/k8s/) · [Fly.io](apps/core/fly.toml) |
 
 ---
@@ -75,6 +75,7 @@ deploy/
   grafana/            # Grafana provisioning
 
 tooling/
+  allsource-mcp/      # Local MCP server (cargo install allsource-mcp)
   data-flow-test/     # E2E data flow test
   durability-test/    # WAL/Parquet durability test
 ```
@@ -135,6 +136,14 @@ AI-native interface for Claude Desktop or any MCP client.
 
 - 61 tools across 11 categories (discover, search, drill-down, context, mutate, ops, tenants, schema, analytics, dev)
 - TOON format responses (~50% fewer tokens than JSON)
+
+### allsource-mcp (local debugging) — [guide](docs/guides/ALLSOURCE_MCP.md)
+
+Lightweight MCP server that reads WAL + Parquet files directly — no running Core server needed.
+
+- `cargo install allsource-mcp` — single binary, zero dependencies
+- 8 read-only tools: query, sample, stats, snapshot, timeline, explain, reconstruct, analyze
+- Built on the [Embedded Core API](docs/adr/001-embedded-core-library.md) — same durability, no HTTP overhead
 
 ### Web Dashboard (port 3000) — [docs](apps/web/)
 

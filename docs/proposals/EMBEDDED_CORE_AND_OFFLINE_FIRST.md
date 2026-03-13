@@ -7,6 +7,14 @@
 
 ---
 
+## Applications built on Embedded Core
+
+- **[Chronis CLI](../../apps/chronis/)** — event-sourced task management for AI agents
+- **[allsource-mcp](../guides/ALLSOURCE_MCP.md)** — lightweight MCP server for local debugging (`cargo install allsource-mcp`). Reads WAL + Parquet directly, no running server needed. [Setup guide](../guides/ALLSOURCE_MCP.md).
+- **[Longhand](https://github.com/technical-leaders/longhand)** — offline-first Tauri 2 desktop app (the origin of this proposal)
+
+---
+
 ## Overview
 
 Issue #73 requests capabilities that make AllSource viable for offline-first desktop apps: an embeddable Rust library API, bidirectional sync, cloud worker orchestration, and AI workflow optimizations. This document tracks design decisions, implementation progress, TDD test specifications, and open questions for each capability.

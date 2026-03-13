@@ -102,7 +102,7 @@ The database. Source of truth for all event data.
 - Leader-follower replication via WAL shipping ([design](docs/proposals/CORE_REPLICATION_DESIGN.md))
 - Schema registry, stream processing pipelines, multi-tenancy with RBAC
 - Vector search (fastembed + HNSW) and BM25 keyword search (tantivy)
-- **Embedded API**: use Core as an in-process library (83 tests, 8 phases complete) with TOON output for LLMs
+- **Embedded API**: use Core as an in-process library (83 tests, 8 phases complete) with TOON output for LLMs. Powers [`allsource-mcp`](../../docs/guides/ALLSOURCE_MCP.md) (`cargo install allsource-mcp`) for local MCP debugging without a running server.
 
 ### Go Control Plane (port 3901) — [docs](apps/control-plane/)
 

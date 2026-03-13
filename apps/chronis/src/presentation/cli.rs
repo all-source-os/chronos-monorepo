@@ -143,6 +143,10 @@ pub struct ListArgs {
     #[arg(short, long)]
     pub status: Option<String>,
 
+    /// Filter by type (task, epic, bug, feature)
+    #[arg(short = 't', long = "type")]
+    pub task_type: Option<String>,
+
     /// Show only archived tasks
     #[arg(long)]
     pub archived: bool,

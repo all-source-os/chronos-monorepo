@@ -126,13 +126,17 @@ pub async fn dispatch(
             }
         },
         Command::List(args) => {
-            let tasks = if args.archived {
+            let mut tasks = if args.archived {
                 repo.list_tasks_archived()?
             } else if args.all {
                 repo.list_tasks_all(args.status.as_deref())?
             } else {
                 list_tasks::list_tasks(repo, args.status.as_deref())?
             };
+            if let Some(ref type_filter) = args.task_type {
+                let tt: crate::domain::task::TaskType = type_filter.parse()?;
+                tasks.retain(|t| t.task_type == tt);
+            }
             if toon_mode {
                 print!("{}", toon::tasks(&tasks));
             } else {

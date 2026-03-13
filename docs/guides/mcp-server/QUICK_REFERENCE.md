@@ -8,6 +8,8 @@ category: guide
 # AllSource MCP Tools - Quick Reference Card
 
 > Print this and keep it handy during your demo!
+>
+> **Lightweight alternative:** For local debugging without running servers, see [`allsource-mcp`](../ALLSOURCE_MCP.md) — `cargo install allsource-mcp`, 8 read-only tools, reads data files directly.
 
 ---
 

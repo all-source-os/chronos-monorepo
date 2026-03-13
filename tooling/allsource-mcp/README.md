@@ -2,13 +2,19 @@
 
 Lightweight MCP server for local AllSource debugging. Reads directly from WAL + Parquet files on disk — no running Core server needed.
 
-## Build
+## Install
 
 ```bash
-cargo build --release -p allsource-mcp
+cargo install allsource-mcp
 ```
 
-Binary: `target/release/allsource-mcp`
+Or build from source:
+
+```bash
+git clone https://github.com/all-source-os/all-source.git
+cd all-source/tooling/allsource-mcp
+cargo install --path .
+```
 
 ## Claude Code Configuration
 
@@ -18,7 +24,7 @@ Add to `~/.claude/settings.json` (or project `.claude/settings.json`):
 {
   "mcpServers": {
     "allsource": {
-      "command": "/path/to/allsource-mcp",
+      "command": "allsource-mcp",
       "args": ["--data-dir", "/path/to/allsource/data"],
       "env": {}
     }
@@ -32,7 +38,7 @@ For Longhand on macOS:
 {
   "mcpServers": {
     "allsource": {
-      "command": "/path/to/allsource-mcp",
+      "command": "allsource-mcp",
       "args": ["--data-dir", "~/Library/Application Support/Longhand/allsource"],
       "env": {}
     }
@@ -46,7 +52,7 @@ Or use the environment variable instead of `--data-dir`:
 {
   "mcpServers": {
     "allsource": {
-      "command": "/path/to/allsource-mcp",
+      "command": "allsource-mcp",
       "env": {
         "ALLSOURCE_DATA_DIR": "~/Library/Application Support/Longhand/allsource"
       }
