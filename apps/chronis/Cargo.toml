@@ -1,6 +1,6 @@
 [package]
 name = "chronis"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2024"
 rust-version = "1.92"
 description = "Event-sourced task CLI powered by the AllSource embedded database (all-source.xyz)"
@@ -20,7 +20,7 @@ name = "cn"
 path = "src/main.rs"
 
 [dependencies]
-allsource-core = { version = "0.14.0", path = "../core", default-features = false, features = [
+allsource-core = { version = "0.16.0", path = "../core", default-features = false, features = [
     "embedded",
     "embedded-replicant",
     "embedded-projections",

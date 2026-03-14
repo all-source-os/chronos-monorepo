@@ -14,7 +14,7 @@ async fn setup() -> CoreTaskRepository {
     let core = EmbeddedCore::open(config).await.expect("core");
     let core = Arc::new(core);
     core.inner()
-        .register_projection_with_backfill(Arc::new(TaskProjection::new()))
+        .register_projection_with_backfill(&(Arc::new(TaskProjection::new()) as Arc<dyn allsource_core::application::Projection>))
         .expect("projection");
     CoreTaskRepository::new(core)
 }

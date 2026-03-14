@@ -50,7 +50,7 @@ impl Workspace {
 
         // Register TaskProjection with backfill so we rebuild state from WAL
         core.inner()
-            .register_projection_with_backfill(Arc::new(TaskProjection::new()))
+            .register_projection_with_backfill(&(Arc::new(TaskProjection::new()) as Arc<dyn allsource_core::application::Projection>))
             .map_err(|e| CoreError(e.to_string()))?;
 
         Ok(Self { root, core })
