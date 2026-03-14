@@ -16,7 +16,31 @@ pub mod di;
 pub mod observability;
 pub mod persistence;
 pub mod query;
+#[cfg(feature = "replication")]
 pub mod replication;
+#[cfg(not(feature = "replication"))]
+pub mod replication {
+    //! Stub types for community builds (replication disabled at compile time).
+    /// Stub — replication not available in community edition.
+    pub struct WalShipper;
+    /// Stub — replication not available in community edition.
+    pub struct WalReceiver;
+    /// Stub — replication not available in community edition.
+    #[derive(Debug, Clone, Copy, serde::Serialize)]
+    pub enum ReplicationMode {
+        Async,
+    }
+    /// Stub — replication not available in community edition.
+    #[derive(Debug, Clone, serde::Serialize)]
+    pub struct ReplicationStatus {
+        pub enabled: bool,
+    }
+    /// Stub — replication not available in community edition.
+    #[derive(Debug, Clone, serde::Serialize)]
+    pub struct FollowerReplicationStatus {
+        pub connected: bool,
+    }
+}
 pub mod repositories;
 #[cfg(feature = "server")]
 pub mod resp;

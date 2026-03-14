@@ -1,3 +1,5 @@
+#[cfg(feature = "replication")]
+use allsource_core::replication::{ReplicationMode, WalReceiver, WalShipper};
 use allsource_core::{
     api_v1,
     api_v1::NodeRole,
@@ -13,7 +15,6 @@ use allsource_core::{
         repositories::InMemoryTenantRepository,
     },
     rate_limit::{RateLimitConfig, RateLimiter},
-    replication::{ReplicationMode, WalReceiver, WalShipper},
     resp::RespServer,
     store::EventStore,
 };
@@ -63,24 +64,31 @@ async fn main() -> Result<()> {
     let mut store = EventStore::with_config(config);
 
     // Initialize WAL replication if this is a leader with replication enabled
+    #[cfg(feature = "replication")]
     let replication_enabled = std::env::var("ALLSOURCE_REPLICATION_ENABLED")
         .map(|v| v == "true")
         .unwrap_or(false);
+    #[cfg(feature = "replication")]
     let replication_port: u16 = std::env::var("ALLSOURCE_REPLICATION_PORT")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(3910);
+    #[cfg(not(feature = "replication"))]
+    let replication_port: u16 = 3910;
 
     // Read replication mode and ACK timeout
+    #[cfg(feature = "replication")]
     let replication_mode = std::env::var("ALLSOURCE_REPLICATION_MODE")
         .map(|v| ReplicationMode::from_str_value(&v))
         .unwrap_or(ReplicationMode::Async);
+    #[cfg(feature = "replication")]
     let ack_timeout_ms: u64 = std::env::var("ALLSOURCE_REPLICATION_ACK_TIMEOUT_MS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(5000);
 
     // Create WAL shipper (but don't spawn yet — needs store Arc first for catch-up)
+    #[cfg(feature = "replication")]
     let wal_shipper_raw = if replication_enabled && role == NodeRole::Leader {
         let (mut shipper, tx) = WalShipper::new();
         shipper.set_replication_mode(
@@ -121,6 +129,7 @@ async fn main() -> Result<()> {
     let store = Arc::new(store);
 
     // Now that store is in Arc, attach it to the shipper and spawn
+    #[cfg(feature = "replication")]
     let wal_shipper = if let Some(mut shipper) = wal_shipper_raw {
         shipper.set_store(Arc::clone(&store));
         shipper.set_metrics(store.metrics());
@@ -141,8 +150,11 @@ async fn main() -> Result<()> {
     } else {
         None
     };
+    #[cfg(not(feature = "replication"))]
+    let wal_shipper: Option<Arc<allsource_core::replication::WalShipper>> = None;
 
     // Initialize WAL receiver if this is a follower with a leader URL configured
+    #[cfg(feature = "replication")]
     let wal_receiver = if role == NodeRole::Follower {
         if let Ok(leader_url) = std::env::var("ALLSOURCE_LEADER_URL")
             && !leader_url.is_empty()
@@ -177,6 +189,8 @@ async fn main() -> Result<()> {
     } else {
         None
     };
+    #[cfg(not(feature = "replication"))]
+    let wal_receiver: Option<Arc<allsource_core::replication::WalReceiver>> = None;
 
     let auth_manager = Arc::new({
         let mut mgr = match std::env::var("ALLSOURCE_JWT_SECRET") {

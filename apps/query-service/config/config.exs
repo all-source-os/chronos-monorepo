@@ -102,6 +102,10 @@ config :phoenix, :json_library, Jason
 
 # JWT shared secret is configured via JWT_SECRET env var (see runtime.exs)
 
+# Edition: :community (default) or :enterprise
+# Community mode disables tenant management, quota enforcement, and billing.
+config :query_service_ex, :edition, :community
+
 # Configure rate limiting (requests per second)
 config :query_service_ex, QueryServiceEx.RateLimiter,
   default_rate: 100,

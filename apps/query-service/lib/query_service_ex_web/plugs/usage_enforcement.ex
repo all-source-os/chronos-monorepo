@@ -39,6 +39,15 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
   end
 
   def call(conn, %{type: type}) do
+    # Community mode: skip quota enforcement entirely
+    if QueryServiceEx.Edition.community?() do
+      conn
+    else
+      enforce_quota(conn, type)
+    end
+  end
+
+  defp enforce_quota(conn, type) do
     tenant = conn.assigns[:current_tenant]
 
     cond do

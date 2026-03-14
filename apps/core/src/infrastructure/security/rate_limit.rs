@@ -1,3 +1,13 @@
+// Copyright 2024-2025 AllSource Team
+// Licensed under the Business Source License 1.1 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     See LICENSE-BSL in the repository root
+//
+// Change Date: 2029-03-01
+// Change License: Apache License, Version 2.0
+
 /// Rate limiting implementation using token bucket algorithm
 ///
 /// Features:

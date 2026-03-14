@@ -1,5 +1,7 @@
 /// v1.0 API router with authentication and multi-tenancy
 use crate::infrastructure::di::ServiceContainer;
+#[cfg(feature = "multi-tenant")]
+use crate::infrastructure::web::tenant_api::*;
 use crate::{
     domain::repositories::TenantRepository,
     infrastructure::{
@@ -12,7 +14,7 @@ use crate::{
             middleware::{AuthState, RateLimitState, auth_middleware, rate_limit_middleware},
             rate_limit::RateLimiter,
         },
-        web::{audit_api::*, auth_api::*, config_api::*, tenant_api::*},
+        web::{audit_api::*, auth_api::*, config_api::*},
     },
     store::EventStore,
 };
@@ -192,7 +194,10 @@ pub async fn serve_v1(
         .route("/api/v1/auth/api-keys/{id}", delete(revoke_api_key_handler))
         .route("/api/v1/auth/users", get(list_users_handler))
         .route("/api/v1/auth/users/{id}", delete(delete_user_handler))
-        // Tenant routes (protected)
+        // Tenant routes (protected — enterprise only)
+        ;
+    #[cfg(feature = "multi-tenant")]
+    let app = app
         .route("/api/v1/tenants", post(create_tenant_handler))
         .route("/api/v1/tenants", get(list_tenants_handler))
         .route("/api/v1/tenants/{id}", get(get_tenant_handler))
@@ -207,7 +212,8 @@ pub async fn serve_v1(
             "/api/v1/tenants/{id}/activate",
             post(activate_tenant_handler),
         )
-        .route("/api/v1/tenants/{id}", delete(delete_tenant_handler))
+        .route("/api/v1/tenants/{id}", delete(delete_tenant_handler));
+    let app = app
         // Audit endpoints (admin only)
         .route("/api/v1/audit/events", post(log_audit_event))
         .route("/api/v1/audit/events", get(query_audit_events))
@@ -455,10 +461,13 @@ pub async fn serve_v1(
         .route("/api/v1/geo/status", get(geo_status_handler))
         .route("/api/v1/geo/sync", post(geo_sync_handler))
         .route("/api/v1/geo/peers", get(geo_peers_handler))
-        .route("/api/v1/geo/failover", post(geo_failover_handler))
-        // Internal endpoints for sentinel-driven failover (not exposed publicly)
+        .route("/api/v1/geo/failover", post(geo_failover_handler));
+    // Internal endpoints for sentinel-driven failover (enterprise only)
+    #[cfg(feature = "replication")]
+    let app = app
         .route("/internal/promote", post(promote_handler))
         .route("/internal/repoint", post(repoint_handler));
+    let app = app;
 
     // v0.11: Bidirectional sync protocol (embedded↔server)
     #[cfg(feature = "embedded-sync")]
@@ -595,14 +604,19 @@ async fn health_v1(State(state): State<AppState>) -> impl IntoResponse {
     };
 
     let replication = {
-        let shipper_guard = state.wal_shipper.read().await;
-        if let Some(ref shipper) = *shipper_guard {
-            serde_json::to_value(shipper.status()).unwrap_or_default()
-        } else if let Some(ref receiver) = state.wal_receiver {
-            serde_json::to_value(receiver.status()).unwrap_or_default()
-        } else {
-            serde_json::json!(null)
+        #[cfg(feature = "replication")]
+        {
+            let shipper_guard = state.wal_shipper.read().await;
+            if let Some(ref shipper) = *shipper_guard {
+                serde_json::to_value(shipper.status()).unwrap_or_default()
+            } else if let Some(ref receiver) = state.wal_receiver {
+                serde_json::to_value(receiver.status()).unwrap_or_default()
+            } else {
+                serde_json::json!(null)
+            }
         }
+        #[cfg(not(feature = "replication"))]
+        serde_json::json!({"edition": "community", "status": "not_available"})
     };
 
     let current_role = state.role.load();
@@ -622,6 +636,7 @@ async fn health_v1(State(state): State<AppState>) -> impl IntoResponse {
 /// Called by the sentinel process during automated failover.
 /// Switches the node role to leader, stops WAL receiving, and starts
 /// a WAL shipper on the replication port so other followers can connect.
+#[cfg(feature = "replication")]
 async fn promote_handler(State(state): State<AppState>) -> impl IntoResponse {
     let current_role = state.role.load();
     if current_role == NodeRole::Leader {
@@ -686,6 +701,7 @@ async fn promote_handler(State(state): State<AppState>) -> impl IntoResponse {
 ///
 /// Called by the sentinel process to tell a follower to disconnect from
 /// the old leader and reconnect to a newly promoted leader.
+#[cfg(feature = "replication")]
 async fn repoint_handler(
     State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,

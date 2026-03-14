@@ -57,20 +57,26 @@ jobs:
             local context=$2
             local changed=$3
             local dockerfile=${4:-"$context/Dockerfile"}
+            local target=${5:-""}
+            local extra_args=${6:-""}
 
             if [ "$changed" == "true" ] || [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ] || [ "${{ github.event.inputs.force_build }}" == "true" ]; then
               if [ "$FIRST" != "true" ]; then
                 MATRIX="$MATRIX,"
               fi
-              MATRIX="$MATRIX{\"name\":\"$name\",\"context\":\"$context\",\"dockerfile\":\"$dockerfile\"}"
+              MATRIX="$MATRIX{\"name\":\"$name\",\"context\":\"$context\",\"dockerfile\":\"$dockerfile\",\"target\":\"$target\",\"extra_args\":\"$extra_args\"}"
               FIRST=false
             fi
           }
 
-          add_service "core" "." "${{ steps.filter.outputs.core }}" "apps/core/Dockerfile"
+          # Enterprise editions (default targets)
+          add_service "core" "." "${{ steps.filter.outputs.core }}" "apps/core/Dockerfile" "runtime" ""
           add_service "control-plane" "apps/control-plane" "${{ steps.filter.outputs.control-plane }}"
-          add_service "query-service" "apps/query-service" "${{ steps.filter.outputs.query-service }}"
+          add_service "query-service" "apps/query-service" "${{ steps.filter.outputs.query-service }}" "" "ALLSOURCE_EDITION=enterprise"
           add_service "mcp-server" "apps/mcp-server-elixir" "${{ steps.filter.outputs.mcp-server }}"
+          # Community editions (public images)
+          add_service "core-community" "." "${{ steps.filter.outputs.core }}" "apps/core/Dockerfile" "runtime-community" ""
+          add_service "query-service-community" "apps/query-service" "${{ steps.filter.outputs.query-service }}" "" "ALLSOURCE_EDITION=community"
 
           MATRIX="$MATRIX]}"
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
@@ -122,6 +128,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target || '' }}
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -134,6 +141,7 @@ jobs:
             BUILDTIME=${{ github.event.repository.updated_at }}
             VERSION=${{ github.ref_name }}
             REVISION=${{ github.sha }}
+            ${{ matrix.extra_args }}
 
       - name: Generate attestation
         uses: actions/attest-build-provenance@v4

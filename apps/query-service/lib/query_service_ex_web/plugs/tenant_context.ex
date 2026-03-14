@@ -13,6 +13,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
 
   import Plug.Conn
   alias QueryServiceEx.DevMode
+  alias QueryServiceEx.Edition
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceEx.TenantCache
 
@@ -21,11 +22,38 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    if DevMode.auth_disabled?() do
-      set_dev_tenant_context(conn)
-    else
-      set_user_tenant_context(conn)
+    cond do
+      Edition.community?() ->
+        # Community mode: skip tenant resolution, pass through with a default tenant
+        set_community_tenant_context(conn)
+
+      DevMode.auth_disabled?() ->
+        set_dev_tenant_context(conn)
+
+      true ->
+        set_user_tenant_context(conn)
     end
+  end
+
+  defp set_community_tenant_context(conn) do
+    community_tenant = %{
+      "id" => "community",
+      "name" => "Community",
+      "metadata" => %{
+        "subscription" => %{"status" => "active"},
+        "quotas" => %{
+          "events_quota" => -1,
+          "queries_quota" => -1,
+          "events_used" => 0,
+          "queries_used" => 0
+        }
+      }
+    }
+
+    conn
+    |> assign(:current_tenant, community_tenant)
+    |> assign(:tenant_id, "community")
+    |> put_private(:allsource_tenant_id, "community")
   end
 
   defp set_dev_tenant_context(conn) do

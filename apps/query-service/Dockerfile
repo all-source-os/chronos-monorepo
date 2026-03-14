@@ -31,6 +31,8 @@ RUN apk add --no-cache build-base git cmake && \
 
 WORKDIR /app
 
+ARG ALLSOURCE_EDITION=community
+
 # Set build environment
 ENV MIX_ENV=prod \
     SECRET_KEY_BASE=build_time_dummy_key_will_be_replaced_at_runtime_minimum_64_chars
@@ -71,7 +73,7 @@ LABEL org.opencontainers.image.title="AllSource Query Service" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.vendor="AllSource Team" \
-      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.source="https://github.com/all-source-os/allsource-monorepo"
 
 # Install minimal runtime dependencies and create non-root user in single layer
@@ -109,9 +111,12 @@ EXPOSE 3902
 #   LEMON_SQUEEZY_API_KEY       - LemonSqueezy API key for billing
 #   LEMON_SQUEEZY_STORE_ID      - LemonSqueezy store ID
 #   LEMON_SQUEEZY_WEBHOOK_SECRET- LemonSqueezy webhook secret
+ARG ALLSOURCE_EDITION=community
+
 ENV HOME=/app \
     MIX_ENV=prod \
     PORT=3902 \
+    ALLSOURCE_EDITION=${ALLSOURCE_EDITION} \
     ERL_FLAGS="+sbwt very_short +sbwtdcpu very_short +sbwtdio very_short" \
     MALLOC_ARENA_MAX=2
 

@@ -1,3 +1,5 @@
+#[cfg(feature = "replication")]
+use crate::infrastructure::replication::ReplicationMode;
 use crate::{
     application::{
         dto::{
@@ -35,7 +37,6 @@ use crate::{
             geospatial::GeoQueryRequest,
             graphql::{GraphQLError, GraphQLRequest, GraphQLResponse},
         },
-        replication::ReplicationMode,
         web::api_v1::AppState,
     },
     store::{EventStore, EventTypeInfo, StreamInfo},
@@ -60,6 +61,7 @@ type SharedStore = Arc<EventStore>;
 /// In async mode (default), returns immediately. In semi-sync mode, waits for
 /// at least 1 follower to ACK the current WAL offset. In sync mode, waits for
 /// all followers. If the timeout expires, logs a warning and continues (degraded mode).
+#[cfg(feature = "replication")]
 async fn await_replication_ack(state: &AppState) {
     let shipper_guard = state.wal_shipper.read().await;
     if let Some(ref shipper) = *shipper_guard {
@@ -94,6 +96,10 @@ async fn await_replication_ack(state: &AppState) {
             );
         }
     }
+}
+#[cfg(not(feature = "replication"))]
+async fn await_replication_ack(_state: &AppState) {
+    // No-op in community edition
 }
 
 pub async fn serve(store: SharedStore, addr: &str) -> anyhow::Result<()> {

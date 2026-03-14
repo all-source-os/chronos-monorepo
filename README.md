@@ -2,7 +2,7 @@
 title: "AllSource Event Store - Monorepo"
 status: CURRENT
 last_updated: 2026-03-03
-version: "0.14.8"
+version: "0.16.0"
 ---
 
 <div align="center">
@@ -15,7 +15,8 @@ version: "0.14.8"
 [![Container CI](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml)
 [![Docker Build](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml)
 [![Release](https://img.shields.io/github/v/release/all-source-os/all-source?label=release&color=blue)](https://github.com/all-source-os/all-source/releases/latest)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License: BSL 1.1](https://img.shields.io/badge/Enterprise-BSL_1.1-orange.svg)](LICENSE-BSL)
 
 [![Core](https://img.shields.io/badge/Core-v0.14.1-orange?logo=rust&logoColor=white)](apps/core/)
 [![Control Plane](https://img.shields.io/badge/Control_Plane-v0.14.1-00ADD8?logo=go&logoColor=white)](apps/control-plane/)
@@ -36,7 +37,7 @@ version: "0.14.8"
 
 | | |
 |---|---|
-| **Get Started** | [Quick Start](docs/QUICK_START.md) · [Docker Guide](docs/deployment/DOCKER.md) · [Troubleshooting](docs/guides/TROUBLESHOOTING.md) |
+| **Get Started** | [Self-Hosting Guide](docs/self-hosting/README.md) · [Quick Start](docs/QUICK_START.md) · [Docker Guide](docs/deployment/DOCKER.md) · [Troubleshooting](docs/guides/TROUBLESHOOTING.md) |
 | **Architecture** | [Clean Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [Tenant Model](docs/current/TENANT_ARCHITECTURE.md) · [Replication Design](docs/proposals/CORE_REPLICATION_DESIGN.md) |
 | **API & Specs** | [API Reference](docs/current/API_REFERENCE.md) · [Performance](docs/current/PERFORMANCE.md) · [Event Store Features](docs/current/EVENT_STORE_FEATURES.md) |
 | **Operations** | [Release Guide](docs/guides/RELEASE.md) · [Quality Gates](docs/current/QUALITY_GATES.md) · [WebSocket Config](docs/guides/WEBSOCKET_CONFIGURATION.md) |
@@ -105,12 +106,12 @@ The database. Source of truth for all event data.
 - 469K events/sec ingestion, 11.9us query latency
 - WAL (CRC32, fsync) + Parquet (Snappy) + DashMap for durability and speed
 - **v0.10.4+**: persistence wiring fix — env vars now correctly configure WAL+Parquet on startup
-- Leader-follower replication via WAL shipping ([design](docs/proposals/CORE_REPLICATION_DESIGN.md))
-- Schema registry, stream processing pipelines, multi-tenancy with RBAC
+- Leader-follower replication via WAL shipping *(enterprise)* ([design](docs/proposals/CORE_REPLICATION_DESIGN.md))
+- Schema registry, stream processing pipelines, multi-tenancy with RBAC *(enterprise)*
 - Vector search (fastembed + HNSW) and BM25 keyword search (tantivy)
 - **Embedded API**: use Core as an in-process library (1489 tests, 8 phases complete) with TOON output, network sync, and conflict strategies
 
-### Go Control Plane (port 3901) — [docs](apps/control-plane/)
+### Go Control Plane (port 3901) — [docs](apps/control-plane/) *(enterprise)*
 
 Authentication, authorization, billing, and operational management.
 
@@ -166,26 +167,87 @@ Lightweight MCP server that reads WAL + Parquet files directly — no running Co
 
 ---
 
+## Editions
+
+AllSource follows an **open-core model**. The community edition is fully functional for single-node deployments. Enterprise features are available under a commercial license.
+
+### Community Edition (Apache 2.0) — free, open source
+
+Everything you need to run a production event store:
+
+- **Core event store** — WAL + Parquet + DashMap, full durability, 469K events/sec
+- **Full CRUD API** — events, projections, snapshots, schemas, webhooks, consumers
+- **Analytics** — EventQL (DataFusion SQL engine), frequency/correlation/summary
+- **WebSocket streaming** — real-time event subscriptions
+- **Query Service** — API gateway with dev-mode auth
+- **MCP Server** — 61 AI-native tools for Claude Desktop
+- **SDKs** — Rust, Go, Python, TypeScript
+
+### Enterprise Edition (BSL 1.1) — commercial license
+
+Adds multi-node and multi-tenant capabilities:
+
+- **Leader-follower replication** — WAL shipping, semi-sync/sync modes, automatic failover
+- **Multi-tenant management** — tenant CRUD, quota enforcement, usage tracking
+- **Billing integration** — LemonSqueezy/Stripe webhooks, subscription tiers
+- **Rate limiting tiers** — professional and unlimited tiers (community includes free tier)
+- **Control Plane** — Go service for auth, RBAC, policies, audit logging
+
+> The BSL 1.1 license converts to Apache 2.0 on **2029-03-01**. See [LICENSE-BSL](LICENSE-BSL) for details.
+
+---
+
 ## Docker Images
 
-All services ship at **v0.14.1**. Total production footprint: **~129 MB**.
-
-| Service | Image | Size | Base |
-|---------|-------|:----:|------|
-| Core | `ghcr.io/all-source-os/allsource-core:0.14.1` | 15.7 MB | Distroless |
-| Control Plane | `ghcr.io/all-source-os/allsource-control-plane:0.14.1` | 27.9 MB | Distroless |
-| Query Service | `ghcr.io/all-source-os/allsource-query-service:0.14.1` | 35.1 MB | Alpine |
-| Web | `ghcr.io/all-source-os/allsource-web:0.14.1` | ~50 MB | Alpine |
+### Community (public — no auth required)
 
 ```bash
-# Quick start
-docker compose up -d
+# Quick start — single command
+docker compose -f docker-compose.community.yml up -d
 
-# Pull specific version
-docker pull ghcr.io/all-source-os/allsource-core:0.14.1
+# Or pull individually
+docker pull ghcr.io/all-source-os/allsource-core-community:latest
+docker pull ghcr.io/all-source-os/allsource-query-service-community:latest
 ```
 
-See [Docker Guide](docs/deployment/DOCKER.md) · [Release Guide](docs/guides/RELEASE.md)
+| Image | License | Access | Base |
+|-------|---------|--------|------|
+| `ghcr.io/all-source-os/allsource-core-community` | Apache 2.0 | **Public** | Distroless |
+| `ghcr.io/all-source-os/allsource-query-service-community` | Apache 2.0 | **Public** | Alpine |
+
+Full self-hosting guide: [docs/self-hosting/README.md](docs/self-hosting/README.md)
+
+### Enterprise (private — requires GHCR auth)
+
+```bash
+# Authenticate to GHCR
+echo $GHCR_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+
+# Pull enterprise images
+docker pull ghcr.io/all-source-os/allsource-core:latest
+docker pull ghcr.io/all-source-os/allsource-query-service:latest
+```
+
+| Image | License | Access | Base |
+|-------|---------|--------|------|
+| `ghcr.io/all-source-os/allsource-core` | BSL 1.1 | **Private** | Distroless |
+| `ghcr.io/all-source-os/allsource-query-service` | BSL 1.1 | **Private** | Alpine |
+| `ghcr.io/all-source-os/allsource-control-plane` | BSL 1.1 | **Private** | Distroless |
+| `ghcr.io/all-source-os/allsource-web` | BSL 1.1 | **Private** | Alpine |
+
+### Building from Source
+
+```bash
+# Community edition
+docker build --target runtime-community -t allsource-core:community apps/core
+docker build --build-arg ALLSOURCE_EDITION=community -t allsource-query:community apps/query-service
+
+# Enterprise edition
+docker build --target runtime -t allsource-core:enterprise apps/core
+docker build --build-arg ALLSOURCE_EDITION=enterprise -t allsource-query:enterprise apps/query-service
+```
+
+See [Docker Guide](docs/deployment/DOCKER.md) · [Release Guide](docs/guides/RELEASE.md) · [Self-Hosting](docs/self-hosting/README.md)
 
 ---
 
@@ -200,11 +262,15 @@ See [Docker Guide](docs/deployment/DOCKER.md) · [Release Guide](docs/guides/REL
 ```bash
 git clone https://github.com/all-source-os/all-source.git
 cd allsource-monorepo
+
+# Community edition (open source)
+docker compose -f docker-compose.community.yml up -d
+
+# Enterprise edition (all services)
 docker compose up -d
 
-# Or run individual services
+# Or run individual services from source
 cd apps/core && cargo run
-cd apps/control-plane && go run .
 cd apps/query-service && mix phx.server
 ```
 
@@ -242,7 +308,10 @@ See [Quality Gates](docs/current/QUALITY_GATES.md) · [Quality Gates Setup](docs
 
 ## License
 
-[MIT License](LICENSE)
+- **Community edition**: [Apache License 2.0](LICENSE) — free for any use
+- **Enterprise features** (replication, multi-tenant, billing): [Business Source License 1.1](LICENSE-BSL) — converts to Apache 2.0 on 2029-03-01
+
+Enterprise-licensed files are marked with a BSL header comment. All other files are Apache 2.0.
 
 ---
 

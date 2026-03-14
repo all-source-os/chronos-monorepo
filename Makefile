@@ -160,8 +160,10 @@ quality-rust:
 	cd apps/core && cargo +nightly sort --check
 	@echo "→ Running Clippy..."
 	cd apps/core && cargo +nightly clippy --locked --all-targets --all-features -- -D warnings
-	@echo "→ Running tests..."
+	@echo "→ Running tests (enterprise — all features)..."
 	cd apps/core && cargo +nightly test --locked --lib --all-features
+	@echo "→ Running tests (community edition)..."
+	cd apps/core && cargo +nightly test --locked --lib --features community
 	@echo "→ Building release..."
 	cd apps/core && cargo +nightly build --locked --lib --release
 	@echo "→ Checking documentation..."

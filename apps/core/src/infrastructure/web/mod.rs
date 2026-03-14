@@ -8,6 +8,7 @@ pub mod auth_api;
 pub mod config_api;
 pub mod demo_api;
 pub mod handlers;
+#[cfg(feature = "multi-tenant")]
 pub mod tenant_api;
 pub mod websocket;
 

@@ -1,0 +1,53 @@
+# AllSource Chronos — Community Edition (Apache 2.0)
+#
+# Quick start:
+#   docker compose -f docker-compose.community.yml up
+#
+# This runs a single-node Core + Query Service with dev-mode auth.
+# No replication, no multi-tenant management, no billing.
+# See docs/self-hosting/README.md for full documentation.
+
+services:
+  core:
+    image: ghcr.io/all-source-os/chronos-core:latest
+    # To build locally instead:
+    # build:
+    #   context: apps/core
+    #   target: runtime-community-alpine
+    ports:
+      - "3900:3900"
+    environment:
+      ALLSOURCE_HOST: "0.0.0.0"
+      ALLSOURCE_PORT: "3900"
+      ALLSOURCE_DATA_DIR: "/app/data"
+      RUST_LOG: "allsource_core=info"
+    volumes:
+      - core-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3900/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+
+  query-service:
+    image: ghcr.io/all-source-os/chronos-query-service:latest
+    # To build locally instead:
+    # build:
+    #   context: apps/query-service
+    #   args:
+    #     ALLSOURCE_EDITION: community
+    ports:
+      - "3902:3902"
+    environment:
+      CORE_URL: "http://core:3900"
+      CORE_WS_URL: "ws://core:3900/api/v1/events/stream"
+      ALLSOURCE_EDITION: "community"
+      PORT: "3902"
+      SECRET_KEY_BASE: "community-dev-secret-key-minimum-64-chars-change-in-production-please"
+    depends_on:
+      core:
+        condition: service_healthy
+
+volumes:
+  core-data:

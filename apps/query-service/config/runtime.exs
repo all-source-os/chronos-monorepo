@@ -4,6 +4,10 @@ import Config
 # All environment variables are optional at startup - the app will fail gracefully
 # when trying to use unconfigured services.
 if config_env() == :prod do
+  # Edition: "community" (default) or "enterprise"
+  edition = System.get_env("ALLSOURCE_EDITION", "community")
+  config :query_service_ex, :edition, String.to_atom(edition)
+
   # Secret key base - use provided value or generate a temporary one for health checks
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||

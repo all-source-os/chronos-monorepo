@@ -308,73 +308,77 @@ defmodule QueryServiceExWeb.Router do
   end
 
   # -------------------------------------------------------------------
-  # Tenant Management Routes
+  # Tenant Management Routes (enterprise only)
   # -------------------------------------------------------------------
 
-  scope "/api", QueryServiceExWeb do
-    pipe_through(:authenticated)
+  if QueryServiceEx.Edition.enterprise?() do
+    scope "/api", QueryServiceExWeb do
+      pipe_through(:authenticated)
 
-    # Tenant info and settings
-    get("/tenant", TenantController, :show)
-    put("/tenant", TenantController, :update)
+      # Tenant info and settings
+      get("/tenant", TenantController, :show)
+      put("/tenant", TenantController, :update)
 
-    # Usage statistics
-    get("/tenant/usage", TenantController, :usage)
+      # Usage statistics
+      get("/tenant/usage", TenantController, :usage)
+    end
+
+    # -------------------------------------------------------------------
+    # Team Management Routes (enterprise only)
+    # -------------------------------------------------------------------
+
+    scope "/api/team", QueryServiceExWeb do
+      pipe_through(:authenticated)
+
+      get("/members", TeamController, :index)
+      post("/invite", TeamController, :invite)
+      delete("/members/:user_id", TeamController, :remove)
+      put("/members/:user_id/role", TeamController, :update_role)
+    end
+
+    # -------------------------------------------------------------------
+    # Audit Log Routes (enterprise only)
+    # -------------------------------------------------------------------
+
+    scope "/api/tenant", QueryServiceExWeb do
+      pipe_through(:authenticated)
+
+      get("/audit-logs", AuditLogController, :index)
+    end
+
+    # -------------------------------------------------------------------
+    # Usage Analytics Routes (enterprise only)
+    # -------------------------------------------------------------------
+
+    scope "/api/tenants/me", QueryServiceExWeb do
+      pipe_through(:authenticated)
+
+      get("/analytics", UsageAnalyticsController, :show)
+    end
   end
 
   # -------------------------------------------------------------------
-  # Team Management Routes
+  # Billing Routes (enterprise only — disabled in community edition)
   # -------------------------------------------------------------------
 
-  scope "/api/team", QueryServiceExWeb do
-    pipe_through(:authenticated)
+  if QueryServiceEx.Edition.enterprise?() do
+    scope "/api/billing", QueryServiceExWeb do
+      pipe_through(:api)
 
-    get("/members", TeamController, :index)
-    post("/invite", TeamController, :invite)
-    delete("/members/:user_id", TeamController, :remove)
-    put("/members/:user_id/role", TeamController, :update_role)
-  end
+      get("/portal", BillingController, :portal)
+      post("/checkout", BillingController, :checkout)
+      get("/overage", BillingController, :overage)
+      post("/overage/enable", BillingController, :enable_overage)
+      post("/overage/disable", BillingController, :disable_overage)
+      get("/projected-charges", BillingController, :projected_charges)
+    end
 
-  # -------------------------------------------------------------------
-  # Audit Log Routes
-  # -------------------------------------------------------------------
+    # LemonSqueezy webhooks (public, verified by signature)
+    scope "/api/webhooks", QueryServiceExWeb do
+      pipe_through(:api)
 
-  scope "/api/tenant", QueryServiceExWeb do
-    pipe_through(:authenticated)
-
-    get("/audit-logs", AuditLogController, :index)
-  end
-
-  # -------------------------------------------------------------------
-  # Usage Analytics Routes
-  # -------------------------------------------------------------------
-
-  scope "/api/tenants/me", QueryServiceExWeb do
-    pipe_through(:authenticated)
-
-    get("/analytics", UsageAnalyticsController, :show)
-  end
-
-  # -------------------------------------------------------------------
-  # Billing Routes (deprecated — 301 redirects to Control Plane)
-  # -------------------------------------------------------------------
-
-  scope "/api/billing", QueryServiceExWeb do
-    pipe_through(:api)
-
-    get("/portal", BillingController, :portal)
-    post("/checkout", BillingController, :checkout)
-    get("/overage", BillingController, :overage)
-    post("/overage/enable", BillingController, :enable_overage)
-    post("/overage/disable", BillingController, :disable_overage)
-    get("/projected-charges", BillingController, :projected_charges)
-  end
-
-  # LemonSqueezy webhooks (public, verified by signature)
-  scope "/api/webhooks", QueryServiceExWeb do
-    pipe_through(:api)
-
-    post("/lemonsqueezy", WebhookController, :lemonsqueezy)
+      post("/lemonsqueezy", WebhookController, :lemonsqueezy)
+    end
   end
 
   # -------------------------------------------------------------------

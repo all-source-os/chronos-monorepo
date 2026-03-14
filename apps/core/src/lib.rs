@@ -175,7 +175,14 @@ pub mod api_v1 {
     pub use crate::infrastructure::web::api_v1::{AppState, AtomicNodeRole, NodeRole, serve_v1};
 }
 
-/// Replication module re-export
+/// Replication module re-export (enterprise feature)
+#[cfg(feature = "replication")]
+pub mod replication {
+    pub use crate::infrastructure::replication::{
+        FollowerReplicationStatus, ReplicationMode, ReplicationStatus, WalReceiver, WalShipper,
+    };
+}
+#[cfg(not(feature = "replication"))]
 pub mod replication {
     pub use crate::infrastructure::replication::{
         FollowerReplicationStatus, ReplicationMode, ReplicationStatus, WalReceiver, WalShipper,

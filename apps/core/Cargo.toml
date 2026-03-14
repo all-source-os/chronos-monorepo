@@ -1,11 +1,11 @@
 [package]
 name = "allsource-core"
-version = "0.14.8"
+version = "0.16.0"
 edition = "2024"
 rust-version = "1.92"
 authors = ["AllSource Team"]
 description = "High-performance event store core built in Rust"
-license = "MIT"
+license = "Apache-2.0"
 repository = "https://github.com/all-source-os/all-source"
 homepage = "https://github.com/all-source-os/all-source"
 documentation = "https://docs.rs/allsource-core"
@@ -34,7 +34,12 @@ path = "src/bin/allsource-sentinel.rs"
 required-features = ["server"]
 
 [features]
-default = ["server"]
+default = ["server", "community"]
+# Edition features: community is the open-source edition, enterprise adds replication + multi-tenant
+community = []
+enterprise = ["community", "replication", "multi-tenant"]
+replication = []
+multi-tenant = []
 # Embedded-only rlib size: ~30MB (includes arrow, parquet, serde, chrono; measured 2026-02-28)
 # Server feature: includes HTTP server, auth, metrics, webhooks, and all infrastructure
 server = [
