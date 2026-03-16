@@ -1,4 +1,7 @@
+pub mod backend;
+pub mod config;
 pub mod core_task_repo;
+pub mod http_core_client;
 pub mod id;
 pub mod projection;
 pub mod workspace;

@@ -1,0 +1,176 @@
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::domain::error::ChronError;
+
+/// HTTP client for a remote AllSource Core instance.
+pub struct HttpCoreClient {
+    client: reqwest::Client,
+    base_url: String,
+}
+
+/// Matches `EventView` from allsource-core but is independently deserializable
+/// from the Core HTTP API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteEvent {
+    pub id: Uuid,
+    pub event_type: String,
+    pub entity_id: String,
+    pub tenant_id: String,
+    pub payload: serde_json::Value,
+    pub metadata: Option<serde_json::Value>,
+    pub timestamp: DateTime<Utc>,
+    pub version: i64,
+}
+
+impl RemoteEvent {
+    pub fn from_event_view(ev: allsource_core::embedded::EventView) -> Self {
+        Self {
+            id: ev.id,
+            event_type: ev.event_type,
+            entity_id: ev.entity_id,
+            tenant_id: ev.tenant_id,
+            payload: ev.payload,
+            metadata: ev.metadata,
+            timestamp: ev.timestamp,
+            version: ev.version,
+        }
+    }
+}
+
+/// Query parameters for the Core events HTTP API.
+#[derive(Default)]
+pub struct QueryParams<'a> {
+    pub entity_id: Option<&'a str>,
+    pub event_type: Option<&'a str>,
+    pub since: Option<DateTime<Utc>>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Deserialize)]
+struct QueryResponse {
+    events: Vec<RemoteEvent>,
+}
+
+#[derive(Serialize)]
+struct IngestRequest<'a> {
+    event_type: &'a str,
+    entity_id: &'a str,
+    payload: &'a serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<&'a serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tenant_id: Option<&'a str>,
+}
+
+impl HttpCoreClient {
+    pub fn new(base_url: &str) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            base_url: base_url.trim_end_matches('/').to_string(),
+        }
+    }
+
+    pub async fn health(&self) -> Result<(), ChronError> {
+        let resp = self
+            .client
+            .get(format!("{}/health", self.base_url))
+            .send()
+            .await
+            .map_err(|e| ChronError::Sync(format!("remote health check failed: {e}")))?;
+        if !resp.status().is_success() {
+            return Err(ChronError::Sync(format!(
+                "remote Core unhealthy: HTTP {}",
+                resp.status()
+            )));
+        }
+        Ok(())
+    }
+
+    /// Convenience wrapper: query with only a `since` filter.
+    pub async fn query_events(
+        &self,
+        since: Option<DateTime<Utc>>,
+    ) -> Result<Vec<RemoteEvent>, ChronError> {
+        self.query_events_filtered(QueryParams {
+            since,
+            ..Default::default()
+        })
+        .await
+    }
+
+    /// Query events with full filter support.
+    pub async fn query_events_filtered(
+        &self,
+        params: QueryParams<'_>,
+    ) -> Result<Vec<RemoteEvent>, ChronError> {
+        let mut url = format!("{}/api/v1/events/query", self.base_url);
+        let mut sep = '?';
+        if let Some(entity_id) = params.entity_id {
+            url.push_str(&format!("{sep}entity_id={entity_id}"));
+            sep = '&';
+        }
+        if let Some(event_type) = params.event_type {
+            url.push_str(&format!("{sep}event_type={event_type}"));
+            sep = '&';
+        }
+        if let Some(since) = params.since {
+            url.push_str(&format!("{sep}since={}", since.to_rfc3339()));
+            sep = '&';
+        }
+        if let Some(limit) = params.limit {
+            url.push_str(&format!("{sep}limit={limit}"));
+        }
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ChronError::Sync(format!("query remote Core: {e}")))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(ChronError::Sync(format!(
+                "query remote Core: HTTP {status}: {body}"
+            )));
+        }
+        let body: QueryResponse = resp
+            .json()
+            .await
+            .map_err(|e| ChronError::Sync(format!("parse query response: {e}")))?;
+        Ok(body.events)
+    }
+
+    pub async fn ingest_event(
+        &self,
+        entity_id: &str,
+        event_type: &str,
+        payload: &serde_json::Value,
+        metadata: Option<&serde_json::Value>,
+        tenant_id: Option<&str>,
+    ) -> Result<(), ChronError> {
+        let req = IngestRequest {
+            event_type,
+            entity_id,
+            payload,
+            metadata,
+            tenant_id,
+        };
+        let resp = self
+            .client
+            .post(format!("{}/api/v1/events", self.base_url))
+            .json(&req)
+            .send()
+            .await
+            .map_err(|e| ChronError::Sync(format!("ingest to remote Core: {e}")))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(ChronError::Sync(format!(
+                "ingest to remote Core: HTTP {status}: {body}"
+            )));
+        }
+        Ok(())
+    }
+}

@@ -31,7 +31,7 @@ use crate::domain::task::{Priority, TaskType};
           cn archive [ids..]       Archive tasks (--all-done, --done-before <days>)\n  \
           cn unarchive [ids..]     Restore archived tasks\n  \
           cn dep add|remove        Manage blockers\n  \
-          cn sync                  Git-based sync (pull→import→export→push)\n  \
+          cn sync                  Sync events with remote Core\n  \
           cn tui                   Interactive TUI\n  \
           cn serve                 Web viewer\n\n\
         MIGRATE FROM BEADS:\n  \
@@ -89,8 +89,8 @@ pub enum Command {
     /// Migrate issues from .beads/ to chronis
     MigrateBeads(MigrateBeadsArgs),
 
-    /// Sync chronis data
-    Sync(SyncArgs),
+    /// Sync events with a remote Core (embedded mode only)
+    Sync,
 
     /// Launch interactive TUI dashboard
     Tui,
@@ -247,13 +247,6 @@ pub struct MigrateBeadsArgs {
     /// Path to .beads/ directory (default: .beads/ in current directory)
     #[arg(long, default_value = ".beads")]
     pub beads_dir: String,
-}
-
-#[derive(clap::Args)]
-pub struct SyncArgs {
-    /// Sync via git (pull, import, export, commit, push) [default]
-    #[arg(long, default_value_t = true)]
-    pub git: bool,
 }
 
 #[derive(clap::Args)]

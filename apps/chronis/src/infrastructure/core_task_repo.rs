@@ -1,8 +1,9 @@
 use std::{collections::HashSet, sync::Arc};
 
-use allsource_core::embedded::{EmbeddedCore, IngestEvent, Query};
+use allsource_core::embedded::{IngestEvent, Query};
 use serde_json::json;
 
+use super::backend::CoreBackend;
 use crate::domain::{
     error::{ChronError, CoreError},
     repository::{TaskDetail, TaskRepository, TimelineEntry},
@@ -10,16 +11,16 @@ use crate::domain::{
 };
 
 pub struct CoreTaskRepository {
-    core: Arc<EmbeddedCore>,
+    backend: Arc<CoreBackend>,
 }
 
 impl CoreTaskRepository {
-    pub fn new(core: Arc<EmbeddedCore>) -> Self {
-        Self { core }
+    pub fn new(backend: Arc<CoreBackend>) -> Self {
+        Self { backend }
     }
 
-    pub fn core(&self) -> &EmbeddedCore {
-        &self.core
+    pub fn backend(&self) -> &CoreBackend {
+        &self.backend
     }
 
     fn value_to_task(&self, value: &serde_json::Value) -> Result<Task, ChronError> {
@@ -29,7 +30,7 @@ impl CoreTaskRepository {
 
     fn all_tasks_raw(&self) -> Vec<serde_json::Value> {
         let all = self
-            .core
+            .backend
             .projection("chronis_tasks", "__all")
             .unwrap_or_else(|| json!({ "tasks": [] }));
         all["tasks"].as_array().cloned().unwrap_or_default()
@@ -60,7 +61,7 @@ impl CoreTaskRepository {
 impl TaskRepository for CoreTaskRepository {
     fn get_task(&self, id: &str) -> Result<Task, ChronError> {
         let value = self
-            .core
+            .backend
             .projection("chronis_tasks", id)
             .ok_or_else(|| ChronError::TaskNotFound(id.to_string()))?;
         self.value_to_task(&value)
@@ -139,7 +140,7 @@ impl TaskRepository for CoreTaskRepository {
             payload["description"] = json!(desc);
         }
 
-        self.core
+        self.backend
             .ingest(IngestEvent {
                 entity_id: id,
                 event_type: "task.created",
@@ -147,11 +148,10 @@ impl TaskRepository for CoreTaskRepository {
                 metadata: None,
                 tenant_id: None,
             })
-            .await
-            .map_err(|e| CoreError(e.to_string()))?;
+            .await?;
 
         for dep in blocked_by {
-            self.core
+            self.backend
                 .ingest(IngestEvent {
                     entity_id: id,
                     event_type: "task.dependency.added",
@@ -159,15 +159,13 @@ impl TaskRepository for CoreTaskRepository {
                     metadata: None,
                     tenant_id: None,
                 })
-                .await
-                .map_err(|e| CoreError(e.to_string()))?;
+                .await?;
         }
 
         Ok(())
     }
 
     async fn claim_task(&self, id: &str, agent_id: &str) -> Result<(), ChronError> {
-        // Validate state
         let task = self.get_task(id)?;
         if task.status != TaskStatus::Open {
             return Err(ChronError::InvalidTransition {
@@ -177,7 +175,7 @@ impl TaskRepository for CoreTaskRepository {
             });
         }
 
-        self.core
+        self.backend
             .ingest(IngestEvent {
                 entity_id: id,
                 event_type: "workflow.claimed",
@@ -185,8 +183,7 @@ impl TaskRepository for CoreTaskRepository {
                 metadata: None,
                 tenant_id: None,
             })
-            .await
-            .map_err(|e| CoreError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }
@@ -202,7 +199,7 @@ impl TaskRepository for CoreTaskRepository {
             payload["reason"] = json!(reason);
         }
 
-        self.core
+        self.backend
             .ingest(IngestEvent {
                 entity_id: id,
                 event_type: "workflow.step.completed",
@@ -210,8 +207,7 @@ impl TaskRepository for CoreTaskRepository {
                 metadata: None,
                 tenant_id: None,
             })
-            .await
-            .map_err(|e| CoreError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }
@@ -222,7 +218,7 @@ impl TaskRepository for CoreTaskRepository {
             return Err(ChronError::AlreadyDone(id.to_string()));
         }
 
-        self.core
+        self.backend
             .ingest(IngestEvent {
                 entity_id: id,
                 event_type: "workflow.approval.granted",
@@ -230,18 +226,16 @@ impl TaskRepository for CoreTaskRepository {
                 metadata: None,
                 tenant_id: None,
             })
-            .await
-            .map_err(|e| CoreError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }
 
     async fn add_dependency(&self, task_id: &str, blocker_id: &str) -> Result<(), ChronError> {
-        // Validate both tasks exist
         self.get_task(task_id)?;
         self.get_task(blocker_id)?;
 
-        self.core
+        self.backend
             .ingest(IngestEvent {
                 entity_id: task_id,
                 event_type: "task.dependency.added",
@@ -249,8 +243,7 @@ impl TaskRepository for CoreTaskRepository {
                 metadata: None,
                 tenant_id: None,
             })
-            .await
-            .map_err(|e| CoreError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }
@@ -258,7 +251,7 @@ impl TaskRepository for CoreTaskRepository {
     async fn remove_dependency(&self, task_id: &str, blocker_id: &str) -> Result<(), ChronError> {
         self.get_task(task_id)?;
 
-        self.core
+        self.backend
             .ingest(IngestEvent {
                 entity_id: task_id,
                 event_type: "task.dependency.removed",
@@ -266,8 +259,7 @@ impl TaskRepository for CoreTaskRepository {
                 metadata: None,
                 tenant_id: None,
             })
-            .await
-            .map_err(|e| CoreError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }
@@ -275,7 +267,7 @@ impl TaskRepository for CoreTaskRepository {
     async fn archive_task(&self, id: &str) -> Result<(), ChronError> {
         self.get_task(id)?;
 
-        self.core
+        self.backend
             .ingest(IngestEvent {
                 entity_id: id,
                 event_type: "task.archived",
@@ -283,8 +275,7 @@ impl TaskRepository for CoreTaskRepository {
                 metadata: None,
                 tenant_id: None,
             })
-            .await
-            .map_err(|e| CoreError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }
@@ -292,7 +283,7 @@ impl TaskRepository for CoreTaskRepository {
     async fn unarchive_task(&self, id: &str) -> Result<(), ChronError> {
         self.get_task(id)?;
 
-        self.core
+        self.backend
             .ingest(IngestEvent {
                 entity_id: id,
                 event_type: "task.unarchived",
@@ -300,8 +291,7 @@ impl TaskRepository for CoreTaskRepository {
                 metadata: None,
                 tenant_id: None,
             })
-            .await
-            .map_err(|e| CoreError(e.to_string()))?;
+            .await?;
 
         Ok(())
     }
@@ -309,11 +299,7 @@ impl TaskRepository for CoreTaskRepository {
     async fn get_task_detail(&self, id: &str) -> Result<TaskDetail, ChronError> {
         let task = self.get_task(id)?;
 
-        let events = self
-            .core
-            .query(Query::new().entity_id(id))
-            .await
-            .map_err(|e| CoreError(e.to_string()))?;
+        let events = self.backend.query(Query::new().entity_id(id)).await?;
 
         let timeline = events
             .iter()

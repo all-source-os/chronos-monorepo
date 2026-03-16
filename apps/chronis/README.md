@@ -17,7 +17,7 @@ We built hundreds of tasks with beads_rust — 62+ issues across 280+ agent iter
 | No undo — agent closes wrong task, manual re-open is the only fix | **Temporal replay** — reconstruct state at any point from the event stream |
 | Cascade operations require scripting — closing an epic means N separate commands | **`--cascade`** — claim or close an epic and all children in one command |
 | Completed tasks clutter listings forever | **Archiving** — `cn archive --all-done` hides completed work, `cn unarchive` restores |
-| Git sync = `git commit && push`, merge conflicts stall agents | **Append-only JSONL sync** with UUID dedup — no merge conflicts, no duplicates |
+| Git sync = `git commit && push`, merge conflicts stall agents | **HTTP sync** with remote Core — no git conflicts, works with dirty worktrees |
 | No approval gates or workflow orchestration | **Event-sourced workflows** — claim, complete, approve with first-write-wins semantics |
 
 Credit where it's due: beads_rust by [@Dicklesworthstone](https://github.com/Dicklesworthstone) got the core workflow right — `ready -> claim -> done -> sync`. Chronis preserves that simplicity while adding the observability and durability that production agent systems need.
@@ -40,7 +40,7 @@ cn ready --toon                                  # Show unblocked open tasks
 cn claim <id> --toon                             # Claim a task
 cn done <id> --toon                              # Complete a task
 cn archive --all-done                            # Clean up finished work
-cn sync                                          # Sync via git (pull/push)
+cn sync                                          # Sync with remote Core
 ```
 
 ## TOON: Agent-Native Output
@@ -169,22 +169,28 @@ cn dep add <task-id> <blocker-id>      # Add a blocker
 cn dep remove <task-id> <blocker-id>   # Remove a blocker
 ```
 
-### Git Sync
+### Sync
 
-Sync chronis state across machines via git. Events are exported to an append-only JSONL file that git can merge naturally.
+Chronis supports two modes of operation, configured in `.chronis/config.toml`:
+
+| Mode | How it works | `cn sync` |
+|------|-------------|-----------|
+| **Embedded** (default) | Local event store per machine | Exchanges events with a remote Core over HTTP |
+| **Remote** | All commands talk directly to a remote Core | No-op (already shared) |
+
+#### Embedded mode with sync
+
+Each machine has its own embedded Core for zero-latency reads. `cn sync` pushes local events to a remote Core and pulls new remote events — no git involved, works with dirty worktrees.
 
 ```bash
-cn sync     # Pull remote events, export local events, commit, push
+cn sync     # Pull from remote Core, push local events
 ```
 
 **How it works:**
 
-1. `git pull --rebase` — fetch remote changes
-2. Import new events from `.chronis/sync/events.jsonl` into local Core
-3. Append new local events to the JSONL file
-4. `git commit` + `git push`
-
-Deduplication is handled via UUID tracking — each event is written once by its creating machine and never duplicated.
+1. **Pull** — fetch new events from remote Core (skip events that originated here)
+2. **Push** — send local events to remote Core (skip events that came from remote)
+3. Deduplication is idempotent — UUID tracking prevents duplicates even with timestamp overlap, plus `source_id` metadata prevents echo loops
 
 **Multi-machine workflow:**
 
@@ -193,6 +199,29 @@ Deduplication is handled via UUID tracking — each event is written once by its
 cn task create "Auth" -p p0    cn task create "Docs" -p p2
 cn sync                        cn sync          # pulls A's tasks, pushes B's
 cn sync                        # pulls B's task
+```
+
+#### Remote mode
+
+Point chronis at a shared Core instance. Writes go to the remote Core, reads use a local in-memory projection cache that's bootstrapped on startup by replaying all remote events. No sync step needed.
+
+```toml
+# .chronis/config.toml
+mode = "remote"
+
+[sync]
+remote_url = "http://core.example.com:3900"
+```
+
+#### Configuration
+
+```toml
+# .chronis/config.toml
+mode = "embedded"                          # "embedded" or "remote"
+instance_id = "a1b2c3d4-..."              # Auto-generated, identifies this machine
+
+[sync]
+remote_url = "http://core.example.com:3900"  # Remote Core for sync target or primary backend
 ```
 
 ### Visualization
@@ -224,14 +253,14 @@ Both `.beads/` and `.chronis/` can coexist during transition. Nothing is deleted
 | Cascade operations | Manual scripting | `--cascade` flag |
 | Archiving | Not available | `cn archive --all-done` |
 | Approval workflows | Not available | `cn approve` with event trail |
-| Git sync | `git commit && push` | Append-only JSONL with UUID dedup |
+| Sync | `git commit && push` (fails with dirty worktree) | HTTP sync via remote Core (works anytime) |
 | Undo | Manual re-open | Replay from event stream |
 | TUI | Separate binary (beads_viewer) | Built-in (`cn tui`) |
 | Web UI | Separate project | Built-in (`cn serve`) |
 | Queryable timeline | No | `cn show <id>` with full event history |
 | Data durability | SQLite | CRC32 WAL + Snappy Parquet |
 
-Both tools share the same core workflow: `ready -> claim -> done -> sync`. If you're coming from beads_rust, the transition is straightforward — and `cn migrate-beads` handles the data.
+Both tools share the same core workflow: `ready -> claim -> done`. If you're coming from beads_rust, the transition is straightforward — and `cn migrate-beads` handles the data.
 
 ## Workflow
 
@@ -250,29 +279,21 @@ cn claim <id>     # Records "agent-1" as the claimer
 
 ### Git Ignore for `.chronis/`
 
-Add these rules to your project's `.gitignore`. The principle: **ignore binary, track text.**
+Sync is now HTTP-based (no git involvement), so the gitignore is simple — ignore everything except config:
 
 ```gitignore
-# Chronis (local event store data — sync exchange files are tracked)
+# Chronis (all data is local or synced via HTTP — only config needs tracking)
 .chronis/wal/
 .chronis/storage/
-.chronis/sync/.remote_ids
-.chronis/sync/.local_ids
+.chronis/sync/
 ```
 
 | Path | Contents | Git? | Why |
 |------|----------|------|-----|
-| `.chronis/wal/` | WAL segments (binary, CRC32) | **Ignore** | Machine-local binary, causes merge conflicts |
-| `.chronis/storage/` | Parquet files (binary, Snappy) | **Ignore** | Machine-local, rebuilt from WAL on startup |
-| `.chronis/sync/events.jsonl` | Append-only event log | **Track** | How `cn sync` shares events between machines |
-| `.chronis/sync/.remote_ids` | Imported event UUIDs | **Ignore** | Local dedup state per machine |
-| `.chronis/sync/.local_ids` | Exported event UUIDs | **Ignore** | Local dedup state per machine |
-| `.chronis/config.toml` | Workspace config | **Track** | Shared settings, consistent across team |
-
-**Common mistakes:**
-- Ignoring all of `.chronis/` — breaks `cn sync` (other machines won't receive events)
-- Tracking `wal/` or `storage/` — bloats repo with binary files that change on every write
-- Tracking `.remote_ids` / `.local_ids` — causes false "new events" on other machines
+| `.chronis/wal/` | WAL segments (binary, CRC32) | **Ignore** | Machine-local binary data |
+| `.chronis/storage/` | Parquet files (binary, Snappy) | **Ignore** | Machine-local, rebuilt from WAL |
+| `.chronis/sync/` | Sync state (timestamps, dedup) | **Ignore** | Machine-local sync cursor |
+| `.chronis/config.toml` | Workspace config | **Track** | Shared settings (mode, remote URL) |
 
 ### When to Use TOON
 
@@ -305,22 +326,25 @@ cn CLI (clap)
 TaskRepository trait
     |
     v
-EmbeddedCore (allsource-core)
-    |
+CoreBackend (Embedded | Remote)
+    |                        |
+    v                        v
+EmbeddedCore           HttpCoreClient
+    |                   (remote Core API)
     +--> WAL (CRC32, fsync) --> Parquet (Snappy)
     +--> DashMap (in-memory reads)
     +--> TaskProjection (event folding)
 ```
 
-Data lives in `.chronis/` at the project root:
+In **embedded mode**, data lives in `.chronis/` at the project root. In **remote mode**, all data lives on the remote Core instance.
 
 ```
 .chronis/
-  wal/            # Write-ahead log segments
-  storage/        # Columnar event storage (Parquet)
-  sync/           # Git sync exchange (events.jsonl)
-  config.toml     # Workspace config
-  .gitignore      # Excludes binary data, tracks sync files
+  wal/            # Write-ahead log segments (embedded mode only)
+  storage/        # Columnar event storage (embedded mode only)
+  sync/           # Sync state — timestamps and dedup cursors
+  config.toml     # Workspace config (mode, instance_id, remote_url)
+  .gitignore      # Excludes local data directories
 ```
 
 ## Event Types
@@ -344,9 +368,17 @@ All state is derived from these events:
 ```bash
 cargo fmt --check             # Formatting
 cargo clippy -- -D warnings   # Lints (zero warnings)
-cargo test                    # Integration tests
+cargo test                    # 35 tests across 3 suites
 ```
+
+### Test suites
+
+| Suite | Tests | What it covers |
+|-------|-------|----------------|
+| `task_lifecycle` | 11 | Create, claim, done, approve, dependencies, epics, archiving, timeline |
+| `config` | 9 | Config parsing, defaults, TOML roundtrip, mode handling, file loading |
+| `sync_state` | 15 | CoreBackend (embedded + remote), projections, entity filtering, dedup (UUID + metadata), sync state roundtrip, workspace init |
 
 ## Acknowledgments
 
-Chronis exists because [beads_rust](https://github.com/Dicklesworthstone/beads_rust) proved that agents can self-manage tasks through a simple CLI. The `ready -> claim -> done -> sync` workflow that beads_rust pioneered is the foundation chronis builds on. We're grateful to [@Dicklesworthstone](https://github.com/Dicklesworthstone) and the beads community for blazing that trail.
+Chronis exists because [beads_rust](https://github.com/Dicklesworthstone/beads_rust) proved that agents can self-manage tasks through a simple CLI. The `ready -> claim -> done` workflow that beads_rust pioneered is the foundation chronis builds on. We're grateful to [@Dicklesworthstone](https://github.com/Dicklesworthstone) and the beads community for blazing that trail.

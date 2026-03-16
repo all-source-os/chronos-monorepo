@@ -3,7 +3,9 @@ use std::sync::Arc;
 use allsource_core::embedded::{Config, EmbeddedCore};
 use chronis::{
     domain::{error::ChronError, repository::TaskRepository, task::TaskType},
-    infrastructure::{core_task_repo::CoreTaskRepository, projection::TaskProjection},
+    infrastructure::{
+        backend::CoreBackend, core_task_repo::CoreTaskRepository, projection::TaskProjection,
+    },
 };
 
 async fn setup() -> CoreTaskRepository {
@@ -14,9 +16,12 @@ async fn setup() -> CoreTaskRepository {
     let core = EmbeddedCore::open(config).await.expect("core");
     let core = Arc::new(core);
     core.inner()
-        .register_projection_with_backfill(&(Arc::new(TaskProjection::new()) as Arc<dyn allsource_core::application::Projection>))
+        .register_projection_with_backfill(
+            &(Arc::new(TaskProjection::new()) as Arc<dyn allsource_core::application::Projection>),
+        )
         .expect("projection");
-    CoreTaskRepository::new(core)
+    let backend = Arc::new(CoreBackend::Embedded(core));
+    CoreTaskRepository::new(backend)
 }
 
 #[tokio::test]

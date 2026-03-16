@@ -2,32 +2,29 @@
 
 ## Git Ignore for `.chronis/`
 
-Chronis stores data in a `.chronis/` directory at your project root. Some files are binary data that should never be committed; others are designed for git sync and must be tracked.
+Chronis stores data in a `.chronis/` directory at your project root. Sync is HTTP-based (not git-based), so the gitignore is straightforward: ignore all local data, track only config.
 
 ### Recommended `.gitignore` rules
 
 ```gitignore
-# Chronis (local event store data — sync exchange files are tracked)
+# Chronis (all data is local or synced via HTTP — only config needs tracking)
 .chronis/wal/
 .chronis/storage/
-.chronis/sync/.remote_ids
-.chronis/sync/.local_ids
+.chronis/sync/
 ```
 
 ### What each path contains
 
 | Path | Contents | Git? | Why |
 |------|----------|------|-----|
-| `.chronis/wal/` | Write-ahead log segments (binary, CRC32 checksums) | **Ignore** | Machine-local binary data. Differs per machine, causes merge conflicts. |
+| `.chronis/wal/` | Write-ahead log segments (binary, CRC32 checksums) | **Ignore** | Machine-local binary data. Differs per machine. |
 | `.chronis/storage/` | Parquet columnar files (binary, Snappy compressed) | **Ignore** | Machine-local binary data. Rebuilt from WAL on startup. |
-| `.chronis/sync/events.jsonl` | Append-only event log for git sync | **Track** | This is how `cn sync` shares events between machines. Append-only format avoids merge conflicts. |
-| `.chronis/sync/.remote_ids` | Set of event UUIDs already imported from remote | **Ignore** | Local dedup state. Each machine tracks its own import cursor. |
-| `.chronis/sync/.local_ids` | Set of event UUIDs already exported to JSONL | **Ignore** | Local dedup state. Each machine tracks its own export cursor. |
-| `.chronis/config.toml` | Workspace configuration | **Track** | Shared settings (project name, defaults) should be consistent across the team. |
+| `.chronis/sync/` | Sync state (timestamps, dedup cursors) | **Ignore** | Machine-local sync cursor. Each machine tracks its own position. |
+| `.chronis/config.toml` | Workspace configuration (mode, instance_id, remote_url) | **Track** | Shared settings should be consistent across team. |
 
 ### Key principle
 
-**Ignore binary, track text.** WAL and Parquet are binary formats that vary per machine and would cause unsolvable merge conflicts. The JSONL sync file and config are human-readable text designed for git.
+**Ignore local data, track config.** WAL and Parquet are binary formats that vary per machine. Sync state is per-machine. Only `config.toml` is shared.
 
 ### Setting up a new project
 
@@ -39,9 +36,41 @@ cn init                       # Creates .chronis/ directory with internal .gitig
 
 ### Common mistakes
 
-- **Ignoring all of `.chronis/`** — breaks `cn sync`. Other machines won't receive your events because `events.jsonl` won't be committed.
+- **Ignoring all of `.chronis/`** — hides `config.toml` from git, so team members won't share sync configuration.
 - **Tracking `.chronis/wal/` or `.chronis/storage/`** — bloats your repo with binary files that change on every write. These can be hundreds of MB on active projects.
-- **Tracking `.remote_ids` / `.local_ids`** — causes false "new events" on other machines because dedup cursors get overwritten.
+
+---
+
+## Sync Modes
+
+Chronis supports two modes, configured in `.chronis/config.toml`:
+
+### Embedded mode (default)
+
+Each machine has its own local event store. `cn sync` exchanges events with a remote Core over HTTP. Sync is idempotent — UUID tracking prevents duplicates even when the overlap buffer re-fetches events.
+
+```toml
+mode = "embedded"
+instance_id = "auto-generated"
+
+[sync]
+remote_url = "http://core.example.com:3900"
+```
+
+**When to use:** Local-first development, offline capability, low-latency reads.
+
+### Remote mode
+
+All commands talk directly to a shared remote Core. No local data, no sync step needed.
+
+```toml
+mode = "remote"
+
+[sync]
+remote_url = "http://core.example.com:3900"
+```
+
+**When to use:** Shared team instance, CI/CD pipelines, environments where you want a single source of truth without sync. Reads use a local in-memory projection cache bootstrapped from remote events on startup.
 
 ---
 

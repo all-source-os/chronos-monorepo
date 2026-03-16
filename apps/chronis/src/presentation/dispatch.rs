@@ -5,10 +5,14 @@ use chrono::Utc;
 use crate::{
     application::{
         add_dependency, approve_task, archive_task, claim_task, complete_task, create_task,
-        get_task, list_tasks, migrate_beads, remove_dependency, sync_git,
+        get_task, list_tasks, migrate_beads, remove_dependency, sync_http,
     },
     domain::{error::ChronError, repository::TaskRepository},
-    infrastructure::{core_task_repo::CoreTaskRepository, workspace},
+    infrastructure::{
+        config::{ChronisConfig, CoreMode},
+        core_task_repo::CoreTaskRepository,
+        workspace,
+    },
     presentation::{
         cli::{ArchiveArgs, Command, DepCommands, TaskCommands},
         output::print_task_table,
@@ -90,6 +94,7 @@ pub async fn dispatch(
     cmd: &Command,
     repo: &CoreTaskRepository,
     workspace_root: &Path,
+    config: &ChronisConfig,
     toon_mode: bool,
 ) -> Result<(), ChronError> {
     match cmd {
@@ -294,10 +299,18 @@ pub async fn dispatch(
                 );
             }
         }
-        Command::Sync(_) => {
-            sync_git::sync_git(repo.core(), workspace_root).await?;
-            if toon_mode {
-                println!("ok:sync");
+        Command::Sync => {
+            if config.mode == CoreMode::Remote {
+                if toon_mode {
+                    println!("ok:sync:noop");
+                } else {
+                    println!("Remote mode — already connected to Core. Nothing to sync.");
+                }
+            } else {
+                sync_http::sync_http(repo.backend(), config, workspace_root).await?;
+                if toon_mode {
+                    println!("ok:sync");
+                }
             }
         }
         Command::Tui | Command::Serve(_) => {
