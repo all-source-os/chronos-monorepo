@@ -488,6 +488,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(unsafe_code)]
     fn test_sentinel_config_defaults() {
         // Clear env vars for test
         // SAFETY: This test runs in isolation; no concurrent threads read these env vars.

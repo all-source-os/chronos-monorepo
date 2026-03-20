@@ -72,6 +72,7 @@ fn test_config_defaults() {
 }
 
 #[test]
+#[allow(unsafe_code)]
 fn test_config_env_override() {
     // SAFETY: This test runs single-threaded and cleans up after itself.
     unsafe {

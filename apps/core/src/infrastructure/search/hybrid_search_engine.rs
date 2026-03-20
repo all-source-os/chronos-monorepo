@@ -342,7 +342,7 @@ impl HybridSearchEngine {
             event_id,
             EventMetadata {
                 event_type: Some(event_type.to_string()),
-                entity_id: entity_id.map(|s| s.to_string()),
+                entity_id: entity_id.map(str::to_string),
                 timestamp: Some(timestamp),
             },
         );
