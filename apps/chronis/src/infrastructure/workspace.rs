@@ -73,7 +73,7 @@ impl Workspace {
                         "mode = \"remote\" requires [sync] remote_url in config.toml".into(),
                     )
                 })?;
-                let client = HttpCoreClient::new(url);
+                let client = HttpCoreClient::new(url).with_api_key(config.api_key());
                 client.health().await?;
 
                 // Create an in-memory Core for local projection cache

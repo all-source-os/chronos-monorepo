@@ -64,7 +64,7 @@ pub async fn sync_http(
         .remote_url()
         .ok_or_else(|| ChronError::Sync("sync requires [sync] remote_url in config.toml".into()))?;
 
-    let remote = HttpCoreClient::new(remote_url);
+    let remote = HttpCoreClient::new(remote_url).with_api_key(config.api_key());
     remote
         .health()
         .await

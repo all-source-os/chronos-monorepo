@@ -23,7 +23,7 @@ pub struct TaskRow {
 impl From<&Task> for TaskRow {
     fn from(task: &Task) -> Self {
         let title = if task.title.len() > 40 {
-            format!("{}...", &task.title[..37])
+            format!("{}...", &task.title[..task.title.floor_char_boundary(37)])
         } else {
             task.title.clone()
         };

@@ -8,6 +8,7 @@ use crate::domain::error::ChronError;
 pub struct HttpCoreClient {
     client: reqwest::Client,
     base_url: String,
+    api_key: Option<String>,
 }
 
 /// Matches `EventView` from allsource-core but is independently deserializable
@@ -69,13 +70,26 @@ impl HttpCoreClient {
         Self {
             client: reqwest::Client::new(),
             base_url: base_url.trim_end_matches('/').to_string(),
+            api_key: None,
+        }
+    }
+
+    pub fn with_api_key(mut self, api_key: Option<&str>) -> Self {
+        self.api_key = api_key.map(|k| k.to_string());
+        self
+    }
+
+    fn auth(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        match &self.api_key {
+            Some(key) => req.bearer_auth(key),
+            None => req,
         }
     }
 
     pub async fn health(&self) -> Result<(), ChronError> {
+        let req = self.client.get(format!("{}/health", self.base_url));
         let resp = self
-            .client
-            .get(format!("{}/health", self.base_url))
+            .auth(req)
             .send()
             .await
             .map_err(|e| ChronError::Sync(format!("remote health check failed: {e}")))?;
@@ -122,9 +136,9 @@ impl HttpCoreClient {
         if let Some(limit) = params.limit {
             url.push_str(&format!("{sep}limit={limit}"));
         }
+        let req = self.client.get(&url);
         let resp = self
-            .client
-            .get(&url)
+            .auth(req)
             .send()
             .await
             .map_err(|e| ChronError::Sync(format!("query remote Core: {e}")))?;
@@ -157,10 +171,9 @@ impl HttpCoreClient {
             metadata,
             tenant_id,
         };
+        let http_req = self.client.post(format!("{}/api/v1/events", self.base_url)).json(&req);
         let resp = self
-            .client
-            .post(format!("{}/api/v1/events", self.base_url))
-            .json(&req)
+            .auth(http_req)
             .send()
             .await
             .map_err(|e| ChronError::Sync(format!("ingest to remote Core: {e}")))?;
