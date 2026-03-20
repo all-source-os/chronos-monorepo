@@ -157,7 +157,7 @@ quality-rust:
 	@echo "→ Checking formatting..."
 	cd apps/core && cargo +nightly fmt --check
 	@echo "→ Checking Cargo.toml sorting..."
-	cd apps/core && cargo +nightly sort --check
+	cargo +nightly sort --workspace --check
 	@echo "→ Running Clippy..."
 	cd apps/core && cargo +nightly clippy --locked --all-targets --all-features -- -D warnings
 	@echo "→ Running tests (enterprise — all features)..."

@@ -12,6 +12,10 @@ config :query_service_ex, core_ws_enabled: false
 # Disable EventPipeline during tests (Core may not be running)
 config :query_service_ex, event_pipeline_enabled: false
 
+# Run tests in enterprise mode so all routes (billing, webhooks) are compiled
+# Individual tests can override at runtime if they need community mode behavior
+config :query_service_ex, edition: :enterprise
+
 # Allow all log levels during test (tests use capture_log and set level dynamically)
 config :logger, level: :debug
 
