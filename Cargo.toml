@@ -72,12 +72,12 @@ simd-json = "0.17"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json", "chrono", "uuid"] }
 tabled = "0.17"
 tantivy = { version = "0.25" }
-tempfile = "3.23"
+tempfile = "3.27"
 thiserror = "2.0"
 time = "0.3.47"
 
 # Async runtime
-tokio = { version = "1.48", features = ["full"] }
+tokio = { version = "1.50", features = ["full"] }
 tokio-stream = "0.1"
 toml = "1.0"
 tower = "0.5"
@@ -86,7 +86,7 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 # Observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-uuid = { version = "1.19", features = ["v4", "serde"] }
+uuid = { version = "1.22", features = ["v4", "serde"] }
 
 [workspace.lints.clippy]
 # Enable pedantic group — then allow the noisy/impractical lints below

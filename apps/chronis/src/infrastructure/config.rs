@@ -16,6 +16,8 @@ pub enum CoreMode {
 pub struct SyncConfig {
     /// Remote Core URL used as sync target (embedded mode) or primary backend (remote mode).
     pub remote_url: Option<String>,
+    /// Optional API key for authenticating with a remote Core instance.
+    pub api_key: Option<String>,
 }
 
 fn default_instance_id() -> String {
@@ -47,6 +49,11 @@ impl ChronisConfig {
     /// The remote Core URL, if configured.
     pub fn remote_url(&self) -> Option<&str> {
         self.sync.as_ref().and_then(|s| s.remote_url.as_deref())
+    }
+
+    /// The remote Core API key, if configured.
+    pub fn api_key(&self) -> Option<&str> {
+        self.sync.as_ref().and_then(|s| s.api_key.as_deref())
     }
 }
 
