@@ -193,7 +193,10 @@ async fn test_query_by_event_type() {
     let core = make_core_client(&url);
     let qs = make_query_client(&url);
     let entity = unique_entity("sdk-type-filter");
-    let event_type = format!("sdk.test.typed.{}", entity.split('-').last().unwrap_or("0"));
+    let event_type = format!(
+        "sdk.test.typed.{}",
+        entity.split('-').next_back().unwrap_or("0")
+    );
 
     for i in 0..3 {
         core.ingest_event(IngestEventInput {
@@ -289,7 +292,11 @@ impl EventFolder for OrderFolder {
             }
             "sdk.test.order.item_added" => {
                 self.item_count += 1;
-                if let Some(price) = event.payload.get("price").and_then(|v| v.as_f64()) {
+                if let Some(price) = event
+                    .payload
+                    .get("price")
+                    .and_then(serde_json::Value::as_f64)
+                {
                     self.total += price;
                 }
                 true
@@ -484,6 +491,7 @@ async fn test_concurrent_ingestion() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
+#[allow(clippy::approx_constant)] // test data, not approximating a constant
 async fn test_payload_fidelity() {
     let url = require_core!();
     let core = make_core_client(&url);

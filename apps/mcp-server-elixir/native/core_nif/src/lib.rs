@@ -1,3 +1,18 @@
+// rustler NIF macros generate code that conflicts with pedantic clippy lints:
+// - non_local_definitions, unused_must_use: from rustler::resource! macro
+// - elidable_lifetime_names: NIF fns need explicit lifetimes for Env<'a>/Term<'a>
+// - needless_pass_by_value: NIF fns receive ResourceArc/Term by value (rustler ABI)
+// - unnecessary_cast: macro-generated u64 as u64
+// - uninlined_format_args: format strings in error paths
+#![allow(
+    non_local_definitions,
+    unused_must_use,
+    clippy::elidable_lifetime_names,
+    clippy::needless_pass_by_value,
+    clippy::unnecessary_cast,
+    clippy::uninlined_format_args
+)]
+
 use allsource_core::embedded::{Config, EmbeddedCore, EventView, IngestEvent, Query};
 use rustler::{Atom, Encoder, Env, NifResult, ResourceArc, Term};
 use std::sync::Arc;

@@ -326,7 +326,7 @@ impl QueryClient {
 
     /// Query events and fold them into domain state in one call.
     ///
-    /// Convenience method that combines [`query_events`] + [`fold_events`].
+    /// Convenience method that combines [`Self::query_events`] + [`crate::fold::fold_events`].
     pub async fn query_and_fold<F: EventFolder>(
         &self,
         params: QueryEventsParams,
