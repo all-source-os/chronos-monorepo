@@ -14,6 +14,11 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
   alias QueryServiceExWeb.Plugs.TenantContext
 
   setup do
+    # Run in enterprise mode so TenantContext resolves tenants instead of defaulting to community
+    previous_edition = Application.get_env(:query_service_ex, :edition)
+    Application.put_env(:query_service_ex, :edition, :enterprise)
+    on_exit(fn -> Application.put_env(:query_service_ex, :edition, previous_edition || :community) end)
+
     # Ensure TenantCache ETS table exists (started by supervision tree)
     # Clear it before each test for isolation
     TenantCache.clear()

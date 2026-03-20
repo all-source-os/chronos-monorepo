@@ -6,6 +6,13 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcementTest do
 
   alias QueryServiceExWeb.Plugs.UsageEnforcement
 
+  setup do
+    previous = Application.get_env(:query_service_ex, :edition)
+    Application.put_env(:query_service_ex, :edition, :enterprise)
+    on_exit(fn -> Application.put_env(:query_service_ex, :edition, previous || :community) end)
+    :ok
+  end
+
   # Core-format tenant builders
 
   defp core_tenant(id, opts) do

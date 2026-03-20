@@ -6,7 +6,13 @@ members = [
     "sdks/rust",
     "tooling/performance",
 ]
-exclude = ["apps/chronis", "apps/registry", "crates/better-auth-allsource", "tooling/allsource-inspect", "tooling/allsource-mcp"]
+exclude = [
+    "apps/chronis",
+    "apps/registry",
+    "crates/better-auth-allsource",
+    "tooling/allsource-inspect",
+    "tooling/allsource-mcp",
+]
 
 [workspace.dependencies]
 
@@ -126,6 +132,13 @@ wildcard_imports = "allow"           # used in test modules and re-exports
 # Performance (supplemental — not in pedantic)
 inefficient_to_string = "warn"
 large_futures = "warn"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+# missing_debug_implementations: deferred — 181 types need Debug, many hold Arc<dyn Trait>
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
 
 [profile.release]
 codegen-units = 1

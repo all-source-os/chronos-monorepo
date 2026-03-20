@@ -117,7 +117,6 @@ thiserror.workspace = true
 # Security: time 0.3.47+ required for RUSTSEC-2026-0009
 time.workspace = true
 tokio.workspace = true
-tokio-stream.workspace = true
 toml.workspace = true
 toon-format = { version = "0.4", optional = true }
 tower = { workspace = true, optional = true }

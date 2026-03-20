@@ -5,7 +5,8 @@ defmodule QueryServiceEx.Projections.FoldPipelineTest do
   Uses inline mock modules for Core client to test snapshot lookup,
   delta event fetching, and fold logic without hitting Core.
   """
-  use ExUnit.Case, async: true
+  # async: false because tests mutate global Application env (snapshot_threshold)
+  use ExUnit.Case, async: false
 
   alias QueryServiceEx.Projections.FoldPipeline
 
