@@ -17,9 +17,7 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use crate::{
-    application::services::projection::Projection,
-    domain::entities::Event,
-    error::Result,
+    application::services::projection::Projection, domain::entities::Event, error::Result,
 };
 
 /// Event type for schema registration.
@@ -105,7 +103,11 @@ impl SchemaProjection {
 
     /// Validate node properties against the registered schema.
     /// Returns `Ok(())` if no schema is registered or validation passes.
-    pub fn validate_node(&self, node_type: &str, properties: &Value) -> std::result::Result<(), ValidationError> {
+    pub fn validate_node(
+        &self,
+        node_type: &str,
+        properties: &Value,
+    ) -> std::result::Result<(), ValidationError> {
         if let Some(entry) = self.node_schemas.get(node_type) {
             validate_properties(node_type, &entry.schema, properties)
         } else {
@@ -121,7 +123,9 @@ impl SchemaProjection {
         properties: Option<&Value>,
     ) -> std::result::Result<(), ValidationError> {
         if let Some(entry) = self.edge_schemas.get(relation) {
-            let props = properties.cloned().unwrap_or(Value::Object(Default::default()));
+            let props = properties
+                .cloned()
+                .unwrap_or(Value::Object(Default::default()));
             validate_properties(relation, &entry.schema, &props)
         } else {
             Ok(())
@@ -242,10 +246,7 @@ mod tests {
     #[test]
     fn test_validate_node_with_required_fields_passes() {
         let proj = SchemaProjection::new("schema");
-        proj.register_node_schema(
-            "person",
-            serde_json::json!({"required": ["name"]}),
-        );
+        proj.register_node_schema("person", serde_json::json!({"required": ["name"]}));
 
         let result = proj.validate_node("person", &serde_json::json!({"name": "Alice"}));
         assert!(result.is_ok());
@@ -254,10 +255,7 @@ mod tests {
     #[test]
     fn test_validate_node_missing_required_field_fails() {
         let proj = SchemaProjection::new("schema");
-        proj.register_node_schema(
-            "person",
-            serde_json::json!({"required": ["name", "email"]}),
-        );
+        proj.register_node_schema("person", serde_json::json!({"required": ["name", "email"]}));
 
         let result = proj.validate_node("person", &serde_json::json!({"name": "Alice"}));
         assert!(result.is_err());
@@ -276,15 +274,9 @@ mod tests {
     #[test]
     fn test_validate_edge_with_schema() {
         let proj = SchemaProjection::new("schema");
-        proj.register_edge_schema(
-            "works_on",
-            serde_json::json!({"required": ["since"]}),
-        );
+        proj.register_edge_schema("works_on", serde_json::json!({"required": ["since"]}));
 
-        let result = proj.validate_edge(
-            "works_on",
-            Some(&serde_json::json!({"since": "2026-01"})),
-        );
+        let result = proj.validate_edge("works_on", Some(&serde_json::json!({"since": "2026-01"})));
         assert!(result.is_ok());
 
         let result = proj.validate_edge("works_on", Some(&serde_json::json!({})));
@@ -294,10 +286,7 @@ mod tests {
     #[test]
     fn test_validate_edge_no_properties_fails_if_required() {
         let proj = SchemaProjection::new("schema");
-        proj.register_edge_schema(
-            "works_on",
-            serde_json::json!({"required": ["since"]}),
-        );
+        proj.register_edge_schema("works_on", serde_json::json!({"required": ["since"]}));
 
         let result = proj.validate_edge("works_on", None);
         assert!(result.is_err());
@@ -359,7 +348,10 @@ mod tests {
         assert!(proj.validate_node("person", &serde_json::json!({})).is_ok()); // no schema = pass
 
         proj.restore(&snap).unwrap();
-        assert!(proj.validate_node("person", &serde_json::json!({})).is_err()); // schema restored
+        assert!(
+            proj.validate_node("person", &serde_json::json!({}))
+                .is_err()
+        ); // schema restored
     }
 
     #[test]

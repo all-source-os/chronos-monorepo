@@ -3,8 +3,7 @@
 //! Configures merge strategies for graph events, registers Prime projections,
 //! and exposes graph-aware convenience methods on top of the event store.
 
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
@@ -20,11 +19,13 @@ use super::{
     error::{PrimeError, PrimeResult},
     projections::{
         AdjacencyListProjection, Contradiction, ContradictionDetectionProjection,
-        GraphStatsProjection, NodeStateProjection, NodeTypeIndexProjection,
-        ReverseIndexProjection,
+        GraphStatsProjection, NodeStateProjection, NodeTypeIndexProjection, ReverseIndexProjection,
     },
     schema::SchemaProjection,
-    types::{Direction, Edge, EdgeId, Node, NodeId, PrimeStats, event_types, edge_entity_id, node_entity_id},
+    types::{
+        Direction, Edge, EdgeId, Node, NodeId, PrimeStats, edge_entity_id, event_types,
+        node_entity_id,
+    },
 };
 
 // Well-known projection names used by the facade.
@@ -95,7 +96,15 @@ impl Prime {
         let _ = store.register_projection_with_backfill(&(Arc::clone(&schema) as DynProj));
         let _ = store.register_projection_with_backfill(&(Arc::clone(&contradiction) as DynProj));
 
-        (node_state, node_type_index, adjacency, reverse_index, graph_stats, schema, contradiction)
+        (
+            node_state,
+            node_type_index,
+            adjacency,
+            reverse_index,
+            graph_stats,
+            schema,
+            contradiction,
+        )
     }
 
     /// Register vector index projection (only when prime-vectors feature is enabled).
@@ -104,7 +113,9 @@ impl Prime {
         store: &Arc<crate::store::EventStore>,
     ) -> Arc<super::vectors::VectorIndexProjection> {
         type DynProj = Arc<dyn crate::application::services::projection::Projection>;
-        let vi = Arc::new(super::vectors::VectorIndexProjection::new(PROJ_VECTOR_INDEX));
+        let vi = Arc::new(super::vectors::VectorIndexProjection::new(
+            PROJ_VECTOR_INDEX,
+        ));
         let _ = store.register_projection_with_backfill(&(Arc::clone(&vi) as DynProj));
         vi
     }
@@ -112,8 +123,15 @@ impl Prime {
     /// Build a `Prime` instance from a configured `EmbeddedCore`.
     fn from_core(core: EmbeddedCore) -> Self {
         let store = core.inner();
-        let (node_state, node_type_index, adjacency, reverse_index, graph_stats, schema, contradiction) =
-            Self::register_graph_projections(&store);
+        let (
+            node_state,
+            node_type_index,
+            adjacency,
+            reverse_index,
+            graph_stats,
+            schema,
+            contradiction,
+        ) = Self::register_graph_projections(&store);
         #[cfg(feature = "prime-vectors")]
         let vector_index = Self::register_vector_projection(&store);
 
@@ -466,10 +484,7 @@ impl Prime {
     /// Get an edge by its ID. Queries the event store for the edge creation event.
     pub async fn get_edge(&self, edge_id: &str) -> PrimeResult<Option<Edge>> {
         let entity_id = edge_entity_id(edge_id);
-        let events = self
-            .core
-            .query(Query::new().entity_id(&entity_id))
-            .await?;
+        let events = self.core.query(Query::new().entity_id(&entity_id)).await?;
 
         // Check if deleted
         let is_deleted = events
@@ -541,7 +556,9 @@ impl Prime {
                 (&mut merged_properties, &source_node.properties)
             {
                 for (key, value) in source_map {
-                    target_map.entry(key.clone()).or_insert_with(|| value.clone());
+                    target_map
+                        .entry(key.clone())
+                        .or_insert_with(|| value.clone());
                 }
             }
 
@@ -699,12 +716,7 @@ impl Prime {
 
     /// Store a vector embedding associated with an entity.
     #[cfg(feature = "prime-vectors")]
-    pub async fn embed(
-        &self,
-        id: &str,
-        text: Option<&str>,
-        vector: Vec<f32>,
-    ) -> PrimeResult<()> {
+    pub async fn embed(&self, id: &str, text: Option<&str>, vector: Vec<f32>) -> PrimeResult<()> {
         self.embed_with_metadata(id, text, vector, None).await
     }
 
@@ -775,6 +787,91 @@ impl Prime {
                 metadata: hit.metadata,
             })
             .collect()
+    }
+
+    /// Domain-aware vector search that ensures results span multiple domains.
+    ///
+    /// Over-fetches from HNSW, groups by domain, then round-robin interleaves
+    /// so that cross-domain queries return results from all relevant domains
+    /// instead of clustering in the single most similar domain.
+    #[cfg(feature = "prime-vectors")]
+    pub fn vector_search_cross_domain(
+        &self,
+        query: &[f32],
+        top_k: usize,
+    ) -> Vec<super::vectors::VectorSearchResult> {
+        use std::collections::HashMap;
+
+        // Over-fetch to get candidates across domains
+        let all_results = self.vector_search(query, top_k * 3);
+
+        if all_results.is_empty() {
+            return all_results;
+        }
+
+        // Group results by domain
+        let mut by_domain: HashMap<String, Vec<super::vectors::VectorSearchResult>> =
+            HashMap::new();
+        for result in all_results {
+            let domain = self
+                .domain_of(&result.id)
+                .unwrap_or_else(|| "unknown".to_string());
+            by_domain.entry(domain).or_default().push(result);
+        }
+
+        // If only one domain, no cross-domain benefit — return as-is
+        if by_domain.len() <= 1 {
+            let mut flat: Vec<_> = by_domain.into_values().flatten().collect();
+            flat.truncate(top_k);
+            return flat;
+        }
+
+        // Round-robin interleave across domains
+        let mut merged = Vec::with_capacity(top_k);
+        let domain_count = by_domain.len();
+        let per_domain = (top_k / domain_count).max(1);
+
+        for results in by_domain.values() {
+            merged.extend(results.iter().take(per_domain).cloned());
+        }
+
+        // Sort by score and truncate
+        merged.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        merged.truncate(top_k);
+        merged
+    }
+
+    /// Look up the domain of a node by its entity ID.
+    ///
+    /// Checks top-level `domain` field first, then `properties.domain`,
+    /// then falls back to `node_type` (since node_type often IS the domain).
+    #[cfg(feature = "prime-vectors")]
+    fn domain_of(&self, entity_id: &str) -> Option<String> {
+        // entity_id from vector search is "vec:{node_entity_id}" — strip prefix
+        let node_id = entity_id.strip_prefix("vec:").unwrap_or(entity_id);
+        let state = self.node_state.get_state(node_id)?;
+
+        // Try top-level domain field
+        if let Some(domain) = state.get("domain").and_then(|v| v.as_str()) {
+            return Some(domain.to_string());
+        }
+        // Try properties.domain
+        if let Some(domain) = state
+            .get("properties")
+            .and_then(|p| p.get("domain"))
+            .and_then(|v| v.as_str())
+        {
+            return Some(domain.to_string());
+        }
+        // Fall back to node_type as domain
+        state
+            .get("node_type")
+            .and_then(|v| v.as_str())
+            .map(String::from)
     }
 
     /// Delete a stored vector embedding.
@@ -876,8 +973,7 @@ impl Prime {
         let mut vector_results = Vec::new();
 
         // Normalize weights so they sum to 1.0
-        let total_weight =
-            query.similarity_weight + query.proximity_weight + query.recency_weight;
+        let total_weight = query.similarity_weight + query.proximity_weight + query.recency_weight;
         let (sw, pw, rw) = if total_weight > 0.0 {
             (
                 query.similarity_weight / total_weight,
@@ -890,7 +986,7 @@ impl Prime {
 
         // Step 1: Vector similarity (if query vector provided)
         if let Some(ref qvec) = query.vector {
-            let hits = self.vector_search(qvec, query.top_k * 2); // Over-fetch for expansion
+            let hits = self.vector_search_cross_domain(qvec, query.top_k * 2); // Domain-balanced
             vector_results = hits
                 .iter()
                 .map(|h| super::vectors::VectorSearchResult {
@@ -941,7 +1037,11 @@ impl Prime {
                         continue;
                     }
                     // Filter by node_type if specified
-                    if query.node_type.as_ref().is_some_and(|nt| node.node_type != *nt) {
+                    if query
+                        .node_type
+                        .as_ref()
+                        .is_some_and(|nt| node.node_type != *nt)
+                    {
                         continue;
                     }
                     let proximity = 1.0 / (1.0 + depth as f64);
@@ -969,31 +1069,35 @@ impl Prime {
         if query.vector.is_none()
             && let Some(ref nt) = query.node_type
         {
-                let nodes = self.nodes_by_type(nt);
-                for node in nodes {
-                    let entity_id = node_entity_id(&node.node_type, node.id.as_str());
-                    let recency = recency_score(node.updated_at, now);
-                    let components = ScoreComponents {
-                        similarity: 0.0,
-                        proximity: 0.0,
-                        recency,
-                    };
-                    let score = rw * recency;
-                    scored.insert(
-                        entity_id,
-                        ScoredNode {
-                            node,
-                            score,
-                            depth: 0,
-                            components,
-                        },
-                    );
-                }
+            let nodes = self.nodes_by_type(nt);
+            for node in nodes {
+                let entity_id = node_entity_id(&node.node_type, node.id.as_str());
+                let recency = recency_score(node.updated_at, now);
+                let components = ScoreComponents {
+                    similarity: 0.0,
+                    proximity: 0.0,
+                    recency,
+                };
+                let score = rw * recency;
+                scored.insert(
+                    entity_id,
+                    ScoredNode {
+                        node,
+                        score,
+                        depth: 0,
+                        components,
+                    },
+                );
+            }
         }
 
         // Sort by score descending, take top_k
         let mut nodes: Vec<ScoredNode> = scored.into_values().collect();
-        nodes.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        nodes.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         nodes.truncate(query.top_k);
 
         Ok(RecallResult {
@@ -1052,10 +1156,7 @@ impl Prime {
             }
         }
 
-        peer_ids
-            .iter()
-            .filter_map(|id| self.get_node(id))
-            .collect()
+        peer_ids.iter().filter_map(|id| self.get_node(id)).collect()
     }
 
     /// BFS traversal up to `depth` hops. Returns nodes with their depth level.
@@ -1096,11 +1197,7 @@ impl Prime {
     }
 
     /// Extract an ego-network subgraph around `center` up to `depth` hops.
-    pub fn subgraph(
-        &self,
-        center: &str,
-        depth: usize,
-    ) -> super::types::SubGraph {
+    pub fn subgraph(&self, center: &str, depth: usize) -> super::types::SubGraph {
         use std::collections::HashSet;
 
         let bfs = self.neighbors_within(center, depth, None, Direction::Both);
@@ -1138,12 +1235,7 @@ impl Prime {
     }
 
     /// BFS shortest path (unweighted). Returns ordered path including start and end.
-    pub fn shortest_path(
-        &self,
-        from: &str,
-        to: &str,
-        relation: Option<&str>,
-    ) -> Option<Vec<Node>> {
+    pub fn shortest_path(&self, from: &str, to: &str, relation: Option<&str>) -> Option<Vec<Node>> {
         use std::collections::{HashMap, VecDeque};
 
         if from == to {
@@ -1175,12 +1267,7 @@ impl Prime {
                         cursor = parent.clone();
                     }
                     path_ids.reverse();
-                    return Some(
-                        path_ids
-                            .iter()
-                            .filter_map(|id| self.get_node(id))
-                            .collect(),
-                    );
+                    return Some(path_ids.iter().filter_map(|id| self.get_node(id)).collect());
                 }
                 queue.push_back(peer);
             }
@@ -1196,8 +1283,10 @@ impl Prime {
         to: &str,
         relation: Option<&str>,
     ) -> Option<(Vec<Node>, f64)> {
-        use std::cmp::Ordering;
-        use std::collections::{BinaryHeap, HashMap};
+        use std::{
+            cmp::Ordering,
+            collections::{BinaryHeap, HashMap},
+        };
 
         if from == to {
             return self.get_node(from).map(|n| (vec![n], 0.0));
@@ -1245,10 +1334,7 @@ impl Prime {
                     cursor = parent.clone();
                 }
                 path_ids.reverse();
-                let nodes: Vec<Node> = path_ids
-                    .iter()
-                    .filter_map(|id| self.get_node(id))
-                    .collect();
+                let nodes: Vec<Node> = path_ids.iter().filter_map(|id| self.get_node(id)).collect();
                 return Some((nodes, cost));
             }
 
@@ -1286,10 +1372,7 @@ impl Prime {
     /// Returns all events in chronological order. Returns an empty vec
     /// (not an error) if the entity has never existed.
     pub async fn history(&self, entity_id: &str) -> PrimeResult<Vec<super::types::HistoryEntry>> {
-        let events = self
-            .core
-            .query(Query::new().entity_id(entity_id))
-            .await?;
+        let events = self.core.query(Query::new().entity_id(entity_id)).await?;
 
         let entries = events
             .iter()
@@ -1520,8 +1603,7 @@ impl Prime {
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown")
                         .to_string();
-                    if let Some(serde_json::Value::Object(props)) =
-                        event.payload.get("properties")
+                    if let Some(serde_json::Value::Object(props)) = event.payload.get("properties")
                     {
                         properties = props.clone();
                     }
@@ -1576,11 +1658,7 @@ impl Prime {
             return Ok(None);
         }
 
-        let id = entity_id
-            .split(':')
-            .nth(2)
-            .unwrap_or(entity_id)
-            .to_string();
+        let id = entity_id.split(':').nth(2).unwrap_or(entity_id).to_string();
 
         Ok(Some(Node {
             id: NodeId::new(id),
@@ -1606,18 +1684,13 @@ impl Prime {
         // Get all prime edge events up to as_of
         let all_events = self
             .core
-            .query(
-                Query::new()
-                    .event_type_prefix("prime.edge.")
-                    .until(as_of),
-            )
+            .query(Query::new().event_type_prefix("prime.edge.").until(as_of))
             .await?;
 
         // Build live outgoing edges from entity_id at as_of
         let mut live_targets: std::collections::HashMap<String, String> =
             std::collections::HashMap::new(); // edge_id -> target
-        let mut deleted_edges: std::collections::HashSet<String> =
-            std::collections::HashSet::new();
+        let mut deleted_edges: std::collections::HashSet<String> = std::collections::HashSet::new();
 
         for event in &all_events {
             match event.event_type.as_str() {
@@ -1686,18 +1759,17 @@ impl Prime {
         let mut peers = Vec::new();
         let mut seen = std::collections::HashSet::new();
 
-        let add_entries =
-            |entries: Vec<super::projections::AdjEntry>,
-             peers: &mut Vec<String>,
-             seen: &mut std::collections::HashSet<String>| {
-                for entry in entries {
-                    if (relation.is_none() || relation == Some(entry.relation.as_str()))
-                        && seen.insert(entry.peer.clone())
-                    {
-                        peers.push(entry.peer);
-                    }
+        let add_entries = |entries: Vec<super::projections::AdjEntry>,
+                           peers: &mut Vec<String>,
+                           seen: &mut std::collections::HashSet<String>| {
+            for entry in entries {
+                if (relation.is_none() || relation == Some(entry.relation.as_str()))
+                    && seen.insert(entry.peer.clone())
+                {
+                    peers.push(entry.peer);
                 }
-            };
+            }
+        };
 
         match direction {
             Direction::Outgoing => {
@@ -1896,7 +1968,10 @@ fn edge_from_event(event: &crate::embedded::EventView) -> Option<Edge> {
 
 /// Exponential decay score for recency: `exp(-lambda * hours_ago)`.
 /// Returns 1.0 for recent events, decaying toward 0 for older ones.
-fn recency_score(timestamp: chrono::DateTime<chrono::Utc>, now: chrono::DateTime<chrono::Utc>) -> f64 {
+fn recency_score(
+    timestamp: chrono::DateTime<chrono::Utc>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> f64 {
     let hours_ago = (now - timestamp).num_seconds().max(0) as f64 / 3600.0;
     // lambda = 0.01 → half-life ≈ 69 hours (~3 days)
     (-0.01 * hours_ago).exp()
@@ -1904,25 +1979,31 @@ fn recency_score(timestamp: chrono::DateTime<chrono::Utc>, now: chrono::DateTime
 
 /// Reconstruct a [`Node`] from projection state.
 fn node_from_state(entity_id: &str, state: &serde_json::Value) -> Option<Node> {
-    use chrono::{DateTime, Utc};
     use super::types::NodeId;
+    use chrono::{DateTime, Utc};
 
     // Extract the short ID from entity_id "node:{type}:{id}"
-    let id = entity_id
-        .split(':')
-        .nth(2)
-        .unwrap_or(entity_id)
-        .to_string();
+    let id = entity_id.split(':').nth(2).unwrap_or(entity_id).to_string();
 
     let node_type = state.get("node_type")?.as_str()?.to_string();
     let properties = state.get("properties").cloned().unwrap_or(json!({}));
-    let domain = state.get("domain").and_then(|v| v.as_str()).map(String::from);
+    let domain = state
+        .get("domain")
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let labels = state
         .get("labels")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
-    let deleted = state.get("deleted").and_then(serde_json::Value::as_bool).unwrap_or(false);
+    let deleted = state
+        .get("deleted")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
     let created_at: DateTime<Utc> = state
         .get("created_at")
         .and_then(|v| v.as_str())
@@ -1965,7 +2046,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let prime = Prime::open(dir.path()).await.unwrap();
 
-        let _id = prime.add_node("person", json!({"name": "Alice"})).await.unwrap();
+        let _id = prime
+            .add_node("person", json!({"name": "Alice"}))
+            .await
+            .unwrap();
 
         let stats = prime.stats();
         assert_eq!(stats.total_nodes, 1);
@@ -1980,7 +2064,10 @@ mod tests {
 
         {
             let prime = Prime::open(dir.path()).await.unwrap();
-            prime.add_node("person", json!({"name": "Bob"})).await.unwrap();
+            prime
+                .add_node("person", json!({"name": "Bob"}))
+                .await
+                .unwrap();
             prime.shutdown().await.unwrap();
         }
 
@@ -2000,8 +2087,14 @@ mod tests {
     async fn test_stats_counts_nodes_and_edges() {
         let prime = Prime::open_in_memory().await.unwrap();
 
-        prime.add_node("person", json!({"name": "Alice"})).await.unwrap();
-        prime.add_node("person", json!({"name": "Bob"})).await.unwrap();
+        prime
+            .add_node("person", json!({"name": "Alice"}))
+            .await
+            .unwrap();
+        prime
+            .add_node("person", json!({"name": "Bob"}))
+            .await
+            .unwrap();
 
         // Ingest a raw edge event
         prime
@@ -2038,7 +2131,10 @@ mod tests {
         let prime = Prime::open_in_memory().await.unwrap();
 
         // Create
-        let id = prime.add_node("person", json!({"name": "Alice", "age": 30})).await.unwrap();
+        let id = prime
+            .add_node("person", json!({"name": "Alice", "age": 30}))
+            .await
+            .unwrap();
         let entity_id = node_entity_id("person", id.as_str());
 
         // Read
@@ -2068,8 +2164,14 @@ mod tests {
     async fn test_delete_node_cascades_edges() {
         let prime = Prime::open_in_memory().await.unwrap();
 
-        let alice_id = prime.add_node("person", json!({"name": "Alice"})).await.unwrap();
-        let bob_id = prime.add_node("person", json!({"name": "Bob"})).await.unwrap();
+        let alice_id = prime
+            .add_node("person", json!({"name": "Alice"}))
+            .await
+            .unwrap();
+        let bob_id = prime
+            .add_node("person", json!({"name": "Bob"}))
+            .await
+            .unwrap();
 
         let alice_entity = node_entity_id("person", alice_id.as_str());
         let bob_entity = node_entity_id("person", bob_id.as_str());
@@ -2131,9 +2233,18 @@ mod tests {
     async fn test_nodes_by_type() {
         let prime = Prime::open_in_memory().await.unwrap();
 
-        prime.add_node("person", json!({"name": "Alice"})).await.unwrap();
-        prime.add_node("person", json!({"name": "Bob"})).await.unwrap();
-        prime.add_node("project", json!({"name": "Prime"})).await.unwrap();
+        prime
+            .add_node("person", json!({"name": "Alice"}))
+            .await
+            .unwrap();
+        prime
+            .add_node("person", json!({"name": "Bob"}))
+            .await
+            .unwrap();
+        prime
+            .add_node("project", json!({"name": "Prime"}))
+            .await
+            .unwrap();
 
         let persons = prime.nodes_by_type("person");
         assert_eq!(persons.len(), 2);
@@ -2152,8 +2263,14 @@ mod tests {
     async fn test_create_edge_between_nodes() {
         let prime = Prime::open_in_memory().await.unwrap();
 
-        let alice_id = prime.add_node("person", json!({"name": "Alice"})).await.unwrap();
-        let bob_id = prime.add_node("person", json!({"name": "Bob"})).await.unwrap();
+        let alice_id = prime
+            .add_node("person", json!({"name": "Alice"}))
+            .await
+            .unwrap();
+        let bob_id = prime
+            .add_node("person", json!({"name": "Bob"}))
+            .await
+            .unwrap();
         let alice_entity = node_entity_id("person", alice_id.as_str());
         let bob_entity = node_entity_id("person", bob_id.as_str());
 
@@ -2179,7 +2296,10 @@ mod tests {
     async fn test_create_edge_to_nonexistent_node() {
         let prime = Prime::open_in_memory().await.unwrap();
 
-        let alice_id = prime.add_node("person", json!({"name": "Alice"})).await.unwrap();
+        let alice_id = prime
+            .add_node("person", json!({"name": "Alice"}))
+            .await
+            .unwrap();
         let alice_entity = node_entity_id("person", alice_id.as_str());
 
         let result = prime
@@ -2199,8 +2319,14 @@ mod tests {
     async fn test_delete_edge() {
         let prime = Prime::open_in_memory().await.unwrap();
 
-        let alice_id = prime.add_node("person", json!({"name": "Alice"})).await.unwrap();
-        let bob_id = prime.add_node("person", json!({"name": "Bob"})).await.unwrap();
+        let alice_id = prime
+            .add_node("person", json!({"name": "Alice"}))
+            .await
+            .unwrap();
+        let bob_id = prime
+            .add_node("person", json!({"name": "Bob"}))
+            .await
+            .unwrap();
         let alice_entity = node_entity_id("person", alice_id.as_str());
         let bob_entity = node_entity_id("person", bob_id.as_str());
 
@@ -2227,8 +2353,14 @@ mod tests {
     async fn test_weighted_edge() {
         let prime = Prime::open_in_memory().await.unwrap();
 
-        let a = prime.add_node("person", json!({"name": "A"})).await.unwrap();
-        let b = prime.add_node("person", json!({"name": "B"})).await.unwrap();
+        let a = prime
+            .add_node("person", json!({"name": "A"}))
+            .await
+            .unwrap();
+        let b = prime
+            .add_node("person", json!({"name": "B"}))
+            .await
+            .unwrap();
         let a_entity = node_entity_id("person", a.as_str());
         let b_entity = node_entity_id("person", b.as_str());
 
@@ -2252,10 +2384,22 @@ mod tests {
         let prime = Prime::open_in_memory().await.unwrap();
 
         // Create nodes A, B, C, D
-        let a = prime.add_node("person", json!({"name": "A"})).await.unwrap();
-        let b = prime.add_node("person", json!({"name": "B"})).await.unwrap();
-        let c = prime.add_node("person", json!({"name": "C"})).await.unwrap();
-        let d = prime.add_node("person", json!({"name": "D"})).await.unwrap();
+        let a = prime
+            .add_node("person", json!({"name": "A"}))
+            .await
+            .unwrap();
+        let b = prime
+            .add_node("person", json!({"name": "B"}))
+            .await
+            .unwrap();
+        let c = prime
+            .add_node("person", json!({"name": "C"}))
+            .await
+            .unwrap();
+        let d = prime
+            .add_node("person", json!({"name": "D"}))
+            .await
+            .unwrap();
 
         let a_e = node_entity_id("person", a.as_str());
         let b_e = node_entity_id("person", b.as_str());
@@ -2418,10 +2562,22 @@ mod tests {
         let ce = node_entity_id("n", c.as_str());
         let de = node_entity_id("n", d.as_str());
 
-        prime.add_edge_weighted(&ae, &be, "link", 1.0, None).await.unwrap();
-        prime.add_edge_weighted(&ae, &ce, "link", 3.0, None).await.unwrap();
-        prime.add_edge_weighted(&be, &de, "link", 1.0, None).await.unwrap();
-        prime.add_edge_weighted(&ce, &de, "link", 1.0, None).await.unwrap();
+        prime
+            .add_edge_weighted(&ae, &be, "link", 1.0, None)
+            .await
+            .unwrap();
+        prime
+            .add_edge_weighted(&ae, &ce, "link", 3.0, None)
+            .await
+            .unwrap();
+        prime
+            .add_edge_weighted(&be, &de, "link", 1.0, None)
+            .await
+            .unwrap();
+        prime
+            .add_edge_weighted(&ce, &de, "link", 1.0, None)
+            .await
+            .unwrap();
 
         let (path, cost) = prime.shortest_path_weighted(&ae, &de, None).unwrap();
         assert_eq!(path.len(), 3); // A, B, D
@@ -2502,21 +2658,12 @@ mod tests {
     async fn test_history_edge_events() {
         let prime = Prime::open_in_memory().await.unwrap();
 
-        let a = prime
-            .add_node("n", json!({"name": "A"}))
-            .await
-            .unwrap();
-        let b = prime
-            .add_node("n", json!({"name": "B"}))
-            .await
-            .unwrap();
+        let a = prime.add_node("n", json!({"name": "A"})).await.unwrap();
+        let b = prime.add_node("n", json!({"name": "B"})).await.unwrap();
         let a_e = node_entity_id("n", a.as_str());
         let b_e = node_entity_id("n", b.as_str());
 
-        let edge_id = prime
-            .add_edge(&a_e, &b_e, "knows", None)
-            .await
-            .unwrap();
+        let edge_id = prime.add_edge(&a_e, &b_e, "knows", None).await.unwrap();
 
         let edge_entity = edge_entity_id(edge_id.as_str());
         prime.delete_edge(edge_id.as_str()).await.unwrap();
@@ -2538,13 +2685,30 @@ mod tests {
         let t1 = Utc::now();
 
         // Add 3 nodes and 2 edges
-        let a = prime.add_node("person", json!({"name": "A"})).await.unwrap();
-        let b = prime.add_node("person", json!({"name": "B"})).await.unwrap();
-        let c = prime.add_node("project", json!({"name": "C"})).await.unwrap();
+        let a = prime
+            .add_node("person", json!({"name": "A"}))
+            .await
+            .unwrap();
+        let b = prime
+            .add_node("person", json!({"name": "B"}))
+            .await
+            .unwrap();
+        let c = prime
+            .add_node("project", json!({"name": "C"}))
+            .await
+            .unwrap();
         let a_e = node_entity_id("person", a.as_str());
         let b_e = node_entity_id("person", b.as_str());
         prime.add_edge(&a_e, &b_e, "knows", None).await.unwrap();
-        prime.add_edge(&a_e, &node_entity_id("project", c.as_str()), "works_on", None).await.unwrap();
+        prime
+            .add_edge(
+                &a_e,
+                &node_entity_id("project", c.as_str()),
+                "works_on",
+                None,
+            )
+            .await
+            .unwrap();
 
         let t2 = Utc::now();
 
@@ -2562,12 +2726,18 @@ mod tests {
 
         let prime = Prime::open_in_memory().await.unwrap();
 
-        let id = prime.add_node("person", json!({"name": "Alice"})).await.unwrap();
+        let id = prime
+            .add_node("person", json!({"name": "Alice"}))
+            .await
+            .unwrap();
         let entity_id = node_entity_id("person", id.as_str());
 
         let t_mid = Utc::now();
 
-        prime.update_node(&entity_id, json!({"role": "engineer"})).await.unwrap();
+        prime
+            .update_node(&entity_id, json!({"role": "engineer"}))
+            .await
+            .unwrap();
 
         let t_end = Utc::now();
 
@@ -2576,7 +2746,10 @@ mod tests {
         assert_eq!(full.len(), 2);
 
         // Timeline from t_mid — should only include the update
-        let after_mid = prime.timeline(&entity_id, Some(t_mid), Some(t_end)).await.unwrap();
+        let after_mid = prime
+            .timeline(&entity_id, Some(t_mid), Some(t_end))
+            .await
+            .unwrap();
         assert_eq!(after_mid.len(), 1);
         assert_eq!(after_mid[0].event_type, event_types::NODE_UPDATED);
 
@@ -2656,10 +2829,7 @@ mod tests {
         assert_eq!(node_at_t1.unwrap().properties["name"], "A");
 
         // At now (after deletion), node should be gone
-        let node_now = prime
-            .get_node_as_of(&ae, chrono::Utc::now())
-            .await
-            .unwrap();
+        let node_now = prime.get_node_as_of(&ae, chrono::Utc::now()).await.unwrap();
         assert!(node_now.is_none());
 
         prime.shutdown().await.unwrap();
@@ -2678,7 +2848,10 @@ mod tests {
             .await
             .unwrap();
         let b = prime
-            .add_node("person", json!({"name": "Alice Smith", "email": "alice@example.com"}))
+            .add_node(
+                "person",
+                json!({"name": "Alice Smith", "email": "alice@example.com"}),
+            )
             .await
             .unwrap();
 
@@ -2703,9 +2876,18 @@ mod tests {
     async fn test_compact_redirects_edges() {
         let prime = Prime::open_in_memory().await.unwrap();
 
-        let a = prime.add_node("person", json!({"name": "A"})).await.unwrap();
-        let b = prime.add_node("person", json!({"name": "B"})).await.unwrap();
-        let c = prime.add_node("project", json!({"name": "C"})).await.unwrap();
+        let a = prime
+            .add_node("person", json!({"name": "A"}))
+            .await
+            .unwrap();
+        let b = prime
+            .add_node("person", json!({"name": "B"}))
+            .await
+            .unwrap();
+        let c = prime
+            .add_node("project", json!({"name": "C"}))
+            .await
+            .unwrap();
 
         let a_e = node_entity_id("person", a.as_str());
         let b_e = node_entity_id("person", b.as_str());
@@ -2748,7 +2930,12 @@ mod tests {
         assert!(compacted.is_some());
         let payload = &compacted.unwrap().payload;
         assert_eq!(payload["target"], a_e);
-        assert!(payload["merged_from"].as_array().unwrap().contains(&json!(b_e)));
+        assert!(
+            payload["merged_from"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(b_e))
+        );
 
         prime.shutdown().await.unwrap();
     }
@@ -2869,9 +3056,18 @@ mod tests {
         let prime = Prime::open_in_memory().await.unwrap();
 
         // Create graph nodes
-        let a = prime.add_node("concept", json!({"name": "Rust"})).await.unwrap();
-        let b = prime.add_node("concept", json!({"name": "Safety"})).await.unwrap();
-        let c = prime.add_node("concept", json!({"name": "Speed"})).await.unwrap();
+        let a = prime
+            .add_node("concept", json!({"name": "Rust"}))
+            .await
+            .unwrap();
+        let b = prime
+            .add_node("concept", json!({"name": "Safety"}))
+            .await
+            .unwrap();
+        let c = prime
+            .add_node("concept", json!({"name": "Speed"}))
+            .await
+            .unwrap();
         let ae = node_entity_id("concept", a.as_str());
         let be = node_entity_id("concept", b.as_str());
         let ce = node_entity_id("concept", c.as_str());
@@ -2880,9 +3076,18 @@ mod tests {
         prime.add_edge(&ae, &ce, "related", None).await.unwrap();
 
         // Embed vectors for the nodes
-        prime.embed(&ae, Some("Rust"), vec![1.0, 0.0, 0.0, 0.0]).await.unwrap();
-        prime.embed(&be, Some("Safety"), vec![0.8, 0.2, 0.0, 0.0]).await.unwrap();
-        prime.embed(&ce, Some("Speed"), vec![0.0, 0.0, 1.0, 0.0]).await.unwrap();
+        prime
+            .embed(&ae, Some("Rust"), vec![1.0, 0.0, 0.0, 0.0])
+            .await
+            .unwrap();
+        prime
+            .embed(&be, Some("Safety"), vec![0.8, 0.2, 0.0, 0.0])
+            .await
+            .unwrap();
+        prime
+            .embed(&ce, Some("Speed"), vec![0.0, 0.0, 1.0, 0.0])
+            .await
+            .unwrap();
 
         let result = prime
             .recall(RecallQuery {
@@ -2914,8 +3119,14 @@ mod tests {
         let prime = Prime::open_in_memory().await.unwrap();
 
         // All nodes created "now" so recency is ~1.0 for all
-        prime.add_node("fact", json!({"name": "New"})).await.unwrap();
-        prime.add_node("fact", json!({"name": "Also New"})).await.unwrap();
+        prime
+            .add_node("fact", json!({"name": "New"}))
+            .await
+            .unwrap();
+        prime
+            .add_node("fact", json!({"name": "Also New"}))
+            .await
+            .unwrap();
 
         let result = prime
             .recall(RecallQuery {
@@ -3059,13 +3270,19 @@ mod tests {
 
         // Conversation 1: add node A
         let conv1 = prime.with_conversation("conv-1");
-        let a = conv1.add_node("person", json!({"name": "Alice"})).await.unwrap();
+        let a = conv1
+            .add_node("person", json!({"name": "Alice"}))
+            .await
+            .unwrap();
         #[allow(deprecated)]
         let ae = node_entity_id("person", a.as_str());
 
         // Conversation 2: add node B
         let conv2 = prime.with_conversation("conv-2");
-        let b = conv2.add_node("person", json!({"name": "Bob"})).await.unwrap();
+        let b = conv2
+            .add_node("person", json!({"name": "Bob"}))
+            .await
+            .unwrap();
         #[allow(deprecated)]
         let _be = node_entity_id("person", b.as_str());
 
@@ -3087,8 +3304,12 @@ mod tests {
         let prime = Prime::open_in_memory().await.unwrap();
 
         let conv = prime.with_conversation("conv-x");
-        conv.add_node("concept", json!({"name": "Rust"})).await.unwrap();
-        conv.add_node("concept", json!({"name": "Safety"})).await.unwrap();
+        conv.add_node("concept", json!({"name": "Rust"}))
+            .await
+            .unwrap();
+        conv.add_node("concept", json!({"name": "Safety"}))
+            .await
+            .unwrap();
 
         let diff = prime.conversation_diff("conv-x").await.unwrap();
         assert_eq!(diff.nodes_added.len(), 2);

@@ -6,11 +6,12 @@
 //! when the backend errors.
 
 use chrono::Utc;
-use std::sync::Mutex;
-use std::time::Instant;
+use std::{sync::Mutex, time::Instant};
 
-use super::index_builder::IndexRawSummary;
-use super::types::{CompressedIndex, LlmBackend, estimate_tokens};
+use super::{
+    index_builder::IndexRawSummary,
+    types::{CompressedIndex, LlmBackend, estimate_tokens},
+};
 
 // =============================================================================
 // LLM Compressor
@@ -160,10 +161,7 @@ impl IndexCompressor {
                 prompt.push_str(&format!(" [{}]", types.join(", ")));
             }
             if !domain.sample_entities.is_empty() {
-                prompt.push_str(&format!(
-                    " — e.g. {}",
-                    domain.sample_entities.join(", ")
-                ));
+                prompt.push_str(&format!(" — e.g. {}", domain.sample_entities.join(", ")));
             }
             prompt.push('\n');
         }
@@ -354,8 +352,7 @@ mod tests {
     /// Test that a custom LlmBackend can be injected.
     #[tokio::test]
     async fn test_custom_llm_backend_injection() {
-        use std::future::Future;
-        use std::pin::Pin;
+        use std::{future::Future, pin::Pin};
 
         struct MockBackend;
 

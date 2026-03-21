@@ -1,3 +1,4 @@
+#![allow(deprecated)] // Uses node_entity_id/edge_entity_id — will migrate to EntityId
 //! Integration tests for AllSource Prime — exercises the full stack.
 //!
 //! Each test phase builds on the primitives, combining multiple features
@@ -8,7 +9,7 @@
 
 #![cfg(feature = "prime")]
 
-use allsource_core::prime::{Direction, Prime, edge_entity_id, event_types, node_entity_id};
+use allsource_core::prime::{Direction, Prime, event_types, node_entity_id};
 use serde_json::json;
 
 async fn test_prime() -> Prime {
@@ -42,15 +43,15 @@ async fn test_graph_crud_lifecycle() {
     let proj_e = node_entity_id("project", project.as_str());
 
     // Create edges
-    let edge1 = prime
+    let _edge1 = prime
         .add_edge(&alice_e, &proj_e, "works_on", None)
         .await
         .unwrap();
-    let edge2 = prime
+    let _edge2 = prime
         .add_edge(&bob_e, &proj_e, "works_on", None)
         .await
         .unwrap();
-    let edge3 = prime
+    let _edge3 = prime
         .add_edge(&alice_e, &bob_e, "mentors", None)
         .await
         .unwrap();
@@ -97,17 +98,17 @@ async fn test_traversal_full_stack() {
     let prime = test_prime().await;
 
     // Build graph: A -> B -> D, A -> C -> D, C -> E
-    let a = prime.add_node("n", json!({"name": "A"})).await.unwrap();
-    let b = prime.add_node("n", json!({"name": "B"})).await.unwrap();
-    let c = prime.add_node("n", json!({"name": "C"})).await.unwrap();
-    let d = prime.add_node("n", json!({"name": "D"})).await.unwrap();
-    let e = prime.add_node("n", json!({"name": "E"})).await.unwrap();
+    let node_a = prime.add_node("n", json!({"name": "A"})).await.unwrap();
+    let node_b = prime.add_node("n", json!({"name": "B"})).await.unwrap();
+    let node_c = prime.add_node("n", json!({"name": "C"})).await.unwrap();
+    let node_d = prime.add_node("n", json!({"name": "D"})).await.unwrap();
+    let node_e = prime.add_node("n", json!({"name": "E"})).await.unwrap();
 
-    let ae = node_entity_id("n", a.as_str());
-    let be = node_entity_id("n", b.as_str());
-    let ce = node_entity_id("n", c.as_str());
-    let de = node_entity_id("n", d.as_str());
-    let ee = node_entity_id("n", e.as_str());
+    let ae = node_entity_id("n", node_a.as_str());
+    let be = node_entity_id("n", node_b.as_str());
+    let ce = node_entity_id("n", node_c.as_str());
+    let de = node_entity_id("n", node_d.as_str());
+    let ee = node_entity_id("n", node_e.as_str());
 
     prime
         .add_edge_weighted(&ae, &be, "link", 1.0, None)
@@ -125,10 +126,7 @@ async fn test_traversal_full_stack() {
         .add_edge_weighted(&ce, &de, "link", 1.0, None)
         .await
         .unwrap();
-    prime
-        .add_edge(&ce, &ee, "link", None)
-        .await
-        .unwrap();
+    prime.add_edge(&ce, &ee, "link", None).await.unwrap();
 
     // Neighbors
     let a_out = prime.neighbors(&ae, None, Direction::Outgoing);
@@ -234,9 +232,7 @@ async fn test_schema_enforcement() {
         .unwrap();
 
     // Should fail: missing "name"
-    let result = prime
-        .add_node("person", json!({"role": "engineer"}))
-        .await;
+    let result = prime.add_node("person", json!({"role": "engineer"})).await;
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(err.to_string().contains("name"));
@@ -255,10 +251,7 @@ async fn test_schema_enforcement() {
         .unwrap();
 
     // No schema for "project" — anything goes
-    prime
-        .add_node("project", json!({}))
-        .await
-        .unwrap();
+    prime.add_node("project", json!({})).await.unwrap();
 
     // Edge schema
     prime
@@ -270,13 +263,14 @@ async fn test_schema_enforcement() {
         .await
         .unwrap();
 
-    let proj = prime.add_node("project", json!({"name": "P"})).await.unwrap();
+    let proj = prime
+        .add_node("project", json!({"name": "P"}))
+        .await
+        .unwrap();
     let proj_e = node_entity_id("project", proj.as_str());
 
     // Should fail: missing "since"
-    let result = prime
-        .add_edge(&entity_id, &proj_e, "works_on", None)
-        .await;
+    let result = prime.add_edge(&entity_id, &proj_e, "works_on", None).await;
     assert!(result.is_err());
 
     // Should succeed with "since"
@@ -357,7 +351,10 @@ async fn test_compaction_full() {
         .await
         .unwrap();
     let b = prime
-        .add_node("person", json!({"name": "Alice Smith", "email": "alice@example.com"}))
+        .add_node(
+            "person",
+            json!({"name": "Alice Smith", "email": "alice@example.com"}),
+        )
         .await
         .unwrap();
     let c = prime
@@ -572,20 +569,20 @@ mod vector_tests {
         let v3: Vec<f32> = (0..384).map(|i| ((384 - i) as f32) / 384.0).collect(); // opposite direction
 
         prime
-            .embed("doc-1", "Event sourcing patterns", v1.clone())
+            .embed("doc-1", Some("Event sourcing patterns"), v1.clone())
             .await
             .unwrap();
         prime
-            .embed("doc-2", "CQRS and event stores", v2.clone())
+            .embed("doc-2", Some("CQRS and event stores"), v2.clone())
             .await
             .unwrap();
         prime
-            .embed("doc-3", "Machine learning basics", v3.clone())
+            .embed("doc-3", Some("Machine learning basics"), v3.clone())
             .await
             .unwrap();
 
         // Search similar to doc-1 — doc-2 should rank higher than doc-3
-        let results = prime.vector_search(&v1, 3).await.unwrap();
+        let results = prime.vector_search(&v1, 3);
         assert!(!results.is_empty());
         // doc-1 itself should be most similar (or doc-2 which is very close)
 
@@ -593,7 +590,7 @@ mod vector_tests {
         prime.delete_vector("doc-2").await.unwrap();
 
         // Search again — doc-2 should not appear
-        let results = prime.vector_search(&v1, 3).await.unwrap();
+        let results = prime.vector_search(&v1, 3);
         assert!(results.iter().all(|r| r.id != "doc-2"));
 
         prime.shutdown().await.unwrap();
@@ -617,7 +614,7 @@ mod vector_tests {
                 vec.clone(),
                 "paper",
                 json!({"title": "CRDT Survey", "year": 2011}),
-                vec![(concept_e.clone(), "discusses")],
+                &[(concept_e.as_str(), "discusses")],
             )
             .await
             .unwrap();
@@ -633,7 +630,7 @@ mod vector_tests {
         assert_eq!(neighbors.len(), 1);
 
         // Verify vector exists
-        let vec_entry = prime.get_vector(&node_id.to_string()).await.unwrap();
+        let vec_entry = prime.get_vector(&node_id);
         assert!(vec_entry.is_some());
 
         // Forget: removes node + edges + vector

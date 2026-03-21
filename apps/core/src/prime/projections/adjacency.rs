@@ -16,9 +16,7 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use crate::{
-    application::services::projection::Projection,
-    domain::entities::Event,
-    error::Result,
+    application::services::projection::Projection, domain::entities::Event, error::Result,
     prime::types::event_types,
 };
 
@@ -144,10 +142,7 @@ impl Projection for DirectedAdjacencyProjection {
                 });
             }
             event_types::EDGE_DELETED => {
-                let edge_id = payload
-                    .get("id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let edge_id = payload.get("id").and_then(|v| v.as_str()).unwrap_or("");
 
                 // O(1) lookup via secondary index
                 if let Some((_, key)) = self.edge_index.remove(edge_id)

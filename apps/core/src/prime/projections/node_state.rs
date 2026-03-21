@@ -11,9 +11,7 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use crate::{
-    application::services::projection::Projection,
-    domain::entities::Event,
-    error::Result,
+    application::services::projection::Projection, domain::entities::Event, error::Result,
     prime::types::event_types,
 };
 
@@ -82,16 +80,12 @@ impl NodeStateProjection {
 
     /// Check if a node exists and is not deleted.
     pub fn is_live(&self, entity_id: &str) -> bool {
-        self.nodes
-            .get(entity_id)
-            .is_some_and(|e| !e.deleted)
+        self.nodes.get(entity_id).is_some_and(|e| !e.deleted)
     }
 
     /// Check if a node exists and is deleted.
     pub fn is_deleted(&self, entity_id: &str) -> bool {
-        self.nodes
-            .get(entity_id)
-            .is_some_and(|e| e.deleted)
+        self.nodes.get(entity_id).is_some_and(|e| e.deleted)
     }
 }
 
@@ -162,9 +156,8 @@ impl Projection for NodeStateProjection {
                     if let Some(domain) = payload.get("domain") {
                         entry.domain = domain.as_str().map(String::from);
                     }
-                    if let Some(labels) = payload
-                        .get("labels")
-                        .and_then(serde_json::Value::as_array)
+                    if let Some(labels) =
+                        payload.get("labels").and_then(serde_json::Value::as_array)
                     {
                         entry.labels = labels
                             .iter()

@@ -17,10 +17,11 @@
 
 ```
 apps/              — Deployable services ONLY
-  core/            — Rust event store (AllSource Core)
+  core/            — Rust event store (AllSource Core) with Prime graph/vector/recall modules
   query-service/   — Elixir/Phoenix API gateway (auth, billing, routing to Core)
   web/             — Next.js frontend dashboard
   mcp-server-elixir/ — Elixir MCP server (separate from Rust MCP Docker binary)
+  prime-mcp/       — Rust MCP server for Prime (stdio + HTTP, standalone workspace)
   chronis/         — Event-sourced task CLI (standalone workspace, excluded from root)
 crates/            — Shared Rust library crates (NOT binaries, NOT SDKs)
 sdks/              — Client SDKs — ALL languages, NO EXCEPTIONS

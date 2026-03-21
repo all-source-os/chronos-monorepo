@@ -10,147 +10,152 @@ use serde_json::{Value, json};
 /// Return MCP tool definitions (for `tools/list`).
 pub fn tool_definitions() -> Value {
     json!([
+        // ─── Graph CRUD ─────────────────────────────────────────────
         {
             "name": "prime_add_node",
-            "description": "Create a new node in the knowledge graph. Use when the agent learns about a new entity (person, concept, project, etc.).",
+            "description": "Create a node in the knowledge graph. Use whenever you learn a new fact, meet a new entity, or discover a concept. Always include a 'domain' property to enable cross-domain reasoning. Pair with prime_embed to make the node searchable by meaning, and prime_add_edge to connect it to existing knowledge.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "type": { "type": "string", "description": "Node type (e.g. 'person', 'concept', 'project')" },
-                    "properties": { "type": "object", "description": "Node properties (e.g. {\"name\": \"Alice\", \"role\": \"engineer\"})" }
+                    "type": { "type": "string", "description": "Node type: 'person', 'concept', 'project', 'metric', 'decision', 'event', 'insight'" },
+                    "properties": { "type": "object", "description": "Node data. Always include 'name' and 'domain'. Example: {\"name\": \"Alice\", \"role\": \"engineer\", \"domain\": \"engineering\"}" }
                 },
                 "required": ["type", "properties"]
             }
         },
         {
             "name": "prime_add_edge",
-            "description": "Create a directed relationship between two nodes. Use when the agent discovers a connection between entities.",
+            "description": "Create a directed relationship between two nodes. Use when you discover how entities connect: causes, depends_on, works_on, impacts, requires. Cross-domain edges (connecting nodes in different domains) are especially valuable — they power the compressed index's cross-reference section.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "source": { "type": "string", "description": "Source node entity_id" },
+                    "source": { "type": "string", "description": "Source node entity_id (format: node:{type}:{id})" },
                     "target": { "type": "string", "description": "Target node entity_id" },
-                    "relation": { "type": "string", "description": "Relationship type (e.g. 'works_on', 'knows', 'authored')" },
-                    "properties": { "type": "object", "description": "Optional edge properties" },
-                    "weight": { "type": "number", "description": "Optional edge weight (0.0-1.0)" }
+                    "relation": { "type": "string", "description": "Relationship type: 'works_on', 'impacts', 'requires', 'depends_on', 'causes', 'authored', 'manages'" },
+                    "properties": { "type": "object", "description": "Optional edge properties (e.g. {\"since\": \"2026-01\"})" },
+                    "weight": { "type": "number", "description": "Optional confidence/strength (0.0-1.0)" }
                 },
                 "required": ["source", "target", "relation"]
             }
         },
+        // ─── Graph Queries ───────────────────────────────────────────
         {
             "name": "prime_neighbors",
-            "description": "Find nodes connected to a given node. Use to explore the knowledge graph around an entity.",
+            "description": "Explore the graph around a node. Use to find what's connected to an entity: who works on a project, what a person manages, what depends on a service. Set depth > 1 for multi-hop exploration (e.g. 'who are the teammates of Alice's manager?'). Prefer this over prime_search when you already know a starting node.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "node_id": { "type": "string", "description": "The node entity_id to find neighbors of" },
-                    "relation": { "type": "string", "description": "Optional: filter by relation type" },
+                    "node_id": { "type": "string", "description": "Starting node entity_id" },
+                    "relation": { "type": "string", "description": "Filter to edges of this type only" },
                     "direction": { "type": "string", "enum": ["incoming", "outgoing", "both"], "description": "Edge direction (default: both)" },
-                    "depth": { "type": "integer", "description": "Max traversal depth (default: 1)" }
+                    "depth": { "type": "integer", "description": "BFS depth: 1 = immediate neighbors, 2+ = multi-hop (default: 1)" }
                 },
                 "required": ["node_id"]
             }
         },
         {
             "name": "prime_search",
-            "description": "Search nodes by type. Use to find all entities of a given type.",
+            "description": "Find all nodes of a given type. Use for broad queries like 'list all projects' or 'show me every person'. For semantic queries ('find things related to X'), use prime_recall instead.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "type": { "type": "string", "description": "Node type to search for" }
+                    "type": { "type": "string", "description": "Node type to search for (e.g. 'person', 'project')" }
                 },
                 "required": ["type"]
             }
         },
         {
             "name": "prime_shortest_path",
-            "description": "Find the shortest path between two nodes. Use to discover how entities are connected.",
+            "description": "Find how two entities are connected through the graph. Returns the chain of nodes linking them. Use to answer 'how does X relate to Y?' when you need the specific path of relationships.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "from": { "type": "string", "description": "Source node entity_id" },
-                    "to": { "type": "string", "description": "Target node entity_id" },
-                    "relation": { "type": "string", "description": "Optional: restrict to edges of this relation type" }
+                    "from": { "type": "string", "description": "Start node entity_id" },
+                    "to": { "type": "string", "description": "End node entity_id" },
+                    "relation": { "type": "string", "description": "Restrict path to this relation type only" }
                 },
                 "required": ["from", "to"]
             }
         },
+        // ─── Memory Lifecycle ────────────────────────────────────────
         {
             "name": "prime_forget",
-            "description": "Soft-delete a node and all its connected edges. The data is preserved in history for audit.",
+            "description": "Soft-delete a node and all its edges. The node becomes invisible to queries but its full history is preserved — use prime_history to see what was forgotten and why. Use when knowledge is outdated or incorrect. Prefer updating over forgetting when the entity still exists but facts changed.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "node_id": { "type": "string", "description": "The node entity_id to delete" }
+                    "node_id": { "type": "string", "description": "Node entity_id to forget" }
                 },
                 "required": ["node_id"]
             }
         },
         {
             "name": "prime_history",
-            "description": "Get the full audit trail for any entity. Use to see when and how knowledge was added or changed.",
+            "description": "Get the complete audit trail for any entity: every creation, update, and deletion with timestamps. Use to answer 'when did I learn this?', 'what changed?', or 'who was responsible before?' Returns events in chronological order.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "entity_id": { "type": "string", "description": "The entity_id to get history for (node, edge, or vector)" }
+                    "entity_id": { "type": "string", "description": "Any entity_id: node, edge, or vector" }
                 },
                 "required": ["entity_id"]
             }
         },
         {
             "name": "prime_stats",
-            "description": "Get graph statistics: total nodes, edges, types, relations.",
+            "description": "Quick overview of memory state: total nodes, edges, types, relations. Call this at conversation start to orient yourself. Low cost, no parameters needed.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
             }
         },
+        // ─── Compressed Index & Recall ───────────────────────────────
         {
             "name": "prime_index",
-            "description": "Get a compressed summary of everything stored in memory, organized by domain with cross-references. Use this to understand the shape of your knowledge before searching for specifics.",
+            "description": "Get your compressed knowledge index — a token-efficient markdown summary of everything you know, organized by domain with cross-references. Call this FIRST at the start of every conversation to orient yourself. The index shows: which domains exist, how many facts per domain, and which domains are connected. Use it as navigational scaffolding before searching for specifics.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Optional agent ID for scoping" }
+                    "agent_id": { "type": "string", "description": "Scope to a specific agent's knowledge" }
                 }
             }
         },
         {
             "name": "prime_context",
-            "description": "Search memory with hybrid recall: compressed index + semantic vectors + graph + temporal. Use instead of prime_search when you want the compressed index included for cross-domain reasoning.",
+            "description": "Combined retrieval: compressed index excerpt + vector results + graph neighbors. Use for cross-domain questions like 'how does pricing relate to engineering?' where you need facts from multiple domains. The compressed index provides the cross-domain map, vectors find relevant facts, and graph expansion discovers connected entities. Prefer this over prime_recall when cross-domain reasoning matters.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "query": { "type": "string", "description": "Natural language query" },
-                    "agent_id": { "type": "string", "description": "Optional agent ID for scoping" },
+                    "query": { "type": "string", "description": "Natural language question" },
+                    "agent_id": { "type": "string", "description": "Scope to a specific agent" },
                     "top_k": { "type": "integer", "description": "Max vector results (default: 5)" },
-                    "include_index": { "type": "boolean", "description": "Include compressed index excerpt (default: true)" },
-                    "max_tokens": { "type": "integer", "description": "Max total tokens in response" }
+                    "include_index": { "type": "boolean", "description": "Prepend compressed index excerpt (default: true)" },
+                    "max_tokens": { "type": "integer", "description": "Cap total response tokens (truncates index first, then vectors)" }
                 },
                 "required": ["query"]
             }
         },
+        // ─── Vector Operations ───────────────────────────────────────
         {
             "name": "prime_embed",
-            "description": "Store a vector embedding for a piece of knowledge. Use when the agent has computed an embedding and wants to make content searchable by semantic similarity.",
+            "description": "Store a vector embedding for semantic search. Always pair with prime_add_node — create the node first, then embed it using the node's entity_id. This makes the node findable by meaning, not just by type or graph position. Without an embedding, prime_recall won't find the node.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "id": { "type": "string", "description": "Unique ID for this embedding (or entity_id of an existing node)" },
-                    "text": { "type": "string", "description": "Source text that was embedded" },
-                    "vector": { "type": "array", "items": { "type": "number" }, "description": "The embedding vector (float array)" },
-                    "metadata": { "type": "object", "description": "Optional metadata (tags, source, etc.)" }
+                    "id": { "type": "string", "description": "Entity_id of the node to embed (use the entity_id returned by prime_add_node)" },
+                    "text": { "type": "string", "description": "Source text that was embedded (stored for display in search results)" },
+                    "vector": { "type": "array", "items": { "type": "number" }, "description": "Embedding vector (float array from your embedding model)" },
+                    "metadata": { "type": "object", "description": "Optional: tags, source URL, confidence score" }
                 },
                 "required": ["id", "vector"]
             }
         },
         {
             "name": "prime_similar",
-            "description": "Find the most similar stored embeddings to a given ID. Use after prime_embed to find related knowledge.",
+            "description": "Find the most similar embeddings to a stored vector. Use to discover related knowledge: 'what else do I know that's similar to this?' Requires the target to have been embedded with prime_embed first.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "id": { "type": "string", "description": "ID of the stored embedding to find similar items for" },
+                    "id": { "type": "string", "description": "Entity_id of the embedded node to find similar items for" },
                     "top_k": { "type": "integer", "description": "Number of results (default: 5)" }
                 },
                 "required": ["id"]
@@ -158,15 +163,15 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "prime_recall",
-            "description": "Hybrid recall: combines vector similarity, graph proximity, and temporal recency to find the most relevant knowledge. Use this as the primary 'what do I know about X?' tool.",
+            "description": "Hybrid recall: vectors + graph + temporal recency. Your PRIMARY tool for 'what do I know about X?' questions. Finds semantically similar facts via embedding, then expands through graph connections to discover related context. Set depth=0 for vector-only, depth=1+ to include graph neighbors. For cross-domain questions, use prime_context instead (it adds the compressed index).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "vector": { "type": "array", "items": { "type": "number" }, "description": "Query embedding vector" },
-                    "node_type": { "type": "string", "description": "Optional: filter results to this node type" },
-                    "depth": { "type": "integer", "description": "Graph expansion depth from vector matches (default: 1)" },
+                    "node_type": { "type": "string", "description": "Filter to this node type only" },
+                    "depth": { "type": "integer", "description": "Graph expansion hops from vector matches (0=vector-only, 1+=include neighbors, default: 1)" },
                     "top_k": { "type": "integer", "description": "Max results (default: 10)" },
-                    "text": { "type": "string", "description": "Optional text description for logging" }
+                    "text": { "type": "string", "description": "Query text for logging/debugging" }
                 },
                 "required": ["vector"]
             }

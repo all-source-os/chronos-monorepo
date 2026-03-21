@@ -4,8 +4,7 @@
 //! `reqwest::Client` across calls for connection pooling.
 
 use serde::{Deserialize, Serialize};
-use std::future::Future;
-use std::pin::Pin;
+use std::{future::Future, pin::Pin};
 
 use super::types::LlmBackend;
 

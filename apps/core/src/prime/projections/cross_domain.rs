@@ -10,9 +10,7 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use crate::{
-    application::services::projection::Projection,
-    domain::entities::Event,
-    error::Result,
+    application::services::projection::Projection, domain::entities::Event, error::Result,
     prime::types::event_types,
 };
 
@@ -41,8 +39,8 @@ fn domain_pair_key(a: &str, b: &str) -> (String, String) {
 /// Internal entry tracking edges for a domain pair.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CrossDomainEntry {
-    edges: Vec<String>,       // edge IDs
-    relations: Vec<String>,   // relation types (deduped, max 5)
+    edges: Vec<String>,     // edge IDs
+    relations: Vec<String>, // relation types (deduped, max 5)
 }
 
 /// Tracks cross-domain edges and the relationships between domains.
@@ -251,9 +249,10 @@ impl Projection for CrossDomainProjection {
             }
         }
 
-        if let Some(Ok(data)) = snapshot.get("node_domains").map(|v| {
-            serde_json::from_value::<std::collections::HashMap<String, String>>(v.clone())
-        }) {
+        if let Some(Ok(data)) = snapshot
+            .get("node_domains")
+            .map(|v| serde_json::from_value::<std::collections::HashMap<String, String>>(v.clone()))
+        {
             for (node_id, domain) in data {
                 self.node_domains.insert(node_id, domain);
             }

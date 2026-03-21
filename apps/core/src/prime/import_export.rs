@@ -11,8 +11,10 @@ use std::io::{BufRead, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::embedded::{EmbeddedCore, IngestEvent};
-use crate::prime::types::event_types;
+use crate::{
+    embedded::{EmbeddedCore, IngestEvent},
+    prime::types::event_types,
+};
 
 /// Statistics returned from an export operation.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -48,9 +50,7 @@ pub async fn export_json(
 ) -> crate::error::Result<ExportStats> {
     use crate::embedded::Query;
 
-    let events = core
-        .query(Query::new().event_type_prefix("prime."))
-        .await?;
+    let events = core.query(Query::new().event_type_prefix("prime.")).await?;
 
     let mut stats = ExportStats::default();
     // Track which entities we've already exported (only export latest state)
@@ -311,7 +311,7 @@ mod tests {
             .await
             .unwrap();
         // Both events are stored, but projections see FWW
-        assert!(events.len() >= 1);
+        assert!(!events.is_empty());
 
         core.shutdown().await.unwrap();
     }

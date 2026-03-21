@@ -7,9 +7,37 @@
 use allsource_core::prime::Prime;
 use allsource_core::prime::types::RecallQuery;
 use anyhow::Result;
+use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 use serde_json::json;
+use std::time::Instant;
 
 use crate::BenchmarkResults;
+
+/// Real embedding model for semantic similarity.
+struct Embedder {
+    model: TextEmbedding,
+}
+
+impl Embedder {
+    fn new() -> Result<Self> {
+        tracing::info!("Loading embedding model (first run downloads ~30MB)...");
+        let model = TextEmbedding::try_new(
+            InitOptions::new(EmbeddingModel::AllMiniLML6V2).with_show_download_progress(true),
+        )?;
+        tracing::info!("Embedding model loaded");
+        Ok(Self { model })
+    }
+
+    fn embed(&mut self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+        let embeddings = self.model.embed(texts.to_vec(), None)?;
+        Ok(embeddings)
+    }
+
+    fn embed_one(&mut self, text: &str) -> Result<Vec<f32>> {
+        let mut results = self.embed(&[text])?;
+        Ok(results.remove(0))
+    }
+}
 
 /// Domains with their facts.
 struct Domain {
@@ -131,11 +159,14 @@ pub async fn run_cross_ref_suite() -> Result<Vec<BenchmarkResults>> {
         ("data-science", "data-science", "internal", "Data science collaborates across NLP and CV sub-teams"),
     ];
 
+    // Load real embedding model
+    let mut embedder = Embedder::new()?;
+
     // Seed Prime
     let prime = Prime::open_in_memory().await?;
     let mut domain_nodes: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
 
-    // Ingest all facts
+    // Ingest all facts with real embeddings
     for domain in &domains {
         let mut node_ids = Vec::new();
         for (key, fact_text) in &domain.facts {
@@ -152,7 +183,7 @@ pub async fn run_cross_ref_suite() -> Result<Vec<BenchmarkResults>> {
             #[allow(deprecated)]
             let entity_id = allsource_core::prime::node_entity_id(domain.name, node_id.as_str());
 
-            let embedding = deterministic_embedding(fact_text, 32);
+            let embedding = embedder.embed_one(fact_text)?;
             prime.embed(&entity_id, Some(fact_text), embedding).await?;
 
             node_ids.push(entity_id);
@@ -206,21 +237,35 @@ pub async fn run_cross_ref_suite() -> Result<Vec<BenchmarkResults>> {
     // Run three modes
     let mut all_results = Vec::new();
 
-    for mode in &["vector-only", "vector+graph", "full-recall"] {
+    for mode in &["vector-naive", "vector-cross-domain", "vector+graph", "full-recall"] {
         let mut correct = 0usize;
         let total = queries.len();
+        let mut total_latency_ms = 0.0;
 
         for query in &queries {
-            let embedding = deterministic_embedding(&query.question, 32);
+            let embedding = embedder.embed_one(&query.question)?;
+            let start = Instant::now();
 
-            let found_domains: std::collections::HashSet<String> = if *mode == "vector-only" {
+            let found_domains: std::collections::HashSet<String> = if *mode == "vector-naive" {
+                // Pure HNSW — no domain balancing (the old 0% baseline)
                 let results = prime.vector_search(&embedding, 10);
                 results
                     .iter()
                     .filter_map(|r| {
                         r.text
                             .as_ref()
-                            .and_then(|_| r.id.split(':').nth(1).map(String::from))
+                            .and_then(|_| r.id.split(':').nth(2).map(String::from))
+                    })
+                    .collect()
+            } else if *mode == "vector-cross-domain" {
+                // Domain-balanced vector search (the fix)
+                let results = prime.vector_search_cross_domain(&embedding, 10);
+                results
+                    .iter()
+                    .filter_map(|r| {
+                        r.text
+                            .as_ref()
+                            .and_then(|_| r.id.split(':').nth(2).map(String::from))
                     })
                     .collect()
             } else {
@@ -242,6 +287,9 @@ pub async fn run_cross_ref_suite() -> Result<Vec<BenchmarkResults>> {
                 }
             };
 
+            let elapsed = start.elapsed();
+            total_latency_ms += elapsed.as_secs_f64() * 1000.0;
+
             // Did we find results from BOTH expected domains?
             let has_a = found_domains.contains(&query.expected_domain_a);
             let has_b = found_domains.contains(&query.expected_domain_b);
@@ -251,6 +299,7 @@ pub async fn run_cross_ref_suite() -> Result<Vec<BenchmarkResults>> {
         }
 
         let accuracy = correct as f64 / total as f64;
+        let avg_latency = total_latency_ms / total as f64;
         all_results.push(BenchmarkResults {
             dataset: "CrossRef".to_string(),
             mode: mode.to_string(),
@@ -260,7 +309,7 @@ pub async fn run_cross_ref_suite() -> Result<Vec<BenchmarkResults>> {
             recall: accuracy,
             f1: accuracy,
             cross_ref_accuracy: Some(accuracy),
-            avg_latency_ms: 0.0,
+            avg_latency_ms: avg_latency,
         });
     }
 

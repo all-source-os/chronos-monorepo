@@ -12,9 +12,13 @@ use super::{
     index_builder::{build_heuristic_index, build_raw_summary},
     types::{CompressedIndex, IndexConfig, LlmBackend, RankedMemory, RecallContext},
 };
-use crate::application::services::projection::Projection;
-use crate::prime::projections::{CrossDomainProjection, DomainIndexProjection};
-use crate::prime::types::Node;
+use crate::{
+    application::services::projection::Projection,
+    prime::{
+        projections::{CrossDomainProjection, DomainIndexProjection},
+        types::Node,
+    },
+};
 
 // =============================================================================
 // Query types
@@ -196,9 +200,10 @@ impl RecallEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::services::projection::Projection;
-    use crate::domain::entities::Event;
-    use crate::prime::types::event_types;
+    use crate::{
+        application::services::projection::Projection, domain::entities::Event,
+        prime::types::event_types,
+    };
     use uuid::Uuid;
 
     fn make_node(node_id: &str, node_type: &str, domain: &str, name: &str) -> Event {
@@ -383,8 +388,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_with_dependencies_custom_llm_backend() {
-        use std::future::Future;
-        use std::pin::Pin;
+        use std::{future::Future, pin::Pin};
 
         struct MockBackend;
 

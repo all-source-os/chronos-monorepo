@@ -7,13 +7,13 @@
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashSet,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
-    application::services::projection::Projection,
-    domain::entities::Event,
-    error::Result,
+    application::services::projection::Projection, domain::entities::Event, error::Result,
     prime::types::event_types,
 };
 
@@ -190,11 +190,7 @@ impl Projection for ContradictionDetectionProjection {
         };
 
         // Only check exclusive relations
-        let is_exclusive = self
-            .exclusive_relations
-            .read()
-            .unwrap()
-            .contains(relation);
+        let is_exclusive = self.exclusive_relations.read().unwrap().contains(relation);
         if !is_exclusive {
             return Ok(());
         }
@@ -236,8 +232,7 @@ impl Projection for ContradictionDetectionProjection {
                 );
             }
         } else {
-            self.exclusive_edges
-                .insert(key, (target, edge_id));
+            self.exclusive_edges.insert(key, (target, edge_id));
         }
 
         Ok(())
@@ -251,8 +246,7 @@ impl Projection for ContradictionDetectionProjection {
     fn clear(&self) {
         self.exclusive_edges.clear();
         self.contradictions.clear();
-        self.counter
-            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.counter.store(0, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn snapshot(&self) -> Option<Value> {

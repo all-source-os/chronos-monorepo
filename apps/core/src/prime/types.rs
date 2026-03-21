@@ -337,13 +337,18 @@ impl fmt::Display for EntityId {
 }
 
 impl Serialize for EntityId {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_wire())
     }
 }
 
 impl<'de> Deserialize<'de> for EntityId {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
         Self::parse(&s).ok_or_else(|| serde::de::Error::custom(format!("invalid entity ID: {s}")))
     }

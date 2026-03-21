@@ -41,7 +41,8 @@ version: "0.16.0"
 | **Architecture** | [Clean Architecture](docs/current/CLEAN_ARCHITECTURE.md) · [Tenant Model](docs/current/TENANT_ARCHITECTURE.md) · [Replication Design](docs/proposals/CORE_REPLICATION_DESIGN.md) |
 | **API & Specs** | [API Reference](docs/current/API_REFERENCE.md) · [Performance](docs/current/PERFORMANCE.md) · [Event Store Features](docs/current/EVENT_STORE_FEATURES.md) |
 | **Operations** | [Release Guide](docs/guides/RELEASE.md) · [Quality Gates](docs/current/QUALITY_GATES.md) · [WebSocket Config](docs/guides/WEBSOCKET_CONFIGURATION.md) |
-| **Services** | [Core](apps/core/) · [Control Plane](apps/control-plane/) · [Query Service](apps/query-service/) · [MCP Server](apps/mcp-server-elixir/) · [allsource-mcp](docs/guides/ALLSOURCE_MCP.md) · [Web](apps/web/) |
+| **Services** | [Core](apps/core/) · [Control Plane](apps/control-plane/) · [Query Service](apps/query-service/) · [MCP Server](apps/mcp-server-elixir/) · [Prime MCP](apps/prime-mcp/) · [allsource-mcp](docs/guides/ALLSOURCE_MCP.md) · [Web](apps/web/) |
+| **Agent Memory** | [Prime Guide](docs/guides/PRIME_AGENT_PROMPT.md) · [Examples](apps/core/examples/) · [Comparison: zer0dex](docs/articles/zer0dex-comparison.md) |
 | **Deploy** | [Helm Chart](deploy/helm/allsource/) · [Kubernetes](deploy/k8s/) · [Fly.io](apps/core/fly.toml) |
 
 ---
@@ -62,7 +63,8 @@ Clients --> Query Service (Elixir, :3902) --> Core (Rust, :3900)
 
 ```
 apps/
-  core/               # Rust event store          — the database
+  core/               # Rust event store          — the database (+ Prime graph/vector/recall)
+  prime-mcp/          # Prime MCP server          — agent memory (stdio + HTTP)
   control-plane/      # Go auth/billing/ops       — the gatekeeper
   query-service/      # Elixir API gateway        — the router
   mcp-server-elixir/  # MCP server (61 tools)     — the AI interface
@@ -77,9 +79,54 @@ deploy/
 
 tooling/
   allsource-mcp/      # Local MCP server (cargo install allsource-mcp)
+  recall-bench/       # Recall benchmark harness (LoCoMo, LongMemEval, cross-ref)
   data-flow-test/     # E2E data flow test
   durability-test/    # WAL/Parquet durability test
 ```
+
+---
+
+## Agent Memory (Prime)
+
+AllSource Prime is a unified agent memory engine — knowledge graph + vector search + compressed index in one binary.
+
+```bash
+cargo install allsource-prime
+```
+
+Add to Claude Desktop (`~/.claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "prime": {
+      "command": "allsource-prime",
+      "args": ["--data-dir", "~/.prime/memory"]
+    }
+  }
+}
+```
+
+13 MCP tools for knowledge management, semantic search, cross-domain reasoning, and temporal queries. See the [Prime Guide](docs/guides/PRIME_AGENT_PROMPT.md) for usage patterns.
+
+**Examples:**
+
+```bash
+cargo run --no-default-features --features prime --example prime_graph
+cargo run --no-default-features --features prime-full --example prime_vectors
+cargo run --no-default-features --features prime-recall --example prime_recall
+```
+
+```
+$ cargo run --features prime --example prime_graph
+Graph: 3 nodes, 3 edges
+Project team: Alice (person), Bob (person)
+Bob mentors: Alice
+Path Alice → Bob: 2 hops
+Alice's 2-hop subgraph: 3 nodes, 3 edges
+```
+
+See [zer0dex comparison](docs/articles/zer0dex-comparison.md) for how Prime's auto-generated compressed index beats manual markdown indexes on cross-domain recall.
 
 ---
 

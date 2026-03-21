@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cn ready:*)",
+      "Bash(cn show:*)",
+      "Bash(cn claim:*)",
+      "Bash(cn done:*)",
+      "Bash(RUSTFLAGS=\"--cfg feature=\"\"prime-recall\"\"\" cargo test -p allsource-core --lib --features prime -- prime::recall::api)"
+    ]
+  }
+}

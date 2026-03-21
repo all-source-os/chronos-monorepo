@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_vector_search_result_ordering() {
-        let mut results = vec![
+        let mut results = [
             VectorSearchResult {
                 id: "a".into(),
                 score: 0.7,

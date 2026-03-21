@@ -6,8 +6,10 @@
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use crate::{
     application::services::projection::Projection,
@@ -100,10 +102,7 @@ impl Projection for GraphStatsProjection {
                 self.total_nodes.fetch_add(1, Ordering::Relaxed);
 
                 if let Some(node_type) = event.payload.get("node_type").and_then(|v| v.as_str()) {
-                    *self
-                        .nodes_by_type
-                        .entry(node_type.to_string())
-                        .or_insert(0) += 1;
+                    *self.nodes_by_type.entry(node_type.to_string()).or_insert(0) += 1;
                 }
             }
             event_types::NODE_DELETED => {
@@ -503,6 +502,6 @@ mod tests {
         let stats = proj.stats();
         assert_eq!(stats.deleted_nodes, 1);
         // nodes_by_type should not contain "person" (never created)
-        assert!(stats.nodes_by_type.get("person").is_none());
+        assert!(!stats.nodes_by_type.contains_key("person"));
     }
 }

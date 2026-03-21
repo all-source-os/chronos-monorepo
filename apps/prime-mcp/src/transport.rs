@@ -14,6 +14,47 @@ use crate::{
     tools,
 };
 
+/// Agent-facing cookbook: usage patterns for Prime tools.
+const COOKBOOK: &str = "\
+# Prime Cookbook
+
+## Pattern: Store new knowledge
+1. `prime_add_node` — create entity with domain tag
+2. `prime_embed` — store embedding for semantic search
+3. `prime_add_edge` — connect to existing nodes (cross-domain edges are most valuable)
+
+## Pattern: Answer a cross-domain question
+1. `prime_index` — get compressed knowledge map (shows domain connections)
+2. `prime_context` — retrieve facts from relevant domains
+3. Combine index cross-references with retrieved facts in your answer
+
+## Pattern: Answer a single-domain question
+1. `prime_recall` — semantic search with graph expansion
+2. `prime_neighbors` — explore around the best match if needed
+
+## Pattern: Track what changed
+1. `prime_history` — full audit trail for any entity
+2. `prime_stats` — overall graph state
+
+## Pattern: Correct wrong knowledge
+1. `prime_forget` — soft-delete the wrong fact (preserved in history)
+2. `prime_add_node` — store the correct fact
+3. `prime_add_edge` — reconnect relationships
+
+## Anti-patterns
+- DON'T embed without creating a node first (orphaned vectors can't be traversed)
+- DON'T use prime_search for semantic queries (use prime_recall — it uses embeddings)
+- DON'T skip the domain tag on nodes (disables cross-domain reasoning)
+- DON'T forget without checking prime_history first (you might lose the only copy)
+- DON'T call prime_recall without an embedding vector (it requires one)
+
+## Token budget
+- prime_index: ~100-500 tokens (scales with knowledge base)
+- prime_context: configurable via max_tokens (default: uncapped)
+- prime_stats: ~50 tokens
+- prime_neighbors: ~100 tokens per node returned
+";
+
 pub struct StdioTransport {
     prime: Prime,
     recall: RecallEngine,
@@ -105,21 +146,30 @@ impl StdioTransport {
                 Some(Response::success(req.id.clone(), result))
             }
 
-            "resources/list" if self.auto_inject => {
+            "resources/list" => {
+                let mut resources = vec![serde_json::json!({
+                    "uri": "prime://cookbook",
+                    "name": "prime_cookbook",
+                    "description": "Usage patterns and best practices for Prime tools. Read this to learn the recommended workflows.",
+                    "mimeType": "text/markdown"
+                })];
+
+                if self.auto_inject {
+                    resources.push(serde_json::json!({
+                        "uri": "prime://auto-context",
+                        "name": "prime_auto_context",
+                        "description": "Compressed knowledge index for system prompt injection. Updates automatically as memory grows.",
+                        "mimeType": "text/markdown"
+                    }));
+                }
+
                 Some(Response::success(
                     req.id.clone(),
-                    serde_json::json!({
-                        "resources": [{
-                            "uri": "prime://auto-context",
-                            "name": "prime_auto_context",
-                            "description": "Compressed knowledge index for system prompt injection. Updates automatically as memory grows.",
-                            "mimeType": "text/markdown"
-                        }]
-                    }),
+                    serde_json::json!({ "resources": resources }),
                 ))
             }
 
-            "resources/read" if self.auto_inject => {
+            "resources/read" => {
                 let uri = req
                     .params
                     .as_ref()
@@ -127,38 +177,52 @@ impl StdioTransport {
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
-                if uri == "prime://auto-context" {
-                    let index = self.recall.index().await;
-                    let markdown = if index.token_count > self.auto_inject_max_tokens {
-                        // Truncate to fit budget
-                        let target_words = self.auto_inject_max_tokens * 10 / 13;
-                        let truncated: String = index
-                            .markdown
-                            .split_whitespace()
-                            .take(target_words)
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        format!("{truncated}\n...(truncated to {} tokens)", self.auto_inject_max_tokens)
-                    } else {
-                        index.markdown
-                    };
+                match uri {
+                    "prime://cookbook" => {
+                        Some(Response::success(
+                            req.id.clone(),
+                            serde_json::json!({
+                                "contents": [{
+                                    "uri": "prime://cookbook",
+                                    "mimeType": "text/markdown",
+                                    "text": COOKBOOK
+                                }]
+                            }),
+                        ))
+                    }
 
-                    Some(Response::success(
-                        req.id.clone(),
-                        serde_json::json!({
-                            "contents": [{
-                                "uri": "prime://auto-context",
-                                "mimeType": "text/markdown",
-                                "text": markdown
-                            }]
-                        }),
-                    ))
-                } else {
-                    Some(Response::error(
+                    "prime://auto-context" if self.auto_inject => {
+                        let index = self.recall.index().await;
+                        let markdown = if index.token_count > self.auto_inject_max_tokens {
+                            let target_words = self.auto_inject_max_tokens * 10 / 13;
+                            let truncated: String = index
+                                .markdown
+                                .split_whitespace()
+                                .take(target_words)
+                                .collect::<Vec<_>>()
+                                .join(" ");
+                            format!("{truncated}\n...(truncated to {} tokens)", self.auto_inject_max_tokens)
+                        } else {
+                            index.markdown
+                        };
+
+                        Some(Response::success(
+                            req.id.clone(),
+                            serde_json::json!({
+                                "contents": [{
+                                    "uri": "prime://auto-context",
+                                    "mimeType": "text/markdown",
+                                    "text": markdown
+                                }]
+                            }),
+                        ))
+                    }
+
+                    _ => Some(Response::error(
                         req.id.clone(),
                         -32602,
                         format!("Unknown resource: {uri}"),
-                    ))
+                    )),
                 }
             }
 

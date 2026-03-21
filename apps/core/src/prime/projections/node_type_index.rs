@@ -6,13 +6,10 @@
 
 use dashmap::DashMap;
 use serde_json::Value;
-use std::collections::HashSet;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use crate::{
-    application::services::projection::Projection,
-    domain::entities::Event,
-    error::Result,
+    application::services::projection::Projection, domain::entities::Event, error::Result,
     prime::types::event_types,
 };
 
@@ -71,10 +68,7 @@ impl Projection for NodeTypeIndexProjection {
                     .unwrap_or("unknown")
                     .to_string();
 
-                self.index
-                    .entry(node_type)
-                    .or_default()
-                    .insert(entity_id);
+                self.index.entry(node_type).or_default().insert(entity_id);
             }
             event_types::NODE_DELETED => {
                 // Extract type from entity_id format "node:{type}:{id}"

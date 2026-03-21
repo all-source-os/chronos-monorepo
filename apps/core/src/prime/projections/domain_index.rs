@@ -8,7 +8,9 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use crate::{
-    application::services::projection::Projection, domain::entities::Event, error::Result,
+    application::services::projection::Projection,
+    domain::entities::Event,
+    error::Result,
     prime::types::{NodeId, event_types},
 };
 
@@ -129,11 +131,9 @@ impl Projection for DomainIndexProjection {
     }
 
     fn restore(&self, snapshot: &Value) -> Result<()> {
-        if let Ok(data) =
-            serde_json::from_value::<std::collections::HashMap<String, Vec<String>>>(
-                snapshot.clone(),
-            )
-        {
+        if let Ok(data) = serde_json::from_value::<std::collections::HashMap<String, Vec<String>>>(
+            snapshot.clone(),
+        ) {
             self.index.clear();
             for (domain, ids) in data {
                 self.index
@@ -178,10 +178,18 @@ mod tests {
     fn test_domain_index_add_nodes() {
         let proj = DomainIndexProjection::new();
 
-        proj.process(&make_node_event(event_types::NODE_CREATED, "n1", Some("revenue")))
-            .unwrap();
-        proj.process(&make_node_event(event_types::NODE_CREATED, "n2", Some("revenue")))
-            .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_CREATED,
+            "n1",
+            Some("revenue"),
+        ))
+        .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_CREATED,
+            "n2",
+            Some("revenue"),
+        ))
+        .unwrap();
         proj.process(&make_node_event(
             event_types::NODE_CREATED,
             "n3",
@@ -201,10 +209,18 @@ mod tests {
         let proj = DomainIndexProjection::new();
 
         // Process same node twice
-        proj.process(&make_node_event(event_types::NODE_CREATED, "n1", Some("revenue")))
-            .unwrap();
-        proj.process(&make_node_event(event_types::NODE_UPDATED, "n1", Some("revenue")))
-            .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_CREATED,
+            "n1",
+            Some("revenue"),
+        ))
+        .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_UPDATED,
+            "n1",
+            Some("revenue"),
+        ))
+        .unwrap();
 
         assert_eq!(proj.nodes_in_domain("revenue").len(), 1);
     }
@@ -213,10 +229,18 @@ mod tests {
     fn test_domain_index_delete_node() {
         let proj = DomainIndexProjection::new();
 
-        proj.process(&make_node_event(event_types::NODE_CREATED, "n1", Some("revenue")))
-            .unwrap();
-        proj.process(&make_node_event(event_types::NODE_CREATED, "n2", Some("revenue")))
-            .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_CREATED,
+            "n1",
+            Some("revenue"),
+        ))
+        .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_CREATED,
+            "n2",
+            Some("revenue"),
+        ))
+        .unwrap();
 
         // Delete n1
         proj.process(&make_node_event(event_types::NODE_DELETED, "n1", None))
@@ -240,8 +264,12 @@ mod tests {
     fn test_domain_index_get_state() {
         let proj = DomainIndexProjection::new();
 
-        proj.process(&make_node_event(event_types::NODE_CREATED, "n1", Some("revenue")))
-            .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_CREATED,
+            "n1",
+            Some("revenue"),
+        ))
+        .unwrap();
 
         let state = proj.get_state("revenue").unwrap();
         assert_eq!(state["count"], 1);
@@ -253,8 +281,12 @@ mod tests {
     fn test_domain_index_snapshot_restore() {
         let proj = DomainIndexProjection::new();
 
-        proj.process(&make_node_event(event_types::NODE_CREATED, "n1", Some("revenue")))
-            .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_CREATED,
+            "n1",
+            Some("revenue"),
+        ))
+        .unwrap();
         proj.process(&make_node_event(
             event_types::NODE_CREATED,
             "n2",
@@ -278,10 +310,18 @@ mod tests {
     fn test_domain_counts() {
         let proj = DomainIndexProjection::new();
 
-        proj.process(&make_node_event(event_types::NODE_CREATED, "n1", Some("revenue")))
-            .unwrap();
-        proj.process(&make_node_event(event_types::NODE_CREATED, "n2", Some("revenue")))
-            .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_CREATED,
+            "n1",
+            Some("revenue"),
+        ))
+        .unwrap();
+        proj.process(&make_node_event(
+            event_types::NODE_CREATED,
+            "n2",
+            Some("revenue"),
+        ))
+        .unwrap();
         proj.process(&make_node_event(
             event_types::NODE_CREATED,
             "n3",

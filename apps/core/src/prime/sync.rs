@@ -59,10 +59,7 @@ pub struct SyncPreview {
 /// 1. Push local events to peer (via `sync_to`)
 /// 2. Pull peer events to local (via `peer.sync_to(local)`)
 /// 3. Analyze the exchanged events for graph conflicts
-pub async fn sync(
-    local: &EmbeddedCore,
-    peer: &EmbeddedCore,
-) -> crate::error::Result<SyncReport> {
+pub async fn sync(local: &EmbeddedCore, peer: &EmbeddedCore) -> crate::error::Result<SyncReport> {
     // Count events before sync
     let local_before = count_prime_events(local).await?;
     let peer_before = count_prime_events(peer).await?;
@@ -113,9 +110,7 @@ pub async fn sync_preview(
 
 /// Count total prime.* events in a core instance.
 async fn count_prime_events(core: &EmbeddedCore) -> crate::error::Result<usize> {
-    let events = core
-        .query(Query::new().event_type_prefix("prime."))
-        .await?;
+    let events = core.query(Query::new().event_type_prefix("prime.")).await?;
     Ok(events.len())
 }
 
@@ -148,7 +143,8 @@ async fn detect_conflicts(
         .await?;
 
     // Build post-sync latest state per entity
-    let mut post_states: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
+    let mut post_states: std::collections::HashMap<String, Value> =
+        std::collections::HashMap::new();
     // Track how many distinct update payloads each entity has
     let mut update_payloads: std::collections::HashMap<String, Vec<Value>> =
         std::collections::HashMap::new();
@@ -197,8 +193,10 @@ async fn detect_conflicts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::embedded::{Config, IngestEvent};
-    use crate::prime::types::event_types;
+    use crate::{
+        embedded::{Config, IngestEvent},
+        prime::types::event_types,
+    };
 
     async fn test_core(node_id: u32) -> EmbeddedCore {
         let config = Config::builder().node_id(node_id).build().unwrap();

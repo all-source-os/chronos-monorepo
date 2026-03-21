@@ -52,11 +52,8 @@ impl Response {
 }
 
 /// Server capabilities for the `initialize` response.
-pub fn server_info(auto_inject: bool) -> Value {
-    let mut capabilities = serde_json::json!({ "tools": {} });
-    if auto_inject {
-        capabilities["resources"] = serde_json::json!({});
-    }
+pub fn server_info(_auto_inject: bool) -> Value {
+    let capabilities = serde_json::json!({ "tools": {}, "resources": {} });
     serde_json::json!({
         "protocolVersion": "2024-11-05",
         "capabilities": capabilities,

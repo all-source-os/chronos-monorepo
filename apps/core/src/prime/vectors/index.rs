@@ -16,13 +16,13 @@ use instant_distance::{Builder, HnswMap, Point, Search};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
 use crate::{
-    application::services::projection::Projection,
-    domain::entities::Event,
-    error::Result,
+    application::services::projection::Projection, domain::entities::Event, error::Result,
 };
 
 use super::types::event_types as vec_events;
@@ -247,11 +247,7 @@ impl Projection for VectorIndexProjection {
     }
 
     fn snapshot(&self) -> Option<Value> {
-        let records: Vec<VectorRecord> = self
-            .vectors
-            .iter()
-            .map(|e| e.value().clone())
-            .collect();
+        let records: Vec<VectorRecord> = self.vectors.iter().map(|e| e.value().clone()).collect();
         serde_json::to_value(records).ok()
     }
 
@@ -273,7 +269,7 @@ mod tests {
     use chrono::Utc;
     use uuid::Uuid;
 
-    fn make_vector_event(entity_id: &str, vector: Vec<f32>, text: Option<&str>) -> Event {
+    fn make_vector_event(entity_id: &str, vector: &[f32], text: Option<&str>) -> Event {
         Event::reconstruct_from_strings(
             Uuid::new_v4(),
             vec_events::VECTOR_STORED.to_string(),
@@ -309,7 +305,7 @@ mod tests {
         for i in 0..100 {
             let vector: Vec<f32> = (0..8).map(|j| (i * 8 + j) as f32).collect();
             let event =
-                make_vector_event(&format!("vec:doc-{i}"), vector, Some(&format!("doc {i}")));
+                make_vector_event(&format!("vec:doc-{i}"), &vector, Some(&format!("doc {i}")));
             proj.process(&event).unwrap();
         }
 
@@ -320,12 +316,24 @@ mod tests {
     fn test_search_returns_results() {
         let proj = VectorIndexProjection::new("vec_idx");
 
-        proj.process(&make_vector_event("vec:a", vec![1.0, 0.0, 0.0, 0.0], Some("close")))
-            .unwrap();
-        proj.process(&make_vector_event("vec:b", vec![0.7, 0.7, 0.0, 0.0], Some("medium")))
-            .unwrap();
-        proj.process(&make_vector_event("vec:c", vec![0.0, 0.0, 0.0, 1.0], Some("far")))
-            .unwrap();
+        proj.process(&make_vector_event(
+            "vec:a",
+            &[1.0, 0.0, 0.0, 0.0],
+            Some("close"),
+        ))
+        .unwrap();
+        proj.process(&make_vector_event(
+            "vec:b",
+            &[0.7, 0.7, 0.0, 0.0],
+            Some("medium"),
+        ))
+        .unwrap();
+        proj.process(&make_vector_event(
+            "vec:c",
+            &[0.0, 0.0, 0.0, 1.0],
+            Some("far"),
+        ))
+        .unwrap();
 
         let hits = proj.search(&[1.0, 0.0, 0.0, 0.0], 3);
 
@@ -339,9 +347,9 @@ mod tests {
     fn test_delete_excludes_from_search() {
         let proj = VectorIndexProjection::new("vec_idx");
 
-        proj.process(&make_vector_event("vec:a", vec![1.0, 0.0], Some("a")))
+        proj.process(&make_vector_event("vec:a", &[1.0, 0.0], Some("a")))
             .unwrap();
-        proj.process(&make_vector_event("vec:b", vec![0.9, 0.1], Some("b")))
+        proj.process(&make_vector_event("vec:b", &[0.9, 0.1], Some("b")))
             .unwrap();
 
         proj.process(&make_delete_event("vec:a")).unwrap();
@@ -355,9 +363,9 @@ mod tests {
     fn test_snapshot_restore_roundtrip() {
         let proj = VectorIndexProjection::new("vec_idx");
 
-        proj.process(&make_vector_event("vec:x", vec![1.0, 0.0, 0.0], Some("x")))
+        proj.process(&make_vector_event("vec:x", &[1.0, 0.0, 0.0], Some("x")))
             .unwrap();
-        proj.process(&make_vector_event("vec:y", vec![0.0, 1.0, 0.0], Some("y")))
+        proj.process(&make_vector_event("vec:y", &[0.0, 1.0, 0.0], Some("y")))
             .unwrap();
 
         let snap = proj.snapshot().unwrap();
@@ -377,9 +385,9 @@ mod tests {
         // Regression: old code had deleted vectors reappearing after restore
         let proj = VectorIndexProjection::new("vec_idx");
 
-        proj.process(&make_vector_event("vec:a", vec![1.0, 0.0], Some("a")))
+        proj.process(&make_vector_event("vec:a", &[1.0, 0.0], Some("a")))
             .unwrap();
-        proj.process(&make_vector_event("vec:b", vec![0.0, 1.0], Some("b")))
+        proj.process(&make_vector_event("vec:b", &[0.0, 1.0], Some("b")))
             .unwrap();
         proj.process(&make_delete_event("vec:a")).unwrap();
 
@@ -409,9 +417,9 @@ mod tests {
     #[test]
     fn test_zero_vector_search() {
         let proj = VectorIndexProjection::new("vec_idx");
-        proj.process(&make_vector_event("vec:a", vec![1.0, 0.0], Some("a")))
+        proj.process(&make_vector_event("vec:a", &[1.0, 0.0], Some("a")))
             .unwrap();
-        proj.process(&make_vector_event("vec:zero", vec![0.0, 0.0], Some("zero")))
+        proj.process(&make_vector_event("vec:zero", &[0.0, 0.0], Some("zero")))
             .unwrap();
 
         // Searching with zero vector should return results (distance = 1.0 for all)

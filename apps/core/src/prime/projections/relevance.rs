@@ -15,9 +15,7 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use crate::{
-    application::services::projection::Projection,
-    domain::entities::Event,
-    error::Result,
+    application::services::projection::Projection, domain::entities::Event, error::Result,
     prime::types::event_types,
 };
 
@@ -49,10 +47,7 @@ impl RelevanceScore {
 
     /// Compute the current relevance score with exponential decay.
     pub fn current_score(&self, now: DateTime<Utc>) -> f64 {
-        let hours = (now - self.last_accessed)
-            .num_milliseconds()
-            .max(0) as f64
-            / 3_600_000.0;
+        let hours = (now - self.last_accessed).num_milliseconds().max(0) as f64 / 3_600_000.0;
         self.base_score * (-self.decay_rate * hours).exp()
     }
 

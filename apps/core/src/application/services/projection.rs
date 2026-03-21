@@ -5,10 +5,14 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
 
 /// A projection aggregates events into a queryable view
 pub trait Projection: Send + Sync {
@@ -289,9 +293,7 @@ impl ProjectionManager {
         }
 
         self.states.push(state);
-        self.metrics
-            .projections_total
-            .set(self.states.len() as i64);
+        self.metrics.projections_total.set(self.states.len() as i64);
     }
 
     /// Try to read a checkpoint file and restore the projection from it.
@@ -329,9 +331,7 @@ impl ProjectionManager {
                 );
             }
             Err(e) => {
-                tracing::warn!(
-                    "Failed to restore projection '{name}' from checkpoint: {e}",
-                );
+                tracing::warn!("Failed to restore projection '{name}' from checkpoint: {e}",);
             }
         }
     }
@@ -394,9 +394,10 @@ impl ProjectionManager {
         let events_threshold = self.checkpoint_config.interval_events;
         let time_threshold = self.checkpoint_config.interval_seconds;
 
-        let any_exceeded = self.states.iter().any(|s| {
-            s.events_since_checkpoint.load(Ordering::Relaxed) >= events_threshold
-        });
+        let any_exceeded = self
+            .states
+            .iter()
+            .any(|s| s.events_since_checkpoint.load(Ordering::Relaxed) >= events_threshold);
 
         let time_exceeded = {
             let last = self.last_checkpoint_time.lock();
@@ -446,9 +447,7 @@ impl ProjectionManager {
         std::fs::write(&path, json)
             .map_err(|e| crate::error::AllSourceError::StorageError(e.to_string()))?;
 
-        state
-            .events_since_checkpoint
-            .store(0, Ordering::Relaxed);
+        state.events_since_checkpoint.store(0, Ordering::Relaxed);
 
         tracing::debug!("Checkpointed projection '{name}'");
         Ok(())
@@ -635,8 +634,7 @@ mod tests {
 
         // Process some events
         for i in 0..50 {
-            let event =
-                create_test_event(&format!("user-{}", i), "user.created");
+            let event = create_test_event(&format!("user-{i}"), "user.created");
             manager.process_event(&event).unwrap();
         }
 
@@ -674,8 +672,7 @@ mod tests {
             manager.register(counter.clone());
 
             for i in 0..100 {
-                let event =
-                    create_test_event(&format!("user-{}", i), "user.created");
+                let event = create_test_event(&format!("user-{i}"), "user.created");
                 manager.process_event(&event).unwrap();
             }
 
@@ -686,8 +683,8 @@ mod tests {
 
         // Phase 2: create new manager, register same projection, verify restore
         {
-            let mut manager = ProjectionManager::new()
-                .with_checkpoint_config(config, checkpoint_dir);
+            let mut manager =
+                ProjectionManager::new().with_checkpoint_config(config, checkpoint_dir);
 
             let counter = Arc::new(EventCounterProjection::new("counter"));
             manager.register(counter.clone());
@@ -724,7 +721,7 @@ mod tests {
 
             for i in 0..1000 {
                 let event = create_test_event_with_timestamp(
-                    &format!("user-{}", i),
+                    &format!("user-{i}"),
                     "user.created",
                     checkpoint_time,
                 );
@@ -737,8 +734,8 @@ mod tests {
 
         // Phase 2: simulate restart — restore from checkpoint and replay
         {
-            let mut manager = ProjectionManager::new()
-                .with_checkpoint_config(config, checkpoint_dir);
+            let mut manager =
+                ProjectionManager::new().with_checkpoint_config(config, checkpoint_dir);
 
             let counter = Arc::new(EventCounterProjection::new("counter"));
             manager.register(counter.clone());
@@ -750,7 +747,7 @@ mod tests {
             // timestamp <= checkpoint timestamp)
             for i in 0..1000 {
                 let event = create_test_event_with_timestamp(
-                    &format!("user-{}", i),
+                    &format!("user-{i}"),
                     "user.created",
                     checkpoint_time,
                 );
@@ -764,7 +761,7 @@ mod tests {
             let later = checkpoint_time + chrono::Duration::seconds(10);
             for i in 0..10 {
                 let event = create_test_event_with_timestamp(
-                    &format!("new-user-{}", i),
+                    &format!("new-user-{i}"),
                     "user.created",
                     later,
                 );
@@ -795,8 +792,7 @@ mod tests {
 
         // Process 60 events — should trigger auto-checkpoint at 50
         for i in 0..60 {
-            let event =
-                create_test_event(&format!("user-{}", i), "user.created");
+            let event = create_test_event(&format!("user-{i}"), "user.created");
             manager.process_event(&event).unwrap();
         }
 
@@ -811,7 +807,7 @@ mod tests {
         // default no-op implementations and not break anything.
         struct MinimalProjection;
         impl Projection for MinimalProjection {
-            fn name(&self) -> &str {
+            fn name(&self) -> &'static str {
                 "minimal"
             }
             fn process(&self, _event: &Event) -> Result<()> {

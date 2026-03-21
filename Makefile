@@ -685,6 +685,9 @@ endif
 	@sed -i '' 's/"version": "[0-9]*\.[0-9]*\.[0-9]*"/"version": "$(VERSION)"/' sdks/typescript/package.json
 	@echo "Updating Python SDK (pyproject.toml)..."
 	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' sdks/python-client/pyproject.toml
+	@echo "Updating Prime MCP Server (Cargo.toml)..."
+	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' apps/prime-mcp/Cargo.toml
+	@sed -i '' 's/allsource-core = { version = "[0-9]*\.[0-9]*"/allsource-core = { version = "$(VERSION)"/' apps/prime-mcp/Cargo.toml
 	@echo ""
 	@echo "=== Version $(VERSION) set across all services ==="
 	@echo ""
@@ -701,6 +704,7 @@ endif
 	@echo "  - sdks/go/version.go"
 	@echo "  - sdks/typescript/package.json"
 	@echo "  - sdks/python-client/pyproject.toml"
+	@echo "  - apps/prime-mcp/Cargo.toml"
 	@echo ""
 	@echo "Run 'make check-versions' to verify consistency"
 

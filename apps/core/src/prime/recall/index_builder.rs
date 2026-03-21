@@ -6,8 +6,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt::Write;
+use std::{collections::HashMap, fmt::Write};
 
 use crate::prime::projections::{CrossDomainProjection, DomainIndexProjection};
 
@@ -176,9 +175,10 @@ pub fn build_heuristic_index(summary: &IndexRawSummary) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::services::projection::Projection;
-    use crate::domain::entities::Event;
-    use crate::prime::types::event_types;
+    use crate::{
+        application::services::projection::Projection, domain::entities::Event,
+        prime::types::event_types,
+    };
     use uuid::Uuid;
 
     fn make_node(node_id: &str, node_type: &str, domain: &str, name: &str) -> Event {
@@ -232,9 +232,9 @@ mod tests {
             // Product domain
             make_node("n6", "feature", "product", "Dark Mode"),
             // Cross-domain edges
-            make_edge("e1", "n3", "n1", "impacts"),       // same domain
-            make_edge("e2", "n3", "n4", "requires"),       // revenue -> engineering
-            make_edge("e3", "n6", "n5", "depends_on"),     // product -> engineering
+            make_edge("e1", "n3", "n1", "impacts"), // same domain
+            make_edge("e2", "n3", "n4", "requires"), // revenue -> engineering
+            make_edge("e3", "n6", "n5", "depends_on"), // product -> engineering
         ];
 
         for event in &events {
@@ -253,7 +253,11 @@ mod tests {
         assert_eq!(summary.domains.len(), 3);
         assert_eq!(summary.total_nodes, 6);
 
-        let revenue = summary.domains.iter().find(|d| d.domain == "revenue").unwrap();
+        let revenue = summary
+            .domains
+            .iter()
+            .find(|d| d.domain == "revenue")
+            .unwrap();
         assert_eq!(revenue.node_count, 3);
     }
 
@@ -307,7 +311,11 @@ mod tests {
         let (domain_index, cross_domain) = seed_projections();
         let summary = build_raw_summary(&domain_index, &cross_domain);
 
-        let revenue = summary.domains.iter().find(|d| d.domain == "revenue").unwrap();
+        let revenue = summary
+            .domains
+            .iter()
+            .find(|d| d.domain == "revenue")
+            .unwrap();
         // Sample entities come from node IDs (DomainIndexProjection tracks node IDs, not names)
         assert!(!revenue.sample_entities.is_empty());
         assert!(revenue.sample_entities.len() <= 5);
