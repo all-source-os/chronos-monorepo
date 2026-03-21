@@ -28,7 +28,8 @@ pub use exactly_once::{ExactlyOnceConfig, ExactlyOnceRegistry, ExactlyOnceStats}
 pub use payment_coordinator::{PaymentCoordinator, PurchaseResult};
 pub use pipeline::{Pipeline, PipelineConfig, PipelineManager, PipelineOperator, PipelineStats};
 pub use projection::{
-    EntitySnapshotProjection, EventCounterProjection, Projection, ProjectionManager,
+    CheckpointConfig, EntitySnapshotProjection, EventCounterProjection, Projection,
+    ProjectionCheckpoint, ProjectionManager,
 };
 pub use replay::{ReplayManager, ReplayProgress, StartReplayRequest, StartReplayResponse};
 pub use schema::{

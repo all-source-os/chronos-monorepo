@@ -1,0 +1,13 @@
+//! Vector storage and search for AllSource Prime.
+//!
+//! Gated behind the `prime-vectors` feature flag. Provides embedding storage
+//! as events and HNSW-indexed similarity search via projections.
+//!
+//! This module is only compiled when `prime-vectors` is enabled, so that
+//! graph-only users don't pay the fastembed/instant-distance compilation cost.
+
+pub mod index;
+pub mod types;
+
+pub use index::{SearchHit, VectorIndexConfig, VectorIndexProjection};
+pub use types::{VectorEntry, VectorSearchResult, event_types, vector_entity_id};

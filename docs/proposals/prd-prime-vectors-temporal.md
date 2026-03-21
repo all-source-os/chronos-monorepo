@@ -163,14 +163,18 @@ Mark each item [x] as you complete it. Only close when all are checked.
 Mark each item [x] as you complete it. Only close when all are checked.
 
 ### US-009: Remember + Forget Convenience Methods [Backend]
-**Description:** As a developer, I want high-level `remember` and `forget` methods that combine vector + graph storage in a single call, optimized for agent memory workflows.
+**Description:** As a developer, I want high-level `remember` and `forget` methods that combine vector + graph storage in a single call, optimized for agent memory workflows. Includes domain tagging, source provenance, and confidence for Recall integration.
 
 **Acceptance Criteria:**
 - [ ] `prime.remember(text: &str, vector: Vec<f32>, node_type: &str, properties: Value, relations: Vec<(NodeId, &str)>) -> Result<NodeId>` — creates a node, stores its embedding, and connects it to existing nodes in one call
+- [ ] Optional `domain: Option<&str>` parameter — tags the node with a knowledge domain (e.g. "revenue", "engineering") for compressed index organization
+- [ ] Optional `source: Option<&str>` parameter — records provenance (e.g. "analysis-session-42")
+- [ ] Optional `confidence: Option<f64>` parameter — records confidence score in node properties
 - [ ] Internally: ingests `prime.node.created` + `prime.vector.stored` + N × `prime.edge.created` events
 - [ ] `prime.forget(id: &NodeId) -> Result<()>` — soft-deletes node, its edges, and its vector in one call
 - [ ] Internally: ingests `prime.node.deleted` + `prime.vector.deleted` + N × `prime.edge.deleted` events
 - [ ] Test: `remember` creates node + vector + edges atomically, all retrievable
+- [ ] Test: `remember` with domain sets domain on node, retrievable via `nodes_by_domain()`
 - [ ] Test: `forget` removes node from graph queries and vector search
 - [ ] `cargo test -p allsource-core --features prime-full prime::memory` passes
 

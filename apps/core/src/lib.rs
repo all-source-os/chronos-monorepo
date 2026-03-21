@@ -100,6 +100,10 @@ pub mod test_utils;
 #[cfg(feature = "server")]
 pub mod webhook_worker;
 
+/// AllSource Prime — unified agent memory engine (requires `prime` feature)
+#[cfg(feature = "prime")]
+pub mod prime;
+
 /// Ergonomic embedded-mode facade (requires `embedded` feature)
 #[cfg(feature = "embedded")]
 pub mod embedded;

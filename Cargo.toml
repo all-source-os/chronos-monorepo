@@ -8,10 +8,12 @@ members = [
 ]
 exclude = [
     "apps/chronis",
+    "apps/prime-mcp",
     "apps/registry",
     "crates/better-auth-allsource",
     "tooling/allsource-inspect",
     "tooling/allsource-mcp",
+    "tooling/recall-bench",
 ]
 
 [workspace.dependencies]

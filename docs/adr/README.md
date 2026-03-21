@@ -16,6 +16,12 @@ This directory contains Architecture Decision Records (ADRs) documenting signifi
 | [008](008-vector-search-fastembed.md) | Vector Search with fastembed | Accepted | 2026-02-03 | v0.10.0 |
 | [009](009-simd-json-zero-copy-deserialization.md) | simd-json Zero-Copy Deserialization | Accepted | 2026-02-03 | v0.10.0 |
 | [010](010-native-arm64-ci.md) | Native ARM64 CI Runners | Accepted | 2026-02-03 | v0.10.0 |
+| [011](011-prime-entity-id-enum.md) | Typed EntityId Enum for Prime | Accepted | 2026-03-20 | unreleased |
+| [012](012-prime-directed-adjacency.md) | Unified DirectedAdjacencyProjection | Accepted | 2026-03-20 | unreleased |
+| [013](013-prime-atomic-deletion.md) | Atomic Node Deletion via Batch Ingestion | Accepted | 2026-03-20 | unreleased |
+| [014](014-prime-facade-decomposition.md) | Facade Decomposition into Sub-API Modules | Accepted | 2026-03-20 | unreleased |
+| [015](015-prime-vector-index-generation.md) | Generation Counter for VectorIndexProjection | Accepted | 2026-03-20 | unreleased |
+| [016](016-prime-eventual-consistency.md) | Eventual Consistency Model for Prime | Accepted | 2026-03-20 | unreleased |
 
 ## Format
 
