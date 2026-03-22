@@ -496,6 +496,27 @@ pub async fn serve_v1(
         )
         .layer(TraceLayer::new_for_http());
 
+    // Prime API — nested router with its own state (feature-gated)
+    #[cfg(feature = "prime")]
+    let app = {
+        let data_dir = std::env::var("PRIME_DATA_DIR")
+            .unwrap_or_else(|_| "/tmp/prime-data".to_string());
+        match crate::prime::Prime::open(&data_dir).await {
+            Ok(prime) => {
+                let prime_state = Arc::new(super::prime_api::PrimeState { prime });
+                tracing::info!("Prime API enabled at /api/v1/prime/*");
+                app.nest(
+                    "/api/v1/prime",
+                    super::prime_api::prime_router().with_state(prime_state),
+                )
+            }
+            Err(e) => {
+                tracing::warn!("Prime API disabled: failed to open Prime: {e}");
+                app
+            }
+        }
+    };
+
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
     // Graceful shutdown on SIGTERM (required for serverless platforms)

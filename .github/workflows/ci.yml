@@ -97,6 +97,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       elixir: ${{ steps.filter.outputs.elixir }}
       mcp: ${{ steps.filter.outputs.mcp }}
+      prime: ${{ steps.filter.outputs.prime }}
       workflows: ${{ steps.filter.outputs.workflows }}
       # Container-related changes for downstream workflows
       core: ${{ steps.filter.outputs.rust }}
@@ -122,6 +123,10 @@ jobs:
               - 'apps/query-service/**'
             mcp:
               - 'apps/mcp-server-elixir/**'
+            prime:
+              - 'apps/prime-mcp/**'
+              - 'apps/core/src/prime/**'
+              - 'tooling/recall-bench/**'
             workflows:
               - '.github/workflows/**'
 
@@ -182,6 +187,46 @@ jobs:
         run: cargo doc --no-deps --document-private-items
         env:
           RUSTDOCFLAGS: "-D warnings"
+
+  # ============================================================================
+  # Prime MCP Quality Gates
+  # ============================================================================
+  prime-quality:
+    name: Prime MCP Quality Gates
+    needs: [workflow-lint, workflow-validate, version-check, changes]
+    if: needs.changes.outputs.prime == 'true' || needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/prime-mcp -> target"
+          cache-on-failure: true
+
+      - name: Check formatting
+        working-directory: apps/prime-mcp
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        working-directory: apps/prime-mcp
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Build release
+        working-directory: apps/prime-mcp
+        run: cargo build --release
+
+      - name: Build recall-bench
+        working-directory: tooling/recall-bench
+        run: cargo build
 
   # ============================================================================
   # Go Quality Gates (Control Plane)

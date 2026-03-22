@@ -19,7 +19,8 @@ use super::{
     error::{PrimeError, PrimeResult},
     projections::{
         AdjacencyListProjection, Contradiction, ContradictionDetectionProjection,
-        GraphStatsProjection, NodeStateProjection, NodeTypeIndexProjection, ReverseIndexProjection,
+        CrossDomainProjection, GraphStatsProjection, NodeStateProjection,
+        NodeTypeIndexProjection, ReverseIndexProjection,
     },
     schema::SchemaProjection,
     types::{
@@ -36,6 +37,7 @@ const PROJ_REVERSE_INDEX: &str = "prime.reverse_index";
 const PROJ_GRAPH_STATS: &str = "prime.graph_stats";
 const PROJ_SCHEMA: &str = "prime.schema";
 const PROJ_CONTRADICTION: &str = "prime.contradiction";
+const PROJ_CROSS_DOMAIN: &str = "prime.cross_domain";
 #[cfg(feature = "prime-vectors")]
 const PROJ_VECTOR_INDEX: &str = "prime.vector_index";
 
@@ -50,6 +52,7 @@ pub struct Prime {
     graph_stats: Arc<GraphStatsProjection>,
     schema: Arc<SchemaProjection>,
     contradiction: Arc<ContradictionDetectionProjection>,
+    cross_domain: Arc<CrossDomainProjection>,
     #[cfg(feature = "prime-vectors")]
     vector_index: Arc<super::vectors::VectorIndexProjection>,
 }
@@ -77,6 +80,7 @@ impl Prime {
         Arc<GraphStatsProjection>,
         Arc<SchemaProjection>,
         Arc<ContradictionDetectionProjection>,
+        Arc<CrossDomainProjection>,
     ) {
         let node_state = Arc::new(NodeStateProjection::new(PROJ_NODE_STATE));
         let node_type_index = Arc::new(NodeTypeIndexProjection::new(PROJ_NODE_TYPE_INDEX));
@@ -85,6 +89,7 @@ impl Prime {
         let graph_stats = Arc::new(GraphStatsProjection::new(PROJ_GRAPH_STATS));
         let schema = Arc::new(SchemaProjection::new(PROJ_SCHEMA));
         let contradiction = Arc::new(ContradictionDetectionProjection::new(PROJ_CONTRADICTION));
+        let cross_domain = Arc::new(CrossDomainProjection::new());
 
         type DynProj = Arc<dyn crate::application::services::projection::Projection>;
 
@@ -95,6 +100,7 @@ impl Prime {
         let _ = store.register_projection_with_backfill(&(Arc::clone(&graph_stats) as DynProj));
         let _ = store.register_projection_with_backfill(&(Arc::clone(&schema) as DynProj));
         let _ = store.register_projection_with_backfill(&(Arc::clone(&contradiction) as DynProj));
+        let _ = store.register_projection_with_backfill(&(Arc::clone(&cross_domain) as DynProj));
 
         (
             node_state,
@@ -104,6 +110,7 @@ impl Prime {
             graph_stats,
             schema,
             contradiction,
+            cross_domain,
         )
     }
 
@@ -131,6 +138,7 @@ impl Prime {
             graph_stats,
             schema,
             contradiction,
+            cross_domain,
         ) = Self::register_graph_projections(&store);
         #[cfg(feature = "prime-vectors")]
         let vector_index = Self::register_vector_projection(&store);
@@ -144,6 +152,7 @@ impl Prime {
             graph_stats,
             schema,
             contradiction,
+            cross_domain,
             #[cfg(feature = "prime-vectors")]
             vector_index,
         }
@@ -986,7 +995,7 @@ impl Prime {
 
         // Step 1: Vector similarity (if query vector provided)
         if let Some(ref qvec) = query.vector {
-            let hits = self.vector_search_cross_domain(qvec, query.top_k * 2); // Domain-balanced
+            let hits = self.vector_search(qvec, query.top_k * 2); // Over-fetch for graph expansion
             vector_results = hits
                 .iter()
                 .map(|h| super::vectors::VectorSearchResult {
@@ -1091,14 +1100,16 @@ impl Prime {
             }
         }
 
-        // Sort by score descending, take top_k
+        // Sort by score descending
         let mut nodes: Vec<ScoredNode> = scored.into_values().collect();
         nodes.sort_by(|a, b| {
             b.score
                 .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        nodes.truncate(query.top_k);
+
+        // MMR re-ranking: boost diversity across domains/types
+        mmr_rerank(&mut nodes, query.top_k, 0.7);
 
         Ok(RecallResult {
             nodes,
@@ -1944,6 +1955,66 @@ impl ConversationScope<'_> {
 // =============================================================================
 // Free Functions
 // =============================================================================
+
+/// Maximal Marginal Relevance re-ranking.
+///
+/// Selects top_k results that balance relevance with diversity across domains.
+/// `lambda` controls the trade-off: 1.0 = pure relevance, 0.0 = pure diversity.
+#[cfg(feature = "prime-vectors")]
+fn mmr_rerank(
+    nodes: &mut Vec<super::types::ScoredNode>,
+    top_k: usize,
+    lambda: f64,
+) {
+    use super::types::ScoredNode;
+
+    if nodes.len() <= top_k {
+        return;
+    }
+
+    let mut selected: Vec<ScoredNode> = Vec::with_capacity(top_k);
+    let mut remaining: Vec<ScoredNode> = std::mem::take(nodes);
+
+    while selected.len() < top_k && !remaining.is_empty() {
+        let mut best_idx = 0;
+        let mut best_mmr = f64::NEG_INFINITY;
+
+        for (i, candidate) in remaining.iter().enumerate() {
+            let relevance = candidate.score;
+
+            // Max redundancy to any already-selected node
+            let max_redundancy = if selected.is_empty() {
+                0.0
+            } else {
+                selected
+                    .iter()
+                    .map(|s| {
+                        // Same node_type = high redundancy
+                        if s.node.node_type == candidate.node.node_type
+                            && s.node.domain == candidate.node.domain
+                        {
+                            0.8
+                        } else if s.node.domain == candidate.node.domain {
+                            0.5
+                        } else {
+                            0.0
+                        }
+                    })
+                    .fold(0.0f64, f64::max)
+            };
+
+            let mmr = lambda * relevance - (1.0 - lambda) * max_redundancy;
+            if mmr > best_mmr {
+                best_mmr = mmr;
+                best_idx = i;
+            }
+        }
+
+        selected.push(remaining.remove(best_idx));
+    }
+
+    *nodes = selected;
+}
 
 fn edge_from_event(event: &crate::embedded::EventView) -> Option<Edge> {
     let payload = &event.payload;
