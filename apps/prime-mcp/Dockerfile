@@ -2,7 +2,7 @@
 # =============================================================================
 # AllSource Prime — Multi-Stage Dockerfile
 #
-# Build from repo root (required for path dependencies):
+# Build from repo root (required for workspace dependencies):
 #   docker build -t allsource-prime -f apps/prime-mcp/Dockerfile .
 #
 # Run:
@@ -22,9 +22,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# Copy only what prime-mcp needs: itself + allsource-core (path dep)
-COPY apps/prime-mcp/ apps/prime-mcp/
+# Copy workspace root manifest and lockfile
+COPY Cargo.toml Cargo.lock ./
+
+# Copy allsource-core (the main dependency)
 COPY apps/core/ apps/core/
+
+# Copy prime-mcp itself
+COPY apps/prime-mcp/ apps/prime-mcp/
+
+# Stub workspace members that prime-mcp doesn't need but Cargo.toml references
+RUN mkdir -p apps/mcp-server-elixir/native/core_nif/src \
+    && echo '' > apps/mcp-server-elixir/native/core_nif/src/lib.rs \
+    && printf '[package]\nname = "core_nif"\nversion = "0.1.0"\nedition = "2024"\n' \
+       > apps/mcp-server-elixir/native/core_nif/Cargo.toml \
+    && mkdir -p sdks/rust/src \
+    && echo '' > sdks/rust/src/lib.rs \
+    && printf '[package]\nname = "allsource"\nversion = "0.16.0"\nedition = "2024"\n' \
+       > sdks/rust/Cargo.toml \
+    && mkdir -p tooling/performance/src \
+    && echo 'fn main() {}' > tooling/performance/src/main.rs \
+    && printf '[package]\nname = "allsource-performance"\nversion = "0.1.0"\nedition = "2024"\n[[bin]]\nname = "allsource-performance"\npath = "src/main.rs"\n' \
+       > tooling/performance/Cargo.toml
 
 # Build release binary
 WORKDIR /build/apps/prime-mcp

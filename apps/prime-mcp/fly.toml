@@ -10,8 +10,8 @@
 app = "allsource-prime"
 primary_region = "iad"
 
+# Build from repo root: flyctl deploy --config apps/prime-mcp/fly.toml --dockerfile apps/prime-mcp/Dockerfile
 [build]
-  dockerfile = "apps/prime-mcp/Dockerfile"
 
 [env]
   PRIME_MODE = "http"
