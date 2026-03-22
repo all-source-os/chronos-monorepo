@@ -1,0 +1,86 @@
+---
+title: "From zer0dex to AllSource: What We Learned"
+publishedAt: "2026-03-21"
+summary: "We analyzed zer0dex's dual-layer memory system, found the insight that matters, and built on it. Here's what we kept, what we changed, and why."
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+When [zer0dex](https://github.com/roli-lpci/zer0dex) dropped from Hermes Labs' LPCI research, we did what any self-respecting engineering team would do: we took it apart.
+
+Not to copy it. To understand what it got right.
+
+## What zer0dex Got Right
+
+**The compressed index.** A ~782-token markdown file that acts as a semantic table of contents for the agent's knowledge. Always loaded in context. Costs almost nothing. And it doubles cross-domain recall from 37.5% to 80%.
+
+This is a genuinely good idea. The rest of the agent memory field — Mem0, Letta, Zep, Cognee — missed it entirely. They're all building increasingly sophisticated retrieval pipelines (graph RAG, tiered memory, LLM-managed paging) but none of them give the agent a simple, readable map of what it knows.
+
+zer0dex did. With a markdown file.
+
+## What zer0dex Got Wrong
+
+Three things:
+
+### 1. The index is manual
+
+`MEMORY.md` is human-authored. The creator writes and maintains the compressed index by hand. This works for personal agents where you control the knowledge domain. It doesn't scale when:
+- Knowledge grows beyond what one person can track
+- Multiple agents contribute to the same knowledge base
+- Domains evolve faster than humans update the index
+
+We made it automatic. A `CompressedIndexProjection` watches graph events and regenerates the markdown incrementally. Zero human maintenance.
+
+### 2. No temporal reasoning
+
+zer0dex stores memories as mutable blobs. If Alice was project lead until January and Bob took over in February, both facts coexist in the vector store with no way to distinguish which is current.
+
+We built on an event store. Every memory mutation is an immutable, timestamped event. Time-travel queries (`as_of`) reconstruct the agent's knowledge at any past point. "Who was the lead last month?" is a first-class query, not a workaround.
+
+### 3. No provenance
+
+When an agent "remembers" something wrong, zer0dex can't tell you where the bad memory came from. Memories are created via `POST /add` with no audit trail.
+
+In AllSource, every event has an ID, a timestamp, optional metadata (source, correlation ID, session), and lives in a WAL with CRC32 checksums. You can trace any memory back to the exact event that created it.
+
+## What We Built
+
+AllSource Recall combines zer0dex's insight with production-grade infrastructure:
+
+| Layer | zer0dex | AllSource |
+|-------|---------|-----------|
+| Compressed Index | Manual MEMORY.md | Auto-generated projection |
+| Vector Search | ChromaDB + mem0 | HNSW in-process |
+| Graph | None | Full knowledge graph with CRUD |
+| Temporal | None | Time-travel on every query |
+| Provenance | None | Immutable event audit trail |
+| Deployment | Python + Ollama | Single Rust binary |
+
+The API is simple:
+
+```bash
+# Get the compressed index
+prime_index
+
+# Search with cross-domain reasoning
+prime_context --query "How does pricing relate to churn?"
+
+# Full hybrid recall
+prime_recall --vector [0.1, 0.2, ...] --depth 1 --top_k 10
+```
+
+## What We're Not Doing
+
+We're not building another Python orchestration layer that glues together three databases with an LLM call on the write path. That's what Mem0, Letta, and Cognee do, and it's why they're slow, cloud-dependent, and hard to reason about.
+
+AllSource Prime is one engine. One WAL. One binary. Everything — vectors, graph nodes, edges, compressed index — is an event in the same storage layer. The complexity is in the projections, not the infrastructure.
+
+## Credit
+
+zer0dex proved the compressed index thesis. We built the engine to make it production-grade. The 80% cross-reference accuracy they published changed our roadmap — it validated an approach we hadn't considered and sent us down a path that produced a better system than we would have built otherwise.
+
+Good ideas don't need to come from inside the building.
+
+```bash
+cargo install allsource-prime
+```

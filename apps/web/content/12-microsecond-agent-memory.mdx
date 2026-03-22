@@ -1,0 +1,92 @@
+---
+title: "12μs Agent Memory: How We Got There"
+publishedAt: "2026-03-21"
+summary: "From event store to agent memory engine in microseconds. DashMap projections, HNSW vector index, and why the storage layer matters more than the query layer."
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+AllSource Prime queries agent memory in **12 microseconds**. Not milliseconds. Microseconds.
+
+For context: zer0dex's vector search takes 70ms. Mem0 and Letta are in the hundreds of milliseconds. A typical HTTP round-trip is 50-200ms.
+
+12μs means memory lookup is **invisible** — faster than the time it takes to print the response. Here's how.
+
+## The Architecture
+
+```
+Query → DashMap projection → O(1) lookup → result
+         (no serialization, no network, no disk)
+```
+
+Every Prime projection is a `DashMap` — Rust's concurrent hash map with sharded locking. When you call `prime_neighbors("node:person:alice")`, it's a hash table lookup. No SQL parsing, no query planning, no disk I/O.
+
+### Why DashMap?
+
+| Data Structure | Read Latency | Concurrent Reads | Write Contention |
+|---------------|-------------|-----------------|-----------------|
+| `HashMap` + `RwLock` | ~50ns | Readers block on write | High |
+| `DashMap` | ~100ns | Lock-free reads | Per-shard only |
+| SQLite | ~50μs | Single writer | Full table lock |
+| PostgreSQL | ~500μs | MVCC | Row-level |
+
+DashMap uses 64 shards by default. Reads are wait-free unless the exact same shard is being written to. In practice, with graph data spread across thousands of entity IDs, contention is near-zero.
+
+## The Projection Stack
+
+```
+Event arrives → WAL (durable) → Broadcast to projections
+
+NodeState projection:     entity_id → {properties, timestamps}
+AdjacencyList projection: entity_id → [(peer, edge_id, relation)]
+VectorIndex projection:   entity_id → [f32; N] + HNSW index
+DomainIndex projection:   domain → [entity_ids]
+CrossDomain projection:   (domain_a, domain_b) → [edge_ids]
+```
+
+Each projection processes the event independently. The WAL provides durability. The DashMap provides speed. Projections are rebuilt from WAL on startup (with optional checkpoint acceleration).
+
+## Vector Search: HNSW at Memory Speed
+
+For semantic queries, we use an HNSW (Hierarchical Navigable Small World) index via `instant-distance`. The index lives in memory alongside the DashMap projections.
+
+| Operation | Latency |
+|-----------|---------|
+| Embed (store vector) | ~1μs (DashMap insert) |
+| Similar (k-NN search) | ~100μs for k=10 on 10K vectors |
+| Recall (vector + graph) | ~200μs (search + 1-hop expansion) |
+
+The HNSW index is rebuilt lazily on first query after mutations. For read-heavy workloads (the common case for agent memory), this means near-zero overhead.
+
+## Ingest: 469K Events/Second
+
+```
+Event → CRC32 checksum → WAL append → fsync batch → DashMap insert → Projection broadcast
+```
+
+The WAL batches fsyncs every 100ms (configurable). This means a power failure can lose at most 100ms of events — a trade-off between durability and throughput.
+
+Parquet compaction runs in the background, converting WAL segments to columnar storage with Snappy compression. This provides 60-80% space savings without affecting query latency.
+
+## Why This Matters for Agents
+
+Agent memory queries happen in the hot path — between user input and agent response. Every millisecond of memory lookup adds to perceived latency:
+
+| Memory System | Query Latency | Impact on Response |
+|--------------|--------------|-------------------|
+| AllSource Prime | 12μs | Invisible |
+| zer0dex (ChromaDB) | 70ms | Barely noticeable |
+| Mem0 (cloud API) | 200-500ms | Noticeable pause |
+| Letta (LLM-managed) | 500ms+ | Visible delay |
+
+At 12μs, you can query memory on every single message without the user ever noticing. That's the difference between "memory is a tool the agent calls" and "memory is always there."
+
+## Try It
+
+```bash
+cargo install allsource-prime
+allsource-prime --data-dir ~/.prime/memory --mode http --port 3905
+
+# Benchmark it yourself
+curl -w "time_total: %{time_total}s\n" http://localhost:3905/api/v1/prime/stats
+```

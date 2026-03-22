@@ -337,6 +337,15 @@ get_app_versions() {
         fi
     fi
 
+    # Prime MCP Server - Cargo.toml
+    if [ -f "apps/prime-mcp/Cargo.toml" ]; then
+        local prime_version=$(grep -E '^version\s*=' apps/prime-mcp/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "")
+        if [ -n "$prime_version" ]; then
+            app_versions["prime-mcp"]=$prime_version
+            log "  Prime MCP (Cargo.toml):      $prime_version"
+        fi
+    fi
+
     # K8s Core image
     if [ -f "deploy/k8s/core.yaml" ]; then
         local k8s_core_version=$(grep 'image:.*allsource.*core' deploy/k8s/core.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")

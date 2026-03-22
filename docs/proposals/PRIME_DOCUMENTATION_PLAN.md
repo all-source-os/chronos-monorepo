@@ -334,20 +334,20 @@ Code-level walkthrough for HN/dev.to audience:
 
 ## Tracking
 
-| Phase | Deliverable | Status | Owner |
+| Phase | Deliverable | Status | Notes |
 |-------|------------|--------|-------|
-| 1.1 | MCP tool descriptions | TODO | |
-| 1.2 | Agent onboarding prompt | TODO | |
-| 1.3 | MCP cookbook resource | TODO | |
-| 2.1 | README with example output | TODO | |
-| 2.2 | Hosted cargo doc | TODO | |
-| 2.3 | Docs pages (5) | TODO | |
-| 3.1 | Use case pages (5) | TODO | |
-| 3.2 | Comparison page | TODO | |
-| 4.1 | Fly.io deployment | TODO | |
-| 4.2 | Interactive playground | TODO | |
-| 5.1 | Terminal recordings (3) | TODO | |
-| 5.2 | 60-second demo video | TODO | |
-| 5.3 | 5-minute walkthrough | TODO | |
-| 6.1 | Blog posts (5) | TODO | |
-| 6.2 | X launch campaign (3 threads) | TODO | |
+| 1.1 | MCP tool descriptions | DONE | All 13 tools rewritten with usage guidance |
+| 1.2 | Agent onboarding prompt | DONE | `docs/guides/PRIME_AGENT_PROMPT.md` |
+| 1.3 | MCP cookbook resource | DONE | `prime://cookbook` resource in transport.rs |
+| 2.1 | README with example output | DONE | Root README + Prime MCP README updated |
+| 2.2 | Hosted cargo doc | DONE | `.github/workflows/prime-docs.yml` created |
+| 2.3 | Docs pages (5) | DONE | Quickstart, Concepts, MCP, HTTP, Embedded at `/docs/prime/*` |
+| 3.1 | Use case pages (5) | DONE | Combined into `/solutions/agent-memory` page |
+| 3.2 | Comparison page | DONE | Comparison table in agent-memory page |
+| 4.1 | Fly.io deployment | READY | `fly.toml` + Dockerfile + seed script created. Run `flyctl deploy` to deploy. |
+| 4.2 | Interactive playground | TODO | React component + deployed HTTP backend |
+| 5.1 | Terminal recordings (3) | TODO | Need asciinema |
+| 5.2 | 60-second demo video | TODO | Need screen recording |
+| 5.3 | 5-minute walkthrough | TODO | Need screen recording + narration |
+| 6.1 | Blog posts (5) | DONE | All 5 MDX files in `apps/web/content/` |
+| 6.2 | X launch campaign (3 threads) | DRAFTED | `docs/articles/zer0dex-x-thread.md` ready |

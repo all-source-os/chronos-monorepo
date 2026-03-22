@@ -38,7 +38,7 @@ grep 'version = ' apps/core/Cargo.toml | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-
 make set-version VERSION=<VERSION>
 ```
 
-This updates: `Cargo.toml`, `main.go`, `tracing.go`, `mix.exs` (x2), K8s manifests, `README.md`.
+This updates: `Cargo.toml`, `main.go`, `tracing.go`, `mix.exs` (x2), K8s manifests, `README.md`, `apps/prime-mcp/Cargo.toml` (version + allsource-core dep).
 
 After running, also update `Cargo.lock`:
 ```bash
@@ -138,7 +138,28 @@ Tell the user:
 
 The user needs a chance to review the commit, verify the tag, and decide when to push. A tag cannot be undone.
 
-### 9. Batch fixes — do NOT release per-fix
+### 9. Publish Rust crates (after push)
+
+After the user pushes, publish Rust crates to crates.io in dependency order:
+
+```bash
+# 1. Core (must be first — other crates depend on it)
+cd apps/core && cargo publish
+
+# 2. Prime MCP Server (depends on allsource-core)
+cd apps/prime-mcp && cargo publish
+
+# 3. Rust SDK
+cd sdks/rust && cargo publish
+```
+
+**Wait ~60 seconds between publishes** for crates.io index to update.
+
+**Verify** `cargo install allsource-prime` works after publishing.
+
+**DO NOT publish** TypeScript, Python, or Go SDKs — they're obtained through GitHub, not package registries.
+
+### 10. Batch fixes — do NOT release per-fix
 
 **If multiple issues need fixing, batch them into ONE release.** Do not cut a separate release for each fix. The version number is a scarce resource — every botched release wastes one permanently.
 

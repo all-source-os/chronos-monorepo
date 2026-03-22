@@ -1,0 +1,109 @@
+---
+title: "Building Agent Memory in Rust: From Event Store to Knowledge Graph"
+publishedAt: "2026-03-21"
+summary: "How we built a unified agent memory engine — vectors + graph + compressed index — on top of an event store. Architecture decisions, SOLID refactoring, and why Rust was the right choice."
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+We set out to build an agent memory system that beats [zer0dex](https://github.com/roli-lpci/zer0dex) on cross-domain recall while adding what it can't do: temporal reasoning, full provenance, and auto-generated indexes.
+
+This is the technical story of how we got there.
+
+## The Insight: Everything Is an Event
+
+The key architectural decision: **vectors, graph nodes, graph edges, and domain metadata are all events in the same WAL.**
+
+```
+┌─────────────────────────────────────────────┐
+│              AllSource Prime                 │
+│                                              │
+│  prime.node.created    → Graph projection    │
+│  prime.edge.created    → Adjacency projection│
+│  prime.vector.stored   → HNSW projection     │
+│  recall.index.updated  → Compressed index    │
+│                                              │
+│  ┌──────────────────────────────────────┐   │
+│  │     WAL + Parquet + DashMap           │   │
+│  │     Single durability layer           │   │
+│  └──────────────────────────────────────┘   │
+└─────────────────────────────────────────────┘
+```
+
+This means:
+- **Time-travel is free.** Query any entity's state at any past timestamp — it's just "replay events up to timestamp T."
+- **Provenance is free.** Every mutation is an immutable event with a timestamp and optional metadata.
+- **Consistency is free.** No distributed transaction across vector DB + graph DB + event store. One WAL, one fsync.
+
+## The Projection Pattern
+
+Projections are materialized views computed incrementally from events:
+
+```rust
+pub trait Projection: Send + Sync {
+    fn name(&self) -> &str;
+    fn process(&self, event: &Event) -> Result<()>;
+    fn get_state(&self, entity_id: &str) -> Option<Value>;
+    fn clear(&self);
+    fn snapshot(&self) -> Option<Value> { None }
+    fn restore(&self, _snapshot: &Value) -> Result<()> { Ok(()) }
+}
+```
+
+Every projection gets the same event stream. Each maintains a different index:
+
+| Projection | What it indexes | Query cost |
+|-----------|-----------------|------------|
+| NodeState | node properties by entity_id | O(1) DashMap lookup |
+| AdjacencyList | outgoing edges per node | O(1) DashMap lookup |
+| VectorIndex | HNSW over embeddings | O(log n) approximate NN |
+| DomainIndex | nodes grouped by domain | O(1) DashMap lookup |
+| CrossDomain | edges spanning domain boundaries | O(1) DashMap lookup |
+| CompressedIndex | auto-generated markdown TOC | O(1) cached |
+
+Adding a new index means implementing `Projection` — the event store replays existing events through it on registration.
+
+## The Compressed Index
+
+zer0dex's big insight: vector similarity finds X *or* Y when you ask "how does X relate to Y?" — rarely both. A structured markdown index bridges this gap.
+
+Our version auto-generates from projections:
+
+```rust
+pub fn build_heuristic_index(summary: &IndexRawSummary) -> String {
+    // Organized by domain, sorted by node count
+    // Cross-references section shows domain pairs + relation types
+    // Token budget: 500-2000 adaptive
+}
+```
+
+The index updates as events flow in. No manual maintenance.
+
+## SOLID Refactoring
+
+We started with a `CompressedIndexProjection` that maintained its own domain maps — duplicating what `DomainIndexProjection` and `CrossDomainProjection` already tracked. Three projections independently maintaining the same `node_id → domain` HashMap.
+
+The refactor:
+1. **Extracted `LlmBackend` trait** — `OllamaBackend` implements it; adding OpenAI is a new struct, not a modification
+2. **Removed duplicated state** — `build_raw_summary()` reads from existing projections, doesn't maintain its own copies
+3. **DI constructor** — `RecallEngine::with_dependencies()` for testing with mock backends
+4. **`reqwest::Client` reuse** — stored as field, created once instead of per-request
+
+## Why Rust
+
+Three reasons, all pragmatic:
+
+1. **Single binary deployment.** `cargo install allsource-prime` — no runtime, no Docker, no Python environment. The MCP server is a 30MB static binary.
+
+2. **DashMap for concurrent projections.** Multiple projections process the same event stream concurrently. DashMap's sharded lock-free reads give us 12μs query latency without unsafe code.
+
+3. **The Projection trait composes.** Rust's trait system lets us mix projections freely — add a new index by implementing a trait, register it, and the store replays events through it. No reflection, no runtime cost.
+
+## What's Next
+
+The compressed index is the foundation. Next:
+- **LLM-assisted summarization** — use a local model to generate natural-language index from the heuristic scaffold
+- **Benchmark publication** — LoCoMo and LongMemEval scores with real embeddings
+- **WASM target** — run Prime entirely in the browser for interactive demos
+
+The code is at [github.com/all-source-os/all-source](https://github.com/all-source-os/all-source). The examples are in `apps/core/examples/`.

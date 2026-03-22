@@ -1,0 +1,129 @@
+---
+title: "zer0dex vs AllSource: What Agent Memory Actually Needs"
+publishedAt: "2026-03-21"
+summary: "zer0dex proved that a compressed index doubles cross-domain recall. We took that idea, made it automatic, and added temporal reasoning. Here's the honest comparison."
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+zer0dex from Hermes Labs' LPCI research nails an insight that the rest of the agent memory space has overlooked: **a structured index on top of vector search dramatically improves cross-domain retrieval.**
+
+Their dual-layer approach — a compressed markdown file (~782 tokens) acting as a semantic table of contents, plus a ChromaDB vector store — achieves 80% cross-reference accuracy where pure vector RAG scores 37.5%.
+
+That's not a marginal improvement. That's a 2x gain on the hardest memory retrieval problem.
+
+We respect the work. This article is an honest comparison.
+
+## The Two Systems
+
+### zer0dex: Elegant Minimalism
+
+Two layers, one job:
+
+1. **Compressed Index (MEMORY.md):** Human-authored markdown (~3KB) with cross-domain pointers. Always loaded in context.
+2. **Vector Store (mem0 + ChromaDB):** Semantic fact database queried on every message (70ms). Top 5 results auto-injected.
+
+### AllSource Prime: Event-Sourced Memory Engine
+
+One engine, three modalities:
+
+1. **Events:** Every memory mutation is an immutable, timestamped event. Full audit trail.
+2. **Vectors:** Semantic search via HNSW index, stored as projections over the event stream.
+3. **Compressed Index:** Auto-generated markdown organized by domain — not manually maintained.
+
+## Head-to-Head
+
+### Where zer0dex Wins Today
+
+| Dimension | zer0dex | AllSource |
+|-----------|---------|-----------|
+| Time to first memory | `pip install` + seed | `cargo install allsource-prime` |
+| Token overhead | 886 tokens/message | Variable |
+| Python-native | Yes | SDKs available, core is Rust |
+
+The compressed index is zer0dex's real contribution. Simple, cheap, and it works.
+
+### Where AllSource Wins
+
+| Dimension | zer0dex | AllSource |
+|-----------|---------|-----------|
+| Temporal reasoning | None | Full time-travel (`as_of` on every query) |
+| Provenance | Mutable blobs | Immutable events with audit trail |
+| Durability | ChromaDB (SQLite) | WAL (CRC32 checksums) + Parquet |
+| Multi-agent | Single-machine | Multi-tenant, CRDT sync |
+| Query performance | 70ms vector search | 12μs projection lookups |
+| Index maintenance | Manual | Auto-generated projection |
+| Scaling | Single Ollama instance | Leader-follower replication |
+
+### The Temporal Gap Is Critical
+
+zer0dex has no concept of *when* a memory was true. If Alice was project lead until January and Bob took over in February, zer0dex returns both facts with no way to distinguish which is current.
+
+AllSource stores every state change as an immutable event. Time-travel queries reconstruct the agent's knowledge at any point in history.
+
+### The Provenance Gap Matters Too
+
+In AllSource, every memory mutation is an append-only event. You can trace any memory back to the event that created it, the session that triggered it, and the source material it was derived from.
+
+## Retrieval Quality
+
+| System | Benchmark | Score |
+|--------|-----------|-------|
+| zer0dex | Custom (n=97) | 91.2% recall, 80% cross-ref |
+| AllSource | Throughput-focused | 469K events/sec, 12μs query |
+| Mem0 | LongMemEval | 49–66% |
+| Letta | LoCoMo | ~83.2% |
+| Zep | LoCoMo | ~85% |
+
+## The Compressed Index — Made Automatic
+
+zer0dex's MEMORY.md is manually authored. As the knowledge base grows, keeping it accurate becomes a maintenance burden.
+
+AllSource's `CompressedIndexProjection` auto-generates the equivalent markdown from graph events:
+
+```
+# Knowledge Index
+
+_9 nodes, 3 domains, 2 cross-domain links_
+
+## Domains
+
+### revenue
+- **Nodes:** 3
+- **Types:** metric (2), decision (1)
+- **Examples:** Q3 Revenue, Churn Rate
+
+### engineering
+- **Nodes:** 3
+- **Types:** service (1), feature (1), metric (1)
+
+## Cross-References
+
+- **engineering ↔ revenue**: 2 edges (requires, improves)
+- **product ↔ engineering**: 1 edge (depends_on)
+```
+
+No human maintenance. Updates incrementally as events flow in.
+
+## Getting Started
+
+```bash
+cargo install allsource-prime
+```
+
+Add to Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "prime": {
+      "command": "allsource-prime",
+      "args": ["--data-dir", "~/.prime/memory"]
+    }
+  }
+}
+```
+
+13 MCP tools. Zero cloud dependencies. Full history.
+
+The compressed index was the missing piece. Credit to Hermes Labs for proving it works.

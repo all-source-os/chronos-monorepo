@@ -1,0 +1,87 @@
+---
+title: "How a Compressed Index Doubles Cross-Domain Recall"
+publishedAt: "2026-03-21"
+summary: "Vector similarity finds X or Y — rarely both. A 500-token markdown index bridges the gap. Here's why, with benchmark data."
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+When you ask an AI agent "How does our pricing relate to the Q3 churn spike?", vector similarity search faces a fundamental problem: it finds pricing docs OR churn docs, but rarely both in the same result set.
+
+This is the cross-domain retrieval problem. Pure vector RAG scores **37.5%** on cross-reference queries. zer0dex showed that adding a structured markdown index on top of vectors pushes this to **80%**.
+
+We took that insight and made it automatic.
+
+## The Problem
+
+Vector embeddings map text to high-dimensional space where similar meanings cluster together. When you search for "pricing and churn", the embedding is somewhere between the pricing cluster and the churn cluster — equidistant from both, strongly matching neither.
+
+The top-5 results tend to come from whichever cluster the query embedding lands slightly closer to. You get all pricing docs or all churn docs, but not the cross-domain connection that actually answers the question.
+
+## The Solution: Navigational Scaffolding
+
+A compressed index is a token-efficient markdown document (~500-1000 tokens) that tells the agent **where knowledge lives** before it searches:
+
+```markdown
+# Knowledge Index
+
+## Domains
+
+### revenue
+- **Nodes:** 5 (metric, decision)
+- **Examples:** Q3 Revenue, Churn Rate, June Pricing Change
+
+### engineering
+- **Nodes:** 4 (service, feature, metric)
+- **Examples:** Core API, Replication, Build Time
+
+## Cross-References
+
+- **engineering ↔ revenue**: 3 edges (requires, improves, enables)
+- **product ↔ engineering**: 2 edges (depends_on, drives)
+```
+
+When the agent reads this index, it knows:
+1. Revenue and engineering are connected domains
+2. The connections are about requirements and improvements
+3. It should search BOTH domains when the question spans them
+
+This navigational scaffolding bridges the gap that pure vector search can't.
+
+## The Numbers
+
+| Retrieval Method | Cross-Reference Accuracy |
+|-----------------|-------------------------|
+| Flat files | 70.0% |
+| Full vector RAG | 37.5% |
+| **Vector + Compressed Index** | **80.0%** |
+
+Source: zer0dex benchmark (n=97 test cases)
+
+The surprising finding: flat files actually beat vector RAG on cross-references (70% vs 37.5%) because a flat file contains ALL domains in one context window. The problem with flat files is recall — they score only 52% on single-domain retrieval because there's no semantic matching.
+
+The compressed index gets the best of both: semantic search for precision + structured index for cross-domain coverage.
+
+## Manual vs Automatic
+
+zer0dex's MEMORY.md is human-authored. This is fine for personal agents where you control the knowledge domain. But it doesn't scale:
+- Knowledge grows → index becomes stale
+- New domains appear → manual updates needed
+- Cross-references change → human must track
+
+AllSource Prime auto-generates the index from graph projections:
+- `DomainIndexProjection` tracks which nodes belong to which domain
+- `CrossDomainProjection` detects edges that span domain boundaries
+- `build_heuristic_index()` renders the markdown
+
+No human maintenance. The index updates as events flow in.
+
+## Try It
+
+```bash
+cargo install allsource-prime
+```
+
+The MCP tool `prime_index` returns your compressed knowledge index. Call it at the start of every conversation for navigational scaffolding.
+
+See the [full comparison with zer0dex](/blog/zer0dex-vs-allsource-recall) for architectural details.

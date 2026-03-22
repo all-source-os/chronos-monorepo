@@ -30,6 +30,13 @@ const cards = [
     external: false,
   },
   {
+    title: "Prime — Agent Memory",
+    description:
+      "Knowledge graph + vector search + compressed index in one binary. Persistent cross-domain memory for AI agents.",
+    href: "/docs/prime",
+    external: false,
+  },
+  {
     title: "Chronis CLI",
     description:
       "Agent-native task CLI with TOON output (~50% fewer tokens), event sourcing, cascade actions, and archiving.",
