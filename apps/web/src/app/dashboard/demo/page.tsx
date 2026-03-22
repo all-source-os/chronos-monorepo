@@ -10,14 +10,17 @@ import { SpeedSimplicityDashboard } from "@/components/demo/speed-simplicity-das
 import { McpShowdownPanel } from "@/components/demo/mcp-showdown-panel";
 import { CostCalculator } from "@/components/demo/cost-calculator";
 import { FeedbackWidget } from "@/components/demo/feedback-widget";
+import { PrimePlayground } from "@/components/demo/prime-playground";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Brain } from "lucide-react";
 import { useCallback, useState } from "react";
 
-type DemoView = "live-fire" | "mcp-showdown";
+type DemoView = "live-fire" | "mcp-showdown" | "prime";
 
 const VIEWS: { id: DemoView; label: string; icon: React.ElementType }[] = [
   { id: "live-fire", label: "Live Fire", icon: Flame },
   { id: "mcp-showdown", label: "MCP Showdown", icon: Swords },
+  { id: "prime", label: "Prime Graph", icon: Brain },
 ];
 
 export default function DemoPage() {
@@ -26,7 +29,11 @@ export default function DemoPage() {
 
   const viewParam = searchParams.get("view");
   const activeView: DemoView =
-    viewParam === "mcp-showdown" ? "mcp-showdown" : "live-fire";
+    viewParam === "mcp-showdown"
+      ? "mcp-showdown"
+      : viewParam === "prime"
+        ? "prime"
+        : "live-fire";
 
   const [seeding, setSeeding] = useState(false);
   const [seeded, setSeeded] = useState(false);
@@ -117,6 +124,8 @@ export default function DemoPage() {
       <BlurFade delay={0.2} inView>
         {activeView === "live-fire" ? (
           <LiveFireView seeded={seeded} seeding={seeding} seedError={seedError} onSeed={handleSeed} />
+        ) : activeView === "prime" ? (
+          <PrimeView />
         ) : (
           <McpShowdownView seeded={seeded} seeding={seeding} seedError={seedError} onSeed={handleSeed} />
         )}
@@ -189,6 +198,14 @@ function McpShowdownView(_props: ViewProps) {
     <div className="space-y-4">
       <McpShowdownPanel />
       <CostCalculator />
+    </div>
+  );
+}
+
+function PrimeView() {
+  return (
+    <div className="grid gap-4 lg:grid-cols-1">
+      <PrimePlayground />
     </div>
   );
 }
