@@ -49,6 +49,11 @@ coverage
 # Rust
 **/*.rs.bk
 
+# ML model caches (fastembed downloads ONNX models at runtime)
+.fastembed_cache/
+.recall-bench-data/
+*.onnx
+
 # Go
 *.exe
 *.exe~
