@@ -49,7 +49,7 @@ crc32fast = "1.4"
 # Dev / Test
 criterion = "0.8"
 crossbeam = "0.8"
-crossterm = "0.28"
+crossterm = "0.29"
 ctrlc = "3.5"
 
 # Storage & Concurrency
