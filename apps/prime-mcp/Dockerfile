@@ -52,7 +52,7 @@ RUN cargo build --release
 # =============================================================================
 # Stage 2: Runtime
 # =============================================================================
-FROM debian:bookworm-slim AS runtime
+FROM rust:${RUST_VERSION}-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
