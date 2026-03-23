@@ -87,6 +87,9 @@ jobs:
             context: apps/query-service
           - name: registry
             context: apps/registry
+          - name: prime
+            context: .
+            dockerfile: apps/prime-mcp/Dockerfile
 
     steps:
       - uses: actions/checkout@v6
@@ -211,6 +214,63 @@ jobs:
           if [[ "${{ matrix.os }}" != "windows-latest" ]]; then
             tar -czvf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
           fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}.tar.gz
+          if-no-files-found: error
+
+  # ============================================================================
+  # Build Prime Binaries (separate workspace)
+  # ============================================================================
+  build-prime-binaries:
+    name: Build Prime Binaries
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: allsource-prime-linux-x86_64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: allsource-prime-macos-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: allsource-prime-macos-aarch64
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/prime-mcp -> target"
+          key: ${{ matrix.target }}
+
+      - name: Build
+        working-directory: apps/prime-mcp
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          cp apps/prime-mcp/target/${{ matrix.target }}/release/allsource-prime dist/${{ matrix.artifact }}
+          chmod +x dist/${{ matrix.artifact }}
+
+      - name: Create tarball
+        run: |
+          cd dist
+          tar -czvf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -385,6 +445,7 @@ jobs:
       - validate
       - build-images
       - build-rust-binaries
+      - build-prime-binaries
       - build-go-binaries
     runs-on: ubuntu-latest
     steps:
@@ -450,6 +511,7 @@ jobs:
             echo "ghcr.io/${{ github.repository_owner }}/allsource-core:${{ needs.validate.outputs.version }}"
             echo "ghcr.io/${{ github.repository_owner }}/allsource-control-plane:${{ needs.validate.outputs.version }}"
             echo "ghcr.io/${{ github.repository_owner }}/allsource-query-service:${{ needs.validate.outputs.version }}"
+            echo "ghcr.io/${{ github.repository_owner }}/allsource-prime:${{ needs.validate.outputs.version }}"
             echo '```'
             echo ""
             echo "### Binary Artifacts"

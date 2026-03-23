@@ -29,6 +29,7 @@ jobs:
       control-plane: ${{ steps.filter.outputs.control-plane }}
       query-service: ${{ steps.filter.outputs.query-service }}
       mcp-server: ${{ steps.filter.outputs.mcp-server }}
+      prime: ${{ steps.filter.outputs.prime }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v6
@@ -45,6 +46,9 @@ jobs:
               - 'apps/query-service/**'
             mcp-server:
               - 'apps/mcp-server-elixir/**'
+            prime:
+              - 'apps/prime-mcp/**'
+              - 'apps/core/src/prime/**'
 
       - name: Build matrix
         id: matrix
@@ -72,11 +76,12 @@ jobs:
           # Enterprise editions (default targets)
           add_service "core" "." "${{ steps.filter.outputs.core }}" "apps/core/Dockerfile" "runtime" ""
           add_service "control-plane" "apps/control-plane" "${{ steps.filter.outputs.control-plane }}"
-          add_service "query-service" "apps/query-service" "${{ steps.filter.outputs.query-service }}" "" "ALLSOURCE_EDITION=enterprise"
+          add_service "query-service" "apps/query-service" "${{ steps.filter.outputs.query-service }}" "" "" "ALLSOURCE_EDITION=enterprise"
           add_service "mcp-server" "apps/mcp-server-elixir" "${{ steps.filter.outputs.mcp-server }}"
+          add_service "prime" "." "${{ steps.filter.outputs.prime }}" "apps/prime-mcp/Dockerfile" "runtime" ""
           # Community editions (public images)
           add_service "core-community" "." "${{ steps.filter.outputs.core }}" "apps/core/Dockerfile" "runtime-community" ""
-          add_service "query-service-community" "apps/query-service" "${{ steps.filter.outputs.query-service }}" "" "ALLSOURCE_EDITION=community"
+          add_service "query-service-community" "apps/query-service" "${{ steps.filter.outputs.query-service }}" "" "" "ALLSOURCE_EDITION=community"
 
           MATRIX="$MATRIX]}"
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
