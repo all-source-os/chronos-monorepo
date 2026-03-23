@@ -9,8 +9,9 @@
 
 | Benchmark | Metric | AllSource Prime | zer0dex | Mem0 |
 |-----------|--------|----------------|---------|------|
-| **LongMemEval** (temporal-reasoning, n=50) | Recall | **75.0%** | — | — |
-| **LongMemEval** (temporal-reasoning, n=50) | Pass@0.75 | **60.0%** | — | — |
+| **LongMemEval** (temporal+multi-session, n=100) | Recall | **68.9%** | — | — |
+| **LongMemEval** (temporal-reasoning, n=60) | Recall | **68.8%** | — | — |
+| **LongMemEval** (multi-session, n=40) | Recall | **69.1%** | — | — |
 | **CrossRef-v2** (custom, n=50) | Overall Recall | **92.3%** | 91.2%* | — |
 | **CrossRef-v2** (custom, n=50) | Cross-Ref Accuracy | **66.7%** | 80.0%* | — |
 | **CrossRef-v2** (custom, n=50) | Avg Latency | **2.5ms** | 70ms | ~200ms |

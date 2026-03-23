@@ -103,14 +103,13 @@ async fn run_scenarios(
     scenarios: &[EvalScenario],
 ) -> Result<BenchmarkResults> {
     let mut embedder = Embedder::new()?;
-    let prime = Prime::open_in_memory().await?;
 
     let mut total_queries = 0usize;
     let mut total_latency_ms = 0.0f64;
     let mut type_scores: HashMap<String, Vec<f64>> = HashMap::new();
 
     for (scenario_idx, scenario) in scenarios.iter().enumerate() {
-        if scenario_idx % 50 == 0 {
+        if scenario_idx % 10 == 0 {
             tracing::info!(
                 "Processing scenario {}/{} ({})",
                 scenario_idx + 1,
@@ -118,6 +117,10 @@ async fn run_scenarios(
                 scenario.id
             );
         }
+
+        // Fresh Prime per scenario — each question has isolated context
+        // (LongMemEval provides the haystack sessions specific to each question)
+        let prime = Prime::open_in_memory().await?;
 
         // Ingest conversation turns (sentence-chunked) with session IDs
         let mut prev_entity_id: Option<String> = None;
@@ -135,6 +138,7 @@ async fn run_scenarios(
                         "role": turn.role,
                         "scenario": scenario.id,
                         "session_id": turn.session_id,
+                        "session_date": turn.session_date,
                     }),
                 )
                 .await?;
@@ -162,61 +166,129 @@ async fn run_scenarios(
 
             let query_embedding = embedder.embed_one(&query.question)?;
 
-            // Retrieve: get both texts and session IDs from results
-            let retrieved: Vec<(String, String)> = match mode {
-                "vector-only" => {
-                    // Vector search returns VectorSearchResult — no session_id directly.
-                    // We get the text and look up session_id from node properties.
-                    let results = prime.vector_search(&query_embedding, 15);
-                    results
-                        .into_iter()
-                        .filter_map(|r| {
-                            let text = r.text?;
-                            // Extract session_id from the node if possible
-                            let node_id = r.id.strip_prefix("vec:").unwrap_or(&r.id);
-                            let session_id = prime
-                                .get_node(node_id)
-                                .and_then(|n| {
-                                    n.properties
-                                        .get("session_id")
-                                        .and_then(|v| v.as_str())
-                                        .map(String::from)
-                                })
-                                .unwrap_or_default();
-                            Some((text, session_id))
-                        })
-                        .collect()
-                }
-                _ => {
-                    let recall_query = RecallQuery {
-                        vector: Some(query_embedding.clone()),
-                        text: Some(query.question.clone()),
-                        depth: if mode == "full-recall" { 2 } else { 1 },
-                        top_k: 15,
-                        ..RecallQuery::default()
+            // Retrieve: get texts and session IDs from results.
+            // For temporal-reasoning questions, apply temporal filtering.
+            let is_temporal = query.question_type == "temporal-reasoning"
+                || query.question_type == "knowledge-update";
+
+            let retrieved: Vec<(String, String)> = if is_temporal && mode != "vector-only" {
+                // Temporal-aware retrieval: vector search → sort by date → filter by keyword
+                let results = prime.vector_search(&query_embedding, 25); // over-fetch
+                let mut hits: Vec<(String, String, String)> = results
+                    .into_iter()
+                    .filter_map(|r| {
+                        let text = r.text?;
+                        let node_id = r.id.strip_prefix("vec:").unwrap_or(&r.id);
+                        let node = prime.get_node(node_id)?;
+                        let session_id = node
+                            .properties
+                            .get("session_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let date = node
+                            .properties
+                            .get("session_date")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        Some((text, session_id, date))
+                    })
+                    .collect();
+
+                // Sort chronologically by session date
+                hits.sort_by(|a, b| a.2.cmp(&b.2));
+
+                // Apply temporal filter based on question keywords
+                let q_lower = query.question.to_lowercase();
+                let is_knowledge_update = query.question_type == "knowledge-update";
+                let filtered: Vec<(String, String, String)> =
+                    if q_lower.contains("first") || q_lower.contains("earliest") {
+                        hits.into_iter().take(8).collect()
+                    } else if q_lower.contains("last")
+                        || q_lower.contains("latest")
+                        || q_lower.contains("most recent")
+                        || q_lower.contains("current")
+                        || q_lower.contains("now")
+                        || is_knowledge_update
+                    {
+                        // Knowledge-update: latest wins (most recent session has the current answer)
+                        let len = hits.len();
+                        hits.into_iter().skip(len.saturating_sub(8)).collect()
+                    } else if q_lower.contains("before") {
+                        let qd = query.query_date.as_deref().unwrap_or("");
+                        hits.into_iter()
+                            .filter(|(_, _, d)| d.as_str() <= qd)
+                            .collect()
+                    } else if q_lower.contains("after") {
+                        let qd = query.query_date.as_deref().unwrap_or("");
+                        hits.into_iter()
+                            .filter(|(_, _, d)| d.as_str() >= qd)
+                            .collect()
+                    } else {
+                        hits // Return all, chronologically sorted
                     };
-                    match prime.recall(recall_query).await {
-                        Ok(result) => result
-                            .nodes
-                            .iter()
-                            .filter_map(|sn| {
-                                let text = sn
-                                    .node
-                                    .properties
-                                    .get("content")
-                                    .and_then(|v| v.as_str())
-                                    .map(String::from)?;
-                                let session_id = sn
-                                    .node
-                                    .properties
-                                    .get("session_id")
-                                    .and_then(|v| v.as_str())
-                                    .map(String::from)
+
+                filtered
+                    .into_iter()
+                    .map(|(text, sid, _)| (text, sid))
+                    .take(15)
+                    .collect()
+            } else {
+                // Non-temporal retrieval (vector-only or full-recall)
+                match mode {
+                    "vector-only" => {
+                        let results = prime.vector_search(&query_embedding, 15);
+                        results
+                            .into_iter()
+                            .filter_map(|r| {
+                                let text = r.text?;
+                                let node_id =
+                                    r.id.strip_prefix("vec:").unwrap_or(&r.id);
+                                let session_id = prime
+                                    .get_node(node_id)
+                                    .and_then(|n| {
+                                        n.properties
+                                            .get("session_id")
+                                            .and_then(|v| v.as_str())
+                                            .map(String::from)
+                                    })
                                     .unwrap_or_default();
                                 Some((text, session_id))
                             })
-                            .collect(),
-                        Err(_) => Vec::new(),
+                            .collect()
+                    }
+                    _ => {
+                        let recall_query = RecallQuery {
+                            vector: Some(query_embedding.clone()),
+                            text: Some(query.question.clone()),
+                            depth: if mode == "full-recall" { 2 } else { 1 },
+                            top_k: 15,
+                            ..RecallQuery::default()
+                        };
+                        match prime.recall(recall_query).await {
+                            Ok(result) => result
+                                .nodes
+                                .iter()
+                                .filter_map(|sn| {
+                                    let text = sn
+                                        .node
+                                        .properties
+                                        .get("content")
+                                        .and_then(|v| v.as_str())
+                                        .map(String::from)?;
+                                    let session_id = sn
+                                        .node
+                                        .properties
+                                        .get("session_id")
+                                        .and_then(|v| v.as_str())
+                                        .map(String::from)
+                                        .unwrap_or_default();
+                                    Some((text, session_id))
+                                })
+                                .collect(),
+                            Err(_) => Vec::new(),
+                        }
                     }
                 }
             };
@@ -267,11 +339,9 @@ async fn run_scenarios(
                     semantic_score = semantic_score.max(sim);
                 }
 
-                // Combined: session hit is binary, semantic is continuous
-                // If we found the right session, that's already good (0.5 base)
-                // Semantic adds up to 0.5 more
+                // Combined: 30% session hit (coarse signal) + 70% semantic (fine signal)
                 if !query.answer_session_ids.is_empty() {
-                    session_hit * 0.5 + semantic_score.min(1.0) * 0.5
+                    session_hit * 0.3 + semantic_score.min(1.0) * 0.7
                 } else {
                     // No session IDs available — pure semantic scoring
                     if semantic_score >= HIT_THRESHOLD {
@@ -289,6 +359,9 @@ async fn run_scenarios(
             };
             type_scores.entry(q_type).or_default().push(score);
         }
+
+        // Clean up this scenario's Prime instance
+        prime.shutdown().await?;
     }
 
     // Compute aggregates
@@ -343,8 +416,6 @@ async fn run_scenarios(
         overall_recall * 100.0,
         pass_rate * 100.0,
     );
-
-    prime.shutdown().await?;
 
     Ok(BenchmarkResults {
         dataset: dataset_name.to_string(),

@@ -20,6 +20,9 @@ pub struct ConversationTurn {
     /// Session ID this turn belongs to (for session-level scoring).
     #[serde(default)]
     pub session_id: String,
+    /// Session date string for temporal ordering (e.g. "2023/04/10 (Mon) 17:50").
+    #[serde(default)]
+    pub session_date: Option<String>,
 }
 
 /// A query with expected ground-truth answers.
@@ -36,6 +39,9 @@ pub struct EvalQuery {
     /// Session IDs that contain the answer (for session-level scoring).
     #[serde(default)]
     pub answer_session_ids: Vec<String>,
+    /// Query date for temporal reasoning (e.g. "2023/04/10 (Mon) 23:07").
+    #[serde(default)]
+    pub query_date: Option<String>,
 }
 
 /// A complete evaluation scenario: conversation + queries.
@@ -57,8 +63,8 @@ struct LongMemEvalRecord {
     question_type: String,
     question: String,
     answer: serde_json::Value, // Can be string or int
-    #[allow(dead_code)]
     question_date: Option<String>,
+    haystack_dates: Vec<String>,
     haystack_sessions: Vec<Vec<LongMemEvalTurn>>,
     haystack_session_ids: Vec<String>,
     answer_session_ids: Vec<String>,
@@ -114,6 +120,11 @@ fn convert_longmemeval_record(record: LongMemEvalRecord) -> EvalScenario {
             .cloned()
             .unwrap_or_else(|| format!("session-{session_idx}"));
 
+        let session_date = record
+            .haystack_dates
+            .get(session_idx)
+            .cloned();
+
         for turn in session {
             // Chunk into sentences for finer-grained embedding
             let sentences = chunk_into_sentences(&turn.content);
@@ -127,6 +138,7 @@ fn convert_longmemeval_record(record: LongMemEvalRecord) -> EvalScenario {
                     content: sentence.clone(),
                     facts: vec![sentence.clone()],
                     session_id: session_id.clone(),
+                    session_date: session_date.clone(),
                 });
             }
         }
@@ -150,6 +162,7 @@ fn convert_longmemeval_record(record: LongMemEvalRecord) -> EvalScenario {
             cross_domain: is_multi_session,
             question_type: record.question_type,
             answer_session_ids: record.answer_session_ids,
+            query_date: record.question_date,
         }],
     }
 }
@@ -218,18 +231,21 @@ fn generate_synthetic_locomo(limit: usize) -> Vec<EvalScenario> {
                         format!("engineer-{i} is on Project Alpha"),
                     ],
                     session_id: "s0".into(),
+                    session_date: None,
                 },
                 ConversationTurn {
                     role: "user".into(),
                     content: format!("engineer-{i} prefers Rust over Go for this project"),
                     facts: vec![format!("engineer-{i} prefers Rust over Go")],
                     session_id: "s0".into(),
+                    session_date: None,
                 },
                 ConversationTurn {
                     role: "user".into(),
                     content: "The deadline for Project Alpha is next Friday".into(),
                     facts: vec!["Project Alpha deadline is next Friday".into()],
                     session_id: "s0".into(),
+                    session_date: None,
                 },
             ],
             queries: vec![
@@ -243,6 +259,7 @@ fn generate_synthetic_locomo(limit: usize) -> Vec<EvalScenario> {
                     cross_domain: false,
                     question_type: "single-session-user".into(),
                     answer_session_ids: vec!["s0".into()],
+                    query_date: None,
                 },
                 EvalQuery {
                     question: format!("What are engineer-{i}'s preferences?"),
@@ -250,6 +267,7 @@ fn generate_synthetic_locomo(limit: usize) -> Vec<EvalScenario> {
                     cross_domain: false,
                     question_type: "single-session-user".into(),
                     answer_session_ids: vec!["s0".into()],
+                    query_date: None,
                 },
             ],
         });

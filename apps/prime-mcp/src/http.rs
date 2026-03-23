@@ -5,8 +5,7 @@
 
 use std::sync::Arc;
 
-use allsource_core::prime::{Prime, Direction};
-use allsource_core::prime::recall::RecallEngine;
+use allsource_core::prime::{Direction, Prime, recall::RecallEngine};
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -143,7 +142,8 @@ async fn create_node(
 ) -> impl IntoResponse {
     match state.prime.add_node(&req.node_type, req.properties).await {
         Ok(id) => {
-            let entity_id = allsource_core::prime::EntityId::node(&req.node_type, id.as_str()).to_wire();
+            let entity_id =
+                allsource_core::prime::EntityId::node(&req.node_type, id.as_str()).to_wire();
             (
                 StatusCode::CREATED,
                 Json(json!({"node_id": id.as_str(), "entity_id": entity_id})),
@@ -156,10 +156,7 @@ async fn create_node(
     }
 }
 
-async fn get_node(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn get_node(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> impl IntoResponse {
     // Try both raw id and as entity_id
     match state.prime.get_node(&id) {
         Some(node) => (
@@ -188,10 +185,7 @@ async fn update_node(
 ) -> impl IntoResponse {
     match state.prime.update_node(&id, req.properties).await {
         Ok(()) => (StatusCode::OK, Json(json!({"updated": true}))),
-        Err(e) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": e.to_string()})),
-        ),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
 }
 
@@ -201,10 +195,7 @@ async fn delete_node(
 ) -> impl IntoResponse {
     match state.prime.delete_node(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
-        Err(e) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": e.to_string()})),
-        ),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
 }
 
@@ -274,10 +265,7 @@ async fn create_edge(
     };
 
     match result {
-        Ok(id) => (
-            StatusCode::CREATED,
-            Json(json!({"edge_id": id.as_str()})),
-        ),
+        Ok(id) => (StatusCode::CREATED, Json(json!({"edge_id": id.as_str()}))),
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(json!({"error": e.to_string()})),
@@ -291,10 +279,7 @@ async fn delete_edge(
 ) -> impl IntoResponse {
     match state.prime.delete_edge(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
-        Err(e) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": e.to_string()})),
-        ),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
 }
 
@@ -307,7 +292,10 @@ async fn store_vector(
         .embed_with_metadata(&req.id, req.text.as_deref(), req.vector, req.metadata)
         .await
     {
-        Ok(()) => (StatusCode::CREATED, Json(json!({"stored": true, "id": req.id}))),
+        Ok(()) => (
+            StatusCode::CREATED,
+            Json(json!({"stored": true, "id": req.id})),
+        ),
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(json!({"error": e.to_string()})),
@@ -334,10 +322,7 @@ async fn delete_vector(
 ) -> impl IntoResponse {
     match state.prime.delete_vector(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
-        Err(e) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": e.to_string()})),
-        ),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
 }
 
@@ -380,12 +365,14 @@ async fn recall(
             let nodes: Vec<Value> = result
                 .nodes
                 .iter()
-                .map(|sn| json!({
-                    "id": sn.node.id.as_str(),
-                    "type": sn.node.node_type,
-                    "score": sn.score,
-                    "depth": sn.depth,
-                }))
+                .map(|sn| {
+                    json!({
+                        "id": sn.node.id.as_str(),
+                        "type": sn.node.node_type,
+                        "score": sn.score,
+                        "depth": sn.depth,
+                    })
+                })
                 .collect();
             (StatusCode::OK, Json(json!({"nodes": nodes})))
         }

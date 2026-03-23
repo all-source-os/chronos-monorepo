@@ -3,7 +3,9 @@
 //! Each entity's relevance decays exponentially over time. Accessing an entity
 //! (via recall, neighbors, or explicit touch) boosts its score. The decay formula:
 //!
-//!     score = base_score × e^(−decay_rate × hours_since_access)
+//! ```text
+//! score = base_score * e^(-decay_rate * hours_since_access)
+//! ```
 //!
 //! Scores are computed lazily at read time — the projection stores raw data
 //! (last_accessed, access_count) and applies decay on demand.

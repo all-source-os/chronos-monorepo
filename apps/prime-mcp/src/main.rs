@@ -59,8 +59,7 @@ async fn main() -> Result<()> {
     // Log to stderr so stdout is reserved for MCP JSON-RPC
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new(&cli.log_level)),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&cli.log_level)),
         )
         .with_writer(std::io::stderr)
         .init();
@@ -76,17 +75,18 @@ async fn main() -> Result<()> {
     );
 
     let recall_config = allsource_core::prime::recall::IndexConfig::default();
-    let recall = allsource_core::prime::recall::RecallEngine::with_deps(
-        prime.recall_deps(),
-        &recall_config,
-    );
+    let recall =
+        allsource_core::prime::recall::RecallEngine::with_deps(prime.recall_deps(), &recall_config);
 
     match cli.mode {
         Mode::Mcp => {
             tracing::info!("Starting MCP server (stdio transport)");
             let mut transport = StdioTransport::new(prime, recall);
             if cli.auto_inject {
-                tracing::info!("Auto-inject enabled (max {} tokens)", cli.auto_inject_max_tokens);
+                tracing::info!(
+                    "Auto-inject enabled (max {} tokens)",
+                    cli.auto_inject_max_tokens
+                );
                 transport = transport.with_auto_inject(cli.auto_inject_max_tokens);
             }
             transport.run().await?;

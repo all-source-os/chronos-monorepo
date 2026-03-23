@@ -3,8 +3,7 @@
 //! Each tool maps to a Prime facade method. Tool descriptions are written for
 //! AI agent consumption — they explain *when* to use each tool.
 
-use allsource_core::prime::Prime;
-use allsource_core::prime::recall::RecallEngine;
+use allsource_core::prime::{Prime, recall::RecallEngine};
 use serde_json::{Value, json};
 
 /// Return MCP tool definitions (for `tools/list`).
@@ -182,12 +181,7 @@ pub fn tool_definitions() -> Value {
 }
 
 /// Dispatch a tool call to the Prime facade or Recall engine.
-pub async fn call_tool(
-    prime: &Prime,
-    recall: &RecallEngine,
-    name: &str,
-    args: &Value,
-) -> Value {
+pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &Value) -> Value {
     match name {
         "prime_add_node" => call_add_node(prime, args).await,
         "prime_add_edge" => call_add_edge(prime, args).await,
@@ -227,7 +221,10 @@ fn tool_error(msg: &str) -> Value {
 }
 
 async fn call_add_node(prime: &Prime, args: &Value) -> Value {
-    let node_type = args.get("type").and_then(Value::as_str).unwrap_or("unknown");
+    let node_type = args
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
     let properties = args.get("properties").cloned().unwrap_or(json!({}));
 
     match prime.add_node(node_type, properties).await {
@@ -253,7 +250,9 @@ async fn call_add_edge(prime: &Prime, args: &Value) -> Value {
     let weight = args.get("weight").and_then(serde_json::Value::as_f64);
 
     let result = if let Some(w) = weight {
-        prime.add_edge_weighted(source, target, relation, w, properties).await
+        prime
+            .add_edge_weighted(source, target, relation, w, properties)
+            .await
     } else {
         prime.add_edge(source, target, relation, properties).await
     };
@@ -346,11 +345,13 @@ async fn call_history(prime: &Prime, args: &Value) -> Value {
         Ok(entries) => {
             let events_json: Vec<Value> = entries
                 .iter()
-                .map(|e| json!({
-                    "type": e.event_type,
-                    "timestamp": e.timestamp.to_rfc3339(),
-                    "payload": e.payload,
-                }))
+                .map(|e| {
+                    json!({
+                        "type": e.event_type,
+                        "timestamp": e.timestamp.to_rfc3339(),
+                        "payload": e.payload,
+                    })
+                })
                 .collect();
             tool_result(json!({ "events": events_json }))
         }
@@ -394,7 +395,10 @@ async fn call_embed(prime: &Prime, args: &Value) -> Value {
     let Some(vector) = args.get("vector").and_then(|v| v.as_array()) else {
         return tool_error("missing 'vector'");
     };
-    let vector: Vec<f32> = vector.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect();
+    let vector: Vec<f32> = vector
+        .iter()
+        .filter_map(|v| v.as_f64().map(|f| f as f32))
+        .collect();
     let metadata = args.get("metadata").cloned();
 
     match prime.embed_with_metadata(id, text, vector, metadata).await {
@@ -430,31 +434,55 @@ async fn call_recall(prime: &Prime, args: &Value) -> Value {
     let Some(vector) = args.get("vector").and_then(|v| v.as_array()) else {
         return tool_error("missing 'vector'");
     };
-    let vector: Vec<f32> = vector.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect();
+    let vector: Vec<f32> = vector
+        .iter()
+        .filter_map(|v| v.as_f64().map(|f| f as f32))
+        .collect();
 
     let query = RecallQuery {
         text: args.get("text").and_then(Value::as_str).map(String::from),
         vector: Some(vector),
-        node_type: args.get("node_type").and_then(Value::as_str).map(String::from),
-        depth: args.get("depth").and_then(Value::as_u64).map_or(1, |v| v as usize),
-        top_k: args.get("top_k").and_then(Value::as_u64).map_or(10, |v| v as usize),
+        node_type: args
+            .get("node_type")
+            .and_then(Value::as_str)
+            .map(String::from),
+        depth: args
+            .get("depth")
+            .and_then(Value::as_u64)
+            .map_or(1, |v| v as usize),
+        top_k: args
+            .get("top_k")
+            .and_then(Value::as_u64)
+            .map_or(10, |v| v as usize),
         ..RecallQuery::default()
     };
 
     match prime.recall(query).await {
         Ok(result) => {
-            let nodes_json: Vec<Value> = result.nodes.iter().map(|sn| json!({
-                "id": sn.node.id.as_str(),
-                "type": sn.node.node_type,
-                "properties": sn.node.properties,
-                "score": sn.score,
-                "depth": sn.depth,
-            })).collect();
-            let vectors_json: Vec<Value> = result.vectors.iter().map(|v| json!({
-                "id": v.id,
-                "score": v.score,
-                "text": v.text,
-            })).collect();
+            let nodes_json: Vec<Value> = result
+                .nodes
+                .iter()
+                .map(|sn| {
+                    json!({
+                        "id": sn.node.id.as_str(),
+                        "type": sn.node.node_type,
+                        "properties": sn.node.properties,
+                        "score": sn.score,
+                        "depth": sn.depth,
+                    })
+                })
+                .collect();
+            let vectors_json: Vec<Value> = result
+                .vectors
+                .iter()
+                .map(|v| {
+                    json!({
+                        "id": v.id,
+                        "score": v.score,
+                        "text": v.text,
+                    })
+                })
+                .collect();
 
             tool_result(json!({
                 "nodes": nodes_json,
@@ -492,7 +520,10 @@ async fn call_context(recall: &RecallEngine, args: &Value) -> Value {
 
     let ctx_query = RecallContextQuery {
         query,
-        agent_id: args.get("agent_id").and_then(Value::as_str).map(String::from),
+        agent_id: args
+            .get("agent_id")
+            .and_then(Value::as_str)
+            .map(String::from),
         top_k,
         as_of: None,
         include_index: args
@@ -501,7 +532,10 @@ async fn call_context(recall: &RecallEngine, args: &Value) -> Value {
             .unwrap_or(true),
         max_tokens,
         tier,
-        conversation_id: args.get("conversation_id").and_then(Value::as_str).map(String::from),
+        conversation_id: args
+            .get("conversation_id")
+            .and_then(Value::as_str)
+            .map(String::from),
     };
 
     let ctx = recall.context(ctx_query).await;

@@ -4,8 +4,7 @@
 //! (identical to the Language Server Protocol). Falls back to line-delimited JSON
 //! if the first line looks like JSON (for backward compatibility with simple tests).
 
-use allsource_core::prime::Prime;
-use allsource_core::prime::recall::RecallEngine;
+use allsource_core::prime::{Prime, recall::RecallEngine};
 use anyhow::Result;
 use std::io::{BufRead, Write};
 
@@ -178,18 +177,16 @@ impl StdioTransport {
                     .unwrap_or("");
 
                 match uri {
-                    "prime://cookbook" => {
-                        Some(Response::success(
-                            req.id.clone(),
-                            serde_json::json!({
-                                "contents": [{
-                                    "uri": "prime://cookbook",
-                                    "mimeType": "text/markdown",
-                                    "text": COOKBOOK
-                                }]
-                            }),
-                        ))
-                    }
+                    "prime://cookbook" => Some(Response::success(
+                        req.id.clone(),
+                        serde_json::json!({
+                            "contents": [{
+                                "uri": "prime://cookbook",
+                                "mimeType": "text/markdown",
+                                "text": COOKBOOK
+                            }]
+                        }),
+                    )),
 
                     "prime://auto-context" if self.auto_inject => {
                         let index = self.recall.index().await;
@@ -201,7 +198,10 @@ impl StdioTransport {
                                 .take(target_words)
                                 .collect::<Vec<_>>()
                                 .join(" ");
-                            format!("{truncated}\n...(truncated to {} tokens)", self.auto_inject_max_tokens)
+                            format!(
+                                "{truncated}\n...(truncated to {} tokens)",
+                                self.auto_inject_max_tokens
+                            )
                         } else {
                             index.markdown
                         };
