@@ -315,7 +315,7 @@ describe("Try It button sends correct GET to /api/v1/events/query", () => {
     fireEvent.click(screen.getByTestId("try-it-button"));
 
     await waitFor(() => {
-      const calledUrl = mockFetch.mock.calls[0][0] as string;
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("/api/v1/events/query");
       expect(calledUrl).toContain("event_type=user.signup");
       expect(calledUrl).toContain("entity_id=user-001");
