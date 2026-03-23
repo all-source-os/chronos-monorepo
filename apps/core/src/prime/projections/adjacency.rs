@@ -41,7 +41,7 @@ pub enum AdjacencyDirection {
 /// Directed adjacency projection with O(1) neighbor lookup and O(1) edge deletion.
 ///
 /// Maintains:
-/// - `adj`: key → Vec<AdjEntry> for neighbor queries
+/// - `adj`: key → `Vec<AdjEntry>` for neighbor queries
 /// - `edge_index`: edge_id → key for O(1) deletion without full scan
 pub struct DirectedAdjacencyProjection {
     name: String,

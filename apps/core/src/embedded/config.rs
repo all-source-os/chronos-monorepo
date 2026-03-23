@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 /// Configuration for [`EmbeddedCore`](super::EmbeddedCore).
 ///
-/// Created via [`Config::builder()`]. Defaults to in-memory, single-tenant mode.
+/// Created via `Config::builder()`. Defaults to in-memory, single-tenant mode.
 #[derive(Debug, Clone)]
 pub struct EmbeddedConfig {
     data_dir: Option<PathBuf>,

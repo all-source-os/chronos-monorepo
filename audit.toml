@@ -1,0 +1,16 @@
+# cargo-audit configuration
+# https://docs.rs/cargo-audit/latest/cargo_audit/config/
+
+[advisories]
+# rsa 0.9.x has a timing side-channel (Marvin Attack). No fix available.
+# Used transitively by jsonwebtoken for JWT signing — not exposed to external
+# input in a way that enables the attack (requires adaptive chosen-ciphertext).
+ignore = [
+    # rsa 0.9.x timing side-channel (Marvin Attack). No fix available.
+    # Transitive via jsonwebtoken — not exposed to adaptive chosen-ciphertext.
+    "RUSTSEC-2023-0071",
+    # astral-tokio-tar 0.5.x PAX extension validation (low severity: 1.7).
+    # Transitive via testcontainers (dev-only dependency). Waiting on
+    # testcontainers to release with astral-tokio-tar >=0.6.0.
+    "RUSTSEC-2026-0066",
+]

@@ -55,7 +55,7 @@ impl NodeStateProjection {
         self.nodes.is_empty()
     }
 
-    /// Get a node as a typed [`Node`] directly, bypassing JSON serialization.
+    /// Get a node as a typed [`crate::prime::types::Node`] directly, bypassing JSON serialization.
     ///
     /// Returns `None` if not found. Includes soft-deleted nodes (check `node.deleted`).
     pub fn get_node(&self, entity_id: &str) -> Option<crate::prime::types::Node> {

@@ -20,7 +20,7 @@ pub const PROJ_DOMAIN_INDEX: &str = "prime.domain_index";
 /// Maps domain names → node IDs that belong to each domain.
 pub struct DomainIndexProjection {
     name: String,
-    /// domain -> [node_ids]
+    /// domain -> list of node IDs
     index: Arc<DashMap<String, Vec<NodeId>>>,
 }
 

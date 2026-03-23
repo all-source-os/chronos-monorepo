@@ -104,7 +104,7 @@ impl RecallEngine {
     ///
     /// Convenience constructor that creates default projections and an
     /// `IndexCompressor` configured from `IndexConfig`. If `IndexConfig`
-    /// has an `llm_endpoint`, an [`OllamaBackend`] is created automatically.
+    /// has an `llm_endpoint`, an `OllamaBackend` is created automatically.
     ///
     /// Note: This constructor creates standalone projections. For L0/L1 tier
     /// support with shared projections from Prime, use [`RecallEngine::with_deps`].
