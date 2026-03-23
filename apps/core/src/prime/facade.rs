@@ -19,8 +19,8 @@ use super::{
     error::{PrimeError, PrimeResult},
     projections::{
         AdjacencyListProjection, Contradiction, ContradictionDetectionProjection,
-        CrossDomainProjection, GraphStatsProjection, NodeStateProjection,
-        NodeTypeIndexProjection, ReverseIndexProjection,
+        CrossDomainProjection, GraphStatsProjection, NodeStateProjection, NodeTypeIndexProjection,
+        ReverseIndexProjection,
     },
     schema::SchemaProjection,
     types::{
@@ -185,6 +185,22 @@ impl Prime {
     /// Access the underlying [`EmbeddedCore`] for direct event operations.
     pub fn core(&self) -> &EmbeddedCore {
         &self.core
+    }
+
+    /// Return shared projection dependencies for the Recall engine.
+    ///
+    /// Shares Prime's node_state, adjacency, graph_stats, and cross_domain
+    /// projections with RecallEngine, enabling L0/L1 tiers. A fresh
+    /// `DomainIndexProjection` is created (RecallEngine registers it separately).
+    #[cfg(feature = "prime-recall")]
+    pub fn recall_deps(&self) -> super::recall::RecallDeps {
+        super::recall::RecallDeps {
+            domain_index: Arc::new(super::projections::DomainIndexProjection::new()),
+            cross_domain: Arc::clone(&self.cross_domain),
+            node_state: Some(Arc::clone(&self.node_state)),
+            adjacency: Some(Arc::clone(&self.adjacency)),
+            graph_stats: Some(Arc::clone(&self.graph_stats)),
+        }
     }
 
     // =========================================================================
@@ -1961,11 +1977,7 @@ impl ConversationScope<'_> {
 /// Selects top_k results that balance relevance with diversity across domains.
 /// `lambda` controls the trade-off: 1.0 = pure relevance, 0.0 = pure diversity.
 #[cfg(feature = "prime-vectors")]
-fn mmr_rerank(
-    nodes: &mut Vec<super::types::ScoredNode>,
-    top_k: usize,
-    lambda: f64,
-) {
+fn mmr_rerank(nodes: &mut Vec<super::types::ScoredNode>, top_k: usize, lambda: f64) {
     use super::types::ScoredNode;
 
     if nodes.len() <= top_k {

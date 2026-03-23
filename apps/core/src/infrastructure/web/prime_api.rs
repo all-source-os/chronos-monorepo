@@ -27,7 +27,7 @@ pub struct PrimeState {
 ///
 /// All routes are nested under `/api/v1/prime` by the caller.
 pub fn prime_router() -> Router<Arc<PrimeState>> {
-    Router::new()
+    let router = Router::new()
         // Nodes
         .route("/nodes", post(create_node))
         .route("/nodes/{id}", get(get_node))
@@ -38,13 +38,18 @@ pub fn prime_router() -> Router<Arc<PrimeState>> {
         // Edges
         .route("/edges", post(create_edge))
         .route("/edges/{id}", delete(delete_edge_handler))
-        // Vectors
+        // Stats (always available)
+        .route("/stats", get(get_stats));
+
+    // Vector and recall routes require prime-vectors feature
+    #[cfg(feature = "prime-vectors")]
+    let router = router
         .route("/vectors", post(store_vector))
         .route("/vectors/search", post(search_vectors))
         .route("/vectors/{id}", delete(delete_vector))
-        // Queries
-        .route("/recall", post(recall))
-        .route("/stats", get(get_stats))
+        .route("/recall", post(recall));
+
+    router
 }
 
 // =============================================================================
@@ -72,6 +77,7 @@ struct CreateEdgeReq {
     weight: Option<f64>,
 }
 
+#[cfg(feature = "prime-vectors")]
 #[derive(Deserialize)]
 struct StoreVectorReq {
     id: String,
@@ -80,12 +86,14 @@ struct StoreVectorReq {
     metadata: Option<Value>,
 }
 
+#[cfg(feature = "prime-vectors")]
 #[derive(Deserialize)]
 struct VectorSearchReq {
     vector: Vec<f32>,
     top_k: Option<usize>,
 }
 
+#[cfg(feature = "prime-vectors")]
 #[derive(Deserialize)]
 struct RecallReq {
     vector: Option<Vec<f32>>,
@@ -104,8 +112,7 @@ async fn create_node(
 ) -> impl IntoResponse {
     match state.prime.add_node(&req.node_type, req.properties).await {
         Ok(id) => {
-            let entity_id =
-                crate::prime::EntityId::node(&req.node_type, id.as_str()).to_wire();
+            let entity_id = crate::prime::EntityId::node(&req.node_type, id.as_str()).to_wire();
             (
                 StatusCode::CREATED,
                 Json(json!({"node_id": id.as_str(), "entity_id": entity_id})),
@@ -148,10 +155,7 @@ async fn update_node(
 ) -> impl IntoResponse {
     match state.prime.update_node(&id, req.properties).await {
         Ok(()) => (StatusCode::OK, Json(json!({"updated": true}))),
-        Err(e) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": e.to_string()})),
-        ),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
 }
 
@@ -161,10 +165,7 @@ async fn delete_node(
 ) -> impl IntoResponse {
     match state.prime.delete_node(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
-        Err(e) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": e.to_string()})),
-        ),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
 }
 
@@ -175,9 +176,7 @@ async fn get_neighbors(
     let nodes = state.prime.neighbors(&id, None, Direction::Both);
     let nodes_json: Vec<Value> = nodes
         .iter()
-        .map(|n| {
-            json!({"id": n.id.as_str(), "type": n.node_type, "properties": n.properties})
-        })
+        .map(|n| json!({"id": n.id.as_str(), "type": n.node_type, "properties": n.properties}))
         .collect();
     Json(json!({"nodes": nodes_json}))
 }
@@ -223,10 +222,7 @@ async fn create_edge(
             .await
     };
     match result {
-        Ok(id) => (
-            StatusCode::CREATED,
-            Json(json!({"edge_id": id.as_str()})),
-        ),
+        Ok(id) => (StatusCode::CREATED, Json(json!({"edge_id": id.as_str()}))),
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(json!({"error": e.to_string()})),
@@ -240,13 +236,11 @@ async fn delete_edge_handler(
 ) -> impl IntoResponse {
     match state.prime.delete_edge(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
-        Err(e) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": e.to_string()})),
-        ),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
 }
 
+#[cfg(feature = "prime-vectors")]
 async fn store_vector(
     State(state): State<Arc<PrimeState>>,
     Json(req): Json<StoreVectorReq>,
@@ -267,6 +261,7 @@ async fn store_vector(
     }
 }
 
+#[cfg(feature = "prime-vectors")]
 async fn search_vectors(
     State(state): State<Arc<PrimeState>>,
     Json(req): Json<VectorSearchReq>,
@@ -281,19 +276,18 @@ async fn search_vectors(
     Json(json!({"results": results_json}))
 }
 
+#[cfg(feature = "prime-vectors")]
 async fn delete_vector(
     State(state): State<Arc<PrimeState>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     match state.prime.delete_vector(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
-        Err(e) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": e.to_string()})),
-        ),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
 }
 
+#[cfg(feature = "prime-vectors")]
 async fn recall(
     State(state): State<Arc<PrimeState>>,
     Json(req): Json<RecallReq>,

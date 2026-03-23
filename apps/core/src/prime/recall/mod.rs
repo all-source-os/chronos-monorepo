@@ -9,11 +9,11 @@ pub mod index_builder;
 pub mod ollama;
 pub mod types;
 
-pub use api::{RecallContextQuery, RecallEngine};
+pub use api::{RecallContextQuery, RecallDeps, RecallEngine};
 pub use compressor::IndexCompressor;
 pub use index_builder::{build_heuristic_index, build_raw_summary};
 pub use ollama::OllamaBackend;
 pub use types::{
-    CompressedIndex, IndexConfig, LlmBackend, MemoryPayload, RankedMemory, RecallContext,
-    estimate_tokens, recall_event_types,
+    CompressedIndex, ContextTier, IndexConfig, LlmBackend, MemoryPayload, RankedMemory,
+    RecallContext, estimate_tokens, recall_event_types,
 };

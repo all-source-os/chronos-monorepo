@@ -121,15 +121,17 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "prime_context",
-            "description": "Combined retrieval: compressed index excerpt + vector results + graph neighbors. Use for cross-domain questions like 'how does pricing relate to engineering?' where you need facts from multiple domains. The compressed index provides the cross-domain map, vectors find relevant facts, and graph expansion discovers connected entities. Prefer this over prime_recall when cross-domain reasoning matters.",
+            "description": "Combined retrieval with tiered depth control. L0: stats only (~100 tokens, use for orientation). L1: recent conversation context (~500-1500 tokens, use for follow-ups in same conversation). L2: full hybrid recall with compressed index + vectors + graph expansion (~2000-5000 tokens, use for cross-domain questions or new topics). Default: L2.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "query": { "type": "string", "description": "Natural language question" },
                     "agent_id": { "type": "string", "description": "Scope to a specific agent" },
-                    "top_k": { "type": "integer", "description": "Max vector results (default: 5)" },
-                    "include_index": { "type": "boolean", "description": "Prepend compressed index excerpt (default: true)" },
-                    "max_tokens": { "type": "integer", "description": "Cap total response tokens (truncates index first, then vectors)" }
+                    "top_k": { "type": "integer", "description": "Max vector results (default: 5, L2 only)" },
+                    "include_index": { "type": "boolean", "description": "Prepend compressed index excerpt (default: true, L2 only)" },
+                    "max_tokens": { "type": "integer", "description": "Cap total response tokens" },
+                    "tier": { "type": "string", "enum": ["L0", "L1", "L2"], "description": "Retrieval depth. L0=stats only. L1=recent conversation context. L2=full hybrid recall. Default: L2." },
+                    "conversation_id": { "type": "string", "description": "Scope L1 retrieval to this conversation's nodes. Ignored for L0/L2." }
                 },
                 "required": ["query"]
             }
@@ -465,7 +467,7 @@ async fn call_recall(prime: &Prime, args: &Value) -> Value {
 }
 
 async fn call_context(recall: &RecallEngine, args: &Value) -> Value {
-    use allsource_core::prime::recall::RecallContextQuery;
+    use allsource_core::prime::recall::{ContextTier, RecallContextQuery};
 
     let Some(query) = args.get("query").and_then(Value::as_str) else {
         return tool_error("missing 'query'");
@@ -481,6 +483,13 @@ async fn call_context(recall: &RecallEngine, args: &Value) -> Value {
         .and_then(Value::as_u64)
         .and_then(|v| usize::try_from(v).ok());
 
+    let tier = match args.get("tier").and_then(Value::as_str) {
+        Some("L0") => ContextTier::L0,
+        Some("L1") => ContextTier::L1,
+        Some("L2") | None => ContextTier::L2,
+        Some(other) => return tool_error(&format!("invalid tier: {other}. Use L0, L1, or L2")),
+    };
+
     let ctx_query = RecallContextQuery {
         query,
         agent_id: args.get("agent_id").and_then(Value::as_str).map(String::from),
@@ -491,15 +500,19 @@ async fn call_context(recall: &RecallEngine, args: &Value) -> Value {
             .and_then(Value::as_bool)
             .unwrap_or(true),
         max_tokens,
+        tier,
+        conversation_id: args.get("conversation_id").and_then(Value::as_str).map(String::from),
     };
 
     let ctx = recall.context(ctx_query).await;
 
     tool_result(json!({
+        "tier": format!("{:?}", ctx.tier),
         "index": ctx.index,
         "vectors": ctx.vectors,
         "nodes": ctx.nodes,
         "edges": ctx.edges,
+        "stats": ctx.stats,
         "token_count": ctx.token_count,
     }))
 }

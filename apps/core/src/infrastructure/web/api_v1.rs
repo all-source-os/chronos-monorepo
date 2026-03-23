@@ -499,8 +499,8 @@ pub async fn serve_v1(
     // Prime API — nested router with its own state (feature-gated)
     #[cfg(feature = "prime")]
     let app = {
-        let data_dir = std::env::var("PRIME_DATA_DIR")
-            .unwrap_or_else(|_| "/tmp/prime-data".to_string());
+        let data_dir =
+            std::env::var("PRIME_DATA_DIR").unwrap_or_else(|_| "/tmp/prime-data".to_string());
         match crate::prime::Prime::open(&data_dir).await {
             Ok(prime) => {
                 let prime_state = Arc::new(super::prime_api::PrimeState { prime });

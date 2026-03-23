@@ -76,7 +76,10 @@ async fn main() -> Result<()> {
     );
 
     let recall_config = allsource_core::prime::recall::IndexConfig::default();
-    let recall = allsource_core::prime::recall::RecallEngine::new(&recall_config);
+    let recall = allsource_core::prime::recall::RecallEngine::with_deps(
+        prime.recall_deps(),
+        &recall_config,
+    );
 
     match cli.mode {
         Mode::Mcp => {

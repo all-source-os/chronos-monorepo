@@ -10,13 +10,16 @@ use std::sync::Arc;
 use super::{
     compressor::IndexCompressor,
     index_builder::{build_heuristic_index, build_raw_summary},
-    types::{CompressedIndex, IndexConfig, LlmBackend, RankedMemory, RecallContext},
+    types::{CompressedIndex, ContextTier, IndexConfig, LlmBackend, RankedMemory, RecallContext},
 };
 use crate::{
     application::services::projection::Projection,
     prime::{
-        projections::{CrossDomainProjection, DomainIndexProjection},
-        types::Node,
+        projections::{
+            AdjacencyListProjection, CrossDomainProjection, DomainIndexProjection,
+            GraphStatsProjection, NodeStateProjection,
+        },
+        types::{Node, PrimeStats},
     },
 };
 
@@ -39,6 +42,10 @@ pub struct RecallContextQuery {
     pub include_index: bool,
     /// Max total tokens in the response (truncate if exceeded).
     pub max_tokens: Option<usize>,
+    /// Retrieval tier (default: L2 — full hybrid recall).
+    pub tier: ContextTier,
+    /// Conversation ID for L1 scoping. Ignored for L0/L2.
+    pub conversation_id: Option<String>,
 }
 
 impl Default for RecallContextQuery {
@@ -50,8 +57,26 @@ impl Default for RecallContextQuery {
             as_of: None,
             include_index: true,
             max_tokens: None,
+            tier: ContextTier::default(),
+            conversation_id: None,
         }
     }
+}
+
+// =============================================================================
+// Recall Dependencies
+// =============================================================================
+
+/// Bundled projection dependencies for the recall engine.
+///
+/// Groups the projections needed for tiered context retrieval into a single
+/// struct, keeping the `RecallEngine` constructor clean as dependencies grow.
+pub struct RecallDeps {
+    pub domain_index: Arc<DomainIndexProjection>,
+    pub cross_domain: Arc<CrossDomainProjection>,
+    pub node_state: Option<Arc<NodeStateProjection>>,
+    pub adjacency: Option<Arc<AdjacencyListProjection>>,
+    pub graph_stats: Option<Arc<GraphStatsProjection>>,
 }
 
 // =============================================================================
@@ -60,9 +85,17 @@ impl Default for RecallContextQuery {
 
 /// Agent memory engine that wraps Prime's projections to provide
 /// `index()` and `context()` retrieval methods.
+///
+/// Supports tiered retrieval via [`ContextTier`]:
+/// - **L0**: stats only (~100–200 tokens)
+/// - **L1**: recent conversation nodes + 1-hop edges (~500–1500 tokens)
+/// - **L2**: full hybrid recall with compressed index (~2000–5000 tokens)
 pub struct RecallEngine {
     domain_index: Arc<DomainIndexProjection>,
     cross_domain: Arc<CrossDomainProjection>,
+    node_state: Option<Arc<NodeStateProjection>>,
+    adjacency: Option<Arc<AdjacencyListProjection>>,
+    graph_stats: Option<Arc<GraphStatsProjection>>,
     compressor: IndexCompressor,
 }
 
@@ -72,6 +105,9 @@ impl RecallEngine {
     /// Convenience constructor that creates default projections and an
     /// `IndexCompressor` configured from `IndexConfig`. If `IndexConfig`
     /// has an `llm_endpoint`, an [`OllamaBackend`] is created automatically.
+    ///
+    /// Note: This constructor creates standalone projections. For L0/L1 tier
+    /// support with shared projections from Prime, use [`RecallEngine::with_deps`].
     pub fn new(config: &IndexConfig) -> Self {
         let llm_backend: Option<Box<dyn LlmBackend>> =
             if let Some(ref endpoint) = config.llm_endpoint {
@@ -90,6 +126,42 @@ impl RecallEngine {
         Self {
             domain_index: Arc::new(DomainIndexProjection::new()),
             cross_domain: Arc::new(CrossDomainProjection::new()),
+            node_state: None,
+            adjacency: None,
+            graph_stats: None,
+            compressor: IndexCompressor::new(
+                llm_backend,
+                config.refresh_interval_events,
+                config.refresh_interval_seconds,
+            ),
+        }
+    }
+
+    /// Create a Recall engine with shared projection dependencies from Prime.
+    ///
+    /// This is the preferred constructor when Prime owns the projections.
+    /// Enables L0 (stats) and L1 (conversation context) tiers.
+    pub fn with_deps(deps: RecallDeps, config: &IndexConfig) -> Self {
+        let llm_backend: Option<Box<dyn LlmBackend>> =
+            if let Some(ref endpoint) = config.llm_endpoint {
+                let model = config
+                    .llm_model
+                    .clone()
+                    .unwrap_or_else(|| "mistral".to_string());
+                Some(Box::new(super::ollama::OllamaBackend::new(
+                    endpoint.clone(),
+                    model,
+                )))
+            } else {
+                None
+            };
+
+        Self {
+            domain_index: deps.domain_index,
+            cross_domain: deps.cross_domain,
+            node_state: deps.node_state,
+            adjacency: deps.adjacency,
+            graph_stats: deps.graph_stats,
             compressor: IndexCompressor::new(
                 llm_backend,
                 config.refresh_interval_events,
@@ -107,6 +179,9 @@ impl RecallEngine {
         Self {
             domain_index,
             cross_domain,
+            node_state: None,
+            adjacency: None,
+            graph_stats: None,
             compressor,
         }
     }
@@ -124,8 +199,138 @@ impl RecallEngine {
             .await
     }
 
-    /// Combined retrieval: compressed index + vector results + graph context.
+    /// Combined retrieval dispatched by tier.
+    ///
+    /// - `L0`: stats only — no index generation, no vector search.
+    /// - `L1`: stats + recent conversation nodes + 1-hop edges.
+    /// - `L2`: full hybrid recall (compressed index + vectors + graph expansion).
     pub async fn context(&self, query: RecallContextQuery) -> RecallContext {
+        match query.tier {
+            ContextTier::L0 => self.context_l0(&query),
+            ContextTier::L1 => self.context_l1(&query),
+            ContextTier::L2 => self.context_l2(&query).await,
+        }
+    }
+
+    /// L0: stats-only retrieval. No I/O, no compression.
+    fn context_l0(&self, _query: &RecallContextQuery) -> RecallContext {
+        let stats = self.build_stats();
+        let stats_json = serde_json::to_string(&stats).unwrap_or_default();
+        let token_count = super::types::estimate_tokens(&stats_json);
+
+        RecallContext {
+            index: String::new(),
+            vectors: Vec::new(),
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            stats: Some(stats),
+            tier: ContextTier::L0,
+            token_count,
+        }
+    }
+
+    /// L1: conversation-scoped recent context.
+    ///
+    /// Returns L0 stats + recent nodes + their 1-hop edges.
+    /// If `conversation_id` is set, filters to nodes from that conversation.
+    /// Without `conversation_id`, returns the most recent nodes across all data.
+    fn context_l1(&self, query: &RecallContextQuery) -> RecallContext {
+        let stats = self.build_stats();
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut edges: Vec<crate::prime::types::Edge> = Vec::new();
+        let mut token_count = 0usize;
+
+        // Get recent nodes from node_state projection
+        if let Some(ref node_state) = self.node_state {
+            let all_nodes = node_state.all_nodes();
+
+            // If conversation_id is provided, filter nodes that have matching
+            // conversation metadata. Otherwise, take the most recent N nodes.
+            let mut candidate_nodes: Vec<Node> = if let Some(ref conv_id) = query.conversation_id {
+                all_nodes
+                    .into_iter()
+                    .filter(|n| {
+                        n.properties
+                            .get("conversation_id")
+                            .and_then(|v| v.as_str())
+                            .is_some_and(|id| id == conv_id)
+                    })
+                    .collect()
+            } else {
+                all_nodes
+            };
+
+            // Sort by updated_at descending, take most recent 20
+            candidate_nodes.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+            candidate_nodes.truncate(20);
+
+            // Expand 1-hop outgoing edges from these nodes
+            if let Some(ref adjacency) = self.adjacency {
+                for node in &candidate_nodes {
+                    // entity_id format is "node:{type}:{id}", but adjacency
+                    // keys use the raw source/target from edge events (node IDs).
+                    let adj_entries = adjacency.outgoing(node.id.as_str());
+                    for adj in &adj_entries {
+                        // Resolve peer node if available
+                        // Try both raw id and entity_id formats
+                        let peer_node = node_state.get_node(&adj.peer);
+                        if let Some(target) = peer_node
+                            && !nodes.iter().any(|n| n.id == target.id)
+                            && !candidate_nodes.iter().any(|n| n.id == target.id)
+                        {
+                            nodes.push(target);
+                        }
+                        edges.push(crate::prime::types::Edge {
+                            id: crate::prime::types::EdgeId::new(&adj.edge_id),
+                            source: node.id.clone(),
+                            target: crate::prime::types::NodeId::new(&adj.peer),
+                            relation: adj.relation.clone(),
+                            properties: None,
+                            weight: adj.weight,
+                            deleted: false,
+                            created_at: Utc::now(),
+                        });
+                    }
+                }
+            }
+
+            // Add the candidate nodes themselves
+            nodes.splice(0..0, candidate_nodes);
+        }
+
+        // Estimate token count
+        let stats_json = serde_json::to_string(&stats).unwrap_or_default();
+        token_count += super::types::estimate_tokens(&stats_json);
+        for node in &nodes {
+            let node_json = serde_json::to_string(&node).unwrap_or_default();
+            token_count += super::types::estimate_tokens(&node_json);
+        }
+
+        // Enforce max_tokens: drop oldest nodes first
+        if let Some(max) = query.max_tokens {
+            while token_count > max && nodes.len() > 1 {
+                nodes.pop(); // remove oldest (they're sorted recent-first)
+                token_count = super::types::estimate_tokens(&stats_json);
+                for node in &nodes {
+                    let nj = serde_json::to_string(&node).unwrap_or_default();
+                    token_count += super::types::estimate_tokens(&nj);
+                }
+            }
+        }
+
+        RecallContext {
+            index: String::new(),
+            vectors: Vec::new(),
+            nodes,
+            edges,
+            stats: Some(stats),
+            tier: ContextTier::L1,
+            token_count,
+        }
+    }
+
+    /// L2: full hybrid recall (existing behavior).
+    async fn context_l2(&self, query: &RecallContextQuery) -> RecallContext {
         let mut index_text = String::new();
         let mut token_count = 0usize;
 
@@ -151,10 +356,7 @@ impl RecallEngine {
         }
 
         // TODO: vector search integration (requires prime-vectors feature)
-        // For now, return empty vector results
         let vectors: Vec<RankedMemory> = Vec::new();
-
-        // Get related graph nodes from domains matching the query
         let nodes: Vec<Node> = Vec::new();
 
         RecallContext {
@@ -162,7 +364,29 @@ impl RecallEngine {
             vectors,
             nodes,
             edges: Vec::new(),
+            stats: None,
+            tier: ContextTier::L2,
             token_count,
+        }
+    }
+
+    /// Build stats from graph_stats projection or fall back to domain counts.
+    fn build_stats(&self) -> PrimeStats {
+        if let Some(ref gs) = self.graph_stats {
+            gs.stats()
+        } else {
+            // Fallback: derive minimal stats from domain_index
+            let domain_counts = self.domain_index.domain_counts();
+            let total_nodes: usize = domain_counts.iter().map(|(_, c)| c).sum();
+            PrimeStats {
+                total_nodes,
+                total_edges: 0,
+                nodes_by_type: std::collections::HashMap::new(),
+                edges_by_relation: std::collections::HashMap::new(),
+                deleted_nodes: 0,
+                deleted_edges: 0,
+                event_count: 0,
+            }
         }
     }
 
@@ -201,8 +425,9 @@ impl RecallEngine {
 mod tests {
     use super::*;
     use crate::{
-        application::services::projection::Projection, domain::entities::Event,
-        prime::types::event_types,
+        application::services::projection::Projection,
+        domain::entities::Event,
+        prime::{projections::GraphStatsProjection, types::event_types},
     };
     use uuid::Uuid;
 
@@ -289,6 +514,7 @@ mod tests {
 
         assert!(!ctx.index.is_empty());
         assert!(ctx.token_count > 0);
+        assert_eq!(ctx.tier, ContextTier::L2);
     }
 
     #[tokio::test]
@@ -304,6 +530,7 @@ mod tests {
 
         assert!(ctx.index.is_empty());
         assert_eq!(ctx.token_count, 0);
+        assert_eq!(ctx.tier, ContextTier::L2);
     }
 
     #[tokio::test]
@@ -320,6 +547,106 @@ mod tests {
 
         assert!(ctx.token_count <= 10);
         assert!(ctx.index.contains("truncated"));
+    }
+
+    // ─── Tier-specific tests ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_l0_returns_stats_only() {
+        let engine = seed_engine();
+        let query = RecallContextQuery {
+            query: String::new(),
+            tier: ContextTier::L0,
+            ..Default::default()
+        };
+
+        let ctx = engine.context(query).await;
+
+        assert_eq!(ctx.tier, ContextTier::L0);
+        assert!(ctx.index.is_empty(), "L0 should not generate index");
+        assert!(ctx.vectors.is_empty(), "L0 should not run vector search");
+        assert!(ctx.nodes.is_empty(), "L0 should not return graph nodes");
+        assert!(ctx.stats.is_some(), "L0 should return stats");
+        assert!(ctx.token_count > 0, "L0 should have non-zero token count");
+        assert!(ctx.token_count < 300, "L0 should be under 300 tokens");
+    }
+
+    #[tokio::test]
+    async fn test_l1_returns_recent_nodes() {
+        // Build engine with full deps for L1 support
+        let node_state = Arc::new(NodeStateProjection::new("prime.node_state"));
+        let adjacency = Arc::new(AdjacencyListProjection::forward("prime.adjacency"));
+        let graph_stats = Arc::new(GraphStatsProjection::new("prime.graph_stats"));
+        let domain_index = Arc::new(DomainIndexProjection::new());
+        let cross_domain = Arc::new(CrossDomainProjection::new());
+        let compressor = IndexCompressor::new(None, 100, 300);
+
+        let engine = RecallEngine {
+            domain_index: domain_index.clone(),
+            cross_domain: cross_domain.clone(),
+            node_state: Some(node_state.clone()),
+            adjacency: Some(adjacency.clone()),
+            graph_stats: Some(graph_stats.clone()),
+            compressor,
+        };
+
+        // Seed data through all projections
+        let events = vec![
+            make_node("n1", "metric", "revenue", "Q3 Revenue"),
+            make_node("n2", "metric", "revenue", "Churn Rate"),
+            make_node("n3", "service", "engineering", "Core API"),
+        ];
+        let all_projections: Vec<Arc<dyn Projection>> = vec![
+            node_state.clone(),
+            adjacency.clone(),
+            graph_stats.clone(),
+            domain_index.clone(),
+            cross_domain.clone(),
+        ];
+        for event in &events {
+            for proj in &all_projections {
+                proj.process(event).unwrap();
+            }
+        }
+
+        let query = RecallContextQuery {
+            query: "test".to_string(),
+            tier: ContextTier::L1,
+            ..Default::default()
+        };
+
+        let ctx = engine.context(query).await;
+
+        assert_eq!(ctx.tier, ContextTier::L1);
+        assert!(ctx.index.is_empty(), "L1 should not generate index");
+        assert!(ctx.vectors.is_empty(), "L1 should not run vector search");
+        assert!(ctx.stats.is_some(), "L1 should return stats");
+        assert!(!ctx.nodes.is_empty(), "L1 should return recent nodes");
+    }
+
+    #[tokio::test]
+    async fn test_l0_cheaper_than_l2() {
+        let engine = seed_engine();
+
+        let l0_ctx = engine
+            .context(RecallContextQuery {
+                tier: ContextTier::L0,
+                ..Default::default()
+            })
+            .await;
+        let l2_ctx = engine
+            .context(RecallContextQuery {
+                include_index: true,
+                ..Default::default()
+            })
+            .await;
+
+        assert!(
+            l0_ctx.token_count < l2_ctx.token_count,
+            "L0 ({}) should cost fewer tokens than L2 ({})",
+            l0_ctx.token_count,
+            l2_ctx.token_count
+        );
     }
 
     #[tokio::test]

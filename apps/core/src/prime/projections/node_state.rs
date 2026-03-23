@@ -78,6 +78,31 @@ impl NodeStateProjection {
         })
     }
 
+    /// Return all live (non-deleted) nodes.
+    ///
+    /// Constructs directly from internal state — no redundant DashMap lookup.
+    pub fn all_nodes(&self) -> Vec<crate::prime::types::Node> {
+        self.nodes
+            .iter()
+            .filter(|entry| !entry.value().deleted)
+            .map(|entry| {
+                let e = entry.value();
+                let id = crate::prime::types::EntityId::parse(entry.key())
+                    .map_or_else(|| entry.key().clone(), |eid| eid.short_id().to_string());
+                crate::prime::types::Node {
+                    id: crate::prime::types::NodeId::new(id),
+                    node_type: e.node_type.clone(),
+                    properties: e.properties.clone(),
+                    domain: e.domain.clone(),
+                    labels: e.labels.clone(),
+                    deleted: false,
+                    created_at: e.created_at,
+                    updated_at: e.updated_at,
+                }
+            })
+            .collect()
+    }
+
     /// Check if a node exists and is not deleted.
     pub fn is_live(&self, entity_id: &str) -> bool {
         self.nodes.get(entity_id).is_some_and(|e| !e.deleted)

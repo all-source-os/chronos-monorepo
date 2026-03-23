@@ -5,7 +5,30 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{future::Future, pin::Pin};
 
-use crate::prime::types::{Edge, Node};
+use crate::prime::types::{Edge, Node, PrimeStats};
+
+// =============================================================================
+// Context Tier — L0/L1/L2 retrieval depth
+// =============================================================================
+
+/// Retrieval depth for `recall.context()`.
+///
+/// Controls how much work the recall engine does per call:
+/// - **L0**: Stats only (~100–200 tokens). No index, no vectors, no graph walk.
+/// - **L1**: Recent conversation context (~500–1500 tokens). Stats + recent
+///   conversation-scoped nodes + 1-hop edges. No vector search.
+/// - **L2**: Full hybrid recall (~2000–5000 tokens). Compressed index + vector
+///   search + graph expansion. Current default behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ContextTier {
+    /// Stats + domain list only. Cheapest retrieval.
+    L0,
+    /// L0 + conversation-scoped recent nodes + 1-hop edges.
+    L1,
+    /// Full hybrid recall: compressed index + vectors + graph expansion.
+    #[default]
+    L2,
+}
 
 // =============================================================================
 // LLM Backend trait (Open/Closed Principle)
@@ -37,6 +60,10 @@ pub struct RecallContext {
     pub nodes: Vec<Node>,
     /// Related graph edges.
     pub edges: Vec<Edge>,
+    /// Graph stats summary (present for all tiers).
+    pub stats: Option<PrimeStats>,
+    /// Which tier was used for this retrieval.
+    pub tier: ContextTier,
     /// Total token count of the context payload.
     pub token_count: usize,
 }
