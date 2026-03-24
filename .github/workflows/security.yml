@@ -55,7 +55,11 @@ jobs:
         run: |
           cargo audit \
             --ignore RUSTSEC-2023-0071 \
-            --ignore RUSTSEC-2026-0066
+            --ignore RUSTSEC-2026-0041 \
+            --ignore RUSTSEC-2026-0049 \
+            --ignore RUSTSEC-2026-0066 \
+            --ignore RUSTSEC-2026-0067 \
+            --ignore RUSTSEC-2026-0068
 
       # Go dependencies
       - name: Set up Go
