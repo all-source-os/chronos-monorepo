@@ -258,25 +258,92 @@ Many images use generic or missing alt text. The `dashboard.png` references have
 ## Production Priority Order
 
 ### Must-have before launch (blocks marketing):
-1. [ ] **`/public/dashboard.png`** — real screenshot or high-quality mockup
-2. [ ] **`/public/author.jpg`** — team avatar
-3. [ ] **`robots.txt`** — create and deploy
-4. [ ] **Fix sitemap.ts** — add all public pages
-5. [ ] **Fix metadata** on solutions + homepage pages
-6. [ ] **Fix version number** in hero pill (v0.10.0 → v0.17.0)
-7. [ ] **Fix MCP tools count** — resolve 27 vs 43 discrepancy
+1. [x] **`robots.txt`** — DONE (committed c183b1e)
+2. [x] **Fix sitemap.ts** — DONE, 30+ entries (committed c183b1e)
+3. [x] **Fix metadata** on solutions + homepage — DONE, canonical URLs + Twitter cards (committed c183b1e)
+4. [x] **Fix version number** in hero pill — DONE, v0.10.0 → v0.17.0 (committed c183b1e)
+5. [x] **Fix MCP tools count** — DONE, 27 → 74 (committed c183b1e)
+6. [x] **Canonical URLs** on all pages — DONE (committed c183b1e)
+7. [x] **Recharts v3 build fix** — DONE, Tooltip formatter type (committed 6e142dc)
+8. [x] **Demo login proxy fix** — DONE, route to Control Plane (committed 8ecaf80)
+9. [ ] **`/public/dashboard.png`** — NEEDS HUMAN: take a real screenshot of the dashboard or create a high-quality mockup. Referenced 30+ times. Every blog OG image and the hero section are broken without this.
+10. [ ] **`/public/author.jpg`** — NEEDS HUMAN: create or source a team avatar (100x100px minimum). Blog author cards are broken without this.
 
 ### Should-have for launch week:
-8. [ ] 3 terminal recordings (asciinema)
-9. [ ] 60-second demo video
-10. [ ] 5 architecture diagrams (SVG)
-11. [ ] 13 unique blog OG images
-12. [ ] Canonical URLs on all pages
+11. [ ] **3 terminal recordings** — NEEDS HUMAN: install asciinema, run each example, record output
+    ```bash
+    brew install asciinema
+    cd apps/core
+    asciinema rec prime-graph.cast -c "cargo run --features prime --example prime_graph"
+    asciinema rec prime-vectors.cast -c "cargo run --features prime-full --example prime_vectors"
+    asciinema rec prime-recall.cast -c "cargo run --features prime-recall --example prime_recall"
+    ```
+    Upload to asciinema.org or convert to GIF with `agg`.
+
+12. [ ] **60-second demo video** — NEEDS HUMAN: screen record Claude Desktop with Prime MCP
+    - Setup: `cargo install allsource-prime`, add to Claude Desktop config
+    - Storyboard: ask question → prime_index → add knowledge → cross-domain query → result
+    - Tools: OBS Studio or macOS screen recording, add captions with CapCut/Descript
+    - Export: 1920x1080 MP4 + 1080x1080 square crop for X/Twitter
+    - Upload to YouTube, embed on `/solutions/agent-memory`
+
+13. [ ] **5 architecture diagrams** — NEEDS HUMAN: create in Figma, Excalidraw, or draw.io
+    - 2.1 "One Engine" — Prime layers over Core (1200x600px SVG)
+    - 2.2 "Everything Is an Event" — event flow to projections (1200x600px SVG)
+    - 2.3 "zer0dex vs AllSource" — side-by-side comparison (1200x600px SVG)
+    - 2.4 "Recall Pipeline" — domain → cross-domain → index → recall (1200x600px SVG)
+    - 2.5 "Agent Memory Problem" — before/after (1200x600px SVG)
+    - Save as SVG in `/apps/web/public/diagrams/` and reference in blog posts
+
+14. [ ] **13 unique blog OG images** — NEEDS HUMAN: design template + generate per post
+    - Template: 1200x630px, AllSource brand (purple-blue gradient), white text
+    - Each post gets unique title overlay + relevant icon/visual
+    - Tools: Figma template with text layer, or use `@vercel/og` dynamic generation
+    - Alternative: update `/app/og/route.tsx` to generate better dynamic OG images (code fix, no design needed)
+    - Place in `/apps/web/public/blog/` or use dynamic OG route
 
 ### Nice-to-have post-launch:
-13. [ ] 5-minute technical walkthrough
-14. [ ] Interactive playground component
-15. [ ] Docs hero banners
-16. [ ] JSON-LD structured data on non-blog pages
-17. [ ] Benchmark publication visuals
-18. [ ] Code screenshots for blog posts
+15. [ ] **5-minute technical walkthrough video** — NEEDS HUMAN: record IDE walkthrough
+    - Show architecture diagram, then code: Projection trait, CompressedIndex, RecallEngine
+    - Tools: OBS Studio with IDE zoom, dark theme, large font
+    - Upload to YouTube, embed on `/docs/prime/concepts`
+
+16. [ ] **Interactive playground component** — code task (can be done by Claude)
+    - React component at `/dashboard/demo/prime/` with Cytoscape.js graph
+    - Calls `allsource-prime.fly.dev` HTTP API
+    - Pre-seeded with demo data
+
+17. [ ] **5 docs hero banners** — NEEDS HUMAN: design matching brand
+    - 1200x400px, dark theme, one per docs/prime/* page
+    - Place in `/apps/web/public/docs/`
+
+18. [ ] **JSON-LD structured data** — code task (can be done by Claude)
+    - Add `Organization` schema to homepage
+    - Add `SoftwareApplication` schema to `/solutions/agent-memory`
+    - Add `TechArticle` schema to docs pages
+
+19. [ ] **Benchmark publication visuals** — NEEDS HUMAN after benchmarks run
+    - Bar chart: cross-domain recall comparison (5 systems)
+    - Latency chart: 12μs vs 70ms vs 200ms+
+    - Feature matrix card for social sharing
+
+20. [ ] **Code screenshots for blog posts** — NEEDS HUMAN (optional)
+    - Use ray.so or carbon.now.sh for polished code screenshots
+    - Replace text code blocks in blog posts with images for social sharing
+
+---
+
+## Redeploy Checklist
+
+After creating the missing assets, redeploy the web app:
+
+1. [ ] Add `dashboard.png` to `/apps/web/public/`
+2. [ ] Add `author.jpg` to `/apps/web/public/`
+3. [ ] `git add . && git commit -m "assets: dashboard screenshot + author avatar"`
+4. [ ] `git push origin main` — Vercel auto-deploys
+5. [ ] Verify with lightpanda: `lightpanda fetch --dump markdown https://www.all-source.xyz/blog/zer0dex-vs-allsource-recall`
+6. [ ] Verify OG images: paste URL in https://opengraph.xyz to check preview
+7. [ ] Verify sitemap: `curl https://www.all-source.xyz/sitemap.xml`
+8. [ ] Verify robots.txt: `curl https://www.all-source.xyz/robots.txt`
+9. [ ] Submit sitemap to Google Search Console
+10. [ ] Submit sitemap to Bing Webmaster Tools
