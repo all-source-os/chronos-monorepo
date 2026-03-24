@@ -87,11 +87,11 @@ test.describe("Pipelines — pipeline cards", () => {
     const hasPipelines = await page.getByText("Total Pipelines").isVisible({ timeout: 5000 }).catch(() => false);
     test.skip(!hasPipelines, "No pipelines exist — skipping card tests");
 
-    // All 4 status cards should be visible
+    // All 4 status cards should be visible — use exact+first to avoid badge matches
     await expect(page.getByText("Total Pipelines")).toBeVisible();
-    await expect(page.getByText("Running")).toBeVisible();
-    await expect(page.getByText("Paused")).toBeVisible();
-    await expect(page.getByText("Errors")).toBeVisible();
+    await expect(page.getByText("Running", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Paused", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Errors", { exact: true }).first()).toBeVisible();
   });
 
   test("if pipelines exist, overflow menu shows Pause/Resume/Reset", async ({ page }) => {

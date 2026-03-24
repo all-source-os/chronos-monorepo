@@ -61,7 +61,7 @@ test.describe("Replay — form fields", () => {
   });
 
   test("form fields are visible and fillable", async ({ page }) => {
-    // Date and time inputs
+    // Date buttons (Calendar popover) and time inputs
     await expect(page.locator("#from-date")).toBeVisible({ timeout: 10000 });
     await expect(page.locator("input[aria-label='From time']")).toBeVisible();
     await expect(page.locator("#to-date")).toBeVisible();
@@ -72,11 +72,16 @@ test.describe("Replay — form fields", () => {
     await expect(page.locator("#entity-id")).toBeVisible();
     await expect(page.locator("#projection")).toBeVisible();
 
-    // Fill in the form
-    await page.locator("#from-date").fill("2026-01-01");
+    // Fill time inputs (date uses Calendar popover — click to pick)
+    await page.locator("#from-date").click();
+    // Pick first available day from calendar
+    await page.getByRole("gridcell").filter({ hasText: /^\d+$/ }).first().click();
     await page.locator("input[aria-label='From time']").fill("00:00");
-    await page.locator("#to-date").fill("2026-01-02");
+
+    await page.locator("#to-date").click();
+    await page.getByRole("gridcell").filter({ hasText: /^\d+$/ }).last().click();
     await page.locator("input[aria-label='To time']").fill("23:59");
+
     await page.locator("#event-type").fill("user.created");
     await page.locator("#entity-id").fill("user-123");
     await page.locator("#projection").fill("user-projection");
@@ -86,10 +91,13 @@ test.describe("Replay — form fields", () => {
   });
 
   test("clicking Start Replay submits the form", async ({ page }) => {
-    // Fill required fields
-    await page.locator("#from-date").fill("2026-01-01");
+    // Fill required fields — dates use Calendar popover
+    await page.locator("#from-date").click();
+    await page.getByRole("gridcell").filter({ hasText: /^\d+$/ }).first().click();
     await page.locator("input[aria-label='From time']").fill("00:00");
-    await page.locator("#to-date").fill("2026-01-02");
+
+    await page.locator("#to-date").click();
+    await page.getByRole("gridcell").filter({ hasText: /^\d+$/ }).last().click();
     await page.locator("input[aria-label='To time']").fill("23:59");
 
     // Click Start Replay

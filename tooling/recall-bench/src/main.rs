@@ -16,11 +16,17 @@ use std::path::PathBuf;
 pub mod cross_ref;
 mod datasets;
 mod evaluate;
+mod evaluate_prime;
 
 #[derive(Clone, Debug, clap::ValueEnum)]
 enum Dataset {
     Locomo,
     Longmemeval,
+    /// Prime-native: routes each question type through the Prime feature designed for it.
+    LongmemevalPrime,
+    /// Side-by-side comparison: Vector-Only vs Prime-Native on the same data.
+    /// Equivalent to zer0dex Mode C vs Mode B comparison.
+    Compare,
     CrossRef,
 }
 
@@ -119,6 +125,20 @@ async fn main() -> Result<()> {
         }
         Dataset::Longmemeval => {
             evaluate::run_longmemeval(mode, cli.limit.unwrap_or(usize::MAX), &cli.data_dir, &cli.model).await?
+        }
+        Dataset::LongmemevalPrime => {
+            evaluate_prime::run_longmemeval_prime(cli.limit.unwrap_or(usize::MAX), &cli.data_dir, &cli.model).await?
+        }
+        Dataset::Compare => {
+            let all = evaluate_prime::run_comparison(cli.limit.unwrap_or(usize::MAX), &cli.data_dir, &cli.model).await?;
+            for r in &all {
+                if cli.output == "json" {
+                    println!("{}", serde_json::to_string_pretty(&r)?);
+                } else {
+                    r.print_table();
+                }
+            }
+            return Ok(());
         }
         Dataset::CrossRef => {
             // Run the full cross-ref suite (3 modes: vector-only, vector+graph, full-recall)

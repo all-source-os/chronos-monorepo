@@ -86,7 +86,8 @@ test.describe("Events — search and filters", () => {
     // Filter panel should show Entity ID, Event Type, Date Range inputs
     await expect(page.getByPlaceholder("Filter by entity...")).toBeVisible({ timeout: 5000 });
     await expect(page.getByPlaceholder("Filter by type...")).toBeVisible({ timeout: 5000 });
-    await expect(page.locator("input[type='date']").first()).toBeVisible({ timeout: 5000 });
+    // Date filter uses a DatePicker popover (button with "Select date..." text), not input[type='date']
+    await expect(page.getByPlaceholder("Select date...").or(page.getByText("Select date...")).first()).toBeVisible({ timeout: 5000 });
   });
 
   test("filling Entity ID filter and clearing filters works", async ({ page }) => {

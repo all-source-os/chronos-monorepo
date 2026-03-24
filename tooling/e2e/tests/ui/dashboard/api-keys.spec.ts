@@ -89,6 +89,9 @@ test.describe("API Keys — create key", () => {
 
   test("fill form and create a key successfully", async ({ page }) => {
     const createBtn = page.getByRole("button", { name: /Create Key/i }).first();
+    await expect(createBtn).toBeVisible({ timeout: 10000 });
+    // Wait for BlurFade animation to settle
+    await page.waitForTimeout(1000);
     await createBtn.click();
 
     // Fill the name
@@ -142,6 +145,8 @@ test.describe("API Keys — create key", () => {
   test("clicking Done closes the dialog and key appears in table", async ({ page }) => {
     // Create a key
     const createBtn = page.getByRole("button", { name: /Create Key/i }).first();
+    await expect(createBtn).toBeVisible({ timeout: 10000 });
+    await page.waitForTimeout(1000);
     await createBtn.click();
     await page.locator("#name").fill("E2E Table Check");
     await page.getByRole("button", { name: /^Create Key$/i }).last().click();
@@ -176,6 +181,8 @@ test.describe("API Keys — key actions", () => {
 
     // Ensure at least one key exists by creating one
     const createBtn = page.getByRole("button", { name: /Create Key/i }).first();
+    await expect(createBtn).toBeVisible({ timeout: 10000 });
+    await page.waitForTimeout(1000);
     await createBtn.click();
     await page.locator("#name").fill("E2E Action Test");
     await page.getByRole("button", { name: /^Create Key$/i }).last().click();

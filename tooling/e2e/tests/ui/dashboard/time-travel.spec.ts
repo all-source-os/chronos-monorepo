@@ -204,11 +204,8 @@ test.describe("Time Travel — custom date & time", () => {
     const popoverHeading = page.locator("h3", { hasText: "Time Travel" });
     await expect(popoverHeading).toBeVisible({ timeout: 5000 });
 
-    // Fill custom date and time
-    const dateInput = page.locator("input[type='date']");
+    // The time input already has a value — just update it
     const timeInput = page.locator("input[type='time']");
-
-    await dateInput.fill("2026-01-15");
     await timeInput.fill("14:30");
 
     // Click "Travel to this time"

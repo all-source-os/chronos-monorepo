@@ -41,9 +41,8 @@ test.describe("Settings — page renders", () => {
   test("page renders with heading and tab navigation", async ({ page }) => {
     await expect(page.getByRole("heading", { name: /settings/i }).first()).toBeVisible({ timeout: 10000 });
 
-    // All 4 tabs should be visible — use exact match and first() to avoid sidebar matches
+    // All 3 tabs should be visible — use exact match and first() to avoid sidebar matches
     await expect(page.getByText("Profile", { exact: true }).first()).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("Workspace", { exact: true }).first()).toBeVisible({ timeout: 5000 });
     await expect(page.getByText("Security", { exact: true }).first()).toBeVisible({ timeout: 5000 });
     await expect(page.getByText("Notifications", { exact: true }).first()).toBeVisible({ timeout: 5000 });
   });
@@ -65,89 +64,27 @@ test.describe("Settings — Profile tab", () => {
     await authenticateAndNavigate(page, token!);
   });
 
-  test("Full Name input is editable, email is disabled", async ({ page }) => {
-    const nameInput = page.locator("#name");
-    await expect(nameInput).toBeVisible({ timeout: 10000 });
-    await expect(nameInput).toBeEnabled();
+  test("Profile tab shows read-only name and email fields", async ({ page }) => {
+    await expect(page.getByText("Profile Information")).toBeVisible({ timeout: 10000 });
 
-    const emailInput = page.locator("#email");
-    await expect(emailInput).toBeVisible();
-    await expect(emailInput).toBeDisabled();
+    // Full Name and Email Address labels should be visible
+    await expect(page.getByText("Full Name")).toBeVisible();
+    await expect(page.getByText("Email Address")).toBeVisible();
+
+    // Both inputs are disabled (managed by OAuth provider)
+    const inputs = page.locator("input[disabled]");
+    const count = await inputs.count();
+    expect(count).toBeGreaterThanOrEqual(2);
   });
 
-  test("changing name and saving shows success indicator", async ({ page }) => {
-    const nameInput = page.locator("#name");
-    await expect(nameInput).toBeVisible({ timeout: 10000 });
-
-    // Store original name
-    const originalName = await nameInput.inputValue();
-
-    // Change the name
-    await nameInput.clear();
-    await nameInput.fill("E2E Test Name");
-
-    // Click Save Changes
-    const saveBtn = page.getByRole("button", { name: /Save Changes/i });
-    await saveBtn.click();
-
-    // Should show success indicator (Saved text or checkmark)
-    await expect(page.getByText(/Saved|Success/i)).toBeVisible({ timeout: 5000 });
-
-    // Revert the name back
-    await nameInput.clear();
-    await nameInput.fill(originalName || "Demo User");
-    await saveBtn.click();
-    await expect(page.getByText(/Saved|Success/i)).toBeVisible({ timeout: 5000 });
+  test("Tenant ID is displayed", async ({ page }) => {
+    await expect(page.getByText("Tenant ID")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("code").first()).toBeVisible();
+    await expect(page.getByText("Use this ID for API authentication")).toBeVisible();
   });
 });
 
-// ---------------------------------------------------------------------------
-// Workspace tab
-// ---------------------------------------------------------------------------
-
-test.describe("Settings — Workspace tab", () => {
-  let token: string | null = null;
-
-  test.beforeAll(async ({ request }) => {
-    token = await demoLogin(request);
-  });
-
-  test.beforeEach(async ({ page }) => {
-    test.skip(!token, "Demo login failed (Control Plane not running)");
-    await authenticateAndNavigate(page, token!);
-  });
-
-  test("Workspace tab shows name, slug, and Tenant ID", async ({ page }) => {
-    // Click Workspace tab — use first() to avoid matching sidebar nav
-    await page.getByText("Workspace", { exact: true }).first().click();
-    await page.waitForTimeout(500);
-
-    // Workspace Name input
-    await expect(page.locator("#workspace-name")).toBeVisible({ timeout: 5000 });
-
-    // URL slug input
-    await expect(page.locator("#workspace-slug")).toBeVisible({ timeout: 5000 });
-
-    // Tenant ID should be displayed (read-only code block)
-    await expect(page.getByText("Tenant ID")).toBeVisible();
-    const tenantCode = page.locator("code");
-    await expect(tenantCode.first()).toBeVisible();
-  });
-
-  test("typing in URL slug sanitizes to lowercase", async ({ page }) => {
-    await page.getByText("Workspace", { exact: true }).first().click();
-    await page.waitForTimeout(500);
-
-    const slugInput = page.locator("#workspace-slug");
-    await slugInput.clear();
-    await slugInput.fill("My Test Workspace");
-    await page.waitForTimeout(300);
-
-    const value = await slugInput.inputValue();
-    // Should be sanitized (lowercase, no spaces)
-    expect(value).not.toMatch(/[A-Z ]/);
-  });
-});
+// Workspace tab was removed — tenant info is now shown on Profile tab
 
 // ---------------------------------------------------------------------------
 // Security tab

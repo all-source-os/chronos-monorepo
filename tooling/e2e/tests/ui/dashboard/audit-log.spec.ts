@@ -19,6 +19,14 @@ async function authenticateAndNavigate(
   );
   await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 });
   await page.goto("/dashboard/settings/audit-log");
+  // If redirected to login, retry auth once
+  if (page.url().includes("/login") || page.url().includes("/signin")) {
+    await page.goto(
+      `/api/auth/callback?token=${encodeURIComponent(token)}&new_user=false`
+    );
+    await page.waitForURL(/\/(dashboard|onboarding)/, { timeout: 15000 });
+    await page.goto("/dashboard/settings/audit-log");
+  }
   await expect(page.getByText("Loading...")).toBeHidden({ timeout: 15000 });
 }
 
@@ -39,7 +47,9 @@ test.describe("Audit Log — page renders", () => {
   });
 
   test("page renders with heading", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: /audit log/i }).first()).toBeVisible({ timeout: 10000 });
+    await expect(
+      page.getByRole("heading", { name: /audit log/i })
+    ).toBeVisible({ timeout: 15000 });
   });
 
   test("'All' filter pill is active by default", async ({ page }) => {
