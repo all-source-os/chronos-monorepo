@@ -309,11 +309,11 @@ export function McpShowdownPanel() {
                     domain={[0, "auto"]}
                   />
                   <Tooltip
-                    formatter={(value: number, name: string) => [
+                    formatter={(value, name) => [
                       `${value}ms`,
                       name === "raw" ? "Raw Mode" : "MCP Mode",
                     ]}
-                    labelFormatter={(label: number) => `${label}s`}
+                    labelFormatter={(label) => `${label}s`}
                     contentStyle={{
                       backgroundColor: "var(--color-background)",
                       border: "1px solid var(--color-border)",
