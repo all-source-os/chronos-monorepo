@@ -3,6 +3,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Prime MCP Setup",
   description: "Configure AllSource Prime as an MCP server for Claude Desktop with auto-inject, per-project memory, and all 13 tools.",
+  canonical: "/docs/prime/mcp",
 });
 
 export default function McpPage() {

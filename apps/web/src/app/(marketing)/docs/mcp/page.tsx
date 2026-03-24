@@ -4,6 +4,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "MCP Integration",
   description: `Connect ${siteConfig.name} to Claude Desktop with the Model Context Protocol server.`,
+  canonical: "/docs/mcp",
 });
 
 export default function McpPage() {

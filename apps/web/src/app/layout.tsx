@@ -5,7 +5,12 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { cn, constructMetadata } from "@/lib/utils";
 import "./globals.css";
 
-export const metadata: Metadata = constructMetadata({});
+export const metadata: Metadata = constructMetadata({
+  title: "AllSource — AI-Native Event Store",
+  description:
+    "High-performance event sourcing with AI agent memory. 469K events/sec, 12μs queries. Time-travel, knowledge graphs, compressed index. Open source.",
+  canonical: "/",
+});
 
 export const viewport: Viewport = {
   colorScheme: "dark",

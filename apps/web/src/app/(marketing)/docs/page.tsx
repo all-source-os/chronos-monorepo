@@ -5,6 +5,7 @@ import Link from "next/link";
 export const metadata = constructMetadata({
   title: "Documentation",
   description: `Documentation for ${siteConfig.name} — the AI-native event store for temporal data intelligence.`,
+  canonical: "/docs",
 });
 
 const cards = [

@@ -3,6 +3,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Prime Embedded (Rust Library)",
   description: "Use AllSource Prime as an embedded Rust library for knowledge graphs, vector search, and hybrid recall.",
+  canonical: "/docs/prime/embedded",
 });
 
 export default function EmbeddedPage() {

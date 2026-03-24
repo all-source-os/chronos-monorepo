@@ -6,6 +6,7 @@ export const metadata = constructMetadata({
   title: "Prime — Agent Memory Engine",
   description:
     "AllSource Prime: knowledge graph + vector search + compressed index in one binary. Documentation for AI agent memory.",
+  canonical: "/docs/prime",
 });
 
 const sections = [

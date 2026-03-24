@@ -3,6 +3,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Prime Concepts",
   description: "Core concepts: compressed index, domains, cross-domain reasoning, temporal queries, event provenance.",
+  canonical: "/docs/prime/concepts",
 });
 
 export default function ConceptsPage() {

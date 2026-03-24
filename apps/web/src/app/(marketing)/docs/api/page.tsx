@@ -4,6 +4,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "API Reference",
   description: `API Reference for ${siteConfig.name} Core — REST endpoints for events, projections, schemas, and more.`,
+  canonical: "/docs/api",
 });
 
 const endpoints = [

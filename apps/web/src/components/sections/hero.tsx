@@ -76,9 +76,9 @@ function HeroPill() {
       transition={{ duration: 0.8, ease }}
     >
       <div className="w-fit rounded-full bg-accent px-2 py-0.5 text-center text-xs font-medium text-primary sm:text-sm">
-        v0.10.0
+        v0.17.0
       </div>
-      <p className="text-xs font-medium text-primary sm:text-sm">469K events/sec achieved</p>
+      <p className="text-xs font-medium text-primary sm:text-sm">Prime: Agent Memory Engine shipped</p>
       <svg
         width="12"
         height="12"
@@ -186,7 +186,7 @@ function HeroStats() {
   const stats = [
     { value: 469, suffix: "K", label: "events/sec", delay: 0 },
     { value: 11.9, suffix: "μs", label: "p99 latency", delay: 100 },
-    { value: 27, suffix: "", label: "MCP tools", delay: 200 },
+    { value: 74, suffix: "", label: "MCP tools", delay: 200 },
     { value: 129, suffix: "MB", label: "footprint", delay: 300 },
   ];
 

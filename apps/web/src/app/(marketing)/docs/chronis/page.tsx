@@ -4,6 +4,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Chronis — Agent-Native Task CLI",
   description: `Chronis is an agent-native, event-sourced task CLI with TOON output for ~50% fewer tokens. Powered by ${siteConfig.name}.`,
+  canonical: "/docs/chronis",
 });
 
 export default function ChronisPage() {

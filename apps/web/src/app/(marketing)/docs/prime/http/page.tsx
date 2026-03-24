@@ -3,6 +3,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Prime HTTP API",
   description: "Use AllSource Prime from any language via REST. Full endpoint reference with curl examples.",
+  canonical: "/docs/prime/http",
 });
 
 export default function HttpPage() {

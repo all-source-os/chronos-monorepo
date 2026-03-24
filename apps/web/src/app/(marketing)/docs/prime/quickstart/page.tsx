@@ -3,6 +3,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Prime Quickstart",
   description: "Install AllSource Prime and store your first agent memory in 2 minutes.",
+  canonical: "/docs/prime/quickstart",
 });
 
 export default function QuickstartPage() {
