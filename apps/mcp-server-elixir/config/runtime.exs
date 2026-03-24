@@ -1,5 +1,23 @@
 import Config
 
+# Runtime config — these env vars are read when the release STARTS, not at compile time.
+# This is critical for Docker deployments where env vars are set at container run time.
+
+# Core API key for authenticated connections (fixes #109)
+# Accepts CORE_API_KEY or ALLSOURCE_CORE_API_KEY (backward compat with config.exs)
+if api_key = System.get_env("CORE_API_KEY") || System.get_env("ALLSOURCE_CORE_API_KEY") do
+  config :mcp_server_elixir, core_api_key: api_key
+end
+
+# Core URL overrides (runtime)
+if core_url = System.get_env("CORE_URL") || System.get_env("ALLSOURCE_CORE_URL") do
+  config :mcp_server_elixir, core_url: core_url
+end
+
+if core_ws_url = System.get_env("CORE_WS_URL") || System.get_env("ALLSOURCE_CORE_WS_URL") do
+  config :mcp_server_elixir, core_ws_url: core_ws_url
+end
+
 core_mode = System.get_env("CORE_MODE", "remote")
 
 case core_mode do
