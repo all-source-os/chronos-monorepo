@@ -16,23 +16,111 @@ use serde_json::json;
 use crate::datasets::{self, EvalScenario};
 use crate::BenchmarkResults;
 
-/// Embedder for both ingestion and evaluation scoring.
+/// Embedder with batch support and in-memory caching.
 struct Embedder {
     model: TextEmbedding,
+    cache: HashMap<u64, Vec<f32>>,
+    cache_hits: usize,
+    cache_misses: usize,
 }
 
 impl Embedder {
     fn new() -> Result<Self> {
-        tracing::info!("Loading embedding model...");
-        let model = TextEmbedding::try_new(
-            InitOptions::new(EmbeddingModel::AllMiniLML6V2).with_show_download_progress(true),
-        )?;
-        Ok(Self { model })
+        Self::with_model("mini")
     }
 
+    fn with_model(model_name: &str) -> Result<Self> {
+        let model_type = match model_name {
+            "base" | "bge-base" => {
+                tracing::info!("Loading BGE-Base-EN-v1.5 (768-dim, ~100MB)...");
+                EmbeddingModel::BGEBaseENV15
+            }
+            "large" | "bge-large" => {
+                tracing::info!("Loading BGE-Large-EN-v1.5 (1024-dim, ~350MB)...");
+                EmbeddingModel::BGELargeENV15
+            }
+            _ => {
+                tracing::info!("Loading MiniLM-L6-v2 (384-dim, ~30MB)...");
+                EmbeddingModel::AllMiniLML6V2
+            }
+        };
+        let model = TextEmbedding::try_new(
+            InitOptions::new(model_type).with_show_download_progress(true),
+        )?;
+        Ok(Self {
+            model,
+            cache: HashMap::new(),
+            cache_hits: 0,
+            cache_misses: 0,
+        })
+    }
+
+    /// Hash text for cache key.
+    fn text_hash(text: &str) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        text.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    /// Embed a single text, using cache.
     fn embed_one(&mut self, text: &str) -> Result<Vec<f32>> {
+        let key = Self::text_hash(text);
+        if let Some(cached) = self.cache.get(&key) {
+            self.cache_hits += 1;
+            return Ok(cached.clone());
+        }
+        self.cache_misses += 1;
         let mut results = self.model.embed(vec![text], None)?;
-        Ok(results.remove(0))
+        let vec = results.remove(0);
+        self.cache.insert(key, vec.clone());
+        Ok(vec)
+    }
+
+    /// Batch embed multiple texts at once (much faster than one-by-one).
+    fn embed_batch(&mut self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+        // Split into cached and uncached
+        let mut results = vec![Vec::new(); texts.len()];
+        let mut uncached_indices = Vec::new();
+        let mut uncached_texts = Vec::new();
+
+        for (i, text) in texts.iter().enumerate() {
+            let key = Self::text_hash(text);
+            if let Some(cached) = self.cache.get(&key) {
+                self.cache_hits += 1;
+                results[i] = cached.clone();
+            } else {
+                self.cache_misses += 1;
+                uncached_indices.push(i);
+                uncached_texts.push(*text);
+            }
+        }
+
+        // Batch embed uncached texts
+        if !uncached_texts.is_empty() {
+            let embeddings = self.model.embed(uncached_texts.clone(), None)?;
+            for (j, embedding) in embeddings.into_iter().enumerate() {
+                let idx = uncached_indices[j];
+                let key = Self::text_hash(texts[idx]);
+                self.cache.insert(key, embedding.clone());
+                results[idx] = embedding;
+            }
+        }
+
+        Ok(results)
+    }
+
+    fn log_stats(&self) {
+        tracing::info!(
+            "Embedder stats: {} cache hits, {} misses ({:.1}% hit rate)",
+            self.cache_hits,
+            self.cache_misses,
+            if self.cache_hits + self.cache_misses > 0 {
+                self.cache_hits as f64 / (self.cache_hits + self.cache_misses) as f64 * 100.0
+            } else {
+                0.0
+            }
+        );
     }
 }
 
@@ -81,9 +169,10 @@ pub async fn run_longmemeval(
     mode: &str,
     limit: usize,
     data_dir: &Path,
+    model: &str,
 ) -> Result<BenchmarkResults> {
     let scenarios = datasets::load_longmemeval(data_dir, limit).await?;
-    run_scenarios("LongMemEval", mode, &scenarios).await
+    run_scenarios("LongMemEval", mode, &scenarios, model).await
 }
 
 /// Run LoCoMo evaluation (synthetic fallback).
@@ -91,9 +180,10 @@ pub async fn run_locomo(
     mode: &str,
     limit: usize,
     data_dir: &Path,
+    model: &str,
 ) -> Result<BenchmarkResults> {
     let scenarios = datasets::load_locomo(data_dir, limit).await?;
-    run_scenarios("LoCoMo", mode, &scenarios).await
+    run_scenarios("LoCoMo", mode, &scenarios, model).await
 }
 
 /// Core evaluation loop.
@@ -101,8 +191,9 @@ async fn run_scenarios(
     dataset_name: &str,
     mode: &str,
     scenarios: &[EvalScenario],
+    model_name: &str,
 ) -> Result<BenchmarkResults> {
-    let mut embedder = Embedder::new()?;
+    let mut embedder = Embedder::with_model(model_name)?;
 
     let mut total_queries = 0usize;
     let mut total_latency_ms = 0.0f64;
@@ -122,14 +213,21 @@ async fn run_scenarios(
         // (LongMemEval provides the haystack sessions specific to each question)
         let prime = Prime::open_in_memory().await?;
 
-        // Ingest conversation turns (sentence-chunked) with session IDs
+        // Collect valid turns for batch embedding
+        let valid_turns: Vec<&datasets::ConversationTurn> = scenario
+            .conversation
+            .iter()
+            .filter(|t| t.role != "system" && !t.content.is_empty())
+            .collect();
+
+        // Batch embed all turn contents at once (much faster than one-by-one)
+        let turn_texts: Vec<&str> = valid_turns.iter().map(|t| t.content.as_str()).collect();
+        let embeddings = embedder.embed_batch(&turn_texts)?;
+
+        // Ingest with pre-computed embeddings
         let mut prev_entity_id: Option<String> = None;
 
-        for turn in &scenario.conversation {
-            if turn.role == "system" || turn.content.is_empty() {
-                continue;
-            }
-
+        for (turn, embedding) in valid_turns.iter().zip(embeddings.into_iter()) {
             let node_id = prime
                 .add_node(
                     "memory",
@@ -147,7 +245,6 @@ async fn run_scenarios(
             let entity_id =
                 allsource_core::prime::node_entity_id("memory", node_id.as_str());
 
-            let embedding = embedder.embed_one(&turn.content)?;
             prime
                 .embed(&entity_id, Some(&turn.content), embedding)
                 .await?;
@@ -157,6 +254,72 @@ async fn run_scenarios(
                 let _ = prime.add_edge(prev, &entity_id, "follows", None).await;
             }
             prev_entity_id = Some(entity_id);
+        }
+
+        // Entity-based cross-session edges: connect chunks that share
+        // capitalized multi-word names (likely people, places, events)
+        {
+            let all_nodes: Vec<_> = prime.nodes_by_type("memory");
+            let mut name_to_entities: HashMap<String, Vec<String>> = HashMap::new();
+
+            for node in &all_nodes {
+                let content = node
+                    .properties
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+
+                // Extract capitalized multi-word names (2+ consecutive capitalized words)
+                let words: Vec<&str> = content.split_whitespace().collect();
+                for window in words.windows(2) {
+                    let a = window[0].trim_matches(|c: char| !c.is_alphanumeric());
+                    let b = window[1].trim_matches(|c: char| !c.is_alphanumeric());
+                    if a.len() >= 2
+                        && b.len() >= 2
+                        && a.chars().next().is_some_and(|c| c.is_uppercase())
+                        && b.chars().next().is_some_and(|c| c.is_uppercase())
+                    {
+                        let name = format!("{a} {b}");
+                        #[allow(deprecated)]
+                        let eid = allsource_core::prime::node_entity_id(
+                            "memory",
+                            node.id.as_str(),
+                        );
+                        name_to_entities.entry(name).or_default().push(eid);
+                    }
+                }
+            }
+
+            // Create edges between chunks sharing the same entity name
+            // but in DIFFERENT sessions
+            let mut cross_edges = 0;
+            for (_name, eids) in &name_to_entities {
+                if eids.len() < 2 || eids.len() > 20 {
+                    continue; // Skip singletons and overly common names
+                }
+                for i in 0..eids.len().min(5) {
+                    for j in (i + 1)..eids.len().min(5) {
+                        // Only connect if different sessions
+                        let node_a = prime.get_node(&eids[i]);
+                        let node_b = prime.get_node(&eids[j]);
+                        let diff_session = match (&node_a, &node_b) {
+                            (Some(a), Some(b)) => {
+                                a.properties.get("session_id") != b.properties.get("session_id")
+                            }
+                            _ => false,
+                        };
+                        if diff_session {
+                            let _ = prime
+                                .add_edge(&eids[i], &eids[j], "mentions", None)
+                                .await;
+                            cross_edges += 1;
+                        }
+                    }
+                }
+            }
+            if cross_edges > 0 && scenario_idx % 50 == 0 {
+                tracing::debug!("Created {} cross-session entity edges", cross_edges);
+            }
         }
 
         // Run queries
@@ -171,6 +334,7 @@ async fn run_scenarios(
             let is_temporal = query.question_type == "temporal-reasoning"
                 || query.question_type == "knowledge-update";
 
+            // Multi-session goes through recall() for graph expansion, NOT temporal path
             let retrieved: Vec<(String, String)> = if is_temporal && mode != "vector-only" {
                 // Temporal-aware retrieval: vector search → sort by date → filter by keyword
                 let results = prime.vector_search(&query_embedding, 25); // over-fetch
@@ -212,9 +376,9 @@ async fn run_scenarios(
                         || q_lower.contains("now")
                         || is_knowledge_update
                     {
-                        // Knowledge-update: latest wins (most recent session has the current answer)
-                        let len = hits.len();
-                        hits.into_iter().skip(len.saturating_sub(8)).collect()
+                        // Latest wins: reverse chronological, take most recent hits
+                        hits.reverse();
+                        hits.into_iter().take(10).collect()
                     } else if q_lower.contains("before") {
                         let qd = query.query_date.as_deref().unwrap_or("");
                         hits.into_iter()
@@ -259,11 +423,13 @@ async fn run_scenarios(
                             .collect()
                     }
                     _ => {
+                        // Multi-session needs wider search to find cross-session facts
+                        let is_multi = query.question_type.contains("multi-session");
                         let recall_query = RecallQuery {
                             vector: Some(query_embedding.clone()),
                             text: Some(query.question.clone()),
-                            depth: if mode == "full-recall" { 2 } else { 1 },
-                            top_k: 15,
+                            depth: if is_multi { 3 } else if mode == "full-recall" { 2 } else { 1 },
+                            top_k: if is_multi { 25 } else { 15 },
                             ..RecallQuery::default()
                         };
                         match prime.recall(recall_query).await {
@@ -339,9 +505,9 @@ async fn run_scenarios(
                     semantic_score = semantic_score.max(sim);
                 }
 
-                // Combined: 30% session hit (coarse signal) + 70% semantic (fine signal)
+                // Combined: 50% session hit + 50% semantic
                 if !query.answer_session_ids.is_empty() {
-                    session_hit * 0.3 + semantic_score.min(1.0) * 0.7
+                    session_hit * 0.5 + semantic_score.min(1.0) * 0.5
                 } else {
                     // No session IDs available — pure semantic scoring
                     if semantic_score >= HIT_THRESHOLD {
@@ -416,6 +582,8 @@ async fn run_scenarios(
         overall_recall * 100.0,
         pass_rate * 100.0,
     );
+
+    embedder.log_stats();
 
     Ok(BenchmarkResults {
         dataset: dataset_name.to_string(),

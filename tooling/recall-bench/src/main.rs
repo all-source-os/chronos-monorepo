@@ -55,6 +55,10 @@ struct Cli {
     /// Output format: table (default) or json
     #[arg(long, default_value = "table")]
     output: String,
+
+    /// Embedding model: mini (AllMiniLML6V2, fast), base (BGEBaseENV15, better quality)
+    #[arg(long, default_value = "mini")]
+    model: String,
 }
 
 /// Results from a benchmark run.
@@ -111,10 +115,10 @@ async fn main() -> Result<()> {
 
     let results = match cli.dataset {
         Dataset::Locomo => {
-            evaluate::run_locomo(mode, cli.limit.unwrap_or(usize::MAX), &cli.data_dir).await?
+            evaluate::run_locomo(mode, cli.limit.unwrap_or(usize::MAX), &cli.data_dir, &cli.model).await?
         }
         Dataset::Longmemeval => {
-            evaluate::run_longmemeval(mode, cli.limit.unwrap_or(usize::MAX), &cli.data_dir).await?
+            evaluate::run_longmemeval(mode, cli.limit.unwrap_or(usize::MAX), &cli.data_dir, &cli.model).await?
         }
         Dataset::CrossRef => {
             // Run the full cross-ref suite (3 modes: vector-only, vector+graph, full-recall)

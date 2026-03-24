@@ -129,9 +129,10 @@ fn convert_longmemeval_record(record: LongMemEvalRecord) -> EvalScenario {
             // Chunk into sentences for finer-grained embedding
             let sentences = chunk_into_sentences(&turn.content);
 
+            // Individual sentences
             for sentence in &sentences {
                 if sentence.len() < 10 {
-                    continue; // Skip very short fragments
+                    continue;
                 }
                 conversation.push(ConversationTurn {
                     role: turn.role.clone(),
@@ -141,6 +142,7 @@ fn convert_longmemeval_record(record: LongMemEvalRecord) -> EvalScenario {
                     session_date: session_date.clone(),
                 });
             }
+
         }
     }
 
