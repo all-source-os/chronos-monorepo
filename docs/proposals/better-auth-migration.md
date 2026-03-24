@@ -1,178 +1,232 @@
-# Better Auth Migration Plan
+# Better Auth Migration — Using AllSource as Auth Backend
 
-> **Note (2026-03-01):** This proposal's premise is partially outdated. It assumes the Query Service uses PostgreSQL ("the same Postgres DB the Query Service uses") — the QS has been stateless with no PostgreSQL since v0.10.0. The core goal (working email/password auth + consolidated identity) remains valid, but the "BEFORE" architecture diagram and Phase 2 (database setup sharing QS Postgres) need revision. If Better Auth is adopted, it would need its own Postgres instance or use Core's auth system instead.
-
-## Context
-
-The current auth system has three disconnected auth stores across services, and **email/password login doesn't work** despite the frontend having the forms for it. The Query Service uses Ueberauth (OAuth) + Guardian (JWT) but only supports Google/GitHub OAuth — `POST /api/auth/login` and `POST /api/auth/register` don't exist on the backend.
-
-**Goal**: Replace the custom Ueberauth/Guardian auth in the Query Service with [Better Auth](https://www.better-auth.com/), running as a Next.js API route in the web app. This gives us:
-- Working email/password auth (signup, login, forgot/reset password, email verification)
-- OAuth (Google, GitHub) via Better Auth's social plugins
-- A single auth source (Better Auth's Postgres tables) instead of three disconnected systems
-- JWT plugin with JWKS endpoint so the Elixir Query Service can validate tokens without sharing secrets
-
-## Architecture Change
-
-```
-BEFORE:
-  Browser → Next.js (cookie proxy) → Query Service (Ueberauth + Guardian + Postgres)
-
-AFTER:
-  Browser → Next.js (Better Auth server + API routes) → Better Auth Postgres DB
-                                                              ↓
-  Query Service validates JWT via JWKS ← Better Auth JWT plugin exposes /.well-known/jwks.json
-```
-
-Better Auth runs inside the Next.js app (API route handler). It manages its own tables in the same Postgres DB the Query Service uses (or a separate one). The Query Service no longer handles auth — it only validates incoming JWTs by fetching the public keys from Better Auth's JWKS endpoint.
+> **Status**: Proposal (revised 2026-03-24)
+> **Replaces**: Previous proposal that assumed PostgreSQL + TypeScript better-auth
+> **Key change**: Uses `better-auth` (Rust) + `better-auth-allsource` adapter — no Postgres needed
 
 ---
 
-## Phase 1: Install Better Auth in Web App
+## What Already Exists
 
-**Files to create/modify:**
-- `apps/web/package.json` — add `better-auth` dependency
-- `apps/web/src/lib/auth.ts` — Better Auth server instance config
-- `apps/web/src/lib/auth-client.ts` — Better Auth client instance
-- `apps/web/src/app/api/auth/[...all]/route.ts` — catch-all API route handler
+### `crates/better-auth-allsource` — COMPLETE (v0.14.4, published)
 
-**Details:**
-1. `bun add better-auth` in `apps/web/`
-2. Configure Better Auth server with:
-   - PostgreSQL adapter (using `DATABASE_URL` env var — same Postgres as Query Service or separate)
-   - Email/password plugin enabled
-   - Google + GitHub social providers (reuse existing OAuth client IDs/secrets)
-   - JWT plugin with JWKS endpoint enabled (for Elixir validation)
-   - Session config: cookie-based sessions for the web app
-3. Create the catch-all route at `apps/web/src/app/api/auth/[...all]/route.ts` that delegates to Better Auth's `toNextJsHandler()`
-4. Create client-side auth instance in `apps/web/src/lib/auth-client.ts` using `createAuthClient()`
+A Rust crate implementing all 10 `DatabaseAdapter` sub-traits for `better-auth-rs`:
 
-## Phase 2: Database Setup
+| Trait | Operations | Status |
+|-------|-----------|--------|
+| UserOps | create, get (by id/email/username), update, delete, list/search | Done |
+| SessionOps | create, get, update expiry, delete, cleanup expired | Done |
+| AccountOps | create, get (by provider), update, delete | Done |
+| VerificationOps | create, get, consume, delete, cleanup expired | Done |
+| OrganizationOps | create, get (by id/slug), update, delete (cascading) | Done |
+| MemberOps | create, get, update role, delete, list, count | Done |
+| InvitationOps | create, get, update status, list | Done |
+| TwoFactorOps | create, get, update backup codes, delete | Done |
+| ApiKeyOps | create, get (by id/hash), update, delete, cleanup expired | Done |
+| PasskeyOps | create, get (by id/credential_id), update counter/name, delete | Done |
 
-**Details:**
-1. Run Better Auth's schema generation: `npx @better-auth/cli generate` to get the migration SQL
-2. Better Auth creates these tables: `user`, `session`, `account`, `verification`
-3. Write a data migration script to copy existing users from the Query Service's `users` table into Better Auth's `user` table, and create corresponding `account` records for their OAuth providers
-4. The existing `users` table in the Query Service stays — we'll add a `better_auth_user_id` column or map by email
+**Architecture**: HTTP-based, writes to Core (`/api/v1/events`), reads from Query Service (`/api/v1/events/query`). Event-sourced — every auth mutation is an immutable event with full audit trail.
 
-**Key consideration:** Better Auth's `user` table uses its own schema. Existing Query Service users need their OAuth `account` records created so they can still log in with Google/GitHub.
+**Event types**: `UserCreated`, `SessionCreated`, `AccountCreated`, etc. Entity IDs: `auth-user:{id}`, `auth-session:{token}`, etc.
 
-## Phase 3: Update Frontend Auth Pages
+### What does NOT exist yet
 
-**Files to modify:**
-- `apps/web/src/app/(auth)/login/page.tsx`
-- `apps/web/src/app/(auth)/signup/page.tsx`
-- `apps/web/src/app/(auth)/forgot-password/page.tsx`
-- `apps/web/src/app/(auth)/reset-password/page.tsx`
-- `apps/web/src/app/(auth)/verify-email/page.tsx`
+- No auth **server** running `better-auth` — the adapter exists but nothing uses it
+- No auth **endpoints** exposed (login, register, OAuth callback, session, JWKS)
+- No web app integration — frontend still uses Control Plane auth via proxy
+- No JWT/JWKS integration with Query Service
 
-**Details:**
-1. Replace direct `fetch()` calls to `${apiUrl}/api/auth/login` with Better Auth client methods:
-   - Login: `authClient.signIn.email({ email, password })`
-   - Register: `authClient.signUp.email({ name, email, password })`
-   - OAuth: `authClient.signIn.social({ provider: "google" })` / `authClient.signIn.social({ provider: "github" })`
-   - Forgot password: `authClient.forgetPassword({ email })`
-   - Reset password: `authClient.resetPassword({ token, newPassword })`
-2. Remove `getApiUrl()` usage for auth — all auth goes through local Next.js routes now
-3. OAuth buttons change from `window.location.href = '${apiUrl}/api/auth/google'` to `authClient.signIn.social({ provider: "google" })`
+---
 
-## Phase 4: Update Middleware & Session Handling
+## Revised Architecture
 
-**Files to modify:**
-- `apps/web/src/middleware.ts`
-- `apps/web/src/app/api/auth/session/route.ts` — replace or remove
-- `apps/web/src/app/api/auth/callback/route.ts` — remove (Better Auth handles callbacks)
+```
+CURRENT (broken demo, fragile proxy chain):
+  Browser → Next.js proxy → Query Service (no auth routes)
+                           → Control Plane (Go, has auth but proxy routing is fragile)
 
-**Details:**
-1. Update middleware to check Better Auth session instead of `auth_token` cookie:
-   - Use Better Auth's `auth.api.getSession()` with the request headers
-   - Or check for Better Auth's session cookie (default: `better-auth.session_token`)
-2. Remove the custom `/api/auth/callback/route.ts` — Better Auth's catch-all handles OAuth callbacks
-3. Replace `/api/auth/session/route.ts` with a simpler version that calls Better Auth's session API
+PROPOSED:
+  Browser → Next.js → Auth Service (Rust, better-auth + allsource adapter)
+                              ↓
+                         AllSource Core (events: auth-user:*, auth-session:*, etc.)
+                              ↓
+  Query Service validates JWT via JWKS ← Auth Service exposes /.well-known/jwks.json
+```
 
-## Phase 5: Update API Client & Dashboard
+The Auth Service is a new Rust binary (`apps/auth/`) that runs `better-auth` with the AllSource adapter. It handles all auth flows and stores everything as events in Core.
 
-**Files to modify:**
-- `apps/web/src/lib/api/client.ts`
-- `apps/web/src/components/dashboard/sidebar.tsx` (logout handler)
-- Any component using `apiClient.getMe()`, `apiClient.login()`, etc.
+**Why a separate service instead of embedding in Core?**
+- Core is the database — adding auth HTTP handlers to it violates SRP
+- The auth service can scale independently
+- Follows the existing monorepo isolation pattern (each app is standalone)
 
-**Details:**
-1. Remove auth methods from `ApiClient` (getMe, login, register, verifyEmail, forgotPassword, resetPassword, resendVerification) — these are now handled by Better Auth client
-2. Update `ApiClient.request()` to attach the Better Auth JWT as a Bearer token instead of relying on `credentials: "include"` to the Query Service:
-   - Get JWT from Better Auth session: `const session = await authClient.getSession()`
-   - Add `Authorization: Bearer ${session.token}` header to all Query Service requests
-3. Update logout in sidebar to call `authClient.signOut()`
+**Alternative: embed in Prime MCP server.**
+Prime already has HTTP mode and connects to Core. Adding auth routes to `allsource-prime --mode http` could avoid a new service. Trade-off: coupling auth to the agent memory server.
 
-## Phase 6: Elixir Query Service — JWKS JWT Validation
+---
 
-**Files to modify:**
+## Implementation Phases
+
+### Phase 1: Auth Service Binary — `apps/auth/` (NEW)
+
+**Effort: ~4 hours** (the hard work is done in the adapter crate)
+
+Create a new Rust binary that wires `better-auth` + `better-auth-allsource`:
+
+```rust
+use better_auth::{BetterAuth, Config};
+use better_auth_allsource::AllsourceAuthAdapter;
+
+let adapter = AllsourceAuthAdapter::new(
+    &core_url,    // "http://allsource-core.internal:3900"
+    &qs_url,      // "http://allsource-query.internal:3902"
+    &api_key,
+);
+
+let auth = BetterAuth::builder()
+    .database(adapter)
+    .secret(&env::var("AUTH_SECRET")?)
+    .base_url(&env::var("AUTH_BASE_URL")?)
+    // OAuth providers
+    .google_oauth(google_id, google_secret)
+    .github_oauth(github_id, github_secret)
+    // Plugins
+    .jwt()        // Enable JWT + JWKS endpoint
+    .email()      // Enable email/password
+    .build()
+    .await?;
+```
+
+**Endpoints exposed by better-auth**:
+- `POST /api/auth/sign-up/email` — email registration
+- `POST /api/auth/sign-in/email` — email login
+- `POST /api/auth/sign-in/social` — OAuth initiate
+- `GET /api/auth/callback/:provider` — OAuth callback
+- `GET /api/auth/session` — get current session
+- `POST /api/auth/sign-out` — logout
+- `POST /api/auth/forget-password` — password reset request
+- `POST /api/auth/reset-password` — password reset
+- `POST /api/auth/verify-email` — email verification
+- `GET /.well-known/jwks.json` — JWKS for JWT validation
+
+**Deliverables**:
+- [ ] `apps/auth/Cargo.toml` — depends on `better-auth`, `better-auth-allsource`, `axum`, `tokio`
+- [ ] `apps/auth/src/main.rs` — CLI args (core-url, qs-url, port, secrets), starts axum server
+- [ ] `apps/auth/Dockerfile` — standalone build
+- [ ] `apps/auth/fly.toml` — Fly.io deployment config
+- [ ] Excluded from root workspace (per monorepo rules)
+
+### Phase 2: Web App Integration (~3 hours)
+
+Replace the Control Plane auth proxy with direct calls to the Auth Service.
+
+**Files to modify**:
+- `apps/web/src/app/api/v1/auth/[...path]/route.ts` — proxy to Auth Service instead of Control Plane
+- `apps/web/src/app/api/v1/demo/start/route.ts` — proxy to Auth Service
+- `apps/web/src/app/(auth)/login/page.tsx` — use better-auth API paths
+- `apps/web/src/app/(auth)/signup/page.tsx` — same
+- `apps/web/src/app/(auth)/forgot-password/page.tsx` — same
+- `apps/web/src/app/(auth)/reset-password/page.tsx` — same
+- `apps/web/fly.toml` — change `CONTROL_PLANE_INTERNAL_URL` to `AUTH_SERVICE_URL`
+
+**Key change**: The auth proxy in the web app just changes its upstream URL. The better-auth API paths are similar to what the frontend already uses.
+
+**Demo login**: The Auth Service replaces the Control Plane's `DemoStartHandler`. The adapter creates a demo user event in Core — same effect, event-sourced.
+
+### Phase 3: Query Service JWKS Validation (~4 hours)
+
+Replace Guardian JWT validation with JWKS-based validation from the Auth Service.
+
+**Files to modify**:
 - `apps/query-service/mix.exs` — add `jose` dependency
-- `apps/query-service/lib/query_service_ex_web/plugs/auth_pipeline.ex` — replace Guardian pipeline
-- `apps/query-service/lib/query_service_ex/accounts/guardian.ex` — remove or keep for dev mode
-- `apps/query-service/config/config.exs` — add JWKS URL config
+- New plug: `BetterAuthJwt` — fetches JWKS, validates Bearer tokens
+- `apps/query-service/lib/query_service_ex_web/router.ex` — replace Guardian pipeline
+- Config: `AUTH_JWKS_URL` env var pointing to `http://auth.internal:3903/.well-known/jwks.json`
 
-**Details:**
-1. Add `{:jose, "~> 1.11"}` to mix.exs deps (JOSE library for JWT/JWKS validation)
-2. Create a new plug `BetterAuthJwt` or modify `AuthPipeline` to:
-   - Fetch JWKS from Better Auth's `/.well-known/jwks.json` endpoint (with caching)
-   - Extract Bearer token from Authorization header
-   - Verify JWT signature using the JWKS public key
-   - Extract user ID and email from JWT claims
-   - Look up or create the user in Query Service's local `users` table (by email or better_auth_user_id)
-   - Assign `current_user` to conn
-3. Keep the dev mode bypass (`AUTH_DISABLED=true`) as-is
-4. The Query Service's `users` table stays — it just gets synced on first authenticated request from each user (upsert by email)
+**JWKS flow**:
+1. Auth Service exposes `/.well-known/jwks.json` (built into better-auth JWT plugin)
+2. Query Service fetches and caches the JWKS (ETS, refresh hourly)
+3. On each request: extract Bearer token → verify with cached JWKS → extract claims → assign user
+4. On first auth: upsert user in QS from JWT claims (email, name)
 
-**JWKS caching:** Cache the JWKS response in an ETS table or Agent, refresh every ~1 hour or on JWT validation failure.
+### Phase 4: Data Migration (~2 hours)
 
-## Phase 7: Tenant Association
+Migrate existing users from Control Plane's Core-backed store to the Auth Service's event format.
 
-**Files to modify:**
-- `apps/query-service/lib/query_service_ex/accounts.ex` — add `find_or_create_from_better_auth/1`
+**Current**: Control Plane stores users as events in Core with entity_id format specific to Go's auth implementation.
+**Target**: Auth Service stores users as `auth-user:{id}` events.
 
-**Details:**
-1. When a JWT from Better Auth is validated and the user doesn't exist in the Query Service's `users` table:
-   - Create the user record (email, name from JWT claims)
-   - Auto-create a tenant (same logic as current `create_user_with_tenant/1`)
-2. When the user already exists (matched by email):
-   - Return existing user with tenant preloaded
-3. This preserves existing tenant/billing associations for migrated users
+**Migration script**:
+1. Query Core for all existing user events from Control Plane
+2. For each user, create equivalent `auth-user:{id}` events via the Auth Service
+3. For OAuth users, create `auth-account:{id}` events linking provider + user
+4. Verify: all existing users can log in via the new Auth Service
 
-## Phase 8: Cleanup
+### Phase 5: Cleanup (~2 hours)
 
-**Files to remove/modify:**
-- Remove Ueberauth deps from `mix.exs`: `ueberauth`, `ueberauth_google`, `ueberauth_github`
-- Remove Guardian dep from `mix.exs` (keep JOSE)
-- Remove `apps/query-service/lib/query_service_ex/accounts/guardian.ex`
-- Remove Ueberauth config from `config.exs`, `dev.exs`, `test.exs`, `runtime.exs`
-- Remove Guardian config from all config files
-- Remove or simplify `AuthController` — only keep `me` endpoint (now backed by JWKS validation)
-- Remove OAuth routes from `router.ex` (`GET /api/auth/:provider`, `GET /api/auth/:provider/callback`)
-- Remove `auth_error_handler.ex` (Guardian-specific)
+- Remove auth handlers from Control Plane (Go) — `DemoStartHandler`, `LoginHandler`, `RegisterHandler`
+- Remove Ueberauth/Guardian from Query Service (if still present)
+- Remove `CONTROL_PLANE_INTERNAL_URL` from web app fly.toml
+- Add `AUTH_SERVICE_URL` to web app fly.toml
+- Update `check-versions.sh` to include `apps/auth/`
+- Update `set-version` in Makefile
 
-## Phase 9: Environment Variables
+### Phase 6: Deploy (~1 hour)
 
-**New env vars needed:**
-- `BETTER_AUTH_SECRET` — secret for Better Auth (used for session signing)
-- `BETTER_AUTH_URL` — base URL of the web app (for OAuth callbacks)
-- `DATABASE_URL` — Better Auth needs direct Postgres access (may reuse Query Service's DB or separate)
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — reuse existing
-- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` — reuse existing
-- `JWKS_URL` — for Query Service config (e.g., `https://all-source.xyz/api/auth/.well-known/jwks.json`)
+1. Deploy Auth Service to Fly.io: `fly apps create allsource-auth`
+2. Set secrets: `AUTH_SECRET`, `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`
+3. Run data migration script
+4. Update web app env vars: `AUTH_SERVICE_URL = http://allsource-auth.internal:3903`
+5. Redeploy web app
+6. Verify: email login, OAuth login, demo login, session, JWT validation in QS
 
 ---
 
-## Verification
+## What Can Be Automated (by Claude)
 
-1. **Email/password flow**: Sign up with email → verify email → login → see dashboard
-2. **OAuth flow**: Click Google/GitHub → redirected → callback → session created → dashboard
-3. **Query Service auth**: Authenticated requests to `/api/events`, `/api/query` etc. work with Better Auth JWT
-4. **Existing users**: Users who signed up via Google/GitHub before migration can still log in
-5. **Tenant association**: New users get auto-created tenant, existing users keep their tenant
-6. **Dev mode**: `AUTH_DISABLED=true` still bypasses auth in the Query Service
-7. Run existing e2e tests in `tooling/e2e/`
+| Phase | Task | Automatable? |
+|-------|------|-------------|
+| 1 | Auth Service scaffold + Cargo.toml | Yes |
+| 1 | main.rs wiring better-auth + adapter | Yes |
+| 1 | Dockerfile + fly.toml | Yes |
+| 2 | Update web app proxy routes | Yes |
+| 2 | Update frontend auth pages | Yes |
+| 3 | Elixir JWKS plug | Yes (but needs testing) |
+| 4 | Migration script | Yes |
+| 5 | Cleanup | Yes |
+| 6 | Fly.io deploy | Needs human (secrets, DNS) |
 
-## Implementation Order
+**Estimated total: ~16 hours of code work, most automatable.**
 
-Phases 1-2 first (install + DB), then 3-5 (frontend), then 6-7 (Elixir backend), then 8-9 (cleanup). Each phase is independently deployable — the old auth can coexist with Better Auth during migration.
+---
+
+## Comparison: This Proposal vs Previous
+
+| Aspect | Previous (TypeScript) | This (Rust + AllSource) |
+|--------|----------------------|------------------------|
+| Database | PostgreSQL (new infra) | AllSource Core (existing) |
+| Auth framework | better-auth (TS, npm) | better-auth (Rust, crates.io) |
+| Adapter | Prisma/Kysely | `better-auth-allsource` (DONE) |
+| New service | None (embedded in Next.js) | `apps/auth/` Rust binary |
+| Infrastructure | Need Postgres instance | None — uses existing Core |
+| Data model | SQL tables | Event-sourced (immutable, auditable) |
+| Effort | ~30 hours | ~16 hours |
+| Risk | High (Elixir JOSE integration) | Medium (adapter is proven) |
+
+---
+
+## Benefits of AllSource-Native Auth
+
+1. **No new infrastructure** — auth events stored in the same Core that stores everything else
+2. **Full audit trail** — every login, session, password change is an immutable event
+3. **Time-travel** — "who was logged in on March 15th?" is a Core query
+4. **Dogfooding** — AllSource's own auth proves the event store works for operational data
+5. **Single backup** — Core's WAL + Parquet backs up auth alongside business events
+
+---
+
+## Decision Needed
+
+1. **New service (`apps/auth/`)** vs **embed in Prime MCP HTTP mode** — separate service is cleaner but adds one more Fly.io app
+2. **Migration timing** — do this before or after the v0.17.0 release?
+3. **OAuth providers** — Google + GitHub confirmed, add any others?
