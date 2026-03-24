@@ -114,7 +114,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
       />
 
       {/* Dialog */}
-      <Card className="relative z-10 w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+      <Card className="relative z-10 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -278,6 +278,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
                 Cancel
               </Button>
               <Button
+                data-testid="create-key-submit"
                 onClick={handleCreate}
                 disabled={!name.trim() || selectedScopes.length === 0 || isCreating}
               >
