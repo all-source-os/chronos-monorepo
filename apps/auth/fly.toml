@@ -1,0 +1,43 @@
+# Fly.io Configuration for AllSource Auth Service
+# Deploy from monorepo root:
+#   flyctl deploy --config apps/auth/fly.toml --dockerfile apps/auth/Dockerfile
+#
+# First-time setup:
+#   flyctl apps create allsource-auth
+#   flyctl secrets set AUTH_SECRET=<your-secret> --app allsource-auth
+#   flyctl deploy --config apps/auth/fly.toml --dockerfile apps/auth/Dockerfile
+
+app = "allsource-auth"
+primary_region = "iad"
+
+# Build from repo root: flyctl deploy --config apps/auth/fly.toml --dockerfile apps/auth/Dockerfile
+[build]
+
+[env]
+  AUTH_BACKEND = "allsource"
+  AUTH_PORT = "3903"
+  RUST_LOG = "allsource_auth=info"
+
+[http_service]
+  internal_port = 3903
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "get"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

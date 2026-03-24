@@ -22,6 +22,7 @@ apps/              — Deployable services ONLY
   web/             — Next.js frontend dashboard
   mcp-server-elixir/ — Elixir MCP server (separate from Rust MCP Docker binary)
   prime-mcp/       — Rust MCP server for Prime (stdio + HTTP, standalone workspace)
+  auth/            — Rust auth service (better-auth + AllSource adapter, standalone workspace)
   chronis/         — Event-sourced task CLI (standalone workspace, excluded from root)
 crates/            — Shared Rust library crates (NOT binaries, NOT SDKs)
 sdks/              — Client SDKs — ALL languages, NO EXCEPTIONS

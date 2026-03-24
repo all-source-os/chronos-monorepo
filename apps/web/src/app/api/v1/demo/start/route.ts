@@ -1,19 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 /**
- * Proxy demo account creation to the Control Plane (not Query Service).
+ * Proxy demo account creation to the Auth Service.
  *
- * The generic /api/v1/[...path] catch-all routes to the Query Service,
- * but /api/v1/demo/start lives on the Control Plane. This specific route
- * takes precedence over the catch-all.
+ * Falls back to Control Plane if AUTH_SERVICE_URL is not set (migration compat).
  */
 
-function getControlPlaneUrl(): string {
-  return process.env.CONTROL_PLANE_INTERNAL_URL || process.env.CONTROL_PLANE_URL || "http://localhost:3901";
+function getAuthServiceUrl(): string {
+  return process.env.AUTH_SERVICE_URL || process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3903";
 }
 
 export async function POST(request: NextRequest) {
-  const url = `${getControlPlaneUrl()}/api/v1/demo/start`;
+  const url = `${getAuthServiceUrl()}/api/auth/demo/start`;
 
   try {
     const response = await fetch(url, {
@@ -28,7 +26,7 @@ export async function POST(request: NextRequest) {
     });
   } catch {
     return NextResponse.json(
-      { error: "Failed to reach Control Plane for demo provisioning" },
+      { error: "Failed to reach Auth Service for demo provisioning" },
       { status: 502 }
     );
   }

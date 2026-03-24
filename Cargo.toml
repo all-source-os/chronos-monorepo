@@ -7,6 +7,7 @@ members = [
     "tooling/performance",
 ]
 exclude = [
+    "apps/auth",
     "apps/chronis",
     "apps/prime-mcp",
     "apps/registry",

@@ -1,19 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 /**
- * Runtime proxy for Control Plane auth requests (login, register, etc.).
+ * Runtime proxy for auth requests to the Auth Service (better-auth + AllSource).
  *
- * The more specific /api/v1/auth/oauth/[...path] route handles OAuth flows.
- * This catch-all handles everything else under /api/v1/auth/ — email login,
- * registration, demo start, etc.
+ * The Auth Service runs better-auth-rs with the AllSource adapter.
+ * Routes: /api/auth/sign-in/email, /api/auth/sign-up/email, /api/auth/callback/:provider, etc.
+ *
+ * Falls back to Control Plane if AUTH_SERVICE_URL is not set (migration compat).
  */
 
-function getControlPlaneUrl(): string {
-  return process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3901";
+function getAuthServiceUrl(): string {
+  return process.env.AUTH_SERVICE_URL || process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3903";
 }
 
-async function proxyToControlPlane(request: NextRequest, path: string): Promise<NextResponse> {
-  const url = new URL(`/api/v1/auth/${path}`, getControlPlaneUrl());
+async function proxyToAuthService(request: NextRequest, path: string): Promise<NextResponse> {
+  const url = new URL(`/api/auth/${path}`, getAuthServiceUrl());
 
   request.nextUrl.searchParams.forEach((value, key) => {
     url.searchParams.set(key, value);
@@ -63,7 +64,7 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  return proxyToControlPlane(request, path.join("/"));
+  return proxyToAuthService(request, path.join("/"));
 }
 
 export async function POST(
@@ -71,7 +72,7 @@ export async function POST(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  return proxyToControlPlane(request, path.join("/"));
+  return proxyToAuthService(request, path.join("/"));
 }
 
 export async function PUT(
@@ -79,7 +80,7 @@ export async function PUT(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  return proxyToControlPlane(request, path.join("/"));
+  return proxyToAuthService(request, path.join("/"));
 }
 
 export async function DELETE(
@@ -87,5 +88,5 @@ export async function DELETE(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  return proxyToControlPlane(request, path.join("/"));
+  return proxyToAuthService(request, path.join("/"));
 }

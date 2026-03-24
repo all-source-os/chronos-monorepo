@@ -1,0 +1,46 @@
+[package]
+name = "allsource-auth"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+description = "AllSource Auth Service — standalone authentication server using better-auth-rs"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "allsource-auth"
+path = "src/main.rs"
+
+[dependencies]
+# Authentication framework (manual axum bridge — better-auth 0.8 uses axum 0.8 internally)
+better-auth = "0.8"
+better-auth-core = "0.8"
+better-auth-allsource = { path = "../../crates/better-auth-allsource" }
+
+# Web framework (axum 0.8, matching chronos conventions)
+axum = { version = "0.8", features = ["json"] }
+
+# URL parsing (for query string in auth bridge)
+url = "2"
+
+# Email service
+reqwest = { version = "0.12", features = ["json"] }
+
+# In-memory auth code cache (OAuth code -> token exchange)
+dashmap = "6.1"
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Shared deps
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1.50", features = ["full"] }
+uuid = { version = "1.22", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
