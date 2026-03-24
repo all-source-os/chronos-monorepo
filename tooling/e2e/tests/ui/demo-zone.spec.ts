@@ -1024,7 +1024,7 @@ test.describe("Onboarding Wizard", () => {
     // Go to step 3 — send event snippet
     await page.getByTestId("next-button").click();
     const sendSnippet = page.getByTestId("send-event-snippet");
-    await expect(sendSnippet).toContainText("createEvent");
+    await expect(sendSnippet).toContainText("ingestEvent");
 
     // Go to step 4 — query snippet
     await page.getByTestId("next-button").click();

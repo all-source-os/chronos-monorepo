@@ -15,11 +15,13 @@ export function constructMetadata({
   title = siteConfig.name,
   description = siteConfig.description,
   image = absoluteUrl("/og"),
+  canonical,
   ...props
 }: {
   title?: string;
   description?: string;
   image?: string;
+  canonical?: string;
   [key: string]: Metadata[keyof Metadata];
 }): Metadata {
   return {
@@ -32,7 +34,7 @@ export function constructMetadata({
     openGraph: {
       title,
       description,
-      url: siteConfig.url,
+      url: canonical ? `${siteConfig.url}${canonical}` : siteConfig.url,
       siteName: siteConfig.name,
       images: [
         {
@@ -45,8 +47,19 @@ export function constructMetadata({
       type: "website",
       locale: "en_US",
     },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
+    },
     icons: "/favicon.ico",
     metadataBase: new URL(siteConfig.url),
+    ...(canonical && {
+      alternates: {
+        canonical: canonical,
+      },
+    }),
     authors: [
       {
         name: siteConfig.name,

@@ -7,15 +7,41 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const headersList = await headers();
   const domain = headersList.get("host") as string;
   const protocol = "https";
+  const base = `${protocol}://${domain}`;
+  const now = new Date();
+
+  // Static marketing pages
+  const staticPages = [
+    { url: base, priority: 1.0, changeFrequency: "weekly" as const },
+    { url: `${base}/blog`, priority: 0.8, changeFrequency: "weekly" as const },
+    { url: `${base}/docs`, priority: 0.8, changeFrequency: "monthly" as const },
+    { url: `${base}/docs/api`, priority: 0.7, changeFrequency: "monthly" as const },
+    { url: `${base}/docs/mcp`, priority: 0.7, changeFrequency: "monthly" as const },
+    { url: `${base}/docs/chronis`, priority: 0.6, changeFrequency: "monthly" as const },
+    { url: `${base}/docs/prime`, priority: 0.9, changeFrequency: "weekly" as const },
+    { url: `${base}/docs/prime/quickstart`, priority: 0.9, changeFrequency: "monthly" as const },
+    { url: `${base}/docs/prime/concepts`, priority: 0.8, changeFrequency: "monthly" as const },
+    { url: `${base}/docs/prime/mcp`, priority: 0.8, changeFrequency: "monthly" as const },
+    { url: `${base}/docs/prime/http`, priority: 0.7, changeFrequency: "monthly" as const },
+    { url: `${base}/docs/prime/embedded`, priority: 0.7, changeFrequency: "monthly" as const },
+    { url: `${base}/solutions/agent-memory`, priority: 0.9, changeFrequency: "monthly" as const },
+    { url: `${base}/solutions/quant-intelligence`, priority: 0.7, changeFrequency: "monthly" as const },
+    { url: `${base}/changelog`, priority: 0.5, changeFrequency: "weekly" as const },
+    { url: `${base}/privacy`, priority: 0.3, changeFrequency: "yearly" as const },
+    { url: `${base}/terms`, priority: 0.3, changeFrequency: "yearly" as const },
+    { url: `${base}/status`, priority: 0.4, changeFrequency: "daily" as const },
+  ];
+
+  // Blog posts
+  const blogPages = allPosts.map((post) => ({
+    url: `${base}/blog/${post.slug}`,
+    lastModified: new Date(post.publishedAt),
+    priority: 0.7,
+    changeFrequency: "monthly" as const,
+  }));
 
   return [
-    {
-      url: `${protocol}://${domain}`,
-      lastModified: new Date(),
-    },
-    ...allPosts.map((post) => ({
-      url: `${protocol}://${domain}/blog/${post.slug}`,
-      lastModified: new Date(),
-    })),
+    ...staticPages.map((p) => ({ ...p, lastModified: now })),
+    ...blogPages,
   ];
 }
