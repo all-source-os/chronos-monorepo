@@ -1,7 +1,6 @@
 # Fly.io Configuration for AllSource Query Service
 # Deploy: flyctl deploy --app allsource-query
 # Scale: flyctl scale count 3 --app allsource-query
-# Secrets: flyctl secrets set SECRET_KEY_BASE=... GOOGLE_CLIENT_ID=... etc
 
 app = "allsource-query"
 primary_region = "iad"  # US East (Virginia)
@@ -22,13 +21,10 @@ primary_region = "iad"  # US East (Virginia)
 
 # Required secrets (set via flyctl secrets set):
 # - SECRET_KEY_BASE: mix phx.gen.secret
-# - GOOGLE_CLIENT_ID: from Google Cloud Console
-# - GOOGLE_CLIENT_SECRET: from Google Cloud Console
-# - GITHUB_CLIENT_ID: from GitHub Developer Settings
-# - GITHUB_CLIENT_SECRET: from GitHub Developer Settings
-# - LEMON_SQUEEZY_API_KEY: from LemonSqueezy dashboard
-# - LEMON_SQUEEZY_STORE_ID: from LemonSqueezy dashboard
-# - LEMON_SQUEEZY_WEBHOOK_SECRET: from LemonSqueezy webhook settings
+# - JWT_SECRET: shared with Control Plane for token verification
+# - CORE_API_KEY: bearer token for Core API calls
+#
+# OAuth and billing secrets belong in the Control Plane, not here.
 
 [http_service]
   internal_port = 3902

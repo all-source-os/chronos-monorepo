@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  BlurFade,
   Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  DotPattern,
   Icons,
   Input,
   Label,
@@ -87,168 +89,180 @@ function LoginContent() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
+      {/* Background pattern — matches web login */}
+      <DotPattern
+        className="opacity-50 dark:opacity-30 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"
+        cr={1}
+        cx={1}
+        cy={1}
+      />
+
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 sm:px-6">
-        {/* Logo and branding */}
-        <div className="mb-10 flex flex-col items-center gap-3">
-          <div className="flex items-center gap-2.5">
-            <Icons.logo className="h-10 w-10 text-primary" />
-            <span className="text-3xl font-bold tracking-tight">AllSource</span>
+        <BlurFade delay={0.1} inView>
+          {/* Logo and branding */}
+          <div className="mb-10 flex flex-col items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <Icons.logo className="h-10 w-10 text-primary" />
+              <span className="text-3xl font-bold tracking-tight">AllSource</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <ShieldCheck className="h-4 w-4" />
+              <p>Admin Console</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <ShieldCheck className="h-4 w-4" />
-            <p>Admin Console</p>
-          </div>
-        </div>
+        </BlurFade>
 
-        <Card className="w-full max-w-[420px] border-border/50 bg-background/80 px-2 py-2 backdrop-blur-sm sm:px-4 sm:py-4">
-          <CardHeader className="space-y-2 px-6 pb-0 pt-4 text-center sm:px-8 sm:pt-6">
-            <CardTitle className="text-2xl font-semibold">Admin Sign In</CardTitle>
-            <CardDescription className="text-base">
-              Sign in with an admin account to continue
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-6 pb-6 pt-6 sm:px-8 sm:pb-8">
-            {/* Error message */}
-            {error && (
-              <div
-                id={errorId}
-                role="alert"
-                className="mb-5 flex items-start gap-2 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive"
-              >
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                {error}
-              </div>
-            )}
-
-            {showEmailForm ? (
-              <form onSubmit={handleEmailLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="admin@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={isDisabled}
-                    autoComplete="email"
-                    autoFocus
-                    required
-                  />
+        <BlurFade delay={0.2} inView>
+          <Card className="w-full max-w-[420px] border-border/50 bg-background/80 px-2 py-2 backdrop-blur-sm sm:px-4 sm:py-4">
+            <CardHeader className="space-y-2 px-6 pb-0 pt-4 text-center sm:px-8 sm:pt-6">
+              <CardTitle className="text-2xl font-semibold">Admin Sign In</CardTitle>
+              <CardDescription className="text-base">
+                Sign in with an admin account to continue
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-6 pb-6 pt-6 sm:px-8 sm:pb-8">
+              {/* Error message */}
+              {error && (
+                <div
+                  id={errorId}
+                  role="alert"
+                  className="mb-5 flex items-start gap-2 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                >
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  {error}
                 </div>
+              )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
+              {showEmailForm ? (
+                <form onSubmit={handleEmailLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email address</Label>
                     <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      id="email"
+                      type="email"
+                      placeholder="admin@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       disabled={isDisabled}
-                      autoComplete="current-password"
-                      className="pr-10"
+                      autoComplete="email"
+                      autoFocus
                       required
                     />
-                    <button
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={isDisabled}
+                        autoComplete="current-password"
+                        className="pr-10"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="h-12 w-full"
+                    disabled={isDisabled || !isFormValid}
+                  >
+                    {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Sign in"}
+                  </Button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailForm(false)}
+                    className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    ← Back to all options
+                  </button>
+                </form>
+              ) : (
+                <>
+                  {/* OAuth buttons */}
+                  <div className="grid gap-3">
+                    <Button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      tabIndex={-1}
+                      variant="outline"
+                      className="relative h-12 w-full bg-white hover:bg-gray-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                      onClick={() => handleOAuthLogin("google")}
+                      disabled={isDisabled}
+                      aria-busy={loadingProvider === "google"}
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
+                      {loadingProvider === "google" ? (
+                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
                       ) : (
-                        <Eye className="h-4 w-4" />
+                        <>
+                          <Icons.google className="mr-2.5 h-5 w-5" aria-hidden="true" />
+                          Continue with Google
+                        </>
                       )}
-                    </button>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 w-full bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
+                      onClick={() => handleOAuthLogin("github")}
+                      disabled={isDisabled}
+                      aria-busy={loadingProvider === "github"}
+                    >
+                      {loadingProvider === "github" ? (
+                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <>
+                          <Icons.github className="mr-2.5 h-5 w-5" aria-hidden="true" />
+                          Continue with GitHub
+                        </>
+                      )}
+                    </Button>
                   </div>
-                </div>
 
-                <Button
-                  type="submit"
-                  className="h-12 w-full"
-                  disabled={isDisabled || !isFormValid}
-                >
-                  {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Sign in"}
-                </Button>
+                  {/* Divider */}
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">
+                        Or continue with
+                      </span>
+                    </div>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowEmailForm(false)}
-                  className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Back to all options
-                </button>
-              </form>
-            ) : (
-              <>
-                {/* OAuth buttons */}
-                <div className="grid gap-3">
+                  {/* Email login button */}
                   <Button
                     type="button"
                     variant="outline"
-                    className="relative h-12 w-full bg-white hover:bg-gray-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                    onClick={() => handleOAuthLogin("google")}
+                    className="h-12 w-full"
+                    onClick={() => setShowEmailForm(true)}
                     disabled={isDisabled}
-                    aria-busy={loadingProvider === "google"}
                   >
-                    {loadingProvider === "google" ? (
-                      <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <>
-                        <Icons.google className="mr-2.5 h-5 w-5" aria-hidden="true" />
-                        Continue with Google
-                      </>
-                    )}
+                    <Mail className="mr-2.5 h-5 w-5" />
+                    Continue with Email
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-12 w-full bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100"
-                    onClick={() => handleOAuthLogin("github")}
-                    disabled={isDisabled}
-                    aria-busy={loadingProvider === "github"}
-                  >
-                    {loadingProvider === "github" ? (
-                      <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <>
-                        <Icons.github className="mr-2.5 h-5 w-5" aria-hidden="true" />
-                        Continue with GitHub
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                {/* Divider */}
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Or continue with
-                    </span>
-                  </div>
-                </div>
-
-                {/* Email login button */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-12 w-full"
-                  onClick={() => setShowEmailForm(true)}
-                  disabled={isDisabled}
-                >
-                  <Mail className="mr-2.5 h-5 w-5" />
-                  Continue with Email
-                </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </BlurFade>
       </div>
     </div>
   );
@@ -257,6 +271,12 @@ function LoginContent() {
 function LoginLoading() {
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
+      <DotPattern
+        className="opacity-50 dark:opacity-30 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]"
+        cr={1}
+        cx={1}
+        cy={1}
+      />
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 sm:px-6">
         <div className="mb-10 flex flex-col items-center gap-3">
           <div className="flex items-center gap-2.5">
