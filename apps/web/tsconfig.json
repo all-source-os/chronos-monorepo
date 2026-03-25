@@ -1,7 +1,6 @@
 {
   "extends": "../../tooling/typescript/nextjs.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
