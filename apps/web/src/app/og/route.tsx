@@ -1,4 +1,3 @@
-import { Icons } from "@allsource/ui";
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
 import { siteConfig } from "@/lib/config";
@@ -23,7 +22,6 @@ export async function GET(req: NextRequest) {
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "#fff",
-        // set background image if needed
         backgroundImage: `url(${siteConfig.url}/og.png)`,
         fontSize: 32,
         fontWeight: 600,
@@ -39,12 +37,21 @@ export async function GET(req: NextRequest) {
           top: "125px",
         }}
       >
-        <Icons.logo
-          style={{
-            width: "64px",
-            height: "64px",
-          }}
-        />
+        {/* Inline SVG logo — avoids importing @allsource/ui which bloats the edge bundle past 1MB */}
+        <svg
+          width="64"
+          height="64"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+          <path d="M2 12h20" />
+        </svg>
 
         <div
           style={{
@@ -56,7 +63,7 @@ export async function GET(req: NextRequest) {
             marginTop: "24px",
             textAlign: "center",
             width: "80%",
-            letterSpacing: "-0.05em", // Added tighter tracking
+            letterSpacing: "-0.05em",
           }}
         >
           {postTitle}
