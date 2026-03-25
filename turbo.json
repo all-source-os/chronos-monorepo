@@ -5,7 +5,12 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "build/**", "target/**"],
-      "env": ["CONTROL_PLANE_INTERNAL_URL"]
+      "env": [
+        "CONTROL_PLANE_INTERNAL_URL",
+        "CONTROL_PLANE_URL",
+        "AUTH_SERVICE_URL",
+        "NEXT_PUBLIC_CONTROL_PLANE_URL"
+      ]
     },
     "dev": {
       "cache": false,
