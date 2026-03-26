@@ -31,7 +31,7 @@ func buildVariantTierMap() usecases.VariantTierMap {
 	reverseMap := make(usecases.VariantTierMap)
 	for tier, variantID := range forwardMap {
 		reverseMap[variantID] = tier // variant ID → tier
-		reverseMap[tier] = tier     // tier name → tier (self-map for name matching)
+		reverseMap[tier] = tier      // tier name → tier (self-map for name matching)
 	}
 	return reverseMap
 }

@@ -182,3 +182,143 @@ impl Projection for TaskProjection {
         self.states.clear();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use allsource_core::domain::entities::Event;
+    use uuid::Uuid;
+
+    fn make_event(entity_id: &str, event_type: &str, payload: Value) -> Event {
+        Event::reconstruct_from_strings(
+            Uuid::new_v4(),
+            event_type.to_string(),
+            entity_id.to_string(),
+            "default".to_string(),
+            payload,
+            chrono::Utc::now(),
+            None,
+            1,
+        )
+    }
+
+    #[test]
+    fn test_archive_survives_duplicate_created_event() {
+        // Regression test for #125: cn sync pulls task.created events from remote
+        // that overwrite the local archived state.
+        let proj = TaskProjection::new();
+
+        // 1. Task is created locally
+        proj.process(&make_event(
+            "t-abc",
+            "task.created",
+            json!({"title": "Test Task", "priority": "p1", "task_type": "task"}),
+        ))
+        .unwrap();
+
+        // 2. Task is archived locally
+        proj.process(&make_event("t-abc", "task.archived", json!({})))
+            .unwrap();
+
+        // Verify archived
+        let state = proj.get_state("t-abc").unwrap();
+        assert_eq!(state["archived"], json!(true));
+
+        // 3. Sync pulls the SAME task.created event from remote (duplicate)
+        proj.process(&make_event(
+            "t-abc",
+            "task.created",
+            json!({"title": "Test Task", "priority": "p1", "task_type": "task"}),
+        ))
+        .unwrap();
+
+        // MUST still be archived — the duplicate task.created must not wipe archive state
+        let state = proj.get_state("t-abc").unwrap();
+        assert_eq!(
+            state["archived"],
+            json!(true),
+            "task.created must not overwrite archived state (issue #125)"
+        );
+    }
+
+    #[test]
+    fn test_archive_survives_out_of_order_events() {
+        // Simulate sync pulling events in non-chronological order:
+        // local: created → claimed → done → archived
+        // sync pulls: created (again), claimed (again)
+        let proj = TaskProjection::new();
+
+        proj.process(&make_event(
+            "t-xyz",
+            "task.created",
+            json!({"title": "Build Feature", "priority": "p0", "task_type": "task"}),
+        ))
+        .unwrap();
+        proj.process(&make_event(
+            "t-xyz",
+            "workflow.claimed",
+            json!({"agent_id": "agent-1"}),
+        ))
+        .unwrap();
+        proj.process(&make_event(
+            "t-xyz",
+            "workflow.step.completed",
+            json!({"reason": "done"}),
+        ))
+        .unwrap();
+        proj.process(&make_event("t-xyz", "task.archived", json!({})))
+            .unwrap();
+
+        // Verify: done + archived
+        let state = proj.get_state("t-xyz").unwrap();
+        assert_eq!(state["status"], json!("done"));
+        assert_eq!(state["archived"], json!(true));
+
+        // Sync pulls duplicate created + claimed events
+        proj.process(&make_event(
+            "t-xyz",
+            "task.created",
+            json!({"title": "Build Feature", "priority": "p0", "task_type": "task"}),
+        ))
+        .unwrap();
+        proj.process(&make_event(
+            "t-xyz",
+            "workflow.claimed",
+            json!({"agent_id": "agent-1"}),
+        ))
+        .unwrap();
+
+        // MUST preserve done + archived status
+        let state = proj.get_state("t-xyz").unwrap();
+        assert_eq!(
+            state["archived"],
+            json!(true),
+            "sync replay must not un-archive"
+        );
+        assert_eq!(
+            state["status"],
+            json!("done"),
+            "sync replay must not revert done status"
+        );
+    }
+
+    #[test]
+    fn test_first_created_event_works_normally() {
+        // Ensure the fix doesn't break normal task creation
+        let proj = TaskProjection::new();
+
+        proj.process(&make_event(
+            "t-new",
+            "task.created",
+            json!({"title": "New Task", "priority": "p2", "task_type": "epic"}),
+        ))
+        .unwrap();
+
+        let state = proj.get_state("t-new").unwrap();
+        assert_eq!(state["title"], json!("New Task"));
+        assert_eq!(state["priority"], json!("p2"));
+        assert_eq!(state["task_type"], json!("epic"));
+        assert_eq!(state["status"], json!("open"));
+        assert_eq!(state["archived"], json!(null)); // not archived
+    }
+}
