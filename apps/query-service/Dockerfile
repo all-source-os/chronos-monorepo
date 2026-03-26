@@ -108,9 +108,6 @@ EXPOSE 3902
 #   PHX_HOST            - Hostname for URLs (default: localhost)
 #   CORE_URL            - Core service URL (default: http://localhost:3900)
 #   CORE_WS_URL         - Rust Core WebSocket URL (default: ws://localhost:3900)
-#   LEMON_SQUEEZY_API_KEY       - LemonSqueezy API key for billing
-#   LEMON_SQUEEZY_STORE_ID      - LemonSqueezy store ID
-#   LEMON_SQUEEZY_WEBHOOK_SECRET- LemonSqueezy webhook secret
 ARG ALLSOURCE_EDITION=community
 
 ENV HOME=/app \

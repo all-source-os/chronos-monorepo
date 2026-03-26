@@ -54,14 +54,3 @@ config :logger, :console,
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
-
-# LemonSqueezy configuration for testing
-config :query_service_ex, :lemon_squeezy,
-  api_key: nil,
-  store_id: "test_store_123",
-  webhook_secret: "test_webhook_secret_for_testing",
-  variant_tiers: %{
-    "variant_starter" => :starter,
-    "variant_pro" => :pro,
-    "variant_enterprise" => :enterprise
-  }

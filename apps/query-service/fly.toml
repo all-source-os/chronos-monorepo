@@ -24,7 +24,7 @@ primary_region = "iad"  # US East (Virginia)
 # - JWT_SECRET: shared with Control Plane for token verification
 # - CORE_API_KEY: bearer token for Core API calls
 #
-# OAuth and billing secrets belong in the Control Plane, not here.
+# Billing (LemonSqueezy) and OAuth secrets belong in the Control Plane, not here.
 
 [http_service]
   internal_port = 3902

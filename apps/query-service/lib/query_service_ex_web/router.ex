@@ -373,12 +373,6 @@ defmodule QueryServiceExWeb.Router do
       get("/projected-charges", BillingController, :projected_charges)
     end
 
-    # LemonSqueezy webhooks (public, verified by signature)
-    scope "/api/webhooks", QueryServiceExWeb do
-      pipe_through(:api)
-
-      post("/lemonsqueezy", WebhookController, :lemonsqueezy)
-    end
   end
 
   # -------------------------------------------------------------------

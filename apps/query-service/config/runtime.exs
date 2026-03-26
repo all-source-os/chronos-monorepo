@@ -69,33 +69,4 @@ if config_env() == :prod do
     core_api_key: System.get_env("CORE_API_KEY"),
     core_max_replication_lag_ms: core_max_replication_lag_ms,
     core_health_check_interval_ms: core_health_check_interval_ms
-
-  # LemonSqueezy configuration for billing - optional
-  # Variant tier mapping: maps LemonSqueezy variant IDs to Chronos subscription tiers.
-  # Set LEMON_SQUEEZY_VARIANT_TIERS as comma-separated "variant_id:tier" pairs.
-  # Example: LEMON_SQUEEZY_VARIANT_TIERS="12345:starter,67890:pro,11111:enterprise"
-  variant_tiers =
-    case System.get_env("LEMON_SQUEEZY_VARIANT_TIERS") do
-      nil ->
-        %{}
-
-      tiers_string ->
-        tiers_string
-        |> String.split(",", trim: true)
-        |> Enum.reduce(%{}, fn pair, acc ->
-          case String.split(String.trim(pair), ":", parts: 2) do
-            [variant_id, tier] ->
-              Map.put(acc, String.trim(variant_id), String.to_existing_atom(String.trim(tier)))
-
-            _ ->
-              acc
-          end
-        end)
-    end
-
-  config :query_service_ex, :lemon_squeezy,
-    api_key: System.get_env("LEMON_SQUEEZY_API_KEY"),
-    store_id: System.get_env("LEMON_SQUEEZY_STORE_ID"),
-    webhook_secret: System.get_env("LEMON_SQUEEZY_WEBHOOK_SECRET"),
-    variant_tiers: variant_tiers
 end
