@@ -36,12 +36,17 @@ type LemonSqueezySubscriptionAttrs struct {
 	UserEmail       string `json:"user_email"`
 }
 
+// VariantTierMap maps LemonSqueezy variant names/IDs to subscription tier names.
+// Built as a reverse lookup from the LEMON_SQUEEZY_VARIANT_MAP env var.
+type VariantTierMap map[string]string
+
 // ProcessLemonSqueezyWebhookUseCase processes incoming LemonSqueezy webhook events.
 type ProcessLemonSqueezyWebhookUseCase struct {
-	tenantRepo  repositories.TenantRepository
-	auditRepo   repositories.AuditRepository
-	updateSubUC *UpdateSubscriptionMetadataUseCase
-	suspendUC   *SuspendTenantUseCase
+	tenantRepo     repositories.TenantRepository
+	auditRepo      repositories.AuditRepository
+	updateSubUC    *UpdateSubscriptionMetadataUseCase
+	suspendUC      *SuspendTenantUseCase
+	variantTierMap VariantTierMap
 }
 
 // NewProcessLemonSqueezyWebhookUseCase creates a new ProcessLemonSqueezyWebhookUseCase.
@@ -50,12 +55,14 @@ func NewProcessLemonSqueezyWebhookUseCase(
 	auditRepo repositories.AuditRepository,
 	updateSubUC *UpdateSubscriptionMetadataUseCase,
 	suspendUC *SuspendTenantUseCase,
+	variantTierMap VariantTierMap,
 ) *ProcessLemonSqueezyWebhookUseCase {
 	return &ProcessLemonSqueezyWebhookUseCase{
-		tenantRepo:  tenantRepo,
-		auditRepo:   auditRepo,
-		updateSubUC: updateSubUC,
-		suspendUC:   suspendUC,
+		tenantRepo:     tenantRepo,
+		auditRepo:      auditRepo,
+		updateSubUC:    updateSubUC,
+		suspendUC:      suspendUC,
+		variantTierMap: variantTierMap,
 	}
 }
 
@@ -95,7 +102,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) Execute(ctx context.Context, event 
 
 func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCreated(tenantID string, event LemonSqueezyWebhookEvent) error {
 	attrs := event.Data.Attributes
-	tier := resolveTierFromVariantName(attrs.VariantName)
+	tier := uc.resolveTier(attrs.VariantName, attrs.VariantID)
 
 	billing := &entities.TenantBillingMetadata{
 		Subscription: &entities.SubscriptionMetadata{
@@ -114,7 +121,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCreated(tenantID 
 
 func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionUpdated(tenantID string, event LemonSqueezyWebhookEvent) error {
 	attrs := event.Data.Attributes
-	tier := resolveTierFromVariantName(attrs.VariantName)
+	tier := uc.resolveTier(attrs.VariantName, attrs.VariantID)
 
 	billing := &entities.TenantBillingMetadata{
 		Subscription: &entities.SubscriptionMetadata{
@@ -137,7 +144,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCanceled(ctx cont
 			SubscriptionID:  event.Data.ID,
 			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
 			Status:          "canceled",
-			Tier:            resolveTierFromVariantName(event.Data.Attributes.VariantName),
+			Tier:            uc.resolveTier(event.Data.Attributes.VariantName, event.Data.Attributes.VariantID),
 			PaymentProvider: "lemonsqueezy",
 		},
 	}
@@ -160,7 +167,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionExpired(ctx conte
 			SubscriptionID:  event.Data.ID,
 			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
 			Status:          "expired",
-			Tier:            resolveTierFromVariantName(event.Data.Attributes.VariantName),
+			Tier:            uc.resolveTier(event.Data.Attributes.VariantName, event.Data.Attributes.VariantID),
 			PaymentProvider: "lemonsqueezy",
 		},
 	}
@@ -183,7 +190,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handlePaymentFailed(tenantID string
 			SubscriptionID:  event.Data.ID,
 			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
 			Status:          "past_due",
-			Tier:            resolveTierFromVariantName(event.Data.Attributes.VariantName),
+			Tier:            uc.resolveTier(event.Data.Attributes.VariantName, event.Data.Attributes.VariantID),
 			PaymentProvider: "lemonsqueezy",
 		},
 	}
@@ -220,14 +227,28 @@ func extractTenantIDFromWebhook(event LemonSqueezyWebhookEvent) string {
 	return ""
 }
 
-// resolveTierFromVariantName maps a LemonSqueezy variant name to a tier.
-// Falls back to "free" for unknown variants.
-func resolveTierFromVariantName(variantName string) string {
+// resolveTier maps a LemonSqueezy variant name or ID to a tier using the variant map.
+// Falls back to hardcoded mapping if variant map is not configured, and "free" as last resort.
+func (uc *ProcessLemonSqueezyWebhookUseCase) resolveTier(variantName string, variantID int) string {
+	// Try variant map first (reverse lookup: check both variant name and ID)
+	if uc.variantTierMap != nil {
+		if tier, ok := uc.variantTierMap[variantName]; ok {
+			return tier
+		}
+		variantIDStr := fmt.Sprintf("%d", variantID)
+		if tier, ok := uc.variantTierMap[variantIDStr]; ok {
+			return tier
+		}
+	}
+
+	// Hardcoded fallback for backwards compatibility
 	switch variantName {
-	case "Pro", "pro":
-		return "pro"
+	case "Pro", "pro", "Growth", "growth":
+		return "growth"
 	case "Team", "team":
 		return "team"
+	case "Enterprise", "enterprise":
+		return "enterprise"
 	default:
 		return "free"
 	}

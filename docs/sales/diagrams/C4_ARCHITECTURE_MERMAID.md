@@ -54,21 +54,31 @@ C4Container
     Person(llm, "AI Agent", "Claude or other LLM via MCP")
 
     System_Boundary(allsource, "AllSource Platform") {
-        Container(web, "Web Dashboard", "Next.js 16, React 19", "Real-time event visualization, management UI, OAuth login")
-        Container(controlPlane, "Control Plane", "Go 1.24, Gin", "Authentication, RBAC, audit logging, request routing")
+        Container(web, "Web Dashboard", "Next.js 16, React 19", "Real-time event visualization, management UI, OAuth login, billing UI")
+        Container(controlPlane, "Control Plane", "Go 1.24, Gin", "Authentication, RBAC, audit logging, billing webhooks")
+        Container(authService, "Auth Service", "Rust, better-auth", "OAuth, sessions, user management (event-sourced)")
         Container(core, "Event Store Core", "Rust 1.92, Axum", "High-performance event storage, indexing, schemas, projections")
-        Container(queryService, "Query Service", "Elixir 1.17, Phoenix", "Advanced queries, real-time subscriptions, pipeline processing")
+        Container(queryService, "Query Service", "Elixir 1.17, Phoenix", "Advanced queries, real-time subscriptions, billing state")
         Container(mcpServer, "MCP Server", "Elixir, JSON-RPC", "61 AI-native tools for natural language interaction")
 
         ContainerDb(storage, "Event Storage", "Parquet + WAL", "Columnar storage with write-ahead log for durability")
     }
 
+    System_Ext(lemonSqueezy, "LemonSqueezy", "Payment provider — subscriptions, invoices")
+    System_Ext(authProvider, "OAuth Providers", "Google, GitHub")
+
     Rel(user, web, "Uses", "HTTPS")
     Rel(llm, mcpServer, "Queries via", "JSON-RPC 2.0/stdio")
 
-    Rel(web, controlPlane, "API calls", "HTTPS/JWT")
-    Rel(controlPlane, core, "Proxies requests", "HTTP/Internal")
-    Rel(controlPlane, queryService, "Routes queries", "HTTP/Internal")
+    Rel(web, authService, "Auth flows", "HTTP/Internal")
+    Rel(web, queryService, "API calls, billing status", "HTTP/Internal")
+    Rel(web, controlPlane, "Checkout, portal", "HTTP/Internal")
+    Rel(authService, core, "Writes auth events", "HTTP/Internal")
+    Rel(authService, authProvider, "OAuth", "HTTPS")
+    Rel(controlPlane, core, "Writes billing events", "HTTP/Internal")
+    Rel(queryService, core, "Reads events", "HTTP/Internal")
+    Rel(lemonSqueezy, controlPlane, "Webhooks", "HTTPS")
+    Rel(controlPlane, lemonSqueezy, "Checkout sessions", "HTTPS")
     Rel(mcpServer, core, "Fetches events", "HTTP/Internal")
     Rel(mcpServer, queryService, "Executes queries", "HTTP/Internal")
 

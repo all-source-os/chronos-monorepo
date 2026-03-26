@@ -46,7 +46,7 @@ Copy the HMAC signing secret into `LEMON_SQUEEZY_WEBHOOK_SECRET`.
 ## Data Flow
 
 ```
-User clicks Upgrade → POST /api/billing/checkout (tier, period)
+User clicks Upgrade → POST /api/v1/billing/checkout (tier, period)
   → Control Plane looks up variant ID from LEMON_SQUEEZY_VARIANT_MAP
   → Creates LemonSqueezy checkout session
   → Returns checkout_url → frontend redirects
@@ -55,17 +55,26 @@ User completes payment → LemonSqueezy fires webhook
   → POST /api/v1/webhooks/lemonsqueezy
   → Control Plane verifies HMAC signature
   → Extracts tenant_id from meta.custom_data (seeded during checkout)
-  → Updates tenant subscription metadata (tier, status, billing period)
+  → Writes billing event to Core (event-sourced)
 
-Frontend loads tenant → subscription_tier reflects the paid plan
+Query Service reads billing state from Core
+  → GET /api/billing/status → derives current tier from latest billing events
 ```
+
+See `docs/current/BILLING_ARCHITECTURE.md` for full C4 diagrams and sequence flows.
 
 ## Webhook Event Handling
 
 | Event | Action |
 |---|---|
-| `subscription_created` | Creates subscription metadata, sets tier |
-| `subscription_updated` | Updates tier/status |
-| `subscription_cancelled` | Suspends tenant |
-| `subscription_expired` | Suspends tenant |
-| `subscription_payment_failed` | Sets status to `past_due` |
+| `subscription_created` | Writes `billing.subscription.created` to Core, sets tier |
+| `subscription_updated` | Writes `billing.subscription.updated` to Core |
+| `subscription_cancelled` | Writes event + suspends tenant |
+| `subscription_expired` | Writes event + suspends tenant |
+| `subscription_payment_failed` | Writes `billing.payment.failed`, sets status to `past_due` |
+
+## Important
+
+- **Only the Control Plane** talks to LemonSqueezy. No other service needs LemonSqueezy secrets.
+- **Query Service** reads billing state from Core events — no direct LemonSqueezy integration.
+- Billing events are durable in Core (WAL + Parquet) and provide a full audit trail.

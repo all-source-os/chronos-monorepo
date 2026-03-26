@@ -48,7 +48,7 @@ func setupWebhookHandler(t *testing.T) (*WebhookHandler, *gin.Engine) {
 
 	updateSubUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
 	suspendUC := usecases.NewSuspendTenantUseCase(tenantRepo, auditRepo)
-	processUC := usecases.NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubUC, suspendUC)
+	processUC := usecases.NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubUC, suspendUC, nil)
 
 	stripeProcessUC := usecases.NewProcessStripeWebhookUseCase(tenantRepo, auditRepo, updateSubUC, suspendUC)
 

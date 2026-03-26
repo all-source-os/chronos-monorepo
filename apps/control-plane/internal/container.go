@@ -2,6 +2,9 @@
 package internal
 
 import (
+	"encoding/json"
+	"os"
+
 	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/application/usecases/billing"
 	"github.com/allsource/control-plane/internal/domain/repositories"
@@ -9,6 +12,29 @@ import (
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 	httphandlers "github.com/allsource/control-plane/internal/interfaces/http"
 )
+
+// buildVariantTierMap reads LEMON_SQUEEZY_VARIANT_MAP and builds a reverse map
+// (variantID → tier name) for webhook tier resolution.
+// Input format: {"growth":"12345","enterprise":"67890"}
+// Output: {"12345":"growth","67890":"enterprise","Growth":"growth","Enterprise":"enterprise"}
+func buildVariantTierMap() usecases.VariantTierMap {
+	raw := os.Getenv("LEMON_SQUEEZY_VARIANT_MAP")
+	if raw == "" {
+		return nil
+	}
+
+	var forwardMap map[string]string
+	if err := json.Unmarshal([]byte(raw), &forwardMap); err != nil {
+		return nil
+	}
+
+	reverseMap := make(usecases.VariantTierMap)
+	for tier, variantID := range forwardMap {
+		reverseMap[variantID] = tier // variant ID → tier
+		reverseMap[tier] = tier     // tier name → tier (self-map for name matching)
+	}
+	return reverseMap
+}
 
 // Container holds all application dependencies
 type Container struct {
@@ -240,7 +266,13 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 
 	// Initialize use cases — Webhooks
 	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
-	processLSWebhookUC := usecases.NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC)
+	// Build reverse variant map (tier→variantID becomes variantName→tier) for webhook tier resolution
+	var variantTierMap usecases.VariantTierMap
+	if cfg.LSClient != nil {
+		// Parse LEMON_SQUEEZY_VARIANT_MAP and build reverse lookup
+		variantTierMap = buildVariantTierMap()
+	}
+	processLSWebhookUC := usecases.NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC, variantTierMap)
 	processStripeWebhookUC := usecases.NewProcessStripeWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC)
 
 	// Initialize use cases — Billing (overage reporting)
