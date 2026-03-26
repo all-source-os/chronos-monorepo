@@ -295,11 +295,11 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) resolveTier(variantName string, var
 
 	// Hardcoded fallback for backwards compatibility
 	switch variantName {
-	case "Pro", "pro", "Growth", "growth":
+	case "Pro", "pro", "Growth", tierGrowth:
 		return tierGrowth
-	case "Team", "team":
+	case "Team", tierTeam:
 		return tierTeam
-	case "Enterprise", "enterprise":
+	case "Enterprise", tierEnterprise:
 		return tierEnterprise
 	default:
 		return defaultPlan
