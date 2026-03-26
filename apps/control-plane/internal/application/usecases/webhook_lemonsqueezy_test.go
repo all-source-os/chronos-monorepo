@@ -185,11 +185,11 @@ func TestWebhookWritesBillingEventToCore(t *testing.T) {
 		}
 	})
 
-	t.Run("subscription_cancelled writes billing event to Core", func(t *testing.T) {
+	t.Run("subscription_cancelled writes billing event to Core", func(t *testing.T) { //nolint:misspell // LemonSqueezy API event name
 		mock.events = nil
 
 		event := LemonSqueezyWebhookEvent{
-			EventName: "subscription_cancelled",
+			EventName: "subscription_cancelled", //nolint:misspell // LemonSqueezy API event name
 			Data: LemonSqueezyEventData{
 				ID:   "sub_002",
 				Type: "subscriptions",
@@ -197,7 +197,7 @@ func TestWebhookWritesBillingEventToCore(t *testing.T) {
 					CustomerID:  42,
 					VariantID:   12345,
 					VariantName: "Growth",
-					Status:      "cancelled",
+					Status:      "cancelled", //nolint:misspell // LemonSqueezy API status
 				},
 			},
 			Meta: map[string]interface{}{
@@ -207,13 +207,16 @@ func TestWebhookWritesBillingEventToCore(t *testing.T) {
 			},
 		}
 
-		_ = uc.Execute(context.Background(), event)
+		err := uc.Execute(context.Background(), event)
+		if err != nil {
+			t.Fatalf("Execute failed: %v", err)
+		}
 
 		if len(mock.events) != 1 {
 			t.Fatalf("expected 1 Core event, got %d", len(mock.events))
 		}
-		if mock.events[0].EventType != "billing.subscription_cancelled" {
-			t.Errorf("expected billing.subscription_cancelled, got %s", mock.events[0].EventType)
+		if mock.events[0].EventType != "billing.subscription_cancelled" { //nolint:misspell // LemonSqueezy API event name
+			t.Errorf("expected billing.subscription_cancelled, got %s", mock.events[0].EventType) //nolint:misspell // LemonSqueezy API event name
 		}
 	})
 

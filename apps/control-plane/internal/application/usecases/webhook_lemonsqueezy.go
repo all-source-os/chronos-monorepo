@@ -38,6 +38,13 @@ type LemonSqueezySubscriptionAttrs struct {
 	UserEmail       string `json:"user_email"`
 }
 
+// Tier constants for subscription plans.
+const (
+	tierGrowth     = "growth"
+	tierTeam       = "team"
+	tierEnterprise = "enterprise"
+)
+
 // VariantTierMap maps LemonSqueezy variant names/IDs to subscription tier names.
 // Built as a reverse lookup from the LEMON_SQUEEZY_VARIANT_MAP env var.
 type VariantTierMap map[string]string
@@ -289,12 +296,12 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) resolveTier(variantName string, var
 	// Hardcoded fallback for backwards compatibility
 	switch variantName {
 	case "Pro", "pro", "Growth", "growth":
-		return "growth"
+		return tierGrowth
 	case "Team", "team":
-		return "team"
+		return tierTeam
 	case "Enterprise", "enterprise":
-		return "enterprise"
+		return tierEnterprise
 	default:
-		return "free"
+		return defaultPlan
 	}
 }
