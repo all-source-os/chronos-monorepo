@@ -272,7 +272,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		// Parse LEMON_SQUEEZY_VARIANT_MAP and build reverse lookup
 		variantTierMap = buildVariantTierMap()
 	}
-	processLSWebhookUC := usecases.NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC, variantTierMap)
+	processLSWebhookUC := usecases.NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC, variantTierMap, cfg.CoreClient)
 	processStripeWebhookUC := usecases.NewProcessStripeWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC)
 
 	// Initialize use cases — Billing (overage reporting)

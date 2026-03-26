@@ -1,20 +1,103 @@
 defmodule QueryServiceExWeb.BillingController do
   @moduledoc """
-  Redirect controller for deprecated billing endpoints.
+  Billing controller — serves billing status from Core events, redirects mutations to CP.
 
-  All billing operations have moved to the Control Plane.
-  These endpoints return 301 Moved Permanently with a Location header
-  pointing to the equivalent Control Plane endpoint.
+  - `GET /api/billing/status` — derives current subscription state from billing events in Core
+  - Checkout, portal, overage — redirect to Control Plane (needs LemonSqueezy API access)
   """
 
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
+  alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceExWeb.Schemas.Common
 
   require Logger
 
   tags(["Billing"])
+
+  # Default quotas per tier
+  @tier_quotas %{
+    "free" => %{events_quota: 10_000, queries_quota: 1_000},
+    "growth" => %{events_quota: 100_000, queries_quota: 10_000},
+    "enterprise" => %{events_quota: 1_000_000, queries_quota: 100_000}
+  }
+
+  @doc """
+  Returns current subscription state derived from billing events stored in Core.
+  GET /api/billing/status
+  """
+
+  def status(conn, _params) do
+    tenant_id = conn.assigns[:tenant_id]
+
+    case query_billing_state(tenant_id) do
+      {:ok, state} ->
+        json(conn, state)
+
+      {:error, reason} ->
+        Logger.warning("[BillingController] Failed to query billing state: #{inspect(reason)}")
+        # Return default free tier on error
+        json(conn, default_billing_state(tenant_id))
+    end
+  end
+
+  defp query_billing_state(tenant_id) do
+    case RustCoreClient.query_events(tenant_id, %{
+           event_type: "billing.*",
+           limit: 1,
+           sort: "desc"
+         }) do
+      {:ok, [latest | _]} ->
+        {:ok, derive_state(tenant_id, latest)}
+
+      {:ok, []} ->
+        {:ok, default_billing_state(tenant_id)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc false
+  def derive_state(tenant_id, event) do
+    payload = event["payload"] || %{}
+    tier = payload["tier"] || "free"
+    quotas = Map.get(@tier_quotas, tier, @tier_quotas["free"])
+
+    %{
+      tenant_id: tenant_id,
+      tier: tier,
+      status: payload["status"] || "active",
+      billing_period: payload["billing_period"] || "monthly",
+      payment_provider: payload["payment_provider"] || "lemonsqueezy",
+      subscription_id: payload["subscription_id"],
+      events_quota: quotas[:events_quota],
+      queries_quota: quotas[:queries_quota],
+      events_used: 0,
+      queries_used: 0,
+      last_updated: event["timestamp"]
+    }
+  end
+
+  @doc false
+  def default_billing_state(tenant_id) do
+    quotas = @tier_quotas["free"]
+
+    %{
+      tenant_id: tenant_id,
+      tier: "free",
+      status: "active",
+      billing_period: nil,
+      payment_provider: nil,
+      subscription_id: nil,
+      events_quota: quotas[:events_quota],
+      queries_quota: quotas[:queries_quota],
+      events_used: 0,
+      queries_used: 0,
+      last_updated: nil
+    }
+  end
 
   operation(:checkout,
     summary: "Create checkout (moved)",

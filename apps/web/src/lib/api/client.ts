@@ -241,6 +241,11 @@ export class ApiClient {
   }
 
   // Billing endpoints
+  async getBillingStatus(tenantId?: string): Promise<ApiResponse<BillingStatus>> {
+    const qs = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : "";
+    return this.request<BillingStatus>(`/api/billing/status${qs}`);
+  }
+
   async createCheckout(
     tier: string,
     billingPeriod: "monthly" | "annual" = "monthly",
@@ -599,6 +604,20 @@ export interface CheckoutResponse {
   tenant_id: string;
   tier: string;
   provider: string;
+}
+
+export interface BillingStatus {
+  tenant_id: string;
+  tier: "free" | "growth" | "enterprise";
+  status: "active" | "trialing" | "past_due" | "cancelled" | "expired";
+  billing_period: "monthly" | "annual" | null;
+  payment_provider: string | null;
+  subscription_id: string | null;
+  events_quota: number;
+  queries_quota: number;
+  events_used: number;
+  queries_used: number;
+  last_updated: string | null;
 }
 
 export interface BillingPortalResponse {

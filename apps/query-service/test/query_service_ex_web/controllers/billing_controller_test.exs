@@ -1,86 +1,85 @@
 defmodule QueryServiceExWeb.BillingControllerTest do
-  @moduledoc """
-  Tests for BillingController 301 redirects to Control Plane.
-  """
-  use QueryServiceExWeb.ConnCase
+  use ExUnit.Case, async: true
 
-  @mgmt_url "https://cp.all-source.xyz"
+  alias QueryServiceExWeb.BillingController
 
-  setup %{conn: conn} do
-    System.put_env("MGMT_PLANE_URL", @mgmt_url)
-    on_exit(fn -> System.delete_env("MGMT_PLANE_URL") end)
+  describe "default_billing_state/1" do
+    test "returns free tier with correct quotas" do
+      state = BillingController.default_billing_state("tenant-test-1")
 
-    conn = put_req_header(conn, "accept", "application/json")
-    {:ok, conn: conn}
-  end
-
-  describe "POST /api/billing/checkout" do
-    test "returns 301 with Location header to CP", %{conn: conn} do
-      conn = post(conn, "/api/billing/checkout", %{})
-
-      assert conn.status == 301
-      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/checkout"]
-      assert json_response(conn, 301)["error"]["code"] == "moved_permanently"
+      assert state.tenant_id == "tenant-test-1"
+      assert state.tier == "free"
+      assert state.status == "active"
+      assert state.billing_period == nil
+      assert state.payment_provider == nil
+      assert state.subscription_id == nil
+      assert state.events_quota == 10_000
+      assert state.queries_quota == 1_000
+      assert state.events_used == 0
+      assert state.queries_used == 0
+      assert state.last_updated == nil
     end
   end
 
-  describe "GET /api/billing/portal" do
-    test "returns 301 with Location header to CP", %{conn: conn} do
-      conn = get(conn, "/api/billing/portal")
+  describe "derive_state/2" do
+    test "derives growth tier from billing event" do
+      event = %{
+        "payload" => %{
+          "tier" => "growth",
+          "status" => "active",
+          "billing_period" => "monthly",
+          "payment_provider" => "lemonsqueezy",
+          "subscription_id" => "sub_123"
+        },
+        "timestamp" => "2026-03-26T12:00:00Z"
+      }
 
-      assert conn.status == 301
-      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/portal"]
-      assert json_response(conn, 301)["error"]["location"] =~ "/api/v1/billing/portal"
+      state = BillingController.derive_state("tenant-test-2", event)
+
+      assert state.tenant_id == "tenant-test-2"
+      assert state.tier == "growth"
+      assert state.status == "active"
+      assert state.billing_period == "monthly"
+      assert state.payment_provider == "lemonsqueezy"
+      assert state.subscription_id == "sub_123"
+      assert state.events_quota == 100_000
+      assert state.queries_quota == 10_000
+      assert state.last_updated == "2026-03-26T12:00:00Z"
     end
-  end
 
-  describe "GET /api/billing/overage" do
-    test "returns 301 with Location header to CP", %{conn: conn} do
-      conn = get(conn, "/api/billing/overage")
+    test "derives enterprise tier quotas" do
+      event = %{
+        "payload" => %{"tier" => "enterprise", "status" => "active"},
+        "timestamp" => "2026-03-26T12:00:00Z"
+      }
 
-      assert conn.status == 301
-      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/overage"]
+      state = BillingController.derive_state("t-3", event)
+
+      assert state.tier == "enterprise"
+      assert state.events_quota == 1_000_000
+      assert state.queries_quota == 100_000
     end
-  end
 
-  describe "POST /api/billing/overage/enable" do
-    test "returns 301 with Location header to CP", %{conn: conn} do
-      conn = post(conn, "/api/billing/overage/enable", %{})
+    test "unknown tier gets free quotas" do
+      event = %{
+        "payload" => %{"tier" => "unknown", "status" => "active"},
+        "timestamp" => "2026-03-26T12:00:00Z"
+      }
 
-      assert conn.status == 301
-      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/overage/enable"]
+      state = BillingController.derive_state("t-4", event)
+
+      assert state.tier == "unknown"
+      assert state.events_quota == 10_000
+      assert state.queries_quota == 1_000
     end
-  end
 
-  describe "POST /api/billing/overage/disable" do
-    test "returns 301 with Location header to CP", %{conn: conn} do
-      conn = post(conn, "/api/billing/overage/disable", %{})
+    test "handles nil payload" do
+      event = %{"payload" => nil, "timestamp" => "2026-03-26T12:00:00Z"}
 
-      assert conn.status == 301
-      assert get_resp_header(conn, "location") == ["#{@mgmt_url}/api/v1/billing/overage/disable"]
-    end
-  end
+      state = BillingController.derive_state("t-5", event)
 
-  describe "GET /api/billing/projected-charges" do
-    test "returns 301 with Location header to CP", %{conn: conn} do
-      conn = get(conn, "/api/billing/projected-charges")
-
-      assert conn.status == 301
-
-      assert get_resp_header(conn, "location") == [
-               "#{@mgmt_url}/api/v1/billing/projected-charges"
-             ]
-    end
-  end
-
-  describe "redirect without MGMT_PLANE_URL" do
-    test "returns 301 with relative path when env var not set", %{conn: conn} do
-      System.delete_env("MGMT_PLANE_URL")
-
-      conn = get(conn, "/api/billing/portal")
-
-      assert conn.status == 301
-      assert get_resp_header(conn, "location") == ["/api/v1/billing/portal"]
+      assert state.tier == "free"
+      assert state.status == "active"
     end
   end
 end

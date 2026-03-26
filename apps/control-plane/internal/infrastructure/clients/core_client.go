@@ -51,6 +51,9 @@ type CoreClient interface {
 	UpdateConfig(ctx context.Context, key string, req UpdateConfigEntryRequest) (*ConfigEntryResponse, error)
 	DeleteConfig(ctx context.Context, key string) error
 
+	// Events
+	IngestEvent(ctx context.Context, req IngestEventRequest) (*IngestEventResponse, error)
+
 	// Health
 	HealthCheck(ctx context.Context) (*HealthResponse, error)
 	GetStats(ctx context.Context) (*StatsResponse, error)
@@ -99,6 +102,20 @@ type RegisterSchemaRequest struct {
 type ValidateEventRequest struct {
 	EventType string `json:"event_type"`
 	Data      any    `json:"data"`
+}
+
+// IngestEventRequest is the request body for ingesting an event into Core.
+type IngestEventRequest struct {
+	EventType string         `json:"event_type"`
+	EntityID  string         `json:"entity_id"`
+	Payload   map[string]any `json:"payload,omitempty"`
+	TenantID  string         `json:"tenant_id,omitempty"`
+}
+
+// IngestEventResponse is the response from ingesting an event.
+type IngestEventResponse struct {
+	EventID string `json:"event_id,omitempty"`
+	ID      string `json:"id,omitempty"`
 }
 
 // --- Response types ---
@@ -625,6 +642,24 @@ func (c *coreClient) ValidateEvent(ctx context.Context, req ValidateEventRequest
 		SetBody(req).
 		SetResult(&result).
 		Post("/api/v1/schemas/validate")
+
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// --- Event methods ---
+
+func (c *coreClient) IngestEvent(ctx context.Context, req IngestEventRequest) (*IngestEventResponse, error) {
+	var result IngestEventResponse
+	ctx, span := c.startSpan(ctx, "IngestEvent")
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		SetBody(req).
+		SetResult(&result).
+		Post("/api/v1/events")
 
 	if err := c.handleError(span, resp, err); err != nil {
 		return nil, err

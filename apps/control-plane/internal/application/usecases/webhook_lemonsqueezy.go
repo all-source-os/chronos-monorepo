@@ -3,9 +3,11 @@ package usecases
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
+	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
 // LemonSqueezyWebhookEvent represents a parsed LemonSqueezy webhook payload.
@@ -47,6 +49,7 @@ type ProcessLemonSqueezyWebhookUseCase struct {
 	updateSubUC    *UpdateSubscriptionMetadataUseCase
 	suspendUC      *SuspendTenantUseCase
 	variantTierMap VariantTierMap
+	coreClient     clients.CoreClient
 }
 
 // NewProcessLemonSqueezyWebhookUseCase creates a new ProcessLemonSqueezyWebhookUseCase.
@@ -56,14 +59,19 @@ func NewProcessLemonSqueezyWebhookUseCase(
 	updateSubUC *UpdateSubscriptionMetadataUseCase,
 	suspendUC *SuspendTenantUseCase,
 	variantTierMap VariantTierMap,
+	coreClient ...clients.CoreClient,
 ) *ProcessLemonSqueezyWebhookUseCase {
-	return &ProcessLemonSqueezyWebhookUseCase{
+	uc := &ProcessLemonSqueezyWebhookUseCase{
 		tenantRepo:     tenantRepo,
 		auditRepo:      auditRepo,
 		updateSubUC:    updateSubUC,
 		suspendUC:      suspendUC,
 		variantTierMap: variantTierMap,
 	}
+	if len(coreClient) > 0 {
+		uc.coreClient = coreClient[0]
+	}
+	return uc
 }
 
 // Execute processes a LemonSqueezy webhook event.
@@ -72,6 +80,9 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) Execute(ctx context.Context, event 
 	if tenantID == "" {
 		return fmt.Errorf("webhook missing tenant_id in custom_data")
 	}
+
+	attrs := event.Data.Attributes
+	tier := uc.resolveTier(attrs.VariantName, attrs.VariantID)
 
 	var err error
 	switch event.EventName {
@@ -89,6 +100,12 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) Execute(ctx context.Context, event 
 		// Unknown event — log and ignore
 		uc.logAudit("webhook.unknown", "receive", tenantID, event.EventName)
 		return nil
+	}
+
+	// Write billing event to Core (non-blocking — errors logged but don't fail the webhook)
+	if err == nil {
+		billingEventType := "billing." + event.EventName
+		uc.writeBillingEvent(ctx, billingEventType, tenantID, attrs, tier, attrs.Status)
 	}
 
 	if err != nil {
@@ -197,6 +214,34 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handlePaymentFailed(tenantID string
 
 	_, err := uc.updateSubUC.Execute(tenantID, billing)
 	return err
+}
+
+// writeBillingEvent writes a billing event to Core for durability and audit trail.
+// Errors are logged but don't block webhook processing.
+func (uc *ProcessLemonSqueezyWebhookUseCase) writeBillingEvent(ctx context.Context, eventType, tenantID string, attrs LemonSqueezySubscriptionAttrs, tier, status string) {
+	if uc.coreClient == nil {
+		return
+	}
+
+	payload := map[string]any{
+		"subscription_id":  "",
+		"customer_id":      fmt.Sprintf("%d", attrs.CustomerID),
+		"tier":             tier,
+		"status":           status,
+		"payment_provider": "lemonsqueezy",
+		"variant_id":       attrs.VariantID,
+		"variant_name":     attrs.VariantName,
+		"product_name":     attrs.ProductName,
+	}
+
+	_, err := uc.coreClient.IngestEvent(ctx, clients.IngestEventRequest{
+		EventType: eventType,
+		EntityID:  tenantID,
+		Payload:   payload,
+	})
+	if err != nil {
+		log.Printf("[billing] failed to write %s event for tenant %s to Core: %v", eventType, tenantID, err)
+	}
 }
 
 func (uc *ProcessLemonSqueezyWebhookUseCase) logAudit(eventType, action, tenantID, detail string) {

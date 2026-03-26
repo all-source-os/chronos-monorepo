@@ -365,6 +365,10 @@ defmodule QueryServiceExWeb.Router do
     scope "/api/billing", QueryServiceExWeb do
       pipe_through(:api)
 
+      # Billing status — reads from Core events (no LemonSqueezy secrets needed)
+      get("/status", BillingController, :status)
+
+      # These redirect to Control Plane (need LemonSqueezy API access)
       get("/portal", BillingController, :portal)
       post("/checkout", BillingController, :checkout)
       get("/overage", BillingController, :overage)
