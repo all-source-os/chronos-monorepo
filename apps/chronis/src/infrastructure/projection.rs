@@ -39,6 +39,14 @@ impl Projection for TaskProjection {
 
         match event_type {
             "task.created" => {
+                // Only insert if the task doesn't already exist.
+                // Duplicate task.created events arrive via sync — they must not
+                // overwrite state that was built from later events (e.g. archived,
+                // done, claimed). See issue #125.
+                if self.states.contains_key(&entity_id) {
+                    return Ok(());
+                }
+
                 let title = payload
                     .get("title")
                     .and_then(|v| v.as_str())

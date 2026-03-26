@@ -3,7 +3,7 @@
 # AllSource MCP Server - Production-Optimized Multi-Stage Dockerfile
 # =============================================================================
 
-ARG ELIXIR_VERSION=1.17
+ARG ELIXIR_VERSION=1.18
 ARG OTP_VERSION=27
 ARG ALPINE_VERSION=3.23
 
