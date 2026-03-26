@@ -4,7 +4,7 @@ defmodule QueryServiceEx.MixProject do
   def project do
     [
       app: :query_service_ex,
-      version: "0.17.1",
+      version: "0.17.2",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -54,6 +54,7 @@ defmodule QueryServiceEx.MixProject do
       {:tesla, "~> 1.11"},
       {:hackney, "~> 1.20"},
       {:jason, "~> 1.4"},
+      {:req, "~> 0.5"},
 
       # WebSocket Client for real-time event streaming from Core
       {:mint_web_socket, "~> 1.0"},

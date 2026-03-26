@@ -376,7 +376,6 @@ defmodule QueryServiceExWeb.Router do
       post("/overage/disable", BillingController, :disable_overage)
       get("/projected-charges", BillingController, :projected_charges)
     end
-
   end
 
   # -------------------------------------------------------------------

@@ -33,6 +33,10 @@ pub enum ChronError {
     #[error("sync: {0}")]
     Sync(String),
 
+    #[cfg(feature = "prime")]
+    #[error("prime: {0}")]
+    Prime(String),
+
     #[error(transparent)]
     Core(#[from] CoreError),
 

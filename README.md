@@ -2,7 +2,7 @@
 title: "AllSource Event Store - Monorepo"
 status: CURRENT
 last_updated: 2026-03-03
-version: "0.17.1"
+version: "0.17.2"
 ---
 
 <div align="center">

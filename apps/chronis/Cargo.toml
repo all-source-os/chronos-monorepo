@@ -50,6 +50,10 @@ uuid = { version = "1", features = ["serde"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [features]
+# Prime: graph + recall for semantic task search and relationship discovery
+prime = ["allsource-core/prime"]
+prime-full = ["prime", "allsource-core/prime-vectors"]
+# Profiling
 hotpath = ["dep:hotpath"]
 hotpath-alloc = ["hotpath/hotpath-alloc"]
 

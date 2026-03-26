@@ -28,6 +28,21 @@ Credit where it's due: beads_rust by [@Dicklesworthstone](https://github.com/Dic
 cargo install chronis
 ```
 
+### With Prime (semantic search + graph relationships)
+
+```bash
+cargo install chronis --features prime-full
+```
+
+This adds:
+- **`cn related <id>`** — find tasks connected by dependencies, parent/child, and graph proximity
+- **`cn find "query"`** — semantic search across task titles and descriptions (requires embedding vectors)
+- **Task graph stats** — see node/edge counts for your task relationships
+
+The base `cn` stays lightweight (~5MB). `prime-full` adds graph + vector capabilities (~35MB).
+
+See [ADR-017](../../docs/adr/017-chronis-prime-integration.md) for architecture details.
+
 ## Quick Start
 
 ```bash
