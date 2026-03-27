@@ -19,8 +19,8 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Command::Init => {
-            dispatch::dispatch_init()?;
+        Command::Init(args) => {
+            dispatch::dispatch_init(args)?;
         }
         Command::Tui => {
             let ws = Workspace::open().await?;

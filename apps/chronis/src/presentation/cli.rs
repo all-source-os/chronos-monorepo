@@ -49,7 +49,7 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Command {
     /// Initialize a new .chronis workspace
-    Init,
+    Init(InitArgs),
 
     /// Task management
     Task(TaskArgs),
@@ -97,6 +97,17 @@ pub enum Command {
 
     /// Start embedded web viewer
     Serve(ServeArgs),
+}
+
+#[derive(clap::Args)]
+pub struct InitArgs {
+    /// Remote Core URL for team sync (e.g. https://allsource-core.fly.dev)
+    #[arg(long)]
+    pub remote: Option<String>,
+
+    /// API key for authenticating with the remote Core
+    #[arg(long)]
+    pub api_key: Option<String>,
 }
 
 #[derive(clap::Args)]

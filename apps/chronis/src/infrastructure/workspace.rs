@@ -150,13 +150,39 @@ impl Workspace {
 
 /// Create a new .chronis/ workspace in the given directory.
 pub fn init_workspace(path: &Path) -> Result<(), ChronError> {
+    init_workspace_inner(path, None, None)
+}
+
+/// Create a new .chronis/ workspace pre-configured for remote sync.
+pub fn init_workspace_with_remote(
+    path: &Path,
+    remote_url: &str,
+    api_key: Option<&str>,
+) -> Result<(), ChronError> {
+    init_workspace_inner(path, Some(remote_url), api_key)
+}
+
+fn init_workspace_inner(
+    path: &Path,
+    remote_url: Option<&str>,
+    api_key: Option<&str>,
+) -> Result<(), ChronError> {
     let chronis_dir = path.join(CHRONIS_DIR);
     if chronis_dir.exists() {
         return Err(ChronError::WorkspaceExists(path.display().to_string()));
     }
     std::fs::create_dir_all(&chronis_dir)?;
 
-    let config = ChronisConfig::default();
+    let sync = remote_url.map(|url| super::config::SyncConfig {
+        remote_url: Some(url.to_string()),
+        api_key: api_key.map(String::from),
+    });
+
+    let config = ChronisConfig {
+        sync,
+        ..ChronisConfig::default()
+    };
+
     let config_content = toml::to_string_pretty(&config)
         .map_err(|e| ChronError::Sync(format!("serialize config: {e}")))?;
 
@@ -168,5 +194,8 @@ pub fn init_workspace(path: &Path) -> Result<(), ChronError> {
     std::fs::write(&gitignore_path, "wal/\nstorage/\nsync/\n")?;
 
     println!("Initialized chronis workspace in {}", chronis_dir.display());
+    if remote_url.is_some() {
+        println!("Remote sync configured. Run `cn sync` to push/pull events.");
+    }
     Ok(())
 }

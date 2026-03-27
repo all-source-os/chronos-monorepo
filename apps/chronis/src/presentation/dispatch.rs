@@ -84,9 +84,13 @@ fn resolve_archive_ids(
     ))
 }
 
-pub fn dispatch_init() -> Result<(), ChronError> {
+pub fn dispatch_init(args: &super::cli::InitArgs) -> Result<(), ChronError> {
     let cwd = std::env::current_dir()?;
-    workspace::init_workspace(&cwd)
+    if let Some(ref remote_url) = args.remote {
+        workspace::init_workspace_with_remote(&cwd, remote_url, args.api_key.as_deref())
+    } else {
+        workspace::init_workspace(&cwd)
+    }
 }
 
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
@@ -98,7 +102,7 @@ pub async fn dispatch(
     toon_mode: bool,
 ) -> Result<(), ChronError> {
     match cmd {
-        Command::Init => unreachable!(),
+        Command::Init(_) => unreachable!(),
         Command::Task(args) => match &args.subcommand {
             TaskCommands::Create(create_args) => {
                 let output = create_task::create_task(
