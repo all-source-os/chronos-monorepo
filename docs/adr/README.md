@@ -22,6 +22,7 @@ This directory contains Architecture Decision Records (ADRs) documenting signifi
 | [014](014-prime-facade-decomposition.md) | Facade Decomposition into Sub-API Modules | Accepted | 2026-03-20 | unreleased |
 | [015](015-prime-vector-index-generation.md) | Generation Counter for VectorIndexProjection | Accepted | 2026-03-20 | unreleased |
 | [016](016-prime-eventual-consistency.md) | Eventual Consistency Model for Prime | Accepted | 2026-03-20 | unreleased |
+| [017](017-chronis-prime-integration.md) | Chronis Prime Integration | Accepted | 2026-03-26 | unreleased |
 
 ## Format
 
