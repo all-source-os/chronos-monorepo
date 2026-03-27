@@ -127,6 +127,9 @@ type Container struct {
 	AdminRefundUC       *billing.AdminRefundUseCase
 	AdminDunningUC      *billing.AdminDunningUseCase
 
+	// Use Cases — Agent Registration
+	RegisterAgentUC *usecases.RegisterAgentUseCase
+
 	// Use Cases — Webhooks
 	ProcessLSWebhookUC     *usecases.ProcessLemonSqueezyWebhookUseCase
 	ProcessStripeWebhookUC *usecases.ProcessStripeWebhookUseCase
@@ -136,6 +139,7 @@ type Container struct {
 	Scheduler *usecases.OperationScheduler
 
 	// HTTP Handlers
+	AgentHandler              *httphandlers.AgentHandler
 	AlertHandler              *httphandlers.AlertHandler
 	SLOHandler                *httphandlers.SLOHandler
 	AdminTenantHandler        *httphandlers.AdminTenantHandler
@@ -264,6 +268,9 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	setOverageEnabledUC := usecases.NewSetOverageEnabledUseCase(tenantRepo, auditRepo)
 	getProjectedChargesUC := usecases.NewGetProjectedChargesUseCase(tenantRepo)
 
+	// Initialize use cases — Agent Registration
+	registerAgentUC := usecases.NewRegisterAgentUseCase(createTenantUC, auditRepo, cfg.CoreClient)
+
 	// Initialize use cases — Webhooks
 	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
 	// Build reverse variant map (tier→variantID becomes variantName→tier) for webhook tier resolution
@@ -309,6 +316,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	}
 
 	// Initialize HTTP handlers (Layer 4)
+	agentHandler := httphandlers.NewAgentHandler(registerAgentUC)
 	alertHandler := httphandlers.NewAlertHandler(createAlertRuleUC, listAlertRulesUC, updateAlertRuleUC, deleteAlertRuleUC)
 	sloHandler := httphandlers.NewSLOHandler(createSLOUC, listSLOsUC, deleteSLOUC)
 	adminTenantHandler := httphandlers.NewAdminTenantHandler(listTenantsUC, getAdminTenantDetailUC, getTenantUsageUC, updateTenantQuotasUC, suspendTenantUC, activateTenantUC, bulkTenantUC)
@@ -403,6 +411,8 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AdminRefundUC:              adminRefundUC,
 		AdminDunningUC:             adminDunningUC,
 		Scheduler:                  scheduler,
+		RegisterAgentUC:            registerAgentUC,
+		AgentHandler:               agentHandler,
 		AlertHandler:               alertHandler,
 		SLOHandler:                 sloHandler,
 		AdminTenantHandler:         adminTenantHandler,

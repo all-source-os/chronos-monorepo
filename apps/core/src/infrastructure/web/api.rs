@@ -436,9 +436,9 @@ pub async fn ingest_events_batch_v1(
 }
 
 pub async fn query_events(
-    State(store): State<SharedStore>,
     OptionalAuth(auth): OptionalAuth,
     Query(req): Query<QueryEventsRequest>,
+    State(store): State<SharedStore>,
 ) -> Result<Json<QueryEventsResponse>> {
     let requested_limit = req.limit;
     let queried_entity_id = req.entity_id.clone();
