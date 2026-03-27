@@ -81,6 +81,11 @@ loop {
 | 3 | Unified auth | Dashboard access for sync users | Rock (1-2d) |
 | 4 | Billing | Monetization | Rock (1w) |
 
-## Immediate Workaround (today)
+## Progress
 
-For the team: use the bootstrap API key to create a dedicated tenant manually, create users in that tenant, and set the `tenant_id` in API key creation. This gives isolation without product changes. Requires the bootstrap key which is in Fly.io secrets.
+| # | Gap | Status | Commit | Notes |
+|---|-----|--------|--------|-------|
+| 1 | Tenant isolation on signup | **Done** | `pending` | Self-registration creates `tenant-{username}`. Admin registration keeps existing behavior. |
+| 2 | Sync pagination | **Done** | `pending` | `query_events` now paginates in 500-event chunks. No more 502 on first sync. |
+| 3 | Unified auth | Open | — | Needed for dashboard access |
+| 4 | Billing | Open | — | Needed for monetization |

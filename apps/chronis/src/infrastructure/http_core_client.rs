@@ -103,15 +103,43 @@ impl HttpCoreClient {
     }
 
     /// Convenience wrapper: query with only a `since` filter.
+    /// Paginates in chunks to avoid HTTP timeouts on large result sets.
     pub async fn query_events(
         &self,
         since: Option<DateTime<Utc>>,
     ) -> Result<Vec<RemoteEvent>, ChronError> {
-        self.query_events_filtered(QueryParams {
-            since,
-            ..Default::default()
-        })
-        .await
+        const PAGE_SIZE: usize = 500;
+        let mut all_events = Vec::new();
+        let mut current_since = since;
+
+        loop {
+            let page = self
+                .query_events_filtered(QueryParams {
+                    since: current_since,
+                    limit: Some(PAGE_SIZE),
+                    ..Default::default()
+                })
+                .await?;
+
+            let page_len = page.len();
+            if page_len == 0 {
+                break;
+            }
+
+            // Advance the cursor to after the last event's timestamp
+            if let Some(last) = page.last() {
+                current_since = Some(last.timestamp);
+            }
+
+            all_events.extend(page);
+
+            // If we got fewer than PAGE_SIZE, we've reached the end
+            if page_len < PAGE_SIZE {
+                break;
+            }
+        }
+
+        Ok(all_events)
     }
 
     /// Query events with full filter support.

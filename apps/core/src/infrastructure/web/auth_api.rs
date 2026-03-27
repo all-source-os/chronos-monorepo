@@ -103,6 +103,7 @@ pub async fn register_handler(
     Json(req): Json<RegisterRequest>,
 ) -> Result<(StatusCode, Json<RegisterResponse>), (StatusCode, String)> {
     // Only admins can register other users (or allow self-registration in dev mode)
+    let is_admin_request = auth.is_some();
     if let Some(auth_ctx) = auth {
         auth_ctx
             .require_permission(Permission::Admin)
@@ -115,7 +116,21 @@ pub async fn register_handler(
     }
 
     let role = req.role.unwrap_or(Role::Developer);
-    let tenant_id = req.tenant_id.unwrap_or_else(|| "default".to_string());
+
+    // Tenant isolation: if no tenant_id is provided, create an isolated tenant
+    // for this user. This prevents new users from seeing other users' data.
+    // Admin-created users (with auth context) can specify a tenant_id explicitly.
+    let tenant_id = if let Some(tid) = req.tenant_id {
+        tid
+    } else if is_admin_request {
+        // Admin explicitly registering a user without tenant_id → use default
+        "default".to_string()
+    } else {
+        // Self-registration: create an isolated tenant named after the user
+        let tid = format!("tenant-{}", req.username.to_lowercase().replace(' ', "-"));
+        tracing::info!("Auto-creating isolated tenant '{tid}' for new user '{}'", req.username);
+        tid
+    };
 
     let user = state
         .auth_manager
