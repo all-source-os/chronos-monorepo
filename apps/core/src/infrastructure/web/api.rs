@@ -436,16 +436,24 @@ pub async fn ingest_events_batch_v1(
 
 pub async fn query_events(
     State(store): State<SharedStore>,
+    auth: Option<axum::Extension<crate::infrastructure::security::middleware::AuthContext>>,
     Query(req): Query<QueryEventsRequest>,
 ) -> Result<Json<QueryEventsResponse>> {
     let requested_limit = req.limit;
     let queried_entity_id = req.entity_id.clone();
 
+    // Enforce tenant isolation: use the authenticated user's tenant_id.
+    // If no auth context (dev mode), fall through to request's tenant_id.
+    let enforced_tenant = auth
+        .as_ref()
+        .map(|a| a.0.tenant_id().to_string())
+        .or(req.tenant_id.clone());
+
     // Query without limit to get total count
     let unlimited_req = QueryEventsRequest {
         entity_id: req.entity_id,
         event_type: req.event_type,
-        tenant_id: req.tenant_id,
+        tenant_id: enforced_tenant,
         as_of: req.as_of,
         since: req.since,
         until: req.until,

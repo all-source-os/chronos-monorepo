@@ -54,7 +54,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "allsource-core"
-version = "0.14.8"
+version = "0.17.2"
 dependencies = [
  "anyhow",
  "arrow",
@@ -81,7 +81,6 @@ dependencies = [
  "thiserror 2.0.18",
  "time",
  "tokio",
- "tokio-stream",
  "toml",
  "tracing",
  "tracing-subscriber",
@@ -2030,17 +2029,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "tokio-stream"
-version = "0.1.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32da49809aab5c3bc678af03902d4ccddea2a87d028d86392a4b1560c6906c70"
-dependencies = [
- "futures-core",
- "pin-project-lite",
- "tokio",
 ]
 
 [[package]]
