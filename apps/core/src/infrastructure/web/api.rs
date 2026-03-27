@@ -1,5 +1,6 @@
 #[cfg(feature = "replication")]
 use crate::infrastructure::replication::ReplicationMode;
+use crate::infrastructure::security::middleware::OptionalAuth;
 use crate::{
     application::{
         dto::{
@@ -436,17 +437,17 @@ pub async fn ingest_events_batch_v1(
 
 pub async fn query_events(
     State(store): State<SharedStore>,
-    auth: Option<axum::Extension<crate::infrastructure::security::middleware::AuthContext>>,
+    OptionalAuth(auth): OptionalAuth,
     Query(req): Query<QueryEventsRequest>,
 ) -> Result<Json<QueryEventsResponse>> {
     let requested_limit = req.limit;
     let queried_entity_id = req.entity_id.clone();
 
-    // Enforce tenant isolation: use the authenticated user's tenant_id.
-    // If no auth context (dev mode), fall through to request's tenant_id.
+    // Enforce tenant isolation: authenticated users can only see their own
+    // tenant's events. Unauthenticated (skipped-auth paths) use request param.
     let enforced_tenant = auth
         .as_ref()
-        .map(|a| a.0.tenant_id().to_string())
+        .map(|a| a.tenant_id().to_string())
         .or(req.tenant_id.clone());
 
     // Query without limit to get total count
