@@ -2,11 +2,23 @@ package usecases
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/allsource/control-plane/internal/application/dto"
+	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 )
+
+// stubKeySigner returns a predictable key for testing.
+func stubKeySigner(tenantID, username string, role entities.Role) (string, error) {
+	return fmt.Sprintf("test-key-%s-%s-%s", tenantID, username, role), nil
+}
+
+// failingKeySigner simulates a key signing failure.
+func failingKeySigner(_, _ string, _ entities.Role) (string, error) {
+	return "", fmt.Errorf("signing unavailable")
+}
 
 func TestRegisterAgent(t *testing.T) {
 	tenantRepo := persistence.NewMemoryTenantRepository()
@@ -14,9 +26,9 @@ func TestRegisterAgent(t *testing.T) {
 	createTenantUC := NewCreateTenantUseCase(tenantRepo, auditRepo)
 	mock := &mockCoreClient{}
 
-	uc := NewRegisterAgentUseCase(createTenantUC, auditRepo, mock)
+	uc := NewRegisterAgentUseCase(createTenantUC, auditRepo, mock, stubKeySigner)
 
-	t.Run("registers agent and creates tenant", func(t *testing.T) {
+	t.Run("registers agent and returns complete response", func(t *testing.T) {
 		mock.events = nil
 
 		resp, err := uc.Execute(context.Background(), dto.RegisterAgentRequest{
@@ -27,20 +39,24 @@ func TestRegisterAgent(t *testing.T) {
 			t.Fatalf("Execute failed: %v", err)
 		}
 
-		if resp.ID != "agent-my-claude-agent" {
-			t.Errorf("expected tenant ID agent-my-claude-agent, got %s", resp.ID)
+		// Verify response fields (use case builds the full response)
+		if resp.TenantID != "agent-my-claude-agent" {
+			t.Errorf("expected tenant_id agent-my-claude-agent, got %s", resp.TenantID)
 		}
-		if resp.Name != "my-claude-agent" {
-			t.Errorf("expected name my-claude-agent, got %s", resp.Name)
+		if resp.Tier != "free" {
+			t.Errorf("expected tier free, got %s", resp.Tier)
 		}
-		if resp.Status != "active" {
-			t.Errorf("expected status active, got %s", resp.Status)
+		if resp.Quotas.EventsQuota != AgentFreeTierEventsQuota {
+			t.Errorf("expected events_quota %d, got %d", AgentFreeTierEventsQuota, resp.Quotas.EventsQuota)
+		}
+		if resp.Quotas.QueriesQuota != AgentFreeTierQueriesQuota {
+			t.Errorf("expected queries_quota %d, got %d", AgentFreeTierQueriesQuota, resp.Quotas.QueriesQuota)
 		}
 
-		// Verify metadata
-		agentType, ok := resp.Metadata["agent_type"].(string)
-		if !ok || agentType != "mcp" {
-			t.Errorf("expected agent_type mcp, got %v", resp.Metadata["agent_type"])
+		// Verify API key was signed via injected function
+		expected := "test-key-agent-my-claude-agent-my-claude-agent-serviceaccount"
+		if resp.APIKey != expected {
+			t.Errorf("expected api_key %q, got %q", expected, resp.APIKey)
 		}
 
 		// Verify Core event was written
@@ -66,7 +82,7 @@ func TestRegisterAgent(t *testing.T) {
 	})
 
 	t.Run("works without Core client", func(t *testing.T) {
-		ucNilCore := NewRegisterAgentUseCase(createTenantUC, auditRepo, nil)
+		ucNilCore := NewRegisterAgentUseCase(createTenantUC, auditRepo, nil, stubKeySigner)
 
 		resp, err := ucNilCore.Execute(context.Background(), dto.RegisterAgentRequest{
 			AgentName: "no-core-agent",
@@ -75,8 +91,8 @@ func TestRegisterAgent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
 		}
-		if resp.ID != "agent-no-core-agent" {
-			t.Errorf("expected agent-no-core-agent, got %s", resp.ID)
+		if resp.TenantID != "agent-no-core-agent" {
+			t.Errorf("expected agent-no-core-agent, got %s", resp.TenantID)
 		}
 	})
 
@@ -88,8 +104,20 @@ func TestRegisterAgent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
 		}
-		if resp.ID != "agent-my-agent-with-spaces" {
-			t.Errorf("expected agent-my-agent-with-spaces, got %s", resp.ID)
+		if resp.TenantID != "agent-my-agent-with-spaces" {
+			t.Errorf("expected agent-my-agent-with-spaces, got %s", resp.TenantID)
+		}
+	})
+
+	t.Run("returns error when key signing fails", func(t *testing.T) {
+		ucBadSigner := NewRegisterAgentUseCase(createTenantUC, auditRepo, mock, failingKeySigner)
+
+		_, err := ucBadSigner.Execute(context.Background(), dto.RegisterAgentRequest{
+			AgentName: "fail-signer-agent",
+			AgentType: "mcp",
+		})
+		if err == nil {
+			t.Fatal("expected error when key signing fails")
 		}
 	})
 }

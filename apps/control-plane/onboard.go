@@ -2,16 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"github.com/allsource/control-plane/internal/application/dto"
+	"github.com/allsource/control-plane/internal/domain"
 	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
@@ -31,9 +32,7 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 	}
 
 	// Generate a deterministic tenant ID from email
-	tenantSlug := strings.ReplaceAll(strings.ToLower(req.Email), "@", "-at-")
-	tenantSlug = strings.ReplaceAll(tenantSlug, ".", "-")
-	tenantID := fmt.Sprintf("onboard-%s", tenantSlug)
+	tenantID := fmt.Sprintf("onboard-%s", entities.TenantSlug(req.Email))
 
 	name := req.Name
 	if name == "" {
@@ -58,7 +57,7 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 	})
 	if err != nil {
 		// If tenant already exists, that's fine — return a helpful error
-		if strings.Contains(err.Error(), "already exists") {
+		if errors.Is(err, domain.ErrTenantAlreadyExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":   "tenant_exists",
 				"message": "A tenant with this email already exists. Use /api/v1/auth/login to authenticate.",
@@ -69,26 +68,8 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 		return
 	}
 
-	// Generate API key as a long-lived JWT with IsAPIKey flag
-	now := time.Now()
-	apiKeyClaims := &Claims{
-		UserID:   tenantID,
-		Username: name,
-		Email:    req.Email,
-		Name:     name,
-		TenantID: tenantResp.ID,
-		Role:     entities.RoleDeveloper,
-		IsAPIKey: true,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: now.Add(365 * 24 * time.Hour).Unix(), // 1 year
-			IssuedAt:  now.Unix(),
-			Issuer:    "allsource",
-			Subject:   tenantID,
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, apiKeyClaims)
-	apiKey, err := token.SignedString([]byte(cp.authClient.jwtSecret))
+	// Generate API key via shared signing function
+	apiKey, err := cp.authClient.SignAPIKey(tenantResp.ID, name, entities.RoleDeveloper)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate API key"})
 		return
@@ -134,9 +115,7 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 
 	// Compute tenant ID deterministically from the email BEFORE registration
 	// so we can pass the same ID to both Core auth (user.tenant_id) and Core tenants.
-	tenantSlug := strings.ReplaceAll(strings.ToLower(email), "@", "-at-")
-	tenantSlug = strings.ReplaceAll(tenantSlug, ".", "-")
-	tenantID := tenantSlug
+	tenantID := entities.TenantSlug(email)
 
 	// Step 1: Register credentials in Core (same path as normal RegisterHandler)
 	// Include tenant_id so Core's user record references the right tenant.
@@ -167,7 +146,7 @@ func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
 	tenantBody := map[string]interface{}{
 		"id":      tenantID,
 		"name":    name,
-		"slug":    tenantSlug,
+		"slug":    tenantID,
 		"is_demo": true,
 		"metadata": map[string]interface{}{
 			"email": email,

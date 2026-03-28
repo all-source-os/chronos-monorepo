@@ -57,8 +57,8 @@ func (uc *GetAdminTenantDetailUseCase) Execute(ctx context.Context, id string) (
 // extractPlanInfoFromTenant pulls plan details from tenant metadata.
 func extractPlanInfoFromTenant(t *entities.Tenant) dto.PlanInfo {
 	plan := dto.PlanInfo{
-		Name: "free",
-		Tier: "free",
+		Name: defaultPlan,
+		Tier: defaultPlan,
 	}
 	if t.Metadata == nil {
 		return plan

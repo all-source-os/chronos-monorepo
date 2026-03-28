@@ -139,7 +139,6 @@ type Container struct {
 	Scheduler *usecases.OperationScheduler
 
 	// HTTP Handlers
-	AgentHandler              *httphandlers.AgentHandler
 	AlertHandler              *httphandlers.AlertHandler
 	SLOHandler                *httphandlers.SLOHandler
 	AdminTenantHandler        *httphandlers.AdminTenantHandler
@@ -163,6 +162,7 @@ type ContainerConfig struct {
 	LSClient     clients.LemonSqueezyClient
 	StripeClient clients.StripeClient
 	EmailClient  clients.EmailClient
+	KeySigner    usecases.KeySignerFunc
 }
 
 // NewContainerWithConfig creates and wires up all dependencies using the provided config.
@@ -269,7 +269,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	getProjectedChargesUC := usecases.NewGetProjectedChargesUseCase(tenantRepo)
 
 	// Initialize use cases — Agent Registration
-	registerAgentUC := usecases.NewRegisterAgentUseCase(createTenantUC, auditRepo, cfg.CoreClient)
+	registerAgentUC := usecases.NewRegisterAgentUseCase(createTenantUC, auditRepo, cfg.CoreClient, cfg.KeySigner)
 
 	// Initialize use cases — Webhooks
 	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
@@ -316,7 +316,6 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	}
 
 	// Initialize HTTP handlers (Layer 4)
-	agentHandler := httphandlers.NewAgentHandler(registerAgentUC)
 	alertHandler := httphandlers.NewAlertHandler(createAlertRuleUC, listAlertRulesUC, updateAlertRuleUC, deleteAlertRuleUC)
 	sloHandler := httphandlers.NewSLOHandler(createSLOUC, listSLOsUC, deleteSLOUC)
 	adminTenantHandler := httphandlers.NewAdminTenantHandler(listTenantsUC, getAdminTenantDetailUC, getTenantUsageUC, updateTenantQuotasUC, suspendTenantUC, activateTenantUC, bulkTenantUC)
@@ -412,7 +411,6 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AdminDunningUC:             adminDunningUC,
 		Scheduler:                  scheduler,
 		RegisterAgentUC:            registerAgentUC,
-		AgentHandler:               agentHandler,
 		AlertHandler:               alertHandler,
 		SLOHandler:                 sloHandler,
 		AdminTenantHandler:         adminTenantHandler,

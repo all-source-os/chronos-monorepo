@@ -55,6 +55,28 @@ func NewAuthClient(jwtSecret string) *AuthClient {
 	}
 }
 
+// SignAPIKey generates a long-lived JWT API key for a given tenant and role.
+// Used by agent registration, onboarding, and demo flows.
+func (a *AuthClient) SignAPIKey(tenantID, username string, role entities.Role) (string, error) {
+	now := time.Now()
+	claims := &Claims{
+		UserID:   tenantID,
+		Username: username,
+		Name:     username,
+		TenantID: tenantID,
+		Role:     role,
+		IsAPIKey: true,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: now.Add(365 * 24 * time.Hour).Unix(),
+			IssuedAt:  now.Unix(),
+			Issuer:    "allsource",
+			Subject:   tenantID,
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(a.jwtSecret))
+}
+
 // ValidateToken validates a JWT token and returns claims
 func (a *AuthClient) ValidateToken(tokenString string) (*Claims, error) {
 	// Parse the token

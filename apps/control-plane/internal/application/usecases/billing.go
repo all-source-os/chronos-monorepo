@@ -10,6 +10,12 @@ import (
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
+// Payment provider constants.
+const (
+	providerLemonSqueezy = "lemonsqueezy"
+	providerStripe       = "stripe"
+)
+
 // --- Billing DTOs (handler-facing) ---
 
 // CheckoutRequest is the input for creating a billing checkout.
@@ -102,13 +108,13 @@ func (uc *CreateCheckoutUseCase) Execute(ctx context.Context, req CheckoutReques
 
 	provider := req.Provider
 	if provider == "" {
-		provider = "lemonsqueezy"
+		provider = providerLemonSqueezy
 	}
 
 	switch provider {
 	case "stripe":
 		return uc.executeStripe(ctx, req)
-	case "lemonsqueezy":
+	case providerLemonSqueezy:
 		return uc.executeLemonSqueezy(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported payment provider: %s", provider)
@@ -140,14 +146,14 @@ func (uc *CreateCheckoutUseCase) executeLemonSqueezy(ctx context.Context, req Ch
 		return nil, fmt.Errorf("create checkout: %w", err)
 	}
 
-	uc.logCheckoutAudit(req.TenantID, "lemonsqueezy")
+	uc.logCheckoutAudit(req.TenantID, providerLemonSqueezy)
 
 	return &CheckoutResult{
 		CheckoutID:  checkout.ID,
 		CheckoutURL: checkout.URL,
 		TenantID:    req.TenantID,
 		Tier:        req.Tier,
-		Provider:    "lemonsqueezy",
+		Provider:    providerLemonSqueezy,
 	}, nil
 }
 

@@ -183,6 +183,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		LSClient:     lsClient,
 		StripeClient: stripeClient,
 		EmailClient:  emailClient,
+		KeySigner:    authClient.SignAPIKey,
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
 
@@ -276,6 +277,10 @@ func (cp *ControlPlane) setupRoutes() {
 	// Onboarding endpoint (public, no auth required)
 	onboard := cp.router.Group("/api/v1/onboard")
 	onboard.POST("/start", cp.OnboardHandler)
+
+	// Agent registration (public, no auth required)
+	agents := cp.router.Group("/api/v1/agents")
+	agents.POST("/register", cp.AgentRegisterHandler)
 
 	// Demo endpoint (public, no auth required)
 	demo := cp.router.Group("/api/v1/demo")
