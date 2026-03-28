@@ -39,5 +39,5 @@ func USDCAddressForNetwork(network string) (string, error) {
 // EIP3009Verifier verifies EIP-3009 transferWithAuthorization signatures.
 // Implementation requires go-ethereum (added in US-004).
 type EIP3009Verifier interface {
-	Verify(auth *TransferAuthorization, signature string, network string) error
+	Verify(auth *EIP3009Authorization, signature string, network string) error
 }

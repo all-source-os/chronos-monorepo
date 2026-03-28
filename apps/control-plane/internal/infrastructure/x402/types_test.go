@@ -8,16 +8,16 @@ import (
 func TestEncodeDecodeHeader(t *testing.T) {
 	original := PaymentRequired{
 		X402Version: Version,
-		Accepts: []PaymentOffer{
+		Accepts: []PaymentRequirements{
 			{
-				Scheme:            SchemeExact,
-				Network:           NetworkBaseMainnet,
-				MaxAmountRequired: "1000",
-				PayTo:             "0xRecipient",
-				Resource:          "/api/v1/events",
-				Description:       "Event ingestion",
+				Scheme:  SchemeExact,
+				Network: NetworkBaseMainnet,
+				Asset:   USDCBaseMainnet,
+				Amount:  "1000",
+				PayTo:   "0xRecipient",
 			},
 		},
+		Resource: &ResourceInfo{URL: "/api/v1/events", Description: "Event ingestion"},
 	}
 
 	encoded, err := EncodeHeader(original)
@@ -37,20 +37,20 @@ func TestEncodeDecodeHeader(t *testing.T) {
 		t.Errorf("version: want %d, got %d", Version, decoded.X402Version)
 	}
 	if len(decoded.Accepts) != 1 {
-		t.Fatalf("accepts: want 1 offer, got %d", len(decoded.Accepts))
+		t.Fatalf("accepts: want 1, got %d", len(decoded.Accepts))
 	}
-	offer := decoded.Accepts[0]
-	if offer.Scheme != SchemeExact {
-		t.Errorf("scheme: want %s, got %s", SchemeExact, offer.Scheme)
+	req := decoded.Accepts[0]
+	if req.Scheme != SchemeExact {
+		t.Errorf("scheme: want %s, got %s", SchemeExact, req.Scheme)
 	}
-	if offer.Network != NetworkBaseMainnet {
-		t.Errorf("network: want %s, got %s", NetworkBaseMainnet, offer.Network)
+	if req.Network != NetworkBaseMainnet {
+		t.Errorf("network: want %s, got %s", NetworkBaseMainnet, req.Network)
 	}
-	if offer.MaxAmountRequired != "1000" {
-		t.Errorf("amount: want 1000, got %s", offer.MaxAmountRequired)
+	if req.Amount != "1000" {
+		t.Errorf("amount: want 1000, got %s", req.Amount)
 	}
-	if offer.PayTo != "0xRecipient" {
-		t.Errorf("payTo: want 0xRecipient, got %s", offer.PayTo)
+	if req.PayTo != "0xRecipient" {
+		t.Errorf("payTo: want 0xRecipient, got %s", req.PayTo)
 	}
 }
 
@@ -63,16 +63,15 @@ func TestDecodeHeader_InvalidBase64(t *testing.T) {
 }
 
 func TestDecodeHeader_InvalidJSON(t *testing.T) {
-	// Valid base64 but not valid JSON
 	var v PaymentRequired
-	err := DecodeHeader("bm90LWpzb24=", &v)
+	err := DecodeHeader("bm90LWpzb24=", &v) // "not-json" in base64
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}
 }
 
 func TestPaymentPayloadRoundTrip(t *testing.T) {
-	auth := &TransferAuthorization{
+	auth := EIP3009Authorization{
 		From:        "0xSender",
 		To:          "0xRecipient",
 		Value:       "1000000",
@@ -81,7 +80,7 @@ func TestPaymentPayloadRoundTrip(t *testing.T) {
 		Nonce:       "0xabc123",
 	}
 
-	exactPayload, err := json.Marshal(ExactPaymentPayload{
+	exactPayload, err := json.Marshal(ExactEIP3009Payload{
 		Signature:     "0xSig...",
 		Authorization: auth,
 	})
@@ -91,18 +90,21 @@ func TestPaymentPayloadRoundTrip(t *testing.T) {
 
 	payload := PaymentPayload{
 		X402Version: Version,
-		Scheme:      SchemeExact,
-		Network:     NetworkBaseMainnet,
 		Payload:     exactPayload,
+		Accepted: PaymentRequirements{
+			Scheme:  SchemeExact,
+			Network: NetworkBaseMainnet,
+			Asset:   USDCBaseMainnet,
+			Amount:  "1000000",
+			PayTo:   "0xRecipient",
+		},
 	}
 
-	// Encode to header
 	encoded, err := EncodeHeader(payload)
 	if err != nil {
 		t.Fatalf("EncodeHeader: %v", err)
 	}
 
-	// Decode from header
 	var decoded PaymentPayload
 	if err := DecodeHeader(encoded, &decoded); err != nil {
 		t.Fatalf("DecodeHeader: %v", err)
@@ -111,12 +113,11 @@ func TestPaymentPayloadRoundTrip(t *testing.T) {
 	if decoded.X402Version != Version {
 		t.Errorf("version: want %d, got %d", Version, decoded.X402Version)
 	}
-	if decoded.Scheme != SchemeExact {
-		t.Errorf("scheme: want %s, got %s", SchemeExact, decoded.Scheme)
+	if decoded.Accepted.Scheme != SchemeExact {
+		t.Errorf("scheme: want %s, got %s", SchemeExact, decoded.Accepted.Scheme)
 	}
 
-	// Decode nested exact payload
-	var exact ExactPaymentPayload
+	var exact ExactEIP3009Payload
 	if err := json.Unmarshal(decoded.Payload, &exact); err != nil {
 		t.Fatalf("unmarshal exact: %v", err)
 	}
@@ -130,9 +131,10 @@ func TestPaymentPayloadRoundTrip(t *testing.T) {
 
 func TestSettlementResponse_JSON(t *testing.T) {
 	resp := SettlementResponse{
-		Success:         true,
-		TransactionHash: "0xdeadbeef",
-		Network:         NetworkBaseMainnet,
+		Success:     true,
+		Transaction: "0xdeadbeef",
+		Network:     NetworkBaseMainnet,
+		Payer:       "0xSender",
 	}
 
 	data, err := json.Marshal(resp)
@@ -148,7 +150,10 @@ func TestSettlementResponse_JSON(t *testing.T) {
 	if !decoded.Success {
 		t.Error("expected success=true")
 	}
-	if decoded.TransactionHash != "0xdeadbeef" {
-		t.Errorf("tx: want 0xdeadbeef, got %s", decoded.TransactionHash)
+	if decoded.Transaction != "0xdeadbeef" {
+		t.Errorf("tx: want 0xdeadbeef, got %s", decoded.Transaction)
+	}
+	if decoded.Payer != "0xSender" {
+		t.Errorf("payer: want 0xSender, got %s", decoded.Payer)
 	}
 }

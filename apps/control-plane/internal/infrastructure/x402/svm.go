@@ -35,5 +35,5 @@ func USDCSolanaAddress(network string) (string, error) {
 // SPLTransferVerifier verifies Solana SPL TransferChecked authorization signatures.
 // Implementation requires a Solana Go SDK (added in US-004).
 type SPLTransferVerifier interface {
-	Verify(auth *TransferAuthorization, signature string, network string) error
+	Verify(transaction string, network string) error
 }
