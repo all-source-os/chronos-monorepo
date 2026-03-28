@@ -1337,6 +1337,13 @@ impl EventStore {
     /// Apply filters to an event
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn apply_filters(&self, event: &Event, request: &QueryEventsRequest) -> bool {
+        // Tenant isolation: if a tenant_id is specified, only return events from that tenant
+        if let Some(ref tid) = request.tenant_id
+            && event.tenant_id_str() != tid
+        {
+            return false;
+        }
+
         // Additional type filter if entity was primary
         if request.entity_id.is_some()
             && let Some(ref event_type) = request.event_type
