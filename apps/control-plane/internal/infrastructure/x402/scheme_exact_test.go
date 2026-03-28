@@ -14,10 +14,13 @@ func makeExactPayment(from, to, value, nonce, sig, network string) *PaymentPaylo
 		ValidBefore: "9999999999",
 		Nonce:       nonce,
 	}
-	exactBytes, _ := json.Marshal(ExactPaymentPayload{
+	exactBytes, err := json.Marshal(ExactPaymentPayload{
 		Signature:     sig,
 		Authorization: auth,
 	})
+	if err != nil {
+		panic(err)
+	}
 	return &PaymentPayload{
 		X402Version: Version,
 		Scheme:      SchemeExact,
@@ -120,7 +123,10 @@ func TestValidateExactPayment_MissingSignature(t *testing.T) {
 }
 
 func TestValidateExactPayment_MissingAuthorization(t *testing.T) {
-	exactBytes, _ := json.Marshal(ExactPaymentPayload{Signature: "0xSig"})
+	exactBytes, err := json.Marshal(ExactPaymentPayload{Signature: "0xSig"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
 	payment := &PaymentPayload{
 		X402Version: Version,
 		Scheme:      SchemeExact,
@@ -129,8 +135,8 @@ func TestValidateExactPayment_MissingAuthorization(t *testing.T) {
 	}
 	requirements := makeRequirements("1000", "0xRecipient", NetworkBaseMainnet)
 
-	_, _, err := ValidateExactPayment(payment, requirements)
-	if err == nil {
+	_, _, valErr := ValidateExactPayment(payment, requirements)
+	if valErr == nil {
 		t.Fatal("expected error for missing authorization")
 	}
 }
