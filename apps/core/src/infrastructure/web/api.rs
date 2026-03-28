@@ -449,11 +449,6 @@ pub async fn query_events(
         .as_ref()
         .map(|a| a.tenant_id().to_string())
         .or(req.tenant_id.clone());
-    tracing::info!(
-        "query_events: auth_present={}, enforced_tenant={:?}",
-        auth.is_some(),
-        enforced_tenant,
-    );
 
     // Query without limit to get total count
     let unlimited_req = QueryEventsRequest {

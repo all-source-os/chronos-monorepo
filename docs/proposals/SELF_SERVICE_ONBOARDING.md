@@ -86,7 +86,7 @@ loop {
 | # | Gap | Status | Commit | Notes |
 |---|-----|--------|--------|-------|
 | 1 | Tenant isolation on signup | **Done** | `7395a1a` | Self-registration creates `tenant-{username}` |
-| 1b | Query tenant enforcement | **Done** | `pending` | `query_events` enforces authenticated user's tenant_id — users can only see their own events |
+| 1b | Query tenant enforcement | **Done + Verified** | `e1aa9b2` | Three-layer fix: OptionalAuth + store filter. Fresh user sees 0/44K events. Deployed. |
 | 2 | Sync pagination | **Done** | `7395a1a` | Paginates in 500-event chunks, no more 502 |
 | 3 | Unified auth | Open | — | Needed for dashboard access |
 | 4 | Billing | Open | — | Needed for monetization |
