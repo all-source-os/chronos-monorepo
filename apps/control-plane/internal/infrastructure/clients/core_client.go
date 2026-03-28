@@ -53,6 +53,7 @@ type CoreClient interface {
 
 	// Events
 	IngestEvent(ctx context.Context, req IngestEventRequest) (*IngestEventResponse, error)
+	QueryEvents(ctx context.Context, req QueryEventsRequest) (*QueryEventsResponse, error)
 
 	// Health
 	HealthCheck(ctx context.Context) (*HealthResponse, error)
@@ -116,6 +117,31 @@ type IngestEventRequest struct {
 type IngestEventResponse struct {
 	EventID string `json:"event_id,omitempty"`
 	ID      string `json:"id,omitempty"`
+}
+
+// QueryEventsRequest is the request for querying events from Core.
+type QueryEventsRequest struct {
+	EntityID  string `json:"entity_id,omitempty"`
+	EventType string `json:"event_type,omitempty"` // prefix match supported
+	Since     string `json:"since,omitempty"`      // RFC3339
+	Until     string `json:"until,omitempty"`      // RFC3339
+	Limit     int    `json:"limit,omitempty"`
+	Offset    int    `json:"offset,omitempty"`
+}
+
+// QueryEventsResponse is the response from querying events.
+type QueryEventsResponse struct {
+	Events []EventEntry `json:"events"`
+	Count  int          `json:"count"`
+}
+
+// EventEntry represents a single event from Core's query response.
+type EventEntry struct {
+	ID        string         `json:"id"`
+	EventType string         `json:"event_type"`
+	EntityID  string         `json:"entity_id"`
+	Timestamp string         `json:"timestamp"`
+	Payload   map[string]any `json:"payload,omitempty"`
 }
 
 // --- Response types ---
@@ -661,6 +687,38 @@ func (c *coreClient) IngestEvent(ctx context.Context, req IngestEventRequest) (*
 		SetResult(&result).
 		Post("/api/v1/events")
 
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *coreClient) QueryEvents(ctx context.Context, req QueryEventsRequest) (*QueryEventsResponse, error) {
+	var result QueryEventsResponse
+	ctx, span := c.startSpan(ctx, "QueryEvents")
+	defer span.End()
+
+	r := c.request(ctx).SetResult(&result)
+	if req.EntityID != "" {
+		r.SetQueryParam("entity_id", req.EntityID)
+	}
+	if req.EventType != "" {
+		r.SetQueryParam("event_type", req.EventType)
+	}
+	if req.Since != "" {
+		r.SetQueryParam("since", req.Since)
+	}
+	if req.Until != "" {
+		r.SetQueryParam("until", req.Until)
+	}
+	if req.Limit > 0 {
+		r.SetQueryParam("limit", fmt.Sprintf("%d", req.Limit))
+	}
+	if req.Offset > 0 {
+		r.SetQueryParam("offset", fmt.Sprintf("%d", req.Offset))
+	}
+
+	resp, err := r.Get("/api/v1/events/query")
 	if err := c.handleError(span, resp, err); err != nil {
 		return nil, err
 	}
