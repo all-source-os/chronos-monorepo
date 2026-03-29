@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -31,13 +32,29 @@ type RemoteFacilitator struct {
 
 // NewRemoteFacilitator creates a facilitator that calls an external endpoint.
 // Pass CoinbaseX402FacilitatorURL to use Coinbase's hosted facilitator.
+//
+// The 30-second HTTP timeout protects against hung connections: if the facilitator
+// is unreachable or unresponsive, each auto-pay attempt will fail after 30s and
+// fall back to a standard 402 response rather than blocking the handler goroutine
+// indefinitely.
 func NewRemoteFacilitator(baseURL string) *RemoteFacilitator {
+	return NewRemoteFacilitatorWithTimeout(baseURL, 30*time.Second)
+}
+
+// NewRemoteFacilitatorWithTimeout creates a facilitator with a custom HTTP timeout.
+// Useful in tests to simulate slow or unresponsive facilitators.
+func NewRemoteFacilitatorWithTimeout(baseURL string, timeout time.Duration) *RemoteFacilitator {
 	return &RemoteFacilitator{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: timeout,
 		},
 	}
+}
+
+// BaseURL returns the base URL of the facilitator endpoint.
+func (r *RemoteFacilitator) BaseURL() string {
+	return r.baseURL
 }
 
 // Verify calls the remote /verify endpoint.
@@ -60,6 +77,11 @@ func (r *RemoteFacilitator) Settle(ctx context.Context, payment *PaymentPayload,
 
 // post marshals the payment and requirements into a FacilitatorRequest, POSTs to the
 // given path on the remote facilitator, and decodes the JSON response into out.
+// Non-2xx HTTP responses are returned as errors with the response body included so
+// callers can distinguish a protocol failure from a negative result (e.g. IsValid:false).
+//
+// Retries are intentionally absent here — this runs inside an active HTTP handler
+// goroutine. Retry logic belongs at a higher level if needed.
 func (r *RemoteFacilitator) post(ctx context.Context, path string, payment *PaymentPayload, requirements *PaymentRequired, out any) error {
 	payloadBytes, err := json.Marshal(payment)
 	if err != nil {
@@ -88,6 +110,11 @@ func (r *RemoteFacilitator) post(ctx context.Context, path string, payment *Paym
 		return fmt.Errorf("call remote facilitator %s: %w", path, err)
 	}
 	defer httpResp.Body.Close() //nolint:errcheck
+
+	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		errBody, _ := io.ReadAll(io.LimitReader(httpResp.Body, 4096)) //nolint:errcheck
+		return fmt.Errorf("facilitator %s: HTTP %d: %s", path, httpResp.StatusCode, strings.TrimSpace(string(errBody)))
+	}
 
 	if err := json.NewDecoder(httpResp.Body).Decode(out); err != nil {
 		return fmt.Errorf("decode response from %s: %w", path, err)

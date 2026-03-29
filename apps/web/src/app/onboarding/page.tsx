@@ -30,7 +30,7 @@ export default function OnboardingPage() {
         }
         const data = await response.json();
         if (data.data?.user) {
-          login(data.data.user, data.data.tenant);
+          login(data.data.user, data.data.tenant, data.data.core_api_key ?? null);
         } else {
           router.push("/login");
         }

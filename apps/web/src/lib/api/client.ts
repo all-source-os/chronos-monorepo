@@ -371,6 +371,24 @@ export class ApiClient {
     });
   }
 
+  // Agent key management
+  async listAgentKeys(): Promise<ApiResponse<AgentKeysResponse>> {
+    return this.request<AgentKeysResponse>("/api/team/agent-keys");
+  }
+
+  async createAgentKey(name: string): Promise<ApiResponse<AgentKeyCreated>> {
+    return this.request<AgentKeyCreated>("/api/team/agent-keys", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  async revokeAgentKey(name: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/api/team/agent-keys/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+  }
+
   // Audit log endpoints
   async listAuditLogs(params?: AuditLogParams): Promise<ApiResponse<AuditLogResponse>> {
     const queryString = params
@@ -765,6 +783,24 @@ export interface Invitation {
   invited_by: string;
   invited_at: string;
   status: "pending" | "accepted" | "expired";
+}
+
+// Agent key types
+export interface AgentKey {
+  name: string;
+  key_id: string;
+  created_at: string;
+}
+
+export interface AgentKeyCreated {
+  name: string;
+  key: string; // raw ask_... value — returned once only
+  tenant_id: string;
+  created_at: string;
+}
+
+export interface AgentKeysResponse {
+  agent_keys: AgentKey[];
 }
 
 // Audit Log types

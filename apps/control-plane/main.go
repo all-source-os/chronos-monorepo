@@ -148,8 +148,10 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	// Initialize policy engine
 	policyEngine := NewPolicyEngine()
 
-	// Initialize typed CoreClient for Clean Architecture use cases
-	coreClient := clients.NewCoreClient()
+	// Initialize typed CoreClient for Clean Architecture use cases.
+	// Uses the same admin service JWT as cp.client so it can call Core's
+	// Admin-protected endpoints (config store, API key creation, etc.).
+	coreClient := clients.NewCoreClientWithJWT(coreURL, serviceToken)
 
 	// Initialize LemonSqueezy client (optional — billing features require it)
 	var lsClient clients.LemonSqueezyClient
@@ -181,6 +183,16 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		}
 	}
 
+	// Initialize Coinbase CDP client (optional — enables x402 auto-pay for wallet-less agents)
+	var cdpClient clients.CDPClient
+	if os.Getenv("COINBASE_CDP_KEY_NAME") != "" {
+		var cdpErr error
+		cdpClient, cdpErr = clients.NewCoinbaseCDPClient()
+		if cdpErr != nil {
+			log.Printf("Coinbase CDP client init failed: %v (x402 auto-pay disabled)", cdpErr)
+		}
+	}
+
 	// Initialize Clean Architecture container (Core-backed repos, no PostgreSQL)
 	containerCfg := internal.ContainerConfig{
 		CoreClient:   coreClient,
@@ -188,6 +200,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		StripeClient: stripeClient,
 		EmailClient:  emailClient,
 		KeySigner:    authClient.SignAPIKey,
+		CDPClient:    cdpClient,
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
 
@@ -295,6 +308,7 @@ func (cp *ControlPlane) setupRoutes() {
 	auth.POST("/register", cp.RegisterHandler)
 	auth.GET("/oauth/:provider", cp.OAuthAuthorize)
 	auth.GET("/oauth/:provider/callback", cp.OAuthCallback)
+	auth.GET("/session", cp.SessionHandler)
 
 	// Onboarding endpoint (public, no auth required)
 	onboard := cp.router.Group("/api/v1/onboard")
@@ -319,6 +333,20 @@ func (cp *ControlPlane) setupRoutes() {
 
 	// Protected API endpoints
 	api := cp.router.Group("/api/v1")
+
+	// x402 auto-pay middleware: intercepts quota-exceeded requests, auto-settles via CDP wallet
+	// when the agent has one; falls back to a standard 402 when CDP is unavailable.
+	if cp.x402Pricing != nil && cp.x402Pricing.Enabled {
+		x402Logger := x402.NewEventLogger(cp.coreClient)
+		api.Use(x402.AgentAutoPayMiddleware(
+			cp.x402Facilitator,
+			cp.x402Pricing,
+			x402Logger,
+			x402.NewCoreQuotaChecker(cp.coreClient),
+			cp.container.WalletLookup,
+			cp.container.CDPClient,
+		))
+	}
 
 	// Cluster management
 	api.GET("/cluster/status", RequirePermission(entities.PermissionRead), cp.container.OperationsHandler.GetClusterStatus)
@@ -350,6 +378,19 @@ func (cp *ControlPlane) setupRoutes() {
 	tenants.POST("/:id/activate", RequireAdmin(), cp.container.TenantHandler.Activate)
 	tenants.DELETE("/:id", RequireAdmin(), cp.container.TenantHandler.Delete)
 	tenants.GET("/:id/stats", RequirePermission(entities.PermissionRead), cp.container.TenantHandler.Stats)
+
+	// Team management (invite flow + member management)
+	// GET /api/v1/teams/invite/:token is public (no auth — used before OAuth to preview the invite).
+	cp.router.GET("/api/v1/teams/invite/:token", cp.GetInviteHandler)
+	teams := api.Group("/teams")
+	teams.POST("/invite", cp.InviteHandler)
+	teams.GET("/members", RequirePermission(entities.PermissionRead), cp.ListMembersHandler)
+	teams.PUT("/members/:id", cp.UpdateMemberRoleHandler)
+	teams.DELETE("/members/:id", cp.DeleteMemberHandler)
+	// Agent key management — provision and revoke Core API keys for agents
+	teams.POST("/agent-keys", RequirePermission(entities.PermissionWrite), cp.CreateAgentKeyHandler)
+	teams.GET("/agent-keys", RequirePermission(entities.PermissionRead), cp.ListAgentKeysHandler)
+	teams.DELETE("/agent-keys/:name", RequirePermission(entities.PermissionWrite), cp.RevokeAgentKeyHandler)
 
 	// User management (admin only)
 	users := api.Group("/users")

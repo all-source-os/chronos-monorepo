@@ -3,6 +3,7 @@
 import { BlurFade, Button, Card, CardContent } from "@allsource/ui";
 import { Plus, Users } from "lucide-react";
 import { useState } from "react";
+import { AgentKeysSection } from "@/components/team/agent-keys-section";
 import { InviteMemberDialog } from "@/components/team/invite-member-dialog";
 import { MemberTable } from "@/components/team/member-table";
 import { useTeamMembers } from "@/hooks/use-team-members";
@@ -87,6 +88,11 @@ export default function TeamPage() {
           onRemove={handleRemove}
           onUpdateRole={handleUpdateRole}
         />
+      </BlurFade>
+
+      {/* Agent Keys */}
+      <BlurFade delay={0.4} inView>
+        <AgentKeysSection />
       </BlurFade>
 
       {/* Invite dialog */}

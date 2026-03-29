@@ -151,6 +151,19 @@ fn extract_token(headers: &HeaderMap) -> Result<String, AllSourceError> {
     Ok(token.to_string())
 }
 
+/// Returns true for paths that require Admin permission regardless of other checks.
+///
+/// - POST /api/v1/auth/api-keys — key creation (agents must not self-replicate)
+/// - /api/v1/tenants/* — tenant management (agents must not alter tenants)
+///
+/// Note: /api/v1/auth/register is in AUTH_SKIP_PATHS (public self-registration) and
+/// additionally enforces Admin at the handler level when any auth token is present.
+#[inline]
+pub fn is_admin_only_path(path: &str, method: &str) -> bool {
+    (path == "/api/v1/auth/api-keys" && method == "POST")
+        || path.starts_with("/api/v1/tenants")
+}
+
 /// Authentication middleware
 pub async fn auth_middleware(
     State(auth_state): State<AuthState>,
@@ -196,8 +209,25 @@ pub async fn auth_middleware(
         auth_state.auth_manager.validate_token(&token)?
     };
 
+    let auth_ctx = AuthContext { claims };
+
+    // Enforce that service accounts (agent API keys) cannot access admin-only paths.
+    // Admin-only paths: user registration, API key creation, and all tenant management.
+    // These are also enforced at handler level; this middleware block provides defence-in-depth.
+    let path = request.uri().path();
+    let method = request.method().as_str();
+    let is_admin_only_path = is_admin_only_path(path, method);
+
+    if is_admin_only_path {
+        auth_ctx.require_permission(Permission::Admin).map_err(|_| {
+            AuthError(AllSourceError::ValidationError(
+                "Admin permission required".to_string(),
+            ))
+        })?;
+    }
+
     // Insert auth context into request extensions
-    request.extensions_mut().insert(AuthContext { claims });
+    request.extensions_mut().insert(auth_ctx);
 
     Ok(next.run(request).await)
 }
@@ -866,6 +896,98 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("authorization", "Bearer ".parse().unwrap());
         assert!(extract_token(&headers).is_err());
+    }
+
+    // -------------------------------------------------------------------------
+    // US-008: Agent Permission Enforcement
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_service_account_blocked_on_admin_paths() {
+        // ServiceAccount (agent API key) must NOT have Admin permission.
+        // The middleware uses require_permission(Permission::Admin) to block them.
+        let claims = Claims::new(
+            "agent-key".to_string(),
+            "tenant1".to_string(),
+            Role::ServiceAccount,
+            chrono::Duration::hours(1),
+        );
+        let ctx = AuthContext { claims };
+        assert!(ctx.require_permission(Permission::Admin).is_err(),
+            "ServiceAccount must not have Admin permission");
+        // But it should still be able to read/write events
+        assert!(ctx.require_permission(Permission::Read).is_ok());
+        assert!(ctx.require_permission(Permission::Write).is_ok());
+    }
+
+    #[test]
+    fn test_admin_role_passes_admin_paths() {
+        // Admin role must have Admin permission — passes admin-only paths.
+        let claims = Claims::new(
+            "admin-user".to_string(),
+            "tenant1".to_string(),
+            Role::Admin,
+            chrono::Duration::hours(1),
+        );
+        let ctx = AuthContext { claims };
+        assert!(ctx.require_permission(Permission::Admin).is_ok(),
+            "Admin must have Admin permission");
+    }
+
+    #[test]
+    fn test_developer_blocked_on_admin_paths() {
+        // Developer role cannot access admin-only paths.
+        let claims = Claims::new(
+            "dev-user".to_string(),
+            "tenant1".to_string(),
+            Role::Developer,
+            chrono::Duration::hours(1),
+        );
+        let ctx = AuthContext { claims };
+        assert!(ctx.require_permission(Permission::Admin).is_err(),
+            "Developer must not have Admin permission");
+    }
+
+    #[test]
+    fn test_readonly_blocked_on_admin_paths() {
+        let claims = Claims::new(
+            "ro-user".to_string(),
+            "tenant1".to_string(),
+            Role::ReadOnly,
+            chrono::Duration::hours(1),
+        );
+        let ctx = AuthContext { claims };
+        assert!(ctx.require_permission(Permission::Admin).is_err());
+        assert!(ctx.require_permission(Permission::Read).is_ok());
+        assert!(ctx.require_permission(Permission::Write).is_err());
+    }
+
+    #[test]
+    fn test_is_admin_only_path_api_keys_create() {
+        // POST to api-keys is admin-only (agent keys must not self-replicate)
+        assert!(is_admin_only_path("/api/v1/auth/api-keys", "POST"));
+        // Other methods on api-keys are NOT admin-only (GET to list keys)
+        assert!(!is_admin_only_path("/api/v1/auth/api-keys", "GET"));
+        assert!(!is_admin_only_path("/api/v1/auth/api-keys", "DELETE"));
+    }
+
+    #[test]
+    fn test_is_admin_only_path_tenants() {
+        // All tenant management paths are admin-only
+        assert!(is_admin_only_path("/api/v1/tenants", "GET"));
+        assert!(is_admin_only_path("/api/v1/tenants", "POST"));
+        assert!(is_admin_only_path("/api/v1/tenants/some-id", "DELETE"));
+        assert!(is_admin_only_path("/api/v1/tenants/some-id/config", "PUT"));
+    }
+
+    #[test]
+    fn test_is_admin_only_path_normal_paths() {
+        // Normal event/query paths are NOT admin-only
+        assert!(!is_admin_only_path("/api/v1/events", "POST"));
+        assert!(!is_admin_only_path("/api/v1/events/query", "GET"));
+        assert!(!is_admin_only_path("/api/v1/auth/me", "GET"));
+        assert!(!is_admin_only_path("/api/v1/auth/login", "POST"));
+        assert!(!is_admin_only_path("/api/v1/schemas", "GET"));
     }
 
     #[test]

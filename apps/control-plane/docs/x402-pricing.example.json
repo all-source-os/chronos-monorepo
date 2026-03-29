@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "recipientAddress": "0xYOUR_RECIPIENT_ADDRESS_ON_BASE",
+  "routes": {
+    "POST /api/v1/events": {
+      "amount": "100",
+      "networks": ["eip155:8453"],
+      "description": "Event ingestion — $0.0001 USDC per event (100 = 0.0001 USDC at 6 decimals)"
+    },
+    "GET /api/v1/events/query": {
+      "amount": "1000",
+      "networks": ["eip155:8453"],
+      "description": "Event query — $0.001 USDC per query"
+    }
+  }
+}

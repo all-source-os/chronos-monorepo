@@ -2,6 +2,7 @@
 package internal
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 
@@ -139,6 +140,10 @@ type Container struct {
 	// Scheduler
 	Scheduler *usecases.OperationScheduler
 
+	// x402 auto-pay support
+	WalletLookup *CoreWalletLookup
+	CDPClient    clients.CDPClient
+
 	// HTTP Handlers
 	AlertHandler              *httphandlers.AlertHandler
 	SLOHandler                *httphandlers.SLOHandler
@@ -165,6 +170,44 @@ type ContainerConfig struct {
 	StripeClient clients.StripeClient
 	EmailClient  clients.EmailClient
 	KeySigner    usecases.KeySignerFunc
+	CDPClient    clients.CDPClient
+}
+
+// CoreWalletLookup implements x402.WalletLookup using Core's config store.
+// The wallet info is written at agent registration time by RegisterAgentUseCase.
+type CoreWalletLookup struct {
+	coreClient clients.CoreClient
+}
+
+// GetAgentWallet retrieves the CDP wallet ID and address for a tenant from Core config.
+func (l *CoreWalletLookup) GetAgentWallet(ctx context.Context, tenantID string) (walletID, address string, err error) {
+	if l.coreClient == nil {
+		return "", "", nil
+	}
+	key := "agent:" + tenantID + ":cdp_wallet"
+	entry, err := l.coreClient.GetConfig(ctx, key)
+	if err != nil || entry == nil {
+		return "", "", nil //nolint:nilerr // no wallet is not an error
+	}
+	val, ok := entry.Value.(string)
+	if !ok {
+		return "", "", nil
+	}
+	if val == "" {
+		return "", "", nil
+	}
+	// format: walletID|address
+	parts := splitTwo(val, '|')
+	return parts[0], parts[1], nil
+}
+
+func splitTwo(s string, sep byte) [2]string {
+	for i := 0; i < len(s); i++ {
+		if s[i] == sep {
+			return [2]string{s[:i], s[i+1:]}
+		}
+	}
+	return [2]string{s, ""}
 }
 
 // NewContainerWithConfig creates and wires up all dependencies using the provided config.
@@ -272,6 +315,9 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 
 	// Initialize use cases — Agent Registration
 	registerAgentUC := usecases.NewRegisterAgentUseCase(createTenantUC, auditRepo, cfg.CoreClient, cfg.KeySigner)
+	if cfg.CDPClient != nil {
+		registerAgentUC = registerAgentUC.WithCDP(cfg.CDPClient)
+	}
 	agentPaymentHistoryUC := usecases.NewGetAgentPaymentHistoryUseCase(cfg.CoreClient)
 
 	// Initialize use cases — Webhooks
@@ -414,6 +460,8 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AdminRefundUC:              adminRefundUC,
 		AdminDunningUC:             adminDunningUC,
 		Scheduler:                  scheduler,
+		WalletLookup:               &CoreWalletLookup{coreClient: cfg.CoreClient},
+		CDPClient:                  cfg.CDPClient,
 		RegisterAgentUC:            registerAgentUC,
 		AgentPaymentHistoryUC:      agentPaymentHistoryUC,
 		AlertHandler:               alertHandler,

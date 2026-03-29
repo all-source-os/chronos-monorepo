@@ -7,8 +7,46 @@ import (
 
 	"github.com/allsource/control-plane/internal/application/dto"
 	"github.com/allsource/control-plane/internal/domain/entities"
+	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 )
+
+// cdpTestCoreClient extends the shared mockCoreClient with SetConfig tracking.
+type cdpTestCoreClient struct {
+	clients.CoreClient
+	events  []clients.IngestEventRequest
+	configs map[string]string
+	setErr  error // if non-nil, SetConfig returns this error
+}
+
+func newCDPTestCoreClient() *cdpTestCoreClient {
+	return &cdpTestCoreClient{configs: make(map[string]string)}
+}
+
+func (m *cdpTestCoreClient) IngestEvent(_ context.Context, req clients.IngestEventRequest) (*clients.IngestEventResponse, error) {
+	m.events = append(m.events, req)
+	return &clients.IngestEventResponse{EventID: "evt-test-001"}, nil
+}
+
+func (m *cdpTestCoreClient) SetConfig(_ context.Context, req clients.SetConfigRequest) error {
+	if m.setErr != nil {
+		return m.setErr
+	}
+	if s, ok := req.Value.(string); ok {
+		m.configs[req.Key] = s
+	}
+	return nil
+}
+
+// mockCDPProvisioner is a controllable CDPWalletProvisioner for tests.
+type mockCDPProvisioner struct {
+	wallet *clients.CDPWallet
+	err    error
+}
+
+func (m *mockCDPProvisioner) CreateWallet(_ context.Context, _ string) (*clients.CDPWallet, error) {
+	return m.wallet, m.err
+}
 
 // stubKeySigner returns a predictable key for testing.
 func stubKeySigner(tenantID, username string, role entities.Role) (string, error) {
@@ -118,6 +156,145 @@ func TestRegisterAgent(t *testing.T) {
 		})
 		if err == nil {
 			t.Fatal("expected error when key signing fails")
+		}
+	})
+}
+
+func TestRegisterAgentWithCDP(t *testing.T) {
+	tenantRepo := persistence.NewMemoryTenantRepository()
+	auditRepo := persistence.NewMemoryAuditRepository()
+	createTenantUC := NewCreateTenantUseCase(tenantRepo, auditRepo)
+
+	t.Run("CDP happy path — wallet provisioned, stored, address in response", func(t *testing.T) {
+		core := newCDPTestCoreClient()
+		cdp := &mockCDPProvisioner{
+			wallet: &clients.CDPWallet{ID: "wallet-001", Address: "0xdeadbeef", Network: "base-sepolia"},
+		}
+		uc := NewRegisterAgentUseCase(createTenantUC, auditRepo, core, stubKeySigner).WithCDP(cdp)
+
+		resp, err := uc.Execute(context.Background(), dto.RegisterAgentRequest{
+			AgentName: "cdp-happy-agent",
+			AgentType: "mcp",
+		})
+		if err != nil {
+			t.Fatalf("Execute failed: %v", err)
+		}
+
+		if resp.WalletAddress != "0xdeadbeef" {
+			t.Errorf("WalletAddress = %q, want 0xdeadbeef", resp.WalletAddress)
+		}
+
+		// Config should be stored
+		key := "agent:agent-cdp-happy-agent:cdp_wallet"
+		if core.configs[key] != "wallet-001|0xdeadbeef" {
+			t.Errorf("stored config = %q, want wallet-001|0xdeadbeef", core.configs[key])
+		}
+
+		// agent.registered event should include wallet_address
+		var registered *clients.IngestEventRequest
+		for i := range core.events {
+			if core.events[i].EventType == "agent.registered" {
+				registered = &core.events[i]
+				break
+			}
+		}
+		if registered == nil {
+			t.Fatal("agent.registered event not found")
+		}
+		if registered.Payload["wallet_address"] != "0xdeadbeef" {
+			t.Errorf("event payload wallet_address = %v, want 0xdeadbeef", registered.Payload["wallet_address"])
+		}
+	})
+
+	t.Run("CreateWallet fails — empty wallet_address, provision failure event written", func(t *testing.T) {
+		core := newCDPTestCoreClient()
+		cdp := &mockCDPProvisioner{err: fmt.Errorf("CDP unavailable")}
+		uc := NewRegisterAgentUseCase(createTenantUC, auditRepo, core, stubKeySigner).WithCDP(cdp)
+
+		resp, err := uc.Execute(context.Background(), dto.RegisterAgentRequest{
+			AgentName: "cdp-create-fail-agent",
+			AgentType: "mcp",
+		})
+		if err != nil {
+			t.Fatalf("Execute failed (registration should succeed even on CDP error): %v", err)
+		}
+
+		if resp.WalletAddress != "" {
+			t.Errorf("WalletAddress = %q, want empty on CDP failure", resp.WalletAddress)
+		}
+
+		// provision failure event must be written
+		var failureEvent *clients.IngestEventRequest
+		for i := range core.events {
+			if core.events[i].EventType == "agent.cdp_wallet_provision_failed" {
+				failureEvent = &core.events[i]
+				break
+			}
+		}
+		if failureEvent == nil {
+			t.Fatal("agent.cdp_wallet_provision_failed event not found")
+		}
+		reason, ok := failureEvent.Payload["reason"].(string)
+		if !ok || reason == "" {
+			t.Error("provision failure event has empty or non-string reason")
+		}
+	})
+
+	t.Run("SetConfig fails — wallet_address suppressed, failure event written", func(t *testing.T) {
+		core := newCDPTestCoreClient()
+		core.setErr = fmt.Errorf("Core config store unavailable")
+		cdp := &mockCDPProvisioner{
+			wallet: &clients.CDPWallet{ID: "wallet-002", Address: "0xfeedface", Network: "base-sepolia"},
+		}
+		uc := NewRegisterAgentUseCase(createTenantUC, auditRepo, core, stubKeySigner).WithCDP(cdp)
+
+		resp, err := uc.Execute(context.Background(), dto.RegisterAgentRequest{
+			AgentName: "cdp-store-fail-agent",
+			AgentType: "mcp",
+		})
+		if err != nil {
+			t.Fatalf("Execute failed: %v", err)
+		}
+
+		// Address must not be returned when storage failed
+		if resp.WalletAddress != "" {
+			t.Errorf("WalletAddress = %q, want empty when store fails", resp.WalletAddress)
+		}
+
+		// provision failure event must be written
+		var failureEvent *clients.IngestEventRequest
+		for i := range core.events {
+			if core.events[i].EventType == "agent.cdp_wallet_provision_failed" {
+				failureEvent = &core.events[i]
+				break
+			}
+		}
+		if failureEvent == nil {
+			t.Fatal("agent.cdp_wallet_provision_failed event not found")
+		}
+	})
+
+	t.Run("No CDP — no wallet, no failure event", func(t *testing.T) {
+		core := newCDPTestCoreClient()
+		uc := NewRegisterAgentUseCase(createTenantUC, auditRepo, core, stubKeySigner)
+		// WithCDP not called — cdp is nil
+
+		resp, err := uc.Execute(context.Background(), dto.RegisterAgentRequest{
+			AgentName: "no-cdp-agent",
+			AgentType: "mcp",
+		})
+		if err != nil {
+			t.Fatalf("Execute failed: %v", err)
+		}
+
+		if resp.WalletAddress != "" {
+			t.Errorf("WalletAddress = %q, want empty when no CDP configured", resp.WalletAddress)
+		}
+
+		for _, ev := range core.events {
+			if ev.EventType == "agent.cdp_wallet_provision_failed" {
+				t.Errorf("unexpected failure event when CDP not configured")
+			}
 		}
 	})
 }

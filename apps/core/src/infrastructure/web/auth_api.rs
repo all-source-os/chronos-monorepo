@@ -69,6 +69,9 @@ pub struct CreateApiKeyRequest {
     pub name: String,
     pub role: Option<Role>,
     pub expires_in_days: Option<i64>,
+    /// Admin override: create the key for a specific tenant instead of the caller's tenant.
+    /// Only honoured when the caller has Admin permission; ignored otherwise.
+    pub tenant_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -223,21 +226,26 @@ pub async fn me_handler(
 
 /// Create API key
 /// POST /api/v1/auth/api-keys
+///
+/// Requires Admin permission. Service accounts and developers (including agent API keys)
+/// cannot create new keys — only the control plane (which holds an admin service JWT)
+/// may provision API keys on behalf of users.
 pub async fn create_api_key_handler(
     State(state): State<AppState>,
     Authenticated(auth_ctx): Authenticated,
     Json(req): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<CreateApiKeyResponse>), (StatusCode, String)> {
-    // Users can create API keys for themselves
-    // Or admins can create for any tenant
     let role = req.role.unwrap_or(Role::ServiceAccount);
 
+    // Only admins can create API keys.
+    // Service accounts (agents) and developers are explicitly blocked so that
+    // agent keys cannot self-replicate or escalate privileges.
     auth_ctx
-        .require_permission(Permission::Write)
+        .require_permission(Permission::Admin)
         .map_err(|_| {
             (
                 StatusCode::FORBIDDEN,
-                "Write permission required".to_string(),
+                "Admin permission required to create API keys".to_string(),
             )
         })?;
 
@@ -245,9 +253,20 @@ pub async fn create_api_key_handler(
         .expires_in_days
         .map(|days| chrono::Utc::now() + chrono::Duration::days(days));
 
+    // Admins may specify a target tenant; everyone else is restricted to their own tenant.
+    let effective_tenant_id = if let Some(ref tid) = req.tenant_id {
+        if auth_ctx.require_permission(Permission::Admin).is_ok() {
+            tid.clone()
+        } else {
+            auth_ctx.tenant_id().to_string()
+        }
+    } else {
+        auth_ctx.tenant_id().to_string()
+    };
+
     let (api_key, key) = state.auth_manager.create_api_key(
         req.name.clone(),
-        auth_ctx.tenant_id().to_string(),
+        effective_tenant_id,
         role,
         expires_at,
     );
