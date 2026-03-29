@@ -76,7 +76,7 @@ type ControlPlane struct {
 	coreClient      clients.CoreClient
 	x402Handler     *x402.Handler
 	x402Pricing     *x402.PricingConfig
-	x402Facilitator *x402.Facilitator
+	x402Facilitator x402.PaymentFacilitator
 }
 
 // NewControlPlane creates a new control plane instance with full middleware stack.
@@ -211,7 +211,13 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		log.Printf("x402 pricing config load failed: %v (x402 payments will be disabled)", err)
 		x402Pricing = &x402.PricingConfig{}
 	}
-	x402Facilitator := x402.NewFacilitator(x402.DefaultFacilitatorConfig())
+	// Default to Coinbase's hosted facilitator — no private keys or blockchain node required.
+	// Override X402_FACILITATOR_URL to point at a self-hosted facilitator.
+	facilitatorURL := os.Getenv("X402_FACILITATOR_URL")
+	if facilitatorURL == "" {
+		facilitatorURL = x402.CoinbaseX402FacilitatorURL
+	}
+	var x402Facilitator x402.PaymentFacilitator = x402.NewRemoteFacilitator(facilitatorURL)
 	x402Handler := x402.NewHandler(x402Facilitator)
 
 	cp := &ControlPlane{

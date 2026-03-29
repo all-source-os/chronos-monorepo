@@ -28,7 +28,7 @@ type MCPToolPricing struct {
 // If payment is present, verifies and settles it.
 func ProcessMCPPayment(
 	ctx context.Context,
-	facilitator *Facilitator,
+	facilitator PaymentFacilitator,
 	pricing *PricingConfig,
 	logger *EventLogger,
 	toolName string,

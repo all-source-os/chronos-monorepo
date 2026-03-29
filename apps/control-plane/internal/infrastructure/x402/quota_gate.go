@@ -18,7 +18,7 @@ type QuotaChecker interface {
 // - Quota exceeded + X402_ENABLED → x402 payment gate
 // - Quota exceeded + X402 disabled → standard 429
 func QuotaGatedMiddleware(
-	facilitator *Facilitator,
+	facilitator PaymentFacilitator,
 	pricing *PricingConfig,
 	logger *EventLogger,
 	quotaChecker QuotaChecker,

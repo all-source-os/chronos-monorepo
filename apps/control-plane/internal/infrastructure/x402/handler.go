@@ -9,11 +9,11 @@ import (
 
 // Handler exposes the facilitator's /verify and /settle endpoints.
 type Handler struct {
-	facilitator *Facilitator
+	facilitator PaymentFacilitator
 }
 
 // NewHandler creates a new x402 HTTP handler.
-func NewHandler(facilitator *Facilitator) *Handler {
+func NewHandler(facilitator PaymentFacilitator) *Handler {
 	return &Handler{facilitator: facilitator}
 }
 

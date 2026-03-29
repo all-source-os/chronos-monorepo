@@ -10,7 +10,7 @@ import (
 // If the route has no pricing configured, the request passes through.
 // If pricing exists and no X-Payment header is present, returns HTTP 402.
 // If X-Payment header is present, verifies and settles the payment.
-func Middleware(facilitator *Facilitator, pricing *PricingConfig, logger *EventLogger) gin.HandlerFunc {
+func Middleware(facilitator PaymentFacilitator, pricing *PricingConfig, logger *EventLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !pricing.Enabled {
 			c.Next()
