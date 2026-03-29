@@ -206,7 +206,7 @@ func resolveStripeSubscriptionTier(obj map[string]interface{}) string {
 			return tier
 		}
 	}
-	return "free"
+	return defaultPlan
 }
 
 // strVal safely extracts a string value from a map.

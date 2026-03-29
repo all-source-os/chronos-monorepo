@@ -14,7 +14,7 @@ import {
   Label,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Bell, Shield, User } from "lucide-react";
+import { Bell, Check, Copy, Shield, User } from "lucide-react";
 import { useState } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
@@ -37,8 +37,16 @@ function parseProvider(user: { id: string; provider?: string } | null): string |
 }
 
 export default function SettingsPage() {
-  const { user, tenant } = useAuthStore();
+  const { user, tenant, coreApiKey } = useAuthStore();
   const provider = parseProvider(user);
+  const [apiKeyCopied, setApiKeyCopied] = useState(false);
+
+  const handleCopyApiKey = async () => {
+    if (!coreApiKey) return;
+    await navigator.clipboard.writeText(coreApiKey);
+    setApiKeyCopied(true);
+    setTimeout(() => setApiKeyCopied(false), 2000);
+  };
   const { preferences, updatePreference } = useNotificationPreferences();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const tabs = [
@@ -147,6 +155,40 @@ export default function SettingsPage() {
                     <p className="mt-1 text-xs text-muted-foreground">
                       Use this ID for API authentication
                     </p>
+                  </div>
+
+                  {/* Sync API Key */}
+                  <div>
+                    <Label>Sync API Key</Label>
+                    {coreApiKey ? (
+                      <>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <Input
+                            value={coreApiKey}
+                            readOnly
+                            className="flex-1 font-mono text-sm"
+                          />
+                          <Button variant="outline" size="icon" onClick={handleCopyApiKey}>
+                            {apiKeyCopied ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Use this key in <code className="font-mono">.chronis/config.toml</code> for{" "}
+                          <code className="font-mono">cn sync</code>. Keep it secret.
+                        </p>
+                        <pre className="mt-2 rounded-md bg-muted p-3 text-xs font-mono text-muted-foreground">
+                          {`[remote]\nurl = "https://api.allsource.dev"\napi_key = "${coreApiKey}"`}
+                        </pre>
+                      </>
+                    ) : (
+                      <p className="mt-1.5 text-sm text-muted-foreground">
+                        Log out and back in to generate your sync API key.
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>

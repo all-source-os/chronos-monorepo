@@ -34,7 +34,7 @@ func seedAuditEvents(t *testing.T, repo *persistence.MemoryAuditRepository, even
 func TestTokenAuditQuery_Basic(t *testing.T) {
 	handler, repo := setupTokenAuditHandler(t)
 
-	now := time.Now()
+	now := time.Now().UTC()
 	seedAuditEvents(t, repo, []*entities.AuditEvent{
 		{Timestamp: now.Add(-1 * time.Hour), EventType: "api_call", UserID: "apikey_abc12345xyz", TenantID: "tenant-1", Path: "/api/v1/events", StatusCode: 200, IPAddress: "10.0.0.1"},
 		{Timestamp: now.Add(-30 * time.Minute), EventType: "api_call", UserID: "apikey_def67890uvw", TenantID: "tenant-1", Path: "/api/v1/events/query", StatusCode: 200, IPAddress: "10.0.0.2"},
@@ -111,7 +111,7 @@ func TestTokenAuditQuery_Basic(t *testing.T) {
 func TestTokenAuditQuery_KeyPrefixTruncation(t *testing.T) {
 	handler, repo := setupTokenAuditHandler(t)
 
-	now := time.Now()
+	now := time.Now().UTC()
 	seedAuditEvents(t, repo, []*entities.AuditEvent{
 		{Timestamp: now.Add(-1 * time.Hour), EventType: "api_call", UserID: "apikey_abc12345xyz_longkey", TenantID: "tenant-1", Path: "/api/v1/events", StatusCode: 200, IPAddress: "10.0.0.1"},
 		{Timestamp: now.Add(-30 * time.Minute), EventType: "api_call", UserID: "short", TenantID: "tenant-1", Path: "/api/v1/events", StatusCode: 200, IPAddress: "10.0.0.2"},
@@ -153,7 +153,7 @@ func TestTokenAuditQuery_KeyPrefixTruncation(t *testing.T) {
 func TestTokenAuditQuery_TenantFilter(t *testing.T) {
 	handler, repo := setupTokenAuditHandler(t)
 
-	now := time.Now()
+	now := time.Now().UTC()
 	seedAuditEvents(t, repo, []*entities.AuditEvent{
 		{Timestamp: now.Add(-1 * time.Hour), EventType: "api_call", UserID: "key1", TenantID: "tenant-1", Path: "/api/v1/events", StatusCode: 200, IPAddress: "10.0.0.1"},
 		{Timestamp: now.Add(-30 * time.Minute), EventType: "api_call", UserID: "key2", TenantID: "tenant-2", Path: "/api/v1/events", StatusCode: 200, IPAddress: "10.0.0.2"},
@@ -192,7 +192,7 @@ func TestTokenAuditQuery_TenantFilter(t *testing.T) {
 func TestTokenAuditQuery_Pagination(t *testing.T) {
 	handler, repo := setupTokenAuditHandler(t)
 
-	now := time.Now()
+	now := time.Now().UTC()
 	// Create 5 events for the same tenant
 	for i := 0; i < 5; i++ {
 		seedAuditEvents(t, repo, []*entities.AuditEvent{
@@ -253,7 +253,7 @@ func TestTokenAuditQuery_Pagination(t *testing.T) {
 func TestTokenAuditQuery_PaginationFirstPage(t *testing.T) {
 	handler, repo := setupTokenAuditHandler(t)
 
-	now := time.Now()
+	now := time.Now().UTC()
 	for i := 0; i < 5; i++ {
 		seedAuditEvents(t, repo, []*entities.AuditEvent{
 			{Timestamp: now.Add(-time.Duration(i) * time.Hour), EventType: "api_call", UserID: "key", TenantID: "tenant-1", Path: "/api/v1/events", StatusCode: 200, IPAddress: "10.0.0.1"},
@@ -284,7 +284,7 @@ func TestTokenAuditQuery_PaginationFirstPage(t *testing.T) {
 func TestTokenAuditQuery_PaginationLastPage(t *testing.T) {
 	handler, repo := setupTokenAuditHandler(t)
 
-	now := time.Now()
+	now := time.Now().UTC()
 	for i := 0; i < 4; i++ {
 		seedAuditEvents(t, repo, []*entities.AuditEvent{
 			{Timestamp: now.Add(-time.Duration(i) * time.Hour), EventType: "api_call", UserID: "key", TenantID: "tenant-1", Path: "/api/v1/events", StatusCode: 200, IPAddress: "10.0.0.1"},
@@ -344,7 +344,7 @@ func TestTokenAuditQuery_EmptyResults(t *testing.T) {
 func TestTokenAuditSummary_Basic(t *testing.T) {
 	handler, repo := setupTokenAuditHandler(t)
 
-	now := time.Now()
+	now := time.Now().UTC()
 	seedAuditEvents(t, repo, []*entities.AuditEvent{
 		{Timestamp: now.Add(-1 * time.Hour), EventType: "api_call", UserID: "key1", TenantID: "tenant-1", Path: "/api/v1/events", StatusCode: 200, IPAddress: "10.0.0.1"},
 		{Timestamp: now.Add(-30 * time.Minute), EventType: "api_call", UserID: "key2", TenantID: "tenant-1", Path: "/api/v1/events", StatusCode: 500, IPAddress: "10.0.0.2"},
@@ -431,8 +431,8 @@ func TestTokenAuditSummary_Empty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	from := time.Now().Add(-2 * time.Hour).Format(time.RFC3339)
-	to := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+	from := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
+	to := time.Now().UTC().Add(1 * time.Hour).Format(time.RFC3339)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit/summary?from="+from+"&to="+to, http.NoBody)
 
 	handler.Summary(c)

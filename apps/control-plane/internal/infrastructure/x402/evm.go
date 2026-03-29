@@ -36,12 +36,8 @@ func USDCAddressForNetwork(network string) (string, error) {
 	}
 }
 
-// VerifyEIP3009Signature verifies an EIP-3009 transferWithAuthorization signature.
-// This validates that the signature was created by the `from` address for the given
-// transfer authorization fields on the specified USDC contract.
-//
+// EIP3009Verifier verifies EIP-3009 transferWithAuthorization signatures.
 // Implementation requires go-ethereum (added in US-004).
-// For now, this is a placeholder that validates field presence.
 type EIP3009Verifier interface {
-	Verify(auth *TransferAuthorization, signature string, network string) error
+	Verify(auth *EIP3009Authorization, signature string, network string) error
 }

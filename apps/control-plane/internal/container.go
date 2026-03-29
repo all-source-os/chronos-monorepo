@@ -2,6 +2,7 @@
 package internal
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 
@@ -128,7 +129,8 @@ type Container struct {
 	AdminDunningUC      *billing.AdminDunningUseCase
 
 	// Use Cases — Agent Registration
-	RegisterAgentUC *usecases.RegisterAgentUseCase
+	RegisterAgentUC       *usecases.RegisterAgentUseCase
+	AgentPaymentHistoryUC *usecases.GetAgentPaymentHistoryUseCase
 
 	// Use Cases — Webhooks
 	ProcessLSWebhookUC     *usecases.ProcessLemonSqueezyWebhookUseCase
@@ -138,8 +140,11 @@ type Container struct {
 	// Scheduler
 	Scheduler *usecases.OperationScheduler
 
+	// x402 auto-pay support
+	WalletLookup *CoreWalletLookup
+	CDPClient    clients.CDPClient
+
 	// HTTP Handlers
-	AgentHandler              *httphandlers.AgentHandler
 	AlertHandler              *httphandlers.AlertHandler
 	SLOHandler                *httphandlers.SLOHandler
 	AdminTenantHandler        *httphandlers.AdminTenantHandler
@@ -155,6 +160,7 @@ type Container struct {
 	BillingHandler            *httphandlers.BillingHandler
 	AdminBillingHandler       *httphandlers.AdminBillingHandler
 	WebhookHandler            *httphandlers.WebhookHandler
+	AgentHandler              *httphandlers.AgentHandler
 }
 
 // ContainerConfig holds configuration for dependency injection.
@@ -163,6 +169,45 @@ type ContainerConfig struct {
 	LSClient     clients.LemonSqueezyClient
 	StripeClient clients.StripeClient
 	EmailClient  clients.EmailClient
+	KeySigner    usecases.KeySignerFunc
+	CDPClient    clients.CDPClient
+}
+
+// CoreWalletLookup implements x402.WalletLookup using Core's config store.
+// The wallet info is written at agent registration time by RegisterAgentUseCase.
+type CoreWalletLookup struct {
+	coreClient clients.CoreClient
+}
+
+// GetAgentWallet retrieves the CDP wallet ID and address for a tenant from Core config.
+func (l *CoreWalletLookup) GetAgentWallet(ctx context.Context, tenantID string) (walletID, address string, err error) {
+	if l.coreClient == nil {
+		return "", "", nil
+	}
+	key := "agent:" + tenantID + ":cdp_wallet"
+	entry, err := l.coreClient.GetConfig(ctx, key)
+	if err != nil || entry == nil {
+		return "", "", nil //nolint:nilerr // no wallet is not an error
+	}
+	val, ok := entry.Value.(string)
+	if !ok {
+		return "", "", nil
+	}
+	if val == "" {
+		return "", "", nil
+	}
+	// format: walletID|address
+	parts := splitTwo(val, '|')
+	return parts[0], parts[1], nil
+}
+
+func splitTwo(s string, sep byte) [2]string {
+	for i := 0; i < len(s); i++ {
+		if s[i] == sep {
+			return [2]string{s[:i], s[i+1:]}
+		}
+	}
+	return [2]string{s, ""}
 }
 
 // NewContainerWithConfig creates and wires up all dependencies using the provided config.
@@ -269,7 +314,11 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	getProjectedChargesUC := usecases.NewGetProjectedChargesUseCase(tenantRepo)
 
 	// Initialize use cases — Agent Registration
-	registerAgentUC := usecases.NewRegisterAgentUseCase(createTenantUC, auditRepo, cfg.CoreClient)
+	registerAgentUC := usecases.NewRegisterAgentUseCase(createTenantUC, auditRepo, cfg.CoreClient, cfg.KeySigner)
+	if cfg.CDPClient != nil {
+		registerAgentUC = registerAgentUC.WithCDP(cfg.CDPClient)
+	}
+	agentPaymentHistoryUC := usecases.NewGetAgentPaymentHistoryUseCase(cfg.CoreClient)
 
 	// Initialize use cases — Webhooks
 	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
@@ -316,7 +365,6 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	}
 
 	// Initialize HTTP handlers (Layer 4)
-	agentHandler := httphandlers.NewAgentHandler(registerAgentUC)
 	alertHandler := httphandlers.NewAlertHandler(createAlertRuleUC, listAlertRulesUC, updateAlertRuleUC, deleteAlertRuleUC)
 	sloHandler := httphandlers.NewSLOHandler(createSLOUC, listSLOsUC, deleteSLOUC)
 	adminTenantHandler := httphandlers.NewAdminTenantHandler(listTenantsUC, getAdminTenantDetailUC, getTenantUsageUC, updateTenantQuotasUC, suspendTenantUC, activateTenantUC, bulkTenantUC)
@@ -345,6 +393,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	ipRuleHandler := httphandlers.NewIPRuleHandler(createIPRuleUC, listIPRulesUC, deleteIPRuleUC)
 	adminBillingHandler := httphandlers.NewAdminBillingHandler(adminListInvoicesUC, adminRevenueUC, adminRefundUC, adminDunningUC)
 	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC, processStripeWebhookUC)
+	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 
 	return &Container{
 		TenantRepo:                 tenantRepo,
@@ -411,8 +460,10 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AdminRefundUC:              adminRefundUC,
 		AdminDunningUC:             adminDunningUC,
 		Scheduler:                  scheduler,
+		WalletLookup:               &CoreWalletLookup{coreClient: cfg.CoreClient},
+		CDPClient:                  cfg.CDPClient,
 		RegisterAgentUC:            registerAgentUC,
-		AgentHandler:               agentHandler,
+		AgentPaymentHistoryUC:      agentPaymentHistoryUC,
 		AlertHandler:               alertHandler,
 		SLOHandler:                 sloHandler,
 		AdminTenantHandler:         adminTenantHandler,
@@ -428,6 +479,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		BillingHandler:             billingHandler,
 		AdminBillingHandler:        adminBillingHandler,
 		WebhookHandler:             webhookHandler,
+		AgentHandler:               agentHandler,
 		ProcessLSWebhookUC:         processLSWebhookUC,
 		ProcessStripeWebhookUC:     processStripeWebhookUC,
 		UpdateSubscriptionUC:       updateSubscriptionUC,

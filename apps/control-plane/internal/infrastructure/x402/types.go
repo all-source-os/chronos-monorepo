@@ -13,9 +13,8 @@ const Version = 2
 
 // HTTP headers used by the x402 protocol.
 const (
-	HeaderPaymentRequired  = "X-Payment"
-	HeaderPaymentSignature = "X-Payment-Signature"
-	HeaderPaymentResponse  = "X-Payment-Response"
+	HeaderPayment         = "X-Payment"
+	HeaderPaymentResponse = "X-Payment-Response"
 )
 
 // CAIP-2 network identifiers.
@@ -41,162 +40,110 @@ const (
 	SchemeExact PaymentScheme = "exact"
 )
 
-// PaymentRequired is the payload returned in the X-Payment header on HTTP 402.
+// --- Server → Client (402 response body) ---
+
+// PaymentRequired is the JSON body of an HTTP 402 response.
 // It tells the client what payment is needed to access the resource.
 type PaymentRequired struct {
-	// X402Version is the protocol version (must be 2).
-	X402Version int `json:"x402Version"`
-
-	// Accepts lists the payment options the server will accept.
-	Accepts []PaymentOffer `json:"accepts"`
-
-	// Error is an optional human-readable error message.
-	Error string `json:"error,omitempty"`
+	X402Version int                    `json:"x402Version"`
+	Accepts     []PaymentRequirements  `json:"accepts"`
+	Error       string                 `json:"error,omitempty"`
+	Resource    *ResourceInfo          `json:"resource,omitempty"`
+	Extensions  map[string]interface{} `json:"extensions,omitempty"`
 }
 
-// PaymentOffer describes a single acceptable payment method.
-type PaymentOffer struct {
-	// Scheme is the payment scheme (e.g., "exact").
-	Scheme PaymentScheme `json:"scheme"`
+// PaymentRequirements describes a single acceptable payment method.
+type PaymentRequirements struct {
+	Scheme            PaymentScheme          `json:"scheme"`
+	Network           string                 `json:"network"`           // CAIP-2
+	Asset             string                 `json:"asset"`             // Token contract address
+	Amount            string                 `json:"amount"`            // Atomic units (USDC: 6 decimals)
+	PayTo             string                 `json:"payTo"`             // Recipient wallet address
+	MaxTimeoutSeconds int                    `json:"maxTimeoutSeconds"` // Min validity window
+	Extra             map[string]interface{} `json:"extra,omitempty"`
+}
 
-	// Network is the CAIP-2 chain identifier (e.g., "eip155:8453").
-	Network string `json:"network"`
-
-	// MaxAmountRequired is the maximum payment amount in the token's smallest unit.
-	// For USDC (6 decimals), "1000000" = $1.00.
-	MaxAmountRequired string `json:"maxAmountRequired"`
-
-	// Resource is the URL or resource identifier being paid for.
-	Resource string `json:"resource"`
-
-	// Description is a human-readable description of what is being paid for.
+// ResourceInfo describes the resource being paid for.
+type ResourceInfo struct {
+	URL         string `json:"url,omitempty"`
 	Description string `json:"description,omitempty"`
-
-	// MimeType is the MIME type of the resource.
-	MimeType string `json:"mimeType,omitempty"`
-
-	// PayTo is the recipient wallet address.
-	PayTo string `json:"payTo"`
-
-	// RequiredDeadlineSeconds is the minimum validity window for the payment authorization.
-	RequiredDeadlineSeconds int64 `json:"requiredDeadlineSeconds,omitempty"`
-
-	// OutputSchema describes the expected response format.
-	OutputSchema *OutputSchema `json:"outputSchema,omitempty"`
-
-	// Extra allows scheme-specific fields.
-	Extra map[string]any `json:"extra,omitempty"`
-}
-
-// OutputSchema describes the expected response format for a paid resource.
-type OutputSchema struct {
 	MimeType    string `json:"mimeType,omitempty"`
-	Description string `json:"description,omitempty"`
 }
 
-// PaymentPayload is what the client sends in the X-Payment-Signature header.
-// It contains the signed payment authorization.
+// --- Client → Server (X-Payment header, base64-encoded JSON) ---
+
+// PaymentPayload is what the client sends in the X-Payment header.
 type PaymentPayload struct {
-	// X402Version is the protocol version.
-	X402Version int `json:"x402Version"`
-
-	// Scheme is the payment scheme used.
-	Scheme PaymentScheme `json:"scheme"`
-
-	// Network is the CAIP-2 chain identifier.
-	Network string `json:"network"`
-
-	// Payload is the scheme-specific signed payment data.
-	Payload json.RawMessage `json:"payload"`
+	X402Version int                    `json:"x402Version"`
+	Payload     json.RawMessage        `json:"payload"`  // Scheme-specific signed data
+	Accepted    PaymentRequirements    `json:"accepted"` // Which requirement was accepted
+	Resource    *ResourceInfo          `json:"resource,omitempty"`
+	Extensions  map[string]interface{} `json:"extensions,omitempty"`
 }
 
-// ExactPaymentPayload is the payload for the "exact" scheme.
-type ExactPaymentPayload struct {
-	// Signature is the EIP-3009 or SPL authorization signature.
-	Signature string `json:"signature"`
+// --- EVM Exact scheme payloads ---
 
-	// Authorization contains the fields that were signed.
-	Authorization *TransferAuthorization `json:"authorization"`
+// ExactEIP3009Payload is the EVM exact-scheme payload using EIP-3009.
+type ExactEIP3009Payload struct {
+	Signature     string               `json:"signature"` // 65-byte hex EIP-712 sig
+	Authorization EIP3009Authorization `json:"authorization"`
 }
 
-// TransferAuthorization contains the EIP-3009 transferWithAuthorization fields.
-type TransferAuthorization struct {
-	// From is the payer wallet address.
-	From string `json:"from"`
-
-	// To is the recipient wallet address.
-	To string `json:"to"`
-
-	// Value is the transfer amount in the token's smallest unit.
-	Value string `json:"value"`
-
-	// ValidAfter is the Unix timestamp after which the authorization is valid.
-	ValidAfter string `json:"validAfter"`
-
-	// ValidBefore is the Unix timestamp before which the authorization is valid.
-	ValidBefore string `json:"validBefore"`
-
-	// Nonce is a unique value to prevent replay attacks.
-	Nonce string `json:"nonce"`
+// EIP3009Authorization contains the EIP-3009 transferWithAuthorization fields.
+type EIP3009Authorization struct {
+	From        string `json:"from"`        // Payer address
+	To          string `json:"to"`          // Recipient address (must match payTo)
+	Value       string `json:"value"`       // Amount in atomic units
+	ValidAfter  string `json:"validAfter"`  // Unix timestamp
+	ValidBefore string `json:"validBefore"` // Unix timestamp
+	Nonce       string `json:"nonce"`       // 32-byte random hex
 }
 
-// SettlementResponse is the payload returned in the X-Payment-Response header.
+// --- Solana Exact scheme payload ---
+
+// ExactSVMPayload is the Solana exact-scheme payload (pre-signed transaction).
+type ExactSVMPayload struct {
+	Transaction string `json:"transaction"` // Base64-encoded Solana transaction
+}
+
+// --- Server → Client (X-Payment-Response header) ---
+
+// SettlementResponse is returned in the X-Payment-Response header after settlement.
 type SettlementResponse struct {
-	// Success indicates whether the payment was settled.
-	Success bool `json:"success"`
-
-	// TransactionHash is the on-chain transaction hash.
-	TransactionHash string `json:"transaction,omitempty"`
-
-	// Network is the CAIP-2 chain where settlement occurred.
-	Network string `json:"network,omitempty"`
-
-	// Error is set when settlement fails.
-	Error string `json:"error,omitempty"`
+	Success     bool   `json:"success"`
+	Transaction string `json:"transaction,omitempty"` // On-chain tx hash
+	Network     string `json:"network,omitempty"`     // CAIP-2
+	Payer       string `json:"payer,omitempty"`
+	Amount      string `json:"amount,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 // --- Facilitator API types ---
 
-// VerifyRequest is the request to the facilitator's /verify endpoint.
-type VerifyRequest struct {
-	// Payment is the client's payment payload (base64-decoded).
-	Payment *PaymentPayload `json:"payment"`
-
-	// PaymentRequirements is the server's original payment requirements.
-	PaymentRequirements *PaymentRequired `json:"paymentRequirements"`
+// FacilitatorRequest is the body for both /verify and /settle endpoints.
+type FacilitatorRequest struct {
+	X402Version         int             `json:"x402Version"`
+	PaymentPayload      json.RawMessage `json:"paymentPayload"`
+	PaymentRequirements json.RawMessage `json:"paymentRequirements"`
 }
 
 // VerifyResponse is the response from the facilitator's /verify endpoint.
 type VerifyResponse struct {
-	// Valid indicates whether the payment signature is valid.
-	Valid bool `json:"isValid"`
-
-	// InvalidReason is set when Valid is false.
-	InvalidReason string `json:"invalidReason,omitempty"`
-}
-
-// SettleRequest is the request to the facilitator's /settle endpoint.
-type SettleRequest struct {
-	// Payment is the verified payment payload.
-	Payment *PaymentPayload `json:"payment"`
-
-	// PaymentRequirements is the server's original payment requirements.
-	PaymentRequirements *PaymentRequired `json:"paymentRequirements"`
+	IsValid        bool   `json:"isValid"`
+	InvalidReason  string `json:"invalidReason,omitempty"`
+	InvalidMessage string `json:"invalidMessage,omitempty"`
+	Payer          string `json:"payer,omitempty"`
 }
 
 // SettleResponse is the response from the facilitator's /settle endpoint.
 type SettleResponse struct {
-	// Success indicates whether settlement was completed.
-	Success bool `json:"success"`
-
-	// TransactionHash is the on-chain tx hash.
-	TransactionHash string `json:"transaction,omitempty"`
-
-	// Network is the CAIP-2 chain where settlement occurred.
-	Network string `json:"network,omitempty"`
-
-	// Error is set when settlement fails.
-	Error string `json:"error,omitempty"`
+	Success      bool   `json:"success"`
+	Transaction  string `json:"transaction,omitempty"`
+	Network      string `json:"network,omitempty"`
+	Payer        string `json:"payer,omitempty"`
+	Amount       string `json:"amount,omitempty"`
+	ErrorReason  string `json:"errorReason,omitempty"`
+	ErrorMessage string `json:"errorMessage,omitempty"`
 }
 
 // --- Encoding helpers ---

@@ -53,10 +53,16 @@ type CoreClient interface {
 
 	// Events
 	IngestEvent(ctx context.Context, req IngestEventRequest) (*IngestEventResponse, error)
+	QueryEvents(ctx context.Context, req QueryEventsRequest) (*QueryEventsResponse, error)
 
 	// Health
 	HealthCheck(ctx context.Context) (*HealthResponse, error)
 	GetStats(ctx context.Context) (*StatsResponse, error)
+
+	// Auth — API key provisioning (admin operations)
+	CreateCoreAPIKey(ctx context.Context, req CreateCoreAPIKeyRequest) (*CreateCoreAPIKeyResponse, error)
+	ListCoreAPIKeys(ctx context.Context, tenantID string) ([]CoreAPIKeyInfo, error)
+	RevokeAPIKey(ctx context.Context, keyID string) error
 }
 
 // --- Request types ---
@@ -116,6 +122,31 @@ type IngestEventRequest struct {
 type IngestEventResponse struct {
 	EventID string `json:"event_id,omitempty"`
 	ID      string `json:"id,omitempty"`
+}
+
+// QueryEventsRequest is the request for querying events from Core.
+type QueryEventsRequest struct {
+	EntityID  string `json:"entity_id,omitempty"`
+	EventType string `json:"event_type,omitempty"` // prefix match supported
+	Since     string `json:"since,omitempty"`      // RFC3339
+	Until     string `json:"until,omitempty"`      // RFC3339
+	Limit     int    `json:"limit,omitempty"`
+	Offset    int    `json:"offset,omitempty"`
+}
+
+// QueryEventsResponse is the response from querying events.
+type QueryEventsResponse struct {
+	Events []EventEntry `json:"events"`
+	Count  int          `json:"count"`
+}
+
+// EventEntry represents a single event from Core's query response.
+type EventEntry struct {
+	ID        string         `json:"id"`
+	EventType string         `json:"event_type"`
+	EntityID  string         `json:"entity_id"`
+	Timestamp string         `json:"timestamp"`
+	Payload   map[string]any `json:"payload,omitempty"`
 }
 
 // --- Response types ---
@@ -260,6 +291,29 @@ type AuditEventsResponse struct {
 	Total  int              `json:"total"`
 }
 
+// --- Auth / API key types ---
+
+// CreateCoreAPIKeyRequest is the request body for creating a Core API key on behalf of a tenant.
+type CreateCoreAPIKeyRequest struct {
+	Name     string `json:"name"`
+	TenantID string `json:"tenant_id"`
+	Role     string `json:"role,omitempty"`
+}
+
+// CreateCoreAPIKeyResponse is the response from Core when an API key is created.
+type CreateCoreAPIKeyResponse struct {
+	ID  string `json:"id"`
+	Key string `json:"key"`
+}
+
+// CoreAPIKeyInfo is summary info about a Core API key.
+type CoreAPIKeyInfo struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	TenantID string `json:"tenant_id"`
+	Active   bool   `json:"active"`
+}
+
 // --- Config types ---
 
 // SetConfigRequest is the request body for setting a config entry.
@@ -366,6 +420,39 @@ func NewCoreClientWithURL(baseURL, apiKey string) CoreClient {
 
 	if apiKey != "" {
 		client.SetHeader("X-API-Key", apiKey)
+	}
+
+	return &coreClient{
+		client: client,
+		tracer: otel.Tracer(tracerName),
+	}
+}
+
+// NewCoreClientWithJWT creates a CoreClient that authenticates with a Bearer JWT.
+// Use this for service-to-service calls where the caller holds an admin JWT
+// (e.g. the control plane service token) rather than a static API key.
+func NewCoreClientWithJWT(baseURL, bearerToken string) CoreClient {
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+	}
+
+	client := resty.NewWithClient(&http.Client{Transport: transport}).
+		SetBaseURL(baseURL).
+		SetTimeout(defaultTimeout).
+		SetRetryCount(maxRetries).
+		SetRetryWaitTime(retryWaitTime).
+		SetRetryMaxWaitTime(retryMaxWaitTime).
+		AddRetryCondition(func(r *resty.Response, err error) bool {
+			if err != nil {
+				return true
+			}
+			return r.StatusCode() >= 500
+		})
+
+	if bearerToken != "" {
+		client.SetAuthToken(bearerToken)
 	}
 
 	return &coreClient{
@@ -667,6 +754,38 @@ func (c *coreClient) IngestEvent(ctx context.Context, req IngestEventRequest) (*
 	return &result, nil
 }
 
+func (c *coreClient) QueryEvents(ctx context.Context, req QueryEventsRequest) (*QueryEventsResponse, error) {
+	var result QueryEventsResponse
+	ctx, span := c.startSpan(ctx, "QueryEvents")
+	defer span.End()
+
+	r := c.request(ctx).SetResult(&result)
+	if req.EntityID != "" {
+		r.SetQueryParam("entity_id", req.EntityID)
+	}
+	if req.EventType != "" {
+		r.SetQueryParam("event_type", req.EventType)
+	}
+	if req.Since != "" {
+		r.SetQueryParam("since", req.Since)
+	}
+	if req.Until != "" {
+		r.SetQueryParam("until", req.Until)
+	}
+	if req.Limit > 0 {
+		r.SetQueryParam("limit", fmt.Sprintf("%d", req.Limit))
+	}
+	if req.Offset > 0 {
+		r.SetQueryParam("offset", fmt.Sprintf("%d", req.Offset))
+	}
+
+	resp, err := r.Get("/api/v1/events/query")
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // --- Audit methods ---
 
 func (c *coreClient) LogAuditEvent(ctx context.Context, req AuditEventRequest) error {
@@ -821,6 +940,50 @@ func (c *coreClient) GetStats(ctx context.Context) (*StatsResponse, error) {
 		return nil, err
 	}
 	return &result, nil
+}
+
+// --- Auth / API key methods ---
+
+func (c *coreClient) CreateCoreAPIKey(ctx context.Context, req CreateCoreAPIKeyRequest) (*CreateCoreAPIKeyResponse, error) {
+	var result CreateCoreAPIKeyResponse
+	ctx, span := c.startSpan(ctx, "CreateCoreAPIKey", attribute.String("tenant.id", req.TenantID))
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		SetBody(req).
+		SetResult(&result).
+		Post("/api/v1/auth/api-keys")
+
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *coreClient) ListCoreAPIKeys(ctx context.Context, tenantID string) ([]CoreAPIKeyInfo, error) {
+	var result []CoreAPIKeyInfo
+	ctx, span := c.startSpan(ctx, "ListCoreAPIKeys", attribute.String("tenant.id", tenantID))
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		SetQueryParam("tenant_id", tenantID).
+		SetResult(&result).
+		Get("/api/v1/auth/api-keys")
+
+	if err := c.handleError(span, resp, err); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *coreClient) RevokeAPIKey(ctx context.Context, keyID string) error {
+	ctx, span := c.startSpan(ctx, "RevokeAPIKey", attribute.String("key.id", keyID))
+	defer span.End()
+
+	resp, err := c.request(ctx).
+		Delete("/api/v1/auth/api-keys/" + keyID)
+
+	return c.handleError(span, resp, err)
 }
 
 // --- Internal helpers ---

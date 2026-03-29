@@ -4,6 +4,21 @@ function getApiUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
 }
 
+/**
+ * Decode a JWT payload without verifying the signature.
+ * Safe to use server-side because the token was already validated by the backend.
+ */
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return {};
+    const payload = Buffer.from(parts[1] ?? "", "base64url").toString("utf-8");
+    return JSON.parse(payload) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 // GET /api/auth/session - Get current user session
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth_token")?.value;
@@ -49,10 +64,16 @@ export async function GET(request: NextRequest) {
       tenantData = await tenantResponse.json();
     }
 
+    // Extract core_api_key from JWT payload (set by CP during OAuth login).
+    const jwtPayload = decodeJwtPayload(token);
+    const coreApiKey =
+      typeof jwtPayload.core_api_key === "string" ? jwtPayload.core_api_key : null;
+
     return NextResponse.json({
       data: {
         user: userData.data?.user || userData.data,
         tenant: tenantData?.data || null,
+        core_api_key: coreApiKey,
       },
     });
   } catch {

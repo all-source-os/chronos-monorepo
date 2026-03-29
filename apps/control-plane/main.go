@@ -22,6 +22,7 @@ import (
 	"github.com/allsource/control-plane/internal"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
+	"github.com/allsource/control-plane/internal/infrastructure/x402"
 	httphandlers "github.com/allsource/control-plane/internal/interfaces/http"
 )
 
@@ -63,16 +64,19 @@ func NewPooledHTTPClient() *http.Client {
 
 // ControlPlane is the main control plane service that manages the event store cluster.
 type ControlPlane struct {
-	client       *resty.Client
-	router       *gin.Engine
-	metrics      *ControlPlaneMetrics
-	cacheMetrics *CacheMetrics
-	cache        *ResponseCache
-	container    *internal.Container
-	authClient   *AuthClient
-	auditLogger  *AuditLogger
-	policyEngine *PolicyEngine
-	coreClient   clients.CoreClient
+	client          *resty.Client
+	router          *gin.Engine
+	metrics         *ControlPlaneMetrics
+	cacheMetrics    *CacheMetrics
+	cache           *ResponseCache
+	container       *internal.Container
+	authClient      *AuthClient
+	auditLogger     *AuditLogger
+	policyEngine    *PolicyEngine
+	coreClient      clients.CoreClient
+	x402Handler     *x402.Handler
+	x402Pricing     *x402.PricingConfig
+	x402Facilitator x402.PaymentFacilitator
 }
 
 // NewControlPlane creates a new control plane instance with full middleware stack.
@@ -144,8 +148,10 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	// Initialize policy engine
 	policyEngine := NewPolicyEngine()
 
-	// Initialize typed CoreClient for Clean Architecture use cases
-	coreClient := clients.NewCoreClient()
+	// Initialize typed CoreClient for Clean Architecture use cases.
+	// Uses the same admin service JWT as cp.client so it can call Core's
+	// Admin-protected endpoints (config store, API key creation, etc.).
+	coreClient := clients.NewCoreClientWithJWT(coreURL, serviceToken)
 
 	// Initialize LemonSqueezy client (optional — billing features require it)
 	var lsClient clients.LemonSqueezyClient
@@ -177,12 +183,24 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		}
 	}
 
+	// Initialize Coinbase CDP client (optional — enables x402 auto-pay for wallet-less agents)
+	var cdpClient clients.CDPClient
+	if os.Getenv("COINBASE_CDP_KEY_NAME") != "" {
+		var cdpErr error
+		cdpClient, cdpErr = clients.NewCoinbaseCDPClient()
+		if cdpErr != nil {
+			log.Printf("Coinbase CDP client init failed: %v (x402 auto-pay disabled)", cdpErr)
+		}
+	}
+
 	// Initialize Clean Architecture container (Core-backed repos, no PostgreSQL)
 	containerCfg := internal.ContainerConfig{
 		CoreClient:   coreClient,
 		LSClient:     lsClient,
 		StripeClient: stripeClient,
 		EmailClient:  emailClient,
+		KeySigner:    authClient.SignAPIKey,
+		CDPClient:    cdpClient,
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
 
@@ -200,17 +218,35 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	// tracingShutdown will be called during graceful shutdown
 	_ = tracingShutdown
 
+	// Initialize x402 payment facilitator (optional — requires X402_ENABLED env var)
+	x402Pricing, err := x402.LoadPricingConfig()
+	if err != nil {
+		log.Printf("x402 pricing config load failed: %v (x402 payments will be disabled)", err)
+		x402Pricing = &x402.PricingConfig{}
+	}
+	// Default to Coinbase's hosted facilitator — no private keys or blockchain node required.
+	// Override X402_FACILITATOR_URL to point at a self-hosted facilitator.
+	facilitatorURL := os.Getenv("X402_FACILITATOR_URL")
+	if facilitatorURL == "" {
+		facilitatorURL = x402.CoinbaseX402FacilitatorURL
+	}
+	var x402Facilitator x402.PaymentFacilitator = x402.NewRemoteFacilitator(facilitatorURL)
+	x402Handler := x402.NewHandler(x402Facilitator)
+
 	cp := &ControlPlane{
-		client:       client,
-		router:       router,
-		metrics:      metrics,
-		cacheMetrics: cacheMetrics,
-		cache:        cache,
-		container:    container,
-		authClient:   authClient,
-		auditLogger:  auditLogger,
-		policyEngine: policyEngine,
-		coreClient:   coreClient,
+		client:          client,
+		router:          router,
+		metrics:         metrics,
+		cacheMetrics:    cacheMetrics,
+		cache:           cache,
+		container:       container,
+		authClient:      authClient,
+		auditLogger:     auditLogger,
+		policyEngine:    policyEngine,
+		coreClient:      coreClient,
+		x402Handler:     x402Handler,
+		x402Pricing:     x402Pricing,
+		x402Facilitator: x402Facilitator,
 	}
 
 	cp.setupMiddleware()
@@ -272,10 +308,24 @@ func (cp *ControlPlane) setupRoutes() {
 	auth.POST("/register", cp.RegisterHandler)
 	auth.GET("/oauth/:provider", cp.OAuthAuthorize)
 	auth.GET("/oauth/:provider/callback", cp.OAuthCallback)
+	auth.GET("/session", cp.SessionHandler)
 
 	// Onboarding endpoint (public, no auth required)
 	onboard := cp.router.Group("/api/v1/onboard")
 	onboard.POST("/start", cp.OnboardHandler)
+
+	// Agent registration (public, no auth required)
+	agents := cp.router.Group("/api/v1/agents")
+	agents.POST("/register", cp.AgentRegisterHandler)
+
+	// Agent self-service endpoints (auth required)
+	agentsSelf := cp.router.Group("/api/v1/agents/me")
+	agentsSelf.GET("/payments", RequirePermission(entities.PermissionRead), cp.container.AgentHandler.GetPaymentHistory)
+
+	// x402 facilitator endpoints (public — called by payers to verify/settle payments)
+	x402Routes := cp.router.Group("/x402")
+	x402Routes.POST("/verify", cp.x402Handler.Verify)
+	x402Routes.POST("/settle", cp.x402Handler.Settle)
 
 	// Demo endpoint (public, no auth required)
 	demo := cp.router.Group("/api/v1/demo")
@@ -283,6 +333,20 @@ func (cp *ControlPlane) setupRoutes() {
 
 	// Protected API endpoints
 	api := cp.router.Group("/api/v1")
+
+	// x402 auto-pay middleware: intercepts quota-exceeded requests, auto-settles via CDP wallet
+	// when the agent has one; falls back to a standard 402 when CDP is unavailable.
+	if cp.x402Pricing != nil && cp.x402Pricing.Enabled {
+		x402Logger := x402.NewEventLogger(cp.coreClient)
+		api.Use(x402.AgentAutoPayMiddleware(
+			cp.x402Facilitator,
+			cp.x402Pricing,
+			x402Logger,
+			x402.NewCoreQuotaChecker(cp.coreClient),
+			cp.container.WalletLookup,
+			cp.container.CDPClient,
+		))
+	}
 
 	// Cluster management
 	api.GET("/cluster/status", RequirePermission(entities.PermissionRead), cp.container.OperationsHandler.GetClusterStatus)
@@ -314,6 +378,19 @@ func (cp *ControlPlane) setupRoutes() {
 	tenants.POST("/:id/activate", RequireAdmin(), cp.container.TenantHandler.Activate)
 	tenants.DELETE("/:id", RequireAdmin(), cp.container.TenantHandler.Delete)
 	tenants.GET("/:id/stats", RequirePermission(entities.PermissionRead), cp.container.TenantHandler.Stats)
+
+	// Team management (invite flow + member management)
+	// GET /api/v1/teams/invite/:token is public (no auth — used before OAuth to preview the invite).
+	cp.router.GET("/api/v1/teams/invite/:token", cp.GetInviteHandler)
+	teams := api.Group("/teams")
+	teams.POST("/invite", cp.InviteHandler)
+	teams.GET("/members", RequirePermission(entities.PermissionRead), cp.ListMembersHandler)
+	teams.PUT("/members/:id", cp.UpdateMemberRoleHandler)
+	teams.DELETE("/members/:id", cp.DeleteMemberHandler)
+	// Agent key management — provision and revoke Core API keys for agents
+	teams.POST("/agent-keys", RequirePermission(entities.PermissionWrite), cp.CreateAgentKeyHandler)
+	teams.GET("/agent-keys", RequirePermission(entities.PermissionRead), cp.ListAgentKeysHandler)
+	teams.DELETE("/agent-keys/:name", RequirePermission(entities.PermissionWrite), cp.RevokeAgentKeyHandler)
 
 	// User management (admin only)
 	users := api.Group("/users")

@@ -35,6 +35,7 @@ const (
 
 	oauthStateCookieName    = "oauth_state"
 	oauthRedirectCookieName = "oauth_redirect_to"
+	oauthInviteTokenCookie  = "oauth_invite_token" //nolint:gosec // this is a cookie name, not a credential
 )
 
 // oauthProviderConfig holds client credentials for an OAuth provider.
@@ -177,6 +178,11 @@ func (cp *ControlPlane) OAuthAuthorize(c *gin.Context) {
 		c.SetCookie(oauthRedirectCookieName, redirectTo, 600, "/api/v1/auth/oauth/", "", secure, true)
 	}
 
+	// Store invite_token so the callback can assign the user to the invited tenant.
+	if inviteToken := c.Query("invite_token"); inviteToken != "" {
+		c.SetCookie(oauthInviteTokenCookie, inviteToken, 600, "/api/v1/auth/oauth/", "", secure, true)
+	}
+
 	callbackURL := fmt.Sprintf("%s/api/v1/auth/oauth/%s/callback", getOAuthCallbackBaseURL(), provider)
 
 	var authURL string
@@ -259,6 +265,13 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 	}
 	c.SetCookie(oauthRedirectCookieName, "", -1, "/api/v1/auth/oauth/", "", isSecureContext(), true)
 
+	// Read and clear the invite_token cookie (empty string means no invite).
+	inviteToken, err := c.Cookie(oauthInviteTokenCookie)
+	if err != nil {
+		inviteToken = ""
+	}
+	c.SetCookie(oauthInviteTokenCookie, "", -1, "/api/v1/auth/oauth/", "", isSecureContext(), true)
+
 	cfg := getOAuthConfig(provider)
 	if cfg == nil {
 		c.Redirect(http.StatusFound, redirectTarget+"/login?error=auth_failed")
@@ -287,8 +300,8 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 		return
 	}
 
-	// Create or find user + sign JWT
-	result, err := cp.findOrCreateOAuthUser(provider, userInfo.ProviderID, userInfo.Email, userInfo.Name)
+	// Create or find user + sign JWT (pass invite token so the user joins the right tenant).
+	result, err := cp.findOrCreateOAuthUser(provider, userInfo.ProviderID, userInfo.Email, userInfo.Name, inviteToken)
 	if err != nil {
 		log.Printf("[OAuth] User creation/JWT signing failed: %v", err)
 		c.Redirect(http.StatusFound, redirectTarget+"/login?error=auth_failed")

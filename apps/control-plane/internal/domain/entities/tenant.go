@@ -2,6 +2,7 @@ package entities
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -90,6 +91,16 @@ func ValidateTenantName(name string) error {
 		return errors.New("tenant name too long")
 	}
 	return nil
+}
+
+// TenantSlug generates a URL-safe slug from a raw name.
+// Used by onboarding, agent registration, and demo flows.
+func TenantSlug(raw string) string {
+	s := strings.ToLower(raw)
+	s = strings.ReplaceAll(s, "@", "-at-")
+	s = strings.ReplaceAll(s, ".", "-")
+	s = strings.ReplaceAll(s, " ", "-")
+	return s
 }
 
 // IsActive checks if tenant is active
