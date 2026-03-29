@@ -128,7 +128,8 @@ type Container struct {
 	AdminDunningUC      *billing.AdminDunningUseCase
 
 	// Use Cases — Agent Registration
-	RegisterAgentUC *usecases.RegisterAgentUseCase
+	RegisterAgentUC       *usecases.RegisterAgentUseCase
+	AgentPaymentHistoryUC *usecases.GetAgentPaymentHistoryUseCase
 
 	// Use Cases — Webhooks
 	ProcessLSWebhookUC     *usecases.ProcessLemonSqueezyWebhookUseCase
@@ -154,6 +155,7 @@ type Container struct {
 	BillingHandler            *httphandlers.BillingHandler
 	AdminBillingHandler       *httphandlers.AdminBillingHandler
 	WebhookHandler            *httphandlers.WebhookHandler
+	AgentHandler              *httphandlers.AgentHandler
 }
 
 // ContainerConfig holds configuration for dependency injection.
@@ -270,6 +272,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 
 	// Initialize use cases — Agent Registration
 	registerAgentUC := usecases.NewRegisterAgentUseCase(createTenantUC, auditRepo, cfg.CoreClient, cfg.KeySigner)
+	agentPaymentHistoryUC := usecases.NewGetAgentPaymentHistoryUseCase(cfg.CoreClient)
 
 	// Initialize use cases — Webhooks
 	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
@@ -344,6 +347,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	ipRuleHandler := httphandlers.NewIPRuleHandler(createIPRuleUC, listIPRulesUC, deleteIPRuleUC)
 	adminBillingHandler := httphandlers.NewAdminBillingHandler(adminListInvoicesUC, adminRevenueUC, adminRefundUC, adminDunningUC)
 	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC, processStripeWebhookUC)
+	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 
 	return &Container{
 		TenantRepo:                 tenantRepo,
@@ -411,6 +415,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AdminDunningUC:             adminDunningUC,
 		Scheduler:                  scheduler,
 		RegisterAgentUC:            registerAgentUC,
+		AgentPaymentHistoryUC:      agentPaymentHistoryUC,
 		AlertHandler:               alertHandler,
 		SLOHandler:                 sloHandler,
 		AdminTenantHandler:         adminTenantHandler,
@@ -426,6 +431,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		BillingHandler:             billingHandler,
 		AdminBillingHandler:        adminBillingHandler,
 		WebhookHandler:             webhookHandler,
+		AgentHandler:               agentHandler,
 		ProcessLSWebhookUC:         processLSWebhookUC,
 		ProcessStripeWebhookUC:     processStripeWebhookUC,
 		UpdateSubscriptionUC:       updateSubscriptionUC,

@@ -174,8 +174,9 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 
 		// Store in context
 		c.Set("auth", authCtx)
-		c.Set("auth_role", authCtx.Role)      // Separate key for cross-package access
-		c.Set("auth_user_id", authCtx.UserID) // Separate key for cross-package access
+		c.Set("auth_role", authCtx.Role)          // Separate key for cross-package access
+		c.Set("auth_user_id", authCtx.UserID)     // Separate key for cross-package access
+		c.Set("auth_tenant_id", authCtx.TenantID) // Separate key for cross-package access
 		c.Next()
 	}
 }

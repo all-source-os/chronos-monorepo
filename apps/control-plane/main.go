@@ -22,6 +22,7 @@ import (
 	"github.com/allsource/control-plane/internal"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
+	"github.com/allsource/control-plane/internal/infrastructure/x402"
 	httphandlers "github.com/allsource/control-plane/internal/interfaces/http"
 )
 
@@ -63,16 +64,19 @@ func NewPooledHTTPClient() *http.Client {
 
 // ControlPlane is the main control plane service that manages the event store cluster.
 type ControlPlane struct {
-	client       *resty.Client
-	router       *gin.Engine
-	metrics      *ControlPlaneMetrics
-	cacheMetrics *CacheMetrics
-	cache        *ResponseCache
-	container    *internal.Container
-	authClient   *AuthClient
-	auditLogger  *AuditLogger
-	policyEngine *PolicyEngine
-	coreClient   clients.CoreClient
+	client          *resty.Client
+	router          *gin.Engine
+	metrics         *ControlPlaneMetrics
+	cacheMetrics    *CacheMetrics
+	cache           *ResponseCache
+	container       *internal.Container
+	authClient      *AuthClient
+	auditLogger     *AuditLogger
+	policyEngine    *PolicyEngine
+	coreClient      clients.CoreClient
+	x402Handler     *x402.Handler
+	x402Pricing     *x402.PricingConfig
+	x402Facilitator *x402.Facilitator
 }
 
 // NewControlPlane creates a new control plane instance with full middleware stack.
@@ -201,17 +205,29 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	// tracingShutdown will be called during graceful shutdown
 	_ = tracingShutdown
 
+	// Initialize x402 payment facilitator (optional — requires X402_ENABLED env var)
+	x402Pricing, err := x402.LoadPricingConfig()
+	if err != nil {
+		log.Printf("x402 pricing config load failed: %v (x402 payments will be disabled)", err)
+		x402Pricing = &x402.PricingConfig{}
+	}
+	x402Facilitator := x402.NewFacilitator(x402.DefaultFacilitatorConfig())
+	x402Handler := x402.NewHandler(x402Facilitator)
+
 	cp := &ControlPlane{
-		client:       client,
-		router:       router,
-		metrics:      metrics,
-		cacheMetrics: cacheMetrics,
-		cache:        cache,
-		container:    container,
-		authClient:   authClient,
-		auditLogger:  auditLogger,
-		policyEngine: policyEngine,
-		coreClient:   coreClient,
+		client:          client,
+		router:          router,
+		metrics:         metrics,
+		cacheMetrics:    cacheMetrics,
+		cache:           cache,
+		container:       container,
+		authClient:      authClient,
+		auditLogger:     auditLogger,
+		policyEngine:    policyEngine,
+		coreClient:      coreClient,
+		x402Handler:     x402Handler,
+		x402Pricing:     x402Pricing,
+		x402Facilitator: x402Facilitator,
 	}
 
 	cp.setupMiddleware()
@@ -281,6 +297,15 @@ func (cp *ControlPlane) setupRoutes() {
 	// Agent registration (public, no auth required)
 	agents := cp.router.Group("/api/v1/agents")
 	agents.POST("/register", cp.AgentRegisterHandler)
+
+	// Agent self-service endpoints (auth required)
+	agentsSelf := cp.router.Group("/api/v1/agents/me")
+	agentsSelf.GET("/payments", RequirePermission(entities.PermissionRead), cp.container.AgentHandler.GetPaymentHistory)
+
+	// x402 facilitator endpoints (public — called by payers to verify/settle payments)
+	x402Routes := cp.router.Group("/x402")
+	x402Routes.POST("/verify", cp.x402Handler.Verify)
+	x402Routes.POST("/settle", cp.x402Handler.Settle)
 
 	// Demo endpoint (public, no auth required)
 	demo := cp.router.Group("/api/v1/demo")
