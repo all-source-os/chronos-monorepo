@@ -100,7 +100,7 @@ fastembed = { workspace = true, optional = true }
 flate2.workspace = true
 futures.workspace = true
 hex = "0.4"
-hmac = "0.12"
+hmac = "0.13"
 hotpath = { version = "0.14", optional = true }
 http = { workspace = true, optional = true }
 instant-distance = { workspace = true, optional = true }
