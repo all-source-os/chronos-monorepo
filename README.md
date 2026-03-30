@@ -1,7 +1,7 @@
 ---
 title: "AllSource Event Store - Monorepo"
 status: CURRENT
-last_updated: 2026-03-03
+last_updated: 2026-03-30
 version: "0.17.3"
 ---
 
@@ -18,10 +18,10 @@ version: "0.17.3"
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![License: BSL 1.1](https://img.shields.io/badge/Enterprise-BSL_1.1-orange.svg)](LICENSE-BSL)
 
-[![Core](https://img.shields.io/badge/Core-v0.14.1-orange?logo=rust&logoColor=white)](apps/core/)
-[![Control Plane](https://img.shields.io/badge/Control_Plane-v0.14.1-00ADD8?logo=go&logoColor=white)](apps/control-plane/)
-[![Query Service](https://img.shields.io/badge/Query_Service-v0.14.1-4B275F?logo=elixir&logoColor=white)](apps/query-service/)
-[![Web](https://img.shields.io/badge/Web-v0.14.1-000000?logo=next.js&logoColor=white)](apps/web/)
+[![Core](https://img.shields.io/badge/Core-v0.17.3-orange?logo=rust&logoColor=white)](apps/core/)
+[![Control Plane](https://img.shields.io/badge/Control_Plane-v0.17.3-00ADD8?logo=go&logoColor=white)](apps/control-plane/)
+[![Query Service](https://img.shields.io/badge/Query_Service-v0.17.3-4B275F?logo=elixir&logoColor=white)](apps/query-service/)
+[![Web](https://img.shields.io/badge/Web-v0.17.3-000000?logo=next.js&logoColor=white)](apps/web/)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-61_tools-8A2BE2)](apps/mcp-server-elixir/)
 
 [![Core Image](https://img.shields.io/badge/ghcr.io-allsource--core:0.14.1-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-core)
@@ -130,9 +130,9 @@ See [zer0dex comparison](docs/articles/zer0dex-comparison.md) for how Prime's au
 
 ---
 
-## Project Status & Roadmap (v0.14.1)
+## Project Status & Roadmap (v0.17.3)
 
-### What's New in v0.14.1
+### What's New in v0.17.3
 
 - **WAL-backed consumer cursors**: Consumer cursor positions now persist through Core restarts via system events in the WAL. `ConsumerRegistry` supports dual-mode operation (in-memory for tests, durable for production). On startup, consumer state is rebuilt from `_system.consumer.*` events during Stage 2 bootstrap.
 - **New `Consumer` system domain**: `_system.consumer.registered`, `_system.consumer.ack_updated`, `_system.consumer.deleted` event types for full consumer lifecycle tracking.
