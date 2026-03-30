@@ -131,7 +131,10 @@ pub async fn register_handler(
     } else {
         // Self-registration: create an isolated tenant named after the user
         let tid = format!("tenant-{}", req.username.to_lowercase().replace(' ', "-"));
-        tracing::info!("Auto-creating isolated tenant '{tid}' for new user '{}'", req.username);
+        tracing::info!(
+            "Auto-creating isolated tenant '{tid}' for new user '{}'",
+            req.username
+        );
         tid
     };
 
@@ -264,12 +267,10 @@ pub async fn create_api_key_handler(
         auth_ctx.tenant_id().to_string()
     };
 
-    let (api_key, key) = state.auth_manager.create_api_key(
-        req.name.clone(),
-        effective_tenant_id,
-        role,
-        expires_at,
-    );
+    let (api_key, key) =
+        state
+            .auth_manager
+            .create_api_key(req.name.clone(), effective_tenant_id, role, expires_at);
 
     Ok((
         StatusCode::CREATED,

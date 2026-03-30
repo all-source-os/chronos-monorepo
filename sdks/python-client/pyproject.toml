@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "allsource-client"
-version = "0.17.2"
+version = "0.17.3"
 description = "Python SDK for AllSource Event Store"
 readme = "README.md"
 license = "MIT"

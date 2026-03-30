@@ -21,7 +21,7 @@ defmodule QueryServiceEx.PrometheusMetricsTest do
     test "returns a list of metric definitions" do
       metrics = PrometheusMetrics.metrics()
       assert is_list(metrics)
-      assert metrics != []
+      assert Enum.any?(metrics)
     end
 
     test "includes HTTP metrics" do

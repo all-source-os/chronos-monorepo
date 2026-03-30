@@ -1,6 +1,5 @@
 #[cfg(feature = "replication")]
 use crate::infrastructure::replication::ReplicationMode;
-use crate::infrastructure::security::middleware::OptionalAuth;
 use crate::{
     application::{
         dto::{
@@ -38,6 +37,7 @@ use crate::{
             geospatial::GeoQueryRequest,
             graphql::{GraphQLError, GraphQLRequest, GraphQLResponse},
         },
+        security::middleware::OptionalAuth,
         web::api_v1::AppState,
     },
     store::{EventStore, EventTypeInfo, StreamInfo},

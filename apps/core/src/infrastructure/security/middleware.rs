@@ -160,8 +160,7 @@ fn extract_token(headers: &HeaderMap) -> Result<String, AllSourceError> {
 /// additionally enforces Admin at the handler level when any auth token is present.
 #[inline]
 pub fn is_admin_only_path(path: &str, method: &str) -> bool {
-    (path == "/api/v1/auth/api-keys" && method == "POST")
-        || path.starts_with("/api/v1/tenants")
+    (path == "/api/v1/auth/api-keys" && method == "POST") || path.starts_with("/api/v1/tenants")
 }
 
 /// Authentication middleware
@@ -219,11 +218,13 @@ pub async fn auth_middleware(
     let is_admin_only_path = is_admin_only_path(path, method);
 
     if is_admin_only_path {
-        auth_ctx.require_permission(Permission::Admin).map_err(|_| {
-            AuthError(AllSourceError::ValidationError(
-                "Admin permission required".to_string(),
-            ))
-        })?;
+        auth_ctx
+            .require_permission(Permission::Admin)
+            .map_err(|_| {
+                AuthError(AllSourceError::ValidationError(
+                    "Admin permission required".to_string(),
+                ))
+            })?;
     }
 
     // Insert auth context into request extensions
@@ -913,8 +914,10 @@ mod tests {
             chrono::Duration::hours(1),
         );
         let ctx = AuthContext { claims };
-        assert!(ctx.require_permission(Permission::Admin).is_err(),
-            "ServiceAccount must not have Admin permission");
+        assert!(
+            ctx.require_permission(Permission::Admin).is_err(),
+            "ServiceAccount must not have Admin permission"
+        );
         // But it should still be able to read/write events
         assert!(ctx.require_permission(Permission::Read).is_ok());
         assert!(ctx.require_permission(Permission::Write).is_ok());
@@ -930,8 +933,10 @@ mod tests {
             chrono::Duration::hours(1),
         );
         let ctx = AuthContext { claims };
-        assert!(ctx.require_permission(Permission::Admin).is_ok(),
-            "Admin must have Admin permission");
+        assert!(
+            ctx.require_permission(Permission::Admin).is_ok(),
+            "Admin must have Admin permission"
+        );
     }
 
     #[test]
@@ -944,8 +949,10 @@ mod tests {
             chrono::Duration::hours(1),
         );
         let ctx = AuthContext { claims };
-        assert!(ctx.require_permission(Permission::Admin).is_err(),
-            "Developer must not have Admin permission");
+        assert!(
+            ctx.require_permission(Permission::Admin).is_err(),
+            "Developer must not have Admin permission"
+        );
     }
 
     #[test]
