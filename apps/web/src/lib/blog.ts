@@ -66,7 +66,15 @@ export async function markdownToHTML(markdown: string) {
 }
 
 export async function getPost(slug: string) {
-  const filePath = path.join("content", `${slug}.mdx`);
+  // Sanitize slug to prevent path traversal: take only the filename component
+  const sanitizedSlug = path.basename(slug);
+  const filePath = path.join("content", `${sanitizedSlug}.mdx`);
+  // Verify the resolved path is still within the content directory
+  const contentDir = path.resolve(process.cwd(), "content");
+  const resolvedPath = path.resolve(process.cwd(), filePath);
+  if (!resolvedPath.startsWith(contentDir + path.sep)) {
+    throw new Error(`Invalid blog slug: ${slug}`);
+  }
   const source = fs.readFileSync(filePath, "utf-8");
   const { content: rawContent, data: metadata } = parseFrontmatter(source);
   const content = await markdownToHTML(rawContent);

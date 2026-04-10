@@ -32,6 +32,6 @@
   },
   "packageManager": "bun@1.1.29",
   "dependencies": {
-    "undici": "^7.24.6"
+    "undici": "^8.0.2"
   }
 }
