@@ -31,8 +31,8 @@ export default function CtaSection() {
   return (
     <Section
       id="cta"
-      title="Give your application perfect memory"
-      subtitle="Query any point in history. Never lose an event. Free tier with 10K events/month."
+      title="Give your AI agents perfect memory"
+      subtitle="Persistent, time-travelling memory powered by AllSource Prime. Free tier — no credit card required."
       className="relative overflow-hidden rounded-xl py-16"
     >
       {/* Animated gradient background */}

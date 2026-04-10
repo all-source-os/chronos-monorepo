@@ -2,7 +2,7 @@
 
 import { Button, Icons } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Clock, Shield, Sparkles, Zap } from "lucide-react";
+import { Brain, Clock, GitBranch, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 interface StepWelcomeProps {
@@ -11,24 +11,24 @@ interface StepWelcomeProps {
 
 const features = [
   {
-    icon: Zap,
-    title: "469K events/sec",
-    description: "High-performance ingestion",
+    icon: Brain,
+    title: "Persistent agent memory",
+    description: "Agents remember everything across sessions",
   },
   {
     icon: Clock,
-    title: "11.9μs latency",
-    description: "Sub-microsecond queries",
+    title: "Time-travel recall",
+    description: "Query any past state at 12μs latency",
   },
   {
-    icon: Shield,
-    title: "Immutable history",
-    description: "Complete audit trails",
+    icon: GitBranch,
+    title: "Cross-session context",
+    description: "Yesterday's decisions inform today's answers",
   },
   {
     icon: Sparkles,
     title: "27 MCP tools",
-    description: "AI-native integration",
+    description: "Claude & GPT integration out of the box",
   },
 ];
 
@@ -48,7 +48,8 @@ export function StepWelcome({ onNext }: StepWelcomeProps) {
         Welcome to AllSource, {user?.name?.split(" ")[0] || "there"}!
       </h1>
       <p className="mb-8 max-w-md text-lg text-muted-foreground">
-        You're about to unlock the power of AI-native event sourcing. Let's get you started.
+        You now have persistent, time-travelling memory for your AI agents. Let&apos;s get you set
+        up.
       </p>
 
       {/* Features grid */}
@@ -71,7 +72,7 @@ export function StepWelcome({ onNext }: StepWelcomeProps) {
 
       {/* CTA */}
       <Button size="lg" onClick={onNext} className="px-8">
-        Let's go
+        Set up my first agent
         <Sparkles className="ml-2 h-4 w-4" />
       </Button>
     </div>

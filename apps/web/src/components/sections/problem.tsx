@@ -6,6 +6,12 @@ import { motion } from "motion/react";
 
 const problems = [
   {
+    title: "AI Integration Gap",
+    description:
+      "Your data is trapped behind rigid APIs. AI agents can't easily explore, analyze, or manage your event streams. The tools that exist weren't designed for autonomous workflows — your agents forget everything between sessions.",
+    icon: Lock,
+  },
+  {
     title: "State Amnesia",
     description:
       "Traditional databases only store current state. When something goes wrong, you can't see how you got there. No history means no answers, no audit trail, and no ability to replay or debug.",
@@ -17,17 +23,11 @@ const problems = [
       "Time-based queries are afterthoughts. Want to know what your data looked like last Tuesday at 3pm? Good luck. Most systems weren't built for time-travel, and retrofitting is painful.",
     icon: Clock,
   },
-  {
-    title: "AI Integration Gap",
-    description:
-      "Your data is trapped behind rigid APIs. AI agents can't easily explore, analyze, or manage your event streams. The tools that exist weren't designed for autonomous workflows.",
-    icon: Lock,
-  },
 ];
 
 export default function Component() {
   return (
-    <Section title="The Problem" subtitle="Event data deserves better than database tables">
+    <Section title="The Problem" subtitle="AI agents deserve better than stateless amnesia">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
         {problems.map((problem, index) => (
           <BlurFade key={problem.title} delay={0.2 + index * 0.1} inView>

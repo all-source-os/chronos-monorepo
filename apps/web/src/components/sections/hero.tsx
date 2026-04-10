@@ -110,7 +110,7 @@ function HeroTitles() {
           staggerChildren: 0.2,
         }}
       >
-        {["Time-travel", "your"].map((text) => (
+        {["Give your", "AI agents"].map((text) => (
           <motion.span
             key={text}
             className="inline-block px-1 md:px-2 text-balance font-semibold"
@@ -134,7 +134,7 @@ function HeroTitles() {
             delay: 0.3,
           }}
         >
-          <AnimatedGradientText>data</AnimatedGradientText>
+          <AnimatedGradientText>perfect memory</AnimatedGradientText>
         </motion.span>
       </motion.h1>
       <motion.p
@@ -147,9 +147,9 @@ function HeroTitles() {
           ease,
         }}
       >
-        Query any point in history. Replay any sequence. Give your AI agents{" "}
-        <span className="text-primary font-semibold">perfect memory</span>. The temporal
-        intelligence platform for event-driven applications.
+        AllSource Prime — the temporal intelligence platform for autonomous AI. Time-travel your
+        data, query any past state, and give every agent{" "}
+        <span className="text-primary font-semibold">persistent, provable memory</span>.
       </motion.p>
     </div>
   );
@@ -186,7 +186,7 @@ function HeroStats() {
   const stats = [
     { value: 469, suffix: "K", label: "events/sec", delay: 0 },
     { value: 11.9, suffix: "μs", label: "p99 latency", delay: 100 },
-    { value: 74, suffix: "", label: "MCP tools", delay: 200 },
+    { value: 27, suffix: "", label: "MCP tools", delay: 200 },
     { value: 129, suffix: "MB", label: "footprint", delay: 300 },
   ];
 

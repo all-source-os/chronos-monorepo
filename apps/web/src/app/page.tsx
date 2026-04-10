@@ -10,6 +10,7 @@ import HowItWorks from "@/components/sections/how-it-works";
 import Pricing from "@/components/sections/pricing";
 import Problem from "@/components/sections/problem";
 import QuantIntelligence from "@/components/sections/quant-intelligence";
+import SocialProof from "@/components/sections/social-proof";
 import Solution from "@/components/sections/solution";
 
 export default function Home() {
@@ -35,9 +36,8 @@ export default function Home() {
       {/* Testimonials carousel hidden - no real testimonials yet */}
       {/* <TestimonialsCarousel /> */}
       <Features />
+      <SocialProof />
       <QuantIntelligence />
-      {/* Testimonials section hidden - no real testimonials yet */}
-      {/* <Testimonials /> */}
       <Pricing />
       <FAQ />
       <Blog />
