@@ -10,8 +10,33 @@ use crate::error::{AllSourceError, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
+
+/// Reject obviously-unsafe config paths before opening them.
+fn validate_config_path(path: &Path) -> Result<()> {
+    let os = path.as_os_str();
+    if os.is_empty() {
+        return Err(AllSourceError::ValidationError(
+            "config path must not be empty".to_string(),
+        ));
+    }
+    let bytes = os.as_encoded_bytes();
+    if bytes.contains(&0) {
+        return Err(AllSourceError::ValidationError(
+            "config path contains a null byte".to_string(),
+        ));
+    }
+    if path
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
+    {
+        return Err(AllSourceError::ValidationError(
+            "config path must not contain '..' components".to_string(),
+        ));
+    }
+    Ok(())
+}
 
 /// Main application configuration
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -251,9 +276,16 @@ pub enum LogOutput {
 }
 
 impl Config {
-    /// Load configuration from file
+    /// Load configuration from file.
+    ///
+    /// The path is supplied by the operator (CLI flag or env var), not by an
+    /// HTTP client. We still reject obviously malformed paths (embedded null
+    /// bytes, parent-directory traversal components) so that a mis-configured
+    /// deployment fails fast instead of silently reading an unintended file.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let content = fs::read_to_string(path.as_ref()).map_err(|e| {
+        let path_ref = path.as_ref();
+        validate_config_path(path_ref)?;
+        let content = fs::read_to_string(path_ref).map_err(|e| {
             AllSourceError::StorageError(format!("Failed to read config file: {e}"))
         })?;
 
@@ -407,6 +439,20 @@ mod tests {
         let mut config = Config::default();
         config.server.port = 0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_config_path_accepts_normal_paths() {
+        assert!(validate_config_path(Path::new("config.toml")).is_ok());
+        assert!(validate_config_path(Path::new("/etc/allsource/config.toml")).is_ok());
+        assert!(validate_config_path(Path::new("./config/allsource.toml")).is_ok());
+    }
+
+    #[test]
+    fn test_validate_config_path_rejects_traversal_and_nulls() {
+        assert!(validate_config_path(Path::new("")).is_err());
+        assert!(validate_config_path(Path::new("../secret.toml")).is_err());
+        assert!(validate_config_path(Path::new("config/../../secret.toml")).is_err());
     }
 
     #[test]

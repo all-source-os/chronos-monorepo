@@ -131,6 +131,14 @@ impl StorageIntegrity {
     /// - Footer metadata (schema, row groups, column chunks)
     /// - Page-level CRC checksums when present in column chunks
     ///
+    /// # Safety / trust boundary
+    /// `file_path` must come from a trusted source — this function is only
+    /// called internally with paths that the storage layer discovered by
+    /// enumerating files under the configured `data_dir`. It does NOT accept
+    /// user-controlled input directly; callers that want to verify a
+    /// user-supplied filename MUST canonicalize it and confirm the resolved
+    /// path is still contained within `data_dir` before calling this.
+    ///
     /// # Returns
     /// - Ok(true) if file is valid
     /// - Ok(false) if file doesn't exist
