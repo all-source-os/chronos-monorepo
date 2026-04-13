@@ -316,12 +316,14 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 		}
 	}
 
-	// Build tenant slug from email
-	tenantSlug := strings.ReplaceAll(strings.ToLower(email), "@", "-at-")
-	tenantSlug = strings.ReplaceAll(tenantSlug, ".", "-")
+	// Derive tenant ID from email (same as demo flow). The tenant ID must satisfy
+	// Core's validation (alphanumeric, hyphens, underscores) — the raw userID
+	// "oauth:email:UUID" contains colons and would be rejected.
+	tenantSlug := entities.TenantSlug(email)
+	tenantID := tenantSlug
 
 	tenantBody := map[string]interface{}{
-		"id":   userID,
+		"id":   tenantID,
 		"name": name,
 		"slug": tenantSlug,
 		"metadata": map[string]interface{}{
@@ -344,27 +346,23 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 		return nil, fmt.Errorf("core service unavailable: %w", err)
 	}
 
-	var tenantID string
 	isNewUser := false
 
 	switch {
 	case resp.StatusCode() == 201 || resp.StatusCode() == 200:
 		var result map[string]interface{}
 		if parseErr := json.Unmarshal(resp.Body(), &result); parseErr == nil {
-			if id, ok := result["id"].(string); ok {
+			if id, ok := result["id"].(string); ok && id != "" {
 				tenantID = id
 			}
 			isNewUser = resp.StatusCode() == 201
 		}
-		if tenantID == "" {
-			tenantID = userID
-		}
 	case resp.StatusCode() == 409:
-		// Tenant already exists — returning user
-		tenantID = userID
+		// Tenant already exists — returning user, keep the email-derived tenantID
 		isNewUser = false
 	default:
-		return nil, fmt.Errorf("failed to create tenant (HTTP %d)", resp.StatusCode())
+		log.Printf("Core tenant creation failed: HTTP %d, body: %s", resp.StatusCode(), string(resp.Body()))
+		return nil, fmt.Errorf("failed to create tenant (HTTP %d): %s", resp.StatusCode(), string(resp.Body()))
 	}
 
 	// Provision (or retrieve) a Core API key for this user's tenant.
@@ -681,7 +679,8 @@ func (cp *ControlPlane) RegisterHandler(c *gin.Context) {
 	// Create tenant (same pattern as OAuth)
 	result, err := cp.findOrCreateOAuthUser("email", userID, req.Email, req.Name, "")
 	if err != nil {
-		c.JSON(500, gin.H{"error": "internal_error", "message": "failed to create account"})
+		log.Printf("Register: findOrCreateOAuthUser failed for %s: %v", req.Email, err)
+		c.JSON(500, gin.H{"error": "internal_error", "message": "failed to create account", "detail": err.Error()})
 		return
 	}
 

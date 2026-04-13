@@ -174,3 +174,35 @@ func TestTenant_MarkDeleted(t *testing.T) {
 		}
 	})
 }
+
+func TestTenantSlug(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"email", "alice@example.com", "alice-at-example-com"},
+		{"oauth userid with colons", "oauth:github:12345", "oauth-github-12345"},
+		{"oauth email userid", "oauth:email:user@example.com", "oauth-email-user-at-example-com"},
+		{"mixed case", "Alice@Example.COM", "alice-at-example-com"},
+		{"spaces", "Hello World", "hello-world"},
+		{"collapses double hyphens", "foo..bar", "foo-bar"},
+		{"trims leading/trailing hyphens", ":foo:", "foo"},
+		{"alphanumeric preserved", "abc123_xyz", "abc123_xyz"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := TenantSlug(tc.in)
+			if got != tc.want {
+				t.Errorf("TenantSlug(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+			// Output must only contain alphanumerics, hyphens, underscores (Core's validation).
+			for _, r := range got {
+				ok := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_'
+				if !ok {
+					t.Errorf("TenantSlug(%q) = %q contains invalid char %q", tc.in, got, r)
+				}
+			}
+		})
+	}
+}

@@ -95,12 +95,28 @@ func ValidateTenantName(name string) error {
 
 // TenantSlug generates a URL-safe slug from a raw name.
 // Used by onboarding, agent registration, and demo flows.
+// Output matches Core's tenant ID validation: alphanumeric, hyphens, underscores.
 func TenantSlug(raw string) string {
 	s := strings.ToLower(raw)
 	s = strings.ReplaceAll(s, "@", "-at-")
 	s = strings.ReplaceAll(s, ".", "-")
 	s = strings.ReplaceAll(s, " ", "-")
-	return s
+	// Strip any remaining invalid characters (colons from "oauth:github:12345",
+	// plus any other punctuation) to satisfy Core's tenant ID regex.
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	// Collapse consecutive hyphens
+	result := b.String()
+	for strings.Contains(result, "--") {
+		result = strings.ReplaceAll(result, "--", "-")
+	}
+	return strings.Trim(result, "-")
 }
 
 // IsActive checks if tenant is active
