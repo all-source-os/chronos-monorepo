@@ -36,20 +36,37 @@ pub fn should_skip_auth(path: &str) -> bool {
 }
 
 /// Check if development mode is enabled via environment variable.
-/// When enabled, authentication and rate limiting are bypassed for local development.
+/// When enabled, authentication and rate limiting are bypassed for local
+/// development (e.g., MCP server integration, quick curl queries against
+/// `/api/v1/events/query` without generating a JWT).
 ///
-/// Set `ALLSOURCE_DEV_MODE=true` or `ALLSOURCE_DEV_MODE=1` to enable.
+/// Set any of the following to `true`/`1` to enable:
+/// - `ALLSOURCE_DEV_MODE` — historical name, still supported
+/// - `ALLSOURCE_AUTH_DISABLED` — explicit "turn auth off" alias (issue #131)
 ///
-/// **WARNING**: Never enable this in production environments!
+/// **WARNING**: Never enable this in production environments! The feature
+/// grants admin context to any request that arrives without a token.
+fn env_flag_enabled(name: &str) -> bool {
+    std::env::var(name)
+        .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes"))
+        .unwrap_or(false)
+}
+
 static DEV_MODE_ENABLED: LazyLock<bool> = LazyLock::new(|| {
-    let enabled = std::env::var("ALLSOURCE_DEV_MODE")
-        .map(|v| v == "true" || v == "1")
-        .unwrap_or(false);
+    let via_dev = env_flag_enabled("ALLSOURCE_DEV_MODE");
+    let via_auth_off = env_flag_enabled("ALLSOURCE_AUTH_DISABLED");
+    let enabled = via_dev || via_auth_off;
     if enabled {
+        let source = if via_auth_off && via_dev {
+            "ALLSOURCE_DEV_MODE + ALLSOURCE_AUTH_DISABLED"
+        } else if via_auth_off {
+            "ALLSOURCE_AUTH_DISABLED"
+        } else {
+            "ALLSOURCE_DEV_MODE"
+        };
         tracing::warn!(
-            "⚠️  ALLSOURCE_DEV_MODE is enabled - authentication and rate limiting are DISABLED"
+            "⚠️  Auth disabled via {source} — all requests run as admin with no rate limits. DO NOT use in production."
         );
-        tracing::warn!("⚠️  This should NEVER be used in production!");
     }
     enabled
 });
