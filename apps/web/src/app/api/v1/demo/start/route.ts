@@ -1,17 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 /**
- * Proxy demo account creation to the Auth Service.
+ * Proxy demo account creation.
  *
- * Falls back to Control Plane if AUTH_SERVICE_URL is not set (migration compat).
+ * When AUTH_SERVICE_URL is set, calls the better-auth-rs service at /api/auth/demo/start.
+ * Otherwise, falls back to the Control Plane at /api/v1/demo/start.
  */
 
-function getAuthServiceUrl(): string {
-  return process.env.AUTH_SERVICE_URL || process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3903";
+function getDemoUrl(): string {
+  const authService = process.env.AUTH_SERVICE_URL;
+  if (authService) {
+    return `${authService}/api/auth/demo/start`;
+  }
+  const controlPlane = process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3901";
+  return `${controlPlane}/api/v1/demo/start`;
 }
 
 export async function POST(request: NextRequest) {
-  const url = `${getAuthServiceUrl()}/api/auth/demo/start`;
+  const url = getDemoUrl();
 
   try {
     const response = await fetch(url, {

@@ -1,20 +1,25 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 /**
- * Runtime proxy for auth requests to the Auth Service (better-auth + AllSource).
+ * Runtime proxy for auth requests.
  *
- * The Auth Service runs better-auth-rs with the AllSource adapter.
- * Routes: /api/auth/sign-in/email, /api/auth/sign-up/email, /api/auth/callback/:provider, etc.
- *
- * Falls back to Control Plane if AUTH_SERVICE_URL is not set (migration compat).
+ * When AUTH_SERVICE_URL is set, routes go to the better-auth-rs service
+ * at /api/auth/{path}. Otherwise, falls back to the Control Plane (Go)
+ * at /api/v1/auth/{path} — note the different path prefix.
  */
 
-function getAuthServiceUrl(): string {
-  return process.env.AUTH_SERVICE_URL || process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3903";
+function getAuthBackend(): { url: string; pathPrefix: string } {
+  const authService = process.env.AUTH_SERVICE_URL;
+  if (authService) {
+    return { url: authService, pathPrefix: "/api/auth" };
+  }
+  const controlPlane = process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3901";
+  return { url: controlPlane, pathPrefix: "/api/v1/auth" };
 }
 
 async function proxyToAuthService(request: NextRequest, path: string): Promise<NextResponse> {
-  const url = new URL(`/api/auth/${path}`, getAuthServiceUrl());
+  const backend = getAuthBackend();
+  const url = new URL(`${backend.pathPrefix}/${path}`, backend.url);
 
   request.nextUrl.searchParams.forEach((value, key) => {
     url.searchParams.set(key, value);

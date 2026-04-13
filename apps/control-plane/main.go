@@ -51,6 +51,7 @@ const (
 )
 
 // NewPooledHTTPClient creates an http.Client with connection pooling configured.
+// Preserves the Authorization header on redirects (Go's default client strips it).
 func NewPooledHTTPClient() *http.Client {
 	transport := &http.Transport{
 		MaxIdleConns:        MaxIdleConns,
@@ -59,6 +60,16 @@ func NewPooledHTTPClient() *http.Client {
 	}
 	return &http.Client{
 		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			// Preserve Authorization header across redirects (Go strips it by default)
+			if auth := via[0].Header.Get("Authorization"); auth != "" {
+				req.Header.Set("Authorization", auth)
+			}
+			return nil
+		},
 	}
 }
 
@@ -134,6 +145,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		return nil, fmt.Errorf("failed to sign service JWT: %w", err)
 	}
 	client.SetAuthToken(serviceToken)
+	log.Printf("Service JWT set for Core auth (token length: %d, core URL: %s)", len(serviceToken), coreURL)
 
 	// Initialize audit logger
 	auditLogPath := os.Getenv("AUDIT_LOG_PATH")

@@ -438,7 +438,21 @@ func NewCoreClientWithJWT(baseURL, bearerToken string) CoreClient {
 		IdleConnTimeout:     90 * time.Second,
 	}
 
-	client := resty.NewWithClient(&http.Client{Transport: transport}).
+	// Preserve Authorization header across redirects (Go strips it by default).
+	httpClient := &http.Client{
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			if auth := via[0].Header.Get("Authorization"); auth != "" {
+				req.Header.Set("Authorization", auth)
+			}
+			return nil
+		},
+	}
+
+	client := resty.NewWithClient(httpClient).
 		SetBaseURL(baseURL).
 		SetTimeout(defaultTimeout).
 		SetRetryCount(maxRetries).

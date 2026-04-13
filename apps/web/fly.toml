@@ -16,9 +16,7 @@ primary_region = "iad"  # US East (Virginia)
   NEXT_PUBLIC_API_URL = "https://allsource-query.fly.dev"
   # WebSocket URL — direct to QS (bypasses Next.js, which can't upgrade WS)
   NEXT_PUBLIC_WS_URL = "wss://allsource-query.fly.dev"
-  # Auth Service — internal Fly.io DNS for auth/demo proxy (better-auth + AllSource)
-  AUTH_SERVICE_URL = "http://allsource-auth.internal:3903"
-  # Control Plane — fallback for non-auth operations
+  # Control Plane — handles auth (OAuth, login, register, demo), tenant ops, billing
   CONTROL_PLANE_INTERNAL_URL = "http://allsource-control-plane.internal:3901"
 
 # Required secrets (set via flyctl secrets set):
