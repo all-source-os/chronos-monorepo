@@ -109,6 +109,8 @@ Add to Claude Desktop (`~/.claude/claude_desktop_config.json`):
 
 13 MCP tools for knowledge management, semantic search, cross-domain reasoning, and temporal queries. See the [Prime Guide](docs/guides/PRIME_AGENT_PROMPT.md) for usage patterns.
 
+Embedding Prime directly in your own Rust / Tauri app (no MCP server, no HTTP)? See the [Embedded Prime Integration Guide](docs/guides/EMBEDDED_PRIME_INTEGRATION.md) — covers feature flags, `Prime::open()`, `RecallEngine`, HNSW vector search, local `fastembed` embeddings, and a full Tauri example.
+
 **Examples:**
 
 ```bash

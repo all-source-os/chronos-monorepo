@@ -92,6 +92,7 @@ How-to documentation for common tasks.
 | [MCP Demo Script](./guides/mcp-server/DEMO_SCRIPT.md) | MCP demonstration walkthrough | ✅ |
 | [MCP Quick Reference](./guides/mcp-server/QUICK_REFERENCE.md) | MCP tool reference card | ✅ |
 | [Claude Code Skills](./guides/CLAUDE_CODE_SKILLS.md) | Automated testing, release, and diagnostics skills | ✅ |
+| [Embedded Prime Integration](./guides/EMBEDDED_PRIME_INTEGRATION.md) | Use Prime as an embedded library in Tauri / Rust apps — graph, HNSW vectors, tiered recall | ✅ |
 
 ---
 
