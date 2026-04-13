@@ -36,10 +36,40 @@ defmodule McpServerElixir.Application do
   end
 
   defp mode_children(:embedded) do
-    [
-      {McpServerElixir.Infrastructure.CoreEmbedded.Supervisor, []},
-      {McpServerElixir.Infrastructure.CoreEmbedded.SyncWorker, []}
-    ]
+    # The CoreEmbedded modules are wrapped in a compile-time
+    # `if System.get_env("CORE_MODE") == "embedded"` guard in
+    # lib/mcp_server_elixir/infrastructure/core_{embedded,nif}.ex so that a
+    # standard (remote-mode) release doesn't require the Rust toolchain to
+    # build the Rustler NIF. If the release was compiled without
+    # `CORE_MODE=embedded` set, these modules don't exist at runtime and the
+    # error the user sees is a cryptic "supervisor does not exist" crash.
+    # Detect that case explicitly and fail loudly with an actionable message.
+    if Code.ensure_loaded?(McpServerElixir.Infrastructure.CoreEmbedded.Supervisor) do
+      [
+        {McpServerElixir.Infrastructure.CoreEmbedded.Supervisor, []},
+        {McpServerElixir.Infrastructure.CoreEmbedded.SyncWorker, []}
+      ]
+    else
+      IO.puts(:stderr, """
+
+      ❌ CORE_MODE=embedded was requested but this release does not include
+         the embedded Core modules (McpServerElixir.Infrastructure.CoreEmbedded).
+
+         The embedded modules are only compiled when the release is built
+         with `CORE_MODE=embedded` in the build environment (so that the
+         Rustler NIF for `allsource-core` is built). The default published
+         image is compiled for `CORE_MODE=remote`.
+
+         Options:
+           1. Use CORE_MODE=remote and point at a running Core HTTP endpoint.
+           2. Rebuild the image with the Rust toolchain installed and
+              `CORE_MODE=embedded` set during `mix compile`.
+
+         See GitHub issue #129 for the full build-system fix.
+      """)
+
+      System.halt(1)
+    end
   end
 
   defp mode_children(:remote) do
