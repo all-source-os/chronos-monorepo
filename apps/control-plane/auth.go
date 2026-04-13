@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -38,6 +39,26 @@ type AuthContext struct {
 	TenantID string
 	Role     entities.Role
 	IsAPIKey bool
+}
+
+// roleForEmail returns RoleAdmin if the email is in the ADMIN_EMAILS allowlist
+// (comma-separated, case-insensitive), otherwise RoleDeveloper. Used to grant
+// the admin app access to specific humans without a database.
+func roleForEmail(email string) entities.Role {
+	allowlist := os.Getenv("ADMIN_EMAILS")
+	if allowlist == "" {
+		return entities.RoleDeveloper
+	}
+	target := strings.ToLower(strings.TrimSpace(email))
+	if target == "" {
+		return entities.RoleDeveloper
+	}
+	for _, raw := range strings.Split(allowlist, ",") {
+		if strings.EqualFold(strings.TrimSpace(raw), target) {
+			return entities.RoleAdmin
+		}
+	}
+	return entities.RoleDeveloper
 }
 
 // AuthClient handles authentication with the core service.
@@ -291,7 +312,7 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 				Email:      email,
 				Name:       name,
 				TenantID:   tenantID,
-				Role:       entities.RoleDeveloper,
+				Role:       roleForEmail(email),
 				Provider:   provider,
 				CoreAPIKey: coreAPIKey,
 				StandardClaims: jwt.StandardClaims{
@@ -381,7 +402,7 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 		Email:      email,
 		Name:       name,
 		TenantID:   tenantID,
-		Role:       entities.RoleDeveloper,
+		Role:       roleForEmail(email),
 		Provider:   provider,
 		CoreAPIKey: coreAPIKey,
 		StandardClaims: jwt.StandardClaims{
@@ -590,7 +611,7 @@ func (cp *ControlPlane) LoginHandler(c *gin.Context) {
 		Email:    username,
 		Name:     displayName,
 		TenantID: tenantID,
-		Role:     entities.RoleDeveloper,
+		Role:     roleForEmail(username),
 		Provider: "email",
 		IsDemo:   isDemo,
 		StandardClaims: jwt.StandardClaims{
