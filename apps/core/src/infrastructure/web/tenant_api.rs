@@ -94,7 +94,13 @@ pub async fn create_tenant_handler(
         .tenant_repo
         .create(tenant_id, req.name, quotas)
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        .map_err(|e| {
+            let status = match &e {
+                crate::error::AllSourceError::TenantAlreadyExists(_) => StatusCode::CONFLICT,
+                _ => StatusCode::BAD_REQUEST,
+            };
+            (status, e.to_string())
+        })?;
 
     // Apply optional fields that aren't part of create()
     if let Some(desc) = req.description {

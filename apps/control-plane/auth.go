@@ -381,6 +381,11 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 	case resp.StatusCode() == 409:
 		// Tenant already exists — returning user, keep the email-derived tenantID
 		isNewUser = false
+	case resp.StatusCode() == 400 && strings.Contains(string(resp.Body()), "already exists"):
+		// Core currently force-maps repository errors to HTTP 400, so a duplicate
+		// tenant on a returning-user login comes back as 400 instead of 409.
+		// Treat "already exists" as success so returning users can log in.
+		isNewUser = false
 	default:
 		log.Printf("Core tenant creation failed: HTTP %d, body: %s", resp.StatusCode(), string(resp.Body()))
 		return nil, fmt.Errorf("failed to create tenant (HTTP %d): %s", resp.StatusCode(), string(resp.Body()))
