@@ -63,6 +63,35 @@ pub struct BackupManager {
     config: BackupConfig,
 }
 
+/// Validate a backup identifier before it is joined into a filesystem path.
+///
+/// Backup IDs come from callers (CLI, embedded API, future HTTP handlers) and
+/// are concatenated into filenames under `backup_dir`. Without validation a
+/// caller could supply `../../etc/passwd` or similar and escape the backup
+/// directory. We accept only ASCII alphanumerics, `_`, `-`, and enforce a
+/// maximum length so the resulting path stays within the configured dir.
+fn validate_backup_id(id: &str) -> Result<()> {
+    if id.is_empty() {
+        return Err(AllSourceError::ValidationError(
+            "backup id must not be empty".to_string(),
+        ));
+    }
+    if id.len() > 128 {
+        return Err(AllSourceError::ValidationError(
+            "backup id too long (max 128 chars)".to_string(),
+        ));
+    }
+    if !id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(AllSourceError::ValidationError(format!(
+            "backup id '{id}' contains invalid characters; only [A-Za-z0-9_-] allowed"
+        )));
+    }
+    Ok(())
+}
+
 impl BackupManager {
     pub fn new(config: BackupConfig) -> Result<Self> {
         // Ensure backup directory exists
@@ -145,6 +174,7 @@ impl BackupManager {
 
     /// Restore from backup
     pub fn restore_from_backup(&self, backup_id: &str) -> Result<Vec<Event>> {
+        validate_backup_id(backup_id)?;
         tracing::info!("Restoring from backup: {}", backup_id);
 
         let metadata = self.load_metadata(backup_id)?;
@@ -230,6 +260,7 @@ impl BackupManager {
 
     /// Delete backup
     pub fn delete_backup(&self, backup_id: &str) -> Result<()> {
+        validate_backup_id(backup_id)?;
         tracing::info!("Deleting backup: {}", backup_id);
 
         let backup_path = self.get_backup_path(backup_id);
@@ -295,6 +326,7 @@ impl BackupManager {
     }
 
     fn load_metadata(&self, backup_id: &str) -> Result<BackupMetadata> {
+        validate_backup_id(backup_id)?;
         let path = self.get_metadata_path(backup_id);
 
         if !path.exists() {
@@ -349,5 +381,36 @@ mod tests {
         let json = serde_json::to_string(&full).unwrap();
         let deserialized: BackupType = serde_json::from_str(&json).unwrap();
         assert_eq!(full, deserialized);
+    }
+
+    #[test]
+    fn test_validate_backup_id_accepts_valid() {
+        assert!(validate_backup_id("full_a1b2c3").is_ok());
+        assert!(validate_backup_id("incremental-2026-04-13").is_ok());
+        assert!(validate_backup_id("A").is_ok());
+        assert!(
+            validate_backup_id("full_550e8400-e29b-41d4-a716-446655440000").is_ok(),
+            "uuid-style ids with dashes should be accepted"
+        );
+    }
+
+    #[test]
+    fn test_validate_backup_id_rejects_traversal() {
+        assert!(validate_backup_id("").is_err());
+        assert!(validate_backup_id("../etc/passwd").is_err());
+        assert!(validate_backup_id("..").is_err());
+        assert!(validate_backup_id("foo/bar").is_err());
+        assert!(validate_backup_id("foo\\bar").is_err());
+        assert!(validate_backup_id("foo.bar").is_err(), "dots are rejected");
+        assert!(validate_backup_id("foo\0bar").is_err());
+        assert!(validate_backup_id("foo bar").is_err());
+    }
+
+    #[test]
+    fn test_validate_backup_id_length_limit() {
+        let too_long = "a".repeat(129);
+        assert!(validate_backup_id(&too_long).is_err());
+        let max_ok = "a".repeat(128);
+        assert!(validate_backup_id(&max_ok).is_ok());
     }
 }
