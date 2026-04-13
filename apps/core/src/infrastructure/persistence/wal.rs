@@ -345,9 +345,19 @@ impl WriteAheadLog {
             let reader = BufReader::new(file);
 
             for (line_num, line) in reader.lines().enumerate() {
-                let line = line.map_err(|e| {
-                    AllSourceError::StorageError(format!("Failed to read WAL line: {e}"))
-                })?;
+                let line = match line {
+                    Ok(l) => l,
+                    Err(e) => {
+                        tracing::warn!(
+                            "I/O error reading WAL line at {:?}:{}: {}",
+                            wal_file_path,
+                            line_num + 1,
+                            e
+                        );
+                        corrupted_entries += 1;
+                        continue;
+                    }
+                };
 
                 if line.trim().is_empty() {
                     continue;
@@ -580,6 +590,37 @@ mod tests {
         let recovered = wal2.recover().unwrap();
 
         assert_eq!(recovered.len(), 5);
+    }
+
+    #[test]
+    fn test_wal_recovery_with_partial_write() {
+        let temp_dir = TempDir::new().unwrap();
+        let wal = WriteAheadLog::new(temp_dir.path(), WALConfig::default()).unwrap();
+
+        // Write 3 complete events
+        for _ in 0..3 {
+            wal.append(create_test_event()).unwrap();
+        }
+        wal.flush().unwrap();
+
+        // Simulate a partial write by appending malformed data to the WAL file
+        let wal_file_path = temp_dir.path().join("wal-0000000000000000.log");
+        use std::io::Write as _;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&wal_file_path)
+            .unwrap();
+        f.write_all(b"{\"partial\": true, \"seq\"\n").unwrap(); // truncated JSON
+        drop(f);
+
+        // Recovery should succeed and return only the 3 valid events
+        let wal2 = WriteAheadLog::new(temp_dir.path(), WALConfig::default()).unwrap();
+        let recovered = wal2.recover().unwrap();
+        assert_eq!(
+            recovered.len(),
+            3,
+            "Should recover only the 3 valid events, not the partial one"
+        );
     }
 
     #[test]
