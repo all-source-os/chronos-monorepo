@@ -101,15 +101,39 @@ Prime
                 └── your domain projections (registered separately)
 ```
 
+### Can I wrap my existing `EmbeddedCore` instance?
+
+**No.** `Prime::from_core(core)` exists internally but is **private** — it
+is not part of the public API. `Prime::open(path)` always constructs a
+fresh `EmbeddedCore` with graph-specific merge strategies and registers
+Prime's projections on it. If you have an existing `EmbeddedCore` you
+want to reuse, you have two options:
+
+- **Option A (recommended)** — replace your `EmbeddedCore::open` call with
+  `Prime::open` and access the underlying core via `prime.core()` for
+  any raw event operations you still need.
+- **Option C (isolated)** — keep your existing `EmbeddedCore` for domain
+  events and run a separate `Prime` instance in a different data
+  directory for agent memory. You can't share an event stream this way,
+  but the two instances are fully independent.
+
 ### Option A: Prime wraps a fresh Core (recommended for new projects)
 
 ```rust
+use allsource_core::embedded::{IngestEvent, Query};
+
 let prime = Prime::open(&data_dir).await?;
 
 // Access the underlying EmbeddedCore for raw event operations:
 let core = prime.core();
-core.ingest(IngestEvent { ... }).await?;
-core.query(Query::new().entity_id("workflow:123")).await?;
+core.ingest(IngestEvent {
+    entity_id: "workflow:123",
+    event_type: "workflow.started",
+    payload: serde_json::json!({ "status": "running" }),
+    metadata: None,
+    tenant_id: None,
+}).await?;
+let events = core.query(Query::new().entity_id("workflow:123")).await?;
 ```
 
 ### Option B: Register domain projections alongside Prime's
@@ -236,13 +260,17 @@ use allsource_core::infrastructure::search::vector_search_engine::{
 };
 
 let config = VectorSearchEngineConfig {
-    model_name: "AllMiniLmL6V2".to_string(), // 384 dimensions
+    model_name: "AllMiniLML6V2".to_string(), // 384 dimensions
     embedding_dimensions: 384,
     ..Default::default()
 };
 
-let engine = VectorSearchEngine::new(config)?;
-let embeddings = engine.embed_texts(&["skill output text"])?;
+// Note: constructor is `with_config(config)`, not `new(config)`.
+// `VectorSearchEngine::new()` takes no arguments and uses defaults.
+let engine = VectorSearchEngine::with_config(config)?;
+
+// Single-shot embedding. `embed_text` takes `&str` and returns `Vec<f32>`.
+let embedding: Vec<f32> = engine.embed_text("skill output text")?;
 ```
 
 ### Direct fastembed usage
@@ -250,25 +278,31 @@ let embeddings = engine.embed_texts(&["skill output text"])?;
 ```rust
 use fastembed::{TextEmbedding, InitOptions, EmbeddingModel};
 
-let model = TextEmbedding::try_new(InitOptions {
-    model_name: EmbeddingModel::AllMiniLmL6V2,
-    show_download_progress: true,
-    ..Default::default()
-})?;
+// fastembed 4.x uses a builder pattern, not a struct literal. Note the
+// enum variant name is `AllMiniLML6V2` (all caps LM), not AllMiniLmL6V2.
+let model = TextEmbedding::try_new(
+    InitOptions::new(EmbeddingModel::AllMiniLML6V2)
+        .with_show_download_progress(true),
+)?;
 
+// Batch embedding — returns `Vec<Vec<f32>>`.
 let embeddings = model.embed(vec!["skill output text"], None)?;
 // embeddings[0] is Vec<f32> with 384 dimensions
 ```
 
 ### Model selection for short-form content (100–500 chars)
 
-| Model | Dimensions | Speed | Quality for short text | Cache size |
-|-------|-----------|-------|----------------------|-----------|
-| **AllMiniLmL6V2** (default) | 384 | Fast | Good | ~23 MB |
-| AllMiniLmL12V2 | 384 | Medium | Better | ~33 MB |
-| BGESmallENV15 | 384 | Fast | Good | ~33 MB |
+The enum variants are re-exported from `fastembed::EmbeddingModel`; use
+them directly rather than passing string names (the string table is only
+used by `VectorSearchEngineConfig.model_name` for serialization).
 
-**Recommendation for skill outputs (100–500 chars):** `AllMiniLmL6V2` is the default and a good fit. It's optimized for short passages, fast enough for real-time use, and the 384-dimension vectors keep memory usage low.
+| Model variant | Dimensions | Speed | Quality for short text | Cache size |
+|---------------|-----------|-------|----------------------|-----------|
+| **`AllMiniLML6V2`** (default) | 384 | Fast | Good | ~23 MB |
+| `AllMiniLML12V2` | 384 | Medium | Better | ~33 MB |
+| `BGESmallENV15` | 384 | Fast | Good | ~33 MB |
+
+**Recommendation for skill outputs (100–500 chars):** `AllMiniLML6V2` is the default and a good fit. It's optimized for short passages, fast enough for real-time use, and the 384-dimension vectors keep memory usage low.
 
 The model files are downloaded on first use and cached in `.fastembed_cache/` (excluded from git via Core's Cargo.toml).
 
@@ -288,12 +322,11 @@ candidates.truncate(5);
 
 After:
 ```rust
-// O(log n) HNSW search
-let model = TextEmbedding::try_new(InitOptions {
-    model_name: EmbeddingModel::AllMiniLmL6V2,
-    ..Default::default()
-})?;
-let query_vec = model.embed(vec![skill_prompt], None)?[0].clone();
+// O(log n) HNSW search. fastembed uses a builder pattern (see note above).
+let model = TextEmbedding::try_new(
+    InitOptions::new(EmbeddingModel::AllMiniLML6V2),
+)?;
+let query_vec = model.embed(vec![skill_prompt], None)?.remove(0);
 let results = prime.vector_search(&query_vec, 5);
 ```
 
@@ -347,9 +380,12 @@ let ctx = recall.context(RecallContextQuery {
 
 Use case: follow-up questions within the same session.
 
-### L2: Full hybrid recall (~2000–5000 tokens)
+### L2: Compressed index (~1000–2000 tokens) — current behaviour
 
-Compressed index + vector search + graph expansion. This is the default tier.
+L2 is the default tier and produces a compressed markdown summary of
+the graph — domain counts, type distributions, example entities, and
+cross-references. It is generated by a deterministic heuristic unless
+you configure an LLM backend via `IndexConfig.llm_endpoint`.
 
 ```rust
 let ctx = recall.context(RecallContextQuery {
@@ -360,25 +396,41 @@ let ctx = recall.context(RecallContextQuery {
     ..Default::default()
 }).await;
 
-// ctx.index — compressed markdown summary of all knowledge
-// ctx.vectors — top K similar memories (RankedMemory)
-// ctx.nodes — graph-expanded context nodes
-// ctx.edges — related edges
-// ctx.stats — graph statistics
-// ctx.token_count — ~2000-5000
+// ctx.index     — compressed markdown summary of all knowledge
+// ctx.stats     — graph statistics
+// ctx.vectors   — currently empty (see note below)
+// ctx.nodes     — currently empty (see note below)
+// ctx.edges     — currently empty (see note below)
+// ctx.token_count — ~1000–2000
 ```
 
-Use case: cross-domain queries, complex retrieval, what the issue author wants:
+> ⚠️ **L2 does not currently fan out to vector search or graph
+> expansion** — see the `TODO: vector search integration` in
+> `apps/core/src/prime/recall/api.rs::context_l2`. Today L2 returns
+> the compressed markdown index plus stats. If you need vector
+> similarity results or graph-expanded neighbours as part of the same
+> call, call `Prime::recall(RecallQuery)` directly — see
+> [Hybrid Recall](#hybrid-recall-graph--vectors) below. A future
+> release will wire L2 through `Prime::vector_search` so that
+> `RecallContextQuery` returns both the compressed index and the hit
+> list in one call.
+
+If you want the compressed index as a drop-in replacement for your
+O(n) cosine loop's formatted output, L2 works today:
 
 ```rust
-// Replace ~70 lines of brute-force cosine search with:
+// Replaces ~70 lines of brute-force cosine search with a single call
+// that returns a markdown summary instead of raw hits. For ranked
+// hits, use `prime.vector_search(&query_vec, 5)` or
+// `prime.recall(RecallQuery { vector: Some(query_vec), .. })` —
+// see the section below.
 let ctx = recall.context(RecallContextQuery {
     query: skill_prompt.to_string(),
     tier: ContextTier::L2,
     top_k: 5,
     ..Default::default()
 }).await;
-let context_string = ctx.index; // Compressed markdown of relevant knowledge
+let context_string = ctx.index;
 ```
 
 ### With LLM-powered index compression (optional)
@@ -483,34 +535,45 @@ Weights are normalized to sum to 1.0. Vector hits seed the search at depth 0 (ma
 
 ```rust
 use allsource_core::prime::Prime;
-use allsource_core::prime::recall::{RecallEngine, RecallContextQuery};
+use allsource_core::prime::recall::{RecallContextQuery, RecallEngine};
 use allsource_core::prime::recall::types::{ContextTier, IndexConfig};
-use fastembed::{TextEmbedding, InitOptions, EmbeddingModel};
+use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+use parking_lot::Mutex;
 use std::sync::Arc;
 use tauri::Manager;
 
+/// App state shared across commands. Prime holds its own Arc internally so
+/// it's cheap to clone; `TextEmbedding` is not `Clone` and its `embed`
+/// call takes `&mut self`, so wrap it in a Mutex.
 struct AppState {
     prime: Prime,
     recall: RecallEngine,
-    embedder: TextEmbedding,
+    embedder: Mutex<TextEmbedding>,
+}
+
+async fn build_state(data_dir: std::path::PathBuf) -> Result<AppState, Box<dyn std::error::Error>> {
+    let prime = Prime::open(data_dir.join("prime")).await?;
+    let recall = RecallEngine::with_deps(prime.recall_deps(), &IndexConfig::default());
+    let embedder = TextEmbedding::try_new(
+        InitOptions::new(EmbeddingModel::AllMiniLML6V2),
+    )?;
+    Ok(AppState {
+        prime,
+        recall,
+        embedder: Mutex::new(embedder),
+    })
 }
 
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = app.path().app_data_dir()?;
-
-    let rt = tokio::runtime::Handle::current();
-    let prime = rt.block_on(Prime::open(data_dir.join("prime")))?;
-    let recall = RecallEngine::with_deps(prime.recall_deps(), &IndexConfig::default());
-    let embedder = TextEmbedding::try_new(InitOptions {
-        model_name: EmbeddingModel::AllMiniLmL6V2,
-        ..Default::default()
-    })?;
-
-    app.manage(Arc::new(AppState { prime, recall, embedder }));
+    // Tauri's `setup` runs on a blocking thread — use `block_on` on the
+    // current runtime handle.
+    let state = tokio::runtime::Handle::current().block_on(build_state(data_dir))?;
+    app.manage(Arc::new(state));
     Ok(())
 }
 
-/// Ingest a skill output with embedding
+/// Ingest a skill output with an embedding.
 #[tauri::command]
 async fn store_output(
     state: tauri::State<'_, Arc<AppState>>,
@@ -518,12 +581,17 @@ async fn store_output(
     text: String,
     project_id: String,
 ) -> Result<(), String> {
-    let embedding = state.embedder
-        .embed(vec![&text], None)
-        .map_err(|e| e.to_string())?
-        .remove(0);
+    // Scope the lock so we drop it before the await.
+    let embedding = {
+        let mut embedder = state.embedder.lock();
+        embedder
+            .embed(vec![text.as_str()], None)
+            .map_err(|e| e.to_string())?
+            .remove(0)
+    };
 
-    state.prime
+    state
+        .prime
         .embed_with_metadata(
             &id,
             Some(&text),
@@ -534,23 +602,56 @@ async fn store_output(
         .map_err(|e| e.to_string())
 }
 
-/// Retrieve cross-project context (replaces O(n) brute-force)
+/// Retrieve cross-project context — uses `Prime::recall` to get both the
+/// compressed index (via `RecallEngine`) and ranked vector hits in one
+/// place, since `RecallEngine::context(L2)` does not yet fan out to
+/// `vector_search` (see the L2 section above).
 #[tauri::command]
 async fn retrieve_context(
     state: tauri::State<'_, Arc<AppState>>,
     skill_prompt: String,
 ) -> Result<String, String> {
-    let ctx = state.recall
+    // 1. Embed the prompt.
+    let query_vec = {
+        let mut embedder = state.embedder.lock();
+        embedder
+            .embed(vec![skill_prompt.as_str()], None)
+            .map_err(|e| e.to_string())?
+            .remove(0)
+    };
+
+    // 2. Compressed markdown summary of the graph (L2).
+    let ctx = state
+        .recall
         .context(RecallContextQuery {
-            query: skill_prompt,
+            query: skill_prompt.clone(),
             tier: ContextTier::L2,
             top_k: 5,
             ..Default::default()
         })
         .await;
 
-    Ok(ctx.index)
+    // 3. Ranked hits via HNSW — O(log n) instead of O(n).
+    let hits = state.prime.vector_search(&query_vec, 5);
+    let hit_summary = hits
+        .iter()
+        .map(|h| {
+            format!(
+                "- ({:.3}) {}",
+                h.score,
+                h.text.as_deref().unwrap_or(&h.id)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    Ok(format!("{}\n\n## Relevant outputs\n{}", ctx.index, hit_summary))
 }
 ```
 
-This replaces ~70 lines of brute-force O(n) cosine similarity with O(log n) HNSW search, eliminates the external embedding API dependency, and adds tiered retrieval with graph expansion.
+This replaces ~70 lines of brute-force O(n) cosine similarity with
+O(log n) HNSW search, eliminates the external embedding API dependency,
+and adds a compressed-index summary of the overall graph. When the L2
+fan-out is wired up (see the L2 section), the explicit
+`prime.vector_search` call above will collapse back into a single
+`recall.context(...)` call.
