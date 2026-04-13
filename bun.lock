@@ -5,7 +5,7 @@
     "": {
       "name": "allsource-monorepo",
       "dependencies": {
-        "undici": "^7.24.6",
+        "undici": "^8.0.2",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.3.13",
@@ -163,7 +163,7 @@
     },
     "sdks/typescript": {
       "name": "@allsource/client",
-      "version": "0.17.1",
+      "version": "0.17.3",
       "devDependencies": {
         "@types/bun": "^1.1.13",
         "typescript": "^6.0.2",
@@ -1311,7 +1311,7 @@
 
     "typescript": ["typescript@6.0.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ=="],
 
-    "undici": ["undici@7.24.6", "", {}, "sha512-Xi4agocCbRzt0yYMZGMA6ApD7gvtUFaxm4ZmeacWI4cZxaF6C+8I8QfofC20NAePiB/IcvZmzkJ7XPa471AEtA=="],
+    "undici": ["undici@8.0.2", "", {}, "sha512-B9MeU5wuFhkFAuNeA19K2GDFcQXZxq33fL0nRy2Aq30wdufZbyyvxW3/ChaeipXVfy/wUweZyzovQGk39+9k2w=="],
 
     "undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
 
