@@ -616,7 +616,11 @@ mod tests {
         // Recovery should succeed and return only the 3 valid events
         let wal2 = WriteAheadLog::new(temp_dir.path(), WALConfig::default()).unwrap();
         let recovered = wal2.recover().unwrap();
-        assert_eq!(recovered.len(), 3, "Should recover only the 3 valid events, not the partial one");
+        assert_eq!(
+            recovered.len(),
+            3,
+            "Should recover only the 3 valid events, not the partial one"
+        );
     }
 
     #[test]
