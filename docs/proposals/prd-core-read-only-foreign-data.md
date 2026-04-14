@@ -13,7 +13,7 @@ The target use case is debugging: point a stock `ghcr.io/all-source-os/allsource
 
 ## Problem Statement
 
-Today `allsource-core` **already replays on startup** — `EventStore::with_config` at `apps/core/src/store.rs:247-292` reads every Parquet row from `ALLSOURCE_DATA_DIR/storage/`, recovers the WAL from `ALLSOURCE_DATA_DIR/wal/`, re-indexes each event, and re-runs all registered projections. The issue is not that replay is missing. The issue is that none of it fires in the scenario the user actually needs:
+Today `allsource-core` **already replays on startup** — `EventStore::with_config` at `apps/core/src/store.rs` (the `// Step 1: Load persisted events from Parquet` block near line 245, followed by the `// Step 2: Recover WAL events` block near line 293) reads every Parquet row from `ALLSOURCE_DATA_DIR/storage/`, recovers the WAL from `ALLSOURCE_DATA_DIR/wal/`, re-indexes each event, and re-runs all registered projections. The issue is not that replay is missing. The issue is that none of it fires in the scenario the user actually needs:
 
 ```bash
 docker run --rm -v "/longhand/data:/data" -e DATA_DIR=/data -p 3900:3900 \
@@ -24,7 +24,7 @@ docker run --rm -v "/longhand/data:/data" -e DATA_DIR=/data -p 3900:3900 \
 
 There are **four independent failure modes**, each of which alone produces the zero-events symptom:
 
-1. **Env var name.** Core reads `ALLSOURCE_DATA_DIR`. The user (and the Docker image docs, and anyone copying from similar projects) naturally types `DATA_DIR`. When `ALLSOURCE_DATA_DIR` is unset, `EventStoreConfig::from_env_vars` at `store.rs:1729` falls all the way through to `Self::default()` — the `"in-memory"` branch — and writes `Persistence: NONE (in-memory only)` to the log. The container is running in-memory over a full on-disk dataset and nobody notices because the log line is one line among dozens at boot.
+1. **Env var name.** Core reads `ALLSOURCE_DATA_DIR`. The user (and the Docker image docs, and anyone copying from similar projects) naturally types `DATA_DIR`. When `ALLSOURCE_DATA_DIR` is unset, `EventStoreConfig::from_env_vars` (in `store.rs`, around line 1721 in the `impl EventStoreConfig` block) falls all the way through to `Self::default()` — the `"in-memory"` branch — and writes `Persistence: NONE (in-memory only)` to the log. The container is running in-memory over a full on-disk dataset and nobody notices because the log line is one line among dozens at boot.
 
 2. **Directory layout.** Core expects the data directory to contain two subdirectories: `storage/` (Parquet files) and `wal/` (WAL segments). An embedded client is free to lay out its data however it wants — Longhand 0.13.x predates the subdir convention used by the current binary, and puts files at the root of its data dir. Even with `ALLSOURCE_DATA_DIR` set correctly, Core reads an empty `<dir>/storage` and `<dir>/wal`.
 
@@ -124,7 +124,7 @@ Operators can override the detection with `ALLSOURCE_READ_ONLY_LAYOUT=subdirs` o
 
 ### Auth / tenant behavior in read-only mode
 
-- Every HTTP handler that currently calls `require_permission` or `auth_ctx.tenant_id()` short-circuits to "admin on the requested tenant." Practically, this is implemented by reusing the existing `is_dev_mode()` path in `apps/core/src/infrastructure/security/middleware.rs:166-196` and having `CORE_READ_ONLY=true` flip `DEV_MODE_ENABLED` at startup the same way `ALLSOURCE_AUTH_DISABLED` already does.
+- Every HTTP handler that currently calls `require_permission` or `auth_ctx.tenant_id()` short-circuits to "admin on the requested tenant." Practically, this is implemented by reusing the existing `is_dev_mode()` path inside `auth_middleware` in `apps/core/src/infrastructure/security/middleware.rs` (the `if is_dev_mode()` branch near line 198) and having `CORE_READ_ONLY=true` flip `DEV_MODE_ENABLED` at startup the same way `ALLSOURCE_AUTH_DISABLED` already does.
 - Tenant filtering on read endpoints is bypassed by treating the synthetic dev-mode context as having `Role::Admin` (existing behavior of `dev_mode_auth_context()`).
 - The startup banner tells the operator this is happening.
 
@@ -138,7 +138,7 @@ if state.read_only {
 }
 ```
 
-Instead of sprinkling this across ~30 handlers, we add a tower middleware that runs **after** auth but **before** the route handler, classifies the request as write/read using the existing `is_write_request(method, path)` at `api_v1.rs:548`, and returns 403 for writes when `state.read_only` is true. That function is already the canonical "is this a mutation" check — reusing it keeps the classification in one place.
+Instead of sprinkling this across ~30 handlers, we add a tower middleware that runs **after** auth but **before** the route handler, classifies the request as write/read using the existing `is_write_request(method, path)` helper in `apps/core/src/infrastructure/web/api_v1.rs` (around line 548 on current `main`), and returns 403 for writes when `state.read_only` is true. That function is already the canonical "is this a mutation" check — reusing it keeps the classification in one place.
 
 ### Background work gating
 
