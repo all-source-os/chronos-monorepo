@@ -76,6 +76,15 @@ Clients → Query Service (Elixir, port 3902) → Core (Rust, port 3900)
 - **Query Service** = API gateway. Source of truth for users, tenants, billing.
 - **PostgreSQL** = operational metadata only. Never for events.
 
+## Production Deployment Topology
+
+**Backend → Fly.io. Frontend → Vercel. Never mix these up.**
+
+- **Fly.io** hosts the 6 backend apps: `allsource-core`, `allsource-query`, `allsource-control-plane`, `allsource-auth`, `allsource-prime`, `allsource-registry`. Deploy with `fly deploy` (see each app's `fly.toml`).
+- **Vercel** hosts the web frontend at `https://www.all-source.xyz` (apex + www). There is **no** `allsource-web` Fly app — it was destroyed on 2026-04-15 after being accidentally redeployed. **Do NOT** run `fly deploy` for anything under `apps/web/`. There is intentionally no `apps/web/fly.toml`. Frontend changes ship via `git push origin main` (Vercel auto-build) or `vercel --prod`.
+- Vercel env vars (`NEXT_PUBLIC_API_URL`, `CONTROL_PLANE_INTERNAL_URL`, OAuth client IDs) are configured in the Vercel dashboard, not in any `fly.toml`.
+- If `allsource-web` ever appears in `fly apps list`, that's a regression — flag it and destroy it.
+
 ## Core API
 
 All Core endpoints use the `/api/v1/` prefix. Key endpoints:

@@ -9,16 +9,18 @@ Generate a comprehensive status report for all AllSource services deployed on Fl
 
 ## Apps to Check
 
-All apps in the `allsource` and `personal` orgs:
+All AllSource **backend** apps on Fly. The web frontend is on **Vercel** at `https://all-source.xyz` — it is NOT on Fly and should never be added here.
 
 | App Name | Service | Expected State |
 |----------|---------|----------------|
 | allsource-core | Rust event store | always running |
 | allsource-query | Elixir query service | always running |
 | allsource-control-plane | Go control plane | auto-stop (may be stopped when idle) |
-| allsource-web | Next.js dashboard | always running (may have spare stopped machine) |
+| allsource-auth | Rust auth service | always running |
 | allsource-prime | Rust Prime MCP server | always running |
 | allsource-registry | Rust package registry | always running |
+
+If an `allsource-web` app ever appears in `fly apps list`, flag it immediately — it was destroyed on 2026-04-15 and should not be recreated. The frontend lives on Vercel.
 
 Also check `alphasigmapro-*` apps if they exist.
 
@@ -114,7 +116,6 @@ Or: "No crashes detected. All services healthy."
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Control plane stopped | Auto-stop on idle | Normal — starts on next request |
-| Web has stopped machine | Spare machine auto-stopped | Normal — primary handles traffic |
 | Health check warning on stopped machine | Machine not running | Normal if auto-stop |
 | Image very old (>7 days) | No recent deploy | Deploy latest: `fly deploy -a <app>` |
 | OOM killed | Memory limit too low | Scale up: `fly scale memory 1024 -a <app>` |
@@ -132,8 +133,8 @@ cd apps/query-service && fly deploy
 # Control Plane
 cd apps/control-plane && fly deploy
 
-# Web (needs monorepo root context)
-fly deploy -c apps/web/fly.toml --dockerfile apps/web/Dockerfile
+# Web — NOT ON FLY. Frontend is on Vercel at https://all-source.xyz.
+# Do not run `fly deploy` for web. Redeploy via Vercel (git push to main, or `vercel --prod`).
 
 # Prime (needs monorepo root context)
 fly deploy --config apps/prime-mcp/fly.toml --dockerfile apps/prime-mcp/Dockerfile
