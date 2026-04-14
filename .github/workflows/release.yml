@@ -232,13 +232,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # x86_64-apple-darwin is intentionally omitted: the `ort` crate (ONNX
+        # runtime, pulled in via `fastembed`) does not publish prebuilt
+        # binaries for macOS Intel. Building ONNX Runtime from source in CI
+        # is not worth the added ~15 min, and Apple Silicon has been shipping
+        # for 5+ years. Intel macOS users can build from source or use the
+        # Linux x86_64 binary under Rosetta.
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: allsource-prime-linux-x86_64
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact: allsource-prime-macos-x86_64
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: allsource-prime-macos-aarch64
