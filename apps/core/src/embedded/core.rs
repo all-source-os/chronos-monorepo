@@ -863,6 +863,16 @@ impl EmbeddedCore {
         Arc::clone(&self.store)
     }
 
+    /// Subscribe to live events ingested through this instance.
+    ///
+    /// Returns a `broadcast::Receiver<Arc<Event>>` that yields each event as
+    /// it lands. Consumers that fall behind get `RecvError::Lagged(n)`. Use
+    /// this to build live-reload UIs (TUI, web dashboards) without going
+    /// through HTTP/WebSocket.
+    pub fn subscribe_events(&self) -> tokio::sync::broadcast::Receiver<Arc<Event>> {
+        self.store.subscribe_events()
+    }
+
     /// Flush WAL and Parquet storage, then shut down cleanly.
     ///
     /// Aborts the background fsync task (if running) and performs a final

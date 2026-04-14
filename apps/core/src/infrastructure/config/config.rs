@@ -27,10 +27,7 @@ fn validate_config_path(path: &Path) -> Result<()> {
             "config path contains a null byte".to_string(),
         ));
     }
-    if path
-        .components()
-        .any(|c| matches!(c, Component::ParentDir))
-    {
+    if path.components().any(|c| matches!(c, Component::ParentDir)) {
         return Err(AllSourceError::ValidationError(
             "config path must not contain '..' components".to_string(),
         ));

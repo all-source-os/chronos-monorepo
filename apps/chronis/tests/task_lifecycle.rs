@@ -20,7 +20,7 @@ async fn setup() -> CoreTaskRepository {
             &(Arc::new(TaskProjection::new()) as Arc<dyn allsource_core::application::Projection>),
         )
         .expect("projection");
-    let backend = Arc::new(CoreBackend::Embedded(core));
+    let backend = Arc::new(CoreBackend::new_embedded(core));
     CoreTaskRepository::new(backend)
 }
 

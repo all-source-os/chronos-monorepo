@@ -1,25 +1,18 @@
 use super::app::{App, InputMode, View};
 use crate::domain::{repository::TaskRepository, task::TaskStatus};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
-use std::time::Duration;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub enum AppEvent {
+    /// Fallback timer tick — fires if the backend subscription is quiet.
     Tick,
+    /// Live change notification from `CoreBackend::subscribe()`.
+    BackendChanged,
     Key(KeyEvent),
-}
-
-pub fn poll_event(timeout: Duration) -> std::io::Result<Option<AppEvent>> {
-    if event::poll(timeout)?
-        && let Event::Key(key) = event::read()?
-    {
-        return Ok(Some(AppEvent::Key(key)));
-    }
-    Ok(Some(AppEvent::Tick))
 }
 
 pub async fn handle_event<R: TaskRepository>(app: &mut App<R>, evt: AppEvent) {
     match evt {
-        AppEvent::Tick => {
+        AppEvent::Tick | AppEvent::BackendChanged => {
             app.refresh();
         }
         AppEvent::Key(key) => {

@@ -18,7 +18,7 @@
       </nav>
       <div class="stats-bar"
            hx-get="/partials/stats"
-           hx-trigger="load, every 2s, refresh from:body"
+           hx-trigger="load, refresh from:body, every 30s"
            hx-swap="innerHTML">
       </div>
     </header>
@@ -54,7 +54,7 @@
           </thead>
           <tbody id="task-list"
                  hx-get="/partials/task-list"
-                 hx-trigger="load, every 2s, refresh from:body"
+                 hx-trigger="load, refresh from:body, every 30s"
                  hx-swap="innerHTML">
           </tbody>
         </table>
@@ -166,6 +166,23 @@
         filterTasks();
       }
     });
+
+    // Live reload via SSE: when the backend signals a change, dispatch a
+    // 'refresh' event on body, which htmx partials listen for via
+    // hx-trigger="refresh from:body". Reconnects automatically on drop.
+    (function () {
+      function connect() {
+        var es = new EventSource('/events/stream');
+        es.onmessage = function () {
+          htmx.trigger(document.body, 'refresh');
+        };
+        es.onerror = function () {
+          es.close();
+          setTimeout(connect, 1000);
+        };
+      }
+      connect();
+    })();
   </script>
 </body>
 </html>

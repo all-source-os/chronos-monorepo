@@ -1,6 +1,6 @@
 [package]
 name = "chronis"
-version = "0.6.2"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.92"
 description = "Event-sourced task CLI powered by the AllSource embedded database (all-source.xyz)"
@@ -20,7 +20,7 @@ name = "cn"
 path = "src/main.rs"
 
 [dependencies]
-allsource-core = { version = "0.17.1", path = "../core", default-features = false, features = [
+allsource-core = { version = "0.18", path = "../core", default-features = false, features = [
     "embedded",
     "embedded-replicant",
     "embedded-projections",
@@ -44,6 +44,9 @@ serde_json = "1.0"
 tabled = "0.17"
 thiserror = "2.0"
 tokio = { version = "1.48", features = ["full"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
+futures-util = "0.3"
+tokio-stream = { version = "0.1", features = ["sync"] }
 tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 uuid = { version = "1", features = ["serde"] }

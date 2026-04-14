@@ -65,7 +65,18 @@ impl Workspace {
                     )
                     .map_err(|e| CoreError(e.to_string()))?;
 
-                CoreBackend::Embedded(core)
+                let backend = CoreBackend::new_embedded(core);
+
+                // Spawn the WAL-tail task so changes from another chronis
+                // process sharing this `.chronis/` directory show up live.
+                if let Some((change_tx, core)) = backend.embedded_change_sender() {
+                    let wal_dir = data_dir.join("wal");
+                    tokio::spawn(async move {
+                        super::wal_tail::run_wal_tail(wal_dir, core, change_tx).await;
+                    });
+                }
+
+                backend
             }
             CoreMode::Remote => {
                 let url = config.remote_url().ok_or_else(|| {
@@ -109,7 +120,22 @@ impl Workspace {
                         .map_err(|e| CoreError(e.to_string()))?;
                 }
 
-                CoreBackend::Remote { client, local }
+                let backend = CoreBackend::new_remote(client, Arc::clone(&local));
+
+                // Spawn the WebSocket live-stream client so subscribers see
+                // events arrive in real time without HTTP polling.
+                let ws_url = derive_ws_url(url);
+                let api_key = config.api_key().map(|s| s.to_string());
+                let change_tx = backend
+                    .remote_change_sender()
+                    .expect("remote backend has a change_tx");
+                let local_for_task = Arc::clone(&local);
+                tokio::spawn(async move {
+                    super::remote_stream::run_ws_client(ws_url, api_key, local_for_task, change_tx)
+                        .await;
+                });
+
+                backend
             }
         };
 
@@ -136,7 +162,7 @@ impl Workspace {
             return Ok(());
         };
         match backend {
-            CoreBackend::Embedded(core) => match Arc::into_inner(core) {
+            CoreBackend::Embedded { core, .. } => match Arc::into_inner(core) {
                 Some(core) => core
                     .shutdown()
                     .await
@@ -146,6 +172,22 @@ impl Workspace {
             CoreBackend::Remote { .. } => Ok(()),
         }
     }
+}
+
+/// Convert an HTTP(S) Core URL into the WebSocket live-stream URL.
+///
+/// `http://localhost:3900` becomes `ws://localhost:3900/api/v1/events/stream`;
+/// `https://core.example.com` becomes `wss://core.example.com/api/v1/events/stream`.
+fn derive_ws_url(http_url: &str) -> String {
+    let trimmed = http_url.trim_end_matches('/');
+    let base = if let Some(rest) = trimmed.strip_prefix("https://") {
+        format!("wss://{rest}")
+    } else if let Some(rest) = trimmed.strip_prefix("http://") {
+        format!("ws://{rest}")
+    } else {
+        trimmed.to_string()
+    };
+    format!("{base}/api/v1/events/stream")
 }
 
 /// Create a new .chronis/ workspace in the given directory.
