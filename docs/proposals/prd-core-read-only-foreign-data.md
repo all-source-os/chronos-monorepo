@@ -9,24 +9,24 @@
 
 Let the `allsource-core` binary boot in a **read-only query mode** against a data directory produced by another process (typically a Tauri / desktop app that embeds `allsource-core` as a library). In this mode Core replays existing WAL + Parquet files, serves queries over HTTP / WebSocket / MCP, and rejects every write path with HTTP 403. It performs no bootstrap, no tenant creation, no schema registration, no auth enforcement, and no background compaction.
 
-The target use case is debugging: point a stock `ghcr.io/all-source-os/allsource-core:latest` container at `~/.longhand/data` and ask Claude Code (via MCP) or a browser to query the events in place, without the app having to expose them over HTTP itself.
+The target use case is debugging: point a stock `ghcr.io/all-source-os/allsource-core:latest` container at an embedded client's data directory and ask Claude Code (via MCP) or a browser to query the events in place, without the client app having to expose them over HTTP itself.
 
 ## Problem Statement
 
 Today `allsource-core` **already replays on startup** — `EventStore::with_config` at `apps/core/src/store.rs` (the `// Step 1: Load persisted events from Parquet` block near line 245, followed by the `// Step 2: Recover WAL events` block near line 293) reads every Parquet row from `ALLSOURCE_DATA_DIR/storage/`, recovers the WAL from `ALLSOURCE_DATA_DIR/wal/`, re-indexes each event, and re-runs all registered projections. The issue is not that replay is missing. The issue is that none of it fires in the scenario the user actually needs:
 
 ```bash
-docker run --rm -v "/longhand/data:/data" -e DATA_DIR=/data -p 3900:3900 \
+docker run --rm -v "/path/to/app/data:/data" -e DATA_DIR=/data -p 3900:3900 \
   ghcr.io/all-source-os/allsource-core:latest
 # Health endpoint: {"total_events": 0}
-# Despite /longhand/data containing 400+ Parquet files and an active WAL
+# Despite the mounted directory containing 400+ Parquet files and an active WAL
 ```
 
 There are **four independent failure modes**, each of which alone produces the zero-events symptom:
 
 1. **Env var name.** Core reads `ALLSOURCE_DATA_DIR`. The user (and the Docker image docs, and anyone copying from similar projects) naturally types `DATA_DIR`. When `ALLSOURCE_DATA_DIR` is unset, `EventStoreConfig::from_env_vars` (in `store.rs`, around line 1721 in the `impl EventStoreConfig` block) falls all the way through to `Self::default()` — the `"in-memory"` branch — and writes `Persistence: NONE (in-memory only)` to the log. The container is running in-memory over a full on-disk dataset and nobody notices because the log line is one line among dozens at boot.
 
-2. **Directory layout.** Core expects the data directory to contain two subdirectories: `storage/` (Parquet files) and `wal/` (WAL segments). An embedded client is free to lay out its data however it wants — Longhand 0.13.x predates the subdir convention used by the current binary, and puts files at the root of its data dir. Even with `ALLSOURCE_DATA_DIR` set correctly, Core reads an empty `<dir>/storage` and `<dir>/wal`.
+2. **Directory layout.** Core expects the data directory to contain two subdirectories: `storage/` (Parquet files) and `wal/` (WAL segments). An embedded client is free to lay out its data however it wants — clients on older `allsource-core` versions predate the subdir convention used by the current binary and put files at the root of the data dir. Even with `ALLSOURCE_DATA_DIR` set correctly, Core reads an empty `<dir>/storage` and `<dir>/wal`.
 
 3. **Tenant filter.** Every event carries a `tenant_id`. Every read-path HTTP handler filters results by the caller's JWT `tenant_id` claim. The bootstrap tenant Core creates at startup (`ALLSOURCE_BOOTSTRAP_TENANT`, default `default`) has no relationship to the tenant the embedded client wrote against. Even after a successful replay, an admin token scoped to `default` would see zero events from a foreign app.
 
@@ -56,7 +56,7 @@ This PRD solves (1), (2), and (3) as a single coherent feature. Schema drift (4)
 
 ```bash
 docker run --rm \
-  -v "/longhand/data:/data:ro" \
+  -v "/path/to/app/data:/data:ro" \
   -e ALLSOURCE_DATA_DIR=/data \
   -e CORE_READ_ONLY=true \
   -p 3900:3900 \
@@ -186,16 +186,16 @@ The gating is an `if !config.read_only { ... }` block around each `tokio::spawn`
 - `test_replays_foreign_dir_subdirs` — spin up Core with a tempdir that has pre-written `storage/*.parquet` + `wal/*.log`, assert `/health` shows the right event count and `/api/v1/events/query` returns them all.
 - `test_replays_foreign_dir_flat` — same but flat layout.
 - `test_write_rejected_with_403` — send `POST /api/v1/events` in read-only mode, assert 403 with the read-only error body.
-- `test_tenant_filter_bypassed_in_read_only` — events were written under tenant `longhand-abc`, query with no JWT, expect all events back.
+- `test_tenant_filter_bypassed_in_read_only` — events were written under an arbitrary foreign tenant id (e.g. `foreign-tenant-abc`), query with no JWT, expect all events back.
 - `test_health_reports_mode` — `/health.read_only == true` and `/health.total_events` matches the replayed count.
 
 ### End-to-end (deferred stretch per earlier decision, tracked as follow-up)
 
 - `tools/e2e/read_only_foreign_data_spec.ts` — full docker + curl flow matching the issue reproduction. Run manually on release; not part of default CI.
 
-### Manual verification against Longhand
+### Manual verification against a real embedded-client data dir
 
-The core shipping requirement is: the exact reproduction from issue #130 returns a non-zero event count when the env vars include `ALLSOURCE_DATA_DIR=/data` and `CORE_READ_ONLY=true`. This is done by hand on the issue author's own data dir before merging.
+The core shipping requirement is: the exact reproduction from issue #130 returns a non-zero event count when the env vars include `ALLSOURCE_DATA_DIR=/data` and `CORE_READ_ONLY=true`. This is done by hand against a real embedded-client data dir before merging.
 
 ## Rollout
 
@@ -241,6 +241,6 @@ These three questions don't block the PRD — they each have a default answer I'
 3. **Middleware + write gate** — hook into dev-mode auth bypass, add the write-guard tower middleware, extend `/health`.
 4. **Integration tests** — the five tests above. These prove the reproduction from the issue actually works.
 5. **Docs** — new guide, update `docs/README.md` index, update `docs/deployment/DOCKER.md`.
-6. **Manual verification against Longhand** — run against the issue author's real data dir, link the verification output from the closing comment on #130.
+6. **Manual verification against a real embedded-client data dir** — run against a real data dir, link the verification output from the closing comment on #130.
 
 Each step is a separately-reviewable commit. The whole thing fits in one PR.
