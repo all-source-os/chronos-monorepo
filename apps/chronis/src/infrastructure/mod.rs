@@ -6,6 +6,8 @@ pub mod id;
 #[cfg(feature = "prime")]
 pub mod prime_memory;
 pub mod projection;
+pub mod remote_stream;
+pub mod wal_tail;
 pub mod workspace;
 
 /// Read the agent identifier from `CN_AGENT_ID` env var, defaulting to `"human"`.

@@ -23,6 +23,10 @@ impl CoreTaskRepository {
         &self.backend
     }
 
+    pub fn backend_arc(&self) -> &Arc<CoreBackend> {
+        &self.backend
+    }
+
     fn value_to_task(&self, value: &serde_json::Value) -> Result<Task, ChronError> {
         serde_json::from_value::<Task>(value.clone())
             .map_err(|e| CoreError(format!("failed to deserialize task: {e}")).into())

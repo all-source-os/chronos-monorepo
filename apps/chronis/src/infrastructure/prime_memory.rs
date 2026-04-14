@@ -6,12 +6,11 @@
 //! - `cn context` — compressed index of all tasks for agent injection
 //! - `cn find "query"` — semantic search (requires `prime-full`)
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use allsource_core::prime::Prime;
-use std::sync::RwLock;
 use serde_json::json;
+use std::sync::RwLock;
 
 use crate::domain::{error::ChronError, task::Task};
 
@@ -66,7 +65,10 @@ impl TaskMemory {
 
         #[allow(deprecated)]
         let entity_id = allsource_core::prime::node_entity_id("task", node_id.as_str());
-        self.id_map.write().unwrap().insert(task.id.clone(), entity_id);
+        self.id_map
+            .write()
+            .unwrap()
+            .insert(task.id.clone(), entity_id);
 
         Ok(())
     }
@@ -81,7 +83,10 @@ impl TaskMemory {
         // Parent → child_of edge
         if let Some(ref parent_id) = task.parent {
             if let Some(target) = self.entity_id(parent_id) {
-                let _ = self.prime.add_edge(&source, &target, "child_of", None).await;
+                let _ = self
+                    .prime
+                    .add_edge(&source, &target, "child_of", None)
+                    .await;
             }
         }
 
@@ -143,11 +148,7 @@ impl TaskMemory {
 #[cfg(feature = "prime-full")]
 impl TaskMemory {
     /// Embed a task's title + description for semantic search.
-    pub async fn embed_task(
-        &self,
-        task: &Task,
-        vector: Vec<f32>,
-    ) -> Result<(), ChronError> {
+    pub async fn embed_task(&self, task: &Task, vector: Vec<f32>) -> Result<(), ChronError> {
         let Some(entity_id) = self.entity_id(&task.id) else {
             return Err(ChronError::Prime("task not indexed yet".into()));
         };

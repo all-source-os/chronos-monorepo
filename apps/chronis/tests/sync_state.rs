@@ -27,7 +27,7 @@ async fn remote_backend_local_only() -> CoreBackend {
     let local = embedded_core().await;
     // Use a dummy client — we won't call it in these tests
     let client = chronis::infrastructure::http_core_client::HttpCoreClient::new("http://unused");
-    CoreBackend::Remote { client, local }
+    CoreBackend::new_remote(client, local)
 }
 
 // ── Embedded backend tests ──────────────────────────────────────────────
@@ -35,7 +35,7 @@ async fn remote_backend_local_only() -> CoreBackend {
 #[tokio::test]
 async fn backend_embedded_ingest_and_query() {
     let core = embedded_core().await;
-    let backend = CoreBackend::Embedded(core);
+    let backend = CoreBackend::new_embedded(core);
 
     backend
         .ingest(IngestEvent {
@@ -57,7 +57,7 @@ async fn backend_embedded_ingest_and_query() {
 #[tokio::test]
 async fn backend_embedded_projection() {
     let core = embedded_core().await;
-    let backend = CoreBackend::Embedded(core);
+    let backend = CoreBackend::new_embedded(core);
 
     backend
         .ingest(IngestEvent {
@@ -79,7 +79,7 @@ async fn backend_embedded_projection() {
 #[tokio::test]
 async fn backend_embedded_query_with_entity_filter() {
     let core = embedded_core().await;
-    let backend = CoreBackend::Embedded(core);
+    let backend = CoreBackend::new_embedded(core);
 
     backend
         .ingest(IngestEvent {

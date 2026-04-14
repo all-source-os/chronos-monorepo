@@ -112,6 +112,11 @@ pub struct EventStore {
 
     /// Durable consumer registry for subscription cursor tracking (v0.14 feature)
     consumer_registry: Arc<ConsumerRegistry>,
+
+    /// In-process broadcast of every successfully-ingested event. Always enabled
+    /// so embedded consumers (TUI, web) can tail changes without the `server`
+    /// feature / HTTP stack. Lagging receivers see `RecvError::Lagged`.
+    event_broadcast_tx: tokio::sync::broadcast::Sender<Arc<Event>>,
 }
 
 /// A task queued for async webhook delivery
@@ -203,6 +208,10 @@ impl EventStore {
             w
         };
 
+        // Unconditional in-process event broadcaster so embedded consumers
+        // (TUI, web) can live-reload without the `server` feature.
+        let (event_broadcast_tx, _) = tokio::sync::broadcast::channel(1024);
+
         let store = Self {
             events: Arc::new(RwLock::new(Vec::new())),
             index: Arc::new(EventIndex::new()),
@@ -230,6 +239,7 @@ impl EventStore {
             schema_evolution: Arc::new(SchemaEvolutionManager::new()),
             entity_versions: Arc::new(DashMap::new()),
             consumer_registry: Arc::new(ConsumerRegistry::new()),
+            event_broadcast_tx,
         };
 
         // Step 1: Load persisted events from Parquet (the durable baseline)
@@ -478,10 +488,11 @@ impl EventStore {
         let total_events = events.len();
         drop(events);
 
-        // Broadcast to WebSocket clients
+        // Broadcast to in-process subscribers (always on) + optional WS.
+        let event_arc = Arc::new(event.clone());
+        let _ = self.event_broadcast_tx.send(Arc::clone(&event_arc));
         #[cfg(feature = "server")]
-        self.websocket_manager
-            .broadcast_event(Arc::new(event.clone()));
+        self.websocket_manager.broadcast_event(event_arc);
 
         // Dispatch to matching webhook subscriptions
         #[cfg(feature = "server")]
@@ -601,10 +612,11 @@ impl EventStore {
         let total_events = events.len();
         drop(events); // Release lock early
 
-        // Broadcast to WebSocket clients (v0.2 feature)
+        // Broadcast to in-process subscribers + optional WS.
+        let event_arc = Arc::new(event.clone());
+        let _ = self.event_broadcast_tx.send(Arc::clone(&event_arc));
         #[cfg(feature = "server")]
-        self.websocket_manager
-            .broadcast_event(Arc::new(event.clone()));
+        self.websocket_manager.broadcast_event(event_arc);
 
         // Dispatch to matching webhook subscriptions (v0.11 feature)
         #[cfg(feature = "server")]
@@ -700,6 +712,9 @@ impl EventStore {
                 .entry(event.entity_id_str().to_string())
                 .or_insert(0) += 1;
 
+            // Broadcast to in-process subscribers
+            let _ = self.event_broadcast_tx.send(Arc::new(event.clone()));
+
             events.push(event);
         }
 
@@ -762,10 +777,11 @@ impl EventStore {
         let total_events = events.len();
         drop(events);
 
-        // Broadcast to WebSocket clients
+        // Broadcast to in-process subscribers + optional WS.
+        let event_arc = Arc::new(event.clone());
+        let _ = self.event_broadcast_tx.send(Arc::clone(&event_arc));
         #[cfg(feature = "server")]
-        self.websocket_manager
-            .broadcast_event(Arc::new(event.clone()));
+        self.websocket_manager.broadcast_event(event_arc);
 
         // Update metrics
         #[cfg(feature = "server")]
@@ -803,6 +819,15 @@ impl EventStore {
     /// Get the consumer registry for durable subscriptions.
     pub fn consumer_registry(&self) -> &ConsumerRegistry {
         &self.consumer_registry
+    }
+
+    /// Subscribe to every successfully-ingested event in this store.
+    ///
+    /// Returns a `tokio::sync::broadcast::Receiver` that yields an `Arc<Event>`
+    /// for each ingest. Always available — does not require the `server`
+    /// feature. Lagging receivers surface `RecvError::Lagged`.
+    pub fn subscribe_events(&self) -> tokio::sync::broadcast::Receiver<Arc<Event>> {
+        self.event_broadcast_tx.subscribe()
     }
 
     /// Replace the default in-memory consumer registry with a durable one.

@@ -199,7 +199,10 @@ impl HttpCoreClient {
             metadata,
             tenant_id,
         };
-        let http_req = self.client.post(format!("{}/api/v1/events", self.base_url)).json(&req);
+        let http_req = self
+            .client
+            .post(format!("{}/api/v1/events", self.base_url))
+            .json(&req);
         let resp = self
             .auth(http_req)
             .send()

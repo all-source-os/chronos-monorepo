@@ -2,6 +2,7 @@ mod api;
 mod error;
 pub mod html;
 mod partials;
+mod sse;
 
 use axum::{
     http::header,
@@ -13,6 +14,7 @@ pub use api::{api_approve, api_claim, api_done, api_export, api_task_detail, api
 pub use partials::{
     partial_graph, partial_kanban, partial_stats, partial_task_detail, partial_task_list,
 };
+pub use sse::events_stream;
 
 // --- Static assets ---
 

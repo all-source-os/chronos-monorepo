@@ -18,7 +18,7 @@
       </nav>
       <div class="stats-bar"
            hx-get="/partials/stats"
-           hx-trigger="load, every 2s, refresh from:body"
+           hx-trigger="load, refresh from:body, every 30s"
            hx-swap="innerHTML">
       </div>
     </header>
@@ -34,7 +34,7 @@
     <div style="display: grid; grid-template-columns: 1fr 380px; gap: 16px;">
       <div id="kanban-container"
            hx-get="/partials/kanban"
-           hx-trigger="load, every 2s, refresh from:body"
+           hx-trigger="load, refresh from:body, every 30s"
            hx-swap="innerHTML">
       </div>
 
@@ -82,6 +82,21 @@
         filterCards();
       }
     });
+
+    // Live reload via SSE
+    (function () {
+      function connect() {
+        var es = new EventSource('/events/stream');
+        es.onmessage = function () {
+          htmx.trigger(document.body, 'refresh');
+        };
+        es.onerror = function () {
+          es.close();
+          setTimeout(connect, 1000);
+        };
+      }
+      connect();
+    })();
   </script>
 </body>
 </html>
