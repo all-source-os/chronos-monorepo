@@ -26,6 +26,8 @@ bd sync               # Sync with git
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
 
+> **Branch policy:** This repo uses **main-branch-first** — commit and push directly to `main`, no feature branches, no PRs for routine work. See the **Git Workflow** section of [`CLAUDE.md`](CLAUDE.md) for the full rules, exceptions, and the release-tag carve-out. The workflow below assumes `main` is your working branch.
+
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
@@ -33,20 +35,23 @@ bd sync               # Sync with git
 3. **Update issue status** - Close finished work, update in-progress items
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
+   git branch --show-current  # MUST print "main" — verify before pushing
    git pull --rebase
-   cn sync --git       # or: bd sync
-   git push
-   git status  # MUST show "up to date with origin"
+   cn sync --git              # or: bd sync
+   git push origin main
+   git status                 # MUST show "up to date with origin/main"
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
+5. **Clean up** - Clear stashes, prune stale local branches
+6. **Verify** - All changes committed AND pushed to `main`
 7. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
+- NEVER say "ready to push when you are" - YOU must push (except for releases — tag pushes still need explicit user confirmation per the release skill)
+- NEVER force-push `main`. If you need to rewrite history, stop and ask.
 - If push fails, resolve and retry until it succeeds
+- Always verify `git branch --show-current` returns `main` before committing — there is a known branch-slip quirk where HEAD can flip between tool calls
 
 
 <!-- bv-agent-instructions-v1 -->

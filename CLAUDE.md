@@ -114,3 +114,31 @@ See `docs/proposals/CORE_REPLICATION_DESIGN.md`:
 - Leader-follower replication via WAL shipping
 - Query Service routes writes to leader, reads round-robin across followers
 - No Raft, no PostgreSQL in the event path, no multi-leader
+
+## Git Workflow
+
+**Default: commit direct to `main`. Do NOT create feature branches or open pull requests for routine work.**
+
+This repo is maintained by a single owner who reviews changes at commit time, not PR time. Going through feature-branch-and-PR for docs, fixes, and features adds rounds without adding review value. Branching/PR flows also surface a recurring local `HEAD` branch-slip bug that has cost time debugging git mechanics instead of shipping.
+
+### Rules
+
+- **Default workflow:** `git status` → `git add <paths>` → `git commit` → `git push origin main`. No branches. No `gh pr create`.
+- **Always verify `git branch --show-current` before committing.** The branch-slip bug can flip HEAD between tool calls. If you aren't on `main`, fix it before staging.
+- **Always run `git status` before committing.** Include related dirty files in the same commit or flag them to the user. Never leave the tree messy after a push.
+- **NEVER force-push `main`.** Force-pushing a feature branch to update a PR was fine under the old flow; force-pushing `main` is not. If you need to rewrite history, stop and ask.
+- **NEVER push `--tags` or run `git tag` without the user's explicit go-ahead.** Releases are the one place where "user manually pushes" still applies — see `.claude/skills/chronos-release/SKILL.md` and the release discipline note in `MEMORY.md`.
+- **NEVER bypass hooks or signing.** No `--no-verify`, no `-c commit.gpgsign=false`. If a hook fails, fix the underlying issue.
+
+### Exceptions — when a branch or PR IS still the right call
+
+Use judgment, and ask if unsure:
+
+- **User explicitly asks for a PR** — honor the request.
+- **External contributions** from anyone other than the repo owner.
+- **Experimental / WIP work** the user wants reviewable without it landing on `main`.
+- **Releases** — the release flow still runs on `main` directly (see the release skill), but tag push requires explicit user confirmation.
+
+### What this replaces
+
+Any advice from prior sessions or auto-memory entries about "push to a feature branch first" or "open a PR before merging" no longer applies for routine work on this repo. The main-branch-first workflow is the authoritative default.

@@ -1,17 +1,21 @@
 ---
 title: "Branch Protection Settings"
-status: CURRENT
-last_updated: 2026-02-02
+status: REFERENCE
+last_updated: 2026-04-14
 category: guide
 ---
 
 # Branch Protection Settings
 
-**Date**: February 2026
-**Status**: RECOMMENDED
-**Audience**: Repository Maintainers
+**Date**: February 2026 (last reviewed April 2026)
+**Status**: REFERENCE for multi-contributor deployments
+**Audience**: Repository Maintainers running forks or multi-contributor deployments of AllSource
 
-This document provides recommended branch protection settings for the AllSource monorepo to ensure code quality, security, and collaborative review processes.
+> ⚠️ **Not the workflow for this repo's day-to-day work.** The upstream `all-source-os/all-source` repository is maintained by a single owner who commits directly to `main`. See the **Git Workflow** section of [`CLAUDE.md`](../../CLAUDE.md) for the authoritative contributor guidance here: no feature branches, no PRs for routine work, direct `git push origin main`.
+>
+> This document remains available as a reference for **downstream maintainers** running forks, multi-contributor deployments, or regulated environments who need a stricter PR-based review workflow. The recommendations below (required status checks, required reviews, signed commits, etc.) are all still sound advice in that context — they just aren't enforced on this upstream repo.
+
+This document provides recommended branch protection settings for the AllSource monorepo in deployments that require collaborative PR review — for example, forks run by a team with multiple committers or deployments with compliance requirements.
 
 ---
 

@@ -1,8 +1,8 @@
 # AllSource Launch Checklist
 
 **Last reviewed:** 2026-04-14
-**Current versions:** Core v0.18.1 · Query Service v0.18.1 · Web v0.18.1
-**Active branches:** `main` (general), `feat/agent-auth-x402` (x402 + agent registration)
+**Current versions:** Core v0.18.2 · Query Service v0.18.2 · Web v0.18.2
+**Active branches:** `main` — x402 + agent registration are already merged. The `feat/agent-auth-x402` branch is historical.
 
 Single source of truth for what's left to launch. Supersedes the 6 archived docs under `docs/launch/archived/`. Pair with `docs/launch/CHRONIS_CLOUD_LAUNCH_PLAN.md` for the chronis cloud sync launch specifically.
 
@@ -26,7 +26,7 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 
 - [ ] `fly deploy -a allsource-core` from `apps/core/` — verify `/health` 200, WAL replay clean in logs
 - [ ] `fly deploy -a allsource-query-service` from `apps/query-service/` — secrets below set first
-- [ ] `fly deploy -a allsource-control-plane` from `apps/control-plane/` — from `feat/agent-auth-x402` branch
+- [ ] `fly deploy -a allsource-control-plane` from `apps/control-plane/` (x402 already on main)
 - [ ] `fly deploy -c apps/web/fly.toml --dockerfile apps/web/Dockerfile` from repo root
 - [ ] Autoscale min=1 on Core (cold starts break chronis sync UX)
 - [ ] Fly alerts on Core/QS `/health` failures
@@ -43,7 +43,7 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 
 ## Phase C — x402 & agent auth (blocker for agent use case)
 
-- [ ] Land `feat/agent-auth-x402` → `main` once smoke-tested in staging
+- [x] x402 + agent registration merged to main (verified `apps/control-plane/internal/infrastructure/x402/` present on origin/main)
 - [ ] Commit `apps/control-plane/config/x402-pricing.json` (routes: `POST /api/v1/events` $0.0001, `GET /api/v1/events/query` $0.001; free tier 10K/1K)
 - [ ] Verify `GET /x402/routes` lists priced routes in production
 - [ ] Verify 402 flow: unauth request to priced route → `402 Payment Required` with instructions
@@ -52,8 +52,8 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 
 ## Phase D — Tenant bootstrap & chronis sync
 
-- [ ] Bootstrap admin key via `fly ssh console -a allsource-core` → `allsource-core bootstrap --tenant-id default --email you@example.com`
-- [ ] Store bootstrap key in 1Password (not git)
+- [ ] Bootstrap admin key via Fly secrets (Core reads `ALLSOURCE_BOOTSTRAP_TENANT` and `ALLSOURCE_BOOTSTRAP_API_KEY` at startup — there is **no** `bootstrap` subcommand): `fly secrets set ALLSOURCE_BOOTSTRAP_TENANT=default ALLSOURCE_BOOTSTRAP_API_KEY=$(openssl rand -hex 32) -a allsource-core`
+- [ ] Store bootstrap key in 1Password (not git); rotate after first real tenant exists
 - [ ] Create team tenant + per-user API keys via `POST /api/v1/tenants` and `POST /api/v1/auth/api-keys`
 - [ ] Each team member: populate `.chronis/config.toml` (`mode = "remote"`, `remote_url`, `api_key`) — see `CHRONIS_CLOUD_LAUNCH_PLAN.md`
 - [ ] End-to-end: Alice `cn add` → Bob `cn sync` → Bob `cn list` shows it
@@ -62,13 +62,14 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 
 - [ ] **Unified auth**: OAuth signup → Control Plane auto-provisions Core API key, surfaces it in dashboard API Keys page (`docs/proposals/UNIFIED_AUTH_TEAMS.md`)
 - [ ] **Billing enforcement**: LemonSqueezy webhook → tenant plan bump → x402 middleware bypass for paid tenants
-- [ ] Dashboard stats cards fetch from `/api/v1/events/stats` instead of client-side mock (`apps/web/src/components/dashboard/`)
+- [x] Dashboard stats cards fetch real data via `apps/web/src/hooks/use-dashboard-stats.ts` (Promise.all over `getTenantUsage`/`listProjections`/`getMetrics`)
+- [ ] `apps/web/src/components/dashboard/live-metrics.tsx` still has `latencyP99: 11.9` / `throughput: 0` fallbacks via `??` — wire to real metrics or drop the defaults
 - [ ] Live event feed: replace simulated stream with WebSocket → `CORE_WS_URL` (Query Service already proxies)
 - [ ] Event explorer: remove demo-data fallback, show empty state for new tenants
 
 ## Phase F — Product polish (post-launch OK)
 
-- [ ] Settings page content (currently skeleton)
+- [x] Settings page content — already shipped (`apps/web/src/app/dashboard/settings/page.tsx`: profile, security, notifications tabs)
 - [ ] Projections/Pipelines page content (currently minimal)
 - [ ] Privacy Policy + Terms of Service pages
 - [ ] SLO definition: latency p99, uptime %, error rate — pre-req for SLA monitoring
