@@ -1,6 +1,6 @@
 {
   "name": "@allsource/client",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "JavaScript/TypeScript client for the AllSource event store API",
   "license": "MIT",
   "main": "./dist/index.js",
