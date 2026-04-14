@@ -10,13 +10,26 @@ npm install @allsource/client
 bun add @allsource/client
 ```
 
+## Authentication
+
+AllSource uses API keys. Get one from your dashboard at [all-source.xyz](https://all-source.xyz) (Settings → API Keys) or mint one via `POST /api/v1/auth/api-keys` if you have an admin token. Keys are sent in the `X-API-Key` header; the SDK handles this for you when you pass `apiKey` to the constructor.
+
+Store the key in an env var rather than hard-coding:
+
+```typescript
+const client = new AllSourceClient({
+  baseUrl: "https://api.all-source.xyz",
+  apiKey: process.env.ALLSOURCE_API_KEY!,
+});
+```
+
 ## Quick Start
 
 ```typescript
 import { AllSourceClient } from "@allsource/client";
 
 const client = new AllSourceClient({
-  baseUrl: "https://allsource-query.fly.dev",
+  baseUrl: "https://api.all-source.xyz",
   apiKey: "your-api-key",
 });
 

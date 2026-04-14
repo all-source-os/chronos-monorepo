@@ -243,7 +243,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		facilitatorURL = x402.CoinbaseX402FacilitatorURL
 	}
 	var x402Facilitator x402.PaymentFacilitator = x402.NewRemoteFacilitator(facilitatorURL)
-	x402Handler := x402.NewHandler(x402Facilitator)
+	x402Handler := x402.NewHandler(x402Facilitator, x402Pricing)
 
 	cp := &ControlPlane{
 		client:          client,
@@ -338,6 +338,7 @@ func (cp *ControlPlane) setupRoutes() {
 	x402Routes := cp.router.Group("/x402")
 	x402Routes.POST("/verify", cp.x402Handler.Verify)
 	x402Routes.POST("/settle", cp.x402Handler.Settle)
+	x402Routes.GET("/routes", cp.x402Handler.Routes)
 
 	// Demo endpoint (public, no auth required)
 	demo := cp.router.Group("/api/v1/demo")

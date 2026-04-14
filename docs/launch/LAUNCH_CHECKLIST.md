@@ -41,13 +41,14 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 
 **allsource-web**: `NEXT_PUBLIC_API_URL=https://api.all-source.xyz`
 
-## Phase C — x402 & agent auth (blocker for agent use case)
+## Phase C — x402 & agent auth
 
-- [x] x402 + agent registration merged to main (verified `apps/control-plane/internal/infrastructure/x402/` present on origin/main)
-- [ ] Commit `apps/control-plane/config/x402-pricing.json` (routes: `POST /api/v1/events` $0.0001, `GET /api/v1/events/query` $0.001; free tier 10K/1K)
-- [ ] Verify `GET /x402/routes` lists priced routes in production
-- [ ] Verify 402 flow: unauth request to priced route → `402 Payment Required` with instructions
-- [ ] Register test agent: `POST /api/v1/agents/register` → api_key returned with quotas + core_url + query_url
+- [x] x402 + agent registration merged to main (`apps/control-plane/internal/infrastructure/x402/`)
+- [x] Pricing config exists at `apps/control-plane/docs/x402-pricing.example.json` — copy to deploy path and point `X402_PRICING_CONFIG` at it
+- [x] Agent registration handler `POST /api/v1/agents/register` (`main.go:330`, `agents.go:14-42`)
+- [x] Agent payment history `GET /api/v1/agents/me/payments` (`main.go:335`)
+- [x] `GET /x402/routes` discovery endpoint added (`handler.go` Routes handler, `main.go:341`)
+- [ ] Verify 402 flow against deployed Control Plane: unauth request to priced route → `402 Payment Required`
 - [ ] Staging auto-pay test: blow past free tier on Base Sepolia, confirm `/api/v1/agents/me/payments` shows a settled payment
 
 ## Phase D — Tenant bootstrap & chronis sync
@@ -58,42 +59,42 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 - [ ] Each team member: populate `.chronis/config.toml` (`mode = "remote"`, `remote_url`, `api_key`) — see `CHRONIS_CLOUD_LAUNCH_PLAN.md`
 - [ ] End-to-end: Alice `cn add` → Bob `cn sync` → Bob `cn list` shows it
 
-## Phase E — Backend data integration (was Gap 3/4)
+## Phase E — Backend data integration
 
-- [ ] **Unified auth**: OAuth signup → Control Plane auto-provisions Core API key, surfaces it in dashboard API Keys page (`docs/proposals/UNIFIED_AUTH_TEAMS.md`)
-- [ ] **Billing enforcement**: LemonSqueezy webhook → tenant plan bump → x402 middleware bypass for paid tenants
-- [x] Dashboard stats cards fetch real data via `apps/web/src/hooks/use-dashboard-stats.ts` (Promise.all over `getTenantUsage`/`listProjections`/`getMetrics`)
-- [ ] `apps/web/src/components/dashboard/live-metrics.tsx` still has `latencyP99: 11.9` / `throughput: 0` fallbacks via `??` — wire to real metrics or drop the defaults
-- [ ] Live event feed: replace simulated stream with WebSocket → `CORE_WS_URL` (Query Service already proxies)
-- [ ] Event explorer: remove demo-data fallback, show empty state for new tenants
+- [x] **Unified auth shipped**: OAuth signup auto-provisions a Core API key via `provisionCoreAPIKey()` (`apps/control-plane/.../auth.go:394-400`, `439-469`); key included in JWT claims
+- [x] **LemonSqueezy webhook → tenant plan**: `webhook_lemonsqueezy.go:85-124` processes subscription events; `handleSubscriptionUpdated` (line 146) updates tenant tier + quotas via `updateSubUC.Execute()`
+- [x] Dashboard stats wired (`apps/web/src/hooks/use-dashboard-stats.ts` — Promise.all over `getTenantUsage`/`listProjections`/`getMetrics`)
+- [x] Live event feed uses Phoenix Channel WebSocket (`live-event-feed.tsx:31` → `usePhoenixChannel("events:all", ...)`)
+- [x] Event explorer fetches real data via `useEvents()` — no demo-data fallback path
+- [x] `live-metrics.tsx` magic-number fallbacks dropped — metric fields are now nullable, UI renders `—` when real metrics are unavailable
+- [ ] End-to-end smoke test the unified auth + billing path against deployed stack (code is in, behavior unverified in production)
 
 ## Phase F — Product polish (post-launch OK)
 
-- [x] Settings page content — already shipped (`apps/web/src/app/dashboard/settings/page.tsx`: profile, security, notifications tabs)
-- [ ] Projections/Pipelines page content (currently minimal)
-- [ ] Privacy Policy + Terms of Service pages
+- [x] Settings page (`apps/web/src/app/dashboard/settings/page.tsx`: profile, security, notifications)
+- [x] Projections/Pipelines page (`pipelines/page.tsx` — fetches via `apiClient.listProjections()`, status cards, pause/resume controls)
+- [x] Privacy Policy page (`apps/web/src/app/(marketing)/privacy/page.tsx`)
+- [x] Terms of Service page (`apps/web/src/app/(marketing)/terms/page.tsx`)
 - [ ] SLO definition: latency p99, uptime %, error rate — pre-req for SLA monitoring
-- [ ] SLA monitoring + alerting (PagerDuty/Slack) — `REMAINING_TASKS.md` P0-003
+- [ ] SLA monitoring + alerting (PagerDuty/Slack) — was `REMAINING_TASKS.md` P0-003
 
 ## Phase G — Positioning & messaging (web app copy)
 
-From `TURSO_COMPETITIVE_LAUNCH_PLAN.md`. These are **web-app edits**, not infra:
-
-- [ ] Update hero subtitle to "Time-travel your data" with benchmark stats (469K events/sec · 11.9μs · 27 MCP tools)
-- [ ] Add benchmarks component on landing
-- [ ] Add MCP tools showcase section
-- [ ] Replace "database" language with "event store" across landing/marketing pages
-- [ ] Use cases page: audit trails, event replay, AI agent memory, financial history
-- [ ] AllSource vs **EventStoreDB** comparison page (do NOT build AllSource vs Turso)
-- [ ] Pricing page review: Free 50K events, Pro $29, Team $79, Scale $199
+- [x] Hero subtitle "Time-travel your data" with benchmarks (`hero.tsx:150-152`, `186-191`: 469K events/sec, 11.9μs)
+- [x] Benchmarks component on landing (`HeroStats()` in `hero.tsx`, count-up animation)
+- [x] MCP tools showcase (`hero.tsx:189` "27 MCP tools"; mentioned in `features.tsx`)
+- [x] "database" → "event store" audit: only one user-facing fix needed (`dashboard/demo/page.tsx` "your database" → "your event store"); rest of the copy already uses contrastive framing correctly
+- [x] Use cases page (`apps/web/src/app/(marketing)/use-cases/page.tsx` — audit trails, event replay, AI agent memory, financial history)
+- [x] AllSource vs EventStoreDB comparison page (`apps/web/src/app/(marketing)/compare/eventstoredb/page.tsx`)
+- [ ] Pricing page review: current tiers (`config.ts:105-162`) are Developer (free, 100K events) / Team ($99 or $79 yearly, 10M events) / Enterprise. **Differs** from the Turso plan recommendation (Free 50K / Pro $29 / Team $79 / Scale $199). Decide which to keep
 
 ## Phase H — Launch marketing assets
 
 - [ ] Record 60s demo video (OAuth login → dashboard → event explorer → time-travel query → CTA)
 - [ ] Hero screenshot 1270×760 dark mode
 - [ ] 3–5 feature GIFs: event explorer search, live stream, API key creation, onboarding
-- [ ] Draft ProductHunt listing (tagline, 3-paragraph description, 5 features) — see archived `MARKETING_MATERIALS.md`
-- [ ] Draft X.com launch thread (6 posts) — see archived `MARKETING_MATERIALS.md`
+- [ ] Draft ProductHunt listing — see `archived/MARKETING_MATERIALS.md`
+- [ ] Draft X.com launch thread — see `archived/MARKETING_MATERIALS.md`
 - [ ] Draft Show HN post (after 2–3 testimonials collected)
 - [ ] Line up 5–10 upvoters for ProductHunt launch day
 
@@ -101,7 +102,7 @@ From `TURSO_COMPETITIVE_LAUNCH_PLAN.md`. These are **web-app edits**, not infra:
 
 - [ ] Day 1: Deploy + smoke test + OAuth verification + "Early Access" banner
 - [ ] Day 2: X.com thread, monitor signups
-- [ ] Day 3–5: Real data integration live, billing checkout tested
+- [ ] Day 3–5: Billing checkout tested end-to-end against LemonSqueezy
 - [ ] Day 7–10: ProductHunt launch (Tue–Thu, schedule 12:01 AM PT, first 2h engagement)
 - [ ] Day 14+: Collect testimonials, post Show HN
 - [ ] Success metrics: 5 signups day 2 · 50 signups day 10 · demo video 100+ views
@@ -118,23 +119,19 @@ From `TURSO_COMPETITIVE_LAUNCH_PLAN.md`. These are **web-app edits**, not infra:
 
 SDKs already exist in `sdks/` (go, python-client, rust, typescript). Per memory: **only Rust crates publish to crates.io**. JS/Python/Go SDKs distribute via GitHub registry.
 
-- [ ] JS SDK (`@allsource/client`) usage docs + sample app — called out as P0 in Turso plan
-- [ ] Python SDK usage docs + sample app — P0 in Turso plan
-- [ ] Go SDK usage docs — P1
-- [ ] Verify all SDK READMEs reference `api.all-source.xyz` (not localhost)
+- [x] SDK READMEs reference `https://api.all-source.xyz` (TS fixed from `allsource-query.fly.dev`, Go and Python already correct)
+- [x] TypeScript SDK README — Authentication section + quickstart + API reference + error handling
+- [x] Python SDK README — Authentication section + sync/async quickstart + API reference
+- [x] Go SDK README — Authentication section + quickstart + error handling + query options
+- [ ] Sample apps (JS/Python/Go) — deferred, docs cover the essentials
 
 ---
 
 ## Known gaps at launch
 
-These ship with the v1 launch and are tracked in Phase E / F:
-
 | Gap | Impact | Workaround |
 |---|---|---|
-| Unified auth (OAuth ↔ Core API key) | Dashboard users can't self-mint Core API keys | Operators provision manually via Phase D |
-| LemonSqueezy → quota enforcement | Paid upgrade doesn't auto-lift x402 gate | Manual tenant plan bump |
-| Settings page | Skeleton only | Hide from nav until filled |
-| Projections page | Minimal | Hide from nav until filled |
+| Pricing tiers differ from Turso plan recommendation | Marketing/positioning question | Decide tier strategy before launch day |
 
 ---
 
@@ -142,4 +139,4 @@ These ship with the v1 launch and are tracked in Phase E / F:
 
 - `LAUNCH_CHECKLIST.md` — this file, single checklist
 - `CHRONIS_CLOUD_LAUNCH_PLAN.md` — detailed runbook for chronis → cloud sync with x402
-- `archived/` — superseded planning docs kept for historical context (marketing copy drafts still usable)
+- `archived/` — superseded planning docs (marketing copy drafts in `MARKETING_MATERIALS.md` still usable)

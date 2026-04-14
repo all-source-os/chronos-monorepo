@@ -151,7 +151,7 @@ function EmptyState({ seeding, seedError, onSeed }: Omit<ViewProps, "seeded">) {
         <Zap className="mb-4 h-12 w-12 text-muted-foreground/50" />
         <h2 className="mb-2 text-xl font-semibold">No demo data yet</h2>
         <p className="mb-6 max-w-md text-center text-muted-foreground">
-          Seed your database with 1,000 diverse events to experience the full Demo Zone — real-time streaming, vector search, and speed comparisons.
+          Seed your event store with 1,000 diverse events to experience the full Demo Zone — real-time streaming, vector search, and speed comparisons.
         </p>
         <Button onClick={onSeed} disabled={seeding} size="lg">
           {seeding ? (

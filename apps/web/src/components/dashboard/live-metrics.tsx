@@ -7,21 +7,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api/client";
 
 interface MetricData {
-  eventsPerSec: number;
-  latencyP99: number;
-  throughput: number;
+  eventsPerSec: number | null;
+  latencyP99: number | null;
+  throughput: number | null;
 }
 
 function extractMetrics(response: Record<string, unknown>): MetricData {
   const backend = response.backend as Record<string, unknown> | undefined;
 
-  // Try to extract real metrics from backend response
   const eventsPerSec =
-    (backend?.events_per_second as number) ?? (backend?.throughput as number) ?? 0;
+    (backend?.events_per_second as number) ?? (backend?.throughput as number) ?? null;
   const latencyP99 =
-    (backend?.p99_latency_us as number) ?? (backend?.latency_p99_us as number) ?? 11.9;
+    (backend?.p99_latency_us as number) ?? (backend?.latency_p99_us as number) ?? null;
   const throughput =
-    (backend?.throughput_percent as number) ?? (backend?.utilization as number) ?? 0;
+    (backend?.throughput_percent as number) ?? (backend?.utilization as number) ?? null;
 
   return { eventsPerSec, latencyP99, throughput };
 }
@@ -29,9 +28,9 @@ function extractMetrics(response: Record<string, unknown>): MetricData {
 export function LiveMetrics() {
   const [isPaused, setIsPaused] = useState(false);
   const [metrics, setMetrics] = useState<MetricData>({
-    eventsPerSec: 0,
-    latencyP99: 11.9,
-    throughput: 0,
+    eventsPerSec: null,
+    latencyP99: null,
+    throughput: null,
   });
   const [sparklineData, setSparklineData] = useState<number[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -42,7 +41,7 @@ export function LiveMetrics() {
       if (response.data) {
         const extracted = extractMetrics(response.data as unknown as Record<string, unknown>);
         setMetrics(extracted);
-        setSparklineData((prev) => [...prev, extracted.eventsPerSec].slice(-30));
+        setSparklineData((prev) => [...prev, extracted.eventsPerSec ?? 0].slice(-30));
       }
     } catch {
       // Silently fail — metrics are non-critical
@@ -103,7 +102,7 @@ export function LiveMetrics() {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-4xl font-bold tabular-nums tracking-tight">
-              {metrics.eventsPerSec.toLocaleString()}
+              {metrics.eventsPerSec === null ? "—" : metrics.eventsPerSec.toLocaleString()}
             </span>
             <span className="text-lg text-muted-foreground">events/sec</span>
           </div>
@@ -175,7 +174,9 @@ export function LiveMetrics() {
               <span className="text-xs">p99 Latency</span>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-semibold tabular-nums">{metrics.latencyP99}</span>
+              <span className="text-2xl font-semibold tabular-nums">
+                {metrics.latencyP99 ?? "—"}
+              </span>
               <span className="text-sm text-muted-foreground">μs</span>
             </div>
           </div>
@@ -185,7 +186,9 @@ export function LiveMetrics() {
               <span className="text-xs">Throughput</span>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-semibold tabular-nums">{metrics.throughput}</span>
+              <span className="text-2xl font-semibold tabular-nums">
+                {metrics.throughput ?? "—"}
+              </span>
               <span className="text-sm text-muted-foreground">%</span>
             </div>
           </div>

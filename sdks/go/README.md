@@ -8,6 +8,14 @@ Go client for the [AllSource Event Store](https://all-source.xyz) API.
 go get github.com/all-source-os/allsource-go
 ```
 
+## Authentication
+
+AllSource uses API keys. Get one from your dashboard at [all-source.xyz](https://all-source.xyz) (Settings → API Keys) or mint one via `POST /api/v1/auth/api-keys`. The SDK sends it in the `X-API-Key` header.
+
+```go
+client := allsource.New(os.Getenv("ALLSOURCE_API_KEY"), "https://api.all-source.xyz")
+```
+
 ## Quickstart
 
 ```go

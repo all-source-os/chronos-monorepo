@@ -8,6 +8,20 @@ Python SDK for the [AllSource Event Store](https://all-source.xyz).
 pip install allsource-client
 ```
 
+## Authentication
+
+AllSource uses API keys. Get one from your dashboard at [all-source.xyz](https://all-source.xyz) (Settings → API Keys) or mint one via `POST /api/v1/auth/api-keys`. The SDK passes the key in the `X-API-Key` header automatically.
+
+```python
+import os
+from allsource_client import AllSourceClient
+
+client = AllSourceClient(
+    api_key=os.environ["ALLSOURCE_API_KEY"],
+    base_url="https://api.all-source.xyz",
+)
+```
+
 ## Quickstart
 
 ```python
