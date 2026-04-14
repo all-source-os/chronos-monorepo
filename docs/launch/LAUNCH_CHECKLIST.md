@@ -12,7 +12,7 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 
 ## Phase A — Infrastructure & Credentials
 
-- [x] Fly apps exist and are running: `allsource-core`, `allsource-query`, `allsource-control-plane`, `allsource-web`, `allsource-prime`, `allsource-auth`, `allsource-registry` (all `started`, health checks passing, region `iad`). Note: Query Service app is named `allsource-query`, not `allsource-query-service`
+- [x] Fly apps exist and are running: `allsource-core`, `allsource-query`, `allsource-control-plane`, `allsource-prime`, `allsource-auth`, `allsource-registry` (all `started`, health checks passing, region `iad`). Query Service app is named `allsource-query`, not `allsource-query-service`. **Web is on Vercel at `all-source.xyz`, never on Fly.** The legacy `allsource-web` Fly app was destroyed on 2026-04-15 — do not recreate it. Any `fly deploy` targeting the frontend is a mistake; redeploy the Vercel project instead.
 - [x] Google OAuth app registered; `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` saved
 - [x] GitHub OAuth app registered; `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` saved
 - [ ] LemonSqueezy: API key, store ID, webhook secret (needed for paid-tier upgrade flow)
@@ -22,17 +22,18 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 
 ## Phase B — Deploy core stack
 
-All 7 AllSource apps deployed and healthy on Fly (iad), all on **v0.18.2** as of 2026-04-15:
+Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2** as of 2026-04-15:
 
 - [x] `allsource-core` — v0.18.2, healthy, persistent volume `allsource_data`
 - [x] `allsource-query` — v0.18.2, healthy 2/2
 - [x] `allsource-control-plane` — v0.18.2, ships `GET /x402/routes` from `bd8e97d`
-- [x] `allsource-web` — v0.18.2, ships `/use-cases`, `/compare/eventstoredb`, live-metrics fix
 - [x] `allsource-prime` — v0.18.2
 - [x] `allsource-auth` — v0.18.2
 - [x] `allsource-registry` — v0.18.2
+- [x] Web frontend deployed on **Vercel** at `https://all-source.xyz` (auto-deploys on push to main — ships `/use-cases`, `/compare/eventstoredb`, live-metrics fix)
 - [x] Core autoscale `min_machines_running = 1` (`apps/core/fly.toml:22`)
 - [ ] Fly alerts on Core/Query `/health` failures — configure in Fly dashboard → Monitoring → Alerts (no CLI available)
+- [x] Destroyed legacy `allsource-web` Fly app on 2026-04-15 — web has always been on Vercel
 
 ### Required secrets (reference)
 
@@ -40,9 +41,9 @@ All 7 AllSource apps deployed and healthy on Fly (iad), all on **v0.18.2** as of
 
 **allsource-query**: `SECRET_KEY_BASE`, `PHX_HOST=allsource-query.fly.dev`, `CORE_URL=http://allsource-core.internal:3900`, `CORE_WS_URL=ws://allsource-core.internal:3900/api/v1/events/stream`, `GOOGLE_CLIENT_*`, `GITHUB_CLIENT_*`, `LEMON_SQUEEZY_API_KEY`, `LEMON_SQUEEZY_STORE_ID`, `LEMON_SQUEEZY_WEBHOOK_SECRET`
 
-**allsource-control-plane**: `JWT_SECRET`, `CORE_URL=http://allsource-core.internal:3900`, `QUERY_SERVICE_URL=http://allsource-query.internal:3902`, `FRONTEND_URL=https://allsource-web.fly.dev`, `X402_ENABLED=true`, `X402_PRICING_CONFIG=/app/config/x402-pricing.json`, `X402_RECIPIENT_ADDRESS`, `X402_FACILITATOR_URL=https://x402.coinbase.com`, `CDP_API_KEY_NAME`, `CDP_API_KEY_PRIVATE_KEY`
+**allsource-control-plane**: `JWT_SECRET`, `CORE_URL=http://allsource-core.internal:3900`, `QUERY_SERVICE_URL=http://allsource-query.internal:3902`, `FRONTEND_URL=https://all-source.xyz`, `X402_ENABLED=true`, `X402_PRICING_CONFIG=/app/config/x402-pricing.json`, `X402_RECIPIENT_ADDRESS`, `X402_FACILITATOR_URL=https://x402.coinbase.com`, `CDP_API_KEY_NAME`, `CDP_API_KEY_PRIVATE_KEY`
 
-**allsource-web**: `NEXT_PUBLIC_API_URL=https://allsource-query.fly.dev`
+**Web (Vercel)**: `NEXT_PUBLIC_API_URL=https://allsource-query.fly.dev` — set in Vercel project settings, not Fly
 
 ## Phase C — x402 & agent auth
 
