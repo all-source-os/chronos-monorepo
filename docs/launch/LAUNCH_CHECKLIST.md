@@ -13,41 +13,36 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 ## Phase A — Infrastructure & Credentials
 
 - [x] Fly apps exist and are running: `allsource-core`, `allsource-query`, `allsource-control-plane`, `allsource-web`, `allsource-prime`, `allsource-auth`, `allsource-registry` (all `started`, health checks passing, region `iad`). Note: Query Service app is named `allsource-query`, not `allsource-query-service`
-- [ ] Register Google OAuth app → save `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
-  - Callback: `https://all-source.xyz/api/auth/google/callback`
-- [ ] Register GitHub OAuth app → save `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`
-  - Callback: `https://all-source.xyz/api/auth/github/callback`
+- [x] Google OAuth app registered; `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` saved
+- [x] GitHub OAuth app registered; `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` saved
 - [ ] LemonSqueezy: API key, store ID, webhook secret (needed for paid-tier upgrade flow)
 - [ ] Coinbase CDP server wallet on Base (mainnet for launch, Sepolia for staging) — for x402 payouts
 - [ ] Generate `SECRET_KEY_BASE` (`mix phx.gen.secret`) and `ALLSOURCE_JWT_SECRET` (`openssl rand -hex 32`) — only if not already set as Fly secrets
-- [ ] Custom domain: point `all-source.xyz` at Fly (web app) + DNS for `api.all-source.xyz` → query service
+- [-] Custom domain: deferred — using `*.fly.dev` URLs directly for now, no issues
 
 ## Phase B — Deploy core stack
 
-All services already deployed and healthy on Fly (iad). Current deployments are **stale vs v0.18.2** — redeploy before launch to pick up the latest event-store, web, and x402 changes.
+All 7 AllSource apps deployed and healthy on Fly (iad), all on **v0.18.2** as of 2026-04-15:
 
-- [x] `allsource-core` — deployed Mar 29, healthy 1/1 · **stale (~17d)**, redeploy to pick up v0.18.2
-- [x] `allsource-query` — deployed Mar 26, healthy 2/2 · **stale (~20d)**, redeploy to v0.18.2
-- [x] `allsource-control-plane` — deployed Apr 14, healthy 1/1 · **redeploy required** to ship today's `GET /x402/routes` discovery endpoint (`bd8e97d`)
-- [x] `allsource-web` — deployed Mar 7, healthy 1/1 (+ 1 stopped spare) · **redeploy required** for new `/use-cases`, `/compare/eventstoredb`, and live-metrics fix (`bd8e97d`)
-- [x] `allsource-prime` — deployed Mar 23, healthy 1/1 · stale, optional redeploy
-- [x] `allsource-auth` — deployed Mar 24, 2 machines healthy · stale, optional redeploy
-- [x] `allsource-registry` — deployed Mar 1, healthy 1/1 · stale, optional redeploy
-- [ ] **Redeploy `allsource-control-plane`** to ship x402 routes discovery
-- [ ] **Redeploy `allsource-web`** to ship new marketing pages
-- [ ] Redeploy `allsource-core` + `allsource-query` to v0.18.2 for version parity
-- [ ] Verify autoscale min=1 on Core (cold starts break chronis sync UX)
-- [ ] Fly alerts on Core/Query `/health` failures
+- [x] `allsource-core` — v0.18.2, healthy, persistent volume `allsource_data`
+- [x] `allsource-query` — v0.18.2, healthy 2/2
+- [x] `allsource-control-plane` — v0.18.2, ships `GET /x402/routes` from `bd8e97d`
+- [x] `allsource-web` — v0.18.2, ships `/use-cases`, `/compare/eventstoredb`, live-metrics fix
+- [x] `allsource-prime` — v0.18.2
+- [x] `allsource-auth` — v0.18.2
+- [x] `allsource-registry` — v0.18.2
+- [x] Core autoscale `min_machines_running = 1` (`apps/core/fly.toml:22`)
+- [ ] Fly alerts on Core/Query `/health` failures — configure in Fly dashboard → Monitoring → Alerts (no CLI available)
 
 ### Required secrets (reference)
 
 **allsource-core**: `ALLSOURCE_JWT_SECRET`
 
-**allsource-query-service**: `SECRET_KEY_BASE`, `PHX_HOST=all-source.xyz`, `CORE_URL=http://allsource-core.internal:3900`, `CORE_WS_URL=ws://allsource-core.internal:3900/api/v1/events/stream`, `GOOGLE_CLIENT_*`, `GITHUB_CLIENT_*`, `LEMON_SQUEEZY_API_KEY`, `LEMON_SQUEEZY_STORE_ID`, `LEMON_SQUEEZY_WEBHOOK_SECRET`
+**allsource-query**: `SECRET_KEY_BASE`, `PHX_HOST=allsource-query.fly.dev`, `CORE_URL=http://allsource-core.internal:3900`, `CORE_WS_URL=ws://allsource-core.internal:3900/api/v1/events/stream`, `GOOGLE_CLIENT_*`, `GITHUB_CLIENT_*`, `LEMON_SQUEEZY_API_KEY`, `LEMON_SQUEEZY_STORE_ID`, `LEMON_SQUEEZY_WEBHOOK_SECRET`
 
-**allsource-control-plane**: `JWT_SECRET`, `CORE_URL=http://allsource-core.internal:3900`, `QUERY_SERVICE_URL=http://allsource-query-service.internal:3902`, `FRONTEND_URL=https://all-source.xyz`, `X402_ENABLED=true`, `X402_PRICING_CONFIG=/app/config/x402-pricing.json`, `X402_RECIPIENT_ADDRESS`, `X402_FACILITATOR_URL=https://x402.coinbase.com`, `CDP_API_KEY_NAME`, `CDP_API_KEY_PRIVATE_KEY`
+**allsource-control-plane**: `JWT_SECRET`, `CORE_URL=http://allsource-core.internal:3900`, `QUERY_SERVICE_URL=http://allsource-query.internal:3902`, `FRONTEND_URL=https://allsource-web.fly.dev`, `X402_ENABLED=true`, `X402_PRICING_CONFIG=/app/config/x402-pricing.json`, `X402_RECIPIENT_ADDRESS`, `X402_FACILITATOR_URL=https://x402.coinbase.com`, `CDP_API_KEY_NAME`, `CDP_API_KEY_PRIVATE_KEY`
 
-**allsource-web**: `NEXT_PUBLIC_API_URL=https://api.all-source.xyz`
+**allsource-web**: `NEXT_PUBLIC_API_URL=https://allsource-query.fly.dev`
 
 ## Phase C — x402 & agent auth
 
