@@ -57,8 +57,8 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
 
 ## Phase D — Tenant bootstrap & chronis sync
 
-- [ ] Bootstrap admin key via Fly secrets (Core reads `ALLSOURCE_BOOTSTRAP_TENANT` and `ALLSOURCE_BOOTSTRAP_API_KEY` at startup — there is **no** `bootstrap` subcommand): `fly secrets set ALLSOURCE_BOOTSTRAP_TENANT=default ALLSOURCE_BOOTSTRAP_API_KEY=$(openssl rand -hex 32) -a allsource-core`
-- [ ] Store bootstrap key in 1Password (not git); rotate after first real tenant exists
+- [x] Bootstrap admin key set — `ALLSOURCE_BOOTSTRAP_API_KEY` is Deployed as a Fly secret on `allsource-core` (verified via `fly secrets list`). Note: `ALLSOURCE_BOOTSTRAP_TENANT` is not listed as a separate secret — Core defaults to tenant `default` when unset
+- [ ] Confirm bootstrap key is stored in 1Password; rotate after first real tenant exists
 - [ ] Create team tenant + per-user API keys via `POST /api/v1/tenants` and `POST /api/v1/auth/api-keys`
 - [ ] Each team member: populate `.chronis/config.toml` (`mode = "remote"`, `remote_url`, `api_key`) — see `CHRONIS_CLOUD_LAUNCH_PLAN.md`
 - [ ] End-to-end: Alice `cn add` → Bob `cn sync` → Bob `cn list` shows it
