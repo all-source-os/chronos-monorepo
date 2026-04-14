@@ -10,26 +10,34 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 
 ---
 
-## Phase A — Infrastructure & Credentials (blocker)
+## Phase A — Infrastructure & Credentials
 
-- [ ] Create Fly apps (verify `fly apps list`): `allsource-core`, `allsource-query-service`, `allsource-web`, `allsource-control-plane`
+- [x] Fly apps exist and are running: `allsource-core`, `allsource-query`, `allsource-control-plane`, `allsource-web`, `allsource-prime`, `allsource-auth`, `allsource-registry` (all `started`, health checks passing, region `iad`). Note: Query Service app is named `allsource-query`, not `allsource-query-service`
 - [ ] Register Google OAuth app → save `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
   - Callback: `https://all-source.xyz/api/auth/google/callback`
 - [ ] Register GitHub OAuth app → save `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`
   - Callback: `https://all-source.xyz/api/auth/github/callback`
 - [ ] LemonSqueezy: API key, store ID, webhook secret (needed for paid-tier upgrade flow)
 - [ ] Coinbase CDP server wallet on Base (mainnet for launch, Sepolia for staging) — for x402 payouts
-- [ ] Generate `SECRET_KEY_BASE` (`mix phx.gen.secret`) and `ALLSOURCE_JWT_SECRET` (`openssl rand -hex 32`)
-- [ ] Custom domain: point `all-source.xyz` at Fly (web app) + DNS for `api.all-source.xyz` → query-service
+- [ ] Generate `SECRET_KEY_BASE` (`mix phx.gen.secret`) and `ALLSOURCE_JWT_SECRET` (`openssl rand -hex 32`) — only if not already set as Fly secrets
+- [ ] Custom domain: point `all-source.xyz` at Fly (web app) + DNS for `api.all-source.xyz` → query service
 
-## Phase B — Deploy core stack (blocker)
+## Phase B — Deploy core stack
 
-- [ ] `fly deploy -a allsource-core` from `apps/core/` — verify `/health` 200, WAL replay clean in logs
-- [ ] `fly deploy -a allsource-query-service` from `apps/query-service/` — secrets below set first
-- [ ] `fly deploy -a allsource-control-plane` from `apps/control-plane/` (x402 already on main)
-- [ ] `fly deploy -c apps/web/fly.toml --dockerfile apps/web/Dockerfile` from repo root
-- [ ] Autoscale min=1 on Core (cold starts break chronis sync UX)
-- [ ] Fly alerts on Core/QS `/health` failures
+All services already deployed and healthy on Fly (iad). Current deployments are **stale vs v0.18.2** — redeploy before launch to pick up the latest event-store, web, and x402 changes.
+
+- [x] `allsource-core` — deployed Mar 29, healthy 1/1 · **stale (~17d)**, redeploy to pick up v0.18.2
+- [x] `allsource-query` — deployed Mar 26, healthy 2/2 · **stale (~20d)**, redeploy to v0.18.2
+- [x] `allsource-control-plane` — deployed Apr 14, healthy 1/1 · **redeploy required** to ship today's `GET /x402/routes` discovery endpoint (`bd8e97d`)
+- [x] `allsource-web` — deployed Mar 7, healthy 1/1 (+ 1 stopped spare) · **redeploy required** for new `/use-cases`, `/compare/eventstoredb`, and live-metrics fix (`bd8e97d`)
+- [x] `allsource-prime` — deployed Mar 23, healthy 1/1 · stale, optional redeploy
+- [x] `allsource-auth` — deployed Mar 24, 2 machines healthy · stale, optional redeploy
+- [x] `allsource-registry` — deployed Mar 1, healthy 1/1 · stale, optional redeploy
+- [ ] **Redeploy `allsource-control-plane`** to ship x402 routes discovery
+- [ ] **Redeploy `allsource-web`** to ship new marketing pages
+- [ ] Redeploy `allsource-core` + `allsource-query` to v0.18.2 for version parity
+- [ ] Verify autoscale min=1 on Core (cold starts break chronis sync UX)
+- [ ] Fly alerts on Core/Query `/health` failures
 
 ### Required secrets (reference)
 

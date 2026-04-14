@@ -33,33 +33,37 @@ Manual setup steps to take chronis from embedded mode to syncing against a hoste
 
 ---
 
-## Phase 1 — Deploy Core v0.17.2 (15 min)
+## Phase 1 — Core is deployed (verify + optionally redeploy to v0.18.2)
 
-Hosted app: `allsource-core` on Fly (region `iad`). Persistent volume `allsource_data` already attached; WAL + Parquet survive deploys.
+Hosted app `allsource-core` is already running on Fly (region `iad`) with volume `allsource_data`. WAL + Parquet survive deploys. The current deployment is from Mar 29 2026 and is **stale vs v0.18.2** — redeploy before launch for version parity.
 
 ```bash
-cd apps/core
-fly deploy --config fly.toml --dockerfile Dockerfile
+# Verify current health
 fly status -a allsource-core
 curl https://allsource-core.fly.dev/health
+
+# Redeploy to v0.18.2 (from monorepo root)
+fly deploy --config apps/core/fly.toml --dockerfile apps/core/Dockerfile
 ```
 
-**Verification:** `/health` returns 200. Check `fly logs -a allsource-core` for a clean WAL recovery line and Parquet restore (no silent failures — #101 was the regression guard).
+**Verification:** `/health` returns 200. Check `fly logs -a allsource-core` for clean WAL recovery and Parquet restore (no silent failures — #101 was the regression guard).
 
 **Rollback:** `fly releases -a allsource-core` → `fly deploy --image <prior-image>`.
 
 ---
 
-## Phase 2 — Deploy Query Service v0.17.2 (15 min)
+## Phase 2 — Query Service is deployed (verify + optionally redeploy)
+
+Hosted app is `allsource-query` (not `allsource-query-service`). Running on Fly iad, 2/2 health checks green. Last deploy Mar 26 — **stale vs v0.18.2**.
 
 ```bash
-cd apps/query-service
-fly deploy
+fly status -a allsource-query
+cd apps/query-service && fly deploy
 ```
 
-**Required env vars** (set via `fly secrets set -a <qs-app>`):
-- `CORE_URL=https://allsource-core.fly.dev`
-- `CORE_WS_URL=wss://allsource-core.fly.dev`
+**Required env vars** (set via `fly secrets set -a allsource-query`):
+- `CORE_URL=http://allsource-core.internal:3900` (use Fly internal DNS, not public)
+- `CORE_WS_URL=ws://allsource-core.internal:3900/api/v1/events/stream`
 - `DATABASE_URL=postgres://...` (Postgres for users/tenants/API keys — **not** events)
 - `SECRET_KEY_BASE=<phx.gen.secret output>`
 
@@ -67,9 +71,9 @@ fly deploy
 
 ---
 
-## Phase 3 — Deploy Control Plane with x402 enabled (20 min)
+## Phase 3 — Control Plane redeploy (required for x402 routes discovery)
 
-Control Plane owns auth, agent registration, and the x402 middleware. Deploy the `feat/agent-auth-x402` build.
+`allsource-control-plane` is deployed and healthy (last deploy Apr 14). **A redeploy is required** to ship the `GET /x402/routes` discovery endpoint landed in commit `bd8e97d`. Agent registration and x402 verify/settle endpoints are already live.
 
 ### 3a. Create x402 pricing config
 
@@ -87,19 +91,18 @@ Create `apps/control-plane/config/x402-pricing.json`:
 ### 3b. Fly secrets for Control Plane
 
 ```bash
-fly secrets set -a <control-plane-app> \
+fly secrets set -a allsource-control-plane \
   X402_ENABLED=true \
   X402_PRICING_CONFIG=/app/config/x402-pricing.json \
   X402_RECIPIENT_ADDRESS=0xYOUR_CDP_WALLET_ADDRESS \
   X402_FACILITATOR_URL=https://x402.coinbase.com \
   CDP_API_KEY_NAME=<coinbase key name> \
   CDP_API_KEY_PRIVATE_KEY=<coinbase key secret> \
-  CORE_URL=https://allsource-core.fly.dev \
-  QUERY_SERVICE_URL=https://allsource-query-service.fly.dev \
-  DATABASE_URL=postgres://...
+  CORE_URL=http://allsource-core.internal:3900 \
+  QUERY_SERVICE_URL=http://allsource-query.internal:3902
 ```
 
-### 3c. Deploy
+### 3c. Redeploy
 
 ```bash
 cd apps/control-plane
@@ -108,11 +111,11 @@ fly deploy
 
 **Verification:**
 ```bash
-# x402 discovery — should list the two priced routes
-curl https://<control-plane>.fly.dev/x402/routes
+# x402 discovery — should list the two priced routes (new in bd8e97d)
+curl https://allsource-control-plane.fly.dev/x402/routes
 
 # Hitting a priced route without a payment header should return 402
-curl -i https://<control-plane>.fly.dev/api/v1/events/query
+curl -i https://allsource-control-plane.fly.dev/api/v1/events/query
 # expect: HTTP/1.1 402 Payment Required
 ```
 
@@ -120,21 +123,21 @@ curl -i https://<control-plane>.fly.dev/api/v1/events/query
 
 ## Phase 4 — Bootstrap tenant + admin API key (5 min)
 
-One-time: mint the first API key so you can provision everything else.
+One-time: set bootstrap credentials as Fly secrets so Core mints the first admin key on startup. **There is no `bootstrap` subcommand** — Core reads `ALLSOURCE_BOOTSTRAP_TENANT` and `ALLSOURCE_BOOTSTRAP_API_KEY` at startup.
 
 ```bash
-# SSH into Core machine
-fly ssh console -a allsource-core
+# Generate a strong key locally
+BOOTSTRAP_KEY=$(openssl rand -hex 32)
+echo $BOOTSTRAP_KEY   # save this in 1Password immediately
 
-# Inside: run the bootstrap CLI (ships with Core v0.17.2)
-allsource-core bootstrap \
-  --tenant-id default \
-  --email you@example.com \
-  --output-key /tmp/bootstrap.key
-cat /tmp/bootstrap.key
+# Set as Fly secrets (triggers a restart)
+fly secrets set \
+  ALLSOURCE_BOOTSTRAP_TENANT=default \
+  ALLSOURCE_BOOTSTRAP_API_KEY=$BOOTSTRAP_KEY \
+  -a allsource-core
 ```
 
-Save the resulting key as `ALLSOURCE_BOOTSTRAP_API_KEY` in your local shell. This is an admin key — do not commit it.
+Store `$BOOTSTRAP_KEY` in 1Password — it's an admin key. Rotate it after you've created your first real tenant and a scoped admin key through the API.
 
 ---
 
