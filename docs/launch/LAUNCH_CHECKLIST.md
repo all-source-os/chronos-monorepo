@@ -12,7 +12,9 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 
 ## Phase A — Infrastructure & Credentials
 
-- [x] Fly apps exist and are running: `allsource-core`, `allsource-query`, `allsource-control-plane`, `allsource-prime`, `allsource-auth`, `allsource-registry` (all `started`, health checks passing, region `iad`). Query Service app is named `allsource-query`, not `allsource-query-service`. **Web is on Vercel at `all-source.xyz`, never on Fly.** The legacy `allsource-web` Fly app was destroyed on 2026-04-15 — do not recreate it. Any `fly deploy` targeting the frontend is a mistake; redeploy the Vercel project instead.
+- [x] Fly apps exist and running in region `iad`, all `started` with health checks passing: `allsource-core`, `allsource-query`, `allsource-control-plane`, `allsource-prime`, `allsource-auth`, `allsource-registry`.
+  - Query Service app is named `allsource-query`, not `allsource-query-service`.
+  - **Web is on Vercel at `all-source.xyz`, never on Fly.** The legacy `allsource-web` Fly app was destroyed on 2026-04-15 — do not recreate it. Any `fly deploy` targeting the frontend is a mistake; redeploy the Vercel project instead.
 - [x] Google OAuth app registered; `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` saved
 - [x] GitHub OAuth app registered; `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` saved
 - [ ] LemonSqueezy: API key, store ID, webhook secret (needed for paid-tier upgrade flow)
@@ -37,13 +39,31 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
 
 ### Required secrets (reference)
 
-**allsource-core**: `ALLSOURCE_JWT_SECRET`
+**`allsource-core`**
+- `ALLSOURCE_JWT_SECRET`
 
-**allsource-query**: `SECRET_KEY_BASE`, `PHX_HOST=allsource-query.fly.dev`, `CORE_URL=http://allsource-core.internal:3900`, `CORE_WS_URL=ws://allsource-core.internal:3900/api/v1/events/stream`, `GOOGLE_CLIENT_*`, `GITHUB_CLIENT_*`, `LEMON_SQUEEZY_API_KEY`, `LEMON_SQUEEZY_STORE_ID`, `LEMON_SQUEEZY_WEBHOOK_SECRET`
+**`allsource-query`**
+- `SECRET_KEY_BASE`
+- `PHX_HOST=allsource-query.fly.dev`
+- `CORE_URL=http://allsource-core.internal:3900`
+- `CORE_WS_URL=ws://allsource-core.internal:3900/api/v1/events/stream`
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`
+- `LEMON_SQUEEZY_API_KEY`, `LEMON_SQUEEZY_STORE_ID`, `LEMON_SQUEEZY_WEBHOOK_SECRET`
 
-**allsource-control-plane**: `JWT_SECRET`, `CORE_URL=http://allsource-core.internal:3900`, `QUERY_SERVICE_URL=http://allsource-query.internal:3902`, `FRONTEND_URL=https://all-source.xyz`, `X402_ENABLED=true`, `X402_PRICING_CONFIG=/app/config/x402-pricing.json`, `X402_RECIPIENT_ADDRESS`, `X402_FACILITATOR_URL=https://x402.coinbase.com`, `CDP_API_KEY_NAME`, `CDP_API_KEY_PRIVATE_KEY`
+**`allsource-control-plane`**
+- `JWT_SECRET`
+- `CORE_URL=http://allsource-core.internal:3900`
+- `QUERY_SERVICE_URL=http://allsource-query.internal:3902`
+- `FRONTEND_URL=https://all-source.xyz`
+- `X402_ENABLED=true`
+- `X402_PRICING_CONFIG=/app/config/x402-pricing.json`
+- `X402_RECIPIENT_ADDRESS`
+- `X402_FACILITATOR_URL=https://x402.coinbase.com`
+- `CDP_API_KEY_NAME`, `CDP_API_KEY_PRIVATE_KEY`
 
-**Web (Vercel)**: `NEXT_PUBLIC_API_URL=https://allsource-query.fly.dev` — set in Vercel project settings, not Fly
+**Web (Vercel)** — set in the Vercel project, not Fly
+- `NEXT_PUBLIC_API_URL=https://allsource-query.fly.dev`
 
 ## Phase C — x402 & agent auth
 
@@ -79,8 +99,8 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
 - [x] Projections/Pipelines page (`pipelines/page.tsx` — fetches via `apiClient.listProjections()`, status cards, pause/resume controls)
 - [x] Privacy Policy page (`apps/web/src/app/(marketing)/privacy/page.tsx`)
 - [x] Terms of Service page (`apps/web/src/app/(marketing)/terms/page.tsx`)
-- [ ] SLO definition: latency p99, uptime %, error rate — pre-req for SLA monitoring
-- [ ] SLA monitoring + alerting (PagerDuty/Slack) — was `REMAINING_TASKS.md` P0-003
+
+> **SLO/SLA work moved to `docs/runbooks/SLO_SLA.md`.** Targets and PagerDuty/Slack alerting are tracked as TODOs there, not in this checklist.
 
 ## Phase G — Positioning & messaging (web app copy)
 
@@ -90,7 +110,12 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
 - [x] "database" → "event store" audit: only one user-facing fix needed (`dashboard/demo/page.tsx` "your database" → "your event store"); rest of the copy already uses contrastive framing correctly
 - [x] Use cases page (`apps/web/src/app/(marketing)/use-cases/page.tsx` — audit trails, event replay, AI agent memory, financial history)
 - [x] AllSource vs EventStoreDB comparison page (`apps/web/src/app/(marketing)/compare/eventstoredb/page.tsx`)
-- [ ] Pricing page review: current tiers (`config.ts:105-162`) are Developer (free, 100K events) / Team ($99 or $79 yearly, 10M events) / Enterprise. **Differs** from the Turso plan recommendation (Free 50K / Pro $29 / Team $79 / Scale $199). Decide which to keep
+- [x] Pricing page review — resolved in `docs/marketing/PRICING_DECISION_2026-04.md` (Option 3 Hybrid). `config.ts` now ships 4 tiers: Developer (free) / **Pro $29** (x402 headline) / **Growth $79** (renamed from TEAM) / Enterprise. Downstream enforcement still pending:
+  - [ ] LemonSqueezy: create `pro_monthly` / `pro_yearly` SKUs; update `docs/LEMONSQUEEZY_SETUP.md`
+  - [ ] Query Service: add `pro` row to plan-limits config (1M events/mo, 5 streams, 30-day retention)
+  - [ ] Control Plane x402 middleware: gate agent endpoints on `tier in {pro, growth, enterprise}` (currently any authenticated tenant)
+  - [ ] Auth service: add MCP read-only scoped token preset for Pro tier
+  - [ ] Backend `BillingStatus` type (Go + Elixir): add `"pro"` to the tier enum — web client already updated (`apps/web/src/lib/api/client.ts:629`)
 
 ## Phase H — Launch marketing assets
 

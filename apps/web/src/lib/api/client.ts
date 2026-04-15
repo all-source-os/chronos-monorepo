@@ -626,7 +626,7 @@ export interface CheckoutResponse {
 
 export interface BillingStatus {
   tenant_id: string;
-  tier: "free" | "growth" | "enterprise";
+  tier: "free" | "pro" | "growth" | "enterprise";
   status: "active" | "trialing" | "past_due" | "cancelled" | "expired";
   billing_period: "monthly" | "annual" | null;
   payment_provider: string | null;
