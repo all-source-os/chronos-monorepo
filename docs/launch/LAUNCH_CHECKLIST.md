@@ -32,7 +32,7 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
 - [x] `allsource-registry` — v0.18.2
 - [x] Web frontend deployed on **Vercel** at `https://all-source.xyz` (auto-deploys on push to main — ships `/use-cases`, `/compare/eventstoredb`, live-metrics fix)
 - [x] Core autoscale `min_machines_running = 1` (`apps/core/fly.toml:22`)
-- [ ] Fly alerts on Core/Query `/health` failures — configure in Fly dashboard → Monitoring → Alerts (no CLI available)
+- [x] Fly alerts on Core/Query `/health` failures configured in Fly dashboard
 - [x] Destroyed legacy `allsource-web` Fly app on 2026-04-15 — web has always been on Vercel
 
 ### Required secrets (reference)
