@@ -83,6 +83,43 @@ func TestQuotaGate_X402Disabled_PassesThrough(t *testing.T) {
 	}
 }
 
+func TestQuotaGate_FreeTier_Returns403(t *testing.T) {
+	f := NewFacilitator(DefaultFacilitatorConfig())
+	f.RegisterEVM(&mockChainVerifier{payer: "0xPayer"}, &mockChainSettler{txHash: "0xtx"})
+
+	mock := &testCoreClient{}
+	logger := NewEventLogger(mock)
+
+	pricing := &PricingConfig{
+		Enabled:          true,
+		RecipientAddress: "0xRecipient",
+		Routes: map[string]RoutePricing{
+			"POST /api/v1/events": {Amount: "100", Networks: []string{NetworkBaseMainnet}},
+		},
+	}
+
+	// Free-tier tenant: tier gate denies before quota or payment logic runs.
+	checker := &StaticQuotaChecker{HasRemaining: true, TierDenied: true}
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", "free-tenant")
+		c.Next()
+	})
+	router.Use(QuotaGatedMiddleware(f, pricing, logger, checker))
+	router.POST("/api/v1/events", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status: want 403, got %d", w.Code)
+	}
+}
+
 func TestQuotaGate_QuotaExceeded_WithPayment_Settles(t *testing.T) {
 	router, mock := setupQuotaGateTest(false, true)
 

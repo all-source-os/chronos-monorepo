@@ -39,6 +39,16 @@ impl Role {
             }
         }
     }
+
+    /// Canonical role preset for MCP tokens issued to Pro-tier subscribers.
+    /// Pro unlocks MCP server access at a read-only scope — consumers can
+    /// query events, sample streams, and read metrics, but cannot mutate
+    /// state. Call this from the API-key provisioning path when a Pro
+    /// tenant requests an MCP key so the mapping stays centralized here
+    /// rather than hardcoded at call sites.
+    pub fn mcp_readonly_preset() -> Self {
+        Role::ReadOnly
+    }
 }
 
 /// Permission types

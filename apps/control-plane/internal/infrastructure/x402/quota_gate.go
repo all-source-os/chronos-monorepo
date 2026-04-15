@@ -18,6 +18,27 @@ type QuotaChecker interface {
 	HasQuota(tenantID, routeKey string) bool
 }
 
+// X402TierAllower is an optional interface that QuotaChecker implementations may
+// implement to gate x402 priced routes on subscription tier. Per the April 2026
+// pricing decision, x402 agent endpoints are a Pro-tier-and-above feature;
+// free-tier tenants are rejected before any quota/payment logic runs.
+// When a checker does not implement this interface the gate falls open.
+type X402TierAllower interface {
+	// AllowsX402 returns true if the tenant's subscription tier is allowed to
+	// consume x402 priced routes. Free tier → false.
+	AllowsX402(tenantID string) bool
+}
+
+// tierAllowedForX402 is the canonical gate list — pro, growth, enterprise, and
+// the legacy "team" alias. Anything else (including empty string and "free")
+// is denied.
+var tierAllowedForX402 = map[string]bool{
+	"pro":        true,
+	"growth":     true,
+	"enterprise": true,
+	"team":       true, // legacy alias for growth
+}
+
 // QuotaGatedMiddleware only activates x402 payments when the tenant's quota is exceeded.
 // - Quota remaining → passthrough (no payment needed)
 // - Quota exceeded + X402_ENABLED → x402 payment gate
@@ -52,6 +73,19 @@ func QuotaGatedMiddleware(
 			tenantIDStr = ""
 		}
 
+		// Tier gate: free-tier tenants cannot consume x402 priced routes at
+		// all, regardless of quota or payment capability. Pro-and-above only.
+		if tierAllower, ok := quotaChecker.(X402TierAllower); ok && tenantIDStr != "" {
+			if !tierAllower.AllowsX402(tenantIDStr) {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error":   "tier_not_allowed",
+					"message": "x402 agent endpoints require a Pro subscription or higher. Upgrade at https://all-source.xyz/billing",
+				})
+				c.Abort()
+				return
+			}
+		}
+
 		// If tenant has quota remaining, skip x402 — free access
 		if tenantIDStr != "" && quotaChecker.HasQuota(tenantIDStr, routeKey) {
 			c.Next()
@@ -64,8 +98,12 @@ func QuotaGatedMiddleware(
 }
 
 // StaticQuotaChecker always returns the same answer. Used for testing.
+// TierDenied lets tests simulate a free-tier tenant hitting an x402 route;
+// the zero value (false) means tier gate allows access, matching the
+// pre-tier-gate behavior of the quota gate tests.
 type StaticQuotaChecker struct {
 	HasRemaining bool
+	TierDenied   bool
 }
 
 // HasQuota implements QuotaChecker.
@@ -109,6 +147,39 @@ func (q *CoreQuotaChecker) HasQuota(tenantID, routeKey string) bool {
 		return quotaRemaining(quotaMeta, "events_used", "events_quota")
 	}
 	return quotaRemaining(quotaMeta, "queries_used", "queries_quota")
+}
+
+// AllowsX402 reads the tenant's subscription tier from Core metadata and
+// returns true for pro/growth/enterprise (+ legacy "team"). Fails *closed* on
+// any error: unknown tier, missing metadata, or Core unreachable all deny
+// access. This is the opposite posture from HasQuota (which fails open to
+// avoid surprise charges) — here, failing closed prevents accidentally
+// serving paid agent endpoints to unauthenticated/unknown callers.
+func (q *CoreQuotaChecker) AllowsX402(tenantID string) bool {
+	if q.client == nil || tenantID == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	tenant, err := q.client.GetTenant(ctx, tenantID)
+	if err != nil || tenant == nil {
+		return false
+	}
+
+	subMeta, ok := tenant.Metadata["subscription"].(map[string]any)
+	if !ok {
+		return false
+	}
+	tier, _ := subMeta["tier"].(string)
+	return tierAllowedForX402[tier]
+}
+
+// AllowsX402 implements X402TierAllower for the static test checker.
+// Defaults to allow (TierDenied == false) so pre-existing tests that only
+// exercise quota/payment paths continue to work without modification.
+func (s *StaticQuotaChecker) AllowsX402(string) bool {
+	return !s.TierDenied
 }
 
 func quotaRemaining(m map[string]any, usedKey, quotaKey string) bool {

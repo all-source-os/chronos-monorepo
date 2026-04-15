@@ -6,25 +6,37 @@
 |---|---|
 | `LEMON_SQUEEZY_API_KEY` | API key from LemonSqueezy dashboard |
 | `LEMON_SQUEEZY_STORE_ID` | Store ID from LemonSqueezy dashboard |
-| `LEMON_SQUEEZY_VARIANT_MAP` | JSON mapping tier names to variant IDs, e.g. `{"growth":"<variant_id>"}` |
+| `LEMON_SQUEEZY_VARIANT_MAP` | JSON mapping tier names to variant IDs, e.g. `{"pro":"<variant_id>","growth":"<variant_id>"}` |
 | `LEMON_SQUEEZY_WEBHOOK_SECRET` | HMAC signing secret from LemonSqueezy webhook config |
 
 ## LemonSqueezy Dashboard Setup
 
 ### 1. Product & Variants
 
-Create one product (e.g. "AllSource Subscription") with variants:
+Create one product (e.g. "AllSource Subscription") with the following variants. **Numbers come from `docs/marketing/PRICING_DECISION_2026-04.md` (April 2026 pricing decision).** All three paid-tier variants must exist before the website's pricing page will convert — the Control Plane reads `LEMON_SQUEEZY_VARIANT_MAP` and will fail checkout for any tier whose variant isn't mapped.
 
-- **Team/Growth** — $99/mo (monthly) or $79/mo (annual). Note the variant ID.
+| Variant | Monthly | Yearly | Events quota | Notes |
+|---|---|---|---|---|
+| **Pro** | $29/mo | $24/mo billed yearly | 1,000,000/mo | Unlocks x402 agent endpoints. Headline differentiator vs Developer. |
+| **Growth** | $99/mo | $79/mo billed yearly | 10,000,000/mo | Renamed from TEAM on 2026-04-16. Existing variant IDs can be reused — the tier name changed, not the SKU. |
+| **Enterprise** | Custom | Custom | Unlimited | Sales-led, no self-serve checkout; no LemonSqueezy variant required. |
+
 - No "free" variant needed — free is the default tier with no subscription.
+- For each new variant in LemonSqueezy, note the numeric variant ID — you'll paste them into `LEMON_SQUEEZY_VARIANT_MAP` below.
+- **Action required (launch blocker):** create `pro_monthly` and `pro_yearly` variants in the LemonSqueezy dashboard. These do not exist yet as of 2026-04-16.
 
 ### 2. Variant Map
 
-Set `LEMON_SQUEEZY_VARIANT_MAP` as JSON on the Control Plane:
+Set `LEMON_SQUEEZY_VARIANT_MAP` as JSON on the Control Plane. Both `pro` and `growth` keys must be present for the pricing page to work end-to-end:
 
 ```json
-{"growth":"<variant_id_for_team_plan>"}
+{
+  "pro": "<variant_id_for_pro_plan>",
+  "growth": "<variant_id_for_growth_plan>"
+}
 ```
+
+Deploy with `fly secrets set LEMON_SQUEEZY_VARIANT_MAP='{"pro":"...","growth":"..."}' -a allsource-control-plane`.
 
 ### 3. Webhook
 

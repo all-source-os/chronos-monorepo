@@ -5,11 +5,16 @@ import "time"
 // SubscriptionTier represents a billing tier.
 type SubscriptionTier string
 
-// Subscription tier constants matching LemonSqueezy products.
+// Subscription tier constants matching LemonSqueezy products. Canonical tier
+// ladder per docs/marketing/PRICING_DECISION_2026-04.md: free → pro → growth →
+// enterprise. TierTeam is a legacy alias retained so old webhook payloads and
+// Core tenant metadata don't break; new code should use TierGrowth.
 const (
-	TierFree SubscriptionTier = "free" // 10K events/mo
-	TierPro  SubscriptionTier = "pro"  // $29/mo, 500K events/mo
-	TierTeam SubscriptionTier = "team" // $99/mo, 5M events/mo
+	TierFree       SubscriptionTier = "free"       // $0, 100K events/mo
+	TierPro        SubscriptionTier = "pro"        // $29/mo, 1M events/mo (x402 unlocked)
+	TierGrowth     SubscriptionTier = "growth"     // $79/mo (annual) or $99/mo, 10M events/mo
+	TierEnterprise SubscriptionTier = "enterprise" // Custom, unlimited
+	TierTeam       SubscriptionTier = "team"       // Deprecated: legacy alias for growth
 )
 
 // SubscriptionMetadata holds billing/subscription data stored in Core tenant metadata.
@@ -58,11 +63,16 @@ type TierQuotas struct {
 	QueriesQuota int64
 }
 
-// TierQuotaMap maps tiers to their quota limits.
+// TierQuotaMap maps tiers to their quota limits. Numbers come from the April
+// 2026 pricing decision memo (docs/marketing/PRICING_DECISION_2026-04.md).
+// TierEnterprise uses -1 to signal unlimited (see TierQuotas.IsUnlimited).
+// TierTeam mirrors TierGrowth for backwards compatibility with old payloads.
 var TierQuotaMap = map[SubscriptionTier]TierQuotas{
-	TierFree: {EventsQuota: 10_000, QueriesQuota: 5_000},
-	TierPro:  {EventsQuota: 500_000, QueriesQuota: 100_000},
-	TierTeam: {EventsQuota: 5_000_000, QueriesQuota: 1_000_000},
+	TierFree:       {EventsQuota: 100_000, QueriesQuota: 10_000},
+	TierPro:        {EventsQuota: 1_000_000, QueriesQuota: 100_000},
+	TierGrowth:     {EventsQuota: 10_000_000, QueriesQuota: 1_000_000},
+	TierEnterprise: {EventsQuota: -1, QueriesQuota: -1},
+	TierTeam:       {EventsQuota: 10_000_000, QueriesQuota: 1_000_000},
 }
 
 // QuotasForTier returns the quota limits for the given tier.

@@ -78,8 +78,8 @@ func TestUpdateSubscriptionMetadataUseCase_Execute(t *testing.T) {
 		if !ok {
 			t.Fatalf("quotas should be *QuotaMetadata, got %T", resp.Metadata["quotas"])
 		}
-		if quotas.EventsQuota != 500_000 {
-			t.Errorf("EventsQuota = %d, want 500000", quotas.EventsQuota)
+		if quotas.EventsQuota != 1_000_000 {
+			t.Errorf("EventsQuota = %d, want 1000000", quotas.EventsQuota)
 		}
 		if quotas.QueriesQuota != 100_000 {
 			t.Errorf("QueriesQuota = %d, want 100000", quotas.QueriesQuota)

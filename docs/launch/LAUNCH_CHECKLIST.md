@@ -19,7 +19,7 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 - [x] GitHub OAuth app registered; `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` saved
 - [ ] LemonSqueezy: API key, store ID, webhook secret (needed for paid-tier upgrade flow)
 - [ ] Coinbase CDP server wallet on Base (mainnet for launch, Sepolia for staging) — for x402 payouts
-- [ ] Generate `SECRET_KEY_BASE` (`mix phx.gen.secret`) and `ALLSOURCE_JWT_SECRET` (`openssl rand -hex 32`) — only if not already set as Fly secrets
+- [x] `SECRET_KEY_BASE` deployed on `allsource-query`, `ALLSOURCE_JWT_SECRET` deployed on `allsource-core` (verified via `fly secrets list` 2026-04-16)
 - [-] Custom domain: deferred — using `*.fly.dev` URLs directly for now, no issues
 
 ## Phase B — Deploy core stack
@@ -110,12 +110,13 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
 - [x] "database" → "event store" audit: only one user-facing fix needed (`dashboard/demo/page.tsx` "your database" → "your event store"); rest of the copy already uses contrastive framing correctly
 - [x] Use cases page (`apps/web/src/app/(marketing)/use-cases/page.tsx` — audit trails, event replay, AI agent memory, financial history)
 - [x] AllSource vs EventStoreDB comparison page (`apps/web/src/app/(marketing)/compare/eventstoredb/page.tsx`)
-- [x] Pricing page review — resolved in `docs/marketing/PRICING_DECISION_2026-04.md` (Option 3 Hybrid). `config.ts` now ships 4 tiers: Developer (free) / **Pro $29** (x402 headline) / **Growth $79** (renamed from TEAM) / Enterprise. Downstream enforcement still pending:
-  - [ ] LemonSqueezy: create `pro_monthly` / `pro_yearly` SKUs; update `docs/launch/LEMONSQUEEZY_SETUP.md`
-  - [ ] Query Service: add `pro` row to plan-limits config (1M events/mo, 5 streams, 30-day retention)
-  - [ ] Control Plane x402 middleware: gate agent endpoints on `tier in {pro, growth, enterprise}` (currently any authenticated tenant)
-  - [ ] Auth service: add MCP read-only scoped token preset for Pro tier
-  - [ ] Backend `BillingStatus` type (Go + Elixir): add `"pro"` to the tier enum — web client already updated (`apps/web/src/lib/api/client.ts:629`)
+- [x] Pricing page review — resolved in `docs/marketing/PRICING_DECISION_2026-04.md` (Option 3 Hybrid). `config.ts` now ships 4 tiers: Developer (free) / **Pro $29** (x402 headline) / **Growth $79** (renamed from TEAM) / Enterprise. Downstream enforcement status:
+  - [ ] LemonSqueezy dashboard: create `pro_monthly` / `pro_yearly` variants — docs updated at `docs/launch/LEMONSQUEEZY_SETUP.md` but the SKUs still need to be created by Decebal in the LS dashboard, then added to `LEMON_SQUEEZY_VARIANT_MAP`
+  - [x] Query Service plan-limits config: `billing_controller.ex` `@tier_quotas` now has `pro` row (1M events/mo, 100K queries/mo); `tenant.ex` schema enum updated to `free/pro/growth/enterprise`. Note: per-minute rate limit tiers in `rate_limiter.ex` already had a `:pro` atom — not touched.
+  - [x] Control Plane x402 middleware tier gate: `quota_gate.go` now exposes `X402TierAllower` interface; `CoreQuotaChecker.AllowsX402()` reads `subscription.tier` from tenant metadata and allows `pro/growth/enterprise/team`; free tier returns 403 before quota/payment logic (`TestQuotaGate_FreeTier_Returns403`)
+  - [x] Auth service MCP read-only preset: `Role::mcp_readonly_preset()` on `apps/core/src/infrastructure/security/auth.rs` — returns `Role::ReadOnly` (Read + Metrics permissions only). Call this from the API-key provisioning path when a Pro tenant requests an MCP key.
+  - [x] Go `SubscriptionTier` entity (`apps/control-plane/internal/domain/entities/subscription.go`): added `TierGrowth` + `TierEnterprise` constants, `TierPro` quota bumped to 1M events/mo, `TierEnterprise` uses `-1` for unlimited. Tests updated and passing. Legacy `TierTeam` retained as alias.
+  - [ ] Elixir `BillingStatus` type sweep — `billing_controller.ex` and `tenant.ex` are done; other tier string literals across the Elixir codebase (rate limiter, plugs, test fixtures) still use the old `free/starter/growth/enterprise` list. Low risk for launch — those are rate-limit axes, not billing-tier checks.
 
 ## Phase H — Launch marketing assets
 

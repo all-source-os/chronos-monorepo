@@ -16,11 +16,17 @@ defmodule QueryServiceExWeb.BillingController do
 
   tags(["Billing"])
 
-  # Default quotas per tier
+  # Default quotas per tier. Numbers come from
+  # docs/marketing/PRICING_DECISION_2026-04.md and match the Go entity map in
+  # apps/control-plane/internal/domain/entities/subscription.go. Enterprise
+  # uses -1 to signal unlimited. The legacy "team" string is accepted as an
+  # alias for "growth" so old billing events don't break lookups.
   @tier_quotas %{
-    "free" => %{events_quota: 10_000, queries_quota: 1_000},
-    "growth" => %{events_quota: 100_000, queries_quota: 10_000},
-    "enterprise" => %{events_quota: 1_000_000, queries_quota: 100_000}
+    "free" => %{events_quota: 100_000, queries_quota: 10_000},
+    "pro" => %{events_quota: 1_000_000, queries_quota: 100_000},
+    "growth" => %{events_quota: 10_000_000, queries_quota: 1_000_000},
+    "team" => %{events_quota: 10_000_000, queries_quota: 1_000_000},
+    "enterprise" => %{events_quota: -1, queries_quota: -1}
   }
 
   @doc """

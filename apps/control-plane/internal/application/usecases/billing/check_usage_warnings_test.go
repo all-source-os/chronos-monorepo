@@ -201,8 +201,8 @@ func TestCheckUsageWarnings_ProUpgradeCTA(t *testing.T) {
 		t.Fatalf("expected 1 email, got %d", len(emailClient.sent))
 	}
 	body := emailClient.sent[0].Body
-	if !containsString(body, "upgrade to Team") {
-		t.Error("expected Pro tier email to mention Team upgrade")
+	if !containsString(body, "upgrade to Growth") {
+		t.Error("expected Pro tier email to mention Growth upgrade")
 	}
 }
 

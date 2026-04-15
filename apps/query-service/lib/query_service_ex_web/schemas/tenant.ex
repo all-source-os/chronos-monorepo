@@ -23,7 +23,7 @@ defmodule QueryServiceExWeb.Schemas.Tenant do
         },
         subscription_tier: %Schema{
           type: :string,
-          enum: ["free", "starter", "growth", "enterprise"]
+          enum: ["free", "pro", "growth", "enterprise"]
         },
         trial_ends_at: %Schema{type: :string, format: :"date-time", nullable: true},
         subscription_ends_at: %Schema{type: :string, format: :"date-time", nullable: true},

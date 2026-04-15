@@ -233,15 +233,15 @@ Current usage: %d / %d events (%d%% used)
 		body = fmt.Sprintf("Current usage: %d / %d events\n", quotas.EventsUsed, quotas.EventsQuota)
 	}
 
-	// Add upgrade CTA for non-team tiers
+	// Add upgrade CTA for lower tiers
 	switch tier {
 	case string(entities.TierFree):
-		body += `To increase your quota, upgrade to Pro ($29/mo, 500K events) or Team ($99/mo, 5M events).
+		body += `To increase your quota, upgrade to Pro ($29/mo, 1M events) or Growth ($79/mo billed yearly, 10M events).
 
 Upgrade at: https://all-source.xyz/billing
 `
 	case string(entities.TierPro):
-		body += `To increase your quota, upgrade to Team ($99/mo, 5M events).
+		body += `To increase your quota, upgrade to Growth ($79/mo billed yearly, 10M events).
 
 Upgrade at: https://all-source.xyz/billing
 `
