@@ -111,7 +111,7 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
 - [x] Use cases page (`apps/web/src/app/(marketing)/use-cases/page.tsx` — audit trails, event replay, AI agent memory, financial history)
 - [x] AllSource vs EventStoreDB comparison page (`apps/web/src/app/(marketing)/compare/eventstoredb/page.tsx`)
 - [x] Pricing page review — resolved in `docs/marketing/PRICING_DECISION_2026-04.md` (Option 3 Hybrid). `config.ts` now ships 4 tiers: Developer (free) / **Pro $29** (x402 headline) / **Growth $79** (renamed from TEAM) / Enterprise. Downstream enforcement still pending:
-  - [ ] LemonSqueezy: create `pro_monthly` / `pro_yearly` SKUs; update `docs/LEMONSQUEEZY_SETUP.md`
+  - [ ] LemonSqueezy: create `pro_monthly` / `pro_yearly` SKUs; update `docs/launch/LEMONSQUEEZY_SETUP.md`
   - [ ] Query Service: add `pro` row to plan-limits config (1M events/mo, 5 streams, 30-day retention)
   - [ ] Control Plane x402 middleware: gate agent endpoints on `tier in {pro, growth, enterprise}` (currently any authenticated tenant)
   - [ ] Auth service: add MCP read-only scoped token preset for Pro tier

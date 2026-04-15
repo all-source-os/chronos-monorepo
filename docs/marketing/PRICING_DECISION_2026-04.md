@@ -118,7 +118,7 @@ yearlyPrice: "$79",
 
 ## Downstream changes to flag
 
-- **Billing (LemonSqueezy):** new `pro_monthly` and `pro_yearly` SKUs. See `docs/LEMONSQUEEZY_SETUP.md`.
+- **Billing (LemonSqueezy):** new `pro_monthly` and `pro_yearly` SKUs. See `docs/launch/LEMONSQUEEZY_SETUP.md`.
 - **Quota enforcement:** Query Service needs a `pro` tier row in its plan-limits config — 1M events/month, 5 streams, 30-day retention TTL.
 - **x402 gating:** the x402 agent endpoint middleware currently allows any authenticated tenant. It needs to check `tier in {pro, growth, enterprise}` before serving.
 - **MCP read-only scope:** Pro should get a scoped MCP token that excludes mutation tools. This is a new permission preset in the auth service.
