@@ -204,6 +204,12 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 		c.Set("auth_role", authCtx.Role)          // Separate key for cross-package access
 		c.Set("auth_user_id", authCtx.UserID)     // Separate key for cross-package access
 		c.Set("auth_tenant_id", authCtx.TenantID) // Separate key for cross-package access
+		// Also set the short "tenant_id" key the x402 middleware chain
+		// (middleware.go, quota_gate.go, autopay.go) reads from. Without
+		// this, every x402 path sees an empty tenant_id and the tier gate
+		// / quota check / autopay wallet lookup all no-op. Pre-existing
+		// bug surfaced during Phase C smoke testing.
+		c.Set("tenant_id", authCtx.TenantID)
 		c.Next()
 	}
 }
