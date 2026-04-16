@@ -73,6 +73,11 @@ WORKDIR /app
 # distroless:nonroot runs as UID 65534 by default
 COPY --from=builder /app/control-plane /app/control-plane
 
+# Default x402 pricing config. Enabled flag is false in the file; flip
+# X402_ENABLED=true at runtime to activate. Override the whole config by
+# pointing X402_PRICING_CONFIG at a different path.
+COPY --from=builder /app/config/x402-pricing.json /app/config/x402-pricing.json
+
 # Expose metrics and API port
 EXPOSE 3901
 

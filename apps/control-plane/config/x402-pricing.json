@@ -1,0 +1,11 @@
+{
+  "enabled": false,
+  "recipientAddress": "0x000000000000000000000000000000000000dEaD",
+  "routes": {
+    "POST /api/v1/agent-echo": {
+      "amount": "100",
+      "networks": ["eip155:84532"],
+      "description": "Reference x402 endpoint — free tier gets 403 (Pro+ required), Pro+ without payment gets 402, Pro+ with CDP wallet gets auto-paid."
+    }
+  }
+}

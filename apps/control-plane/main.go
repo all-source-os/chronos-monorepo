@@ -361,6 +361,14 @@ func (cp *ControlPlane) setupRoutes() {
 		))
 	}
 
+	// Reference x402 endpoint — minimal echo handler used to verify the
+	// tier gate, 402 payment-required, and auto-pay flows end-to-end.
+	// Sits on the `api` group so it inherits the AgentAutoPayMiddleware
+	// above. Pricing lives in config/x402-pricing.json under the key
+	// "POST /api/v1/agent-echo"; without that entry the route behaves
+	// like any other authenticated API call.
+	api.POST("/agent-echo", RequirePermission(entities.PermissionRead), cp.AgentEchoHandler)
+
 	// Cluster management
 	api.GET("/cluster/status", RequirePermission(entities.PermissionRead), cp.container.OperationsHandler.GetClusterStatus)
 	api.GET("/cluster/health", cp.container.OperationsHandler.ClusterHealth) // public — auth skipped by AuthMiddleware
