@@ -62,6 +62,21 @@ func AgentAutoPayMiddleware(
 			tenantIDStr = ""
 		}
 
+		// Tier gate: free-tier tenants cannot consume x402 priced routes at
+		// all, regardless of quota or CDP wallet balance. Pro-and-above only.
+		// Mirrors the check in QuotaGatedMiddleware so both integration paths
+		// enforce the same pricing-memo rule.
+		if tierAllower, ok := quotaChecker.(X402TierAllower); ok && tenantIDStr != "" {
+			if !tierAllower.AllowsX402(tenantIDStr) {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error":   "tier_not_allowed",
+					"message": "x402 agent endpoints require a Pro subscription or higher. Upgrade at https://all-source.xyz/billing",
+				})
+				c.Abort()
+				return
+			}
+		}
+
 		// Free tier: quota still available
 		if tenantIDStr != "" && quotaChecker.HasQuota(tenantIDStr, routeKey) {
 			c.Next()

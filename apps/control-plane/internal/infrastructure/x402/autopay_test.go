@@ -55,11 +55,21 @@ func setupAutoPayRouter(
 	facilitator PaymentFacilitator,
 	withTenantID bool,
 ) (*gin.Engine, *testCoreClient) {
+	return setupAutoPayRouterWithTier(quotaRemaining, false, walletID, walletAddr, signer, facilitator, withTenantID)
+}
+
+func setupAutoPayRouterWithTier(
+	quotaRemaining, tierDenied bool,
+	walletID, walletAddr string,
+	signer *mockCDPSigner,
+	facilitator PaymentFacilitator,
+	withTenantID bool,
+) (*gin.Engine, *testCoreClient) {
 	pricing := enabledPricing()
 	mock := &testCoreClient{}
 	logger := NewEventLogger(mock)
 	wallet := &mockWalletLookup{walletID: walletID, address: walletAddr}
-	quotaChecker := &StaticQuotaChecker{HasRemaining: quotaRemaining}
+	quotaChecker := &StaticQuotaChecker{HasRemaining: quotaRemaining, TierDenied: tierDenied}
 
 	router := gin.New()
 	if withTenantID {
@@ -87,6 +97,27 @@ func successFacilitator(walletAddr string) *mockAutoPayFacilitator {
 			Payer:       walletAddr,
 			Network:     NetworkBaseMainnet,
 		},
+	}
+}
+
+func TestAutoPay_FreeTier_Returns403(t *testing.T) {
+	signer := &mockCDPSigner{sig: "0xsig"}
+	// Free-tier tenant with plenty of quota and a funded wallet: the tier
+	// gate must still reject before any payment logic runs. Pro+ only.
+	router, _ := setupAutoPayRouterWithTier(true, true, "wallet-1", "0xAddr", signer, successFacilitator("0xAddr"), true)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status: want 403, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "tier_not_allowed") {
+		t.Errorf("body should mention tier_not_allowed, got %q", w.Body.String())
+	}
+	if signer.called {
+		t.Error("signer must not be called for free-tier requests")
 	}
 }
 
