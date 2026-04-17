@@ -54,7 +54,7 @@ mode = "embedded"
 instance_id = "auto-generated"
 
 [sync]
-remote_url = "http://core.example.com:3900"
+remote_url = "https://api.all-source.xyz"
 ```
 
 **When to use:** Local-first development, offline capability, low-latency reads.
@@ -67,7 +67,7 @@ All commands talk directly to a shared remote Core. No local data, no sync step 
 mode = "remote"
 
 [sync]
-remote_url = "http://core.example.com:3900"
+remote_url = "https://api.all-source.xyz"
 ```
 
 **When to use:** Shared team instance, CI/CD pipelines, environments where you want a single source of truth without sync. Reads use a local in-memory projection cache bootstrapped from remote events on startup.

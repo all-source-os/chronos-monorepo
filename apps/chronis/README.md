@@ -225,7 +225,7 @@ Point chronis at a shared Core instance. Writes go to the remote Core, reads use
 mode = "remote"
 
 [sync]
-remote_url = "http://core.example.com:3900"
+remote_url = "https://api.all-source.xyz"
 ```
 
 #### Configuration
@@ -236,7 +236,7 @@ mode = "embedded"                          # "embedded" or "remote"
 instance_id = "a1b2c3d4-..."              # Auto-generated, identifies this machine
 
 [sync]
-remote_url = "http://core.example.com:3900"  # Remote Core for sync target or primary backend
+remote_url = "https://api.all-source.xyz"  # Remote Core for sync target or primary backend
 ```
 
 ### Visualization

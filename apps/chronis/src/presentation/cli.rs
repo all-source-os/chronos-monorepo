@@ -101,11 +101,11 @@ pub enum Command {
 
 #[derive(clap::Args)]
 pub struct InitArgs {
-    /// Remote Core URL for team sync (e.g. https://allsource-core.fly.dev)
+    /// Remote AllSource URL for team sync (e.g. https://api.all-source.xyz)
     #[arg(long)]
     pub remote: Option<String>,
 
-    /// API key for authenticating with the remote Core
+    /// API key for authenticating with AllSource
     #[arg(long)]
     pub api_key: Option<String>,
 }
