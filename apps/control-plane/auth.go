@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -68,15 +71,33 @@ func roleForEmail(email string) entities.Role {
 // tokens without possessing the signing key.
 type AuthClient struct {
 	jwtSecret string
+	coreURL   string
+	http      *http.Client
+
+	apiKeyCache   map[string]apiKeyCacheEntry
+	apiKeyCacheMu sync.RWMutex
 }
 
-// NewAuthClient creates a new authentication client
-func NewAuthClient(jwtSecret string) *AuthClient {
+// apiKeyCacheTTL is how long a validated ask_ key stays cached.
+// Matches Query Service's 120s window so key-revocation latency is uniform.
+const apiKeyCacheTTL = 120 * time.Second
+
+type apiKeyCacheEntry struct {
+	claims    *Claims
+	expiresAt time.Time
+}
+
+// NewAuthClient creates a new authentication client.
+// coreURL is required for validating ask_ API keys against Core's /api/v1/auth/me.
+func NewAuthClient(jwtSecret, coreURL string) *AuthClient {
 	if jwtSecret == "" {
 		jwtSecret = "default-secret-change-in-production"
 	}
 	return &AuthClient{
-		jwtSecret: jwtSecret,
+		jwtSecret:   jwtSecret,
+		coreURL:     coreURL,
+		http:        &http.Client{Timeout: 5 * time.Second},
+		apiKeyCache: make(map[string]apiKeyCacheEntry),
 	}
 }
 
@@ -126,6 +147,75 @@ func (a *AuthClient) ValidateToken(tokenString string) (*Claims, error) {
 	if claims.ExpiresAt < time.Now().Unix() {
 		return nil, errors.New("token expired")
 	}
+
+	return claims, nil
+}
+
+// ValidateAPIKey validates an ask_-prefixed API key by delegating to Core,
+// which is the source of truth for API key existence and tenant binding.
+// Returns synthetic Claims derived from Core's /api/v1/auth/me response.
+//
+// Core's /me endpoint accepts both JWT and ask_ keys and returns the resolved
+// identity — we reuse that rather than re-validating the key locally, because
+// CP has no access to the key store. A 120s cache absorbs the per-request
+// round-trip; invalidation is best-effort via TTL (matching Query Service).
+func (a *AuthClient) ValidateAPIKey(ctx context.Context, token string) (*Claims, error) {
+	if a.coreURL == "" {
+		return nil, errors.New("control plane not configured to validate API keys (coreURL unset)")
+	}
+
+	// Cache lookup
+	a.apiKeyCacheMu.RLock()
+	if entry, ok := a.apiKeyCache[token]; ok && time.Now().Before(entry.expiresAt) {
+		a.apiKeyCacheMu.RUnlock()
+		return entry.claims, nil
+	}
+	a.apiKeyCacheMu.RUnlock()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(a.coreURL, "/")+"/api/v1/auth/me", nil)
+	if err != nil {
+		return nil, fmt.Errorf("build /me request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := a.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("call Core /me: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("invalid api key (Core /me HTTP %d: %s)", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var me struct {
+		ID       string        `json:"id"`
+		Username string        `json:"username"`
+		Email    string        `json:"email"`
+		Role     entities.Role `json:"role"`
+		TenantID string        `json:"tenant_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&me); err != nil {
+		return nil, fmt.Errorf("decode Core /me response: %w", err)
+	}
+
+	claims := &Claims{
+		UserID:   me.ID,
+		Username: me.Username,
+		Email:    me.Email,
+		Name:     me.Username,
+		TenantID: me.TenantID,
+		Role:     me.Role,
+		IsAPIKey: true,
+	}
+
+	a.apiKeyCacheMu.Lock()
+	a.apiKeyCache[token] = apiKeyCacheEntry{
+		claims:    claims,
+		expiresAt: time.Now().Add(apiKeyCacheTTL),
+	}
+	a.apiKeyCacheMu.Unlock()
 
 	return claims, nil
 }
@@ -183,7 +273,14 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 			return
 		}
 
-		claims, err := authClient.ValidateToken(token)
+		// ask_-prefixed tokens are API keys issued by Core; validate by delegating
+		// to Core's /api/v1/auth/me. Everything else is parsed as a local JWT.
+		var claims *Claims
+		if strings.HasPrefix(token, "ask_") {
+			claims, err = authClient.ValidateAPIKey(c.Request.Context(), token)
+		} else {
+			claims, err = authClient.ValidateToken(token)
+		}
 		if err != nil {
 			c.JSON(401, gin.H{"error": "unauthorized", "message": err.Error()})
 			c.Abort()

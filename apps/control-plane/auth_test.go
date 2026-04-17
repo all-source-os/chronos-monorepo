@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,7 +15,7 @@ import (
 
 func TestAuthClient_ValidateToken(t *testing.T) {
 	secret := "test-secret-key"
-	authClient := NewAuthClient(secret)
+	authClient := NewAuthClient(secret, "")
 
 	// Create a valid token
 	claims := &Claims{
@@ -89,6 +93,64 @@ func TestAuthClient_ValidateToken(t *testing.T) {
 		_, err := authClient.ValidateToken("not-a-valid-token")
 		if err == nil {
 			t.Error("Malformed token should have been rejected")
+		}
+	})
+}
+
+func TestAuthClient_ValidateAPIKey(t *testing.T) {
+	// Spin up a fake Core that impersonates /api/v1/auth/me.
+	var hits int64
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&hits, 1)
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer ask_good-key" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000000","username":"alice","email":"alice@example.com","role":"developer","tenant_id":"tenant-alice"}`))
+	}))
+	defer core.Close()
+
+	client := NewAuthClient("secret", core.URL)
+
+	t.Run("valid ask_ key returns claims", func(t *testing.T) {
+		claims, err := client.ValidateAPIKey(context.Background(), "ask_good-key")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if claims.TenantID != "tenant-alice" {
+			t.Errorf("tenant_id: got %q, want %q", claims.TenantID, "tenant-alice")
+		}
+		if claims.Role != entities.RoleDeveloper {
+			t.Errorf("role: got %q, want %q", claims.Role, entities.RoleDeveloper)
+		}
+		if !claims.IsAPIKey {
+			t.Errorf("IsAPIKey: got false, want true")
+		}
+	})
+
+	t.Run("second call hits cache, not Core", func(t *testing.T) {
+		before := atomic.LoadInt64(&hits)
+		if _, err := client.ValidateAPIKey(context.Background(), "ask_good-key"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if after := atomic.LoadInt64(&hits); after != before {
+			t.Errorf("expected cache hit, but Core was called (hits %d -> %d)", before, after)
+		}
+	})
+
+	t.Run("bad key surfaces Core error", func(t *testing.T) {
+		if _, err := client.ValidateAPIKey(context.Background(), "ask_bogus"); err == nil {
+			t.Error("expected error for bogus key, got nil")
+		}
+	})
+
+	t.Run("coreURL unset returns error without HTTP call", func(t *testing.T) {
+		unconfigured := NewAuthClient("secret", "")
+		_, err := unconfigured.ValidateAPIKey(context.Background(), "ask_whatever")
+		if err == nil {
+			t.Error("expected error when coreURL unset, got nil")
 		}
 	})
 }

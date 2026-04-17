@@ -90,6 +90,12 @@ type ControlPlane struct {
 	x402Handler     *x402.Handler
 	x402Pricing     *x402.PricingConfig
 	x402Facilitator x402.PaymentFacilitator
+
+	// Data-plane delegation: Control Plane is the single public entry point.
+	// After auth, forward writes to Core and reads to Query Service using the
+	// service JWT (backends trust CP, not the caller). Tenant is injected from
+	// the authenticated caller's identity before forwarding.
+	delegation *delegationClient
 }
 
 // NewControlPlane creates a new control plane instance with full middleware stack.
@@ -126,7 +132,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		log.Println("JWT_SECRET not set, using default (INSECURE for production)")
 		jwtSecret = "default-secret-change-in-production"
 	}
-	authClient := NewAuthClient(jwtSecret)
+	authClient := NewAuthClient(jwtSecret, coreURL)
 
 	// Sign a service-to-service JWT so the resty client can authenticate with Core.
 	// Uses a long-lived token with admin role — Core validates with the same shared secret.
@@ -248,6 +254,18 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	var x402Facilitator x402.PaymentFacilitator = x402.NewRemoteFacilitator(facilitatorURL)
 	x402Handler := x402.NewHandler(x402Facilitator, x402Pricing)
 
+	// Data-plane delegation targets. QUERY_SERVICE_URL is used for reads; Core
+	// stays on CORE_SERVICE_URL for writes. Both default to the Fly internal
+	// names when unset (production wiring).
+	queryURL := os.Getenv("QUERY_SERVICE_URL")
+	if queryURL == "" {
+		queryURL = "http://allsource-query.internal:3902"
+	}
+	delegation, err := newDelegationClient(coreURL, queryURL, serviceToken, NewPooledHTTPClient())
+	if err != nil {
+		return nil, fmt.Errorf("init delegation client: %w", err)
+	}
+
 	cp := &ControlPlane{
 		client:          client,
 		router:          router,
@@ -262,6 +280,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		x402Handler:     x402Handler,
 		x402Pricing:     x402Pricing,
 		x402Facilitator: x402Facilitator,
+		delegation:      delegation,
 	}
 
 	cp.setupMiddleware()
@@ -371,6 +390,14 @@ func (cp *ControlPlane) setupRoutes() {
 	// "POST /api/v1/agent-echo"; without that entry the route behaves
 	// like any other authenticated API call.
 	api.POST("/agent-echo", RequirePermission(entities.PermissionRead), cp.AgentEchoHandler)
+
+	// Data-plane delegation. Writes delegate to Core, reads to Query Service.
+	// Tenant is injected from the authenticated caller; backends see CP's
+	// service JWT, never the caller's ask_ key. These sit under `api` so they
+	// inherit AuthMiddleware + PolicyMiddleware + x402 auto-pay gating.
+	api.POST("/events", RequirePermission(entities.PermissionWrite), cp.ProxyIngestSingle)
+	api.POST("/events/batch", RequirePermission(entities.PermissionWrite), cp.ProxyIngestBatch)
+	api.GET("/events/query", RequirePermission(entities.PermissionRead), cp.ProxyEventsQuery)
 
 	// Cluster management
 	api.GET("/cluster/status", RequirePermission(entities.PermissionRead), cp.container.OperationsHandler.GetClusterStatus)
