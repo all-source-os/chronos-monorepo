@@ -11,128 +11,118 @@ import {
 } from "@allsource/ui";
 import { useCallback, useEffect, useState } from "react";
 
-const POLL_INTERVAL = 60_000; // 60 seconds
+// 15s matches the HTML status page served directly by Control Plane.
+// CP probes every 10s internally, so 15s polling here stays fresh without
+// ever trailing by more than one probe cycle.
+const POLL_INTERVAL = 15_000;
 
-interface ServiceStatus {
-  name: string;
-  description: string;
-  endpoint: string;
-  status: "operational" | "degraded" | "down" | "checking";
-  latencyMs: number | null;
-  lastChecked: string | null;
+// The CP feed returns these three status values. "stale" means a heartbeat
+// hasn't arrived within heartbeatTTL (25s on CP); we render it as degraded
+// since the probe is effectively missing, not confirmed down.
+type HeartbeatStatus = "healthy" | "unhealthy" | "stale";
+
+interface ServiceHeartbeat {
+  service: string;
+  status: HeartbeatStatus;
+  latency_ms: number;
+  last_seen: string;
+  age_seconds: number;
+  error?: string;
+  probed_url?: string;
 }
 
-const SERVICES: Omit<ServiceStatus, "status" | "latencyMs" | "lastChecked">[] = [
-  {
-    name: "Core (Event Store)",
-    description: "Rust event ingestion, WAL, Parquet storage, and queries",
-    endpoint: "/api/status/core",
+// Friendly labels + descriptions for the canonical service set. Services
+// returned by CP that aren't in this map are still rendered, with the raw
+// name as the label.
+const SERVICE_METADATA: Record<string, { label: string; description: string }> = {
+  "control-plane": {
+    label: "Control Plane",
+    description: "Public entry point — auth, delegation, quota, x402",
   },
-  {
-    name: "Query Service",
-    description: "Elixir API gateway — auth, billing, routing",
-    endpoint: "/api/status/query-service",
+  core: {
+    label: "Core (Event Store)",
+    description: "Rust event store — WAL, Parquet, 12μs reads",
   },
-  {
-    name: "Control Plane",
-    description: "Go control plane — JWT/RBAC, policy engine",
-    endpoint: "/api/status/control-plane",
+  query: {
+    label: "Query Service",
+    description: "Elixir API gateway — events, billing, WebSocket",
   },
-];
+  prime: {
+    label: "Prime (Graph/Vector)",
+    description: "Graph and vector store — semantic queries, recall",
+  },
+  auth: {
+    label: "Auth Service",
+    description: "Better-auth adapter over AllSource",
+  },
+  registry: {
+    label: "Registry",
+    description: "Package and SDK registry",
+  },
+  web: {
+    label: "Website",
+    description: "Marketing site and dashboard (Vercel)",
+  },
+};
 
-function statusBadge(status: ServiceStatus["status"]) {
+function statusBadge(status: HeartbeatStatus | "checking") {
   switch (status) {
-    case "operational":
+    case "healthy":
       return (
         <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Operational</Badge>
       );
-    case "degraded":
+    case "unhealthy":
+      return <Badge className="bg-red-500/10 text-red-500 border-red-500/20">Down</Badge>;
+    case "stale":
       return (
         <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Degraded</Badge>
       );
-    case "down":
-      return <Badge className="bg-red-500/10 text-red-500 border-red-500/20">Down</Badge>;
     case "checking":
       return <Badge className="bg-muted text-muted-foreground">Checking...</Badge>;
   }
 }
 
-function overallStatus(services: ServiceStatus[]): {
-  label: string;
-  color: string;
-} {
-  if (services.some((s) => s.status === "checking")) {
+function overallStatus(services: ServiceHeartbeat[]): { label: string; color: string } {
+  if (services.length === 0) {
     return { label: "Checking systems...", color: "text-muted-foreground" };
   }
-  if (services.every((s) => s.status === "operational")) {
-    return { label: "All Systems Operational", color: "text-green-500" };
-  }
-  if (services.some((s) => s.status === "down")) {
-    return { label: "Partial Outage", color: "text-red-500" };
-  }
-  return { label: "Degraded Performance", color: "text-yellow-500" };
+  const hasDown = services.some((s) => s.status === "unhealthy");
+  const hasStale = services.some((s) => s.status === "stale");
+  if (hasDown) return { label: "Partial Outage", color: "text-red-500" };
+  if (hasStale) return { label: "Degraded Performance", color: "text-yellow-500" };
+  return { label: "All Systems Operational", color: "text-green-500" };
 }
 
-function uptimePercent(status: ServiceStatus["status"]): string {
-  // In a real implementation, this would be calculated from historical data.
-  // For now, show 100% for operational, 99.9% for degraded, 0% for down.
-  switch (status) {
-    case "operational":
-      return "100.0%";
-    case "degraded":
-      return "99.9%";
-    case "down":
-      return "—";
-    case "checking":
-      return "—";
-  }
+function formatAge(ageSeconds: number): string {
+  if (ageSeconds < 1) return "just now";
+  if (ageSeconds < 60) return `${Math.round(ageSeconds)}s ago`;
+  if (ageSeconds < 3600) return `${Math.round(ageSeconds / 60)}m ago`;
+  return `${Math.round(ageSeconds / 3600)}h ago`;
 }
 
 export default function StatusPage() {
-  const [services, setServices] = useState<ServiceStatus[]>(
-    SERVICES.map((s) => ({ ...s, status: "checking", latencyMs: null, lastChecked: null }))
-  );
+  const [services, setServices] = useState<ServiceHeartbeat[]>([]);
+  const [lastFetch, setLastFetch] = useState<Date | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const checkServices = useCallback(async () => {
-    const results = await Promise.all(
-      SERVICES.map(async (svc) => {
-        const start = performance.now();
-        try {
-          const res = await fetch(svc.endpoint, { cache: "no-store" });
-          const latencyMs = Math.round(performance.now() - start);
-          if (res.ok) {
-            return {
-              ...svc,
-              status: "operational" as const,
-              latencyMs,
-              lastChecked: new Date().toISOString(),
-            };
-          }
-          return {
-            ...svc,
-            status: "degraded" as const,
-            latencyMs,
-            lastChecked: new Date().toISOString(),
-          };
-        } catch {
-          const latencyMs = Math.round(performance.now() - start);
-          return {
-            ...svc,
-            status: "down" as const,
-            latencyMs,
-            lastChecked: new Date().toISOString(),
-          };
-        }
-      })
-    );
-    setServices(results);
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/status/services", { cache: "no-store" });
+      const data = (await res.json()) as { services?: ServiceHeartbeat[]; error?: string };
+      setServices(data.services ?? []);
+      setFetchError(data.error ?? null);
+      setLastFetch(new Date());
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : String(err));
+      setLastFetch(new Date());
+    }
   }, []);
 
   useEffect(() => {
-    checkServices();
-    const interval = setInterval(checkServices, POLL_INTERVAL);
+    fetchStatus();
+    const interval = setInterval(fetchStatus, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [checkServices]);
+  }, [fetchStatus]);
 
   const overall = overallStatus(services);
 
@@ -140,38 +130,59 @@ export default function StatusPage() {
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
       <BlurFade delay={0.1} inView>
         <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">System Status</h1>
-        <p className={`text-lg font-medium mb-8 ${overall.color}`}>{overall.label}</p>
+        <p className={`text-lg font-medium mb-2 ${overall.color}`}>{overall.label}</p>
+        <p className="text-sm text-muted-foreground mb-8">
+          Powered by event-sourced heartbeats — every probe is a permanent event in Core.
+        </p>
       </BlurFade>
 
       <BlurFade delay={0.2} inView>
         <Card>
           <CardHeader>
             <CardTitle>Services</CardTitle>
-            <CardDescription>Health status polled every 60 seconds</CardDescription>
+            <CardDescription>
+              Probed every 10 seconds by Control Plane; refreshed here every 15 seconds
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {services.map((svc) => (
-                <div
-                  key={svc.name}
-                  className="flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-foreground">{svc.name}</p>
-                    <p className="text-xs text-muted-foreground">{svc.description}</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {svc.latencyMs !== null && (
-                      <span className="text-xs text-muted-foreground">{svc.latencyMs}ms</span>
-                    )}
-                    <span className="text-xs text-muted-foreground w-12 text-right">
-                      {uptimePercent(svc.status)}
-                    </span>
-                    {statusBadge(svc.status)}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {services.length === 0 && !fetchError ? (
+              <p className="text-sm text-muted-foreground">Checking systems…</p>
+            ) : services.length === 0 && fetchError ? (
+              <p className="text-sm text-red-500">Unable to reach status feed: {fetchError}</p>
+            ) : (
+              <div className="space-y-4">
+                {services.map((svc) => {
+                  const meta = SERVICE_METADATA[svc.service];
+                  return (
+                    <div
+                      key={svc.service}
+                      className="flex items-center justify-between rounded-lg border p-4"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">
+                          {meta?.label ?? svc.service}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {meta?.description ?? svc.probed_url ?? svc.service}
+                        </p>
+                        {svc.status !== "healthy" && svc.error && (
+                          <p className="text-xs text-red-500">{svc.error}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs text-muted-foreground">
+                          {svc.latency_ms}ms
+                        </span>
+                        <span className="text-xs text-muted-foreground w-20 text-right">
+                          {formatAge(svc.age_seconds)}
+                        </span>
+                        {statusBadge(svc.status)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </BlurFade>
@@ -183,14 +194,17 @@ export default function StatusPage() {
             <CardDescription>Last 30 days</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">No incidents reported.</p>
+            <p className="text-sm text-muted-foreground">
+              No incidents reported. History view will surface heartbeat events from Core in a
+              future release.
+            </p>
           </CardContent>
         </Card>
       </BlurFade>
 
-      {services[0]?.lastChecked && (
+      {lastFetch && (
         <p className="text-xs text-muted-foreground mt-4 text-center">
-          Last checked: {new Date(services[0].lastChecked).toLocaleTimeString()}
+          Last refreshed: {lastFetch.toLocaleTimeString()}
         </p>
       )}
     </div>

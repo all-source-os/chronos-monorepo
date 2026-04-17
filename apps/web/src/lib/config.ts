@@ -236,7 +236,7 @@ export const siteConfig = {
       links: [
         { href: "#", text: "About", icon: null },
         { href: "/blog", text: "Blog", icon: null },
-        { href: "https://status.all-source.xyz", text: "Status", icon: null },
+        { href: "/status", text: "Status", icon: null },
         { href: "/privacy", text: "Privacy Policy", icon: null },
         { href: "/terms", text: "Terms of Service", icon: null },
       ],

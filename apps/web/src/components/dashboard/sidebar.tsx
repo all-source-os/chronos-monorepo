@@ -144,9 +144,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Platform status link */}
       <div className="border-t border-border p-2">
         <a
-          href="https://status.all-source.xyz"
-          target="_blank"
-          rel="noreferrer"
+          href="/status"
           className={cn(
             "flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
             collapsed && "justify-center px-2"
