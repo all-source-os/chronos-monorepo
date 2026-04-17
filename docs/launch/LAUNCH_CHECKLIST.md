@@ -20,7 +20,8 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 - [ ] LemonSqueezy: API key, store ID, webhook secret (needed for paid-tier upgrade flow)
 - [ ] Coinbase CDP server wallet on Base (mainnet for launch, Sepolia for staging) — for x402 payouts
 - [x] `SECRET_KEY_BASE` deployed on `allsource-query`, `ALLSOURCE_JWT_SECRET` deployed on `allsource-core` (verified via `fly secrets list` 2026-04-16)
-- [-] Custom domain: deferred — using `*.fly.dev` URLs directly for now, no issues
+- [x] Custom domains live: `api.all-source.xyz` → `allsource-control-plane` (Fly, Let's Encrypt cert), `status.all-source.xyz` → `allsource-status` (Fly, Let's Encrypt cert). DNS via Vercel. See `docs/runbooks/SLO_SLA.md` for record values.
+- [x] Status page deployed: Vigil v1.29.0 on Fly (`allsource-status`, 2 machines iad, 256MB). Monitors all 7 services at 60s intervals. Live at `https://status.all-source.xyz/`. Slack alerting stubbed — uncomment + set `SLACK_WEBHOOK_URL` when ready.
 
 ## Phase B — Deploy core stack
 
