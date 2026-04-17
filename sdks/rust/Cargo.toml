@@ -9,9 +9,23 @@ keywords = ["event-sourcing", "event-store", "allsource", "cqrs"]
 categories = ["api-bindings", "database"]
 
 [features]
-default = ["rustls"]
-rustls = ["reqwest/rustls"]
-native-tls = ["reqwest/native-tls"]
+default = ["rustls", "projection-worker"]
+rustls = [
+    "reqwest/rustls",
+    "tokio-tungstenite?/rustls-tls-webpki-roots",
+]
+native-tls = [
+    "reqwest/native-tls",
+    "tokio-tungstenite?/native-tls",
+]
+ws = [
+    "dep:tokio-tungstenite",
+    "dep:futures-util",
+    "dep:url",
+    "tokio/macros",
+    "tokio/rt-multi-thread",
+]
+projection-worker = ["ws", "dep:async-trait"]
 
 [dependencies]
 reqwest = { version = "0.13", features = ["json", "query"], default-features = false }
@@ -21,8 +35,14 @@ thiserror = "2"
 tokio = { version = "1", features = ["rt", "time", "sync"] }
 tracing = "0.1"
 
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "handshake"], optional = true }
+futures-util = { version = "0.3", default-features = false, features = ["std"], optional = true }
+async-trait = { version = "0.1", optional = true }
+url = { version = "2", optional = true }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+wiremock = "0.6"
 
 [lints]
 workspace = true
