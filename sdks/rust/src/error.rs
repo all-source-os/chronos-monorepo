@@ -26,6 +26,11 @@ pub enum Error {
     /// Circuit breaker is open — backend is unavailable.
     #[error("circuit breaker open: backend unavailable, retry after {retry_after_secs}s")]
     CircuitOpen { retry_after_secs: u64 },
+
+    /// WebSocket transport error.
+    #[cfg(feature = "ws")]
+    #[error("WebSocket error: {0}")]
+    WebSocket(String),
 }
 
 impl Error {

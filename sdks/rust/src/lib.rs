@@ -71,6 +71,8 @@ mod error;
 mod fold;
 mod normalize;
 mod types;
+#[cfg(feature = "ws")]
+mod ws;
 
 pub use circuit_breaker::CircuitBreaker;
 pub use client::{ClientConfig, CoreClient, QueryClient, RetryConfig};
@@ -78,6 +80,9 @@ pub use error::Error;
 pub use fold::{fold_events, EventFolder};
 pub use normalize::normalize_event_type;
 pub use types::*;
+
+#[cfg(feature = "ws")]
+pub use ws::{EventStream, EventStreamClient, StreamItem, StreamMode, StreamedEvent};
 
 // Re-export for payload construction
 pub use serde_json::{self, json, Value};
