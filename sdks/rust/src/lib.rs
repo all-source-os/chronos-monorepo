@@ -71,6 +71,8 @@ mod error;
 mod fold;
 mod normalize;
 mod projection_api;
+#[cfg(feature = "projection-worker")]
+pub mod projection_worker;
 mod types;
 #[cfg(feature = "ws")]
 mod ws;
@@ -84,6 +86,9 @@ pub use types::*;
 
 #[cfg(feature = "ws")]
 pub use ws::{EventStream, EventStreamClient, StreamItem, StreamMode, StreamedEvent};
+
+#[cfg(feature = "projection-worker")]
+pub use projection_worker::{ProjectionWorker, ProjectionWorkerBuilder, WorkerState};
 
 // Re-export for payload construction
 pub use serde_json::{self, json, Value};
