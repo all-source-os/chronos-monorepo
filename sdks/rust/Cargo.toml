@@ -1,6 +1,6 @@
 [package]
 name = "allsource"
-version = "0.18.2"
+version = "0.19.0"
 edition = "2021"
 description = "Rust client for the AllSource event store — query, ingest, and fold events"
 license = "MIT"
@@ -10,14 +10,8 @@ categories = ["api-bindings", "database"]
 
 [features]
 default = ["rustls", "projection-worker"]
-rustls = [
-    "reqwest/rustls",
-    "tokio-tungstenite?/rustls-tls-webpki-roots",
-]
-native-tls = [
-    "reqwest/native-tls",
-    "tokio-tungstenite?/native-tls",
-]
+rustls = ["reqwest/rustls", "tokio-tungstenite?/rustls-tls-webpki-roots"]
+native-tls = ["reqwest/native-tls", "tokio-tungstenite?/native-tls"]
 ws = [
     "dep:tokio-tungstenite",
     "dep:futures-util",
@@ -28,22 +22,22 @@ ws = [
 projection-worker = ["ws", "dep:async-trait"]
 
 [dependencies]
+async-trait = { version = "0.1", optional = true }
+futures-util = { version = "0.3", default-features = false, features = ["std"], optional = true }
 reqwest = { version = "0.13", features = ["json", "query"], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["rt", "time", "sync"] }
-tracing = "0.1"
 
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "handshake"], optional = true }
-futures-util = { version = "0.3", default-features = false, features = ["std"], optional = true }
-async-trait = { version = "0.1", optional = true }
+tracing = "0.1"
 url = { version = "2", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
-wiremock = "0.6"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wiremock = "0.6"
 
 [[example]]
 name = "asset_projection"

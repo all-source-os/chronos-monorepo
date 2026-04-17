@@ -1,0 +1,33 @@
+# Changelog
+
+All notable changes to the `allsource` Rust SDK.
+
+Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org).
+
+## [0.19.0] — 2026-04-17
+
+### Added
+
+- **`ProjectionWorker`** — first-party worker for building custom projections from Core's event stream ([#155]). Handles WebSocket subscription, durable-consumer registration, replay → live transition, per-entity version dedup, checkpointing, and exponential-backoff reconnection. Users provide only the reducer closure.
+  - Builder API: `ProjectionWorker::<S>::builder(core).name(...).event_types(...).reducer(...).checkpoint_interval(...).build()`
+  - Optional state push-back: `.state_flush_entities(...).state_flush_every(...).state_flush_interval(...)`
+  - Lifecycle: `worker.start().await?` → `ProjectionHandle<S>` with `state()`, `get_state(id)`, `is_caught_up()`, `current_position()`, `stop().await`
+- **`ws` feature** — WebSocket client (`EventStreamClient`, `EventStream`, `StreamItem`) for Core's `/api/v1/events/stream`. Parses replay/replay_complete/live/lagged frames into a typed stream.
+- **`projection-worker` feature (default-on)** — pulls in `ws` + async-trait for the worker. Disable with `default-features = false` for HTTP-only builds.
+- **`CoreClient` projection + consumer helpers**: `get_projection_state`, `put_projection_state`, `bulk_put_projection_state`, `register_consumer`, `get_consumer`, `ack_consumer`, `save_checkpoint`, `load_checkpoint`.
+- **`ConsumerState` type** for durable-consumer responses.
+- Integration tests against a live Core (skip gracefully without `ALLSOURCE_TEST_CORE_URL`): cold start, restart resume, version dedup, reducer-error propagation.
+- Runnable example: `examples/asset_projection.rs` (mirrors the API shape requested in #155).
+- Documentation: README "Building custom projections" section + full guide in `docs/use-cases/custom-projections.md`.
+
+### Changed
+
+- README rewritten: the old `Client::new` snippet referenced a type that hasn't existed for several releases; it's now `QueryClient` + `CoreClient`.
+- `Error::WebSocket(String)` variant added (behind `ws` feature).
+
+### Internal
+
+- `HttpTransport` exposes `pub(crate)` methods for `put` and `get_optional` (404 → None). No user-facing change.
+
+[#155]: https://github.com/all-source-os/all-source/issues/155
+[0.19.0]: https://github.com/all-source-os/all-source/releases/tag/sdk-rust-v0.19.0
