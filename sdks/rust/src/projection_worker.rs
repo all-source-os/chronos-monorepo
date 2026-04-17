@@ -8,14 +8,17 @@ use futures_util::{Stream, StreamExt};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::time::Duration;
+use tokio::sync::{Notify, RwLock};
+use tokio::task::JoinHandle;
 
 use crate::{
     client::CoreClient,
     error::Error,
     types::Event,
-    ws::{StreamItem, StreamMode, StreamedEvent},
+    ws::{EventStreamClient, StreamItem, StreamMode, StreamedEvent},
 };
 
 /// Bounded state that the reducer reads and writes.
@@ -113,8 +116,6 @@ impl<S: WorkerState> ProjectionWorkerBuilder<S> {
 pub struct ProjectionWorker<S: WorkerState> {
     pub(crate) core: CoreClient,
     pub(crate) name: String,
-    // Used by `start()` in US-005 to open a filtered WS subscription.
-    #[allow(dead_code)]
     pub(crate) event_types: Vec<String>,
     pub(crate) reducer: Box<Reducer<S>>,
     pub(crate) checkpoint_interval: u64,
@@ -231,10 +232,324 @@ impl<S: WorkerState> ProjectionWorker<S> {
         &self.name
     }
 
-    /// Access the in-progress state. Mostly useful in tests; production code
-    /// should use `ProjectionHandle::get_state` (US-005).
+    /// Access the in-progress state.
     pub fn state(&self) -> Arc<RwLock<S>> {
         Arc::clone(&self.state)
+    }
+
+    /// Start the worker on a background tokio task.
+    ///
+    /// Registers a durable consumer with Core, opens a WebSocket subscription,
+    /// and runs the reducer loop. Reconnects with exponential backoff on
+    /// transport failures. Returns a [`ProjectionHandle`] for state access and
+    /// graceful shutdown.
+    pub async fn start(self) -> Result<ProjectionHandle<S>, Error> {
+        self.core
+            .register_consumer(&self.name, &self.event_types)
+            .await?;
+
+        let handle_core = self.core.clone();
+        let handle_name = self.name.clone();
+        let state_arc = Arc::clone(&self.state);
+        let position = Arc::new(AtomicU64::new(0));
+        let caught_up = Arc::new(AtomicBool::new(false));
+        let shutdown_flag = Arc::new(AtomicBool::new(false));
+        let shutdown_notify = Arc::new(Notify::new());
+        let stopped_cleanly = Arc::new(AtomicBool::new(false));
+
+        let task = tokio::spawn(run_forever(
+            self,
+            Arc::clone(&position),
+            Arc::clone(&caught_up),
+            Arc::clone(&shutdown_flag),
+            Arc::clone(&shutdown_notify),
+            Arc::clone(&stopped_cleanly),
+        ));
+
+        Ok(ProjectionHandle {
+            core: handle_core,
+            name: handle_name,
+            state: state_arc,
+            position,
+            caught_up,
+            shutdown_flag,
+            shutdown_notify,
+            stopped_cleanly,
+            task: Some(task),
+        })
+    }
+}
+
+async fn run_forever<S: WorkerState>(
+    mut worker: ProjectionWorker<S>,
+    position: Arc<AtomicU64>,
+    caught_up: Arc<AtomicBool>,
+    shutdown_flag: Arc<AtomicBool>,
+    shutdown_notify: Arc<Notify>,
+    stopped_cleanly: Arc<AtomicBool>,
+) {
+    let mut backoff = ExpBackoff::new();
+
+    loop {
+        if shutdown_flag.load(Ordering::SeqCst) {
+            break;
+        }
+
+        let stream_client = EventStreamClient::new(
+            worker.core.transport().base_url.clone(),
+            String::new(),
+        );
+
+        caught_up.store(false, Ordering::SeqCst);
+
+        match stream_client
+            .connect(&worker.name, &worker.event_types)
+            .await
+        {
+            Ok(stream) => {
+                backoff.reset();
+                let outcome = run_loop_with_tracking(
+                    &mut worker,
+                    stream,
+                    &position,
+                    &caught_up,
+                    &shutdown_flag,
+                    &shutdown_notify,
+                )
+                .await;
+                match outcome {
+                    LoopOutcome::Shutdown => {
+                        stopped_cleanly.store(true, Ordering::SeqCst);
+                        break;
+                    }
+                    LoopOutcome::Eof => {
+                        tracing::warn!(
+                            worker = %worker.name,
+                            "event stream closed by server — reconnecting"
+                        );
+                    }
+                    LoopOutcome::StreamError(e) => {
+                        tracing::warn!(
+                            worker = %worker.name,
+                            error = %e,
+                            "stream error — reconnecting"
+                        );
+                    }
+                    LoopOutcome::ReducerError(e) => {
+                        tracing::error!(
+                            worker = %worker.name,
+                            error = %e,
+                            "reducer error — worker aborting"
+                        );
+                        break;
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    worker = %worker.name,
+                    error = %e,
+                    "WebSocket connect failed — backing off"
+                );
+            }
+        }
+
+        if shutdown_flag.load(Ordering::SeqCst) {
+            break;
+        }
+
+        let delay = backoff.next();
+        tracing::info!(
+            worker = %worker.name,
+            attempt = backoff.attempt,
+            delay_ms = delay.as_millis(),
+            "reconnecting"
+        );
+        tokio::select! {
+            _ = tokio::time::sleep(delay) => {}
+            _ = shutdown_notify.notified() => break,
+        }
+    }
+}
+
+enum LoopOutcome {
+    Shutdown,
+    Eof,
+    StreamError(Error),
+    ReducerError(Error),
+}
+
+async fn run_loop_with_tracking<S: WorkerState>(
+    worker: &mut ProjectionWorker<S>,
+    mut stream: crate::ws::EventStream,
+    position: &Arc<AtomicU64>,
+    caught_up: &Arc<AtomicBool>,
+    shutdown_flag: &Arc<AtomicBool>,
+    shutdown_notify: &Arc<Notify>,
+) -> LoopOutcome {
+    let mut events_since_checkpoint: u64 = 0;
+    let mut last_replay_position: Option<u64> = None;
+
+    loop {
+        if shutdown_flag.load(Ordering::SeqCst) {
+            if let Some(pos) = last_replay_position {
+                let _ = worker.core.save_checkpoint(&worker.name, pos).await;
+            }
+            return LoopOutcome::Shutdown;
+        }
+
+        tokio::select! {
+            _ = shutdown_notify.notified() => {
+                if let Some(pos) = last_replay_position {
+                    let _ = worker.core.save_checkpoint(&worker.name, pos).await;
+                }
+                return LoopOutcome::Shutdown;
+            }
+            item = stream.next() => match item {
+                None => return LoopOutcome::Eof,
+                Some(Err(e)) => return LoopOutcome::StreamError(e),
+                Some(Ok(StreamItem::Event(streamed))) => {
+                    match worker.apply_event(&streamed).await {
+                        Ok(false) => continue,
+                        Err(e) => return LoopOutcome::ReducerError(e),
+                        Ok(true) => {}
+                    }
+                    if streamed.mode == StreamMode::Replay {
+                        if let Some(pos) = streamed.position {
+                            last_replay_position = Some(pos);
+                            position.store(pos, Ordering::SeqCst);
+                        }
+                        events_since_checkpoint += 1;
+                        if events_since_checkpoint >= worker.checkpoint_interval {
+                            if let Some(pos) = last_replay_position {
+                                if let Err(e) = worker.core.save_checkpoint(&worker.name, pos).await {
+                                    return LoopOutcome::StreamError(e);
+                                }
+                                events_since_checkpoint = 0;
+                            }
+                        }
+                    }
+                }
+                Some(Ok(StreamItem::ReplayComplete { replayed })) => {
+                    if let Some(pos) = last_replay_position {
+                        if let Err(e) = worker.core.save_checkpoint(&worker.name, pos).await {
+                            return LoopOutcome::StreamError(e);
+                        }
+                        events_since_checkpoint = 0;
+                    }
+                    tracing::info!(worker = %worker.name, replayed, "replay complete");
+                    caught_up.store(true, Ordering::SeqCst);
+                }
+                Some(Ok(StreamItem::Lagged { missed })) => {
+                    tracing::warn!(worker = %worker.name, missed, "server broadcast lagged");
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ExpBackoff {
+    attempt: u32,
+    base: Duration,
+    max: Duration,
+}
+
+impl ExpBackoff {
+    fn new() -> Self {
+        Self {
+            attempt: 0,
+            base: Duration::from_millis(100),
+            max: Duration::from_secs(30),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.attempt = 0;
+    }
+
+    fn next(&mut self) -> Duration {
+        self.attempt += 1;
+        let exp = 2u32.saturating_pow(self.attempt.saturating_sub(1));
+        self.base.saturating_mul(exp).min(self.max)
+    }
+}
+
+/// Handle to a running projection worker.
+///
+/// Dropping without calling [`Self::stop`] logs a warning and aborts the
+/// background task to prevent leaks.
+pub struct ProjectionHandle<S: WorkerState> {
+    core: CoreClient,
+    name: String,
+    state: Arc<RwLock<S>>,
+    position: Arc<AtomicU64>,
+    caught_up: Arc<AtomicBool>,
+    shutdown_flag: Arc<AtomicBool>,
+    shutdown_notify: Arc<Notify>,
+    stopped_cleanly: Arc<AtomicBool>,
+    task: Option<JoinHandle<()>>,
+}
+
+impl<S: WorkerState> ProjectionHandle<S> {
+    /// Read an entity's state from Core's projection KV.
+    ///
+    /// This calls `CoreClient::get_projection_state` under the hood.
+    ///
+    /// **Caveat:** Core's GET endpoint requires a projection to be registered
+    /// in its projection manager. If the worker is the only writer (common
+    /// case), Core has the state in cache but the GET path returns 404 (becomes
+    /// `Ok(None)` here). For most use cases, prefer [`Self::state`] to read
+    /// the in-memory reduced state directly.
+    pub async fn get_state<T: DeserializeOwned>(
+        &self,
+        entity_id: &str,
+    ) -> Result<Option<T>, Error> {
+        self.core.get_projection_state(&self.name, entity_id).await
+    }
+
+    /// Direct handle to the in-memory reduced state — the state the reducer
+    /// has been mutating. Hold the read guard briefly.
+    pub fn state(&self) -> Arc<RwLock<S>> {
+        Arc::clone(&self.state)
+    }
+
+    /// Last WAL position applied during replay. Stays at the replay-end value
+    /// once in live mode (live events don't carry positions).
+    pub fn current_position(&self) -> u64 {
+        self.position.load(Ordering::SeqCst)
+    }
+
+    /// `true` once Core has sent `replay_complete`. Resets to `false` during
+    /// reconnection attempts.
+    pub fn is_caught_up(&self) -> bool {
+        self.caught_up.load(Ordering::SeqCst)
+    }
+
+    /// Gracefully stop the worker: signals shutdown, awaits the task, flushes
+    /// a final checkpoint.
+    pub async fn stop(mut self) -> Result<(), Error> {
+        self.shutdown_flag.store(true, Ordering::SeqCst);
+        self.shutdown_notify.notify_waiters();
+        if let Some(task) = self.task.take() {
+            let _ = task.await;
+        }
+        Ok(())
+    }
+}
+
+impl<S: WorkerState> Drop for ProjectionHandle<S> {
+    fn drop(&mut self) {
+        if self.task.is_some() && !self.stopped_cleanly.load(Ordering::SeqCst) {
+            tracing::warn!(
+                worker = %self.name,
+                "ProjectionHandle dropped without stop() — aborting background task"
+            );
+            self.shutdown_flag.store(true, Ordering::SeqCst);
+            if let Some(task) = self.task.take() {
+                task.abort();
+            }
+        }
     }
 }
 
@@ -515,6 +830,34 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(*worker.state().read().await, 3);
+    }
+
+    #[test]
+    fn backoff_grows_exponentially_and_clamps() {
+        let mut b = ExpBackoff::new();
+        let d1 = b.next();
+        let d2 = b.next();
+        let d3 = b.next();
+        assert!(d2 > d1, "d2 ({d2:?}) should exceed d1 ({d1:?})");
+        assert!(d3 > d2);
+        // Walk forward past the cap.
+        for _ in 0..20 {
+            let _ = b.next();
+        }
+        let capped = b.next();
+        assert!(capped <= Duration::from_secs(30));
+    }
+
+    #[test]
+    fn backoff_resets_on_success() {
+        let mut b = ExpBackoff::new();
+        b.next();
+        b.next();
+        b.next();
+        b.reset();
+        let first_after_reset = b.next();
+        // Reset must bring us back to the base delay (100ms).
+        assert_eq!(first_after_reset, Duration::from_millis(100));
     }
 
     #[tokio::test]
