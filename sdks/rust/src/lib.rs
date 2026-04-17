@@ -70,6 +70,7 @@ mod client;
 mod error;
 mod fold;
 mod normalize;
+mod projection_api;
 mod types;
 #[cfg(feature = "ws")]
 mod ws;

@@ -63,8 +63,8 @@ impl ClientConfig {
 
 /// Shared HTTP transport with retry and circuit breaker.
 #[derive(Debug)]
-struct HttpTransport {
-    base_url: String,
+pub(crate) struct HttpTransport {
+    pub(crate) base_url: String,
     http: reqwest::Client,
     retry: RetryConfig,
     circuit_breaker: CircuitBreaker,
@@ -103,7 +103,7 @@ impl HttpTransport {
         })
     }
 
-    async fn get<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T, Error> {
+    pub(crate) async fn get<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T, Error> {
         self.with_retry(|| async {
             let url = format!("{}{}", self.base_url, path);
             let resp = self.http.get(&url).send().await?;
@@ -125,7 +125,7 @@ impl HttpTransport {
         .await
     }
 
-    async fn post<T: for<'de> Deserialize<'de>, B: Serialize>(
+    pub(crate) async fn post<T: for<'de> Deserialize<'de>, B: Serialize>(
         &self,
         path: &str,
         body: &B,
@@ -134,6 +134,37 @@ impl HttpTransport {
             let url = format!("{}{}", self.base_url, path);
             let resp = self.http.post(&url).json(body).send().await?;
             self.handle_response(resp).await
+        })
+        .await
+    }
+
+    pub(crate) async fn put<T: for<'de> Deserialize<'de>, B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, Error> {
+        self.with_retry(|| async {
+            let url = format!("{}{}", self.base_url, path);
+            let resp = self.http.put(&url).json(body).send().await?;
+            self.handle_response(resp).await
+        })
+        .await
+    }
+
+    /// GET returning `None` on 404. Useful for "does this key exist" lookups
+    /// where absence is a normal case, not an error.
+    pub(crate) async fn get_optional<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+    ) -> Result<Option<T>, Error> {
+        self.with_retry(|| async {
+            let url = format!("{}{}", self.base_url, path);
+            let resp = self.http.get(&url).send().await?;
+            if resp.status().as_u16() == 404 {
+                return Ok(None);
+            }
+            let value: T = self.handle_response(resp).await?;
+            Ok(Some(value))
         })
         .await
     }
@@ -361,6 +392,11 @@ impl CoreClient {
         Ok(Self {
             transport: Arc::new(HttpTransport::new(&config)?),
         })
+    }
+
+    /// Shared transport handle, for in-crate modules that add more HTTP methods.
+    pub(crate) fn transport(&self) -> &HttpTransport {
+        &self.transport
     }
 
     /// Ingest a single event.

@@ -254,6 +254,20 @@ pub struct HealthResponse {
     pub extra: HashMap<String, Value>,
 }
 
+/// Durable consumer state as reported by Core's `/api/v1/consumers/:id`.
+///
+/// `cursor_position` is the WAL offset up to which this consumer has acked.
+/// A freshly-registered consumer has `cursor_position: None` (will replay
+/// from the beginning on next connection).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ConsumerState {
+    pub consumer_id: String,
+    #[serde(default)]
+    pub event_type_filters: Vec<String>,
+    #[serde(default)]
+    pub cursor_position: Option<u64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
