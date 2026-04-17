@@ -147,24 +147,25 @@ impl HttpCoreClient {
         &self,
         params: QueryParams<'_>,
     ) -> Result<Vec<RemoteEvent>, ChronError> {
-        let mut url = format!("{}/api/v1/events/query", self.base_url);
-        let mut sep = '?';
+        let url = format!("{}/api/v1/events/query", self.base_url);
+        let mut query: Vec<(&str, String)> = Vec::new();
         if let Some(entity_id) = params.entity_id {
-            url.push_str(&format!("{sep}entity_id={entity_id}"));
-            sep = '&';
+            query.push(("entity_id", entity_id.to_string()));
         }
         if let Some(event_type) = params.event_type {
-            url.push_str(&format!("{sep}event_type={event_type}"));
-            sep = '&';
+            query.push(("event_type", event_type.to_string()));
         }
         if let Some(since) = params.since {
-            url.push_str(&format!("{sep}since={}", since.to_rfc3339()));
-            sep = '&';
+            // RFC3339 timestamps contain `+` (UTC offset) and `:` — must be
+            // URL-encoded in the query string or Core's deserializer rejects
+            // them ("since: input contains invalid characters"). reqwest's
+            // .query() handles form-urlencoding correctly.
+            query.push(("since", since.to_rfc3339()));
         }
         if let Some(limit) = params.limit {
-            url.push_str(&format!("{sep}limit={limit}"));
+            query.push(("limit", limit.to_string()));
         }
-        let req = self.client.get(&url);
+        let req = self.client.get(&url).query(&query);
         let resp = self
             .auth(req)
             .send()
