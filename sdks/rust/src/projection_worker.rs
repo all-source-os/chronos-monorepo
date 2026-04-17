@@ -35,6 +35,11 @@ impl<T> WorkerState for T where T: Default + Send + Sync + 'static + Serialize +
 /// (the reducer is authoritative about what it cares about).
 pub type Reducer<S> = dyn FnMut(&mut S, &Event) -> Result<(), Error> + Send + 'static;
 
+/// Extract `(entity_id, state_json)` tuples from the worker's state for
+/// periodic push-back to Core. Called under a read lock — keep it cheap.
+pub type StateFlusher<S> =
+    dyn Fn(&S) -> Vec<(String, serde_json::Value)> + Send + Sync + 'static;
+
 /// Builder for a [`ProjectionWorker`].
 ///
 /// Create via [`ProjectionWorker::builder`], chain the setters, then call
@@ -45,6 +50,9 @@ pub struct ProjectionWorkerBuilder<S: WorkerState> {
     event_types: Vec<String>,
     reducer: Option<Box<Reducer<S>>>,
     checkpoint_interval: u64,
+    state_flusher: Option<Arc<StateFlusher<S>>>,
+    state_flush_every: Option<u64>,
+    state_flush_interval: Duration,
 }
 
 impl<S: WorkerState> ProjectionWorkerBuilder<S> {
@@ -55,6 +63,9 @@ impl<S: WorkerState> ProjectionWorkerBuilder<S> {
             event_types: Vec::new(),
             reducer: None,
             checkpoint_interval: 100,
+            state_flusher: None,
+            state_flush_every: None,
+            state_flush_interval: Duration::from_secs(5),
         }
     }
 
@@ -89,6 +100,37 @@ impl<S: WorkerState> ProjectionWorkerBuilder<S> {
         self
     }
 
+    /// Configure periodic state push-back to Core.
+    ///
+    /// The closure maps the worker's state to a list of `(entity_id, state)`
+    /// tuples that will be bulk-written to Core's projection KV. Called under
+    /// a read lock on state — keep it cheap and avoid nested awaits.
+    ///
+    /// State push-back is off by default. Enabling it gives other consumers
+    /// (or the Query Service) a way to read projected state without running
+    /// the reducer themselves, at the cost of one bulk PUT per flush interval.
+    pub fn state_flush_entities<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&S) -> Vec<(String, serde_json::Value)> + Send + Sync + 'static,
+    {
+        self.state_flusher = Some(Arc::new(f));
+        self
+    }
+
+    /// Flush state every `n` events (in addition to the time interval).
+    /// Only meaningful if [`Self::state_flush_entities`] is configured.
+    pub fn state_flush_every(mut self, n: u64) -> Self {
+        self.state_flush_every = Some(n.max(1));
+        self
+    }
+
+    /// Flush state at most every `interval`. Default 5 seconds.
+    /// Only meaningful if [`Self::state_flush_entities`] is configured.
+    pub fn state_flush_interval(mut self, interval: Duration) -> Self {
+        self.state_flush_interval = interval;
+        self
+    }
+
     /// Validate configuration and produce the worker.
     pub fn build(self) -> Result<ProjectionWorker<S>, Error> {
         let name = self
@@ -105,6 +147,9 @@ impl<S: WorkerState> ProjectionWorkerBuilder<S> {
             checkpoint_interval: self.checkpoint_interval,
             state: Arc::new(RwLock::new(S::default())),
             last_applied_version_by_entity: HashMap::new(),
+            state_flusher: self.state_flusher,
+            state_flush_every: self.state_flush_every,
+            state_flush_interval: self.state_flush_interval,
         })
     }
 }
@@ -121,6 +166,9 @@ pub struct ProjectionWorker<S: WorkerState> {
     pub(crate) checkpoint_interval: u64,
     pub(crate) state: Arc<RwLock<S>>,
     pub(crate) last_applied_version_by_entity: HashMap<String, i64>,
+    pub(crate) state_flusher: Option<Arc<StateFlusher<S>>>,
+    pub(crate) state_flush_every: Option<u64>,
+    pub(crate) state_flush_interval: Duration,
 }
 
 impl<S: WorkerState> ProjectionWorker<S> {
@@ -146,6 +194,7 @@ impl<S: WorkerState> ProjectionWorker<S> {
         St: Stream<Item = Result<StreamItem, Error>> + Unpin,
     {
         let mut events_since_checkpoint: u64 = 0;
+        let mut events_since_flush: u64 = 0;
         let mut last_replay_position: Option<u64> = None;
 
         while let Some(item) = stream.next().await {
@@ -159,22 +208,24 @@ impl<S: WorkerState> ProjectionWorker<S> {
                             last_replay_position = Some(pos);
                         }
                         events_since_checkpoint += 1;
+                        events_since_flush += 1;
+
+                        let should_flush = self.state_flush_every.is_some_and(|n| events_since_flush >= n);
+                        if should_flush {
+                            self.flush_state_if_configured().await;
+                            events_since_flush = 0;
+                        }
                         if events_since_checkpoint >= self.checkpoint_interval {
                             if let Some(pos) = last_replay_position {
                                 self.core.save_checkpoint(&self.name, pos).await?;
-                                tracing::debug!(
-                                    worker = %self.name,
-                                    position = pos,
-                                    "checkpoint saved"
-                                );
                                 events_since_checkpoint = 0;
                             }
                         }
                     }
                 }
                 StreamItem::ReplayComplete { replayed } => {
-                    // Final checkpoint at the end of replay so we don't reprocess
-                    // the tail on the next cold start.
+                    self.flush_state_if_configured().await;
+                    events_since_flush = 0;
                     if let Some(pos) = last_replay_position {
                         self.core.save_checkpoint(&self.name, pos).await?;
                         events_since_checkpoint = 0;
@@ -194,9 +245,59 @@ impl<S: WorkerState> ProjectionWorker<S> {
                 }
             }
         }
+        // Final flush on clean stream end.
+        self.flush_state_if_configured().await;
         Ok(())
     }
 
+    /// Convenience entry-point used by `run_with_stream`. The production lifecycle
+    /// goes through [`flush_state`] directly to avoid holding `&self` across awaits
+    /// (the reducer's Box<dyn FnMut> is not Sync, which breaks the spawned task's
+    /// Send bound when `&ProjectionWorker` lives across an await point).
+    pub(crate) async fn flush_state_if_configured(&mut self) {
+        let flusher = self.state_flusher.clone();
+        let Some(flusher) = flusher else {
+            return;
+        };
+        let state = Arc::clone(&self.state);
+        let core = self.core.clone();
+        let name = self.name.clone();
+        flush_state(&core, &name, &state, &flusher).await;
+    }
+}
+
+/// Read state through `flusher` and bulk-write the entries to Core.
+/// Errors are logged, not propagated — the next flush retries, and the
+/// checkpoint stays behind a failed flush so nothing is silently lost.
+async fn flush_state<S: WorkerState>(
+    core: &CoreClient,
+    name: &str,
+    state: &Arc<RwLock<S>>,
+    flusher: &Arc<StateFlusher<S>>,
+) {
+    let entries = {
+        let guard = state.read().await;
+        flusher(&*guard)
+    };
+    if entries.is_empty() {
+        return;
+    }
+    match core.bulk_put_projection_state(name, &entries).await {
+        Ok(()) => {
+            tracing::debug!(worker = %name, entries = entries.len(), "state flushed to Core");
+        }
+        Err(e) => {
+            tracing::error!(
+                worker = %name,
+                error = %e,
+                entries = entries.len(),
+                "state flush to Core failed — will retry next interval"
+            );
+        }
+    }
+}
+
+impl<S: WorkerState> ProjectionWorker<S> {
     /// Apply a single event to state with per-entity version dedup.
     /// Returns true if the event was applied, false if skipped (duplicate).
     async fn apply_event(&mut self, streamed: &StreamedEvent) -> Result<bool, Error> {
@@ -388,10 +489,16 @@ async fn run_loop_with_tracking<S: WorkerState>(
     shutdown_notify: &Arc<Notify>,
 ) -> LoopOutcome {
     let mut events_since_checkpoint: u64 = 0;
+    let mut events_since_flush: u64 = 0;
     let mut last_replay_position: Option<u64> = None;
+
+    let mut flush_ticker = tokio::time::interval(worker.state_flush_interval);
+    flush_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    flush_ticker.tick().await; // first tick is immediate — drain it
 
     loop {
         if shutdown_flag.load(Ordering::SeqCst) {
+            worker.flush_state_if_configured().await;
             if let Some(pos) = last_replay_position {
                 let _ = worker.core.save_checkpoint(&worker.name, pos).await;
             }
@@ -400,13 +507,21 @@ async fn run_loop_with_tracking<S: WorkerState>(
 
         tokio::select! {
             _ = shutdown_notify.notified() => {
+                worker.flush_state_if_configured().await;
                 if let Some(pos) = last_replay_position {
                     let _ = worker.core.save_checkpoint(&worker.name, pos).await;
                 }
                 return LoopOutcome::Shutdown;
             }
+            _ = flush_ticker.tick(), if worker.state_flusher.is_some() => {
+                worker.flush_state_if_configured().await;
+                events_since_flush = 0;
+            }
             item = stream.next() => match item {
-                None => return LoopOutcome::Eof,
+                None => {
+                    worker.flush_state_if_configured().await;
+                    return LoopOutcome::Eof;
+                }
                 Some(Err(e)) => return LoopOutcome::StreamError(e),
                 Some(Ok(StreamItem::Event(streamed))) => {
                     match worker.apply_event(&streamed).await {
@@ -420,6 +535,12 @@ async fn run_loop_with_tracking<S: WorkerState>(
                             position.store(pos, Ordering::SeqCst);
                         }
                         events_since_checkpoint += 1;
+                        events_since_flush += 1;
+
+                        if worker.state_flush_every.is_some_and(|n| events_since_flush >= n) {
+                            worker.flush_state_if_configured().await;
+                            events_since_flush = 0;
+                        }
                         if events_since_checkpoint >= worker.checkpoint_interval {
                             if let Some(pos) = last_replay_position {
                                 if let Err(e) = worker.core.save_checkpoint(&worker.name, pos).await {
@@ -431,6 +552,7 @@ async fn run_loop_with_tracking<S: WorkerState>(
                     }
                 }
                 Some(Ok(StreamItem::ReplayComplete { replayed })) => {
+                    worker.flush_state_if_configured().await;
                     if let Some(pos) = last_replay_position {
                         if let Err(e) = worker.core.save_checkpoint(&worker.name, pos).await {
                             return LoopOutcome::StreamError(e);
@@ -858,6 +980,156 @@ mod tests {
         let first_after_reset = b.next();
         // Reset must bring us back to the base delay (100ms).
         assert_eq!(first_after_reset, Duration::from_millis(100));
+    }
+
+    async fn mock_bulk_endpoint(server: &MockServer) -> Arc<std::sync::atomic::AtomicU64> {
+        let counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let counter_clone = Arc::clone(&counter);
+        Mock::given(method("POST"))
+            .and(path("/api/v1/projections/test-worker/bulk/save"))
+            .respond_with(move |_: &wiremock::Request| {
+                counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                ResponseTemplate::new(200).set_body_json(json!({"saved": 1}))
+            })
+            .mount(server)
+            .await;
+        counter
+    }
+
+    #[tokio::test]
+    async fn state_flush_fires_at_event_count() {
+        let server = MockServer::start().await;
+        let _acks = mock_ack_endpoint(&server).await;
+        let flushes = mock_bulk_endpoint(&server).await;
+
+        let core = make_core(&server).await;
+        let mut worker = ProjectionWorker::<HashMap<String, u64>>::builder(core)
+            .name("test-worker")
+            .reducer(|state, event| {
+                *state.entry(event.entity_id.clone()).or_insert(0) += 1;
+                Ok(())
+            })
+            .checkpoint_interval(1000)
+            .state_flush_every(10)
+            .state_flush_entities(|state| {
+                state
+                    .iter()
+                    .map(|(k, v)| (k.clone(), json!(*v)))
+                    .collect()
+            })
+            .build()
+            .unwrap();
+
+        // 25 replay events + stream end → flush at 10, 20, and final flush on stream-end.
+        let events: Vec<_> = (1..=25)
+            .map(|i| replay(i, sample_event(&format!("e{i}"), "x", 1)))
+            .collect();
+        worker.run_with_stream(stream::iter(events)).await.unwrap();
+
+        let flush_count = flushes.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(
+            flush_count, 3,
+            "expected 3 flushes (at 10, 20, end-of-stream), got {flush_count}"
+        );
+    }
+
+    #[tokio::test]
+    async fn state_flush_fires_on_replay_complete() {
+        let server = MockServer::start().await;
+        let _acks = mock_ack_endpoint(&server).await;
+        let flushes = mock_bulk_endpoint(&server).await;
+
+        let core = make_core(&server).await;
+        let mut worker = ProjectionWorker::<HashMap<String, u64>>::builder(core)
+            .name("test-worker")
+            .reducer(|state, event| {
+                *state.entry(event.entity_id.clone()).or_insert(0) += 1;
+                Ok(())
+            })
+            .checkpoint_interval(1000)
+            .state_flush_every(1000) // never hits the event-count trigger
+            .state_flush_entities(|state| {
+                state
+                    .iter()
+                    .map(|(k, v)| (k.clone(), json!(*v)))
+                    .collect()
+            })
+            .build()
+            .unwrap();
+
+        let items = vec![
+            replay(1, sample_event("a", "x", 1)),
+            replay(2, sample_event("b", "x", 1)),
+            Ok(StreamItem::ReplayComplete { replayed: 2 }),
+            replay(3, sample_event("c", "x", 1)),
+        ];
+        worker.run_with_stream(stream::iter(items)).await.unwrap();
+
+        // Flushes: 1 on replay_complete + 1 final on stream end. (Event count
+        // didn't trigger flushes because flush_every=1000.)
+        let flush_count = flushes.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(flush_count, 2);
+    }
+
+    #[tokio::test]
+    async fn flush_skipped_when_no_entries() {
+        let server = MockServer::start().await;
+        let _acks = mock_ack_endpoint(&server).await;
+        let flushes = mock_bulk_endpoint(&server).await;
+
+        let core = make_core(&server).await;
+        let mut worker = ProjectionWorker::<HashMap<String, u64>>::builder(core)
+            .name("test-worker")
+            .reducer(|_, _| Ok(())) // never populates state
+            .checkpoint_interval(1000)
+            .state_flush_every(1)
+            .state_flush_entities(|state| {
+                state
+                    .iter()
+                    .map(|(k, v)| (k.clone(), json!(*v)))
+                    .collect()
+            })
+            .build()
+            .unwrap();
+
+        let events = vec![replay(1, sample_event("a", "x", 1))];
+        worker.run_with_stream(stream::iter(events)).await.unwrap();
+
+        // Reducer never populates state → flusher returns empty → no bulk PUT.
+        assert_eq!(flushes.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn flush_error_does_not_abort_worker() {
+        let server = MockServer::start().await;
+        let _acks = mock_ack_endpoint(&server).await;
+        // No mock for /bulk/save → 404, which the worker should swallow.
+
+        let core = make_core(&server).await;
+        let mut worker = ProjectionWorker::<HashMap<String, u64>>::builder(core)
+            .name("test-worker")
+            .reducer(|state, event| {
+                *state.entry(event.entity_id.clone()).or_insert(0) += 1;
+                Ok(())
+            })
+            .checkpoint_interval(1000)
+            .state_flush_every(1)
+            .state_flush_entities(|state| {
+                state
+                    .iter()
+                    .map(|(k, v)| (k.clone(), json!(*v)))
+                    .collect()
+            })
+            .build()
+            .unwrap();
+
+        // 3 events with flush_every=1 — flush fails on each, but reducer keeps running.
+        let events: Vec<_> = (1..=3)
+            .map(|i| replay(i, sample_event(&format!("e{i}"), "x", 1)))
+            .collect();
+        let result = worker.run_with_stream(stream::iter(events)).await;
+        assert!(result.is_ok(), "flush failure must not abort the worker");
+        assert_eq!(worker.state().read().await.len(), 3);
     }
 
     #[tokio::test]
