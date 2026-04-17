@@ -43,6 +43,11 @@ url = { version = "2", optional = true }
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 wiremock = "0.6"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[[example]]
+name = "asset_projection"
+required-features = ["projection-worker"]
 
 [lints]
 workspace = true
