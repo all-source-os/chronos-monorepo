@@ -3,6 +3,7 @@
 import { Button, Card, CardContent, Input, Label } from "@allsource/ui";
 import { AlertTriangle, ArrowRight, Check, Copy, Eye, EyeOff, Key, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { ApiKeyUsage } from "@/components/api-keys/api-key-usage";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { apiClient } from "@/lib/api/client";
 
@@ -159,16 +160,7 @@ export function StepApiKey({ onNext }: StepApiKeyProps) {
                 </div>
               </div>
 
-              {/* Quick start code */}
-              <div>
-                <Label>Quick Start</Label>
-                <pre className="mt-1.5 overflow-x-auto rounded-lg bg-muted p-4 text-xs">
-                  <code>{`curl -X POST https://api.all-source.xyz/api/events \\
-  -H "Authorization: Bearer ${apiKey.slice(0, 20)}..." \\
-  -H "Content-Type: application/json" \\
-  -d '{"entity_id": "user-1", "event_type": "user.created", "payload": {}}'`}</code>
-                </pre>
-              </div>
+              <ApiKeyUsage apiKey={apiKey} />
             </div>
           )}
         </CardContent>

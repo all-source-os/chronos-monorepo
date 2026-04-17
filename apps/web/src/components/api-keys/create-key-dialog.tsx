@@ -13,6 +13,7 @@ import {
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { AlertTriangle, Check, Copy, Eye, EyeOff, Key, Loader2, X } from "lucide-react";
+import { ApiKeyUsage } from "./api-key-usage";
 import { useState } from "react";
 import type { ApiKeyWithSecret } from "@/lib/api/client";
 
@@ -191,6 +192,8 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
                   </dd>
                 </dl>
               </div>
+
+              <ApiKeyUsage apiKey={createdKey.key} />
             </div>
           ) : (
             // Create form

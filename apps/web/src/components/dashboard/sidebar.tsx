@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  ExternalLink,
   FileText,
   GitBranch,
   Key,
@@ -140,14 +141,30 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </div>
       )}
 
-      {/* Performance Stats (Collapsed version) */}
-      {collapsed && (
-        <div className="border-t border-border p-2">
-          <div className="flex flex-col items-center gap-2 py-2">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-          </div>
-        </div>
-      )}
+      {/* Platform status link */}
+      <div className="border-t border-border p-2">
+        <a
+          href="https://status.all-source.xyz"
+          target="_blank"
+          rel="noreferrer"
+          className={cn(
+            "flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            collapsed && "justify-center px-2"
+          )}
+          title="Platform status"
+        >
+          <span className="flex h-2 w-2 shrink-0">
+            <span className="absolute h-2 w-2 animate-ping rounded-full bg-green-500 opacity-60" />
+            <span className="relative h-2 w-2 rounded-full bg-green-500" />
+          </span>
+          {!collapsed && (
+            <>
+              <span className="flex-1">Platform status</span>
+              <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+            </>
+          )}
+        </a>
+      </div>
     </aside>
   );
 }
