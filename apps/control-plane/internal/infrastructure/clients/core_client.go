@@ -128,6 +128,7 @@ type IngestEventResponse struct {
 type QueryEventsRequest struct {
 	EntityID  string `json:"entity_id,omitempty"`
 	EventType string `json:"event_type,omitempty"` // prefix match supported
+	TenantID  string `json:"tenant_id,omitempty"`  // required post-auth-skip cutover
 	Since     string `json:"since,omitempty"`      // RFC3339
 	Until     string `json:"until,omitempty"`      // RFC3339
 	Limit     int    `json:"limit,omitempty"`
@@ -783,6 +784,9 @@ func (c *coreClient) QueryEvents(ctx context.Context, req QueryEventsRequest) (*
 	}
 	if req.EventType != "" {
 		r.SetQueryParam("event_type", req.EventType)
+	}
+	if req.TenantID != "" {
+		r.SetQueryParam("tenant_id", req.TenantID)
 	}
 	if req.Since != "" {
 		r.SetQueryParam("since", req.Since)

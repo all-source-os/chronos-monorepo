@@ -294,6 +294,13 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	// Start background operation scheduler
 	cp.container.Scheduler.Start(ctx)
 
+	// Start the event-sourced heartbeat emitter. Probes each backend every
+	// heartbeatInterval and writes a service.heartbeat event to Core. The
+	// /api/v1/status/services endpoint and the /status HTML page project
+	// these events into the current fleet state.
+	emitter := newHeartbeatEmitter(coreClient, nil, probesFromEnv(os.Getenv))
+	go emitter.run(ctx, heartbeatInterval)
+
 	return cp, nil
 }
 
@@ -340,6 +347,12 @@ func (cp *ControlPlane) setupRoutes() {
 	cp.router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	cp.router.GET("/docs", cp.docsHandler)
 	cp.router.GET("/openapi", cp.openAPIHandler)
+
+	// Status page + JSON feed. Both project the event-sourced heartbeats
+	// written by the background emitter. No auth — this is the public
+	// status data that replaces the poll-based Vigil page.
+	cp.router.GET("/status", cp.statusPageHandler)
+	cp.router.GET("/api/v1/status/services", cp.statusServicesHandler)
 
 	// Authentication endpoints
 	auth := cp.router.Group("/api/v1/auth")
