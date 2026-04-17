@@ -687,7 +687,7 @@ endif
 	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' sdks/python-client/pyproject.toml
 	@echo "Updating Prime MCP Server (Cargo.toml)..."
 	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' apps/prime-mcp/Cargo.toml
-	@sed -i '' 's/allsource-core = { version = "[0-9]*\.[0-9]*"/allsource-core = { version = "$(VERSION)"/' apps/prime-mcp/Cargo.toml
+	@sed -i '' 's/allsource-core = { version = "[0-9]*\.[0-9]*\(\.[0-9]*\)\{0,1\}"/allsource-core = { version = "$(VERSION)"/' apps/prime-mcp/Cargo.toml
 	@echo ""
 	@echo "=== Version $(VERSION) set across all services ==="
 	@echo ""
