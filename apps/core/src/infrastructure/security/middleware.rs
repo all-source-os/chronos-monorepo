@@ -24,12 +24,47 @@ pub const AUTH_SKIP_PATHS: &[&str] = &[
 
 /// Path prefixes that bypass authentication and rate limiting.
 ///
-/// Internal endpoints are used by the sentinel process for automated failover
-/// (promote, repoint). They must not require API keys or be rate-limited,
-/// otherwise failover can timeout or fail when credentials are unavailable.
-pub const AUTH_SKIP_PREFIXES: &[&str] = &["/internal/"];
+/// - `/internal/` — sentinel failover endpoints; must not require API keys or
+///   be rate-limited, otherwise failover can timeout or fail when credentials
+///   are unavailable.
+/// - `/api/v1/events`, `/api/v1/projections`, `/api/v1/snapshots`,
+///   `/api/v1/schemas`, `/api/v1/consumers`, `/api/v1/stats`,
+///   `/api/v1/entities`, `/api/v1/duplicates`, `/api/v1/streams`,
+///   `/api/v1/replay`, `/api/v1/webhooks`, `/api/v1/compaction`,
+///   `/api/v1/pipelines`, `/api/v1/graphql` — data-plane routes. Core is
+///   internal-only (bead t-0ff8); the gateway (Control Plane's delegation
+///   layer) authenticates and scopes the caller before forwarding. Handlers
+///   read `tenant_id` from request body or query param — that's the
+///   authoritative source. Auth middleware running on these paths was legacy
+///   defense-in-depth that added no real protection once Core went behind
+///   Fly's private network.
+pub const AUTH_SKIP_PREFIXES: &[&str] = &[
+    "/internal/",
+    "/api/v1/events",
+    "/api/v1/projections",
+    "/api/v1/snapshots",
+    "/api/v1/schemas",
+    "/api/v1/consumers",
+    "/api/v1/stats",
+    "/api/v1/entities",
+    "/api/v1/duplicates",
+    "/api/v1/streams",
+    "/api/v1/replay",
+    "/api/v1/webhooks",
+    "/api/v1/compaction",
+    "/api/v1/pipelines",
+    "/api/v1/graphql",
+];
 
 /// Check if a path should skip authentication and rate limiting.
+///
+/// Paths that STILL require auth after the internal-only cutover:
+/// - `/api/v1/auth/me` — used by CP's ValidateAPIKey fallback for legacy keys
+/// - `/api/v1/auth/api-keys` — admin-only; used by CP's CreateCoreAPIKey
+/// - `/api/v1/tenants/*` — admin-only tenant management
+///
+/// Everything else is skipped: internal network trust + handler-level
+/// tenant-from-body is the security model now.
 #[inline]
 pub fn should_skip_auth(path: &str) -> bool {
     AUTH_SKIP_PATHS.contains(&path) || AUTH_SKIP_PREFIXES.iter().any(|pfx| path.starts_with(pfx))
@@ -1219,10 +1254,19 @@ mod tests {
         assert!(should_skip_auth("/internal/repoint"));
         assert!(should_skip_auth("/internal/anything"));
 
-        // Verify protected paths are NOT in skip list
-        assert!(!should_skip_auth("/api/v1/events"));
+        // Data-plane paths skip auth (Core is internal-only; gateway handles
+        // authentication; handlers read tenant_id from body/query).
+        assert!(should_skip_auth("/api/v1/events"));
+        assert!(should_skip_auth("/api/v1/events/query"));
+        assert!(should_skip_auth("/api/v1/events/batch"));
+        assert!(should_skip_auth("/api/v1/projections/foo/bar"));
+        assert!(should_skip_auth("/api/v1/snapshots"));
+
+        // These still require auth — CP depends on them.
         assert!(!should_skip_auth("/api/v1/auth/me"));
+        assert!(!should_skip_auth("/api/v1/auth/api-keys"));
         assert!(!should_skip_auth("/api/v1/tenants"));
+        assert!(!should_skip_auth("/api/v1/tenants/abc"));
     }
 
     #[test]

@@ -53,7 +53,13 @@ pub async fn serve(state: Arc<AppState>, port: u16) -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let addr = format!("0.0.0.0:{port}");
+    // Bind to the IPv6 wildcard so Fly's internal network (which resolves
+    // .internal names to IPv6) can reach us. `[::]` accepts both IPv4 and
+    // IPv6 connections on Linux (dual-stack), matching what Core does via
+    // the ALLSOURCE_HOST=":: " env var. A plain `0.0.0.0` bind is IPv4-only
+    // and caused "connection refused" on Fly's private network even though
+    // the public hostname worked via Fly's edge proxy.
+    let addr = format!("[::]:{port}");
     tracing::info!("HTTP server listening on {addr}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
