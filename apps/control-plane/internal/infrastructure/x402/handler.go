@@ -64,7 +64,7 @@ func (h *Handler) Routes(c *gin.Context) {
 }
 
 // splitRouteKey reverses RouteKey ("METHOD /path" → "METHOD", "/path").
-func splitRouteKey(key string) (string, string) {
+func splitRouteKey(key string) (method, path string) {
 	for i := 0; i < len(key); i++ {
 		if key[i] == ' ' {
 			return key[:i], key[i+1:]

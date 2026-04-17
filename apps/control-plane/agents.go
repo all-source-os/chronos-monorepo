@@ -55,7 +55,9 @@ func (cp *ControlPlane) AgentRegisterHandler(c *gin.Context) {
 func (cp *ControlPlane) AgentEchoHandler(c *gin.Context) {
 	var payload map[string]any
 	// Body is optional — an empty POST is a valid "ping".
-	_ = c.ShouldBindJSON(&payload)
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		payload = nil
+	}
 
 	tenantID, _ := c.Get("tenant_id")
 

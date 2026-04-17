@@ -6,7 +6,7 @@ Typed Rust client for the [AllSource](https://github.com/all-source-os/all-sourc
 
 ```toml
 [dependencies]
-allsource = "0.19"
+allsource = "0.19"  # pairs with Core ≥ 0.19.1 for full ProjectionHandle::get_state behaviour
 ```
 
 ## Two clients

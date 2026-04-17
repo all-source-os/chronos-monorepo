@@ -282,11 +282,11 @@ pub async fn ingest_event(
 ) -> Result<Json<IngestEventResponse>> {
     let expected_version = req.expected_version;
 
-    // Create event using from_strings with default tenant
+    let tenant_id = req.tenant_id.unwrap_or_else(|| "default".to_string());
     let event = Event::from_strings(
         req.event_type,
         req.entity_id,
-        "default".to_string(),
+        tenant_id,
         req.payload,
         req.metadata,
     )?;
@@ -307,17 +307,21 @@ pub async fn ingest_event(
 
 /// Ingest a single event with semi-sync/sync replication ACK waiting.
 ///
-/// Used by the v1 API (with auth and replication support).
+/// Used by the v1 API. Tenant comes from `req.tenant_id` — the Control Plane
+/// delegation layer sets it from the authenticated caller before forwarding.
+/// Core is internal-only and does not authenticate public traffic.
 pub async fn ingest_event_v1(
     State(state): State<AppState>,
     Json(req): Json<IngestEventRequest>,
 ) -> Result<Json<IngestEventResponse>> {
     let expected_version = req.expected_version;
 
+    let tenant_id = req.tenant_id.unwrap_or_else(|| "default".to_string());
+
     let event = Event::from_strings(
         req.event_type,
         req.entity_id,
-        "default".to_string(),
+        tenant_id,
         req.payload,
         req.metadata,
     )?;
@@ -388,7 +392,9 @@ pub async fn ingest_events_batch(
 
 /// Batch ingest with semi-sync/sync replication ACK waiting.
 ///
-/// Used by the v1 API (with auth and replication support).
+/// Used by the v1 API. Per-event tenant comes from `event_req.tenant_id` — the
+/// Control Plane delegation layer sets it from the authenticated caller before
+/// forwarding. Core is internal-only and does not authenticate public traffic.
 pub async fn ingest_events_batch_v1(
     State(state): State<AppState>,
     Json(req): Json<IngestEventsBatchRequest>,
@@ -1372,21 +1378,32 @@ pub async fn get_projection(
     })))
 }
 
-/// Get projection state for a specific entity
+/// Get projection state for a specific entity.
 ///
-/// This endpoint allows the Elixir Query Service to fetch projection state
-/// from the Rust Core for synchronization.
+/// Resolution order:
+/// 1. **Registered projection** — if `name` is registered with the projection
+///    manager, return the projection's own `get_state(entity_id)` output.
+/// 2. **Projection state cache** — otherwise fall back to whatever was written
+///    via `save_projection_state` / `bulk_save_projection_states`. This supports
+///    SDK-managed projections (e.g. the Rust SDK's `ProjectionWorker`) that
+///    compute state client-side and push it back without registering a
+///    projection in Core's manager.
+///
+/// Returns `found: false` with `state: null` when neither source has state.
 pub async fn get_projection_state(
     State(store): State<SharedStore>,
     Path((name, entity_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>> {
-    let projection_manager = store.projection_manager();
-
-    let projection = projection_manager.get_projection(&name).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
-    })?;
-
-    let state = projection.get_state(&entity_id);
+    let state = store
+        .projection_manager()
+        .get_projection(&name)
+        .and_then(|p| p.get_state(&entity_id))
+        .or_else(|| {
+            store
+                .projection_state_cache()
+                .get(&format!("{name}:{entity_id}"))
+                .map(|entry| entry.value().clone())
+        });
 
     tracing::debug!("Projection state retrieved: {} / {}", name, entity_id);
 
@@ -1434,20 +1451,18 @@ pub async fn delete_projection(
     })))
 }
 
-/// Get aggregate projection state (all entities)
+/// Get aggregate projection state (all entities).
 ///
-/// Returns summary information about a projection's state across all entities.
+/// Returns the cached states written via `save_projection_state` /
+/// `bulk_save_projection_states`. The projection does NOT need to be
+/// registered with the projection manager — this supports SDK-managed
+/// projections that push state without server-side registration.
+///
+/// Returns an empty list when no state has been written.
 pub async fn get_projection_state_summary(
     State(store): State<SharedStore>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>> {
-    let projection_manager = store.projection_manager();
-
-    let _projection = projection_manager.get_projection(&name).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
-    })?;
-
-    // Collect cached states for this projection
     let cache = store.projection_state_cache();
     let prefix = format!("{name}:");
     let states: Vec<serde_json::Value> = cache
@@ -1603,17 +1618,24 @@ pub async fn bulk_get_projection_states(
     Path(name): Path<String>,
     Json(req): Json<BulkGetStateRequest>,
 ) -> Result<Json<serde_json::Value>> {
-    let projection_manager = store.projection_manager();
-
-    let projection = projection_manager.get_projection(&name).ok_or_else(|| {
-        crate::error::AllSourceError::EntityNotFound(format!("Projection '{name}' not found"))
-    })?;
+    // Same fallback rule as `get_projection_state`: registered projection
+    // wins, cache is the fallback. This lets SDK-managed projections read
+    // their pushed-back state without registering in Core's projection manager.
+    let projection = store.projection_manager().get_projection(&name);
+    let cache = store.projection_state_cache();
 
     let states: Vec<serde_json::Value> = req
         .entity_ids
         .iter()
         .map(|entity_id| {
-            let state = projection.get_state(entity_id);
+            let state = projection
+                .as_ref()
+                .and_then(|p| p.get_state(entity_id))
+                .or_else(|| {
+                    cache
+                        .get(&format!("{name}:{entity_id}"))
+                        .map(|entry| entry.value().clone())
+                });
             serde_json::json!({
                 "entity_id": entity_id,
                 "state": state,
@@ -3177,5 +3199,137 @@ mod tests {
             let state = cache.get(&format!("{proj}:entity-0")).unwrap();
             assert_eq!(state["projection"], *proj);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Cache-fallback tests for the projection-state read handlers (v0.19.1).
+    //
+    // SDK-managed projections write state via save_projection_state /
+    // bulk_save_projection_states without registering in projection_manager.
+    // These tests verify the read handlers fall back to the cache instead of
+    // 404-ing. Registered projection wins where both exist; cache fills the
+    // gap when not.
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn get_projection_state_falls_back_to_cache_when_unregistered() {
+        let store = create_test_store();
+        store.projection_state_cache().insert(
+            "assets:BTC".to_string(),
+            serde_json::json!({"symbol": "BTC", "altname": "Bitcoin"}),
+        );
+
+        let resp = get_projection_state(
+            State(Arc::clone(&store)),
+            Path(("assets".to_string(), "BTC".to_string())),
+        )
+        .await
+        .expect("should not error when projection is not registered");
+
+        assert_eq!(resp.0["found"], serde_json::Value::Bool(true));
+        assert_eq!(resp.0["state"]["symbol"], "BTC");
+        assert_eq!(resp.0["state"]["altname"], "Bitcoin");
+    }
+
+    #[tokio::test]
+    async fn get_projection_state_returns_not_found_when_absent_everywhere() {
+        let store = create_test_store();
+
+        let resp = get_projection_state(
+            State(Arc::clone(&store)),
+            Path(("assets".to_string(), "UNKNOWN".to_string())),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(resp.0["found"], serde_json::Value::Bool(false));
+        assert_eq!(resp.0["state"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn get_projection_state_registered_wins_over_cache() {
+        let store = create_test_store();
+
+        // Ingest an event so entity_snapshots (a registered projection) has state.
+        let event = create_test_event("user-777", "user.created");
+        store.ingest(&event).unwrap();
+
+        // Plant a conflicting cache entry for the same (projection, entity).
+        store.projection_state_cache().insert(
+            "entity_snapshots:user-777".to_string(),
+            serde_json::json!({"stolen": "value"}),
+        );
+
+        let resp = get_projection_state(
+            State(Arc::clone(&store)),
+            Path(("entity_snapshots".to_string(), "user-777".to_string())),
+        )
+        .await
+        .unwrap();
+
+        // Registered projection wins — cache fallback is only consulted when
+        // the registered projection has no state for this entity.
+        assert_eq!(resp.0["found"], serde_json::Value::Bool(true));
+        assert!(
+            resp.0["state"].get("stolen").is_none(),
+            "cache entry must not shadow registered projection state: got {:?}",
+            resp.0["state"]
+        );
+    }
+
+    #[tokio::test]
+    async fn get_projection_state_summary_returns_cache_without_registration() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+        cache.insert("assets:BTC".into(), serde_json::json!({"symbol": "BTC"}));
+        cache.insert("assets:ETH".into(), serde_json::json!({"symbol": "ETH"}));
+        // Different projection name — must not appear in the summary.
+        cache.insert("trades:t-1".into(), serde_json::json!({"x": 1}));
+
+        let resp =
+            get_projection_state_summary(State(Arc::clone(&store)), Path("assets".to_string()))
+                .await
+                .unwrap();
+
+        assert_eq!(resp.0["total"], 2);
+        let states = resp.0["states"].as_array().unwrap();
+        let entity_ids: Vec<&str> = states
+            .iter()
+            .map(|s| s["entity_id"].as_str().unwrap())
+            .collect();
+        assert!(entity_ids.contains(&"BTC"));
+        assert!(entity_ids.contains(&"ETH"));
+    }
+
+    #[tokio::test]
+    async fn bulk_get_projection_states_falls_back_to_cache() {
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+        cache.insert("assets:BTC".into(), serde_json::json!({"symbol": "BTC"}));
+        cache.insert("assets:ETH".into(), serde_json::json!({"symbol": "ETH"}));
+
+        let req = BulkGetStateRequest {
+            entity_ids: vec!["BTC".into(), "ETH".into(), "MISSING".into()],
+        };
+
+        let resp = bulk_get_projection_states(
+            State(Arc::clone(&store)),
+            Path("assets".to_string()),
+            Json(req),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(resp.0["total"], 3);
+        let states = resp.0["states"].as_array().unwrap();
+        let by_id: std::collections::HashMap<&str, &serde_json::Value> = states
+            .iter()
+            .map(|s| (s["entity_id"].as_str().unwrap(), s))
+            .collect();
+
+        assert_eq!(by_id["BTC"]["found"], serde_json::Value::Bool(true));
+        assert_eq!(by_id["BTC"]["state"]["symbol"], "BTC");
+        assert_eq!(by_id["ETH"]["found"], serde_json::Value::Bool(true));
+        assert_eq!(by_id["MISSING"]["found"], serde_json::Value::Bool(false));
     }
 }

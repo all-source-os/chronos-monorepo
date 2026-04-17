@@ -1,6 +1,7 @@
 package http //nolint:revive // package name intentionally matches directory
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -64,7 +65,7 @@ func TestWebhook_MissingSignature(t *testing.T) {
 	_, router := setupWebhookHandler(t)
 
 	body := `{"event_name":"subscription_created","data":{},"meta":{}}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -87,7 +88,7 @@ func TestWebhook_InvalidSignature(t *testing.T) {
 	_, router := setupWebhookHandler(t)
 
 	body := `{"event_name":"subscription_created","data":{},"meta":{}}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Signature", "invalid-signature")
 
@@ -113,7 +114,7 @@ func TestWebhook_MissingSecret(t *testing.T) {
 	_, router := setupWebhookHandler(t)
 
 	body := `{"event_name":"subscription_created","data":{},"meta":{}}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Signature", "some-sig")
 
@@ -158,7 +159,7 @@ func TestWebhook_ValidSignature_SubscriptionCreated(t *testing.T) {
 	}
 	sig := signPayload(body, secret)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(string(body)))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Signature", sig)
 
@@ -200,7 +201,7 @@ func TestWebhook_ValidSignature_SubscriptionCancelled(t *testing.T) {
 	}
 	sig := signPayload(body, secret)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(string(body)))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Signature", sig)
 
@@ -224,7 +225,7 @@ func TestStripeWebhook_MissingSignature(t *testing.T) {
 	_, router := setupWebhookHandler(t)
 
 	body := `{"id":"evt_1","type":"customer.subscription.created","data":{"object":{}}}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -241,7 +242,7 @@ func TestStripeWebhook_InvalidSignature(t *testing.T) {
 	t.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
 
 	body := `{"id":"evt_1","type":"customer.subscription.created","data":{"object":{}}}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Stripe-Signature", "t=12345,v1=invalidsig")
 
@@ -284,7 +285,7 @@ func TestStripeWebhook_ValidSignature_SubscriptionCreated(t *testing.T) {
 	sig := stripeSignPayload(t, body, secret, timestamp)
 	sigHeader := "t=" + timestamp + ",v1=" + sig
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(string(body)))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Stripe-Signature", sigHeader)
 
@@ -327,7 +328,7 @@ func TestStripeWebhook_ValidSignature_SubscriptionDeleted(t *testing.T) {
 	sig := stripeSignPayload(t, body, secret, timestamp)
 	sigHeader := "t=" + timestamp + ",v1=" + sig
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(string(body)))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/stripe", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Stripe-Signature", sigHeader)
 

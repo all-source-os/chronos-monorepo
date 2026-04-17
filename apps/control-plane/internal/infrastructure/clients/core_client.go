@@ -446,7 +446,11 @@ func NewCoreClientWithJWT(baseURL, bearerToken string) CoreClient {
 				return fmt.Errorf("stopped after 10 redirects")
 			}
 			if auth := via[0].Header.Get("Authorization"); auth != "" {
-				req.Header.Set("Authorization", auth)
+				// Intentional: Core is an internal service, we control both
+				// endpoints, and the redirect target is constrained by
+				// baseURL above. Stripping auth would break service-to-service
+				// calls after any redirect.
+				req.Header.Set("Authorization", auth) //nolint:gosec // G119
 			}
 			return nil
 		},

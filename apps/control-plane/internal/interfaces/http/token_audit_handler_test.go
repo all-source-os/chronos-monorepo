@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -46,7 +47,7 @@ func TestTokenAuditQuery_Basic(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	from := now.Add(-2 * time.Hour).Format(time.RFC3339)
 	to := now.Add(1 * time.Hour).Format(time.RFC3339)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit?from="+from+"&to="+to, http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/token-audit?from="+from+"&to="+to, http.NoBody)
 
 	handler.Query(c)
 
@@ -122,7 +123,7 @@ func TestTokenAuditQuery_KeyPrefixTruncation(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	from := now.Add(-2 * time.Hour).Format(time.RFC3339)
 	to := now.Add(1 * time.Hour).Format(time.RFC3339)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit?from="+from+"&to="+to, http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/token-audit?from="+from+"&to="+to, http.NoBody)
 
 	handler.Query(c)
 
@@ -163,7 +164,7 @@ func TestTokenAuditQuery_TenantFilter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=tenant-1", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=tenant-1", http.NoBody)
 
 	handler.Query(c)
 
@@ -203,7 +204,7 @@ func TestTokenAuditQuery_Pagination(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=tenant-1&page=2&per_page=2", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=tenant-1&page=2&per_page=2", http.NoBody)
 
 	handler.Query(c)
 
@@ -263,7 +264,7 @@ func TestTokenAuditQuery_PaginationFirstPage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=tenant-1&page=1&per_page=2", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=tenant-1&page=1&per_page=2", http.NoBody)
 
 	handler.Query(c)
 
@@ -294,7 +295,7 @@ func TestTokenAuditQuery_PaginationLastPage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=tenant-1&page=2&per_page=2", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=tenant-1&page=2&per_page=2", http.NoBody)
 
 	handler.Query(c)
 
@@ -318,7 +319,7 @@ func TestTokenAuditQuery_EmptyResults(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=nonexistent", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/token-audit?tenant_id=nonexistent", http.NoBody)
 
 	handler.Query(c)
 
@@ -356,7 +357,7 @@ func TestTokenAuditSummary_Basic(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	from := now.Add(-2 * time.Hour).Format(time.RFC3339)
 	to := now.Add(1 * time.Hour).Format(time.RFC3339)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit/summary?from="+from+"&to="+to, http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/token-audit/summary?from="+from+"&to="+to, http.NoBody)
 
 	handler.Summary(c)
 
@@ -433,7 +434,7 @@ func TestTokenAuditSummary_Empty(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	from := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
 	to := time.Now().UTC().Add(1 * time.Hour).Format(time.RFC3339)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/token-audit/summary?from="+from+"&to="+to, http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/token-audit/summary?from="+from+"&to="+to, http.NoBody)
 
 	handler.Summary(c)
 

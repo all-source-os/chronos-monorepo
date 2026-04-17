@@ -130,11 +130,7 @@ impl CoreClient {
     /// Thin wrapper over [`Self::ack_consumer`] — the two concepts are the
     /// same primitive (a WAL offset we've committed to), and sharing the
     /// implementation keeps the SDK from reinventing position tracking.
-    pub async fn save_checkpoint(
-        &self,
-        worker_name: &str,
-        position: u64,
-    ) -> Result<(), Error> {
+    pub async fn save_checkpoint(&self, worker_name: &str, position: u64) -> Result<(), Error> {
         self.ack_consumer(worker_name, position).await
     }
 
@@ -198,8 +194,10 @@ fn urlencode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        matchers::{method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
 
     async fn make_client(server: &MockServer) -> CoreClient {
         CoreClient::new(&server.uri(), "test-key").unwrap()
@@ -225,10 +223,7 @@ mod tests {
             symbol: String,
             altname: String,
         }
-        let result: Option<Asset> = client
-            .get_projection_state("assets", "BTC")
-            .await
-            .unwrap();
+        let result: Option<Asset> = client.get_projection_state("assets", "BTC").await.unwrap();
         assert_eq!(
             result,
             Some(Asset {
@@ -272,10 +267,8 @@ mod tests {
             .await;
 
         let client = make_client(&server).await;
-        let result: Option<serde_json::Value> = client
-            .get_projection_state("assets", "BTC")
-            .await
-            .unwrap();
+        let result: Option<serde_json::Value> =
+            client.get_projection_state("assets", "BTC").await.unwrap();
         assert!(result.is_none());
     }
 
@@ -416,10 +409,10 @@ mod tests {
 
         let client = make_client(&server).await;
         // Use a short-retry config so the test doesn't spin for the default retry budget.
-        let err = client
-            .register_consumer("w1", &[])
-            .await
-            .unwrap_err();
-        assert!(matches!(err, Error::Api { status: 500, .. } | Error::CircuitOpen { .. }));
+        let err = client.register_consumer("w1", &[]).await.unwrap_err();
+        assert!(matches!(
+            err,
+            Error::Api { status: 500, .. } | Error::CircuitOpen { .. }
+        ));
     }
 }

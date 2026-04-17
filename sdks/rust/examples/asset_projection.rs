@@ -20,8 +20,7 @@
 //! The worker will print state on every catch-up and then idle in live mode.
 //! Ctrl+C to stop.
 
-use std::collections::HashMap;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use allsource::{CoreClient, Error, Event, ProjectionWorker};
 use serde::{Deserialize, Serialize};
@@ -71,11 +70,7 @@ async fn main() -> Result<(), Error> {
 
     let worker = ProjectionWorker::<HashMap<String, AssetState>>::builder(core)
         .name("assets")
-        .event_types(&[
-            "asset.registered",
-            "asset.updated",
-            "exchange_mapping.set",
-        ])
+        .event_types(&["asset.registered", "asset.updated", "exchange_mapping.set"])
         .reducer(asset_reducer)
         .checkpoint_interval(100)
         .state_flush_every(50)

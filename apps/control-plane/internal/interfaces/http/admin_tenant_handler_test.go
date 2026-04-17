@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -59,7 +60,7 @@ func TestAdminListTenants_Basic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants", http.NoBody)
 
 	handler.ListTenants(c)
 
@@ -118,7 +119,7 @@ func TestAdminListTenants_SearchFilter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants?search=alpha", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants?search=alpha", http.NoBody)
 
 	handler.ListTenants(c)
 
@@ -153,7 +154,7 @@ func TestAdminListTenants_PlanFilter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants?plan=pro", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants?plan=pro", http.NoBody)
 
 	handler.ListTenants(c)
 
@@ -190,7 +191,7 @@ func TestAdminListTenants_StatusFilter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants?status=suspended", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants?status=suspended", http.NoBody)
 
 	handler.ListTenants(c)
 
@@ -221,7 +222,7 @@ func TestAdminListTenants_Pagination(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants?page=2&per_page=2", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants?page=2&per_page=2", http.NoBody)
 
 	handler.ListTenants(c)
 
@@ -283,7 +284,7 @@ func TestAdminListTenants_EnrichedFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants", http.NoBody)
 
 	handler.ListTenants(c)
 
@@ -344,7 +345,7 @@ func TestAdminGetDetail_ExistingTenant(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, r := gin.CreateTestContext(w)
 	r.GET("/api/v1/admin/tenants/:id", handler.GetDetail)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants/t-detail", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants/t-detail", http.NoBody)
 	r.ServeHTTP(w, c.Request)
 
 	if w.Code != http.StatusOK {
@@ -432,7 +433,7 @@ func TestAdminGetDetail_NotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, r := gin.CreateTestContext(w)
 	r.GET("/api/v1/admin/tenants/:id", handler.GetDetail)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants/nonexistent", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants/nonexistent", http.NoBody)
 	r.ServeHTTP(w, c.Request)
 
 	if w.Code != http.StatusNotFound {
@@ -460,7 +461,7 @@ func TestAdminGetUsage_ExistingTenant(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, r := gin.CreateTestContext(w)
 	r.GET("/api/v1/admin/tenants/:id/usage", handler.GetUsage)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants/t-usage/usage", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants/t-usage/usage", http.NoBody)
 	r.ServeHTTP(w, c.Request)
 
 	if w.Code != http.StatusOK {
@@ -520,7 +521,7 @@ func TestAdminGetUsage_NotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, r := gin.CreateTestContext(w)
 	r.GET("/api/v1/admin/tenants/:id/usage", handler.GetUsage)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/tenants/nonexistent/usage", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants/nonexistent/usage", http.NoBody)
 	r.ServeHTTP(w, c.Request)
 
 	if w.Code != http.StatusNotFound {
@@ -613,7 +614,7 @@ func TestAdminBulkSuspend_MixedValidInvalid(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	body := `{"action":"suspend","tenant_ids":["t-1","nonexistent","t-2"]}`
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(body))
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("auth_role", entities.RoleAdmin)
 
@@ -710,7 +711,7 @@ func TestAdminBulkAction_ValidationErrors(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 
-			c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(tt.body))
+			c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(tt.body))
 			c.Request.Header.Set("Content-Type", "application/json")
 			c.Set("auth_role", entities.RoleAdmin)
 
@@ -731,7 +732,7 @@ func TestAdminBulkAction_ForbiddenWithoutAdmin(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	body := `{"action":"suspend","tenant_ids":["t-1"]}`
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(body))
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("auth_role", entities.RoleDeveloper)
 
@@ -755,7 +756,7 @@ func TestAdminBulkArchive(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	body := `{"action":"archive","tenant_ids":["t-1"]}`
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(body))
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("auth_role", entities.RoleAdmin)
 
@@ -797,7 +798,7 @@ func TestAdminBulkExport(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	body := `{"action":"export","tenant_ids":["t-1"]}`
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(body))
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/admin/tenants/bulk", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("auth_role", entities.RoleAdmin)
 

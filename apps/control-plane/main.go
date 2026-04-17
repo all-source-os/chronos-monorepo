@@ -32,7 +32,7 @@ var openAPIYAML []byte
 // Control plane configuration constants.
 const (
 	// Version is the current version of the control plane.
-	Version = "0.18.2"
+	Version = "0.19.1"
 	// DefaultPort is the default port the control plane listens on.
 	DefaultPort = "3901"
 	// CoreServiceURL is the URL of the core event store service.
@@ -64,9 +64,11 @@ func NewPooledHTTPClient() *http.Client {
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
 			}
-			// Preserve Authorization header across redirects (Go strips it by default)
+			// Preserve Authorization header across redirects (Go strips it by default).
+			// Internal service-to-service: redirect targets are constrained to
+			// configured backends so header forwarding is safe here.
 			if auth := via[0].Header.Get("Authorization"); auth != "" {
-				req.Header.Set("Authorization", auth)
+				req.Header.Set("Authorization", auth) //nolint:gosec // G119
 			}
 			return nil
 		},
@@ -145,7 +147,8 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		return nil, fmt.Errorf("failed to sign service JWT: %w", err)
 	}
 	client.SetAuthToken(serviceToken)
-	log.Printf("Service JWT set for Core auth (token length: %d, core URL: %s)", len(serviceToken), coreURL)
+	// coreURL comes from operator-controlled env config, not user input.
+	log.Printf("Service JWT set for Core auth (token length: %d, core URL: %s)", len(serviceToken), coreURL) //nolint:gosec // G706
 
 	// Initialize audit logger
 	auditLogPath := os.Getenv("AUDIT_LOG_PATH")
@@ -791,7 +794,8 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("Control Plane v%s listening on port %s", Version, port)
+		// Version is a compile-time constant, port is operator config — not user input.
+		log.Printf("Control Plane v%s listening on port %s", Version, port) //nolint:gosec // G706
 		log.Println("Persistence: core (no PostgreSQL)")
 		log.Println("Authentication enabled")
 		log.Println("RBAC enabled")

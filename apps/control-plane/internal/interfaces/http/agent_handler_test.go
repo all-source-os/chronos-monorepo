@@ -66,7 +66,7 @@ func TestAgentHandler_NoTenantID_Returns401(t *testing.T) {
 	mock := &mockPaymentHistoryUC{resp: &usecases.AgentPaymentHistoryResponse{}}
 	r := buildAgentRouter(mock, "") // no tenant injected
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/me/payments", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/agents/me/payments", http.NoBody)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -79,7 +79,7 @@ func TestAgentHandler_UCError_Returns500(t *testing.T) {
 	mock := &mockPaymentHistoryUC{err: errors.New("core unavailable")}
 	r := buildAgentRouter(mock, "tenant-1")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/me/payments", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/agents/me/payments", http.NoBody)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -99,7 +99,7 @@ func TestAgentHandler_Success_Returns200WithPayments(t *testing.T) {
 	}
 	r := buildAgentRouter(mock, "tenant-abc")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/me/payments", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/agents/me/payments", http.NoBody)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -128,7 +128,7 @@ func TestAgentHandler_EmptyPayments_Returns200EmptySlice(t *testing.T) {
 	}
 	r := buildAgentRouter(mock, "tenant-xyz")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/me/payments", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/agents/me/payments", http.NoBody)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

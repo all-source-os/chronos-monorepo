@@ -26,12 +26,18 @@
 
 #![cfg(feature = "projection-worker")]
 
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
-use allsource::{CoreClient, Error, Event, IngestEventInput, ProjectionHandle, ProjectionWorker, WorkerState};
+use allsource::{
+    CoreClient, Error, Event, IngestEventInput, ProjectionHandle, ProjectionWorker, WorkerState,
+};
 use serde_json::json;
 
 fn core_url() -> Option<String> {
@@ -122,7 +128,10 @@ async fn cold_start_processes_all_events() {
 
     // The reducer saw exactly the events we ingested for this namespace.
     let count = counter.load(Ordering::SeqCst);
-    assert_eq!(count, ingested, "expected {ingested} events, reducer saw {count}");
+    assert_eq!(
+        count, ingested,
+        "expected {ingested} events, reducer saw {count}"
+    );
 
     handle.stop().await.unwrap();
 }
@@ -160,7 +169,11 @@ async fn restart_resumes_from_checkpoint() {
         wait_caught_up(&handle).await;
         handle.stop().await.unwrap();
     }
-    assert_eq!(run1_count.load(Ordering::SeqCst), 10, "run 1 should see all 10");
+    assert_eq!(
+        run1_count.load(Ordering::SeqCst),
+        10,
+        "run 1 should see all 10"
+    );
 
     // Phase 2: ingest 5 more events, start a NEW worker with the SAME name.
     ingest_n_events(&core, &format!("{prefix}-phase2"), 5).await;

@@ -4,6 +4,14 @@ All notable changes to the `allsource` Rust SDK.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org).
 
+## [0.19.1] — 2026-04-17
+
+### Changed
+
+- Version bump as part of monorepo-wide v0.19.1 release. No SDK source changes. Pairs with Core v0.19.1, which adds cache-fallback to `GET /api/v1/projections/:name/:entity_id/state` so `ProjectionHandle::get_state` now works for SDK-managed projections (no registered projection required). The caveat previously documented in the README / use-case guide is resolved against any Core ≥ 0.19.1.
+
+[0.19.1]: https://github.com/all-source-os/all-source/releases/tag/v0.19.1
+
 ## [0.19.0] — 2026-04-17
 
 ### Added

@@ -13,8 +13,8 @@ defmodule QueryServiceExWeb.BillingControllerTest do
       assert state.billing_period == nil
       assert state.payment_provider == nil
       assert state.subscription_id == nil
-      assert state.events_quota == 10_000
-      assert state.queries_quota == 1_000
+      assert state.events_quota == 100_000
+      assert state.queries_quota == 10_000
       assert state.events_used == 0
       assert state.queries_used == 0
       assert state.last_updated == nil
@@ -42,8 +42,8 @@ defmodule QueryServiceExWeb.BillingControllerTest do
       assert state.billing_period == "monthly"
       assert state.payment_provider == "lemonsqueezy"
       assert state.subscription_id == "sub_123"
-      assert state.events_quota == 100_000
-      assert state.queries_quota == 10_000
+      assert state.events_quota == 10_000_000
+      assert state.queries_quota == 1_000_000
       assert state.last_updated == "2026-03-26T12:00:00Z"
     end
 
@@ -56,8 +56,9 @@ defmodule QueryServiceExWeb.BillingControllerTest do
       state = BillingController.derive_state("t-3", event)
 
       assert state.tier == "enterprise"
-      assert state.events_quota == 1_000_000
-      assert state.queries_quota == 100_000
+      # Enterprise is unlimited (-1 sentinel).
+      assert state.events_quota == -1
+      assert state.queries_quota == -1
     end
 
     test "unknown tier gets free quotas" do
@@ -69,8 +70,8 @@ defmodule QueryServiceExWeb.BillingControllerTest do
       state = BillingController.derive_state("t-4", event)
 
       assert state.tier == "unknown"
-      assert state.events_quota == 10_000
-      assert state.queries_quota == 1_000
+      assert state.events_quota == 100_000
+      assert state.queries_quota == 10_000
     end
 
     test "handles nil payload" do

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -54,7 +55,7 @@ func TestAdminAuthMiddleware_ValidAdminJWT(t *testing.T) {
 	}
 	token := signTestToken(t, claims)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/health", http.NoBody)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 
@@ -89,7 +90,7 @@ func TestAdminAuthMiddleware_NonAdminJWT_Returns403(t *testing.T) {
 			}
 			token := signTestToken(t, claims)
 
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/health", http.NoBody)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/health", http.NoBody)
 			req.Header.Set("Authorization", "Bearer "+token)
 			w := httptest.NewRecorder()
 
@@ -105,7 +106,7 @@ func TestAdminAuthMiddleware_NonAdminJWT_Returns403(t *testing.T) {
 func TestAdminAuthMiddleware_MissingJWT_Returns401(t *testing.T) {
 	router := setupAdminRouter()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/health", http.NoBody)
 	// No Authorization header
 	w := httptest.NewRecorder()
 
@@ -119,7 +120,7 @@ func TestAdminAuthMiddleware_MissingJWT_Returns401(t *testing.T) {
 func TestAdminAuthMiddleware_InvalidJWT_Returns401(t *testing.T) {
 	router := setupAdminRouter()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/health", http.NoBody)
 	req.Header.Set("Authorization", "Bearer invalid-token-string")
 	w := httptest.NewRecorder()
 
@@ -146,7 +147,7 @@ func TestAdminAuthMiddleware_ExpiredJWT_Returns401(t *testing.T) {
 	}
 	token := signTestToken(t, claims)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/health", http.NoBody)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 
@@ -178,7 +179,7 @@ func TestAdminAuthMiddleware_WrongSecret_Returns401(t *testing.T) {
 		t.Fatalf("failed to sign token: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/health", http.NoBody)
 	req.Header.Set("Authorization", "Bearer "+tokenString)
 	w := httptest.NewRecorder()
 
@@ -204,7 +205,7 @@ func TestAdminAuthMiddleware_MalformedAuthHeader_Returns401(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/health", http.NoBody)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/health", http.NoBody)
 			req.Header.Set("Authorization", tt.header)
 			w := httptest.NewRecorder()
 
@@ -244,7 +245,7 @@ func TestGetAdminAuthContext_AfterMiddleware(t *testing.T) {
 	}
 	token := signTestToken(t, claims)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/check", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/check", http.NoBody)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 

@@ -82,7 +82,7 @@ func makePaymentHeader(t *testing.T, nonce string) string {
 func TestMiddleware_NoPayment_Returns402(t *testing.T) {
 	router, mock := setupMiddlewareTest(enabledPricing(), "0xPayer", "0xtx", nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -117,7 +117,7 @@ func TestMiddleware_NoPayment_Returns402(t *testing.T) {
 func TestMiddleware_ValidPayment_PassesThrough(t *testing.T) {
 	router, mock := setupMiddlewareTest(enabledPricing(), "0xPayer", "0xdeadbeef", nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	req.Header.Set(HeaderPayment, makePaymentHeader(t, "0xunique1"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -157,7 +157,7 @@ func TestMiddleware_ValidPayment_PassesThrough(t *testing.T) {
 func TestMiddleware_InvalidPaymentHeader_Returns400(t *testing.T) {
 	router, _ := setupMiddlewareTest(enabledPricing(), "", "", nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	req.Header.Set(HeaderPayment, "not-valid-base64!!!")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -171,7 +171,7 @@ func TestMiddleware_DisabledConfig_PassesThrough(t *testing.T) {
 	pricing := &PricingConfig{Enabled: false}
 	router, _ := setupMiddlewareTest(pricing, "", "", nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -183,7 +183,7 @@ func TestMiddleware_DisabledConfig_PassesThrough(t *testing.T) {
 func TestMiddleware_UnpricedRoute_PassesThrough(t *testing.T) {
 	router, _ := setupMiddlewareTest(enabledPricing(), "", "", nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/health", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -195,7 +195,7 @@ func TestMiddleware_UnpricedRoute_PassesThrough(t *testing.T) {
 func TestMiddleware_SettlementFails_ReturnsError(t *testing.T) {
 	router, mock := setupMiddlewareTest(enabledPricing(), "0xPayer", "", context.DeadlineExceeded)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	req.Header.Set(HeaderPayment, makePaymentHeader(t, "0xfail1"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

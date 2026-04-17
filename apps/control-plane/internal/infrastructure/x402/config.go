@@ -41,7 +41,9 @@ func LoadPricingConfig() (*PricingConfig, error) {
 		return &PricingConfig{Enabled: false}, nil
 	}
 
-	data, err := os.ReadFile(configPath)
+	// configPath comes from X402_PRICING_CONFIG env var, set by the operator
+	// at deploy time — not user input. Path traversal is not a threat here.
+	data, err := os.ReadFile(configPath) //nolint:gosec // G304/G703
 	if err != nil {
 		return nil, fmt.Errorf("read pricing config %s: %w", configPath, err)
 	}

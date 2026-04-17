@@ -5,14 +5,19 @@
 //! This module is only available with the `projection-worker` feature.
 
 use futures_util::{Stream, StreamExt};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::{Notify, RwLock};
-use tokio::task::JoinHandle;
+use serde::{de::DeserializeOwned, Serialize};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+use tokio::{
+    sync::{Notify, RwLock},
+    task::JoinHandle,
+};
 
 use crate::{
     client::CoreClient,
@@ -37,8 +42,7 @@ pub type Reducer<S> = dyn FnMut(&mut S, &Event) -> Result<(), Error> + Send + 's
 
 /// Extract `(entity_id, state_json)` tuples from the worker's state for
 /// periodic push-back to Core. Called under a read lock — keep it cheap.
-pub type StateFlusher<S> =
-    dyn Fn(&S) -> Vec<(String, serde_json::Value)> + Send + Sync + 'static;
+pub type StateFlusher<S> = dyn Fn(&S) -> Vec<(String, serde_json::Value)> + Send + Sync + 'static;
 
 /// Builder for a [`ProjectionWorker`].
 ///
@@ -210,7 +214,9 @@ impl<S: WorkerState> ProjectionWorker<S> {
                         events_since_checkpoint += 1;
                         events_since_flush += 1;
 
-                        let should_flush = self.state_flush_every.is_some_and(|n| events_since_flush >= n);
+                        let should_flush = self
+                            .state_flush_every
+                            .is_some_and(|n| events_since_flush >= n);
                         if should_flush {
                             self.flush_state_if_configured().await;
                             events_since_flush = 0;
@@ -323,7 +329,8 @@ impl<S: WorkerState> ProjectionWorker<S> {
         }
 
         if version > 0 {
-            self.last_applied_version_by_entity.insert(entity_id, version);
+            self.last_applied_version_by_entity
+                .insert(entity_id, version);
         }
         Ok(true)
     }
@@ -396,10 +403,8 @@ async fn run_forever<S: WorkerState>(
             break;
         }
 
-        let stream_client = EventStreamClient::new(
-            worker.core.transport().base_url.clone(),
-            String::new(),
-        );
+        let stream_client =
+            EventStreamClient::new(worker.core.transport().base_url.clone(), String::new());
 
         caught_up.store(false, Ordering::SeqCst);
 
@@ -681,8 +686,10 @@ mod tests {
     use crate::ws::{StreamItem, StreamMode, StreamedEvent};
     use futures_util::stream;
     use serde_json::json;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        matchers::{method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
 
     fn sample_event(entity: &str, event_type: &str, version: i64) -> Event {
         Event {
@@ -819,13 +826,13 @@ mod tests {
         let events: Vec<_> = (1..=12)
             .map(|i| replay(i, sample_event(&format!("e{i}"), "x", 1)))
             .collect();
-        worker
-            .run_with_stream(stream::iter(events))
-            .await
-            .unwrap();
+        worker.run_with_stream(stream::iter(events)).await.unwrap();
 
         let ack_count = acks.load(std::sync::atomic::Ordering::SeqCst);
-        assert_eq!(ack_count, 2, "expected 2 interval checkpoints, got {ack_count}");
+        assert_eq!(
+            ack_count, 2,
+            "expected 2 interval checkpoints, got {ack_count}"
+        );
     }
 
     #[tokio::test]
@@ -849,10 +856,7 @@ mod tests {
             replay(2, sample_event("b", "x", 1)),
             Ok(StreamItem::ReplayComplete { replayed: 2 }),
         ];
-        worker
-            .run_with_stream(stream::iter(items))
-            .await
-            .unwrap();
+        worker.run_with_stream(stream::iter(items)).await.unwrap();
 
         assert_eq!(acks.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
@@ -880,10 +884,7 @@ mod tests {
             live(sample_event("b", "x", 1)),
             live(sample_event("c", "x", 1)),
         ];
-        worker
-            .run_with_stream(stream::iter(items))
-            .await
-            .unwrap();
+        worker.run_with_stream(stream::iter(items)).await.unwrap();
 
         // Zero interval-based checkpoints during live (replay_complete had no events to checkpoint).
         assert_eq!(
@@ -917,10 +918,7 @@ mod tests {
             replay(4, sample_event("entity-1", "x", 1)), // older dup
             replay(5, sample_event("entity-1", "x", 3)),
         ];
-        worker
-            .run_with_stream(stream::iter(items))
-            .await
-            .unwrap();
+        worker.run_with_stream(stream::iter(items)).await.unwrap();
         assert_eq!(*worker.state().read().await, 3);
     }
 
@@ -947,10 +945,7 @@ mod tests {
             replay(3, sample_event("entity-a", "x", 1)), // dup of a, skip
             replay(4, sample_event("entity-b", "x", 2)), // new
         ];
-        worker
-            .run_with_stream(stream::iter(items))
-            .await
-            .unwrap();
+        worker.run_with_stream(stream::iter(items)).await.unwrap();
         assert_eq!(*worker.state().read().await, 3);
     }
 
@@ -1012,10 +1007,7 @@ mod tests {
             .checkpoint_interval(1000)
             .state_flush_every(10)
             .state_flush_entities(|state| {
-                state
-                    .iter()
-                    .map(|(k, v)| (k.clone(), json!(*v)))
-                    .collect()
+                state.iter().map(|(k, v)| (k.clone(), json!(*v))).collect()
             })
             .build()
             .unwrap();
@@ -1049,10 +1041,7 @@ mod tests {
             .checkpoint_interval(1000)
             .state_flush_every(1000) // never hits the event-count trigger
             .state_flush_entities(|state| {
-                state
-                    .iter()
-                    .map(|(k, v)| (k.clone(), json!(*v)))
-                    .collect()
+                state.iter().map(|(k, v)| (k.clone(), json!(*v))).collect()
             })
             .build()
             .unwrap();
@@ -1084,10 +1073,7 @@ mod tests {
             .checkpoint_interval(1000)
             .state_flush_every(1)
             .state_flush_entities(|state| {
-                state
-                    .iter()
-                    .map(|(k, v)| (k.clone(), json!(*v)))
-                    .collect()
+                state.iter().map(|(k, v)| (k.clone(), json!(*v))).collect()
             })
             .build()
             .unwrap();
@@ -1115,10 +1101,7 @@ mod tests {
             .checkpoint_interval(1000)
             .state_flush_every(1)
             .state_flush_entities(|state| {
-                state
-                    .iter()
-                    .map(|(k, v)| (k.clone(), json!(*v)))
-                    .collect()
+                state.iter().map(|(k, v)| (k.clone(), json!(*v))).collect()
             })
             .build()
             .unwrap();

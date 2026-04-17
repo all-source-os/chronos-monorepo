@@ -106,7 +106,7 @@ func TestAutoPay_FreeTier_Returns403(t *testing.T) {
 	// gate must still reject before any payment logic runs. Pro+ only.
 	router, _ := setupAutoPayRouterWithTier(true, true, "wallet-1", "0xAddr", signer, successFacilitator("0xAddr"), true)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -125,7 +125,7 @@ func TestAutoPay_QuotaRemaining_PassesThrough(t *testing.T) {
 	signer := &mockCDPSigner{sig: "0xsig"}
 	router, _ := setupAutoPayRouter(true, "wallet-1", "0xAddr", signer, successFacilitator("0xAddr"), true)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -149,7 +149,7 @@ func TestAutoPay_PricingDisabled_PassesThrough(t *testing.T) {
 	router.Use(AgentAutoPayMiddleware(facilitator, pricing, NewEventLogger(mock), &StaticQuotaChecker{HasRemaining: false}, wallet, signer))
 	router.POST("/api/v1/events", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{}) })
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -166,7 +166,7 @@ func TestAutoPay_QuotaExceeded_NoWallet_Returns402(t *testing.T) {
 	// walletID="" means GetAgentWallet returns ("", "", nil) → no wallet provisioned
 	router, _ := setupAutoPayRouter(false, "", "", signer, successFacilitator(""), true)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -182,7 +182,7 @@ func TestAutoPay_QuotaExceeded_WithWallet_AutoSettles_Returns200(t *testing.T) {
 	signer := &mockCDPSigner{sig: "0xcdpsig"}
 	router, coreLog := setupAutoPayRouter(false, "wallet-1", "0xAgentAddr", signer, successFacilitator("0xAgentAddr"), true)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -211,7 +211,7 @@ func TestAutoPay_SignerFails_FallsBackTo402(t *testing.T) {
 	signer := &mockCDPSigner{err: errors.New("key unavailable")}
 	router, _ := setupAutoPayRouter(false, "wallet-1", "0xAgentAddr", signer, successFacilitator("0xAgentAddr"), true)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -234,7 +234,7 @@ func TestAutoPay_SettlementFails_Returns402WithWalletInfo(t *testing.T) {
 	}
 	router, _ := setupAutoPayRouter(false, "wallet-1", "0xAgentAddr", signer, failFacilitator, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -255,7 +255,7 @@ func TestAutoPay_UnpricedRoute_PassesThrough(t *testing.T) {
 	// quota exceeded but route is not priced → pass through
 	router, _ := setupAutoPayRouter(false, "wallet-1", "0xAgentAddr", signer, successFacilitator("0xAgentAddr"), true)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/health", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -272,7 +272,7 @@ func TestAutoPay_NoTenantID_FallsTo402(t *testing.T) {
 	// withTenantID=false: no tenant_id set in context
 	router, _ := setupAutoPayRouter(false, "wallet-1", "0xAgentAddr", signer, successFacilitator("0xAgentAddr"), false)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

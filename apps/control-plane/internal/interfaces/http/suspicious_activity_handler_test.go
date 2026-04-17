@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,7 @@ func TestSuspiciousActivity_NoAlerts(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
 
 	handler.Detect(c)
 
@@ -95,7 +96,7 @@ func TestSuspiciousActivity_FailedAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
 
 	handler.Detect(c)
 
@@ -158,7 +159,7 @@ func TestSuspiciousActivity_ExcessiveAPIKeyCreation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
 
 	handler.Detect(c)
 
@@ -216,7 +217,7 @@ func TestSuspiciousActivity_UniqueIPBurst(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
 
 	handler.Detect(c)
 
@@ -274,7 +275,7 @@ func TestSuspiciousActivity_BelowThreshold_NoAlert(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
 
 	handler.Detect(c)
 
@@ -340,7 +341,7 @@ func TestSuspiciousActivity_MultipleAlerts(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
 
 	handler.Detect(c)
 
@@ -398,7 +399,7 @@ func TestSuspiciousActivity_AlertStructure(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/security/suspicious-activity", http.NoBody)
 
 	handler.Detect(c)
 

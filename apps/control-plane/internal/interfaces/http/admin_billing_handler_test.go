@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -61,7 +62,7 @@ func TestAdminBillingGetRevenue_Basic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/billing/revenue?range=30d", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/billing/revenue?range=30d", http.NoBody)
 	setAdminAuth(c)
 
 	handler.GetRevenue(c)
@@ -102,7 +103,7 @@ func TestAdminBillingGetRevenue_InvalidRange(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/billing/revenue?range=invalid", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/billing/revenue?range=invalid", http.NoBody)
 	setAdminAuth(c)
 
 	handler.GetRevenue(c)
@@ -118,7 +119,7 @@ func TestAdminBillingGetRevenue_DefaultRange(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/billing/revenue", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/billing/revenue", http.NoBody)
 	setAdminAuth(c)
 
 	handler.GetRevenue(c)
@@ -154,7 +155,7 @@ func TestAdminBillingGetDunning_NoPastDue(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/billing/dunning", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/billing/dunning", http.NoBody)
 	setAdminAuth(c)
 
 	handler.GetDunning(c)
@@ -213,7 +214,7 @@ func TestAdminBillingGetDunning_WithPastDue(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/billing/dunning", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/billing/dunning", http.NoBody)
 	setAdminAuth(c)
 
 	handler.GetDunning(c)
@@ -279,7 +280,7 @@ func TestAdminBillingListInvoices_NoLSClient(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/billing/invoices", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/billing/invoices", http.NoBody)
 	setAdminAuth(c)
 
 	// listInvoicesUC is nil because no LSClient
@@ -297,7 +298,7 @@ func TestAdminBillingRefund_NoLSClient(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/billing/refund", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/admin/billing/refund", http.NoBody)
 	c.Request.Header.Set("Content-Type", "application/json")
 	setAdminAuth(c)
 

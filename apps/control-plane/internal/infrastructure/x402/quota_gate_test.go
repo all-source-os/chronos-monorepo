@@ -1,6 +1,7 @@
 package x402
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -44,7 +45,7 @@ func setupQuotaGateTest(quotaRemaining, x402Enabled bool) (*gin.Engine, *testCor
 func TestQuotaGate_QuotaRemaining_PassesThrough(t *testing.T) {
 	router, _ := setupQuotaGateTest(true, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -56,7 +57,7 @@ func TestQuotaGate_QuotaRemaining_PassesThrough(t *testing.T) {
 func TestQuotaGate_QuotaExceeded_Returns402(t *testing.T) {
 	router, mock := setupQuotaGateTest(false, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -73,7 +74,7 @@ func TestQuotaGate_QuotaExceeded_Returns402(t *testing.T) {
 func TestQuotaGate_X402Disabled_PassesThrough(t *testing.T) {
 	router, _ := setupQuotaGateTest(false, false)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -111,7 +112,7 @@ func TestQuotaGate_FreeTier_Returns403(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -123,7 +124,7 @@ func TestQuotaGate_FreeTier_Returns403(t *testing.T) {
 func TestQuotaGate_QuotaExceeded_WithPayment_Settles(t *testing.T) {
 	router, mock := setupQuotaGateTest(false, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", http.NoBody)
 	req.Header.Set(HeaderPayment, makePaymentHeader(t, "0xquota-pay"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

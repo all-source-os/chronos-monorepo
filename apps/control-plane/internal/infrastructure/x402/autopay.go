@@ -66,7 +66,7 @@ func AgentAutoPayMiddleware(
 		// all, regardless of quota or CDP wallet balance. Pro-and-above only.
 		// Mirrors the check in QuotaGatedMiddleware so both integration paths
 		// enforce the same pricing-memo rule.
-		if tierAllower, ok := quotaChecker.(X402TierAllower); ok && tenantIDStr != "" {
+		if tierAllower, ok := quotaChecker.(TierAllower); ok && tenantIDStr != "" {
 			if !tierAllower.AllowsX402(tenantIDStr) {
 				c.JSON(http.StatusForbidden, gin.H{
 					"error":   "tier_not_allowed",

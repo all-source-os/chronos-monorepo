@@ -19,14 +19,15 @@
 
 use crate::{Error, Event};
 use futures_util::{SinkExt, Stream};
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use tokio::net::TcpStream;
-use tokio_tungstenite::tungstenite::{
-    client::IntoClientRequest,
-    protocol::Message,
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
 };
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tokio::net::TcpStream;
+use tokio_tungstenite::{
+    tungstenite::{client::IntoClientRequest, protocol::Message},
+    MaybeTlsStream, WebSocketStream,
+};
 
 /// Phase of the event stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,17 +94,15 @@ impl EventStreamClient {
         filters: &[String],
     ) -> Result<EventStream, Error> {
         let ws_url = build_ws_url(&self.base_url, consumer_id)?;
-        let mut request = ws_url.into_client_request().map_err(|e| {
-            Error::WebSocket(format!("failed to build WS request: {e}"))
-        })?;
-        request
-            .headers_mut()
-            .insert(
-                "Authorization",
-                format!("Bearer {}", self.api_key)
-                    .parse()
-                    .map_err(|e| Error::WebSocket(format!("invalid api key: {e}")))?,
-            );
+        let mut request = ws_url
+            .into_client_request()
+            .map_err(|e| Error::WebSocket(format!("failed to build WS request: {e}")))?;
+        request.headers_mut().insert(
+            "Authorization",
+            format!("Bearer {}", self.api_key)
+                .parse()
+                .map_err(|e| Error::WebSocket(format!("invalid api key: {e}")))?,
+        );
 
         let (mut ws, _resp) = tokio_tungstenite::connect_async(request)
             .await
@@ -155,17 +154,13 @@ impl Stream for EventStream {
             match futures_util::ready!(Pin::new(&mut self.inner).poll_next(cx)) {
                 None => return Poll::Ready(None),
                 Some(Err(e)) => {
-                    return Poll::Ready(Some(Err(Error::WebSocket(format!(
-                        "read failed: {e}"
-                    )))))
+                    return Poll::Ready(Some(Err(Error::WebSocket(format!("read failed: {e}")))))
                 }
                 Some(Ok(Message::Text(text))) => {
                     match parse_frame(text.as_str(), self.mode) {
                         Ok(Some(StreamItem::ReplayComplete { replayed })) => {
                             self.mode = StreamMode::Live;
-                            return Poll::Ready(Some(Ok(StreamItem::ReplayComplete {
-                                replayed,
-                            })));
+                            return Poll::Ready(Some(Ok(StreamItem::ReplayComplete { replayed })));
                         }
                         Ok(Some(item)) => return Poll::Ready(Some(Ok(item))),
                         Ok(None) => continue, // frame ignored, loop for next message
@@ -227,12 +222,13 @@ fn parse_frame(text: &str, current_mode: StreamMode) -> Result<Option<StreamItem
     if let Some(type_tag) = val.get("type").and_then(|v| v.as_str()) {
         match type_tag {
             "replay" => {
-                let position = val.get("position").and_then(|v| v.as_u64()).ok_or_else(|| {
-                    Error::WebSocket("replay frame missing position".into())
-                })?;
-                let event_val = val.get("event").ok_or_else(|| {
-                    Error::WebSocket("replay frame missing event".into())
-                })?;
+                let position = val
+                    .get("position")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| Error::WebSocket("replay frame missing position".into()))?;
+                let event_val = val
+                    .get("event")
+                    .ok_or_else(|| Error::WebSocket("replay frame missing event".into()))?;
                 let event: Event = serde_json::from_value(event_val.clone())?;
                 Ok(Some(StreamItem::Event(StreamedEvent {
                     position: Some(position),
@@ -241,10 +237,7 @@ fn parse_frame(text: &str, current_mode: StreamMode) -> Result<Option<StreamItem
                 })))
             }
             "replay_complete" => {
-                let replayed = val
-                    .get("replayed")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
+                let replayed = val.get("replayed").and_then(|v| v.as_u64()).unwrap_or(0);
                 Ok(Some(StreamItem::ReplayComplete { replayed }))
             }
             "lagged" => {
@@ -360,7 +353,10 @@ mod tests {
     #[test]
     fn builds_ws_url_from_http() {
         let url = build_ws_url("http://localhost:3900", "my-worker").unwrap();
-        assert_eq!(url, "ws://localhost:3900/api/v1/events/stream?consumer_id=my-worker");
+        assert_eq!(
+            url,
+            "ws://localhost:3900/api/v1/events/stream?consumer_id=my-worker"
+        );
     }
 
     #[test]
@@ -443,7 +439,10 @@ mod tests {
         });
 
         let client = EventStreamClient::new(format!("http://{addr}"), "test-key");
-        let mut stream = client.connect("test-worker", &["asset.*".into()]).await.unwrap();
+        let mut stream = client
+            .connect("test-worker", &["asset.*".into()])
+            .await
+            .unwrap();
 
         let item1 = stream.next().await.unwrap().unwrap();
         match item1 {
@@ -465,10 +464,7 @@ mod tests {
         ));
 
         let item3 = stream.next().await.unwrap().unwrap();
-        assert!(matches!(
-            item3,
-            StreamItem::ReplayComplete { replayed: 2 }
-        ));
+        assert!(matches!(item3, StreamItem::ReplayComplete { replayed: 2 }));
         assert_eq!(stream.mode(), StreamMode::Live);
 
         let item4 = stream.next().await.unwrap().unwrap();

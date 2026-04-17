@@ -18,12 +18,12 @@ type QuotaChecker interface {
 	HasQuota(tenantID, routeKey string) bool
 }
 
-// X402TierAllower is an optional interface that QuotaChecker implementations may
+// TierAllower is an optional interface that QuotaChecker implementations may
 // implement to gate x402 priced routes on subscription tier. Per the April 2026
 // pricing decision, x402 agent endpoints are a Pro-tier-and-above feature;
 // free-tier tenants are rejected before any quota/payment logic runs.
 // When a checker does not implement this interface the gate falls open.
-type X402TierAllower interface {
+type TierAllower interface {
 	// AllowsX402 returns true if the tenant's subscription tier is allowed to
 	// consume x402 priced routes. Free tier → false.
 	AllowsX402(tenantID string) bool
@@ -75,7 +75,7 @@ func QuotaGatedMiddleware(
 
 		// Tier gate: free-tier tenants cannot consume x402 priced routes at
 		// all, regardless of quota or payment capability. Pro-and-above only.
-		if tierAllower, ok := quotaChecker.(X402TierAllower); ok && tenantIDStr != "" {
+		if tierAllower, ok := quotaChecker.(TierAllower); ok && tenantIDStr != "" {
 			if !tierAllower.AllowsX402(tenantIDStr) {
 				c.JSON(http.StatusForbidden, gin.H{
 					"error":   "tier_not_allowed",
@@ -171,11 +171,14 @@ func (q *CoreQuotaChecker) AllowsX402(tenantID string) bool {
 	if !ok {
 		return false
 	}
-	tier, _ := subMeta["tier"].(string)
+	tier, ok := subMeta["tier"].(string)
+	if !ok {
+		return false
+	}
 	return tierAllowedForX402[tier]
 }
 
-// AllowsX402 implements X402TierAllower for the static test checker.
+// AllowsX402 implements TierAllower for the static test checker.
 // Defaults to allow (TierDenied == false) so pre-existing tests that only
 // exercise quota/payment paths continue to work without modification.
 func (s *StaticQuotaChecker) AllowsX402(string) bool {

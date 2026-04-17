@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -31,7 +32,7 @@ func TestIPRuleHandler_CreateAndList(t *testing.T) {
 	body := `{"cidr":"192.168.1.0/24","type":"allow","description":"Office network"}`
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
+	c.Request = httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	handler.Create(c)
 
@@ -53,7 +54,7 @@ func TestIPRuleHandler_CreateAndList(t *testing.T) {
 	// List IP rules
 	w = httptest.NewRecorder()
 	c, _ = gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/v1/admin/security/ip-rules", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/admin/security/ip-rules", http.NoBody)
 	handler.List(c)
 
 	if w.Code != http.StatusOK {
@@ -77,7 +78,7 @@ func TestIPRuleHandler_Create_InvalidCIDR(t *testing.T) {
 	body := `{"cidr":"not-a-cidr","type":"allow","description":"Bad CIDR"}`
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
+	c.Request = httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	handler.Create(c)
 
@@ -93,7 +94,7 @@ func TestIPRuleHandler_Create_InvalidType(t *testing.T) {
 	body := `{"cidr":"10.0.0.0/8","type":"invalid","description":"Bad type"}`
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
+	c.Request = httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	handler.Create(c)
 
@@ -109,7 +110,7 @@ func TestIPRuleHandler_Create_MissingFields(t *testing.T) {
 	body := `{"description":"Missing required fields"}`
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
+	c.Request = httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	handler.Create(c)
 
@@ -126,7 +127,7 @@ func TestIPRuleHandler_Delete(t *testing.T) {
 	body := `{"cidr":"10.0.0.0/8","type":"block","description":"Block internal"}`
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
+	c.Request = httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/admin/security/ip-rules", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	handler.Create(c)
 
@@ -137,7 +138,7 @@ func TestIPRuleHandler_Delete(t *testing.T) {
 	// Delete it
 	w = httptest.NewRecorder()
 	c, _ = gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("DELETE", "/api/v1/admin/security/ip-rules/"+ruleID, http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/admin/security/ip-rules/"+ruleID, http.NoBody)
 	c.Params = gin.Params{{Key: "id", Value: ruleID}}
 	handler.Delete(c)
 
@@ -148,7 +149,7 @@ func TestIPRuleHandler_Delete(t *testing.T) {
 	// Verify list is empty
 	w = httptest.NewRecorder()
 	c, _ = gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/api/v1/admin/security/ip-rules", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/admin/security/ip-rules", http.NoBody)
 	handler.List(c)
 
 	var listResp map[string]interface{}
@@ -165,7 +166,7 @@ func TestIPRuleHandler_Delete_NotFound(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("DELETE", "/api/v1/admin/security/ip-rules/nonexistent", http.NoBody)
+	c.Request = httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/admin/security/ip-rules/nonexistent", http.NoBody)
 	c.Params = gin.Params{{Key: "id", Value: "nonexistent"}}
 	handler.Delete(c)
 

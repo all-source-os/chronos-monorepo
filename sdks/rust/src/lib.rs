@@ -88,7 +88,9 @@ pub use types::*;
 pub use ws::{EventStream, EventStreamClient, StreamItem, StreamMode, StreamedEvent};
 
 #[cfg(feature = "projection-worker")]
-pub use projection_worker::{ProjectionHandle, ProjectionWorker, ProjectionWorkerBuilder, WorkerState};
+pub use projection_worker::{
+    ProjectionHandle, ProjectionWorker, ProjectionWorkerBuilder, WorkerState,
+};
 
 // Re-export for payload construction
 pub use serde_json::{self, json, Value};
