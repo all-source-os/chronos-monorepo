@@ -146,7 +146,7 @@ Use judgment, and ask if unsure:
 - **User explicitly asks for a PR** — honor the request.
 - **External contributions** from anyone other than the repo owner.
 - **Experimental / WIP work** the user wants reviewable without it landing on `main`.
-- **Releases** — the release flow still runs on `main` directly (see the release skill), but tag push requires explicit user confirmation.
+- **Releases** — the release flow still runs on `main` directly (see the release skill), but tag push requires explicit user confirmation. Tag naming is scoped by release scope: full-monorepo releases use `v<VERSION>`; SDK-only releases use `sdk-<lang>-v<VERSION>` (e.g. `sdk-rust-v0.19.0`) so per-SDK versions don't collide with Core/QS versions.
 
 ### What this replaces
 

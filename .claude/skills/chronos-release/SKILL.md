@@ -7,6 +7,19 @@ description: Release a new version of the AllSource Chronos monorepo. Bumps vers
 
 Cut a release for the AllSource Chronos monorepo. Produces exactly one commit and one immutable annotated tag.
 
+## Scope — full monorepo vs. SDK-only
+
+**This skill is for full monorepo releases** that bump Core, Query Service, and all SDKs together. Those use the unscoped tag `v<VERSION>` and run the full `make ci` gate (quality-rust + quality-go + quality-elixir-full).
+
+**For SDK-only releases** (bumping only `sdks/<lang>/` without touching apps/), do NOT use this skill. Instead:
+
+- Tag format: `sdk-<lang>-v<VERSION>` — e.g. `sdk-rust-v0.19.0`. Never `v<VERSION>`.
+- Gate: only the relevant language gate (e.g. `make quality-rust` for Rust SDK) plus `cargo publish --dry-run` for published crates.
+- Commit: `sdk(<lang>): release v<VERSION> — <headline>`.
+- Only the SDK's `Cargo.toml`/equivalent + its `CHANGELOG.md` should change.
+
+The scoping keeps per-SDK version numbers from colliding with monorepo version numbers (e.g. `sdk-rust-v0.19.0` can ship while Core is still at `0.18.x`).
+
 ## Immutable Tags Policy
 
 **NEVER** move, delete, or re-create an existing tag. If a release has issues after tagging, bump the version and cut a new release (e.g., v0.10.4 instead of re-tagging v0.10.3).
@@ -14,6 +27,8 @@ Cut a release for the AllSource Chronos monorepo. Produces exactly one commit an
 Before starting, verify the requested tag does not already exist:
 ```bash
 git tag -l "v<VERSION>"
+# or for SDK-only:
+git tag -l "sdk-<lang>-v<VERSION>"
 ```
 If it exists, abort and tell the user to choose a higher version.
 
