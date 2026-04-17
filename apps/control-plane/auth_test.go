@@ -155,6 +155,80 @@ func TestAuthClient_ValidateAPIKey(t *testing.T) {
 	})
 }
 
+func TestAuthClient_RememberAPIKey_BypassesCoreMe(t *testing.T) {
+	// Fake Core that would panic if called — proving the cached key path
+	// never round-trips to /me.
+	coreCalled := int64(0)
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&coreCalled, 1)
+		http.Error(w, "should not be called", http.StatusTeapot)
+	}))
+	defer core.Close()
+
+	client := NewAuthClient("secret", core.URL)
+
+	// Mint a key via RememberAPIKey (simulates provisionCoreAPIKey's
+	// post-CreateCoreAPIKey step).
+	remembered := &Claims{
+		UserID:   "user-xyz",
+		TenantID: "tenant-xyz",
+		Role:     entities.RoleServiceAccount,
+		IsAPIKey: true,
+	}
+	client.RememberAPIKey("ask_freshly_minted", remembered)
+
+	t.Run("validate returns cached claims without hitting Core", func(t *testing.T) {
+		claims, err := client.ValidateAPIKey(context.Background(), "ask_freshly_minted")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if claims.TenantID != "tenant-xyz" {
+			t.Errorf("tenant_id: got %q, want tenant-xyz", claims.TenantID)
+		}
+		if atomic.LoadInt64(&coreCalled) != 0 {
+			t.Errorf("Core /me was called %d times — should be zero for remembered keys", coreCalled)
+		}
+	})
+
+	t.Run("repeated calls never expire remembered entry", func(t *testing.T) {
+		// Pre-existing /me-resolved entries expire after 120s; remembered
+		// entries should not. We can't time-travel in a unit test, but we
+		// can assert expiresAt.IsZero() semantics hold by re-calling many
+		// times and confirming Core is never touched.
+		for i := 0; i < 10; i++ {
+			if _, err := client.ValidateAPIKey(context.Background(), "ask_freshly_minted"); err != nil {
+				t.Fatalf("call %d: %v", i, err)
+			}
+		}
+		if atomic.LoadInt64(&coreCalled) != 0 {
+			t.Errorf("Core /me was called %d times during 10 cached calls", coreCalled)
+		}
+	})
+
+	t.Run("unknown keys still fall back to Core /me", func(t *testing.T) {
+		// Fresh client so the cached entry doesn't interfere.
+		otherCalled := int64(0)
+		other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt64(&otherCalled, 1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000000","username":"legacy","email":"","role":"developer","tenant_id":"legacy-tenant"}`))
+		}))
+		defer other.Close()
+
+		legacyClient := NewAuthClient("secret", other.URL)
+		claims, err := legacyClient.ValidateAPIKey(context.Background(), "ask_legacy_not_cached")
+		if err != nil {
+			t.Fatalf("legacy key path broken: %v", err)
+		}
+		if claims.TenantID != "legacy-tenant" {
+			t.Errorf("tenant_id: got %q, want legacy-tenant", claims.TenantID)
+		}
+		if atomic.LoadInt64(&otherCalled) != 1 {
+			t.Errorf("Core /me called %d times, want 1", otherCalled)
+		}
+	})
+}
+
 func TestRole_HasPermission(t *testing.T) {
 	tests := []struct {
 		role       entities.Role

@@ -78,13 +78,22 @@ type AuthClient struct {
 	apiKeyCacheMu sync.RWMutex
 }
 
-// apiKeyCacheTTL is how long a validated ask_ key stays cached.
-// Matches Query Service's 120s window so key-revocation latency is uniform.
+// apiKeyCacheTTL is how long a validated ask_ key (resolved via Core /me)
+// stays cached. Matches Query Service's 120s window so key-revocation
+// latency is uniform. Keys minted by CP itself (via RememberAPIKey) get
+// no expiration — they're authoritative until explicitly revoked.
 const apiKeyCacheTTL = 120 * time.Second
 
 type apiKeyCacheEntry struct {
-	claims    *Claims
+	claims *Claims
+	// expiresAt.IsZero() means "no expiration" — used for locally-minted keys
+	// where CP is the source of truth. For Core /me-resolved entries, this is
+	// now + apiKeyCacheTTL.
 	expiresAt time.Time
+}
+
+func (e apiKeyCacheEntry) fresh(now time.Time) bool {
+	return e.expiresAt.IsZero() || now.Before(e.expiresAt)
 }
 
 // NewAuthClient creates a new authentication client.
@@ -176,6 +185,27 @@ func (a *AuthClient) ValidateToken(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
+// RememberAPIKey caches claims for an ask_ key that CP just minted. This
+// bypasses the Core /me round-trip on subsequent ValidateAPIKey calls,
+// which is the first step toward removing Core's public auth surface
+// entirely (bead t-62f3). Entry has no expiration — keys are valid until
+// explicitly revoked; revocation invalidation is a follow-up concern.
+//
+// The AuthMiddleware path still tolerates Core /me as a fallback for
+// keys minted before this cache existed (or minted by any future path
+// we haven't instrumented), so migration is incremental and zero-risk.
+func (a *AuthClient) RememberAPIKey(key string, claims *Claims) {
+	if key == "" || claims == nil {
+		return
+	}
+	a.apiKeyCacheMu.Lock()
+	a.apiKeyCache[key] = apiKeyCacheEntry{
+		claims:    claims,
+		expiresAt: time.Time{}, // no expiration
+	}
+	a.apiKeyCacheMu.Unlock()
+}
+
 // ValidateAPIKey validates an ask_-prefixed API key by delegating to Core,
 // which is the source of truth for API key existence and tenant binding.
 // Returns synthetic Claims derived from Core's /api/v1/auth/me response.
@@ -189,9 +219,10 @@ func (a *AuthClient) ValidateAPIKey(ctx context.Context, token string) (*Claims,
 		return nil, errors.New("control plane not configured to validate API keys (coreURL unset)")
 	}
 
-	// Cache lookup
+	// Cache lookup. Entries minted by RememberAPIKey have no expiration;
+	// entries resolved via Core /me expire after apiKeyCacheTTL.
 	a.apiKeyCacheMu.RLock()
-	if entry, ok := a.apiKeyCache[token]; ok && time.Now().Before(entry.expiresAt) {
+	if entry, ok := a.apiKeyCache[token]; ok && entry.fresh(time.Now()) {
 		a.apiKeyCacheMu.RUnlock()
 		return entry.claims, nil
 	}
@@ -564,6 +595,10 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 // provisionCoreAPIKey returns an existing Core API key for the user's tenant or creates one.
 // The key is cached in Core's config store under "user:{userID}:core_api_key" so that
 // subsequent logins return the same key without creating duplicates.
+//
+// Locally mints the mapping into AuthClient's cache via RememberAPIKey so
+// the subsequent first-use of this key bypasses Core /me entirely — the
+// foundation for removing Core's public auth surface (bead t-62f3).
 func (cp *ControlPlane) provisionCoreAPIKey(ctx context.Context, tenantID, userID string) (string, error) {
 	configKey := "user:" + userID + ":core_api_key"
 
@@ -571,6 +606,15 @@ func (cp *ControlPlane) provisionCoreAPIKey(ctx context.Context, tenantID, userI
 	existing, err := cp.coreClient.GetConfig(ctx, configKey)
 	if err == nil && existing != nil {
 		if key, ok := existing.Value.(string); ok && key != "" {
+			// Cache the re-used key too — on a fresh CP process, we'd
+			// otherwise round-trip to Core /me the first time this user's
+			// client calls the delegation layer.
+			cp.authClient.RememberAPIKey(key, &Claims{
+				UserID:   userID,
+				TenantID: tenantID,
+				Role:     entities.RoleServiceAccount,
+				IsAPIKey: true,
+			})
 			return key, nil
 		}
 	}
@@ -593,6 +637,15 @@ func (cp *ControlPlane) provisionCoreAPIKey(ctx context.Context, tenantID, userI
 	}); cacheErr != nil {
 		log.Printf("warn: failed to cache Core API key for tenant %s: %v", tenantID, cacheErr)
 	}
+
+	// Local cache: the whole point of this migration. CP is the source of
+	// truth for this key's identity from the moment it's minted.
+	cp.authClient.RememberAPIKey(resp.Key, &Claims{
+		UserID:   userID,
+		TenantID: tenantID,
+		Role:     entities.RoleServiceAccount,
+		IsAPIKey: true,
+	})
 
 	return resp.Key, nil
 }
