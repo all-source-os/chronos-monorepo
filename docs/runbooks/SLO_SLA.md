@@ -10,11 +10,20 @@ Applies to the production deployments of:
 
 - `allsource-core` (Fly)
 - `allsource-query` (Fly)
-- `allsource-control-plane` (Fly)
+- `allsource-control-plane` (Fly) — public API gateway at `https://api.all-source.xyz`
 - `allsource-prime` (Fly)
 - `allsource-auth` (Fly)
 - `allsource-registry` (Fly)
 - Web frontend on Vercel (`https://all-source.xyz`)
+
+### Custom domains
+
+| Domain | Points to | DNS provider | Record type |
+|---|---|---|---|
+| `all-source.xyz` / `www.all-source.xyz` | Vercel (web frontend) | Vercel DNS | Managed by Vercel |
+| `api.all-source.xyz` | `allsource-control-plane` on Fly | Vercel DNS | A `66.241.125.106` + AAAA `2a09:8280:1::d4:42b8:0` |
+
+Fly manages TLS for `api.all-source.xyz` via `fly certs`. Check status: `fly certs show api.all-source.xyz -a allsource-control-plane`.
 
 ## SLO targets — TODO
 
