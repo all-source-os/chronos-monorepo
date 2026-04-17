@@ -261,7 +261,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	if queryURL == "" {
 		queryURL = "http://allsource-query.internal:3902"
 	}
-	delegation, err := newDelegationClient(coreURL, queryURL, serviceToken, NewPooledHTTPClient())
+	delegation, err := newDelegationClient(coreURL, queryURL, authClient.SignDelegationJWT, NewPooledHTTPClient())
 	if err != nil {
 		return nil, fmt.Errorf("init delegation client: %w", err)
 	}

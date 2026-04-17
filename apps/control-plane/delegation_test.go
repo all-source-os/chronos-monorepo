@@ -48,9 +48,16 @@ func newFakeBackend(respBy func(w http.ResponseWriter, r *http.Request)) (*fakeB
 // newTestCP builds a minimal ControlPlane with only the pieces the delegation
 // handlers use. It skips AuthMiddleware; tests call handlers directly with a
 // pre-populated gin.Context to isolate delegation behaviour.
+//
+// The token signer is deterministic for test assertions — it echoes the
+// inputs so tests can read tenant/user/role out of the forwarded Authorization
+// header without JWT parsing.
 func newTestCP(t *testing.T, coreURL, qsURL string) *ControlPlane {
 	t.Helper()
-	d, err := newDelegationClient(coreURL, qsURL, "test-service-token", http.DefaultClient)
+	signer := func(userID, tenantID string, role entities.Role) (string, error) {
+		return "test-token:" + userID + ":" + tenantID + ":" + string(role), nil
+	}
+	d, err := newDelegationClient(coreURL, qsURL, signer, http.DefaultClient)
 	if err != nil {
 		t.Fatalf("newDelegationClient: %v", err)
 	}
@@ -63,6 +70,8 @@ func callHandler(h gin.HandlerFunc, req *http.Request, tenantID string) *httptes
 	c.Request = req
 	if tenantID != "" {
 		c.Set("auth_tenant_id", tenantID)
+		c.Set("auth_user_id", "user-"+tenantID)
+		c.Set("auth_role", entities.RoleDeveloper)
 	}
 	h(c)
 	return w
@@ -87,8 +96,8 @@ func TestProxyIngestSingle_InjectsTenantAndForwardsToCore(t *testing.T) {
 	if core.path != "/api/v1/events" {
 		t.Errorf("upstream path: got %q, want /api/v1/events", core.path)
 	}
-	if core.auth != "Bearer test-service-token" {
-		t.Errorf("upstream auth: got %q, want service JWT", core.auth)
+	if core.auth != "Bearer test-token:user-tenant-real:tenant-real:developer" {
+		t.Errorf("upstream auth: got %q, want per-request JWT scoped to caller", core.auth)
 	}
 
 	var forwarded map[string]any
@@ -178,8 +187,8 @@ func TestProxyEventsQuery_InjectsTenantAsQueryParam(t *testing.T) {
 	if got := qs.query.Get("since"); got != "2026-04-17T00:00:00Z" {
 		t.Errorf("upstream since: got %q, want original value", got)
 	}
-	if qs.auth != "Bearer test-service-token" {
-		t.Errorf("upstream auth: got %q, want service JWT", qs.auth)
+	if qs.auth != "Bearer test-token:user-tenant-real:tenant-real:developer" {
+		t.Errorf("upstream auth: got %q, want per-request JWT scoped to caller", qs.auth)
 	}
 }
 

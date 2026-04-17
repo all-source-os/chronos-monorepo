@@ -19,21 +19,24 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
 // delegationClient holds the resolved backend URLs and the shared HTTP
-// client used to forward requests. serviceToken is Control Plane's long-lived
-// admin JWT — backends trust it and authorize the request on CP's behalf.
+// client used to forward requests. signToken mints a per-request JWT for
+// the authenticated caller — NOT a Control Plane admin token — so backends
+// see the real tenant and role and enforce isolation accordingly.
 type delegationClient struct {
 	core         *url.URL
 	queryService *url.URL
-	serviceToken string
+	signToken    func(userID, tenantID string, role entities.Role) (string, error)
 	http         *http.Client
 }
 
-func newDelegationClient(coreURL, queryURL, serviceToken string, httpClient *http.Client) (*delegationClient, error) {
-	if serviceToken == "" {
-		return nil, errors.New("delegation requires serviceToken")
+func newDelegationClient(coreURL, queryURL string, signToken func(userID, tenantID string, role entities.Role) (string, error), httpClient *http.Client) (*delegationClient, error) {
+	if signToken == nil {
+		return nil, errors.New("delegation requires signToken")
 	}
 	core, err := url.Parse(strings.TrimRight(coreURL, "/"))
 	if err != nil {
@@ -49,7 +52,7 @@ func newDelegationClient(coreURL, queryURL, serviceToken string, httpClient *htt
 	return &delegationClient{
 		core:         core,
 		queryService: qs,
-		serviceToken: serviceToken,
+		signToken:    signToken,
 		http:         httpClient,
 	}, nil
 }
@@ -68,6 +71,26 @@ func authTenantFromContext(c *gin.Context) (string, bool) {
 		return "", false
 	}
 	return s, true
+}
+
+// authIdentityFromContext returns the three identity fields delegation needs
+// to mint a per-request JWT: user ID, tenant ID, and role. AuthMiddleware
+// sets these after validating either a JWT or an ask_ API key, so a
+// successful context lookup means the caller is authenticated.
+func authIdentityFromContext(c *gin.Context) (userID, tenantID string, role entities.Role, ok bool) {
+	tenantID, ok = authTenantFromContext(c)
+	if !ok {
+		return
+	}
+	uid, uidOk := c.Get("auth_user_id")
+	r, rOk := c.Get("auth_role")
+	if !uidOk || !rOk {
+		ok = false
+		return
+	}
+	uidStr, _ := uid.(string)
+	roleVal, _ := r.(entities.Role)
+	return uidStr, tenantID, roleVal, true
 }
 
 // injectTenantIntoObject overwrites the top-level tenant_id field in a JSON
@@ -109,10 +132,11 @@ func injectTenantIntoBatch(body []byte, tenantID string) ([]byte, error) {
 }
 
 // forwardRequest builds a new outgoing request against backend, copies the
-// body, attaches the service JWT, and copies the backend's response to the
-// client. It does NOT forward any inbound auth headers — the backend trusts
-// Control Plane, not the caller.
-func (d *delegationClient) forwardRequest(c *gin.Context, method string, backend *url.URL, path string, query url.Values, body []byte) {
+// body, attaches the per-request bearer JWT (minted from the authenticated
+// caller's identity), and copies the backend's response to the client. It
+// does NOT forward the inbound Authorization header — the backend trusts
+// the JWT we signed, not any ask_ key the client presented.
+func (d *delegationClient) forwardRequest(c *gin.Context, method string, backend *url.URL, path string, query url.Values, body []byte, bearerToken string) {
 	target := *backend
 	target.Path = strings.TrimRight(backend.Path, "/") + "/" + strings.TrimLeft(path, "/")
 	if query != nil {
@@ -129,7 +153,7 @@ func (d *delegationClient) forwardRequest(c *gin.Context, method string, backend
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "delegation build request", "message": err.Error()})
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+d.serviceToken)
+	req.Header.Set("Authorization", "Bearer "+bearerToken)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -153,12 +177,30 @@ func (d *delegationClient) forwardRequest(c *gin.Context, method string, backend
 	}
 }
 
+// mintBearer builds a per-request JWT that represents the authenticated
+// caller. Backends validate this JWT against the shared JWT_SECRET and get
+// the right tenant + role — which is how tenant isolation survives the hop
+// through Control Plane.
+func (cp *ControlPlane) mintBearer(c *gin.Context) (string, bool) {
+	userID, tenantID, role, ok := authIdentityFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
+		return "", false
+	}
+	token, err := cp.delegation.signToken(userID, tenantID, role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "delegation sign", "message": err.Error()})
+		return "", false
+	}
+	return token, true
+}
+
 // ProxyIngestSingle forwards POST /api/v1/events to Core with tenant_id
 // injected into the JSON body from the authenticated caller.
 func (cp *ControlPlane) ProxyIngestSingle(c *gin.Context) {
-	tenantID, ok := authTenantFromContext(c)
+	_, tenantID, _, ok := authIdentityFromContext(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no tenant context"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
 		return
 	}
 	body, err := io.ReadAll(c.Request.Body)
@@ -171,15 +213,19 @@ func (cp *ControlPlane) ProxyIngestSingle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request", "message": err.Error()})
 		return
 	}
-	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.core, "/api/v1/events", nil, rewritten)
+	bearer, ok := cp.mintBearer(c)
+	if !ok {
+		return
+	}
+	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.core, "/api/v1/events", nil, rewritten, bearer)
 }
 
 // ProxyIngestBatch forwards POST /api/v1/events/batch to Core with tenant_id
 // injected onto every event in the batch.
 func (cp *ControlPlane) ProxyIngestBatch(c *gin.Context) {
-	tenantID, ok := authTenantFromContext(c)
+	_, tenantID, _, ok := authIdentityFromContext(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no tenant context"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
 		return
 	}
 	body, err := io.ReadAll(c.Request.Body)
@@ -192,19 +238,30 @@ func (cp *ControlPlane) ProxyIngestBatch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request", "message": err.Error()})
 		return
 	}
-	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.core, "/api/v1/events/batch", nil, rewritten)
+	bearer, ok := cp.mintBearer(c)
+	if !ok {
+		return
+	}
+	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.core, "/api/v1/events/batch", nil, rewritten, bearer)
 }
 
-// ProxyEventsQuery forwards GET /api/v1/events/query to Query Service with
-// tenant_id injected as a query param. Any client-supplied tenant_id is
-// overwritten — the authenticated caller's tenant is authoritative.
+// ProxyEventsQuery forwards GET /api/v1/events/query to Core with tenant_id
+// injected as a query param AND a per-request JWT scoped to the caller's
+// tenant + role. Core's query_events enforces tenant from auth, which with
+// the user-scoped JWT matches what we're asking for. Any client-supplied
+// tenant_id in the URL is overwritten — the authenticated caller's tenant
+// is authoritative.
 func (cp *ControlPlane) ProxyEventsQuery(c *gin.Context) {
-	tenantID, ok := authTenantFromContext(c)
+	_, tenantID, _, ok := authIdentityFromContext(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no tenant context"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
 		return
 	}
 	q := c.Request.URL.Query()
 	q.Set("tenant_id", tenantID)
-	cp.delegation.forwardRequest(c, http.MethodGet, cp.delegation.queryService, "/api/v1/events/query", q, nil)
+	bearer, ok := cp.mintBearer(c)
+	if !ok {
+		return
+	}
+	cp.delegation.forwardRequest(c, http.MethodGet, cp.delegation.core, "/api/v1/events/query", q, nil, bearer)
 }

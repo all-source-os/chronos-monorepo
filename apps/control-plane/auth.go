@@ -101,6 +101,31 @@ func NewAuthClient(jwtSecret, coreURL string) *AuthClient {
 	}
 }
 
+// SignDelegationJWT mints a short-lived JWT scoped to a single data-plane
+// request. The delegation layer uses this so backends (Core, Query Service)
+// see the authenticated caller's tenant + role, not Control Plane's admin
+// service identity — tenant isolation works end-to-end without every
+// backend needing to validate ask_ keys directly.
+//
+// 60 second TTL is comfortably longer than any single forwarded request but
+// short enough that a leaked token is near-useless.
+func (a *AuthClient) SignDelegationJWT(userID, tenantID string, role entities.Role) (string, error) {
+	now := time.Now()
+	claims := &Claims{
+		UserID:   userID,
+		TenantID: tenantID,
+		Role:     role,
+		IsAPIKey: true,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: now.Add(60 * time.Second).Unix(),
+			IssuedAt:  now.Unix(),
+			Issuer:    "allsource",
+			Subject:   userID,
+		},
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(a.jwtSecret))
+}
+
 // SignAPIKey generates a long-lived JWT API key for a given tenant and role.
 // Used by agent registration, onboarding, and demo flows.
 func (a *AuthClient) SignAPIKey(tenantID, username string, role entities.Role) (string, error) {
