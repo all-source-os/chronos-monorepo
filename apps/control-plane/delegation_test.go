@@ -57,7 +57,7 @@ func newTestCP(t *testing.T, coreURL, qsURL string) *ControlPlane {
 	signer := func(userID, tenantID string, role entities.Role) (string, error) {
 		return "test-token:" + userID + ":" + tenantID + ":" + string(role), nil
 	}
-	d, err := newDelegationClient(coreURL, qsURL, signer, http.DefaultClient)
+	d, err := newDelegationClient(coreURL, qsURL, qsURL, signer, http.DefaultClient)
 	if err != nil {
 		t.Fatalf("newDelegationClient: %v", err)
 	}
@@ -198,6 +198,48 @@ func TestProxyEventsQuery_NoTenantContext401(t *testing.T) {
 	w := callHandler(cp.ProxyEventsQuery, req, "")
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status: got %d, want 401", w.Code)
+	}
+}
+
+func TestProxyPrime_CatchAllForwardsWithTenantAndJWT(t *testing.T) {
+	primeHit, srv := newFakeBackend(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"nodes":[]}`))
+	})
+	defer srv.Close()
+	cp := newTestCP(t, srv.URL, srv.URL)
+
+	// Simulate Gin's "*path" param by setting the context param directly.
+	body := strings.NewReader(`{"query":"match (n) return n"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/prime/shortest-path", body)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	c.Set("auth_tenant_id", "tenant-real")
+	c.Set("auth_user_id", "user-x")
+	c.Set("auth_role", entities.RoleDeveloper)
+	c.Params = gin.Params{{Key: "path", Value: "/shortest-path"}}
+
+	cp.ProxyPrime(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200 (body=%s)", w.Code, w.Body.String())
+	}
+	if primeHit.path != "/api/v1/prime/shortest-path" {
+		t.Errorf("upstream path: got %q, want /api/v1/prime/shortest-path", primeHit.path)
+	}
+	if primeHit.method != "POST" {
+		t.Errorf("upstream method: got %q, want POST", primeHit.method)
+	}
+	if got := primeHit.query.Get("tenant_id"); got != "tenant-real" {
+		t.Errorf("upstream tenant_id: got %q, want tenant-real", got)
+	}
+	if primeHit.auth == "" || !strings.HasPrefix(primeHit.auth, "Bearer test-token:") {
+		t.Errorf("upstream auth: got %q, want per-request JWT", primeHit.auth)
+	}
+	if string(primeHit.body) == "" {
+		t.Error("upstream body was empty — POST body should forward")
 	}
 }
 

@@ -30,11 +30,12 @@ import (
 type delegationClient struct {
 	core         *url.URL
 	queryService *url.URL
+	prime        *url.URL
 	signToken    func(userID, tenantID string, role entities.Role) (string, error)
 	http         *http.Client
 }
 
-func newDelegationClient(coreURL, queryURL string, signToken func(userID, tenantID string, role entities.Role) (string, error), httpClient *http.Client) (*delegationClient, error) {
+func newDelegationClient(coreURL, queryURL, primeURL string, signToken func(userID, tenantID string, role entities.Role) (string, error), httpClient *http.Client) (*delegationClient, error) {
 	if signToken == nil {
 		return nil, errors.New("delegation requires signToken")
 	}
@@ -46,12 +47,17 @@ func newDelegationClient(coreURL, queryURL string, signToken func(userID, tenant
 	if err != nil {
 		return nil, fmt.Errorf("parse query-service URL: %w", err)
 	}
+	prime, err := url.Parse(strings.TrimRight(primeURL, "/"))
+	if err != nil {
+		return nil, fmt.Errorf("parse prime URL: %w", err)
+	}
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
 	return &delegationClient{
 		core:         core,
 		queryService: qs,
+		prime:        prime,
 		signToken:    signToken,
 		http:         httpClient,
 	}, nil
@@ -243,6 +249,43 @@ func (cp *ControlPlane) ProxyIngestBatch(c *gin.Context) {
 		return
 	}
 	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.core, "/api/v1/events/batch", nil, rewritten, bearer)
+}
+
+// ProxyPrime forwards every /api/v1/prime/* request (any method) to the Prime
+// MCP service on the internal network. Prime's own data model is per-node
+// (graph, vectors, recall) — tenant scoping lives inside Prime, not in the
+// gateway. We pass tenant_id as a query param so Prime can key its namespace
+// off it, and attach the per-request JWT so Prime can independently verify
+// the caller's identity if it chooses to.
+func (cp *ControlPlane) ProxyPrime(c *gin.Context) {
+	_, tenantID, _, ok := authIdentityFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
+		return
+	}
+
+	// Gin captures the suffix as "*path" — strip the leading slash Gin adds.
+	suffix := strings.TrimPrefix(c.Param("path"), "/")
+	downstreamPath := "/api/v1/prime/" + suffix
+
+	q := c.Request.URL.Query()
+	q.Set("tenant_id", tenantID)
+
+	var body []byte
+	if c.Request.Body != nil {
+		var err error
+		body, err = io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "bad request", "message": err.Error()})
+			return
+		}
+	}
+
+	bearer, ok := cp.mintBearer(c)
+	if !ok {
+		return
+	}
+	cp.delegation.forwardRequest(c, c.Request.Method, cp.delegation.prime, downstreamPath, q, body, bearer)
 }
 
 // ProxyEventsQuery forwards GET /api/v1/events/query to Core with tenant_id

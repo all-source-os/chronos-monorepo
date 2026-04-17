@@ -254,14 +254,19 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	var x402Facilitator x402.PaymentFacilitator = x402.NewRemoteFacilitator(facilitatorURL)
 	x402Handler := x402.NewHandler(x402Facilitator, x402Pricing)
 
-	// Data-plane delegation targets. QUERY_SERVICE_URL is used for reads; Core
-	// stays on CORE_SERVICE_URL for writes. Both default to the Fly internal
-	// names when unset (production wiring).
+	// Data-plane delegation targets. All default to the Fly internal names
+	// when unset (production wiring). Core handles event writes + query,
+	// Query Service is reserved for future QS-specific reads, Prime handles
+	// graph/vector/recall via /api/v1/prime/*.
 	queryURL := os.Getenv("QUERY_SERVICE_URL")
 	if queryURL == "" {
 		queryURL = "http://allsource-query.internal:3902"
 	}
-	delegation, err := newDelegationClient(coreURL, queryURL, authClient.SignDelegationJWT, NewPooledHTTPClient())
+	primeURL := os.Getenv("PRIME_SERVICE_URL")
+	if primeURL == "" {
+		primeURL = "http://allsource-prime.internal:3905"
+	}
+	delegation, err := newDelegationClient(coreURL, queryURL, primeURL, authClient.SignDelegationJWT, NewPooledHTTPClient())
 	if err != nil {
 		return nil, fmt.Errorf("init delegation client: %w", err)
 	}
@@ -398,6 +403,11 @@ func (cp *ControlPlane) setupRoutes() {
 	api.POST("/events", RequirePermission(entities.PermissionWrite), cp.ProxyIngestSingle)
 	api.POST("/events/batch", RequirePermission(entities.PermissionWrite), cp.ProxyIngestBatch)
 	api.GET("/events/query", RequirePermission(entities.PermissionRead), cp.ProxyEventsQuery)
+
+	// Prime catch-all: all /api/v1/prime/* methods (GET graph queries, POST
+	// nodes/edges/vectors, recall, etc.) forward to the Prime service. Tenant
+	// is passed as a query param; Prime's own namespace logic consumes it.
+	api.Any("/prime/*path", cp.ProxyPrime)
 
 	// Cluster management
 	api.GET("/cluster/status", RequirePermission(entities.PermissionRead), cp.container.OperationsHandler.GetClusterStatus)
