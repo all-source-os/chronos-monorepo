@@ -351,6 +351,11 @@ func (cp *ControlPlane) setupRoutes() {
 	// Status page + JSON feed. Both project the event-sourced heartbeats
 	// written by the background emitter. No auth — this is the public
 	// status data that replaces the poll-based Vigil page.
+	//
+	// "/" also serves the status page so status.all-source.xyz (whose Fly
+	// cert is routed to this app) resolves to a useful page when a user
+	// hits the bare hostname instead of /status.
+	cp.router.GET("/", cp.statusPageHandler)
 	cp.router.GET("/status", cp.statusPageHandler)
 	cp.router.GET("/api/v1/status/services", cp.statusServicesHandler)
 
