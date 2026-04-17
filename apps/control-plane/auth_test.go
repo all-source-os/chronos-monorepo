@@ -108,7 +108,7 @@ func TestAuthClient_ValidateAPIKey(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000000","username":"alice","email":"alice@example.com","role":"developer","tenant_id":"tenant-alice"}`))
+		_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000000","username":"alice","email":"alice@example.com","role":"developer","tenant_id":"tenant-alice"}`)) //nolint:errcheck // test response
 	}))
 	defer core.Close()
 
@@ -211,7 +211,7 @@ func TestAuthClient_RememberAPIKey_BypassesCoreMe(t *testing.T) {
 		other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			atomic.AddInt64(&otherCalled, 1)
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000000","username":"legacy","email":"","role":"developer","tenant_id":"legacy-tenant"}`))
+			_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000000","username":"legacy","email":"","role":"developer","tenant_id":"legacy-tenant"}`)) //nolint:errcheck // test response
 		}))
 		defer other.Close()
 

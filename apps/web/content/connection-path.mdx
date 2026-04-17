@@ -1,0 +1,116 @@
+---
+title: "Direct to Core, or through the gateway? Choosing your connection path"
+publishedAt: "2026-04-17"
+summary: AllSource has one public front door (api.all-source.xyz) and one internal fast path (Core, reachable only inside your network). Picking the right one cuts your p99 in half — picking the wrong one either reimplements rate limits or exposes your event store to the internet.
+author: "all.source team"
+image: "/dashboard.png"
+---
+
+AllSource runs two services, but they're **not two public front doors**. They're a public gateway and a private fast path.
+
+- **Gateway** — reachable on your public subdomain (for our hosted offering: `api.all-source.xyz`). Terminates all external traffic. Handles rate limiting, quota/billing enforcement, API key validation cache, tenant routing. What sits behind it is an implementation detail callers don't need to know.
+- **Core** (internal, port `3900`) — the event store itself. Reachable only inside your network — VPC service mesh, Kubernetes service DNS (`core.allsource.svc.cluster.local`), Fly's `*.internal`, etc. Low latency, no rate limiting, no quota enforcement. Not on public DNS by design.
+
+The decision isn't "which public URL do I use" — it's "am I inside the network or outside?" Outside → gateway, always. Inside → you can bypass for speed. Here's the cheat sheet, then the reasoning.
+
+## TL;DR decision table
+
+| Where the caller runs | Use | URL shape |
+|---|---|---|
+| Inside your network, same cluster/VPC as Core, doing writes / projections | **Core direct** | `http://core.allsource.svc.cluster.local:3900` (or your internal DNS equivalent) |
+| Inside your network, internal service with no per-caller billing needs | **Core direct** | internal DNS |
+| Outside your network, or any multi-tenant SaaS traffic | **Gateway** | `https://api.all-source.xyz` |
+| Mobile / browser / third-party integration | **Gateway** | `https://api.all-source.xyz` |
+| Mixed: your internal workers write, your customers query | **Both** | internal + public URLs respectively |
+
+Notice there's no "`core.all-source.xyz`" anywhere — Core has no public DNS entry and shouldn't. The rest of this post is about why, and what goes wrong when you get this mapping backwards.
+
+## What actually happens on the wire
+
+Both paths expose the same `/api/v1/*` HTTP + WebSocket surface. The difference is what happens before your request reaches the event store.
+
+**Direct to Core (internal only)**: your request lands on Core's Axum handler via internal DNS. Auth is a DashMap hash lookup — in-process, O(1), microseconds. The handler does its work and returns. Zero extra network hops, zero gateway logic.
+
+**Through the gateway (the public path)**: your request hits `api.all-source.xyz` over the public internet. TLS terminates. The gateway pulls the API key, hits its 120s cache, and on cache miss validates with Core. Then it applies the tenant's rate-limit window, checks the plan's quota, attaches tenant context, and forwards to Core over internal networking. Core does its own key validation (same hash lookup), runs the handler, returns. The gateway may transform the response before handing it back.
+
+For a cached API key (the common case) the gateway hop adds one network round-trip — typically a few ms on the same continent, more cross-region. The extra logic (rate limit check, quota check) is in-memory and negligible. So the overhead is dominated by the network hop, which is dominated by topology.
+
+In-cluster internal Core vs. external-via-gateway is the difference between **~0.5ms and ~5–15ms per request** depending on where your caller sits. For a projection worker processing 10k events a second, every millisecond of extra hop is 10 seconds of extra latency per second of work — which is why internal workers should always go direct.
+
+## When to go direct to Core
+
+**Your own services running in the same network as Core.** Your API, your background workers, your projection workers. These are trusted callers — they authenticate via the shared API key loaded at Core's bootstrap, and the rate limits you care about are upstream (your edge proxy, not AllSource's).
+
+**Hot paths where every millisecond counts.** Projection workers reading from the WebSocket and applying reducers fall into this category; so does any service doing batch writes in tight loops.
+
+**Embedded / single-tenant deployments.** One team, one Core, one workload — the gateway adds complexity without value. Skip it entirely and talk to Core over internal DNS.
+
+When you go direct, a few things to do:
+
+1. **Provision your service's API key via `ALLSOURCE_BOOTSTRAP_API_KEY`** on Core's first boot. This lands the key in Core's system WAL, so it persists across restarts and is replayed on startup. Zero setup after that.
+2. **Address Core by internal DNS only.** `http://core:3900`, `http://allsource-core.allsource.svc.cluster.local:3900`, `http://allsource-core.internal:3900` on Fly, whatever your infra gives you. **Don't publish a public DNS record for Core** — Core trusts callers that reach it, so public reachability is a security regression, not a feature.
+3. **If you need rate limiting**, add it at your edge (Cloudflare, nginx, Envoy, whatever you already run). Core deliberately doesn't have one so it stays fast.
+
+## When to go through the gateway
+
+**Anything outside your network.** Mobile apps, browser clients, third-party integrations, public APIs — every caller you don't personally operate. The gateway is the only AllSource endpoint that should be reachable from the public internet. Point these at `https://api.all-source.xyz` (or your self-hosted equivalent).
+
+**Multi-tenant SaaS.** Each tenant has its own quota (e.g., 100k events/month on the free plan, 10M on growth). The gateway tracks usage per tenant and enforces limits. Implementing that yourself on top of direct Core means reimplementing usage projections, quota checks, and 429 responses — the gateway already does it correctly and consistently with billing.
+
+**Untrusted clients.** Anything that could behave badly. One bug in a customer's integration loops on Core's ingest endpoint and degrades everything else. The gateway gives you a throttle point.
+
+**Billing / quota enforcement.** If your product charges per event or per query, the gateway is the meter. Going direct means you bill based on whatever you can reconstruct after the fact, which is both error-prone and too late.
+
+When you go through the gateway:
+
+1. **Let the gateway own plan definitions.** Free / growth / pro / enterprise tiers are configured centrally. Don't duplicate them in your app.
+2. **Don't bypass the cache with rapid key rotation.** If you're rotating keys faster than the 120s validation window, you're hitting Core's auth endpoint a lot anyway. Slow the rotation down or stop rotating.
+3. **Expect per-tenant rate-limit 429s.** These are a feature — they're how your quota system communicates with callers. Handle them with exponential backoff client-side and honor the `Retry-After` header.
+
+## When to use both
+
+Most production deployments end up using both. Typical pattern:
+
+- **External traffic** (your product's API surface) → gateway at `api.all-source.xyz`. Customer calls get rate-limited, billed, proxied to Core.
+- **Internal traffic** (your background workers, projection workers, admin tooling) → Core direct over internal DNS. Your services read and write at full speed with no gateway overhead.
+
+Concretely, a SaaS running AllSource might:
+
+- Point its public REST API at the gateway with a per-tenant rate limit of 1000 req/s.
+- Point its projection workers at Core direct (internal DNS), since each worker is already rate-limited by the event stream itself — the WebSocket can only deliver as fast as Core broadcasts.
+- Point its analytics service at Core direct (internal DNS) for bulk reads, since it's an internal consumer and scans are expensive enough that they shouldn't count against a per-caller rate limit.
+
+## Common mistakes
+
+**"Let's give Core a public subdomain like `core.all-source.xyz` so internal services can reach it from anywhere."** No. Core is trust-the-caller by design — it's only safe because the only callers are inside your network. A public DNS entry invites scanners, misconfigured clients, and accidental exposure. Use internal DNS (VPC, service mesh, Fly `*.internal`) and a VPN/tunnel for remote developers.
+
+**"We'll just use the gateway everywhere."** Fine until your projection workers are 3× slower than they should be and you can't figure out why. Check the latency distribution — if p99 reads are 5ms when they should be 0.5ms, you're paying the gateway hop on a hot path that doesn't benefit from it.
+
+**"We'll just use Core direct everywhere, expose it on a public IP."** See the first bullet. Don't do this.
+
+**"We'll run the gateway locally in each service for caching."** This is reinventing an HTTP cache badly. Keep the gateway where it belongs (at your edge, shared across services) or go Core-direct over internal networking. Don't fan out gateway instances per service.
+
+**"We'll put the gateway in front of Core *and* enforce rate limits in our API layer."** Double rate limiting means callers see different 429 behavior depending on which layer fires first. Pick one place to rate-limit. If you need rate limits per-your-customer and per-AllSource-tenant, those are genuinely different and layering is correct — otherwise it's just confusion.
+
+## How to switch later
+
+The gateway and Core speak the same `/api/v1/*` protocol. Switching from one to the other is a base URL change — no payload shape differences, no auth changes, no API rewrites.
+
+So you're not locked in on day one. Start with the sensible default: if you're inside the network and internal-only, use Core direct over internal DNS. If you have external callers, put them on the gateway. If you guess wrong, flipping the base URL in your config gets you to the other side in an afternoon — the caveat being that you **never** move Core onto a public DNS record; if you decide internal services need to reach Core from outside the network, that's a VPN / Tailscale / bastion problem, not a DNS problem.
+
+## Picking for your stack
+
+Three examples, three different right answers:
+
+**Pattern 1: MantisCrab (portfolio management, single team on AllSource)** — internal Rust service. The whole stack is trusted and co-located with Core. They point their SDK at Core's internal DNS (`http://allsource-core.internal:3900`), provision their key via `ALLSOURCE_BOOTSTRAP_API_KEY`, run projection workers against Core's WebSocket. No gateway. Sub-millisecond read paths on every projection.
+
+**Pattern 2: A SaaS product with per-customer API keys** — they expose a customer-facing REST API at `https://api.theirproduct.com` (which maps to the AllSource gateway). External traffic goes through the gateway (rate limits, quotas, billing, 429s). Internal workers (billing reconciliation, usage aggregation, customer analytics) point at Core's internal DNS for speed. Two code paths, two base URLs, one underlying event store. Core is never exposed publicly.
+
+**Pattern 3: A single-tenant deployment for a regulated industry** — the customer runs AllSource in their own VPC. No multi-tenancy means the gateway isn't earning its keep; they skip it. All traffic goes direct to Core over internal VPC networking, with access controlled by the customer's existing VPN / IAM. Save one network hop, one service to operate, one set of metrics to monitor. Core still doesn't get a public DNS entry — remote operator access is via VPN/Tailscale.
+
+## Where to go next
+
+- [Connecting to AllSource without an SDK](/blog/connecting-without-an-sdk) — wire protocol reference
+- [Custom projections end-to-end guide](https://github.com/all-source-os/all-source/blob/main/docs/use-cases/custom-projections.md) — read model design
+- [Auth chain reference](https://github.com/all-source-os/all-source/blob/main/docs/current/AUTH_CHAIN.md) — how API keys flow through both services
+- [Rust SDK README](https://github.com/all-source-os/all-source/blob/main/sdks/rust/README.md) — typed client for both paths

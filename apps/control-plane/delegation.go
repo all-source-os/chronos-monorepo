@@ -94,8 +94,16 @@ func authIdentityFromContext(c *gin.Context) (userID, tenantID string, role enti
 		ok = false
 		return
 	}
-	uidStr, _ := uid.(string)
-	roleVal, _ := r.(entities.Role)
+	uidStr, uidStrOk := uid.(string)
+	if !uidStrOk {
+		ok = false
+		return
+	}
+	roleVal, roleOk := r.(entities.Role)
+	if !roleOk {
+		ok = false
+		return
+	}
 	return uidStr, tenantID, roleVal, true
 }
 
@@ -169,7 +177,7 @@ func (d *delegationClient) forwardRequest(c *gin.Context, method string, backend
 		c.JSON(http.StatusBadGateway, gin.H{"error": "delegation upstream", "message": err.Error()})
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // close-on-defer, non-actionable
 
 	// Copy status + response body. Content-Type comes from the backend so
 	// JSON responses carry through unchanged.
@@ -201,9 +209,13 @@ func (cp *ControlPlane) mintBearer(c *gin.Context) (string, bool) {
 	return token, true
 }
 
-// ProxyIngestSingle forwards POST /api/v1/events to Core with tenant_id
-// injected into the JSON body from the authenticated caller.
-func (cp *ControlPlane) ProxyIngestSingle(c *gin.Context) {
+// proxyIngest is the shared core of ProxyIngestSingle and ProxyIngestBatch —
+// they differ only in the tenant-injection function and the upstream path.
+func (cp *ControlPlane) proxyIngest(
+	c *gin.Context,
+	upstreamPath string,
+	inject func(body []byte, tenantID string) ([]byte, error),
+) {
 	_, tenantID, _, ok := authIdentityFromContext(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
@@ -214,7 +226,7 @@ func (cp *ControlPlane) ProxyIngestSingle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request", "message": err.Error()})
 		return
 	}
-	rewritten, err := injectTenantIntoObject(body, tenantID)
+	rewritten, err := inject(body, tenantID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request", "message": err.Error()})
 		return
@@ -223,32 +235,19 @@ func (cp *ControlPlane) ProxyIngestSingle(c *gin.Context) {
 	if !ok {
 		return
 	}
-	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.core, "/api/v1/events", nil, rewritten, bearer)
+	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.core, upstreamPath, nil, rewritten, bearer)
+}
+
+// ProxyIngestSingle forwards POST /api/v1/events to Core with tenant_id
+// injected into the JSON body from the authenticated caller.
+func (cp *ControlPlane) ProxyIngestSingle(c *gin.Context) {
+	cp.proxyIngest(c, "/api/v1/events", injectTenantIntoObject)
 }
 
 // ProxyIngestBatch forwards POST /api/v1/events/batch to Core with tenant_id
 // injected onto every event in the batch.
 func (cp *ControlPlane) ProxyIngestBatch(c *gin.Context) {
-	_, tenantID, _, ok := authIdentityFromContext(c)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
-		return
-	}
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request", "message": err.Error()})
-		return
-	}
-	rewritten, err := injectTenantIntoBatch(body, tenantID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request", "message": err.Error()})
-		return
-	}
-	bearer, ok := cp.mintBearer(c)
-	if !ok {
-		return
-	}
-	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.core, "/api/v1/events/batch", nil, rewritten, bearer)
+	cp.proxyIngest(c, "/api/v1/events/batch", injectTenantIntoBatch)
 }
 
 // ProxyPrime forwards every /api/v1/prime/* request (any method) to the Prime

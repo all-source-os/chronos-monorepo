@@ -228,7 +228,7 @@ func (a *AuthClient) ValidateAPIKey(ctx context.Context, token string) (*Claims,
 	}
 	a.apiKeyCacheMu.RUnlock()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(a.coreURL, "/")+"/api/v1/auth/me", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(a.coreURL, "/")+"/api/v1/auth/me", http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("build /me request: %w", err)
 	}
@@ -238,10 +238,13 @@ func (a *AuthClient) ValidateAPIKey(ctx context.Context, token string) (*Claims,
 	if err != nil {
 		return nil, fmt.Errorf("call Core /me: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // close-on-defer, non-actionable
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
+		if readErr != nil {
+			return nil, fmt.Errorf("invalid api key (Core /me HTTP %d: body read failed: %w)", resp.StatusCode, readErr)
+		}
 		return nil, fmt.Errorf("invalid api key (Core /me HTTP %d: %s)", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 

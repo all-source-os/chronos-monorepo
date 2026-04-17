@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -21,7 +22,7 @@ func init() {
 }
 
 // fakeBackend records the incoming request so tests can assert tenant
-// injection and auth forwarding behaviour.
+// injection and auth forwarding behavior.
 type fakeBackend struct {
 	method string
 	path   string
@@ -34,7 +35,7 @@ type fakeBackend struct {
 func newFakeBackend(respBy func(w http.ResponseWriter, r *http.Request)) (*fakeBackend, *httptest.Server) {
 	fb := &fakeBackend{respBy: respBy}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
+		body, _ := io.ReadAll(r.Body) //nolint:errcheck // test reader
 		fb.method = r.Method
 		fb.path = r.URL.Path
 		fb.query = r.URL.Query()
@@ -47,7 +48,7 @@ func newFakeBackend(respBy func(w http.ResponseWriter, r *http.Request)) (*fakeB
 
 // newTestCP builds a minimal ControlPlane with only the pieces the delegation
 // handlers use. It skips AuthMiddleware; tests call handlers directly with a
-// pre-populated gin.Context to isolate delegation behaviour.
+// pre-populated gin.Context to isolate delegation behavior.
 //
 // The token signer is deterministic for test assertions — it echoes the
 // inputs so tests can read tenant/user/role out of the forwarded Authorization
@@ -81,13 +82,13 @@ func TestProxyIngestSingle_InjectsTenantAndForwardsToCore(t *testing.T) {
 	core, srv := newFakeBackend(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"event_id":"11111111-1111-1111-1111-111111111111","version":1}`))
+		_, _ = w.Write([]byte(`{"event_id":"11111111-1111-1111-1111-111111111111","version":1}`)) //nolint:errcheck // test response
 	})
 	defer srv.Close()
 	cp := newTestCP(t, srv.URL, srv.URL)
 
 	body := bytes.NewBufferString(`{"event_type":"order.created","entity_id":"o-1","payload":{"amount":10},"tenant_id":"spoofed"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", body)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", body)
 	w := callHandler(cp.ProxyIngestSingle, req, "tenant-real")
 
 	if w.Code != http.StatusOK {
@@ -117,7 +118,7 @@ func TestProxyIngestSingle_InjectsTenantAndForwardsToCore(t *testing.T) {
 
 func TestProxyIngestSingle_NoTenantContext401(t *testing.T) {
 	cp := newTestCP(t, "http://unused", "http://unused")
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", strings.NewReader(`{}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", strings.NewReader(`{}`))
 	w := callHandler(cp.ProxyIngestSingle, req, "")
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status: got %d, want 401", w.Code)
@@ -127,7 +128,7 @@ func TestProxyIngestSingle_NoTenantContext401(t *testing.T) {
 func TestProxyIngestBatch_InjectsTenantOnEveryEvent(t *testing.T) {
 	core, srv := newFakeBackend(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"ingested":2}`))
+		_, _ = w.Write([]byte(`{"ingested":2}`)) //nolint:errcheck // test response
 	})
 	defer srv.Close()
 	cp := newTestCP(t, srv.URL, srv.URL)
@@ -136,7 +137,7 @@ func TestProxyIngestBatch_InjectsTenantOnEveryEvent(t *testing.T) {
 		{"event_type":"a","entity_id":"e1","payload":{},"tenant_id":"spoof-a"},
 		{"event_type":"b","entity_id":"e2","payload":{}}
 	]}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events/batch", strings.NewReader(batch))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events/batch", strings.NewReader(batch))
 	w := callHandler(cp.ProxyIngestBatch, req, "tenant-real")
 
 	if w.Code != http.StatusOK {
@@ -165,14 +166,14 @@ func TestProxyEventsQuery_InjectsTenantAsQueryParam(t *testing.T) {
 	qs, srv := newFakeBackend(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"events":[],"count":0}`))
+		_, _ = w.Write([]byte(`{"events":[],"count":0}`)) //nolint:errcheck // test response
 	})
 	defer srv.Close()
 	cp := newTestCP(t, srv.URL, srv.URL)
 
 	// Client supplies a spoofed tenant_id plus legitimate since= filter.
 	// Spoofed tenant must be overwritten; since= must be forwarded unchanged.
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/events/query?tenant_id=spoof&since=2026-04-17T00:00:00Z", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/events/query?tenant_id=spoof&since=2026-04-17T00:00:00Z", http.NoBody)
 	w := callHandler(cp.ProxyEventsQuery, req, "tenant-real")
 
 	if w.Code != http.StatusOK {
@@ -194,7 +195,7 @@ func TestProxyEventsQuery_InjectsTenantAsQueryParam(t *testing.T) {
 
 func TestProxyEventsQuery_NoTenantContext401(t *testing.T) {
 	cp := newTestCP(t, "http://unused", "http://unused")
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/events/query", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/events/query", http.NoBody)
 	w := callHandler(cp.ProxyEventsQuery, req, "")
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status: got %d, want 401", w.Code)
@@ -205,14 +206,14 @@ func TestProxyPrime_CatchAllForwardsWithTenantAndJWT(t *testing.T) {
 	primeHit, srv := newFakeBackend(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"nodes":[]}`))
+		_, _ = w.Write([]byte(`{"nodes":[]}`)) //nolint:errcheck // test response
 	})
 	defer srv.Close()
 	cp := newTestCP(t, srv.URL, srv.URL)
 
 	// Simulate Gin's "*path" param by setting the context param directly.
 	body := strings.NewReader(`{"query":"match (n) return n"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/prime/shortest-path", body)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/prime/shortest-path", body)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = req
@@ -238,7 +239,7 @@ func TestProxyPrime_CatchAllForwardsWithTenantAndJWT(t *testing.T) {
 	if primeHit.auth == "" || !strings.HasPrefix(primeHit.auth, "Bearer test-token:") {
 		t.Errorf("upstream auth: got %q, want per-request JWT", primeHit.auth)
 	}
-	if string(primeHit.body) == "" {
+	if len(primeHit.body) == 0 {
 		t.Error("upstream body was empty — POST body should forward")
 	}
 }
@@ -246,12 +247,12 @@ func TestProxyPrime_CatchAllForwardsWithTenantAndJWT(t *testing.T) {
 func TestDelegation_UpstreamErrorPropagates(t *testing.T) {
 	_, srv := newFakeBackend(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusConflict)
-		_, _ = w.Write([]byte(`{"error":"version conflict"}`))
+		_, _ = w.Write([]byte(`{"error":"version conflict"}`)) //nolint:errcheck // test response
 	})
 	defer srv.Close()
 	cp := newTestCP(t, srv.URL, srv.URL)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/events", strings.NewReader(`{"event_type":"x","entity_id":"e","payload":{}}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/events", strings.NewReader(`{"event_type":"x","entity_id":"e","payload":{}}`))
 	w := callHandler(cp.ProxyIngestSingle, req, "tenant-real")
 
 	if w.Code != http.StatusConflict {

@@ -158,10 +158,22 @@ impl<S: WorkerState> ProjectionWorkerBuilder<S> {
     }
 }
 
-/// A projection worker.
+/// A projection worker — the first-class way to build long-lived read models
+/// on AllSource.
 ///
-/// Constructed via [`Self::builder`], consumed by `start()` (US-005) which
-/// moves the worker into a spawned task.
+/// `ProjectionWorker` subscribes to Core's event stream, runs your reducer on
+/// each event, and keeps a server-tracked cursor so restarts replay only
+/// events-since-last-ack rather than the full history. It's the right choice
+/// over polling [`QueryClient::query_events`](crate::QueryClient::query_events)
+/// whenever you want a read model that stays warm and caught-up with live
+/// writes.
+///
+/// Construct via [`Self::builder`], then call
+/// [`start()`](Self::start) to spawn a background task and get a
+/// [`ProjectionHandle`] for state access and graceful shutdown.
+///
+/// For the full story on when to use this vs. other patterns, see the
+/// [custom-projections guide](https://github.com/all-source-os/all-source/blob/main/docs/use-cases/custom-projections.md).
 pub struct ProjectionWorker<S: WorkerState> {
     pub(crate) core: CoreClient,
     pub(crate) name: String,

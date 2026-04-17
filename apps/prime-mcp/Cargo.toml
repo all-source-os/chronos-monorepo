@@ -1,6 +1,6 @@
 [package]
 name = "allsource-prime"
-version = "0.19.1"
+version = "0.19.2"
 edition = "2024"
 rust-version = "1.92"
 description = "MCP server for AllSource Prime — unified agent memory engine (stdio transport)"
@@ -16,7 +16,7 @@ name = "allsource-prime"
 path = "src/main.rs"
 
 [dependencies]
-allsource-core = { version = "0.19.1", path = "../../apps/core", default-features = false, features = ["prime-recall", "prime-vectors"] }
+allsource-core = { version = "0.19.2", path = "../../apps/core", default-features = false, features = ["prime-recall", "prime-vectors"] }
 anyhow = "1.0"
 axum = { version = "0.8", features = ["json"] }
 chrono = { version = "0.4", features = ["serde"] }

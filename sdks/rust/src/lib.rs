@@ -1,12 +1,26 @@
 //! # AllSource Rust SDK
 //!
-//! Official Rust client for the [AllSource](https://github.com/all-source-os/allsource-monorepo)
-//! event store. Provides two clients:
+//! Official Rust client for the [AllSource](https://github.com/all-source-os/all-source)
+//! event store.
 //!
-//! - [`QueryClient`] — reads from the Query Service (events, projections, streams)
-//! - [`CoreClient`] — writes directly to Core (event ingestion, batch ingest)
+//! ## Which client do I want?
 //!
-//! Plus the [`EventFolder`] trait for reconstructing domain state from event streams.
+//! - [`CoreClient`] — points at Core directly (`:3900`). Use for co-located services
+//!   doing writes, projection work, or anything latency-sensitive. One hop,
+//!   in-process DashMap key validation, no rate-limit layer.
+//! - [`QueryClient`] — points at the Query Service (`:3902`). Use when you need
+//!   per-tenant rate limits / quotas / billing, or when clients are external /
+//!   untrusted. QS sits in front of Core and handles those concerns.
+//!
+//! Both are cheap to construct and share their `reqwest` connection pool when
+//! cloned — don't wrap them in your own `Arc<Mutex<...>>`.
+//!
+//! For custom projections, see [`ProjectionWorker`] — it handles WebSocket
+//! subscription, checkpoint, dedup, and reconnection so you only write the
+//! reducer. For folding events on demand, see the [`EventFolder`] trait.
+//!
+//! For performance patterns (batching, connection reuse, direct-vs-gateway
+//! tradeoffs), see the [README section on performance](https://github.com/all-source-os/all-source/blob/main/sdks/rust/README.md#performance-cheatsheet).
 //!
 //! ## Quick Start
 //!

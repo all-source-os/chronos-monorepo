@@ -4,6 +4,22 @@ All notable changes to the `allsource` Rust SDK.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org).
 
+## [0.19.2] — 2026-04-17
+
+### Changed
+
+- Documentation-focused release. No public API changes in the SDK.
+- README rewritten with a "Which client do I want?" decision table, "Performance cheatsheet", and "API keys" section so consumers don't need a separate perf guide.
+- Crate-level rustdoc updated to mirror the same guidance (shows in rust-analyzer hover and docs.rs).
+- Per-type rustdoc expanded on `CoreClient`, `QueryClient`, and `ProjectionWorker` explaining when each is the right default.
+
+### Fixed (monorepo, no SDK-code impact)
+
+- Core `Dockerfile` now stubs `sdks/rust/examples/asset_projection.rs` so cargo-chef parses the workspace correctly during image build. v0.19.1's Docker tag build failed on this; v0.19.2's ships.
+- Monorepo `Makefile` `set-version` regex handles 3-segment versions in `apps/prime-mcp/Cargo.toml`'s `allsource-core` dep constraint (was silently skipping on 3-segment patterns).
+
+[0.19.2]: https://github.com/all-source-os/all-source/releases/tag/v0.19.2
+
 ## [0.19.1] — 2026-04-17
 
 ### Changed

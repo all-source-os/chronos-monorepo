@@ -247,10 +247,18 @@ impl HttpTransport {
 // QueryClient — reads from Query Service
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Client for the AllSource Query Service (reads).
+/// Client for the AllSource Query Service (port 3902).
 ///
-/// Connects to the Query Service (default port 3902) for event queries,
-/// projections, stream discovery, and health checks.
+/// Use this when your traffic goes through the gateway: multi-tenant, external
+/// clients, per-tenant rate limits, or billing/quota enforcement. QS validates
+/// the API key (120s ETS cache, then delegates to Core), applies tenant
+/// context, and forwards to Core.
+///
+/// For co-located services where you control both sides and don't need those
+/// gateway features, prefer [`CoreClient`] — one hop, no cache layer.
+///
+/// Cloning is cheap; the underlying `reqwest::Client` and its connection pool
+/// are shared via `Arc`.
 #[derive(Debug, Clone)]
 pub struct QueryClient {
     transport: Arc<HttpTransport>,
@@ -371,10 +379,37 @@ impl QueryClient {
 // CoreClient — writes to Core
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Client for AllSource Core (writes).
+/// Client for AllSource Core (port 3900).
 ///
-/// Connects directly to Core (default port 3900) for event ingestion.
-/// Use this for write operations; use [`QueryClient`] for reads.
+/// Low-latency path: one hop, in-process DashMap key validation (~μs), no rate
+/// limit or quota layer. Use for co-located services doing writes,
+/// projection work, or anything latency-sensitive. Powers
+/// [`ProjectionWorker`](crate::ProjectionWorker) internally.
+///
+/// For multi-tenant / external / billing-gated traffic, use [`QueryClient`]
+/// instead — that goes through the Query Service which owns rate limiting
+/// and quota enforcement.
+///
+/// Cloning is cheap; the underlying `reqwest::Client` and its connection pool
+/// are shared via `Arc`. Constructing a fresh `CoreClient` per request is an
+/// anti-pattern; construct once and clone as needed.
+///
+/// # Example
+///
+/// ```no_run
+/// use allsource::{CoreClient, IngestEventInput};
+/// use serde_json::json;
+///
+/// # async fn run() -> Result<(), allsource::Error> {
+/// let core = CoreClient::new("http://localhost:3900", "ask_...")?;
+/// core.ingest_event(IngestEventInput {
+///     event_type: "order.placed".into(),
+///     entity_id: "order-42".into(),
+///     payload: json!({"total_usd": 19.99}),
+///     metadata: None,
+/// }).await?;
+/// # Ok(()) }
+/// ```
 #[derive(Debug, Clone)]
 pub struct CoreClient {
     transport: Arc<HttpTransport>,
