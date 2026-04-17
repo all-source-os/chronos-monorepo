@@ -14,25 +14,32 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
   ALLSOURCE_HOST = "::"
   # PORT is automatically set by Fly.io
 
-[http_service]
-  internal_port = 3900
-  force_https = true
-  auto_stop_machines = true
-  auto_start_machines = true
-  min_machines_running = 1
-  processes = ["app"]
+# Core is internal-only (bead t-0ff8). Public ingress removed 2026-04-17.
+# All user-facing traffic enters through Control Plane's delegation layer.
+# Internal .fly network (http://allsource-core.internal:3900) still works
+# because other Fly apps in the same org reach machine IPs directly — no
+# [http_service] / [[services]] block is needed. See
+# docs/deployment/API_SUBDOMAIN_SETUP.md for the full topology.
+#
+# Rollback: restore [http_service] and re-allocate a public IPv6 with
+# `fly ips allocate-v6 -a allsource-core`.
 
-  [http_service.concurrency]
-    type = "requests"
-    hard_limit = 250
-    soft_limit = 200
+# Top-level machine orchestration (was nested under [http_service])
+auto_stop_machines = true
+auto_start_machines = true
+min_machines_running = 1
 
-  [[http_service.checks]]
-    grace_period = "10s"
-    interval = "30s"
-    method = "GET"
-    path = "/health"
-    timeout = "5s"
+# Internal HTTP health check so auto_stop/auto_start don't kill a healthy
+# machine. Runs inside the Fly network; does not expose anything publicly.
+[checks.health]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  path = "/health"
+  port = 3900
+  protocol = "http"
+  timeout = "5s"
+  type = "http"
 
 [[vm]]
   cpu_kind = "shared"

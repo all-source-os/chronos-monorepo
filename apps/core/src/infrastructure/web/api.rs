@@ -449,12 +449,17 @@ pub async fn query_events(
     let requested_limit = req.limit;
     let queried_entity_id = req.entity_id.clone();
 
-    // Enforce tenant isolation: authenticated users can only see their own
-    // tenant's events. Unauthenticated (skipped-auth paths) use request param.
-    let enforced_tenant = auth
-        .as_ref()
-        .map(|a| a.tenant_id().to_string())
-        .or(req.tenant_id.clone());
+    // Tenant resolution. Since Core is internal-only (bead t-0ff8), the only
+    // callers are Control Plane's delegation layer and other internal Fly
+    // services. Request param wins — that's what the gateway sets authoritatively
+    // from the authenticated caller's identity. Auth-context fallback is kept
+    // as a defense-in-depth for any internal caller that forgets to pass
+    // tenant_id but is authenticated (legacy; audit and remove once all
+    // internal callers are confirmed to set tenant_id explicitly).
+    let enforced_tenant = req
+        .tenant_id
+        .clone()
+        .or_else(|| auth.as_ref().map(|a| a.tenant_id().to_string()));
 
     // Query without limit to get total count
     let unlimited_req = QueryEventsRequest {
