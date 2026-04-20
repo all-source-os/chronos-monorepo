@@ -1,6 +1,6 @@
 "use client";
 
-import { buttonVariants, cn, HeroVideoDialog, Icons } from "@allsource/ui";
+import { buttonVariants, cn, Icons } from "@allsource/ui";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -273,11 +273,13 @@ function HeroImage() {
         {/* Hover glow intensification */}
         <div className="absolute -inset-4 rounded-2xl bg-gradient-to-r from-primary/20 via-purple-500/10 to-primary/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-        <HeroVideoDialog
-          animationStyle="from-center"
-          videoSrc="https://www.youtube.com/embed/qh3NGpYRG3I?si=4rb-zSdDkVK9qxxb"
-          thumbnailSrc="/assets/hero-screenshot.png"
-          thumbnailAlt="AllSource Dashboard — Event Explorer with real-time metrics"
+        <video
+          src="/assets/demo-video.mp4"
+          poster="/assets/hero-screenshot.png"
+          autoPlay
+          loop
+          muted
+          playsInline
           className="relative border rounded-lg shadow-lg shadow-primary/10 max-w-screen-lg transition-shadow duration-500 group-hover:shadow-xl group-hover:shadow-primary/20"
         />
       </div>
