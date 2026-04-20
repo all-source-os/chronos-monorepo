@@ -21,6 +21,7 @@
   "dependencies": {
     "@remotion/bundler": "^4.0.450",
     "@remotion/cli": "^4.0.450",
+    "@remotion/renderer": "4.0.450",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "remotion": "^4.0.450"

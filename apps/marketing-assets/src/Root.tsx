@@ -1,18 +1,14 @@
 import { Composition, Still } from "remotion";
-
-// Compositions — add as they're built
-// import { HeroScreenshot } from "./compositions/HeroScreenshot";
-// import { DemoVideo } from "./compositions/DemoVideo";
-// import { GifEventExplorer } from "./compositions/GifEventExplorer";
-// import { GifLiveStream } from "./compositions/GifLiveStream";
-// import { GifApiKeyCreation } from "./compositions/GifApiKeyCreation";
-// import { GifOnboarding } from "./compositions/GifOnboarding";
+import { HeroScreenshot } from "./compositions/HeroScreenshot";
+import { DemoVideo } from "./compositions/DemoVideo";
+import { GifEventExplorer } from "./compositions/GifEventExplorer";
+import { GifLiveStream } from "./compositions/GifLiveStream";
+import { GifApiKeyCreation } from "./compositions/GifApiKeyCreation";
+import { GifOnboarding } from "./compositions/GifOnboarding";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
-      {/* Uncomment as each composition is built:
-
       <Still
         id="hero-screenshot"
         component={HeroScreenshot}
@@ -64,8 +60,6 @@ export const RemotionRoot: React.FC = () => {
         width={800}
         height={500}
       />
-
-      */}
     </>
   );
 };
