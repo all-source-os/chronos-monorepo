@@ -275,7 +275,7 @@ defmodule QueryServiceExWeb.Plugs.TenantContextTest do
         "name" => "Past Due Tenant",
         "status" => "active",
         "metadata" => %{
-          "subscription" => %{"status" => "past_due", "tier" => "starter"}
+          "subscription" => %{"status" => "past_due", "tier" => "pro"}
         }
       }
 

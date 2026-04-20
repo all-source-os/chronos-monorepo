@@ -80,16 +80,16 @@ defmodule QueryServiceEx.RateLimiterTest do
       assert burst == 20
     end
 
-    test "returns correct limits for starter tier" do
-      {rate, burst} = RateLimiter.get_tier_limits(:starter)
-      assert rate == 50
-      assert burst == 100
-    end
-
     test "returns correct limits for pro tier" do
       {rate, burst} = RateLimiter.get_tier_limits(:pro)
       assert rate == 200
       assert burst == 400
+    end
+
+    test "returns correct limits for growth tier" do
+      {rate, burst} = RateLimiter.get_tier_limits(:growth)
+      assert rate == 500
+      assert burst == 1000
     end
 
     test "returns correct limits for enterprise tier" do
@@ -153,22 +153,22 @@ defmodule QueryServiceEx.RateLimiterTest do
   describe "tier-based rate limiting" do
     test "higher tiers have more capacity" do
       free = RateLimiter.get_tier_limits(:free)
-      starter = RateLimiter.get_tier_limits(:starter)
       pro = RateLimiter.get_tier_limits(:pro)
+      growth = RateLimiter.get_tier_limits(:growth)
       enterprise = RateLimiter.get_tier_limits(:enterprise)
 
       {free_rate, free_burst} = free
-      {starter_rate, starter_burst} = starter
       {pro_rate, pro_burst} = pro
+      {growth_rate, growth_burst} = growth
       {enterprise_rate, enterprise_burst} = enterprise
 
-      assert starter_rate > free_rate
-      assert pro_rate > starter_rate
-      assert enterprise_rate > pro_rate
+      assert pro_rate > free_rate
+      assert growth_rate > pro_rate
+      assert enterprise_rate > growth_rate
 
-      assert starter_burst > free_burst
-      assert pro_burst > starter_burst
-      assert enterprise_burst > pro_burst
+      assert pro_burst > free_burst
+      assert growth_burst > pro_burst
+      assert enterprise_burst > growth_burst
     end
   end
 

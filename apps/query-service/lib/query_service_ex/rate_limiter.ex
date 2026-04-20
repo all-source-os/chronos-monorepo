@@ -223,8 +223,8 @@ defmodule QueryServiceEx.RateLimiter do
   defp default_tier_limits do
     %{
       free: %{rate: 10, burst: 20},
-      starter: %{rate: 50, burst: 100},
       pro: %{rate: 200, burst: 400},
+      growth: %{rate: 500, burst: 1000},
       enterprise: %{rate: 1000, burst: 2000}
     }
   end

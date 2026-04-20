@@ -113,8 +113,8 @@ config :query_service_ex, QueryServiceEx.RateLimiter,
   cleanup_interval: 60_000,
   tier_limits: %{
     free: %{rate: 10, burst: 20},
-    starter: %{rate: 50, burst: 100},
     pro: %{rate: 200, burst: 400},
+    growth: %{rate: 500, burst: 1000},
     enterprise: %{rate: 1000, burst: 2000}
   }
 

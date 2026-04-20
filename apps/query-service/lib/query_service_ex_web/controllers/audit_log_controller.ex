@@ -18,8 +18,8 @@ defmodule QueryServiceExWeb.AuditLogController do
   action_fallback(QueryServiceExWeb.FallbackController)
 
   @retention_days %{
-    "free" => 90,
-    "starter" => 90,
+    "free" => 7,
+    "pro" => 30,
     "growth" => 90,
     "enterprise" => 365
   }

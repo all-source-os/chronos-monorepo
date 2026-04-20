@@ -24,9 +24,9 @@ defmodule QueryServiceEx.TeamStore do
   # Seat limits per subscription tier
   @seat_limits %{
     "free" => 1,
-    "starter" => 1,
-    "growth" => 3,
-    "enterprise" => 10
+    "pro" => 3,
+    "growth" => 10,
+    "enterprise" => 50
   }
 
   # -------------------------------------------------------------------
