@@ -53,7 +53,7 @@ jobs:
 
       - name: Install act
         run: |
-          curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin
+          curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin latest
 
       - name: Validate workflow structure
         run: |
