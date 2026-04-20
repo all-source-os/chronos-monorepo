@@ -22,7 +22,7 @@ func testContext() context.Context { return context.Background() }
 
 func TestProjectStatus_PicksNewestPerService(t *testing.T) {
 	now := time.Date(2026, 4, 17, 20, 0, 0, 0, time.UTC)
-	old := now.Add(-45 * time.Second) // > heartbeatTTL (25s) → stale
+	old := now.Add(-45 * time.Second)  // > heartbeatTTL (25s) → stale
 	fresh := now.Add(-5 * time.Second) // < heartbeatTTL → honors reported status
 
 	events := []clients.EventEntry{
