@@ -8,7 +8,7 @@ const data = [
     title: "1. Capture Everything",
     content:
       "Send events via REST, WebSocket, or SDK. Every event is immutably stored with automatic schema validation. Nothing is ever lost or overwritten.",
-    image: "/dashboard.png",
+    image: "/assets/hero-screenshot.png",
     icon: <Database className="w-6 h-6 text-primary" />,
   },
   {
@@ -16,15 +16,15 @@ const data = [
     title: "2. Process in Real-Time",
     content:
       "Build pipelines that filter, transform, and route events as they arrive. Create projections and materialized views that stay in sync automatically.",
-    image: "/dashboard.png",
+    image: "/assets/hero-screenshot.png",
     icon: <Play className="w-6 h-6 text-primary" />,
   },
   {
     id: 3,
     title: "3. Query Any Point in Time",
     content:
-      "Reconstruct state at any timestamp. Replay sequences for debugging. Let AI agents analyze patterns across your entire history with 27 MCP tools.",
-    image: "/dashboard.png",
+      "Reconstruct state at any timestamp. Replay sequences for debugging. Let AI agents analyze patterns across your entire history with 43 MCP tools.",
+    image: "/assets/hero-screenshot.png",
     icon: <Sparkles className="w-6 h-6 text-primary" />,
   },
 ];

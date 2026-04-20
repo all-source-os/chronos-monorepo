@@ -76,7 +76,7 @@ export default function QuantIntelligence() {
       id="architecture"
       title="Event Intelligence"
       subtitle="AI-Native Event Store Architecture"
-      description="Built in Rust for performance. Designed for AI agents. Every feature accessible through 27 MCP tools — let Claude or GPT manage your event streams autonomously."
+      description="Built in Rust for performance. Designed for AI agents. Every feature accessible through 43 MCP tools — let Claude or GPT manage your event streams autonomously."
       className="bg-gradient-to-b from-background to-neutral-100 dark:to-neutral-900"
     >
       {/* Metrics Bar */}
@@ -239,7 +239,7 @@ export default function QuantIntelligence() {
             },
             {
               title: "AI Workflows",
-              items: ["27 MCP tools", "Claude integration", "Autonomous agents"],
+              items: ["43 MCP tools", "Claude integration", "Autonomous agents"],
               icon: <Bot className="h-4 w-4" />,
             },
             {

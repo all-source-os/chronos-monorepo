@@ -12,7 +12,7 @@ const features = [
     content: (
       <>
         <Safari
-          src={"/dashboard.png"}
+          src={"/assets/hero-screenshot.png"}
           url="https://all-source.xyz"
           className="-mb-32 mt-4 max-h-64 w-full px-4 select-none drop-shadow-[0_0_28px_rgba(0,0,0,.1)] group-hover:translate-y-[-10px] transition-all duration-300"
         />
@@ -26,7 +26,7 @@ const features = [
     className: "order-3 xl:order-none hover:bg-blue-500/10 transition-all duration-500 ease-out",
     content: (
       <Safari
-        src={"/dashboard.png"}
+        src={"/assets/hero-screenshot.png"}
         url="https://all-source.xyz"
         className="-mb-32 mt-4 max-h-64 w-full px-4 select-none drop-shadow-[0_0_28px_rgba(0,0,0,.1)] group-hover:translate-y-[-10px] transition-all duration-300"
       />
@@ -35,7 +35,7 @@ const features = [
   {
     title: "AI-Native by Design",
     description:
-      "27-tool MCP Server for Claude Desktop. AI agents can manage events, run analytics, detect anomalies, and orchestrate complex workflows autonomously.",
+      "43-tool MCP Server for Claude Desktop. AI agents can manage events, run analytics, detect anomalies, and orchestrate complex workflows autonomously.",
     className: "md:row-span-2 hover:bg-orange-500/10 transition-all duration-500 ease-out",
     content: (
       <>
@@ -50,7 +50,7 @@ const features = [
           width={800}
         />
         <Safari
-          src={"/dashboard.png"}
+          src={"/assets/hero-screenshot.png"}
           url="https://all-source.xyz"
           className="-mb-48 ml-12 mt-16 h-full px-4 select-none drop-shadow-[0_0_28px_rgba(0,0,0,.1)] group-hover:translate-x-[-10px] transition-all duration-300"
         />
@@ -67,7 +67,7 @@ const features = [
       <>
         <Ripple className="absolute -bottom-full" />
         <Safari
-          src={"/dashboard.png"}
+          src={"/assets/hero-screenshot.png"}
           url="https://all-source.xyz"
           className="-mb-32 mt-4 max-h-64 w-full px-4 select-none drop-shadow-[0_0_28px_rgba(0,0,0,.1)] group-hover:translate-y-[-10px] transition-all duration-300"
         />

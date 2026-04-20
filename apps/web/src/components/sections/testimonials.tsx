@@ -197,7 +197,7 @@ const testimonials = [
     img: "https://randomuser.me/api/portraits/women/73.jpg",
     description: (
       <p>
-        The 27 MCP tools transformed how we work with event data.
+        The 43 MCP tools transformed how we work with event data.
         <Highlight>
           Claude can now query, analyze, and even manage our event streams directly.
         </Highlight>{" "}

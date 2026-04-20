@@ -61,7 +61,7 @@ const rows: Row[] = [
   },
   {
     feature: "MCP tools for AI agents",
-    allsource: "27 tools",
+    allsource: "43 tools",
     eventstoredb: "no",
     note: "AllSource ships a Model Context Protocol server out of the box. EventStoreDB has no equivalent.",
   },

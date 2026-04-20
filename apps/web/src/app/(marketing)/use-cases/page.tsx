@@ -59,11 +59,11 @@ const useCases = [
     icon: Brain,
     color: "from-green-500/20 to-green-500/5",
     description:
-      "Agents that only remember the current conversation are amnesiacs. AllSource gives them a durable memory layer — graph nodes, vector embeddings, and temporal reasoning — accessible via 27 MCP tools.",
+      "Agents that only remember the current conversation are amnesiacs. AllSource gives them a durable memory layer — graph nodes, vector embeddings, and temporal reasoning — accessible via 43 MCP tools.",
     scenario:
       "Your coding agent remembers that two weeks ago you decided to drop a column. Today, when it sees that column referenced in a migration, it flags the regression before you commit.",
     bullets: [
-      "27 MCP tools for Claude, GPT, and custom agents",
+      "43 MCP tools for Claude, GPT, and custom agents",
       "Graph + vector + compressed index in one engine",
       "Shared memory across agents, sessions, machines",
       "Embedded mode: no cloud dependency",
