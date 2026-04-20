@@ -70,6 +70,18 @@ export function StepWelcome({ onNext }: StepWelcomeProps) {
         ))}
       </div>
 
+      {/* Quick preview */}
+      <div className="mb-8 w-full max-w-lg overflow-hidden rounded-xl border shadow-md">
+        <video
+          src="/assets/gif-onboarding.mp4"
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full"
+        />
+      </div>
+
       {/* CTA */}
       <Button size="lg" onClick={onNext} className="px-8">
         Set up my first agent

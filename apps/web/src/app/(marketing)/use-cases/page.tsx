@@ -128,6 +128,26 @@ export default function UseCasesPage() {
           </motion.div>
         </Section>
 
+        {/* Demo video */}
+        <Section className="pb-8">
+          <motion.div
+            className="mx-auto max-w-3xl overflow-hidden rounded-xl border shadow-lg shadow-primary/10"
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+          >
+            <video
+              src="/assets/demo-video.mp4"
+              className="w-full"
+              autoPlay
+              loop
+              muted
+              playsInline
+            />
+          </motion.div>
+        </Section>
+
         {/* Use cases */}
         <Section className="pb-16">
           <div className="space-y-12">

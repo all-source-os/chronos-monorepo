@@ -276,8 +276,8 @@ function HeroImage() {
         <HeroVideoDialog
           animationStyle="from-center"
           videoSrc="https://www.youtube.com/embed/qh3NGpYRG3I?si=4rb-zSdDkVK9qxxb"
-          thumbnailSrc="/dashboard.png"
-          thumbnailAlt="AllSource Dashboard"
+          thumbnailSrc="/assets/hero-screenshot.png"
+          thumbnailAlt="AllSource Dashboard — Event Explorer with real-time metrics"
           className="relative border rounded-lg shadow-lg shadow-primary/10 max-w-screen-lg transition-shadow duration-500 group-hover:shadow-xl group-hover:shadow-primary/20"
         />
       </div>
