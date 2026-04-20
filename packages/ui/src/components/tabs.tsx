@@ -10,19 +10,32 @@ const TabsContext = React.createContext<{
 }>({ value: "", onValueChange: () => {} });
 
 interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
-  value: string;
-  onValueChange: (value: string) => void;
+  value?: string;
+  onValueChange?: (value: string) => void;
   defaultValue?: string;
 }
 
 const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
-  ({ className, value, onValueChange, children, ...props }, ref) => (
-    <TabsContext.Provider value={{ value, onValueChange }}>
-      <div ref={ref} className={cn("w-full", className)} {...props}>
-        {children}
-      </div>
-    </TabsContext.Provider>
-  )
+  ({ className, value, onValueChange, defaultValue, children, ...props }, ref) => {
+    const [internalValue, setInternalValue] = React.useState(defaultValue ?? "");
+    const isControlled = value !== undefined;
+    const currentValue = isControlled ? value : internalValue;
+    const handleChange = React.useCallback(
+      (next: string) => {
+        if (!isControlled) setInternalValue(next);
+        onValueChange?.(next);
+      },
+      [isControlled, onValueChange]
+    );
+
+    return (
+      <TabsContext.Provider value={{ value: currentValue, onValueChange: handleChange }}>
+        <div ref={ref} className={cn("w-full", className)} {...props}>
+          {children}
+        </div>
+      </TabsContext.Provider>
+    );
+  }
 );
 Tabs.displayName = "Tabs";
 
