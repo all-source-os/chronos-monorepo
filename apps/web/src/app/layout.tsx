@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { EarlyAccessBanner } from "@/components/early-access-banner";
 import { TailwindIndicator } from "@/components/tailwind-indicator";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -33,6 +34,7 @@ export default function RootLayout({
       </head>
       <body className={cn("min-h-screen bg-background antialiased w-full mx-auto scroll-smooth")}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <EarlyAccessBanner />
           {children}
           <ThemeToggle />
           <TailwindIndicator />
