@@ -1,0 +1,28 @@
+{
+  "name": "marketing-assets",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3"
+  },
+  "peerDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "scripts": {
+    "studio": "bunx remotion studio src/index.ts",
+    "render:hero": "bunx remotion still src/index.ts hero-screenshot --output out/hero-screenshot.png",
+    "render:demo": "bunx remotion render src/index.ts demo-video --output out/demo-video.mp4",
+    "render:gifs": "bunx remotion render src/index.ts gif-event-explorer --codec gif --output out/gif-event-explorer.gif && bunx remotion render src/index.ts gif-live-stream --codec gif --output out/gif-live-stream.gif && bunx remotion render src/index.ts gif-api-key --codec gif --output out/gif-api-key.gif && bunx remotion render src/index.ts gif-onboarding --codec gif --output out/gif-onboarding.gif",
+    "render:all": "bun run render:hero && bun run render:demo && bun run render:gifs"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.450",
+    "@remotion/cli": "^4.0.450",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "remotion": "^4.0.450"
+  }
+}
