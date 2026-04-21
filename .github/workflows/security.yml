@@ -51,9 +51,11 @@ jobs:
 
       - name: Rust dependency audit
         if: matrix.name == 'rust'
-        working-directory: ${{ matrix.working-directory }}
+        # Audit the root workspace lockfile — apps/core is a workspace
+        # member and doesn't have its own Cargo.lock.
         run: |
           cargo audit \
+            --file Cargo.lock \
             --ignore RUSTSEC-2023-0071 \
             --ignore RUSTSEC-2026-0041 \
             --ignore RUSTSEC-2026-0049 \
