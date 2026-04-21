@@ -78,7 +78,7 @@ function HeroPill() {
       <div className="w-fit rounded-full bg-accent px-2 py-0.5 text-center text-xs font-medium text-primary sm:text-sm">
         v0.17.0
       </div>
-      <p className="text-xs font-medium text-primary sm:text-sm">Prime: Agent Memory Engine shipped</p>
+      <p className="text-xs font-medium text-primary sm:text-sm">v0.19 — x402 Agent Payments + Pro Tier</p>
       <svg
         width="12"
         height="12"
@@ -147,9 +147,9 @@ function HeroTitles() {
           ease,
         }}
       >
-        AllSource Prime — the temporal intelligence platform for autonomous AI. Time-travel your
-        data, query any past state, and give every agent{" "}
-        <span className="text-primary font-semibold">persistent, provable memory</span>.
+        The AI-native event store. Capture every state change, time-travel any point in history,
+        and let AI agents pay for what they use with{" "}
+        <span className="text-primary font-semibold">built-in x402 micropayments</span>.
       </motion.p>
     </div>
   );

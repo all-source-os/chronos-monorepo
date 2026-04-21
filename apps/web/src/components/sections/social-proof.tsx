@@ -32,12 +32,12 @@ const metrics = [
 ];
 
 const comparison = [
-  { feature: "Temporal queries (as_of)", prime: true, mem0: false, letta: false, zep: true },
-  { feature: "Full event provenance", prime: true, mem0: false, letta: false, zep: false },
-  { feature: "Auto compressed index", prime: true, mem0: false, letta: false, zep: false },
-  { feature: "Offline / embedded mode", prime: true, mem0: false, letta: false, zep: false },
-  { feature: "Sub-millisecond recall", prime: true, mem0: false, letta: false, zep: false },
-  { feature: "MIT licensed / self-host", prime: true, mem0: true, letta: false, zep: false },
+  { feature: "Temporal queries (as_of)", allsource: true, mem0: false, letta: false, zep: true },
+  { feature: "Full event provenance", allsource: true, mem0: false, letta: false, zep: false },
+  { feature: "Auto compressed index", allsource: true, mem0: false, letta: false, zep: false },
+  { feature: "Offline / embedded mode", allsource: true, mem0: false, letta: false, zep: false },
+  { feature: "Sub-millisecond recall", allsource: true, mem0: false, letta: false, zep: false },
+  { feature: "MIT licensed / self-host", allsource: true, mem0: true, letta: false, zep: false },
 ];
 
 type CompetitorKey = "mem0" | "letta" | "zep";
@@ -59,10 +59,10 @@ function BoolCell({ value }: { value: boolean }) {
 export default function SocialProof() {
   return (
     <Section
-      id="why-prime"
-      title="Why AllSource Prime"
+      id="why-allsource"
+      title="Why AllSource"
       subtitle="Built for the benchmarks that matter"
-      description="Agent memory needs are different from general storage. We optimised for the queries agents actually run."
+      description="Event sourcing infrastructure with an optional AI agent memory module (Prime). The core event store stands on its own — Prime adds knowledge graphs and vector search for teams that need it."
     >
       {/* Metrics row */}
       <motion.div
@@ -104,7 +104,7 @@ export default function SocialProof() {
           <thead>
             <tr className="border-b border-border">
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">Feature</th>
-              <th className="px-4 py-3 text-center font-semibold text-primary">Prime</th>
+              <th className="px-4 py-3 text-center font-semibold text-primary">AllSource</th>
               {competitors.map((c) => (
                 <th key={c.key} className="px-4 py-3 text-center font-medium text-muted-foreground">
                   {c.label}
@@ -122,7 +122,7 @@ export default function SocialProof() {
               >
                 <td className="px-4 py-3 text-foreground">{row.feature}</td>
                 <td className="px-4 py-3 text-center">
-                  <BoolCell value={row.prime} />
+                  <BoolCell value={row.allsource} />
                 </td>
                 {competitors.map((c) => (
                   <td key={c.key} className="px-4 py-3 text-center">

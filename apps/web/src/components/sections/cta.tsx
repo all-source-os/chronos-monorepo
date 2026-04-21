@@ -32,7 +32,7 @@ export default function CtaSection() {
     <Section
       id="cta"
       title="Give your AI agents perfect memory"
-      subtitle="Persistent, time-travelling memory powered by AllSource Prime. Free tier — no credit card required."
+      subtitle="Immutable event sourcing with time-travel queries, 43 MCP tools, and x402 agent payments. Free tier — no credit card required."
       className="relative overflow-hidden rounded-xl py-16"
     >
       {/* Animated gradient background */}
