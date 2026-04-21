@@ -1,7 +1,8 @@
+import Link from "next/link";
 import BlogCard from "@/components/blog-card";
-import { getBlogPosts } from "@/lib/blog";
+import { BLOG_CATEGORIES, getBlogPosts } from "@/lib/blog";
 import { siteConfig } from "@/lib/config";
-import { constructMetadata } from "@/lib/utils";
+import { cn, constructMetadata } from "@/lib/utils";
 
 export const metadata = constructMetadata({
   title: "Blog — Engineering, AI Agents, and Event Sourcing",
@@ -10,12 +11,27 @@ export const metadata = constructMetadata({
   canonical: "/blog",
 });
 
-export default async function Blog() {
+export default async function Blog({
+  searchParams,
+}: {
+  searchParams: Promise<{ author?: string; category?: string }>;
+}) {
+  const { author, category } = await searchParams;
   const allPosts = await getBlogPosts();
 
-  const articles = await Promise.all(
-    allPosts.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
-  );
+  let articles = allPosts.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+  if (author) {
+    articles = articles.filter((p) => p.author === author);
+  }
+  if (category) {
+    articles = articles.filter((p) => p.category === category);
+  }
+
+  const activeLabel = category
+    ? BLOG_CATEGORIES.find((c) => c.value === category)?.label
+    : author
+      ? `by ${author}`
+      : null;
 
   return (
     <>
@@ -25,10 +41,47 @@ export default async function Blog() {
           <div className="h-[300px] w-[600px] rounded-full bg-primary/15 blur-[120px]" />
         </div>
         <div className="relative text-center py-16">
-          <h1 className="text-3xl font-bold text-foreground sm:text-4xl">Articles</h1>
+          <h1 className="text-3xl font-bold text-foreground sm:text-4xl">
+            {activeLabel ? `Articles: ${activeLabel}` : "Articles"}
+          </h1>
           <p className="mt-4 text-xl text-muted-foreground">
-            Latest news and updates from {siteConfig.name}
+            {activeLabel ? (
+              <a href="/blog" className="text-primary hover:underline">
+                View all articles
+              </a>
+            ) : (
+              `Latest news and updates from ${siteConfig.name}`
+            )}
           </p>
+
+          {/* Category tabs */}
+          <div className="mt-8 flex items-center justify-center gap-2 flex-wrap">
+            <Link
+              href="/blog"
+              className={cn(
+                "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                !category && !author
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              All
+            </Link>
+            {BLOG_CATEGORIES.map((cat) => (
+              <Link
+                key={cat.value}
+                href={`/blog?category=${cat.value}`}
+                className={cn(
+                  "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                  category === cat.value
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {cat.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
       <div className="min-h-[50vh]">

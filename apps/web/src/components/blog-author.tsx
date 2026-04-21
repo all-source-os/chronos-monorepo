@@ -43,10 +43,8 @@ export default function Author({
 
   return (
     <Link
-      href={`https://twitter.com/${twitterUsername}`}
+      href={`/blog?author=${encodeURIComponent(name)}`}
       className="group flex items-center space-x-3"
-      target="_blank"
-      rel="noopener noreferrer"
     >
       <Image
         src={image}
@@ -56,8 +54,8 @@ export default function Author({
         className="rounded-full transition-all group-hover:brightness-90"
       />
       <div className="flex flex-col">
-        <p className="font-semibold text-gray-700">{name}</p>
-        <p className="text-sm text-gray-500">@{twitterUsername}</p>
+        <p className="font-semibold text-foreground">{name}</p>
+        <p className="text-sm text-muted-foreground">@{name}</p>
       </div>
     </Link>
   );

@@ -1,9 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { Post } from "@/lib/blog";
+import { BLOG_CATEGORIES, type Post } from "@/lib/blog";
 import { formatDate } from "@/lib/utils";
 
 export default function BlogCard({ data, priority }: { data: Post; priority?: boolean }) {
+  const categoryLabel = data.category
+    ? BLOG_CATEGORIES.find((c) => c.value === data.category)?.label
+    : null;
+
   return (
     <Link href={`/blog/${data.slug}`} className="block">
       <div className="bg-background rounded-lg p-4 mb-4 border hover:shadow-sm transition-shadow duration-200">
@@ -18,11 +22,16 @@ export default function BlogCard({ data, priority }: { data: Post; priority?: bo
           />
         )}
         {!data.image && <div className="bg-gray-200 h-[180px] mb-4 rounded" />}
-        <p className="mb-2">
+        <div className="flex items-center gap-2 mb-2">
           <time dateTime={data.publishedAt} className="text-sm text-muted-foreground">
             {formatDate(data.publishedAt)}
           </time>
-        </p>
+          {categoryLabel && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+              {categoryLabel}
+            </span>
+          )}
+        </div>
         <h3 className="text-xl font-semibold mb-2">{data.title}</h3>
         <p className="text-foreground mb-4">{data.summary}</p>
       </div>
