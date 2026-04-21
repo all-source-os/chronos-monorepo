@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -62,7 +63,7 @@ type probe struct {
 // hostnames for the services on the internal network, and public URLs for
 // services that are publicly reachable (auth, registry, web).
 //
-// All backend URLs honour env overrides to keep this configurable without
+// All backend URLs honor env overrides to keep this configurable without
 // a rebuild: CORE_HEALTH_URL, QUERY_HEALTH_URL, PRIME_HEALTH_URL,
 // AUTH_HEALTH_URL, REGISTRY_HEALTH_URL, WEB_HEALTH_URL.
 func probesFromEnv(getEnv func(string) string) []probe {
@@ -168,16 +169,18 @@ func (h *heartbeatEmitter) probeAndEmit(ctx context.Context, p probe) {
 
 	// Best effort — if Core is down we can't emit; the projection will show
 	// "stale" for this service, which is itself the right signal.
-	_, _ = h.coreClient.IngestEvent(ctx, clients.IngestEventRequest{
+	if _, err := h.coreClient.IngestEvent(ctx, clients.IngestEventRequest{
 		EventType: heartbeatEventType,
 		EntityID:  p.name,
 		TenantID:  heartbeatTenant,
 		Payload:   payload,
-	})
+	}); err != nil {
+		log.Printf("heartbeat: ingest failed for %s: %v", p.name, err)
+	}
 }
 
-func (h *heartbeatEmitter) probeOnce(ctx context.Context, p probe) (status string, errMsg string) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.url, nil)
+func (h *heartbeatEmitter) probeOnce(ctx context.Context, p probe) (status, errMsg string) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.url, http.NoBody)
 	if err != nil {
 		return "unhealthy", "build request: " + err.Error()
 	}
@@ -185,7 +188,11 @@ func (h *heartbeatEmitter) probeOnce(ctx context.Context, p probe) (status strin
 	if err != nil {
 		return "unhealthy", "request: " + err.Error()
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Printf("heartbeat: close response body for %s: %v", p.name, closeErr)
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
 		return "unhealthy", fmt.Sprintf("http %d", resp.StatusCode)
@@ -238,15 +245,23 @@ func projectStatus(events []clients.EventEntry, now time.Time) []serviceStatus {
 		s := serviceStatus{Service: e.EntityID, LastSeen: e.Timestamp}
 		ts, err := time.Parse(time.RFC3339Nano, e.Timestamp)
 		if err != nil {
-			ts, _ = time.Parse(time.RFC3339, e.Timestamp)
+			var fallbackErr error
+			ts, fallbackErr = time.Parse(time.RFC3339, e.Timestamp)
+			if fallbackErr != nil {
+				log.Printf("heartbeat: unparseable timestamp %q for %s: %v", e.Timestamp, e.EntityID, fallbackErr)
+			}
 		}
 		age := now.Sub(ts)
 		s.AgeSeconds = age.Seconds()
 
-		reported, _ := e.Payload["status"].(string)
-		if age > heartbeatTTL {
+		var reported string
+		if v, ok := e.Payload["status"].(string); ok {
+			reported = v
+		}
+		switch {
+		case age > heartbeatTTL:
 			s.Status = "stale"
-		} else {
+		default:
 			s.Status = reported
 		}
 		if v, ok := e.Payload["latency_ms"].(float64); ok {
@@ -354,7 +369,7 @@ func renderStatusHTML(services []serviceStatus) string {
 			b.WriteString(`<tr>`)
 			b.WriteString(`<td><strong>` + htmlEscape(s.Service) + `</strong></td>`)
 			b.WriteString(`<td><span class="pill ` + htmlEscape(status) + `">` + htmlEscape(status) + `</span></td>`)
-			b.WriteString(fmt.Sprintf(`<td>%dms</td>`, s.LatencyMs))
+			fmt.Fprintf(&b, `<td>%dms</td>`, s.LatencyMs)
 			b.WriteString(`<td><small>` + age + `</small></td>`)
 			b.WriteString(`<td><small>` + htmlEscape(detail) + `</small></td>`)
 			b.WriteString(`</tr>`)

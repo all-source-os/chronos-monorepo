@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -501,17 +502,17 @@ func extractResourceAndOperation(method, path string) (resource, operation strin
 
 	// Determine operation from method
 	switch method {
-	case "GET":
+	case http.MethodGet:
 		operation = "read"
-	case "POST":
+	case http.MethodPost:
 		if strings.Contains(path, "login") {
 			operation = "login"
 		} else {
 			operation = "create"
 		}
-	case "PUT":
+	case http.MethodPut:
 		operation = "update"
-	case "DELETE":
+	case http.MethodDelete:
 		operation = "delete"
 	case "PATCH":
 		operation = "modify"

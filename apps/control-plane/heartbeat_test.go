@@ -14,7 +14,8 @@ import (
 func newTestServer(status int, body string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(status)
-		_, _ = w.Write([]byte(body))
+		//nolint:errcheck // test server: client hangup during Write is not actionable here
+		w.Write([]byte(body))
 	}))
 }
 
