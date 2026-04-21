@@ -104,7 +104,7 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
           <Author
             twitterUsername={post.metadata.author}
             name={post.metadata.author}
-            image={"/logo-small.png"}
+            image={"/author.jpg"}
           />
         </div>
         <article
