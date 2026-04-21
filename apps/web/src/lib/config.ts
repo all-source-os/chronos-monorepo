@@ -29,16 +29,16 @@ export const siteConfig = {
           icon: "logo" as const,
           title: "Event Store Engine",
           description: "High-performance event sourcing with 469K events/sec throughput.",
-          href: "#",
+          href: "/platform/event-sourcing",
         },
         items: [
           {
-            href: "#",
+            href: "/platform/event-sourcing",
             title: "Event Sourcing",
             description: "Immutable event logs with time-travel queries.",
           },
           {
-            href: "#",
+            href: "/platform/stream-processing",
             title: "Stream Processing",
             description: "Real-time pipelines with filter, map, and reduce.",
           },
@@ -61,32 +61,32 @@ export const siteConfig = {
         items: [
           {
             title: "Audit & Compliance",
-            href: "#",
+            href: "/solutions/audit-compliance",
             description: "Complete audit trails with immutable event history.",
           },
           {
             title: "Real-time Analytics",
-            href: "#",
+            href: "/solutions/real-time-analytics",
             description: "Sub-microsecond queries for instant insights.",
           },
           {
             title: "AI Agents",
-            href: "#",
+            href: "/solutions/agent-memory",
             description: "MCP server integration for autonomous workflows.",
           },
           {
             title: "Financial Services",
-            href: "#",
+            href: "/solutions/financial-services",
             description: "Transaction logs with temporal consistency.",
           },
           {
             title: "IoT & Telemetry",
-            href: "#",
+            href: "/solutions/iot-telemetry",
             description: "High-throughput ingestion for sensor data.",
           },
           {
             title: "Multi-tenant SaaS",
-            href: "#",
+            href: "/solutions/multi-tenant-saas",
             description: "Secure isolation with RBAC and policy enforcement.",
           },
           {
