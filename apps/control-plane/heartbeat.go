@@ -44,6 +44,14 @@ const heartbeatTTL = 25 * time.Second
 // set retention/compaction independently later.
 const heartbeatTenant = "system"
 
+// Status strings used across probe results, the projection, and the HTML
+// status page. `statusStale` is computed at projection time, not emitted.
+const (
+	statusHealthy   = "healthy"
+	statusUnhealthy = "unhealthy"
+	statusStale     = "stale"
+)
+
 // heartbeatEventType is the event type name. Consumers (status page,
 // alerting, graphs) filter on this.
 const heartbeatEventType = "service.heartbeat"
@@ -182,11 +190,11 @@ func (h *heartbeatEmitter) probeAndEmit(ctx context.Context, p probe) {
 func (h *heartbeatEmitter) probeOnce(ctx context.Context, p probe) (status, errMsg string) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.url, http.NoBody)
 	if err != nil {
-		return "unhealthy", "build request: " + err.Error()
+		return statusUnhealthy, "build request: " + err.Error()
 	}
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
-		return "unhealthy", "request: " + err.Error()
+		return statusUnhealthy, "request: " + err.Error()
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -195,18 +203,18 @@ func (h *heartbeatEmitter) probeOnce(ctx context.Context, p probe) (status, errM
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
-		return "unhealthy", fmt.Sprintf("http %d", resp.StatusCode)
+		return statusUnhealthy, fmt.Sprintf("http %d", resp.StatusCode)
 	}
 	if p.bodyMatch != "" {
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if err != nil {
-			return "unhealthy", "read body: " + err.Error()
+			return statusUnhealthy, "read body: " + err.Error()
 		}
 		if !bytes.Contains(body, []byte(p.bodyMatch)) {
-			return "unhealthy", "body missing expected marker"
+			return statusUnhealthy, "body missing expected marker"
 		}
 	}
-	return "healthy", ""
+	return statusHealthy, ""
 }
 
 // --------------- Status projection ---------------
@@ -260,7 +268,7 @@ func projectStatus(events []clients.EventEntry, now time.Time) []serviceStatus {
 		}
 		switch {
 		case age > heartbeatTTL:
-			s.Status = "stale"
+			s.Status = statusStale
 		default:
 			s.Status = reported
 		}
@@ -317,9 +325,9 @@ func (cp *ControlPlane) currentServiceStatus() []serviceStatus {
 // client-side polling — the page is refreshed server-side on each hit.
 // Keeps the dependency surface at zero beyond what CP already ships.
 func renderStatusHTML(services []serviceStatus) string {
-	overall := "healthy"
+	overall := statusHealthy
 	for _, s := range services {
-		if s.Status != "healthy" {
+		if s.Status != statusHealthy {
 			overall = "degraded"
 			break
 		}
