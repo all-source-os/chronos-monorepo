@@ -19,39 +19,6 @@ path = "src/lib.rs"
 name = "cn"
 path = "src/main.rs"
 
-[dependencies]
-allsource-core = { version = "0.19", path = "../core", default-features = false, features = [
-    "embedded",
-    "embedded-replicant",
-    "embedded-projections",
-] }
-anyhow = "1.0"
-axum = { version = "0.8", features = ["json", "ws"] }
-chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4.5", features = ["derive"] }
-crossterm = "0.28"
-arboard = "3.4"
-fuzzy-matcher = "0.3"
-hotpath = { version = "0.14", optional = true }
-notify = "7.0"
-dashmap = "6.1"
-rand = "0.10"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-toml = "0.8"
-ratatui = "0.29"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tabled = "0.17"
-thiserror = "2.0"
-tokio = { version = "1.48", features = ["full"] }
-tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
-futures-util = "0.3"
-tokio-stream = { version = "0.1", features = ["sync"] }
-tower-http = { version = "0.6", features = ["cors", "trace"] }
-tracing = "0.1"
-uuid = { version = "1", features = ["serde"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
 [features]
 # Prime: graph + recall for semantic task search and relationship discovery
 prime = ["allsource-core/prime"]
@@ -59,6 +26,60 @@ prime-full = ["prime", "allsource-core/prime-vectors"]
 # Profiling
 hotpath = ["dep:hotpath"]
 hotpath-alloc = ["hotpath/hotpath-alloc"]
+# Heap profiling — replaces the global allocator when active; mutually
+# exclusive with the default mimalloc swap.
+dhat-heap = ["dep:dhat"]
+
+[dependencies]
+allsource-core = { version = "0.19", path = "../core", default-features = false, features = [
+    "embedded",
+    "embedded-replicant",
+    "embedded-projections",
+] }
+anyhow = "1.0"
+arboard = "3.4"
+axum = { version = "0.8", features = ["json", "ws"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive"] }
+crossterm = "0.28"
+dashmap = "6.1"
+dhat = { version = "0.3", optional = true }
+futures-util = "0.3"
+fuzzy-matcher = "0.3"
+hotpath = { version = "0.14", optional = true }
+mimalloc = { version = "0.1", default-features = false }
+notify = "7.0"
+rand = "0.10"
+ratatui = "0.29"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tabled = "0.17"
+thiserror = "2.0"
+tokio = { version = "1.48", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
+toml = "0.8"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["serde"] }
 
 [dev-dependencies]
+divan = "0.1"
+iai-callgrind = "0.14"
 tempfile = "3.23"
+
+[[bench]]
+name = "hot_path"
+harness = false
+
+[[bench]]
+name = "iai"
+harness = false
+
+[profile.release-debug]
+inherits = "release"
+debug = true
+split-debuginfo = "unpacked"
+strip = false

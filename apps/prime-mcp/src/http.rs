@@ -50,6 +50,7 @@ pub async fn serve(state: Arc<AppState>, port: u16) -> anyhow::Result<()> {
         // Status endpoints
         .route("/api/v1/prime/stats", get(get_stats))
         .route("/health", get(health))
+        .merge(crate::profiling::routes())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 

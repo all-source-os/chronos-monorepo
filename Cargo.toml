@@ -148,3 +148,11 @@ codegen-units = 1
 lto = true
 opt-level = 3
 strip = true
+
+# Profile for CPU/heap profiling — release optimizations but with symbols so
+# samply/pprof/dhat can produce readable output. Not used by default builds.
+[profile.release-debug]
+inherits = "release"
+debug = true
+split-debuginfo = "unpacked"
+strip = false

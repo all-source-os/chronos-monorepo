@@ -1,3 +1,6 @@
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[cfg(feature = "replication")]
 use allsource_core::replication::{ReplicationMode, WalReceiver, WalShipper};
 use allsource_core::{

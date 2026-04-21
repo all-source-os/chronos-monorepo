@@ -1,3 +1,11 @@
+#[cfg(all(not(target_env = "msvc"), not(feature = "dhat-heap")))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -6,6 +14,7 @@ use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 
 mod http;
+mod profiling;
 mod protocol;
 mod tools;
 mod transport;

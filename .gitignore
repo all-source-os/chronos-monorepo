@@ -49,6 +49,11 @@ coverage
 # Rust
 **/*.rs.bk
 
+# Perf diagnostic artifacts (samply profiles, dhat heap reports).
+# PERF_NOTES.md documents how to regenerate them; no need to version.
+apps/*/perf-artifacts/
+**/dhat-heap.json
+
 # ML model caches (fastembed downloads ONNX models at runtime)
 .fastembed_cache/
 .recall-bench-data/

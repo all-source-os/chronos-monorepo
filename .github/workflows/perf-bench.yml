@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'apps/core/**'
+      - 'apps/prime-mcp/**'
+      - 'apps/chronis/**'
       - 'Cargo.lock'
 
 concurrency:
@@ -15,8 +17,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  benchmark:
-    name: Rust Benchmarks
+  criterion:
+    name: Criterion wall-clock (throughput tracker, non-blocking)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -61,3 +63,103 @@ jobs:
           summary-always: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           comment-always: true
+
+  iai-callgrind:
+    # Deterministic instruction-count regression gate. Runs alongside the
+    # criterion wall-clock job; unlike criterion's 115% advisory threshold,
+    # this job fails the build on >3% instruction-count regression.
+    # See ~/.claude/skills/rust-perf/SKILL.md Phase 3.
+    name: iai-callgrind (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: allsource-core
+            working-directory: apps/core
+          - package: allsource-prime
+            working-directory: apps/prime-mcp
+          - package: chronis
+            working-directory: apps/chronis
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: ${{ matrix.working-directory }}
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valgrind
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "${{ matrix.working-directory }} -> target"
+          shared-key: iai-perf-${{ matrix.package }}
+          cache-on-failure: true
+
+      - name: Run iai-callgrind and compare to main baseline
+        id: bench
+        run: |
+          set -o pipefail
+          cargo bench --bench iai -- --save-baseline main | tee /tmp/iai-output.txt
+
+      - name: Enforce 3% regression threshold
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, sys
+          output = pathlib.Path("/tmp/iai-output.txt").read_text()
+          pattern = re.compile(r"Instructions:.*?Change:\s*([+-]?\d+\.?\d*)%", re.DOTALL)
+          worst = 0.0
+          for m in pattern.finditer(output):
+              pct = float(m.group(1))
+              if pct > worst:
+                  worst = pct
+          print(f"worst instruction-count regression: {worst:.2f}% (threshold 3%)")
+          if worst > 3.0:
+              print(f"::error::Perf regression {worst:.2f}% exceeds 3% threshold")
+              sys.exit(1)
+          PY
+
+      - name: Comment iai summary on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('/tmp/iai-output.txt', 'utf8');
+            const truncated = body.length > 60000 ? body.slice(0, 60000) + '\n... (truncated)' : body;
+            const marker = '<!-- iai-perf:${{ matrix.package }} -->';
+            const commentBody = `${marker}\n### iai-callgrind — \`${{ matrix.package }}/iai\`\n\n\`\`\`\n${truncated}\n\`\`\``;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody,
+              });
+            }

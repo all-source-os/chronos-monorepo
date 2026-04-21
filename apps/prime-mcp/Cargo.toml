@@ -15,12 +15,22 @@ readme = "README.md"
 name = "allsource-prime"
 path = "src/main.rs"
 
+[features]
+# In-process CPU profiling endpoint behind /debug/pprof/profile.
+# Gate at the HTTP layer — do NOT ship with this enabled by default.
+profiling = ["dep:pprof"]
+# Heap profiling; replaces the global allocator when active.
+# Mutually exclusive with the default jemallocator swap.
+dhat-heap = ["dep:dhat"]
+
 [dependencies]
 allsource-core = { version = "0.19.2", path = "../../apps/core", default-features = false, features = ["prime-recall", "prime-vectors"] }
 anyhow = "1.0"
 axum = { version = "0.8", features = ["json"] }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive", "env"] }
+dhat = { version = "0.3", optional = true }
+pprof = { version = "0.14", default-features = false, features = ["flamegraph", "prost-codec", "cpp"], optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
@@ -28,6 +38,27 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.6"
+
+[dev-dependencies]
+divan = "0.1"
+iai-callgrind = "0.14"
+
+[[bench]]
+name = "hot_path"
+harness = false
+
+[[bench]]
+name = "iai"
+harness = false
+
+[profile.release-debug]
+inherits = "release"
+debug = true
+split-debuginfo = "unpacked"
+strip = false
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
