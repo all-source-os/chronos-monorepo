@@ -55,6 +55,7 @@ RUN mkdir -p tooling/performance/src sdks/rust/src sdks/rust/examples \
         > apps/mcp-server-elixir/native/core_nif/Cargo.toml && \
     echo '' > apps/mcp-server-elixir/native/core_nif/src/lib.rs && \
     echo 'fn main() {}' > apps/core/benches/performance_benchmarks.rs && \
+    echo 'fn main() {}' > apps/core/benches/iai.rs && \
     echo 'fn main() {}' > apps/core/tests/stress_tests/seven_day_stress.rs && \
     cargo chef prepare --recipe-path recipe.json
 
@@ -92,6 +93,7 @@ RUN mkdir -p apps/core/src tooling/performance/src sdks/rust/src sdks/rust/examp
 COPY apps/core/src apps/core/src
 RUN mkdir -p apps/core/benches apps/core/tests/stress_tests && \
     echo 'fn main() {}' > apps/core/benches/performance_benchmarks.rs && \
+    echo 'fn main() {}' > apps/core/benches/iai.rs && \
     echo 'fn main() {}' > apps/core/tests/stress_tests/seven_day_stress.rs
 
 # =============================================================================

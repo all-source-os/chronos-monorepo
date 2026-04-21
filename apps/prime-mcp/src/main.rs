@@ -1,6 +1,10 @@
-#[cfg(all(not(target_env = "msvc"), not(feature = "dhat-heap")))]
+// mimalloc chosen over jemallocator for Docker build simplicity — jemalloc's
+// autoconf-based C build needs more tooling than the slim runtime image has.
+// For this workload (stdio-dominated + occasional HTTP) the allocator choice
+// is secondary; mimalloc is fine for long-running servers and builds cleanly.
+#[cfg(not(feature = "dhat-heap"))]
 #[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]

@@ -1,9 +1,9 @@
 //! iai-callgrind deterministic instruction-count benchmarks (Linux/valgrind only).
 //! Compiles on macOS via `cargo check --bench iai`; runs in CI via perf-bench.yml.
 
-#[cfg(all(not(target_env = "msvc"), not(feature = "dhat-heap")))]
+#[cfg(not(feature = "dhat-heap"))]
 #[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use allsource_core::prime::Prime;
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};

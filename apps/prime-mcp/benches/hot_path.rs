@@ -1,9 +1,9 @@
 //! divan wall-clock benchmarks for Prime hot paths.
 //! Runs locally on any OS. Pairs with `iai.rs` for the CI regression gate.
 
-#[cfg(all(not(target_env = "msvc"), not(feature = "dhat-heap")))]
+#[cfg(not(feature = "dhat-heap"))]
 #[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use allsource_core::prime::Prime;
 use serde_json::json;

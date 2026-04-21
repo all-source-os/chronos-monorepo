@@ -7,7 +7,7 @@ Driven by the global `rust-perf` skill (`~/.claude/skills/rust-perf/SKILL.md`) a
 | Signal | Finding | Implication |
 |---|---|---|
 | `hotpath` instrumentation | **Not present** | Skip Phase 1a; go directly to Phase 2 sampling |
-| `#[global_allocator]` | **Not present** | Phase 4a applies. Default pick for Prime: **jemallocator** per the decision tree's "long-running server" heuristic — Prime is a persistent process serving either a stdio client (Claude) or HTTP requests over a long session. |
+| `#[global_allocator]` | **Not present** | Phase 4a. Tree initially suggested jemallocator (long-running-server heuristic), but the `rust:slim` Docker base doesn't ship jemalloc's autoconf tooling, so `tikv-jemalloc-sys` fails to compile in the Dockerfile. **Swapped to mimalloc** — matches Core/chronis, builds with the existing `pkg-config libssl-dev cmake g++` apt deps. For a stdio-dominated workload the allocator choice is secondary. |
 | Existing benches | **None** — no `benches/` directory, no `[[bench]]` entries in `Cargo.toml` | Write divan + iai-callgrind benches from scratch |
 | `tracing::` usage | Yes, throughout | tracing-flame is a fallback option |
 | HTTP server | Axum, `src/http.rs` (activated via `--mode http --port <n>`) | Phase 2b pprof endpoint template applies cleanly |
@@ -54,7 +54,7 @@ cargo bench --bench hot_path -- prime_recall
 ### Local-capable (this session, macOS arm64)
 
 - [x] Phase 0 detection recorded (this file)
-- [ ] Phase 4a — swap global allocator to jemallocator in `src/main.rs` + bench crate; record compile-check passes (actual wall-clock delta measured via the divan bench below)
+- [ ] Phase 4a — swap global allocator to mimalloc (downgraded from jemallocator after Docker build failure); record compile-check passes
 - [ ] Phase 3 — add `benches/hot_path.rs` (divan) targeting Prime recall + vector search; capture baseline, then swap allocator, re-run, record delta
 - [ ] Phase 2a — samply flamegraph against the workload; top 5 hot paths documented
 - [ ] Phase 4b — dhat-heap harness via an example binary or test; capture top allocation sites
@@ -78,7 +78,7 @@ cargo bench --bench hot_path -- prime_recall
 | Change | Where | Status |
 |---|---|---|
 | Phase 0 detection | this file | ✅ |
-| jemallocator `#[global_allocator]` (feature-aware: disabled when `dhat-heap` is on) | `src/main.rs` | ✅ |
+| mimalloc `#[global_allocator]` (dhat-heap-aware; jemallocator attempted first but reverted for Docker build compatibility) | `src/main.rs` | ✅ |
 | Shared `profiling` module with `/debug/pprof/profile?seconds=N` behind `--features profiling` | `src/profiling.rs` + `src/http.rs` | ✅ `cargo check --features profiling` passes |
 | `dhat-heap` feature wiring on main allocator | `src/main.rs`, `Cargo.toml` | ✅ |
 | divan bench (`benches/hot_path.rs`) covering `add_node`, `add_node_batch`, `stats_over_graph` | `benches/hot_path.rs` | ✅ compiles via `cargo check --benches` |
@@ -103,9 +103,9 @@ Because this is macOS-specific and the iai-callgrind regression gate runs in `ub
 | `bench_add_node_batch::medium` | TBD | | | |
 | `bench_stats_over_populated_graph` | TBD | | | |
 
-### Post-jemallocator delta
+### Post-allocator delta
 
-Not measured: the jemallocator swap is already live in `main.rs` + benches and all numbers captured will be post-swap. A back-to-back A/B against the system allocator is achievable by git-reverting the `#[global_allocator]` lines on a scratch PR, running the gate, and comparing — not worth doing just for the write-up since the decision tree already routed to jemallocator on heuristic (long-running server). If the post-jemallocator CI baseline shows an unexpected regression on some Prime operation, that back-to-back is the natural next step.
+Not measured locally (macOS linker wall, see above). Allocator is **mimalloc** (downgraded from jemallocator after the initial CI run showed `tikv-jemalloc-sys` failing to build in the `rust:slim` Docker base). Core's criterion A/B showed mimalloc delivering −32.7% on an allocation-heavy ingest path; Prime's workload is less allocation-dominated, so expect a smaller win — the CI iai-callgrind baseline will quantify it.
 
 ### samply / dhat
 
@@ -132,6 +132,6 @@ For the record, per the decision tree in `~/.claude/skills/rust-perf/SKILL.md`:
 - **PGO: skipped.** Rationale captured above (not CPU-bound at production rates).
 - **BOLT: skipped.** Same rationale; BOLT additionally requires Linux LLVM BOLT binary which this repo's Dockerfile doesn't currently install.
 - **pprof endpoint: added** but feature-gated; not in the default build; `cargo build --release` of prime-mcp on Fly continues to have zero profiling overhead.
-- **Allocator: jemallocator, not mimalloc** — diverges from Core's pick intentionally per the long-running-server heuristic.
+- **Allocator: mimalloc** — initially jemallocator per the long-running-server heuristic, but the Dockerfile's `rust:slim` base doesn't ship jemalloc's autoconf tooling. Rather than bloat the Docker image to accommodate a heuristic pick, swapped to mimalloc (which matches Core/chronis and builds cleanly). The heuristic was soft; any modern allocator beats glibc's here.
 
 Each is what the tree should route to for this shape of binary, and the scaffolding reflects that.
