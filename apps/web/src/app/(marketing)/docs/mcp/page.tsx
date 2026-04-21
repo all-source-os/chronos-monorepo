@@ -35,7 +35,7 @@ export default function McpPage() {
               Model Context Protocol
             </a>{" "}
             is an open standard that lets AI assistants interact with external
-            tools and data sources. AllSource&apos;s MCP server exposes 27+ tools
+            tools and data sources. AllSource&apos;s MCP server exposes 43 tools
             for event management, analytics, schema operations, and system
             administration.
           </p>

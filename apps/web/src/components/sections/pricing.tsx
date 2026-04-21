@@ -44,21 +44,12 @@ export default function PricingSection() {
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 sm:2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {siteConfig.pricing.map((plan, index) => (
           <motion.div
             key={plan.name}
             initial={{ y: 50, opacity: 1 }}
-            whileInView={
-              isDesktop
-                ? {
-                    y: 0,
-                    opacity: 1,
-                    x: index === siteConfig.pricing.length - 1 ? -30 : index === 0 ? 30 : 0,
-                    scale: index === 0 || index === siteConfig.pricing.length - 1 ? 0.94 : 1.0,
-                  }
-                : {}
-            }
+            whileInView={{ y: 0, opacity: 1 }}
             viewport={{ once: true }}
             transition={{
               duration: 1.6,
@@ -70,12 +61,7 @@ export default function PricingSection() {
             }}
             className={cn(
               "rounded-2xl border-[1px] p-6 bg-background text-center lg:flex lg:flex-col lg:justify-center relative",
-              plan.isPopular ? "border-primary border-[2px]" : "border-border",
-              index === 0 || index === siteConfig.pricing.length - 1
-                ? "z-0 transform translate-x-0 translate-y-0 -translate-z-[50px] rotate-y-[10deg]"
-                : "z-10",
-              index === 0 && "origin-right",
-              index === siteConfig.pricing.length - 1 && "origin-left"
+              plan.isPopular ? "border-primary border-[2px]" : "border-border"
             )}
           >
             {plan.isPopular && (

@@ -186,7 +186,7 @@ function HeroStats() {
   const stats = [
     { value: 469, suffix: "K", label: "events/sec", delay: 0 },
     { value: 11.9, suffix: "μs", label: "p99 latency", delay: 100 },
-    { value: 27, suffix: "", label: "MCP tools", delay: 200 },
+    { value: 43, suffix: "", label: "MCP tools", delay: 200 },
     { value: 129, suffix: "MB", label: "footprint", delay: 300 },
   ];
 

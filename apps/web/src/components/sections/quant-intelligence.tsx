@@ -7,7 +7,7 @@ import { motion } from "motion/react";
 const metrics = [
   { value: "11.9μs", label: "Query Latency" },
   { value: "469K", label: "Events/Second" },
-  { value: "27", label: "MCP Tools" },
+  { value: "43", label: "MCP Tools" },
   { value: "~129MB", label: "Binary Size" },
 ];
 
