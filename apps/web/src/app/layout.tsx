@@ -31,6 +31,29 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://rsms.me/" />
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "AllSource",
+              url: "https://all-source.xyz",
+              logo: "https://all-source.xyz/logo.png",
+              description:
+                "AI-native event store for temporal data intelligence. 469K events/sec, 11.9us queries, 43 MCP tools.",
+              sameAs: [
+                "https://github.com/all-source-os/all-source",
+                "https://twitter.com/allsourcedev",
+              ],
+              contactPoint: {
+                "@type": "ContactPoint",
+                email: "hello@all-source.xyz",
+                contactType: "customer service",
+              },
+            }),
+          }}
+        />
       </head>
       <body className={cn("min-h-screen bg-background antialiased w-full mx-auto scroll-smooth")}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>

@@ -4,8 +4,10 @@ import { siteConfig } from "@/lib/config";
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata = constructMetadata({
-  title: "Blog",
-  description: `Latest news and updates from ${siteConfig.name}.`,
+  title: "Blog — Engineering, AI Agents, and Event Sourcing",
+  description:
+    "Technical articles on event sourcing, AI agent memory, time-travel queries, and building with AllSource. Written by the team behind 469K events/sec Rust infrastructure.",
+  canonical: "/blog",
 });
 
 export default async function Blog() {

@@ -280,6 +280,7 @@ function HeroImage() {
           loop
           muted
           playsInline
+          aria-label="AllSource dashboard demo: event explorer, time-travel queries, metrics, and pricing tiers"
           className="relative border rounded-lg shadow-lg shadow-primary/10 max-w-screen-lg transition-shadow duration-500 group-hover:shadow-xl group-hover:shadow-primary/20"
         />
       </div>

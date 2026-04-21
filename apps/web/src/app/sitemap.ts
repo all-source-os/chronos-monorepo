@@ -24,6 +24,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/docs/prime/mcp`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/docs/prime/http`, priority: 0.7, changeFrequency: "monthly" as const },
     { url: `${base}/docs/prime/embedded`, priority: 0.7, changeFrequency: "monthly" as const },
+    { url: `${base}/use-cases`, priority: 0.8, changeFrequency: "monthly" as const },
+    { url: `${base}/compare/eventstoredb`, priority: 0.7, changeFrequency: "monthly" as const },
     { url: `${base}/solutions/agent-memory`, priority: 0.9, changeFrequency: "monthly" as const },
     { url: `${base}/solutions/quant-intelligence`, priority: 0.7, changeFrequency: "monthly" as const },
     { url: `${base}/changelog`, priority: 0.5, changeFrequency: "weekly" as const },

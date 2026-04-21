@@ -37,14 +37,14 @@ const useCases = [
   },
   {
     id: "event-replay",
-    title: "Event RotateCcw & Debugging",
+    title: "Event Replay & Debugging",
     subtitle: "Reproduce bugs by rewinding history",
     icon: RotateCcw,
     color: "from-purple-500/20 to-purple-500/5",
     description:
-      "Stop guessing how production got into a broken state. RotateCcw the exact sequence of events that led to the bug in a staging environment, or time-travel the projection to any past moment.",
+      "Stop guessing how production got into a broken state. Replay the exact sequence of events that led to the bug in a staging environment, or time-travel the projection to any past moment.",
     scenario:
-      "A checkout silently fails at 2 AM. RotateCcw the last 10 minutes of events for that order id against a fresh projection — the divergence shows up in the first diff.",
+      "A checkout silently fails at 2 AM. Replay the last 10 minutes of events for that order id against a fresh projection — the divergence shows up in the first diff.",
     bullets: [
       "Deterministic replay against any projection",
       "11.9μs p99 query latency for tight debug loops",

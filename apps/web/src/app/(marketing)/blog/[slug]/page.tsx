@@ -20,6 +20,9 @@ export async function generateMetadata({
   return {
     title,
     description,
+    alternates: {
+      canonical: `/blog/${post.slug}`,
+    },
     openGraph: {
       title,
       description,
@@ -65,9 +68,23 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
               ? `${siteConfig.url}${post.metadata.image}`
               : `${siteConfig.url}/blog/${post.slug}/opengraph-image`,
             url: `${siteConfig.url}/blog/${post.slug}`,
+            mainEntityOfPage: {
+              "@type": "WebPage",
+              "@id": `${siteConfig.url}/blog/${post.slug}`,
+            },
             author: {
-              "@type": "Person",
-              name: siteConfig.name,
+              "@type": "Organization",
+              name: post.metadata.author || "AllSource",
+              url: "https://all-source.xyz",
+            },
+            publisher: {
+              "@type": "Organization",
+              name: "AllSource",
+              url: "https://all-source.xyz",
+              logo: {
+                "@type": "ImageObject",
+                url: `${siteConfig.url}/logo.png`,
+              },
             },
           }),
         }}
