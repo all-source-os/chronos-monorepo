@@ -1,0 +1,131 @@
+---
+title: "Event Sourcing for AI Agent Memory: A Practical Guide"
+publishedAt: "2026-04-21"
+summary: "How to use AllSource as durable, time-travelling memory for LLM agents. Store conversations, decisions, and context as events. Query any past state. Give agents memory that survives restarts."
+author: "all.source team"
+image: "/assets/blog/event-sourcing-ai-agent-memory-guide.webp"
+category: "use-cases"
+---
+
+**Event sourcing is the ideal storage model for AI agent memory** because agents need the same thing auditors need: a complete, immutable history of everything that happened, queryable at any point in time. Here's how to wire it up with AllSource.
+
+## Why agents need event sourcing (not a vector database)
+
+Most agent memory solutions store the *current* state — a vector embedding of the latest context. This is like keeping only the most recent database snapshot and throwing away the transaction log. You lose:
+
+- **Temporal reasoning**: "What did I decide about this topic last week?"
+- **Provenance**: "Why did I recommend that action?"
+- **Replay**: "What would I have said if I'd known X at the time?"
+
+Event sourcing stores every state change as an immutable event. The current state is derived — a projection over the event stream. You can always reconstruct any past state, replay decisions, and understand the full chain of reasoning.
+
+## The basic pattern: agent actions as events
+
+Every meaningful agent action becomes an event:
+
+```bash
+# Agent observes something
+curl -X POST https://api.all-source.xyz/api/v1/events \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{
+    "event_type": "agent.observation",
+    "entity_id": "agent-alpha",
+    "payload": {
+      "source": "user_conversation",
+      "content": "User prefers concise answers with code examples",
+      "confidence": 0.92,
+      "session_id": "sess-789"
+    }
+  }'
+
+# Agent makes a decision
+curl -X POST https://api.all-source.xyz/api/v1/events \
+  -d '{
+    "event_type": "agent.decision",
+    "entity_id": "agent-alpha",
+    "payload": {
+      "action": "switch_to_code_heavy_responses",
+      "reasoning": "User preference detected: prefers code examples",
+      "based_on": ["evt-001", "evt-003", "evt-007"]
+    }
+  }'
+```
+
+Each event captures what happened, why, and what evidence the decision was based on. This is the provenance chain that makes agent behavior auditable and debuggable.
+
+## Loading context: time-travel instead of RAG
+
+Instead of embedding everything into a vector store and doing similarity search, you can load context by querying the event timeline:
+
+```bash
+# What does this agent know about the user's preferences?
+curl "https://api.all-source.xyz/api/v1/events/query?\
+entity_id=agent-alpha&\
+event_type=agent.observation&\
+limit=20&sort=desc" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+For time-bounded context (e.g., "what happened in the last session"):
+
+```bash
+curl "https://api.all-source.xyz/api/v1/events/query?\
+entity_id=agent-alpha&\
+after=2026-04-20T09:00:00Z&\
+before=2026-04-20T17:00:00Z" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+This gives you deterministic, reproducible context loading — the same query always returns the same events. No embedding drift, no index staleness.
+
+## Projections: pre-computed agent state
+
+For frequently accessed agent state (like user preferences), build a projection that stays in sync:
+
+```json
+{
+  "name": "user-preferences",
+  "source": "agent.observation",
+  "reduce": {
+    "group_by": "entity_id",
+    "keep_latest": true,
+    "fields": ["content", "confidence"]
+  }
+}
+```
+
+The projection gives you 11.9μs lookups for the agent's current understanding of the user — no need to replay the full event stream on every request.
+
+## MCP integration: 43 tools for Claude
+
+AllSource ships with 43 MCP tools that connect directly to Claude Desktop. Your agent can:
+
+- **query_events**: Search the event stream by type, entity, or time range
+- **create_event**: Store new observations, decisions, or actions
+- **list_projections**: Check available pre-computed state
+- **get_snapshot**: Load a point-in-time snapshot of any entity
+
+This means Claude doesn't just *store* data in AllSource — it *reasons* about it using natural language queries over the event stream.
+
+## What this replaces
+
+| Traditional approach | Event sourcing approach |
+|---|---|
+| Pinecone + Redis for context | AllSource events + projections |
+| Custom memory manager | MCP tools (built-in) |
+| No temporal reasoning | Time-travel queries |
+| Embeddings drift over time | Immutable events, deterministic |
+| Can't explain past decisions | Full provenance chain |
+
+## Getting started
+
+```bash
+# Get an API key (free tier: 100K events/month)
+curl -X POST https://api.all-source.xyz/api/v1/onboard/start \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","name":"My Agent"}'
+```
+
+The response includes your API key and tenant ID. Start storing agent events immediately — no schema setup required (though we recommend it for production).
+
+For the Prime module (knowledge graphs + vector search + compressed index), see the [Prime platform page](/platform/prime). For the core event store, start at [all-source.xyz](https://all-source.xyz).

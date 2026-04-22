@@ -28,6 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/compare/eventstoredb`, priority: 0.7, changeFrequency: "monthly" as const },
     { url: `${base}/platform/event-sourcing`, priority: 0.9, changeFrequency: "monthly" as const },
     { url: `${base}/platform/stream-processing`, priority: 0.8, changeFrequency: "monthly" as const },
+    { url: `${base}/platform/prime`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/solutions/agent-memory`, priority: 0.9, changeFrequency: "monthly" as const },
     { url: `${base}/solutions/audit-compliance`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/solutions/real-time-analytics`, priority: 0.8, changeFrequency: "monthly" as const },

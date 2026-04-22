@@ -1,0 +1,109 @@
+---
+title: "Real-Time Dashboards Without ETL: Event Sourcing + Projections"
+publishedAt: "2026-04-21"
+summary: "How projections replace traditional ETL pipelines for real-time dashboards. AllSource event sourcing keeps materialized views in sync as events arrive — no Kafka, no Airflow, no batch jobs."
+author: "all.source team"
+image: "/assets/blog/real-time-dashboards-without-etl.webp"
+category: "use-cases"
+---
+
+**Projections give you real-time materialized views that stay in sync with your event stream — replacing the ETL pipeline, the data warehouse, and the batch scheduler with a single concept.** Here's how to build dashboards that update in milliseconds, not minutes.
+
+## The ETL problem
+
+Traditional real-time dashboards require a pipeline:
+
+```
+App DB → CDC (Debezium) → Kafka → Flink/Spark → Data Warehouse → Dashboard
+```
+
+Each hop adds latency, failure modes, and maintenance burden. When the pipeline breaks at 2 AM, your dashboards show stale data and nobody knows until the morning standup.
+
+## Projections: materialized views over events
+
+With AllSource, the dashboard reads from a projection — a materialized view that updates as events arrive:
+
+```bash
+# Events flow in as they happen
+curl -X POST https://api.all-source.xyz/api/v1/events \
+  -d '{
+    "event_type": "order.placed",
+    "entity_id": "order-789",
+    "payload": { "total": 149.99, "region": "us-east", "items": 3 }
+  }'
+```
+
+A projection folds over these events to maintain running state:
+
+```json
+{
+  "name": "revenue-by-region",
+  "source": "order.placed",
+  "stages": [
+    { "map": { "extract": ["payload.total", "payload.region"] } },
+    { "reduce": {
+      "group_by": "region",
+      "sum": "total",
+      "count": "*"
+    }}
+  ]
+}
+```
+
+The projection is always current — updated as each event arrives, not on a batch schedule. Your dashboard queries the projection at 11.9μs latency, not a data warehouse at 500ms+.
+
+## WebSocket streaming: push, don't poll
+
+For live dashboards, subscribe to the event stream via Phoenix Channels:
+
+```javascript
+// Connect to the AllSource WebSocket
+const socket = new Phoenix.Socket("wss://allsource-query.fly.dev/socket");
+socket.connect();
+
+const channel = socket.channel("events:all", {});
+channel.on("new_event", (event) => {
+  // Update the dashboard in real-time
+  updateChart(event.payload);
+});
+channel.join();
+```
+
+Events arrive in milliseconds — not on a 30-second poll interval. Your users see data change as it happens.
+
+## No separate infrastructure to maintain
+
+| Component | Traditional ETL | Event Sourcing |
+|---|---|---|
+| Change capture | Debezium + Kafka Connect | Built-in (events ARE the changes) |
+| Stream processing | Kafka + Flink/Spark | AllSource projections |
+| Data warehouse | Snowflake / BigQuery | AllSource Parquet storage |
+| Scheduler | Airflow / Dagster | Not needed (projections are real-time) |
+| Dashboard query layer | dbt + query engine | Direct projection lookup (11.9μs) |
+
+That's 5 services replaced by 1. The total cost is your AllSource subscription, not a five-figure monthly cloud bill.
+
+## When projections aren't enough
+
+Projections handle most dashboard use cases: running totals, group-by aggregations, top-N lists, time-windowed metrics. For complex analytical queries (multi-join, ad-hoc exploration), you can:
+
+1. **Export to Parquet**: AllSource stores events in Parquet natively — load the files into DuckDB or your preferred analytics engine for ad-hoc queries
+2. **Use the events/query API**: time-range queries with filters, before/after timestamps, and entity scoping
+3. **Build custom projections**: any computable function over the event stream can be a projection
+
+## Getting started
+
+```bash
+# 1. Sign up (free tier: 100K events/month)
+curl -X POST https://api.all-source.xyz/api/v1/onboard/start \
+  -d '{"email":"you@example.com","name":"Dashboard Demo"}'
+
+# 2. Ingest events
+curl -X POST https://api.all-source.xyz/api/v1/events \
+  -d '{"event_type":"metric.recorded","entity_id":"server-1","payload":{"cpu":72.5,"mem":4096}}'
+
+# 3. Query in real-time
+curl "https://api.all-source.xyz/api/v1/events/query?event_type=metric.recorded&limit=100&sort=desc"
+```
+
+Read more about [real-time analytics with AllSource](/solutions/real-time-analytics) or [stream processing pipelines](/platform/stream-processing).

@@ -1,0 +1,108 @@
+---
+title: "How to Build Audit Trails That Pass SOC2 with Event Sourcing"
+publishedAt: "2026-04-21"
+summary: "A practical guide to building SOC2-compliant audit trails using AllSource event sourcing. Immutable event logs, time-travel queries, and cryptographic integrity — without the compliance tax."
+author: "all.source team"
+image: "/assets/blog/audit-trails-soc2-event-sourcing.webp"
+category: "use-cases"
+---
+
+**Event sourcing gives you SOC2-ready audit trails for free.** Every state change is an append-only event with CRC32 checksums, full provenance, and the ability to reconstruct any past state in seconds. Here's how to set it up with AllSource.
+
+## The compliance problem
+
+SOC2 auditors ask three questions:
+
+1. **What changed?** They need a complete record of every state mutation.
+2. **Who changed it?** Every action needs an actor identity.
+3. **When did it change?** Timestamps must be immutable — no backdating.
+
+Traditional databases can't answer these questions because UPDATE and DELETE destroy history. You end up bolting on audit tables, change-data-capture pipelines, and log aggregators. Each layer adds complexity and failure modes.
+
+## Event sourcing solves this at the storage layer
+
+With AllSource, you don't build audit trails — you get them as a side effect of storing events:
+
+```bash
+curl -X POST https://api.all-source.xyz/api/v1/events \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_type": "user.permission_changed",
+    "entity_id": "user-456",
+    "payload": {
+      "actor": "admin-jane",
+      "field": "role",
+      "old_value": "viewer",
+      "new_value": "editor",
+      "reason": "Project lead promotion",
+      "ip": "10.0.1.42"
+    }
+  }'
+```
+
+This event is:
+- **Immutable** — append-only WAL with CRC32 checksums. No one can edit or delete it.
+- **Timestamped** — server-assigned timestamp, not client-provided.
+- **Attributed** — the `actor` field records who did it.
+- **Contextual** — the `reason` and `ip` fields capture why and where.
+
+## Time-travel for auditor queries
+
+When an auditor asks "what permissions did user-456 have on March 15th?", you run:
+
+```bash
+curl "https://api.all-source.xyz/api/v1/events/query?\
+entity_id=user-456&\
+event_type=user.permission_changed&\
+before=2026-03-16T00:00:00Z" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+The response is a complete timeline of permission changes, reconstructing the exact state at that moment. No joins, no log archaeology, no "let me get back to you in a week."
+
+## Schema governance catches breaking changes
+
+Register event schemas to ensure every audit event has the required fields:
+
+```bash
+curl -X POST https://api.all-source.xyz/api/v1/schemas \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "user.permission_changed",
+    "version": 1,
+    "schema": {
+      "type": "object",
+      "required": ["actor", "field", "old_value", "new_value"],
+      "properties": {
+        "actor": { "type": "string" },
+        "field": { "type": "string" },
+        "old_value": { "type": "string" },
+        "new_value": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    }
+  }'
+```
+
+If a developer accidentally pushes code that omits the `actor` field, the event is rejected at ingest time — not discovered during the audit six months later.
+
+## RBAC ensures separation of duties
+
+AllSource has 4 built-in roles (Admin, Developer, ReadOnly, ServiceAccount) with 7 granular permissions. For SOC2:
+
+- **Developers** can write events but can't delete or modify schemas
+- **ReadOnly** accounts for auditors who need to query but not write
+- **Admin** for schema governance and tenant management
+- **ServiceAccount** for automated systems with scoped access
+
+## What this costs you
+
+AllSource's free tier (100K events/month) is enough for most startups going through their first SOC2. The Pro tier ($29/month) gives you 1M events and 30-day retention — more than sufficient for the 90-day audit window.
+
+Compare this with building a custom audit system: CDC pipeline + Kafka + S3 + Athena + IAM policies. That's 4 services to maintain, 4 failure modes, and weeks of engineering time.
+
+**Event sourcing isn't a compliance feature you bolt on. It's a storage model that makes compliance the default.**
+
+Start free at [all-source.xyz](https://all-source.xyz), or read the [audit & compliance solution page](/solutions/audit-compliance) for more details.

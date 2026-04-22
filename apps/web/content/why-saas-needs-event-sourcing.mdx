@@ -1,0 +1,109 @@
+---
+title: "Why Your SaaS Needs Event Sourcing (Not Just a Database)"
+publishedAt: "2026-04-21"
+summary: "The business case for event sourcing in multi-tenant SaaS. Audit trails, tenant isolation, usage billing, and feature flags — all as a natural consequence of storing events instead of state."
+author: "all.source team"
+image: "/assets/blog/why-saas-needs-event-sourcing.webp"
+category: "use-cases"
+---
+
+**Event sourcing eliminates four SaaS infrastructure problems at once:** audit trails, tenant data isolation, usage-based billing, and undo/rollback — all as natural consequences of the storage model, not as features you build on top.
+
+## The four problems every SaaS hits at scale
+
+1. **"Who changed what?"** — A customer reports their settings were modified. Your database has the current state but no history. You grep access logs and hope.
+
+2. **"Is tenant data isolated?"** — You use row-level security or schema-per-tenant. But joins, migrations, and analytics queries constantly risk cross-tenant data leakage.
+
+3. **"How much did they use?"** — Usage-based billing requires counting operations. You add counters, worry about double-counting, and build reconciliation jobs. The counters drift.
+
+4. **"Can we undo this?"** — A customer accidentally deletes their project. You have no DELETE event — the rows are gone. You restore from a backup and lose 4 hours of other customers' data.
+
+## Event sourcing solves all four simultaneously
+
+In an event-sourced system, the database doesn't store current state — it stores the sequence of events that produced the state. Current state is derived.
+
+```bash
+# Instead of: UPDATE projects SET name = 'New Name' WHERE id = 123
+# You store:
+curl -X POST https://api.all-source.xyz/api/v1/events \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{
+    "event_type": "project.renamed",
+    "entity_id": "project-123",
+    "payload": {
+      "tenant_id": "tenant-acme",
+      "actor": "user-jane",
+      "old_name": "My Project",
+      "new_name": "New Name"
+    }
+  }'
+```
+
+Now you have:
+
+- **Audit**: the full rename history, with who did it and when
+- **Isolation**: every event is tagged with `tenant_id` — AllSource enforces tenant isolation at the API level with RBAC
+- **Billing**: count `project.*` events per tenant per month — that IS the usage
+- **Undo**: to "undo" the rename, query for the previous `project.renamed` event and apply the `old_name`
+
+## Usage-based billing without counters
+
+Instead of maintaining fragile counter tables, query your event stream:
+
+```bash
+# How many events did tenant-acme generate this month?
+curl "https://api.all-source.xyz/api/v1/events/query?\
+event_type=*&\
+after=2026-04-01T00:00:00Z&\
+before=2026-05-01T00:00:00Z" \
+  -H "Authorization: Bearer $TENANT_API_KEY"
+```
+
+The count in the response IS the billing metric. No CDC pipeline, no counter drift, no reconciliation jobs. AllSource's Control Plane even handles this natively — the tier system (Free: 100K events, Pro: 1M, Growth: 10M) is enforced at the API level.
+
+## Multi-tenant isolation as a first-class feature
+
+AllSource doesn't bolt on tenant isolation — it's built into the architecture:
+
+- **API keys are scoped to tenants** — a tenant's key can only access their events
+- **RBAC with 4 roles**: Admin, Developer, ReadOnly, ServiceAccount
+- **Policy engine** for custom authorization rules per tenant
+- **Per-tenant quotas** enforced at the Control Plane level
+
+Your code doesn't need `WHERE tenant_id = ?` on every query. The event store handles it.
+
+## Time-travel for debugging and support
+
+When a customer says "something broke yesterday," you can reconstruct exactly what happened:
+
+```bash
+# What was the state of project-123 at 3pm yesterday?
+curl "https://api.all-source.xyz/api/v1/events/query?\
+entity_id=project-123&\
+before=2026-04-20T15:00:00Z&\
+sort=desc&limit=1" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+No log archaeology. No "can you reproduce the issue?" The event stream IS the reproduction.
+
+## The cost comparison
+
+| Approach | What you build | Maintenance |
+|---|---|---|
+| PostgreSQL + audit tables + CDC + billing counters | 4+ services, weeks of work | Ongoing counter reconciliation, schema migrations break CDC |
+| AllSource event sourcing | 1 API call per event | Events are immutable — schema changes are new event types, old events stay valid |
+
+AllSource's free tier (100K events/month) covers most early-stage SaaS. At $29/month (Pro), you get 1M events — enough for a SaaS with hundreds of active users.
+
+## Getting started
+
+The fastest path:
+
+1. [Sign up](https://all-source.xyz/signup) (free, no credit card)
+2. Store your first event (one curl command)
+3. Build a projection for your most-queried state
+4. Replace your audit table with an event query
+
+Read more about [multi-tenant SaaS event sourcing](/solutions/multi-tenant-saas) or [compare with traditional databases](/blog/event-store-vs-database).

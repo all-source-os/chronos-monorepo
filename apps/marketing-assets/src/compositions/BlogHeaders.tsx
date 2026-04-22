@@ -182,6 +182,30 @@ export const blogHeaders: Record<string, BlogHeaderProps> = {
     gradient: "from-indigo-500 to-blue-500",
     accentColor: "#6366f1",
   },
+  "audit-trails-soc2-event-sourcing": {
+    title: "Audit Trails That Pass SOC2",
+    icon: "🛡️",
+    gradient: "from-blue-500 to-indigo-500",
+    accentColor: "#3b82f6",
+  },
+  "event-sourcing-ai-agent-memory-guide": {
+    title: "Event Sourcing for AI Agent Memory",
+    icon: "🧠",
+    gradient: "from-purple-500 to-violet-500",
+    accentColor: "#a855f7",
+  },
+  "why-saas-needs-event-sourcing": {
+    title: "Why Your SaaS Needs Event Sourcing",
+    icon: "🏗️",
+    gradient: "from-emerald-500 to-green-500",
+    accentColor: "#10b981",
+  },
+  "real-time-dashboards-without-etl": {
+    title: "Real-Time Dashboards Without ETL",
+    icon: "📈",
+    gradient: "from-cyan-500 to-blue-500",
+    accentColor: "#06b6d4",
+  },
 };
 
 // Factory: create a component for a specific blog slug
