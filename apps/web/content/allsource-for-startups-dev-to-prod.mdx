@@ -1,0 +1,230 @@
+---
+title: "AllSource for Startups: From Local Dev to Production in 15 Minutes"
+publishedAt: "2026-04-23"
+summary: "The fastest path from zero to event sourcing for startups and side projects. Self-service onboard, free tier, no infrastructure to manage. Move to production when you're ready — not before."
+author: "all.source team"
+image: "/assets/blog/allsource-for-startups-dev-to-prod.webp"
+category: "use-cases"
+---
+
+**You don't need infrastructure to start using AllSource.** One API call gives you a tenant, an API key, and 100K events/month for free. No Docker, no Kubernetes, no config files. Here's how startups and projects under development should use AllSource — from first prototype to production.
+
+## Phase 1: Prototype (5 minutes)
+
+You're exploring whether event sourcing fits your product. You don't want to commit to infrastructure. You want to try it right now.
+
+```bash
+# Create a tenant — no signup form, no email verification
+curl -X POST https://api.all-source.xyz/api/v1/onboard/start \
+  -H "Content-Type: application/json" \
+  -d '{"email":"dev@your-startup.com","name":"My Startup Dev"}'
+```
+
+Save the `api_key` from the response. That's your only credential. Store it in `.env`:
+
+```bash
+# .env.local
+ALLSOURCE_API_KEY=eyJhbGciOiJIUzI1NiIs...
+ALLSOURCE_URL=https://api.all-source.xyz
+```
+
+Now ingest your first event:
+
+```bash
+source .env.local
+curl -X POST $ALLSOURCE_URL/api/v1/events \
+  -H "Authorization: Bearer $ALLSOURCE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_type": "user.signup",
+    "entity_id": "user-1",
+    "payload": {"email": "alice@example.com", "plan": "free"}
+  }'
+```
+
+**What you have now:** a hosted event store with WAL durability, time-travel queries, and 100K events/month. No servers to manage. No database to provision. Just HTTP calls.
+
+**What you don't need yet:** Docker, Kubernetes, self-hosting, schema governance, RBAC, projections, MCP tools. All of that exists when you're ready — but none of it is required to start.
+
+## Phase 2: Development (days to weeks)
+
+Your prototype works. You're building features. You need structure but not production-grade infrastructure.
+
+### Use SDKs instead of raw HTTP
+
+Pick your language and install the SDK:
+
+```bash
+# TypeScript
+bun add @allsource/client
+
+# Python
+pip install allsource-client
+
+# Go
+go get github.com/all-source-os/all-source/sdks/go
+
+# Rust
+cargo add allsource
+```
+
+The SDK wraps the same HTTP API but gives you typed events, error handling, and connection management:
+
+```typescript
+import { AllSourceClient } from '@allsource/client';
+
+const client = new AllSourceClient({
+  apiKey: process.env.ALLSOURCE_API_KEY,
+  baseUrl: 'https://api.all-source.xyz',
+});
+
+await client.ingestEvent({
+  eventType: 'order.placed',
+  entityId: 'order-123',
+  payload: { total: 49.99, items: ['widget-a', 'widget-b'] },
+});
+
+const events = await client.queryEvents({
+  eventType: 'order.placed',
+  limit: 10,
+  sort: 'desc',
+});
+```
+
+### Add schema validation (optional but recommended)
+
+Once your event types stabilize, register schemas to catch breaking changes early:
+
+```bash
+curl -X POST $ALLSOURCE_URL/api/v1/schemas \
+  -H "Authorization: Bearer $ALLSOURCE_API_KEY" \
+  -d '{
+    "name": "order.placed",
+    "version": 1,
+    "schema": {
+      "type": "object",
+      "required": ["total", "items"],
+      "properties": {
+        "total": {"type": "number"},
+        "items": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }'
+```
+
+Now if someone pushes code that sends an `order.placed` event without the `total` field, the API returns a 400 instead of silently accepting bad data.
+
+### Separate dev from prod early
+
+Create two tenants — one for development, one for production — even if "production" doesn't exist yet. This prevents test data from polluting your real event stream later:
+
+```bash
+# Dev tenant (you already have this from Phase 1)
+# Prod tenant (create when ready, even if unused)
+curl -X POST https://api.all-source.xyz/api/v1/onboard/start \
+  -d '{"email":"prod@your-startup.com","name":"My Startup Prod"}'
+```
+
+Use env vars to switch:
+
+```bash
+# .env.development
+ALLSOURCE_API_KEY=eyJ...dev-key
+ALLSOURCE_URL=https://api.all-source.xyz
+
+# .env.production
+ALLSOURCE_API_KEY=eyJ...prod-key
+ALLSOURCE_URL=https://api.all-source.xyz
+```
+
+### Chronis CLI for task management (optional)
+
+If your team uses chronis for task management, configure it to sync with your AllSource tenant:
+
+```toml
+# .chronis/config.toml
+[sync]
+mode = "remote"
+remote_url = "https://api.all-source.xyz"
+api_key = "eyJ...dev-key"
+```
+
+Now `cn sync` pushes your task events to AllSource. Your task history is durable and queryable.
+
+## Phase 3: Staging / Pre-production (when you have users)
+
+You have beta users. You need reliability guarantees but you're not ready for enterprise infrastructure.
+
+### Upgrade to Pro ($29/month)
+
+The free tier's 100K events/month will run out once you have real users. Pro gives you:
+
+- **1M events/month** — enough for a SaaS with hundreds of active users
+- **5 streams** — separate event streams per feature or tenant
+- **30-day retention** — vs 7 days on free
+- **x402 agent endpoints** — if you're building AI agent features
+- **MCP server (read-only)** — connect Claude Desktop for debugging
+
+### Add monitoring
+
+Point your monitoring at the health and status endpoints:
+
+```bash
+# Gateway health
+curl https://api.all-source.xyz/health
+
+# Status page (Vigil, already running)
+# https://status.all-source.xyz
+```
+
+If you use Better Stack, UptimeRobot, or similar — add `https://api.all-source.xyz/health` as a monitor. You'll get paged if AllSource goes down before your users notice.
+
+### Use scoped API keys
+
+Replace the onboard key with properly scoped keys:
+
+- **Backend service**: `developer` role (read + write events, manage schemas)
+- **Dashboard/analytics**: `readonly` role (read events, read projections)
+- **CI/CD**: `serviceaccount` role (read + write, no admin)
+
+See the [tenant setup guide](/docs/tenant-setup) for how to mint scoped keys.
+
+## Phase 4: Production
+
+You have paying customers. You need durability guarantees, audit trails, and the ability to scale.
+
+### What doesn't change
+
+Your application code doesn't change. The same `POST /api/v1/events` and `GET /api/v1/events/query` calls that worked in Phase 1 work in production. The SDK, the event types, the schemas — all the same.
+
+What changes:
+
+- **Tier**: Growth ($79/month) or Enterprise (custom) for higher quotas
+- **Key management**: admin-managed tenants with named IDs and scoped keys (see [tenant setup guide](/docs/tenant-setup))
+- **Monitoring**: AllSource status page + your own health checks
+- **Self-hosting (optional)**: if you need data sovereignty, AllSource is open source and runs on any Docker/K8s environment
+
+### Self-hosting vs hosted
+
+| | Hosted (api.all-source.xyz) | Self-hosted |
+|---|---|---|
+| Setup time | 5 minutes | 1-2 hours |
+| Maintenance | Zero | You manage upgrades, backups, scaling |
+| Data location | Fly.io iad (US East) | Your infrastructure |
+| Cost | $0-$79/month | Your compute costs |
+| Best for | Most startups | Regulated industries, data sovereignty |
+
+**Our recommendation:** stay on the hosted version until you have a specific reason to self-host (regulatory requirement, data sovereignty law, or >10M events/month where self-hosting is cheaper). The hosted version has the same durability guarantees (WAL + Parquet) as self-hosted.
+
+## The pattern
+
+```
+Day 1:    curl → onboard → ingest → query (free, 5 minutes)
+Week 2:   Add SDK, schema validation, separate dev/prod tenants
+Month 2:  Upgrade to Pro, add monitoring, scope API keys
+Month 6+: Growth/Enterprise tier, or self-host if needed
+```
+
+Each step is additive. You never throw away work from the previous step. Your event types, schemas, and application code carry forward unchanged.
+
+**Start now:** [all-source.xyz/docs/tenant-setup](/docs/tenant-setup) or fetch [all-source.xyz/llms.txt](https://all-source.xyz/llms.txt) if you're an agent reading this.

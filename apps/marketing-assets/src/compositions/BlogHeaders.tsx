@@ -200,6 +200,12 @@ export const blogHeaders: Record<string, BlogHeaderProps> = {
     gradient: "from-emerald-500 to-green-500",
     accentColor: "#10b981",
   },
+  "allsource-for-startups-dev-to-prod": {
+    title: "From Dev to Prod in 15 Minutes",
+    icon: "🚀",
+    gradient: "from-pink-500 to-rose-500",
+    accentColor: "#ec4899",
+  },
   "real-time-dashboards-without-etl": {
     title: "Real-Time Dashboards Without ETL",
     icon: "📈",
