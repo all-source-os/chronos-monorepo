@@ -1,0 +1,104 @@
+# AllSource — LLM & Agent Quick-Start
+# https://all-source.xyz
+# This file is designed to be fetched and parsed by LLMs and AI agents.
+
+## What is AllSource?
+AllSource is an AI-native event store. It stores every state change as an
+immutable event and lets you query any point in history. 469K events/sec
+ingestion, 11.9us p99 query latency, 43 MCP tools for Claude/GPT.
+
+## API Base URL
+https://api.all-source.xyz
+
+## How to create a tenant and get an API key (SELF-SERVICE)
+No admin access needed. One POST creates everything:
+
+  POST https://api.all-source.xyz/api/v1/onboard/start
+  Content-Type: application/json
+
+  {"email": "your-agent@example.com", "name": "My Agent"}
+
+Response (201):
+  {
+    "api_key": "eyJhbGciOiJIUzI1NiIs...",
+    "tenant_id": "onboard-your-agent-at-example-com",
+    "tier": "free",
+    "events_quota": 100000
+  }
+
+The api_key is a long-lived JWT. Use it immediately — no activation needed.
+Free tier: 100,000 events/month.
+
+## How to ingest an event
+
+  POST https://api.all-source.xyz/api/v1/events
+  Authorization: Bearer <api_key>
+  Content-Type: application/json
+
+  {
+    "event_type": "user.action",
+    "entity_id": "user-123",
+    "payload": {"action": "login", "source": "github"}
+  }
+
+Response: 200 OK with event ID.
+
+## How to query events
+
+  GET https://api.all-source.xyz/api/v1/events/query?event_type=user.action&limit=10&sort=desc
+  Authorization: Bearer <api_key>
+
+Response: {"events": [...], "count": 10}
+
+## Time-travel query (events before a timestamp)
+
+  GET https://api.all-source.xyz/api/v1/events/query?entity_id=user-123&before=2026-04-22T00:00:00Z
+  Authorization: Bearer <api_key>
+
+## Health check (no auth needed)
+
+  GET https://api.all-source.xyz/health
+
+## x402 priced route discovery (no auth needed)
+
+  GET https://api.all-source.xyz/x402/routes
+
+## Key endpoints
+
+  POST /api/v1/onboard/start     — Create tenant + API key (no auth)
+  POST /api/v1/events            — Ingest event
+  POST /api/v1/events/batch      — Ingest batch of events
+  GET  /api/v1/events/query      — Query events (filters: event_type, entity_id, before, after, limit, sort)
+  GET  /api/v1/projections       — List projections
+  GET  /api/v1/schemas           — List schemas
+  POST /api/v1/schemas           — Register event schema
+  GET  /health                   — Health check
+  GET  /x402/routes              — x402 payment route discovery
+
+## Authentication
+All API calls (except onboard, health, and x402/routes) require:
+  Authorization: Bearer <api_key>
+
+## Tiers
+- Free: 100K events/month, 1 stream, 7-day retention
+- Pro ($29/mo): 1M events/month, 5 streams, 30-day retention, x402 agent endpoints
+- Growth ($79/mo): 10M events/month, unlimited streams, 90-day retention
+- Enterprise: Custom
+
+## SDKs (optional — plain HTTP works fine)
+- Rust: https://crates.io/crates/allsource
+- TypeScript: https://github.com/all-source-os/all-source (sdks/typescript)
+- Python: https://github.com/all-source-os/all-source (sdks/python-client)
+- Go: https://github.com/all-source-os/all-source (sdks/go)
+
+## MCP Server
+43 tools for Claude Desktop. See https://all-source.xyz/docs/mcp
+
+## Status page
+https://status.all-source.xyz
+
+## More docs
+- Full API reference: https://all-source.xyz/docs/api
+- Tenant setup guide: https://all-source.xyz/docs/tenant-setup
+- Connecting without an SDK: https://all-source.xyz/blog/connecting-without-an-sdk
+- GitHub: https://github.com/all-source-os/all-source
