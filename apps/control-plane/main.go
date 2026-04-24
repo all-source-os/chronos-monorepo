@@ -368,7 +368,10 @@ func (cp *ControlPlane) setupRoutes() {
 	auth.GET("/session", cp.SessionHandler)
 
 	// Onboarding endpoint (public, no auth required)
+	// Rate-limited: 5 tenant creations per IP per hour to prevent bulk abuse.
+	onboardLimiter := NewIPRateLimiter(5, time.Hour)
 	onboard := cp.router.Group("/api/v1/onboard")
+	onboard.Use(IPRateLimitMiddleware(onboardLimiter))
 	onboard.POST("/start", cp.OnboardHandler)
 
 	// Agent registration (public, no auth required)
@@ -418,8 +421,10 @@ func (cp *ControlPlane) setupRoutes() {
 	// Tenant is injected from the authenticated caller; backends see CP's
 	// service JWT, never the caller's ask_ key. These sit under `api` so they
 	// inherit AuthMiddleware + PolicyMiddleware + x402 auto-pay gating.
-	api.POST("/events", RequirePermission(entities.PermissionWrite), cp.ProxyIngestSingle)
-	api.POST("/events/batch", RequirePermission(entities.PermissionWrite), cp.ProxyIngestBatch)
+	// Event ingestion — max 256KB per single event, 1MB per batch.
+	// Prevents storage abuse via oversized payloads.
+	api.POST("/events", MaxBodySize(256*1024), RequirePermission(entities.PermissionWrite), cp.ProxyIngestSingle)
+	api.POST("/events/batch", MaxBodySize(1024*1024), RequirePermission(entities.PermissionWrite), cp.ProxyIngestBatch)
 	api.GET("/events/query", RequirePermission(entities.PermissionRead), cp.ProxyEventsQuery)
 
 	// Prime catch-all: all /api/v1/prime/* methods (GET graph queries, POST
