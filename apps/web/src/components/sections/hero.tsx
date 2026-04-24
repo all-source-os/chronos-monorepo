@@ -147,9 +147,10 @@ function HeroTitles() {
           ease,
         }}
       >
-        The AI-native event store. Capture every state change, time-travel any point in history,
-        and let AI agents pay for what they use with{" "}
-        <span className="text-primary font-semibold">built-in x402 micropayments</span>.
+        The AI-native event store. Every event is{" "}
+        <span className="text-primary font-semibold">durable, provable, and time-travelable</span>.
+        {" "}WAL + Parquet persistence, CRC32 checksums, and sub-microsecond queries.
+        Built-in x402 micropayments let AI agents pay for what they use.
       </motion.p>
     </div>
   );

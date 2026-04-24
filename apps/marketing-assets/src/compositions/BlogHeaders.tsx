@@ -200,6 +200,12 @@ export const blogHeaders: Record<string, BlogHeaderProps> = {
     gradient: "from-emerald-500 to-green-500",
     accentColor: "#10b981",
   },
+  "how-allsource-core-works": {
+    title: "How AllSource Core Works",
+    icon: "🔧",
+    gradient: "from-slate-500 to-zinc-500",
+    accentColor: "#64748b",
+  },
   "allsource-for-startups-dev-to-prod": {
     title: "From Dev to Prod in 15 Minutes",
     icon: "🚀",
