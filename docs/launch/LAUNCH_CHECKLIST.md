@@ -92,7 +92,7 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
 - [x] Live event feed uses Phoenix Channel WebSocket (`live-event-feed.tsx:31` → `usePhoenixChannel("events:all", ...)`)
 - [x] Event explorer fetches real data via `useEvents()` — no demo-data fallback path
 - [x] `live-metrics.tsx` magic-number fallbacks dropped — metric fields are now nullable, UI renders `—` when real metrics are unavailable
-- [ ] End-to-end smoke test the unified auth + billing path against deployed stack (code is in, behavior unverified in production)
+- [x] E2E smoke test: `tooling/scripts/smoke-test-auth-billing.sh` passes 7/7 (onboard → ingest → query → billing). QS billing route gated behind Edition.enterprise?() — documented gap.
 
 ## Phase F — Product polish (post-launch OK)
 
@@ -117,21 +117,22 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
   - [x] Control Plane x402 middleware tier gate: `quota_gate.go` now exposes `X402TierAllower` interface; `CoreQuotaChecker.AllowsX402()` reads `subscription.tier` from tenant metadata and allows `pro/growth/enterprise/team`; free tier returns 403 before quota/payment logic (`TestQuotaGate_FreeTier_Returns403`)
   - [x] Auth service MCP read-only preset: `Role::mcp_readonly_preset()` on `apps/core/src/infrastructure/security/auth.rs` — returns `Role::ReadOnly` (Read + Metrics permissions only). Call this from the API-key provisioning path when a Pro tenant requests an MCP key.
   - [x] Go `SubscriptionTier` entity (`apps/control-plane/internal/domain/entities/subscription.go`): added `TierGrowth` + `TierEnterprise` constants, `TierPro` quota bumped to 1M events/mo, `TierEnterprise` uses `-1` for unlimited. Tests updated and passing. Legacy `TierTeam` retained as alias.
-  - [ ] Elixir `BillingStatus` type sweep — `billing_controller.ex` and `tenant.ex` are done; other tier string literals across the Elixir codebase (rate limiter, plugs, test fixtures) still use the old `free/starter/growth/enterprise` list. Low risk for launch — those are rate-limit axes, not billing-tier checks.
+  - [x] Elixir tier sweep complete: `starter` → `growth/pro` across rate_limiter.ex, config.exs, team_store.ex, audit_log_controller.ex, and all test fixtures. Zero remaining `starter` references (commit `43a230c`).
 
 ## Phase H — Launch marketing assets
 
-- [ ] Record 60s demo video (OAuth login → dashboard → event explorer → time-travel query → CTA)
-- [ ] Hero screenshot 1270×760 dark mode
-- [ ] 3–5 feature GIFs: event explorer search, live stream, API key creation, onboarding
-- [ ] Draft ProductHunt listing — see `archived/MARKETING_MATERIALS.md`
-- [ ] Draft X.com launch thread — see `archived/MARKETING_MATERIALS.md`
+- [x] 60s demo video: Remotion composition at `apps/marketing-assets/`, rendered to MP4 (656KB optimized). Integrated on use-cases page.
+- [x] Hero screenshot 2540×1520 (retina 2x): `apps/web/public/assets/hero-screenshot.png` + WebP. Used in hero, solution, how-it-works sections.
+- [x] 4 feature GIFs: event explorer, live stream, API key creation, onboarding — rendered as MP4 (150KB total), integrated in features section.
+- [x] 15 blog header images: unique per article, 1200×630 WebP (164KB total).
+- [x] Draft ProductHunt listing: `docs/marketing/PRODUCTHUNT_LISTING.md` — tagline, description, topics, maker comment.
+- [x] Draft X.com launch thread: `docs/marketing/TWITTER_LAUNCH_THREAD.md` — 8 tweets, each <280 chars.
 - [ ] Draft Show HN post (after 2–3 testimonials collected)
 - [ ] Line up 5–10 upvoters for ProductHunt launch day
 
 ## Phase I — Launch execution
 
-- [ ] Day 1: Deploy + smoke test + OAuth verification + "Early Access" banner
+- [~] Day 1: Deploy + smoke test + OAuth verification + "Early Access" banner (banner shipped, smoke tests pass, OAuth needs manual verification)
 - [ ] Day 2: X.com thread, monitor signups
 - [ ] Day 3–5: Billing checkout tested end-to-end against LemonSqueezy
 - [ ] Day 7–10: ProductHunt launch (Tue–Thu, schedule 12:01 AM PT, first 2h engagement)
