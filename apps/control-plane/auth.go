@@ -707,9 +707,10 @@ type LoginRequest struct {
 
 // RegisterRequest represents a registration request from the frontend.
 type RegisterRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Name              string `json:"name" binding:"required"`
+	Email             string `json:"email" binding:"required"`
+	Password          string `json:"password" binding:"required"`
+	TurnstileResponse string `json:"cf_turnstile_response"` // Optional: Cloudflare Turnstile token from the web signup form
 }
 
 // LoginHandler handles user login.
@@ -839,6 +840,16 @@ func (cp *ControlPlane) RegisterHandler(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": "invalid request", "message": err.Error()})
 		return
+	}
+
+	// Verify Cloudflare Turnstile token if configured. Browser signup sends
+	// cf_turnstile_response; CLI/agent callers omit it. If the verifier is
+	// nil (TURNSTILE_SECRET_KEY unset), this is a no-op.
+	if cp.turnstile != nil && req.TurnstileResponse != "" {
+		if err := cp.turnstile.Verify(c.Request.Context(), req.TurnstileResponse, clientIP(c)); err != nil {
+			c.JSON(403, gin.H{"error": "captcha_failed", "message": "Turnstile verification failed. Please try again."})
+			return
+		}
 	}
 
 	// Register credentials in Core (Core handles password hashing)

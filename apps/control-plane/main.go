@@ -96,6 +96,7 @@ type ControlPlane struct {
 	// service JWT (backends trust CP, not the caller). Tenant is injected from
 	// the authenticated caller's identity before forwarding.
 	delegation *delegationClient
+	turnstile  *TurnstileVerifier
 }
 
 // NewControlPlane creates a new control plane instance with full middleware stack.
@@ -286,6 +287,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		x402Pricing:     x402Pricing,
 		x402Facilitator: x402Facilitator,
 		delegation:      delegation,
+		turnstile:       NewTurnstileVerifier(),
 	}
 
 	cp.setupMiddleware()

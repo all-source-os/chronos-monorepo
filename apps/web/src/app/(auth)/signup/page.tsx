@@ -14,10 +14,13 @@ import {
   Label,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useId, useState } from "react";
+import { Suspense, useCallback, useEffect, useId, useRef, useState } from "react";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing_token: "Authentication failed. Please try again.",
@@ -50,6 +53,12 @@ function SignUpContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
+
+  const handleTurnstileSuccess = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
 
   const errorId = useId();
 
@@ -82,7 +91,12 @@ function SignUpContent() {
       const response = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          ...(turnstileToken && { cf_turnstile_response: turnstileToken }),
+        }),
       });
 
       const data = await response.json();
@@ -101,6 +115,7 @@ function SignUpContent() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+      turnstileRef.current?.reset();
     } finally {
       setIsSubmitting(false);
     }
@@ -293,6 +308,15 @@ function SignUpContent() {
                       </div>
                     )}
                   </div>
+
+                  {TURNSTILE_SITE_KEY && (
+                    <Turnstile
+                      ref={turnstileRef}
+                      siteKey={TURNSTILE_SITE_KEY}
+                      onSuccess={handleTurnstileSuccess}
+                      options={{ size: "invisible", theme: "dark" }}
+                    />
+                  )}
 
                   <Button
                     type="submit"
