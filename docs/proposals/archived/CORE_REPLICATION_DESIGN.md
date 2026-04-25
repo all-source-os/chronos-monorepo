@@ -565,3 +565,78 @@ Parquet files are already a natural backup format (self-contained, compressed, c
 | Async replication default | 469K events/sec throughput preserved. Semi-sync opt-in for critical workloads. |
 | No Raft | Raft solves leader election for stateful systems that need it. A simple sentinel + WAL offset comparison is sufficient here. |
 | No PostgreSQL for events | Core's DashMap + WAL + Parquet stack is purpose-built. Adding PG adds latency, operational burden, and a dependency that provides no benefit over WAL shipping. |
+
+---
+
+## Appendix A: CRDT-Based Merge for Multi-Region (Future Work)
+
+> **Status**: Design note only — not current architecture. Added 2026-04-24
+> based on Helsing's DSON CRDT work (corrode.dev podcast s06e02).
+
+### When CRDTs apply
+
+The current design is single-leader with WAL shipping. This works for
+single-region HA and read scaling. It does NOT solve multi-region writes
+where two Core instances accept events during a network partition.
+
+CRDTs (Conflict-free Replicated Data Types) would address this by
+guaranteeing convergence without coordination — every replica eventually
+reaches the same state regardless of message ordering.
+
+### Why events are already conflict-free (mostly)
+
+AllSource events have several properties that make CRDT-style merge tractable:
+
+1. **UUID event IDs**: every event has a globally unique `Uuid::new_v4()` ID.
+   Two leaders can both accept events and the IDs will never collide.
+2. **Append-only**: events are never mutated or deleted. The set of events
+   is a G-Set (grow-only set) — the simplest CRDT.
+3. **Server-assigned timestamps**: each event gets a `Utc::now()` timestamp
+   from the accepting leader. After merge, events can be re-sorted by
+   timestamp for a consistent global order.
+
+The remaining challenge is **causal ordering**: if event B was written in
+response to event A, and A arrives at replica-2 after B, the replay order
+matters for projections. UUIDs solve identity; timestamps solve approximate
+ordering; but causal consistency requires vector clocks or Lamport timestamps.
+
+### What a CRDT merge would look like
+
+```
+Region US:   [evt-A, evt-C, evt-E]  (accepted during partition)
+Region EU:   [evt-B, evt-D, evt-F]  (accepted during partition)
+
+After merge: [evt-A, evt-B, evt-C, evt-D, evt-E, evt-F]
+             (sorted by timestamp, deduplicated by UUID)
+```
+
+For the event log itself (G-Set of immutable events), merge is trivial:
+union the two sets, deduplicate by UUID, sort by timestamp. No conflicts
+possible because events are never mutated.
+
+For **projections** (derived state from events), merge is harder: each
+region's projection saw a different event order. After merge, projections
+must be rebuilt from the merged event stream to guarantee consistency.
+This is a "rebuild all projections" operation, not an incremental merge.
+
+### References
+
+- Helsing's DSON: CRDT implementation for distributed document stores
+  without conflicts (2022 paper, Rust implementation on GitHub)
+- Automerge: CRDT library for collaborative editing (Rust + JS)
+- Martin Kleppmann, "Designing Data-Intensive Applications", Ch. 5:
+  Replication — sections on multi-leader and conflict resolution
+
+### Why not now
+
+1. Single-leader + WAL shipping covers the current scale (469K events/sec
+   on one leader is more than enough for early customers).
+2. Multi-region writes add operational complexity: clock skew, partition
+   detection, projection rebuild on merge.
+3. The current decision record explicitly defers this: "activate sharding
+   only when single-node write throughput is insufficient."
+
+When multi-region becomes necessary (likely at Enterprise tier with
+data sovereignty requirements), the append-only event model makes the
+CRDT path straightforward. The hard part will be projection consistency,
+not event merge.
