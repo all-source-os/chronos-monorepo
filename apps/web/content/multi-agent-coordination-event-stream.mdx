@@ -1,0 +1,152 @@
+---
+title: "How Agent Teams Stay in Sync with a Shared Event Stream"
+publishedAt: "2026-04-25"
+summary: When multiple AI agents work on the same problem, they need a shared world model — not direct calls to each other. Here's how to build it with AllSource and chronis.
+author: "all.source team"
+category: "use-cases"
+image: "/assets/blog/ai-agents-need-memory.webp"
+---
+
+The single-agent model is breaking down.
+
+The most capable AI systems in production today aren't one big model doing everything. They're teams: a researcher that pulls data, a writer that drafts, a reviewer that critiques, an orchestrator that routes work. Each agent is specialized. Each one runs independently. And each one needs to know what the others have done.
+
+The naive solution is to have agents call each other. Researcher finishes → calls writer with a summary. Writer finishes → calls reviewer with the draft. But this creates a dependency graph that breaks the moment any agent fails, and it loses all history the moment the pipeline is done.
+
+The better solution is a shared event stream.
+
+## An Event Stream Is a Shared World Model
+
+Every agent action becomes an event. Every event lands in the same AllSource tenant. Every agent subscribes to the types it cares about.
+
+The result: no agent needs to call another. Each one watches the stream, reacts to what it sees, and writes its own output as new events. The team coordinates through facts, not calls.
+
+```
+Orchestrator
+  → POST agent.task.created  { task: "research_competitors" }
+
+Researcher (subscribed to agent.task.*)
+  → sees agent.task.created
+  → does the research
+  → POST agent.finding { topic: "pricing", data: {...} }
+
+Writer (subscribed to agent.finding.*)
+  → sees agent.finding
+  → drafts the section
+  → POST agent.draft { section: "pricing", content: "..." }
+
+Reviewer (subscribed to agent.draft.*)
+  → sees agent.draft
+  → reviews it
+  → POST agent.review { status: "approved", suggestions: [...] }
+```
+
+No agent waits synchronously for another. Any agent can crash and restart — it replays the stream from its last ack and continues exactly where it left off. A new agent joining mid-project catches up by replaying history from the beginning.
+
+## Using `chronis` as the Task Layer
+
+For structured work — tasks with priority, dependencies, and status — `chronis` fits on top of AllSource naturally. It's an event-sourced task CLI that writes `task.*` events to your AllSource tenant. Multi-agent teams use it to assign and coordinate discrete units of work.
+
+Set up every agent with the same team tenant:
+
+```toml
+# .chronis/config.toml  (each agent has its own api_key)
+mode = "remote"
+
+[sync]
+remote_url = "https://api.all-source.xyz"
+api_key    = "eyJ..."
+```
+
+Orchestrator breaks the project into tasks:
+
+```bash
+cn add "Research competitor pricing"    --type task --priority p1 --id research
+cn add "Write pricing analysis"         --type task --priority p2 --id write \
+       --blocked-by research
+cn add "Review and publish analysis"    --type task --priority p2 --id review \
+       --blocked-by write
+```
+
+The `--blocked-by` flag stores the dependency in the task's event payload. A worker that calls `cn ready` only sees tasks whose blockers are `done`. Workers can't race to claim the same task — `cn claim` is an atomic event write; whoever lands the event first owns it.
+
+```bash
+# Worker polls for available work
+cn ready
+
+# Worker claims and executes
+cn claim research --agent-id researcher-1
+
+# ... does the work, writes findings to the event stream ...
+
+cn done research
+```
+
+When `research` is marked done, `write` becomes visible to `cn ready`. The dependency graph enforces sequencing without a scheduler.
+
+## Live Subscription
+
+Agents don't poll. They subscribe to the live event stream:
+
+```
+GET wss://api.all-source.xyz/api/v1/events/stream?consumer_id=writer-agent
+Authorization: Bearer <api_key>
+
+→ {"type": "subscribe", "filters": ["agent.finding.", "task."]}
+```
+
+With `consumer_id`, AllSource tracks a cursor for this agent. If the writer crashes and restarts, it reconnects and replays every event it hasn't acked yet — no missed findings, no duplicate work, no manual offset tracking.
+
+The ack is a single HTTP call after processing each batch:
+
+```bash
+curl -X POST https://api.all-source.xyz/api/v1/consumers/writer-agent/ack \
+  -H "Authorization: Bearer <api_key>" \
+  -d '{"position": 87}'
+```
+
+## Reconstructing Shared State
+
+Any agent can reconstruct the full project state at any point in time:
+
+```bash
+# Everything that happened on this project
+GET /api/v1/events/query?entity_id=project-q2-analysis&sort=asc
+
+# What did the researcher find?
+GET /api/v1/events/query?event_type=agent.finding&entity_id=project-q2-analysis
+
+# What did the world look like before the review?
+GET /api/v1/events/query?entity_id=project-q2-analysis&before=2026-04-24T14:00:00Z
+```
+
+This is time-travel. If the reviewer flags a problem with the final output, you can wind back the project state to the moment the finding was written and understand what context the writer had. No logs required — the event stream is the source of truth.
+
+## Scaling: One Tenant, Many Agents
+
+Every agent key provisioned under a team tenant writes to the same stream. That's not a limitation — it's the architecture. The shared stream is what makes coordination possible.
+
+```
+researcher  (key A) ──┐
+writer      (key B) ──┤──→ project-{id} event stream ──→ dashboard
+reviewer    (key C) ──┘
+ci-bot      (key D) ──┘
+```
+
+If you need per-agent isolation — say, a scratchpad that other agents shouldn't see — provision a separate tenant for that agent. Agent keys and tenants are cheap.
+
+For teams that want visibility into what agents are doing in real-time, the AllSource dashboard shows the live event stream for any tenant. Human team members log in, open the stream view, and watch the agents work.
+
+## The Pattern in One Sentence
+
+Every agent writes facts, every agent reads facts, the stream is the only shared state.
+
+This is event-driven architecture applied to AI teams. It composes, it scales, it survives failures, and it gives you a complete audit trail of every action every agent ever took — for free, because the coordination mechanism and the audit log are the same thing.
+
+---
+
+*Set up a team tenant for your agents in under a minute:*
+
+[Agent auth guide →](/docs/agent-auth)
+
+[Read the llms.txt →](https://api.all-source.xyz/llms.txt)

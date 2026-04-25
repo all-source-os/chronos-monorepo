@@ -1,0 +1,195 @@
+---
+title: "An Agent That Provisions Its Own Persistence in One API Call"
+publishedAt: "2026-04-25"
+summary: Your agent doesn't need a human to set up storage. One POST to AllSource and it has a tenant, an API key, and 100K events waiting to be written.
+author: "all.source team"
+category: "use-cases"
+image: "/assets/blog/connecting-without-an-sdk.webp"
+---
+
+Most storage setup requires a human. Log in to a dashboard, create a project, copy a connection string, set environment variables, wait for confirmation email.
+
+That's fine when a human is deploying a service. It's a hard dependency when the thing that needs storage is itself an agent.
+
+AllSource removes it.
+
+## One Call, Full Tenant
+
+```bash
+curl -X POST https://api.all-source.xyz/api/v1/onboard/start \
+  -H "Content-Type: application/json" \
+  -d '{"email": "my-agent@example.com", "name": "My Agent"}'
+```
+
+Response:
+
+```json
+{
+  "api_key":       "eyJ...",
+  "tenant_id":     "my-agent-at-example-com",
+  "tier":          "free",
+  "events_quota":  100000
+}
+```
+
+That's it. The agent now has:
+- A dedicated tenant scoped to this identity
+- A long-lived API key it can use immediately
+- 100,000 events on the free tier — no credit card, no activation
+- Full read/write access to its own event stream
+
+No dashboard login. No admin approval. No activation email. The `api_key` is valid the moment the 201 response lands.
+
+## Designed for LLMs
+
+AllSource publishes a machine-readable `llms.txt` at:
+
+```
+GET https://api.all-source.xyz/llms.txt
+```
+
+An agent can fetch this at startup to discover the API surface — endpoints, payload shapes, authentication, tiers — without being trained on any of it. The file is designed to be parsed and reasoned over, not read by humans.
+
+This means an agent with no prior knowledge of AllSource can:
+
+1. Fetch `llms.txt`
+2. Parse the onboarding endpoint
+3. POST to provision itself
+4. Begin writing events
+
+From zero to persistent storage in four steps, all within a single agent turn.
+
+## How Agents Store Configuration
+
+The `api_key` from the onboarding response needs to survive restarts. There are two practical approaches:
+
+**Environment variable (simplest):**
+```bash
+export ALLSOURCE_API_KEY="eyJ..."
+```
+
+Agent code reads `process.env.ALLSOURCE_API_KEY` on startup. If missing, it runs the onboarding call and writes the result back to the environment or a config file.
+
+**Self-referential event (elegant):**
+
+The agent writes its own configuration as its first event:
+
+```json
+POST /api/v1/events
+Authorization: Bearer eyJ...
+
+{
+  "event_type": "agent.initialized",
+  "entity_id":  "agent-my-agent-at-example-com",
+  "payload": {
+    "tenant_id": "my-agent-at-example-com",
+    "version":   "1",
+    "started_at": "2026-04-25T10:00:00Z"
+  }
+}
+```
+
+On the next startup, the agent queries for `agent.initialized` events to verify it's already provisioned and recover its configuration context. The agent's own event stream becomes its configuration store.
+
+## Bootstrapping with Identity
+
+If an agent manages multiple instances or serves multiple users, the `email` field in the onboarding call is the stable identity anchor. Use a predictable scheme:
+
+```
+{service}-{user_id}@{your-domain}.com
+→ tenant_id: service-{user_id}-at-your-domain-com
+```
+
+Each user gets a dedicated tenant; the agent derives the tenant ID deterministically from the user ID without storing it. On restart, reconstruct the tenant ID by the same formula and continue.
+
+For teams with multiple agents sharing one tenant, skip self-provisioning and use the [agent key flow](/docs/agent-auth) instead — an admin creates a named key per agent from Settings → Team → Agent Keys.
+
+## From Free to Paid
+
+Free tier gives each tenant 100K events/month, one stream, and 7-day retention. When an agent approaches that limit, the orchestrating system upgrades the tenant via the billing API:
+
+```bash
+POST /api/v1/billing/upgrade
+Authorization: Bearer <admin_key>
+
+{
+  "tenant_id": "my-agent-at-example-com",
+  "tier":      "pro"
+}
+```
+
+The `api_key` the agent already has stays valid. No reconnect, no reconfiguration. The quota window expands and the agent keeps running.
+
+The upgrade can be automated: the agent queries its own quota usage and triggers the upgrade when it crosses a threshold — without any human in the loop.
+
+```bash
+GET /api/v1/billing/usage
+Authorization: Bearer eyJ...
+
+→ { "events_used": 92341, "events_quota": 100000, "tier": "free", "period_ends": "2026-05-01T00:00:00Z" }
+```
+
+## What an Agent Gets for Free
+
+Every self-provisioned AllSource tenant includes the full event store:
+
+- **WAL + Parquet**: events survive process crashes and restarts
+- **Time-travel queries**: reconstruct state at any past timestamp with `?before=`
+- **Live streaming**: subscribe via WebSocket for push-based coordination with other agents
+- **Durable consumers**: cursor-tracked replay means restarts are cheap and loss-free
+- **Batch ingest**: write hundreds of events in one round-trip
+
+These are the same guarantees that production applications rely on. An agent writing to AllSource gets a production-grade event store, not a demo sandbox.
+
+## A Minimal Agent Loop
+
+The complete pattern — provision, write, query, continue — in pseudocode:
+
+```python
+import os, httpx
+
+BASE = "https://api.all-source.xyz"
+
+def get_or_create_api_key(agent_email: str) -> str:
+    key = os.getenv("ALLSOURCE_API_KEY")
+    if key:
+        return key
+    r = httpx.post(f"{BASE}/api/v1/onboard/start",
+                   json={"email": agent_email, "name": "My Agent"})
+    r.raise_for_status()
+    key = r.json()["api_key"]
+    os.environ["ALLSOURCE_API_KEY"] = key   # persist for this process lifetime
+    return key
+
+api_key = get_or_create_api_key("my-agent@example.com")
+headers = {"Authorization": f"Bearer {api_key}"}
+
+# Write a memory
+httpx.post(f"{BASE}/api/v1/events", headers=headers, json={
+    "event_type": "agent.memory.stored",
+    "entity_id":  "agent-my-agent",
+    "payload":    {"key": "user_goal", "value": "reduce churn by 10%"}
+})
+
+# Read it back next session
+r = httpx.get(f"{BASE}/api/v1/events/query",
+              headers=headers,
+              params={"entity_id": "agent-my-agent", "event_type": "agent.memory", "sort": "asc"})
+memories = r.json()["events"]
+```
+
+No SDK. No setup beyond the initial POST. The agent has durable memory in under 20 lines.
+
+---
+
+*Try it now — the onboarding endpoint requires no auth:*
+
+```bash
+curl -X POST https://api.all-source.xyz/api/v1/onboard/start \
+  -H "Content-Type: application/json" \
+  -d '{"email": "your-agent@example.com", "name": "My Agent"}'
+```
+
+[Full API reference →](/docs/api)
+
+[Building crash-safe agents →](/blog/crash-safe-agents-write-before-execute)

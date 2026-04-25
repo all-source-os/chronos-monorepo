@@ -1,0 +1,183 @@
+---
+title: "Write Before You Execute: Building Crash-Safe AI Agents"
+publishedAt: "2026-04-25"
+summary: An agent that crashes mid-task and then re-runs can send the same email twice, create duplicate orders, or push the same commit twice. Here's a single pattern that prevents all of it.
+author: "all.source team"
+category: "engineering"
+image: "/assets/blog/event-sourcing-ai-agent-memory-guide.webp"
+---
+
+Agents fail. Processes crash, networks drop, rate limits hit at the worst moment. The correct response is to restart and try again — but "try again" is only safe if you know what already happened.
+
+Without that knowledge, a restarted agent will repeat everything from the beginning. Duplicate emails sent. Duplicate charges created. Files deployed twice. Commits pushed twice. These aren't hypothetical — they happen in any system where a process can die between writing an action and recording that it happened.
+
+The fix is a single shift in the order of operations.
+
+## Write-Before-Execute
+
+Before an agent does anything with an external side effect, it writes an event to AllSource. Then it executes. Then it writes the outcome.
+
+```
+agent.tool_call.started   ← written BEFORE the tool runs
+  → tool executes
+agent.tool_call.completed ← written AFTER success
+  OR
+agent.tool_call.failed    ← written AFTER failure
+```
+
+On process start — normal or after a crash — the agent queries AllSource for any `started` events that have no matching `completed` or `failed`. Those are in-flight tool calls from before the crash. Before re-executing any of them, the agent can make an informed decision: was this tool idempotent? Does the tool itself have an idempotency key that lets us check externally? Should we skip it, retry it, or escalate?
+
+Without AllSource, the agent has no way to know. It starts fresh and repeats everything.
+
+## The Events
+
+Three event types cover the pattern:
+
+```json
+POST /api/v1/events
+{
+  "event_type": "agent.tool_call.started",
+  "entity_id":  "run-abc123",
+  "payload": {
+    "tool":             "send_email",
+    "input_hash":       "sha256-of-the-arguments",
+    "idempotency_key":  "email-to-alice-2026-04-25",
+    "agent_id":         "support-bot-v2"
+  }
+}
+```
+
+```json
+POST /api/v1/events
+{
+  "event_type": "agent.tool_call.completed",
+  "entity_id":  "run-abc123",
+  "payload": {
+    "tool":          "send_email",
+    "idempotency_key": "email-to-alice-2026-04-25",
+    "duration_ms":   340
+  }
+}
+```
+
+```json
+POST /api/v1/events
+{
+  "event_type": "agent.tool_call.failed",
+  "entity_id":  "run-abc123",
+  "payload": {
+    "tool":    "send_email",
+    "error":   "SMTP timeout",
+    "attempt": 1
+  }
+}
+```
+
+`entity_id` is the run identifier. Every event in a single agent session shares the same `entity_id`, which means a single query reconstructs the complete picture of what that session did.
+
+## Startup Guard
+
+The agent runs this check before starting any task execution:
+
+```
+GET /api/v1/events/query?entity_id=run-abc123&event_type=agent.tool_call&sort=asc
+```
+
+Build a map of `idempotency_key → status`:
+
+```
+for each event:
+  if event_type == "agent.tool_call.started":
+    in_flight[idempotency_key] = true
+  if event_type == "agent.tool_call.completed":
+    del in_flight[idempotency_key]
+    done[idempotency_key] = true
+  if event_type == "agent.tool_call.failed":
+    del in_flight[idempotency_key]
+    failed[idempotency_key] = attempts + 1
+```
+
+Before executing a tool:
+
+```
+if idempotency_key in done:
+  skip — already completed successfully
+elif idempotency_key in in_flight:
+  — was running when we crashed
+  — check the tool's own idempotency mechanism if it has one
+  — otherwise, treat as "unknown — retry carefully"
+elif idempotency_key in failed and failed[key] >= 3:
+  escalate to human
+else:
+  proceed normally
+```
+
+This guard is a full AllSource query — one HTTP call that returns the agent's complete action history. No local state files, no database schema, no migration to write.
+
+## Idempotency Keys
+
+The `idempotency_key` should be deterministic: the same tool + same inputs should always produce the same key. A simple approach:
+
+```
+sha256(tool_name + json_canonical(args))
+```
+
+For tools that accept an external idempotency key (Stripe, email providers, Twilio), pass the same key to the tool. Now if the tool ran but the `completed` event was never written (crash between tool execution and event write), you can check the tool's own endpoint to see if the call landed:
+
+```
+Stripe:  GET /v1/idempotency_keys/{key}
+Resend:  GET /emails/{idempotency_key}
+Twilio:  check message SID stored in started payload
+```
+
+This covers the hardest case: the process died in the window after the tool executed but before the event was written.
+
+## Run IDs
+
+Generating a stable `run_id` at agent startup is important. It needs to survive restarts so the startup guard works. The simplest approach: write the run_id to a local file (`.agent_run_id`) on first start; read it on subsequent starts. If the file is missing, generate a new UUID and write it.
+
+The run lifecycle events themselves are a good practice:
+
+```json
+{ "event_type": "agent.run.started", "entity_id": "run-abc123", "payload": { "agent_id": "...", "trigger": "user" } }
+{ "event_type": "agent.run.completed", "entity_id": "run-abc123", "payload": { "duration_ms": 4201 } }
+```
+
+With these, you can query AllSource for runs that started but never completed — a different kind of in-flight detection, useful for a supervisor or monitoring agent.
+
+## What This Costs
+
+One extra HTTP call before each tool execution. At AllSource's API latency, that's well under a millisecond per tool call on a warm connection. The tradeoff: you pay ~500µs per tool call; you gain a server-authoritative, durable record of everything the agent has done that survives any crash, restart, or scale-out event.
+
+For high-frequency tools (hundreds per second), batch the `started` events:
+
+```bash
+POST /api/v1/events/batch
+{
+  "events": [
+    { "event_type": "agent.tool_call.started", "entity_id": "run-abc123", ... },
+    { "event_type": "agent.tool_call.started", "entity_id": "run-abc123", ... }
+  ]
+}
+```
+
+One round-trip covers N tool calls. The pattern scales to whatever the agent's throughput is.
+
+## The Broader Guarantee
+
+Write-before-execute doesn't just protect against crashes. It gives you:
+
+- **Audit trail**: every tool call the agent ever made, including failures, with timestamps and duration
+- **Observability**: query `event_type=agent.tool_call.failed` across all runs to find systematic problems
+- **Replay**: reconstruct exactly what the agent did in any session, in order, without logs
+- **Rate-limit awareness**: count `completed` events per tool per time window to avoid hitting provider limits
+
+These are properties you'd usually build a separate system to get. With write-before-execute, they're a side effect of the crash safety mechanism.
+
+---
+
+*Full API reference for event ingestion and querying:*
+
+[Connecting without an SDK →](/blog/connecting-without-an-sdk)
+
+[Self-provision an agent tenant in one call →](/blog/agent-self-provisioning-allsource)
