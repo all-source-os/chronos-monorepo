@@ -49,7 +49,7 @@ Event sourcing is powerful but the tooling is stuck in 2015. EventStoreDB charge
 **Links**
 - Website: https://all-source.xyz
 - API: https://api.all-source.xyz
-- Status: https://status.all-source.xyz
+- Status: https://www.all-source.xyz/status
 - GitHub: https://github.com/all-source-os/all-source
 
 ## Maker's First Comment

@@ -147,41 +147,56 @@ func TestProbeOnce_StatusAndBodyMatch(t *testing.T) {
 	})
 }
 
-func TestRenderStatusHTML_ShowsOverallAndPerService(t *testing.T) {
-	services := []serviceStatus{
-		{Service: "core", Status: "healthy", LatencyMs: 12, LastSeen: "2026-04-17T20:00:00Z", AgeSeconds: 3},
-		{Service: "prime", Status: "unhealthy", LatencyMs: 0, LastSeen: "2026-04-17T19:59:30Z", AgeSeconds: 33, Error: "connection refused"},
-	}
-	html := renderStatusHTML(services)
+func TestEmitterSnapshot_ReturnsLiveProbeResultsWithoutCore(t *testing.T) {
+	// The whole point of the in-memory cache: snapshot must work even when
+	// the Core client is nil / unreachable. This is the regression guard
+	// for issue #160 (Core outage shouldn't take the status page down).
+	h := newHeartbeatEmitter(nil, nil, nil)
+	now := time.Date(2026, 4, 25, 18, 0, 0, 0, time.UTC)
 
-	for _, want := range []string{
-		`Overall: degraded`, // at least one unhealthy → degraded banner
-		`<strong>core</strong>`,
-		`<strong>prime</strong>`,
-		`pill healthy">healthy`,
-		`pill unhealthy">unhealthy`,
-		`connection refused`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("HTML missing %q", want)
-		}
+	h.record("core", heartbeatSample{
+		status:    "unhealthy",
+		latencyMs: 5000,
+		errMsg:    "dial tcp: lookup allsource-core.internal: no such host",
+		at:        now.Add(-3 * time.Second),
+	})
+	h.record("control-plane", heartbeatSample{
+		status:    "healthy",
+		latencyMs: 4,
+		at:        now.Add(-2 * time.Second),
+	})
+
+	out := h.snapshot(now)
+	if len(out) != 2 {
+		t.Fatalf("want 2 entries, got %d: %+v", len(out), out)
+	}
+	// Sorted by service name → control-plane first, then core.
+	if out[0].Service != "control-plane" || out[0].Status != "healthy" {
+		t.Errorf("control-plane: got %+v, want healthy", out[0])
+	}
+	if out[1].Service != "core" || out[1].Status != "unhealthy" {
+		t.Errorf("core: got %+v, want unhealthy", out[1])
+	}
+	if out[1].Error == "" {
+		t.Error("core: error message should be carried through to the projection")
 	}
 }
 
-func TestRenderStatusHTML_OverallHealthyWhenAllHealthy(t *testing.T) {
-	services := []serviceStatus{
-		{Service: "a", Status: "healthy"},
-		{Service: "b", Status: "healthy"},
-	}
-	html := renderStatusHTML(services)
-	if !strings.Contains(html, `Overall: healthy`) {
-		t.Error("want Overall: healthy banner when all services healthy")
-	}
-}
+func TestEmitterSnapshot_FlipsToStaleAfterTTL(t *testing.T) {
+	h := newHeartbeatEmitter(nil, nil, nil)
+	now := time.Date(2026, 4, 25, 18, 0, 0, 0, time.UTC)
 
-func TestRenderStatusHTML_UnknownWhenEmpty(t *testing.T) {
-	html := renderStatusHTML(nil)
-	if !strings.Contains(html, `Overall: unknown`) {
-		t.Error("want Overall: unknown when no services reported yet")
+	// Recorded as healthy, but the sample is older than heartbeatTTL (25s).
+	// snapshot must override "healthy" → "stale" so a stuck probe loop
+	// can't masquerade as fresh.
+	h.record("auth", heartbeatSample{
+		status:    "healthy",
+		latencyMs: 10,
+		at:        now.Add(-45 * time.Second),
+	})
+
+	out := h.snapshot(now)
+	if len(out) != 1 || out[0].Status != "stale" {
+		t.Errorf("want stale entry for auth, got %+v", out)
 	}
 }

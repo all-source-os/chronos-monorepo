@@ -44,7 +44,13 @@ min_machines_running = 1
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 1024
+  # 4 GiB is a stop-gap, not a strategy. Today Core loads every persisted
+  # event into the in-memory DashMap at startup regardless of tenant. At
+  # 451k events that hit ~870 MB and the 1 GiB cap OOM-killed Core mid-replay
+  # (issue #160). The right fix is tenant-scoped replay (load events on first
+  # query per tenant, LRU-evict cold tenants) so memory tracks the working
+  # set, not the whole dataset. Until that lands, this gives ~4× current peak.
+  memory_mb = 4096
 
 [mounts]
   source = "allsource_data"

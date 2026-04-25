@@ -97,6 +97,10 @@ type ControlPlane struct {
 	// the authenticated caller's identity before forwarding.
 	delegation *delegationClient
 	turnstile  *TurnstileVerifier
+
+	// In-memory probe cache; the status endpoint reads from this so a Core
+	// outage doesn't take the status page down with it.
+	heartbeats *heartbeatEmitter
 }
 
 // NewControlPlane creates a new control plane instance with full middleware stack.
@@ -297,11 +301,11 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	cp.container.Scheduler.Start(ctx)
 
 	// Start the event-sourced heartbeat emitter. Probes each backend every
-	// heartbeatInterval and writes a service.heartbeat event to Core. The
-	// /api/v1/status/services endpoint and the /status HTML page project
-	// these events into the current fleet state.
-	emitter := newHeartbeatEmitter(coreClient, nil, probesFromEnv(os.Getenv))
-	go emitter.run(ctx, heartbeatInterval)
+	// heartbeatInterval, records the result in the emitter's in-memory cache
+	// (read directly by /api/v1/status/services), and best-effort writes a
+	// service.heartbeat event to Core for history.
+	cp.heartbeats = newHeartbeatEmitter(coreClient, nil, probesFromEnv(os.Getenv))
+	go cp.heartbeats.run(ctx, heartbeatInterval)
 
 	return cp, nil
 }
@@ -345,20 +349,15 @@ func (cp *ControlPlane) setupMiddleware() {
 
 func (cp *ControlPlane) setupRoutes() {
 	// Public endpoints (no auth required — skipped by AuthMiddleware)
+	cp.router.GET("/livez", cp.livezHandler) // liveness only — Fly machine check uses this
 	cp.router.GET("/health", cp.healthHandler)
 	cp.router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	cp.router.GET("/docs", cp.docsHandler)
 	cp.router.GET("/openapi", cp.openAPIHandler)
 
-	// Status page + JSON feed. Both project the event-sourced heartbeats
-	// written by the background emitter. No auth — this is the public
-	// status data that replaces the poll-based Vigil page.
-	//
-	// "/" also serves the status page so status.all-source.xyz (whose Fly
-	// cert is routed to this app) resolves to a useful page when a user
-	// hits the bare hostname instead of /status.
-	cp.router.GET("/", cp.statusPageHandler)
-	cp.router.GET("/status", cp.statusPageHandler)
+	// JSON status feed for the marketing site's /status page. That React
+	// page (www.all-source.xyz/status) is the canonical user-facing status
+	// UI; CP just exposes the data.
 	cp.router.GET("/api/v1/status/services", cp.statusServicesHandler)
 
 	// Authentication endpoints
@@ -574,7 +573,22 @@ func (cp *ControlPlane) setupRoutes() {
 	adminBilling.GET("/dunning", cp.container.AdminBillingHandler.GetDunning)
 }
 
-// Health handler reports Core connectivity status
+// livezHandler is the liveness probe: did the CP process come up and is the
+// router serving requests? It deliberately does NOT touch Core or any
+// downstream — Fly's machine health check uses this so a Core outage doesn't
+// cause Fly to kill+restart a perfectly healthy CP machine.
+func (cp *ControlPlane) livezHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"service": "allsource-control-plane",
+		"version": Version,
+	})
+}
+
+// healthHandler is the readiness probe: can CP actually serve user traffic
+// end-to-end? Returns 503 when Core is unreachable so external load balancers
+// and consumer health checks (issue #160) correctly observe the API as down
+// rather than being misled by a "healthy" CP that can't reach its database.
 func (cp *ControlPlane) healthHandler(c *gin.Context) {
 	coreStatus := resourceUnknown
 	if cp.coreClient != nil {
@@ -586,8 +600,15 @@ func (cp *ControlPlane) healthHandler(c *gin.Context) {
 		}
 	}
 
-	health := gin.H{
-		"status":      "healthy",
+	overall := "healthy"
+	httpStatus := http.StatusOK
+	if coreStatus != "healthy" {
+		overall = "unhealthy"
+		httpStatus = http.StatusServiceUnavailable
+	}
+
+	c.JSON(httpStatus, gin.H{
+		"status":      overall,
 		"service":     "allsource-control-plane",
 		"version":     Version,
 		"persistence": "core",
@@ -599,9 +620,7 @@ func (cp *ControlPlane) healthHandler(c *gin.Context) {
 			"rbac":           true,
 			"tracing":        os.Getenv("OTEL_ENDPOINT") != "",
 		},
-	}
-
-	c.JSON(http.StatusOK, health)
+	})
 }
 
 func (cp *ControlPlane) coreHealthHandler(c *gin.Context) {

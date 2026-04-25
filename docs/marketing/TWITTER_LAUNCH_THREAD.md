@@ -96,7 +96,7 @@ Early access is open. Free tier is generous.
 
 Sign up: https://all-source.xyz
 API docs: https://api.all-source.xyz
-Status page: https://status.all-source.xyz
+Status page: https://www.all-source.xyz/status
 GitHub: https://github.com/all-source-os/all-source
 
 What would you build with time-travel for your data?

@@ -320,8 +320,8 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 		// Admin routes use their own AdminAuthMiddleware with self-contained JWT validation.
 		path := c.Request.URL.Path
 		isPublicAuthPath := strings.HasPrefix(path, "/api/v1/auth/") && path != "/api/v1/auth/session"
-		isPublicStatusPath := path == "/" || path == "/status" || path == "/api/v1/status/services"
-		if path == pathHealth || path == pathMetrics || path == "/docs" || path == "/openapi" || path == "/api/v1/cluster/health" || isPublicStatusPath || strings.HasPrefix(path, "/api/v1/webhooks/") || isPublicAuthPath || strings.HasPrefix(path, "/api/v1/onboard/") || strings.HasPrefix(path, "/api/v1/demo/") || strings.HasPrefix(path, "/api/v1/admin/") || strings.HasPrefix(path, "/x402/") {
+		isPublicStatusPath := path == "/api/v1/status/services"
+		if path == pathHealth || path == pathLivez || path == pathMetrics || path == "/docs" || path == "/openapi" || path == "/api/v1/cluster/health" || isPublicStatusPath || strings.HasPrefix(path, "/api/v1/webhooks/") || isPublicAuthPath || strings.HasPrefix(path, "/api/v1/onboard/") || strings.HasPrefix(path, "/api/v1/demo/") || strings.HasPrefix(path, "/api/v1/admin/") || strings.HasPrefix(path, "/x402/") {
 			c.Next()
 			return
 		}

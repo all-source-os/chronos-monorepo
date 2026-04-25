@@ -20,8 +20,8 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done · `[-]` dropped/de
 - [ ] LemonSqueezy: API key, store ID, webhook secret (needed for paid-tier upgrade flow)
 - [ ] Coinbase CDP server wallet on Base (mainnet for launch, Sepolia for staging) — for x402 payouts
 - [x] `SECRET_KEY_BASE` deployed on `allsource-query`, `ALLSOURCE_JWT_SECRET` deployed on `allsource-core` (verified via `fly secrets list` 2026-04-16)
-- [x] Custom domains live: `api.all-source.xyz` → `allsource-control-plane` (Fly, Let's Encrypt cert), `status.all-source.xyz` → `allsource-status` (Fly, Let's Encrypt cert). DNS via Vercel. See `docs/runbooks/SLO_SLA.md` for record values.
-- [x] Status page deployed: Vigil v1.29.0 on Fly (`allsource-status`, 2 machines iad, 256MB). Monitors all 7 services at 60s intervals. Live at `https://status.all-source.xyz/`. Slack alerting stubbed — uncomment + set `SLACK_WEBHOOK_URL` when ready.
+- [x] Custom domains live: `api.all-source.xyz` → `allsource-control-plane` (Fly, Let's Encrypt cert). DNS via Vercel. See `docs/runbooks/SLO_SLA.md` for record values.
+- [x] Status page lives at `https://www.all-source.xyz/status` (Vercel). Polls Control Plane's `/api/v1/status/services` JSON feed; the feed is backed by an in-process probe cache so the page stays up during a Core outage. The previous standalone status hostname (Vigil on Fly) was retired 2026-04-25 — no separate Fly app, no separate cert.
 
 ## Phase B — Deploy core stack
 

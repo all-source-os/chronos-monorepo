@@ -148,7 +148,6 @@ const SceneCta: React.FC = () => (
     <FadeIn delay={35}>
       <div style={{ display: "flex", gap: 24, marginTop: 24, fontSize: 14, color: colors.textDim }}>
         <span>api.all-source.xyz</span>
-        <span>status.all-source.xyz</span>
         <span>github.com/all-source-os/all-source</span>
       </div>
     </FadeIn>

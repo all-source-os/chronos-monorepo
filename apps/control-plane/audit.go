@@ -22,6 +22,7 @@ const (
 	actionCreate      = "create"
 	resourceOperation = "operation"
 	pathHealth        = "/health"
+	pathLivez         = "/livez"
 	pathMetrics       = "/metrics"
 )
 
@@ -313,7 +314,7 @@ func (a *AuditLogger) Close() error {
 func AuditMiddleware(logger *AuditLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip health and metrics endpoints
-		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathMetrics {
+		if c.Request.URL.Path == pathHealth || c.Request.URL.Path == pathLivez || c.Request.URL.Path == pathMetrics {
 			c.Next()
 			return
 		}

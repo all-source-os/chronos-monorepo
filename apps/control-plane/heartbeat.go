@@ -20,7 +20,6 @@ import (
 	"log"
 	"net/http"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -77,11 +76,13 @@ type probe struct {
 func probesFromEnv(getEnv func(string) string) []probe {
 	probes := []probe{
 		// Control Plane probes its own loopback so a stuck process still
-		// emits "unhealthy" before it misses too many intervals.
+		// emits "unhealthy" before it misses too many intervals. We hit /livez
+		// (liveness only) instead of /health so the self-probe doesn't flip
+		// red just because Core is down — Core has its own probe entry.
 		{
 			name:      "control-plane",
-			url:       "http://127.0.0.1:" + DefaultPort + "/health",
-			bodyMatch: `"status":"healthy"`,
+			url:       "http://127.0.0.1:" + DefaultPort + "/livez",
+			bodyMatch: `"status":"ok"`,
 		},
 	}
 
@@ -107,11 +108,28 @@ func probesFromEnv(getEnv func(string) string) []probe {
 	return probes
 }
 
-// heartbeatEmitter owns the probe loop + Core client.
+// heartbeatEmitter owns the probe loop + Core client. It also keeps the
+// most recent probe result per service in memory so the status page can
+// render without round-tripping through Core — when Core is the thing
+// that's down, asking Core "is Core down?" is a circular dependency that
+// turns the status page itself into a casualty (issue #160).
 type heartbeatEmitter struct {
 	probes     []probe
 	coreClient clients.CoreClient
 	httpClient *http.Client
+
+	mu     sync.RWMutex
+	latest map[string]heartbeatSample // keyed by service name
+}
+
+// heartbeatSample is the live, in-process record of one probe outcome.
+// Stored locally so the status projection survives Core outages.
+type heartbeatSample struct {
+	status    string
+	latencyMs int64
+	probedURL string
+	errMsg    string
+	at        time.Time
 }
 
 func newHeartbeatEmitter(coreClient clients.CoreClient, httpClient *http.Client, probes []probe) *heartbeatEmitter {
@@ -122,7 +140,43 @@ func newHeartbeatEmitter(coreClient clients.CoreClient, httpClient *http.Client,
 		probes:     probes,
 		coreClient: coreClient,
 		httpClient: httpClient,
+		latest:     make(map[string]heartbeatSample, len(probes)),
 	}
+}
+
+// snapshot returns the current in-memory probe state as serviceStatus
+// entries. Anything older than heartbeatTTL flips to "stale" — same rule
+// as the Core-backed projection, kept consistent so callers see one shape.
+func (h *heartbeatEmitter) snapshot(now time.Time) []serviceStatus {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	out := make([]serviceStatus, 0, len(h.latest))
+	for name, s := range h.latest {
+		age := now.Sub(s.at)
+		entry := serviceStatus{
+			Service:    name,
+			LatencyMs:  s.latencyMs,
+			LastSeen:   s.at.UTC().Format(time.RFC3339Nano),
+			AgeSeconds: age.Seconds(),
+			Error:      s.errMsg,
+			ProbedURL:  s.probedURL,
+		}
+		if age > heartbeatTTL {
+			entry.Status = statusStale
+		} else {
+			entry.Status = s.status
+		}
+		out = append(out, entry)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Service < out[j].Service })
+	return out
+}
+
+func (h *heartbeatEmitter) record(name string, s heartbeatSample) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.latest[name] = s
 }
 
 // run ticks forever (until ctx cancels), emitting one heartbeat event per
@@ -156,14 +210,23 @@ func (h *heartbeatEmitter) emitAll(ctx context.Context) {
 	wg.Wait()
 }
 
-// probeAndEmit runs one HTTP probe and writes the result to Core regardless
-// of outcome — a heartbeat event is emitted in both healthy and unhealthy
-// cases so consumers can distinguish "last seen healthy" from "probe never
-// ran".
+// probeAndEmit runs one HTTP probe, records the result in the in-process
+// cache (always — that's what powers the status page during Core outages),
+// then best-effort writes it to Core for history. A heartbeat is recorded
+// in both healthy and unhealthy cases so consumers can distinguish
+// "last seen healthy" from "probe never ran".
 func (h *heartbeatEmitter) probeAndEmit(ctx context.Context, p probe) {
 	started := time.Now()
 	status, errMsg := h.probeOnce(ctx, p)
 	latency := time.Since(started)
+
+	h.record(p.name, heartbeatSample{
+		status:    status,
+		latencyMs: latency.Milliseconds(),
+		probedURL: p.url,
+		errMsg:    errMsg,
+		at:        started,
+	})
 
 	payload := map[string]any{
 		"service":    p.name,
@@ -175,8 +238,8 @@ func (h *heartbeatEmitter) probeAndEmit(ctx context.Context, p probe) {
 		payload["error"] = errMsg
 	}
 
-	// Best effort — if Core is down we can't emit; the projection will show
-	// "stale" for this service, which is itself the right signal.
+	// Core is for history. If Core is down the in-memory cache above keeps
+	// the status page working — this write is best-effort.
 	if _, err := h.coreClient.IngestEvent(ctx, clients.IngestEventRequest{
 		EventType: heartbeatEventType,
 		EntityID:  p.name,
@@ -288,22 +351,30 @@ func projectStatus(events []clients.EventEntry, now time.Time) []serviceStatus {
 	return out
 }
 
-// statusServicesHandler returns the JSON projection. Powers the public
-// status page frontend; also a stable feed for external dashboards/alerts.
+// statusServicesHandler returns the JSON projection. The marketing site's
+// /status page (www.all-source.xyz/status) is the canonical user-facing UI;
+// this is the stable JSON feed it polls.
 func (cp *ControlPlane) statusServicesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"services": cp.currentServiceStatus()})
 }
 
-// statusPageHandler renders the HTML status page using the same projection
-// the JSON endpoint returns.
-func (cp *ControlPlane) statusPageHandler(c *gin.Context) {
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(renderStatusHTML(cp.currentServiceStatus())))
-}
-
-// currentServiceStatus returns the projection used by the JSON endpoint and
-// the HTML page. Separated so both can render from the same source.
+// currentServiceStatus returns the live projection. Reads first from the
+// in-process probe cache (always available — survives Core outages) and
+// falls back to merging in older heartbeats from Core if the cache is
+// cold (e.g. CP just started). The cache is the load-bearing path; Core
+// is for history and external consumers, not for rendering "is X up right
+// now?" — that would be a circular dependency on Core itself.
 func (cp *ControlPlane) currentServiceStatus() []serviceStatus {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	if cp.heartbeats != nil {
+		if live := cp.heartbeats.snapshot(time.Now()); len(live) > 0 {
+			return live
+		}
+	}
+
+	// Cold cache (CP just booted): try Core for any recent heartbeats so
+	// the page isn't blank during startup. Tight 1s timeout so a slow Core
+	// can't make the status page hang.
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	since := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
@@ -317,86 +388,4 @@ func (cp *ControlPlane) currentServiceStatus() []serviceStatus {
 		return nil
 	}
 	return projectStatus(resp.Events, time.Now())
-}
-
-// --------------- HTML status page ---------------
-
-// renderStatusHTML renders a dead-simple HTML page. No JS framework, no
-// client-side polling — the page is refreshed server-side on each hit.
-// Keeps the dependency surface at zero beyond what CP already ships.
-func renderStatusHTML(services []serviceStatus) string {
-	overall := statusHealthy
-	for _, s := range services {
-		if s.Status != statusHealthy {
-			overall = "degraded"
-			break
-		}
-	}
-	if len(services) == 0 {
-		overall = "unknown"
-	}
-
-	var b strings.Builder
-	b.WriteString(`<!doctype html><html><head><meta charset="utf-8"><title>AllSource Status</title>`)
-	b.WriteString(`<meta http-equiv="refresh" content="15">`)
-	b.WriteString(`<style>`)
-	b.WriteString(`body{font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;max-width:880px;margin:40px auto;padding:0 20px;color:#111;background:#fafafa}`)
-	b.WriteString(`h1{font-size:28px;margin:0 0 8px}`)
-	b.WriteString(`.overall{padding:20px;border-radius:12px;margin:16px 0 24px;font-weight:600}`)
-	b.WriteString(`.overall.healthy{background:#dcfce7;color:#166534}`)
-	b.WriteString(`.overall.degraded{background:#fee2e2;color:#991b1b}`)
-	b.WriteString(`.overall.unknown{background:#fef3c7;color:#92400e}`)
-	b.WriteString(`table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}`)
-	b.WriteString(`th,td{padding:12px 16px;text-align:left;border-bottom:1px solid #eee}`)
-	b.WriteString(`th{background:#f5f5f5;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#666}`)
-	b.WriteString(`.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600}`)
-	b.WriteString(`.pill.healthy{background:#dcfce7;color:#166534}`)
-	b.WriteString(`.pill.unhealthy{background:#fee2e2;color:#991b1b}`)
-	b.WriteString(`.pill.stale{background:#fef3c7;color:#92400e}`)
-	b.WriteString(`.pill.unknown{background:#e5e7eb;color:#374151}`)
-	b.WriteString(`small{color:#666}`)
-	b.WriteString(`</style></head><body>`)
-	b.WriteString(`<h1>AllSource Status</h1>`)
-	b.WriteString(`<small>Powered by event-sourced heartbeats — every probe is a permanent event in Core.</small>`)
-	b.WriteString(`<div class="overall ` + overall + `">Overall: ` + overall + `</div>`)
-
-	if len(services) == 0 {
-		b.WriteString(`<p>No heartbeats received yet. The emitter may still be starting up.</p>`)
-	} else {
-		b.WriteString(`<table><thead><tr><th>Service</th><th>Status</th><th>Latency</th><th>Last seen</th><th>Detail</th></tr></thead><tbody>`)
-		for _, s := range services {
-			status := s.Status
-			if status == "" {
-				status = "unknown"
-			}
-			age := fmt.Sprintf("%.0fs ago", s.AgeSeconds)
-			detail := s.Error
-			if detail == "" {
-				detail = s.ProbedURL
-			}
-			b.WriteString(`<tr>`)
-			b.WriteString(`<td><strong>` + htmlEscape(s.Service) + `</strong></td>`)
-			b.WriteString(`<td><span class="pill ` + htmlEscape(status) + `">` + htmlEscape(status) + `</span></td>`)
-			fmt.Fprintf(&b, `<td>%dms</td>`, s.LatencyMs)
-			b.WriteString(`<td><small>` + age + `</small></td>`)
-			b.WriteString(`<td><small>` + htmlEscape(detail) + `</small></td>`)
-			b.WriteString(`</tr>`)
-		}
-		b.WriteString(`</tbody></table>`)
-	}
-
-	b.WriteString(`<p><small>Auto-refreshes every 15s. JSON feed: <a href="/api/v1/status/services">/api/v1/status/services</a></small></p>`)
-	b.WriteString(`</body></html>`)
-	return b.String()
-}
-
-func htmlEscape(s string) string {
-	r := strings.NewReplacer(
-		"&", "&amp;",
-		"<", "&lt;",
-		">", "&gt;",
-		"\"", "&quot;",
-		"'", "&#39;",
-	)
-	return r.Replace(s)
 }

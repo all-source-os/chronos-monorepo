@@ -28,7 +28,7 @@ But what makes it different from EventStoreDB or Kafka isn't speed. It's this:
 
 The stack is live: https://all-source.xyz
 API: https://api.all-source.xyz
-Status: https://status.all-source.xyz
+Status: https://www.all-source.xyz/status
 GitHub: https://github.com/all-source-os/all-source
 
 **One curl to get started — no signup form:**

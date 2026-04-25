@@ -43,10 +43,13 @@ primary_region = "iad"
     soft_limit = 200
 
   [[http_service.checks]]
+    # Liveness only — does the CP process answer HTTP? /health is the
+    # readiness probe (returns 503 when Core is unreachable) and would
+    # cause Fly to kill+restart a healthy CP whenever Core has a hiccup.
     grace_period = "10s"
     interval = "30s"
     method = "GET"
-    path = "/health"
+    path = "/livez"
     timeout = "5s"
 
 [[vm]]
