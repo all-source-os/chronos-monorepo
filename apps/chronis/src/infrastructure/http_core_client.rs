@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -156,11 +156,13 @@ impl HttpCoreClient {
             query.push(("event_type", event_type.to_string()));
         }
         if let Some(since) = params.since {
-            // RFC3339 timestamps contain `+` (UTC offset) and `:` — must be
-            // URL-encoded in the query string or Core's deserializer rejects
-            // them ("since: input contains invalid characters"). reqwest's
-            // .query() handles form-urlencoding correctly.
-            query.push(("since", since.to_rfc3339()));
+            // Use `Z` suffix instead of `+00:00`: per RFC 3986 the `+` doesn't
+            // need percent-encoding, but Axum's form-style query decoder treats
+            // `+` as a space (the application/x-www-form-urlencoded rule), so
+            // the gateway sees `2026-02-26T02:32:24 00:00` and rejects it with
+            // "since: input contains invalid characters". The `Z` form is
+            // canonical for UTC and avoids the `+`-vs-space ambiguity entirely.
+            query.push(("since", since.to_rfc3339_opts(SecondsFormat::Micros, true)));
         }
         if let Some(limit) = params.limit {
             query.push(("limit", limit.to_string()));
