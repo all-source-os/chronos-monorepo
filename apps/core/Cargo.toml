@@ -33,6 +33,13 @@ name = "allsource-sentinel"
 path = "src/bin/allsource-sentinel.rs"
 required-features = ["server"]
 
+[[bin]]
+# One-shot migration tool: relocate legacy flat-layout Parquet files
+# into the tenant-partitioned tree. Run with Core stopped.
+# See docs/migrations/STORAGE_LAYOUT_FLAT_TO_TENANT.md.
+name = "allsource-migrate-storage"
+path = "src/bin/allsource-migrate-storage.rs"
+
 [features]
 default = ["server", "community"]
 # Edition features: community is the open-source edition, enterprise adds replication + multi-tenant

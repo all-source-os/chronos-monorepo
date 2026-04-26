@@ -674,6 +674,120 @@ impl ParquetStorage {
         &self.storage_dir
     }
 
+    /// One-shot migration of flat-layout files into the tenant-partitioned
+    /// tree. Run with Core stopped (no concurrent writes).
+    ///
+    /// Walks `storage_dir`'s top level (non-recursive) for the legacy
+    /// `events-*.parquet` files. For each one it loads the events,
+    /// regroups them by (tenant_id, yyyy-mm) — events from a flat file
+    /// take the path-derived "default" tenant, since pre-partitioning
+    /// data carried no tenant in its on-disk form — writes a fresh
+    /// Parquet under the corresponding partition directory, and deletes
+    /// the original flat file once the new file is closed.
+    ///
+    /// `dry_run = true` reports what would happen without touching disk.
+    /// Run dry first; production data deserves the rehearsal.
+    ///
+    /// Crash safety: this writes the new partition file before deleting
+    /// the flat file, so a crash between the two leaves both on disk.
+    /// The recursive loader (`load_all_events`) will then return both,
+    /// duplicating those events on next boot. Mitigation: stop Core
+    /// before running, and re-run the migration after any crash so the
+    /// flat file gets deleted. A future commit can add atomic rename +
+    /// fsync semantics; for the one-time migration the stop-Core
+    /// constraint is enough.
+    pub fn migrate_flat_layout(&self, dry_run: bool) -> Result<MigrationReport> {
+        let flat_files = list_flat_layout_files(&self.storage_dir)?;
+        let mut report = MigrationReport {
+            dry_run,
+            ..Default::default()
+        };
+
+        for flat_file in flat_files {
+            // Pre-partition events used path-derived tenant. For flat-layout
+            // files that's always "default" (`tenant_id_from_path` falls back
+            // to "default" for single-component paths).
+            let events = self.load_events_from_file(&flat_file, "default")?;
+            report.flat_files_seen += 1;
+
+            if events.is_empty() {
+                // Stale empty file (zero rows). Just remove it.
+                if !dry_run {
+                    fs::remove_file(&flat_file).map_err(|e| {
+                        AllSourceError::StorageError(format!(
+                            "Failed to remove empty flat file {}: {e}",
+                            flat_file.display()
+                        ))
+                    })?;
+                }
+                report.flat_files_removed += 1;
+                continue;
+            }
+
+            // Group by (tenant, yyyy-mm-from-event-timestamp). The
+            // partition month tracks the event's wall-clock time so that
+            // post-migration the layout reflects when data happened, not
+            // when migration ran. Step 4 (per-tenant snapshots) and Step
+            // 5 (retention) will key on that.
+            let mut groups: HashMap<(String, String), Vec<Event>> = HashMap::new();
+            for event in events {
+                let key = (
+                    event.tenant_id_str().to_string(),
+                    event.timestamp().format("%Y-%m").to_string(),
+                );
+                groups.entry(key).or_default().push(event);
+            }
+
+            for ((tenant, yyyy_mm), group_events) in groups {
+                let count = group_events.len();
+                if !dry_run {
+                    let safe_tenant = sanitize_tenant_id_for_path(&tenant)?;
+                    let target_dir = self.storage_dir.join(safe_tenant).join(&yyyy_mm);
+                    fs::create_dir_all(&target_dir).map_err(|e| {
+                        AllSourceError::StorageError(format!(
+                            "Failed to create partition {}: {e}",
+                            target_dir.display()
+                        ))
+                    })?;
+                    let filename = format!(
+                        "events-{}-{}.parquet",
+                        chrono::Utc::now().format("%Y%m%d-%H%M%S%3f"),
+                        uuid::Uuid::new_v4().as_simple()
+                    );
+                    let target_path = target_dir.join(&filename);
+                    let record_batch = self.events_to_record_batch(&group_events)?;
+                    let file = File::create(&target_path).map_err(|e| {
+                        AllSourceError::StorageError(format!(
+                            "Failed to create migration target {}: {e}",
+                            target_path.display()
+                        ))
+                    })?;
+                    let props = WriterProperties::builder()
+                        .set_compression(self.config.compression)
+                        .build();
+                    let mut writer =
+                        ArrowWriter::try_new(file, self.schema.clone(), Some(props))?;
+                    writer.write(&record_batch)?;
+                    writer.close()?;
+                    report.partitions_written += 1;
+                }
+                report.events_migrated += count;
+            }
+
+            if !dry_run {
+                fs::remove_file(&flat_file).map_err(|e| {
+                    AllSourceError::StorageError(format!(
+                        "Failed to remove flat file {} after migration: {e}",
+                        flat_file.display()
+                    ))
+                })?;
+                report.flat_files_removed += 1;
+            }
+        }
+
+        Ok(report)
+    }
+
     /// Get storage statistics
     pub fn stats(&self) -> Result<StorageStats> {
         let parquet_files = find_parquet_files_recursive(&self.storage_dir)?;
@@ -780,6 +894,34 @@ fn tenant_id_from_path(root: &Path, file_path: &Path) -> String {
     }
 }
 
+/// List Parquet files at the top level of `root` only — i.e. the legacy
+/// flat-layout files. Used by the one-shot migration tool to find data
+/// that needs moving into the tenant-partitioned tree. The opposite of
+/// `find_parquet_files_recursive`: stops at the first directory level so
+/// already-partitioned data isn't included.
+fn list_flat_layout_files(root: &Path) -> Result<Vec<PathBuf>> {
+    let entries = fs::read_dir(root).map_err(|e| {
+        AllSourceError::StorageError(format!("Failed to read storage directory: {e}"))
+    })?;
+    let mut out: Vec<PathBuf> = entries
+        .filter_map(std::result::Result::ok)
+        .filter_map(|entry| {
+            let ft = entry.file_type().ok()?;
+            if !ft.is_file() {
+                return None;
+            }
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("parquet") {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect();
+    out.sort();
+    Ok(out)
+}
+
 /// Recursively collect all `*.parquet` files under `root`, sorted by path so
 /// callers see a deterministic, tenant-grouped order.
 ///
@@ -841,6 +983,21 @@ impl Drop for ParquetStorage {
             tracing::error!("Failed to flush events on drop: {}", e);
         }
     }
+}
+
+/// Outcome of a `migrate_flat_layout` run.
+#[derive(Debug, Default, Clone, serde::Serialize)]
+pub struct MigrationReport {
+    /// Whether the run was a rehearsal (no disk changes).
+    pub dry_run: bool,
+    /// Number of legacy flat-layout files discovered.
+    pub flat_files_seen: usize,
+    /// Number of legacy flat files deleted (always 0 when `dry_run`).
+    pub flat_files_removed: usize,
+    /// Number of new partition files written under the tenant tree.
+    pub partitions_written: usize,
+    /// Total events copied into the new tree (counted in dry-run too).
+    pub events_migrated: usize,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -1449,5 +1606,147 @@ mod tests {
             msg.contains("disallowed character") || msg.contains("reserved"),
             "expected sanitization error message, got: {msg}"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // Migration tests (Step 1, commit #3: flat → tenant-tree migration).
+    // -----------------------------------------------------------------
+
+    /// Helper: produce a flat-layout Parquet file at the storage root,
+    /// matching what pre-#2 deploys wrote. Uses the existing flush path
+    /// briefly and then relocates the resulting file from
+    /// default/<yyyy-mm>/ back up to the root, simulating the legacy
+    /// state.
+    fn seed_flat_layout_file(storage: &ParquetStorage, count: usize) -> PathBuf {
+        for i in 0..count {
+            storage.append_event(create_test_event(&format!("entity-{i}"))).unwrap();
+        }
+        storage.flush().unwrap();
+
+        // create_test_event uses tenant="default", so the just-flushed file
+        // landed under <root>/default/<yyyy-mm>/. Find the newest file in
+        // that subtree to avoid picking up files from other tenants seeded
+        // by the test before us.
+        let default_subtree = storage.storage_dir().join("default");
+        let candidates = find_parquet_files_recursive(&default_subtree).unwrap();
+        assert!(
+            !candidates.is_empty(),
+            "seed expected at least one file under default/"
+        );
+        let src = candidates.into_iter().max().unwrap();
+
+        let dst = storage.storage_dir().join(src.file_name().unwrap());
+        std::fs::rename(&src, &dst).unwrap();
+        // Best-effort cleanup of the now-empty intermediate dirs so the
+        // migration tool only sees the flat file. (`remove_dir` succeeds
+        // only on empty dirs, which is exactly the safety we want here.)
+        if let Some(month_dir) = src.parent() {
+            let _ = std::fs::remove_dir(month_dir);
+            if let Some(tenant_dir) = month_dir.parent() {
+                let _ = std::fs::remove_dir(tenant_dir);
+            }
+        }
+        dst
+    }
+
+    #[test]
+    fn test_migrate_flat_layout_dry_run_touches_nothing() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let flat = seed_flat_layout_file(&storage, 7);
+        assert!(flat.is_file(), "test setup: flat file should exist");
+
+        let report = storage.migrate_flat_layout(true).unwrap();
+        assert!(report.dry_run);
+        assert_eq!(report.flat_files_seen, 1);
+        assert_eq!(report.events_migrated, 7);
+        assert_eq!(report.flat_files_removed, 0);
+        assert_eq!(report.partitions_written, 0);
+        assert!(flat.is_file(), "flat file must still be present after dry run");
+    }
+
+    #[test]
+    fn test_migrate_flat_layout_moves_events_into_default_tree_and_removes_flat() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let flat = seed_flat_layout_file(&storage, 5);
+
+        let report = storage.migrate_flat_layout(false).unwrap();
+        assert!(!report.dry_run);
+        assert_eq!(report.flat_files_seen, 1);
+        assert_eq!(report.flat_files_removed, 1);
+        assert_eq!(report.events_migrated, 5);
+        assert!(report.partitions_written >= 1);
+        assert!(!flat.exists(), "flat file should be deleted after migration");
+
+        let post = find_parquet_files_recursive(temp_dir.path()).unwrap();
+        assert!(
+            post.iter().all(|p| {
+                let rel = p.strip_prefix(temp_dir.path()).unwrap().to_string_lossy().into_owned();
+                rel.starts_with(&format!("default{}", std::path::MAIN_SEPARATOR))
+            }),
+            "all migrated files should be under default/"
+        );
+
+        let loaded = storage.load_all_events().unwrap();
+        assert_eq!(loaded.len(), 5);
+    }
+
+    #[test]
+    fn test_migrate_flat_layout_is_idempotent_when_re_run_after_completion() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let _flat = seed_flat_layout_file(&storage, 4);
+
+        let first = storage.migrate_flat_layout(false).unwrap();
+        assert_eq!(first.events_migrated, 4);
+
+        // Second run sees no flat files at the root, so it's a no-op —
+        // events do not duplicate even if an operator runs the tool twice.
+        let second = storage.migrate_flat_layout(false).unwrap();
+        assert_eq!(second.flat_files_seen, 0);
+        assert_eq!(second.events_migrated, 0);
+        assert_eq!(second.flat_files_removed, 0);
+
+        let loaded = storage.load_all_events().unwrap();
+        assert_eq!(loaded.len(), 4, "rerun must not duplicate or lose events");
+    }
+
+    #[test]
+    fn test_migrate_flat_layout_ignores_already_partitioned_data() {
+        // Mixed state: a tenant tree already exists alongside one flat file.
+        // Migration must touch only the flat file.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        for i in 0..3 {
+            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+        }
+        storage.flush().unwrap();
+
+        let _flat = seed_flat_layout_file(&storage, 2);
+
+        let report = storage.migrate_flat_layout(false).unwrap();
+        assert_eq!(report.flat_files_seen, 1, "only the flat file is in scope");
+        assert_eq!(report.events_migrated, 2);
+
+        let alice_files = find_parquet_files_recursive(&temp_dir.path().join("alice")).unwrap();
+        assert_eq!(alice_files.len(), 1, "alice's tree must be untouched");
+
+        let loaded = storage.load_all_events().unwrap();
+        assert_eq!(loaded.len(), 5);
+        let alice_count = loaded.iter().filter(|e| e.tenant_id_str() == "alice").count();
+        let default_count = loaded.iter().filter(|e| e.tenant_id_str() == "default").count();
+        assert_eq!(alice_count, 3);
+        assert_eq!(default_count, 2);
+    }
+
+    #[test]
+    fn test_migrate_flat_layout_with_no_flat_files_is_a_clean_noop() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let report = storage.migrate_flat_layout(false).unwrap();
+        assert_eq!(report.flat_files_seen, 0);
+        assert_eq!(report.events_migrated, 0);
     }
 }

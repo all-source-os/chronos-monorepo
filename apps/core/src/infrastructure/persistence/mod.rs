@@ -44,7 +44,7 @@ pub use snapshot::{
 };
 pub use storage::{
     BatchWriteResult, BatchWriteStats, DEFAULT_BATCH_SIZE, DEFAULT_FLUSH_TIMEOUT_MS,
-    ParquetStorage, ParquetStorageConfig,
+    MigrationReport, ParquetStorage, ParquetStorageConfig,
 };
 pub use storage_integrity::{IntegrityCheckResult, StorageIntegrity};
 pub use system_bootstrap::{SystemBootstrap, SystemRepositories};
