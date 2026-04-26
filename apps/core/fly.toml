@@ -42,8 +42,9 @@ min_machines_running = 1
   type = "http"
 
 [[vm]]
+  # shared-cpu-2x to unlock 4 GiB (shared-cpu-1x caps at 2 GiB).
   cpu_kind = "shared"
-  cpus = 1
+  cpus = 2
   # 4 GiB is a stop-gap, not a strategy. Today Core loads every persisted
   # event into the in-memory DashMap at startup regardless of tenant. At
   # 451k events that hit ~870 MB and the 1 GiB cap OOM-killed Core mid-replay
