@@ -466,29 +466,17 @@ impl ParquetStorage {
         Ok(record_batch)
     }
 
-    /// Load events from all Parquet files
+    /// Load events from all Parquet files under the storage directory.
+    ///
+    /// Walks the tree recursively so both layouts work: legacy flat
+    /// (`storage_dir/events-*.parquet`) and the tenant-partitioned tree
+    /// introduced by the data-strategy work (`storage_dir/<tenant>/<yyyy-mm>/
+    /// events-*.parquet`). The two coexist on disk during migration.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn load_all_events(&self) -> Result<Vec<Event>> {
-        let mut all_events = Vec::new();
+        let parquet_files = find_parquet_files_recursive(&self.storage_dir)?;
 
-        // Read all parquet files in storage directory
-        let entries = fs::read_dir(&self.storage_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read storage directory: {e}"))
-        })?;
-
-        let mut parquet_files: Vec<PathBuf> = entries
-            .filter_map(std::result::Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.extension()
-                    .and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| ext == "parquet")
-            })
-            .collect();
-
-        // Sort files by name (which includes timestamp)
-        parquet_files.sort();
-
+        let mut all_events = Vec::with_capacity(parquet_files.len() * self.config.batch_size);
         for file_path in parquet_files {
             tracing::info!("Loading events from {}", file_path.display());
             let file_events = self.load_events_from_file(&file_path)?;
@@ -599,27 +587,13 @@ impl ParquetStorage {
         Ok(events)
     }
 
-    /// List all Parquet file paths in the storage directory, sorted by name.
+    /// List all Parquet file paths under the storage directory, sorted by
+    /// the relative path so files in the same partition stay grouped.
     ///
     /// Used by the replication catch-up protocol to stream snapshot files
     /// to followers that are too far behind for WAL-only catch-up.
     pub fn list_parquet_files(&self) -> Result<Vec<PathBuf>> {
-        let entries = fs::read_dir(&self.storage_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read storage directory: {e}"))
-        })?;
-
-        let mut parquet_files: Vec<PathBuf> = entries
-            .filter_map(std::result::Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.extension()
-                    .and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| ext == "parquet")
-            })
-            .collect();
-
-        parquet_files.sort();
-        Ok(parquet_files)
+        find_parquet_files_recursive(&self.storage_dir)
     }
 
     /// Get the storage directory path.
@@ -629,32 +603,77 @@ impl ParquetStorage {
 
     /// Get storage statistics
     pub fn stats(&self) -> Result<StorageStats> {
-        let entries = fs::read_dir(&self.storage_dir).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to read storage directory: {e}"))
-        })?;
-
-        let mut total_files = 0;
+        let parquet_files = find_parquet_files_recursive(&self.storage_dir)?;
         let mut total_size_bytes = 0u64;
-
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("parquet") {
-                total_files += 1;
-                if let Ok(metadata) = entry.metadata() {
-                    total_size_bytes += metadata.len();
-                }
+        for path in &parquet_files {
+            if let Ok(metadata) = fs::metadata(path) {
+                total_size_bytes += metadata.len();
             }
         }
 
         let current_batch_size = self.current_batch.lock().unwrap().len();
 
         Ok(StorageStats {
-            total_files,
+            total_files: parquet_files.len(),
             total_size_bytes,
             storage_dir: self.storage_dir.clone(),
             current_batch_size,
         })
     }
+}
+
+/// Recursively collect all `*.parquet` files under `root`, sorted by path so
+/// callers see a deterministic, tenant-grouped order.
+///
+/// Existence rationale: the storage layout is moving from a flat
+/// `storage_dir/events-*.parquet` pile to a tenant-partitioned tree of the
+/// shape `storage_dir/<tenant>/<yyyy-mm>/events-*.parquet`. During the
+/// migration both shapes coexist, so every code path that asks "what
+/// parquet files do we have?" needs to walk subdirectories. Symlinks are
+/// not followed — the storage tree is mounted from a single volume and
+/// chasing symlinks invites cycles.
+fn find_parquet_files_recursive(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut out = Vec::new();
+    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
+
+    while let Some(dir) = stack.pop() {
+        let entries = match fs::read_dir(&dir) {
+            Ok(e) => e,
+            // Root must exist (we created it in `new`); subdirectories may
+            // race a delete from compaction. Skip vanished subdirs rather
+            // than failing the whole load.
+            Err(e) if dir == root => {
+                return Err(AllSourceError::StorageError(format!(
+                    "Failed to read storage directory: {e}"
+                )));
+            }
+            Err(_) => continue,
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            // Use file_type() rather than metadata() so symlinks don't get
+            // followed by accident (metadata() resolves symlinks, file_type()
+            // doesn't).
+            let ft = match entry.file_type() {
+                Ok(ft) => ft,
+                Err(_) => continue,
+            };
+            if ft.is_dir() {
+                stack.push(path);
+            } else if ft.is_file()
+                && path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| ext == "parquet")
+            {
+                out.push(path);
+            }
+        }
+    }
+
+    out.sort();
+    Ok(out)
 }
 
 impl Drop for ParquetStorage {
@@ -975,5 +994,119 @@ mod tests {
 
         // This should be significantly slower than batch writes
         // Used as a baseline to demonstrate 40%+ improvement
+    }
+
+    // -----------------------------------------------------------------
+    // Tests for the recursive parquet walker (Step 1, commit #1: read-side
+    // bidirectional layout support — see SUSTAINABLE_DATA_STRATEGY.md).
+    // -----------------------------------------------------------------
+
+    /// Helper: write a tiny placeholder parquet file at an arbitrary path so
+    /// the walker has something concrete to find. We only care that the
+    /// walker discovers the path, not that the file is loadable here — the
+    /// load path is exercised by the existing read tests.
+    fn touch_parquet(path: &Path) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, b"").unwrap();
+    }
+
+    #[test]
+    fn test_walker_finds_files_in_flat_layout() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        touch_parquet(&root.join("events-20260101-120000000-aaaa.parquet"));
+        touch_parquet(&root.join("events-20260101-130000000-bbbb.parquet"));
+
+        let mut found = find_parquet_files_recursive(root).unwrap();
+        found.sort();
+        assert_eq!(found.len(), 2);
+        assert!(
+            found[0].file_name().unwrap().to_str().unwrap().starts_with("events-"),
+            "expected events-* file, got {found:?}"
+        );
+    }
+
+    #[test]
+    fn test_walker_finds_files_in_tenant_partitioned_tree() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        // Tenant-partitioned shape: storage_dir/<tenant>/<yyyy-mm>/events-*.parquet
+        touch_parquet(&root.join("tenant-a/2026-01/events-20260101-120000000-aaaa.parquet"));
+        touch_parquet(&root.join("tenant-a/2026-02/events-20260201-120000000-bbbb.parquet"));
+        touch_parquet(&root.join("tenant-b/2026-01/events-20260103-120000000-cccc.parquet"));
+
+        let found = find_parquet_files_recursive(root).unwrap();
+        assert_eq!(found.len(), 3);
+        // Sort places tenant-a files before tenant-b — that's the
+        // tenant-grouping the docs claim.
+        assert!(found[0].to_str().unwrap().contains("tenant-a"));
+        assert!(found[1].to_str().unwrap().contains("tenant-a"));
+        assert!(found[2].to_str().unwrap().contains("tenant-b"));
+    }
+
+    #[test]
+    fn test_walker_handles_mixed_legacy_and_partitioned_layouts() {
+        // The migration window: some tenants have been moved into the tree,
+        // some flat files still sit at the root. The walker must surface
+        // both so load_all_events sees every event regardless of where it
+        // currently lives.
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        touch_parquet(&root.join("events-legacy-aaaa.parquet"));
+        touch_parquet(&root.join("tenant-a/2026-01/events-new-bbbb.parquet"));
+
+        let found = find_parquet_files_recursive(root).unwrap();
+        assert_eq!(found.len(), 2);
+    }
+
+    #[test]
+    fn test_walker_ignores_non_parquet_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("README.md"), b"hello").unwrap();
+        std::fs::write(root.join("events.json"), b"[]").unwrap();
+        touch_parquet(&root.join("events-20260101-120000000-aaaa.parquet"));
+        // Files that just happen to have "parquet" in the name but no
+        // .parquet extension stay out — extension-only filter, no name match.
+        std::fs::write(root.join("not-a-parquet-file.bin"), b"").unwrap();
+
+        let found = find_parquet_files_recursive(root).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].extension().and_then(|s| s.to_str()), Some("parquet"));
+    }
+
+    #[test]
+    fn test_load_all_events_reads_through_partitioned_tree() {
+        // End-to-end: writing to a tenant-partitioned subdirectory by hand
+        // and asking load_all_events to recover them simulates what commit
+        // #2 (write-side per-tenant flush) will produce, ahead of that
+        // change landing. Exercising it now means commit #2 doesn't have
+        // to ship its own end-to-end loader test.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        for i in 0..3 {
+            storage.append_event(create_test_event(&format!("entity-{i}"))).unwrap();
+        }
+        storage.flush().unwrap();
+
+        // Move the produced flat file into a tenant tree to simulate the
+        // future write-side layout. After the move, load_all_events should
+        // still find the events.
+        let flat_files: Vec<_> = std::fs::read_dir(temp_dir.path())
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("parquet"))
+            .collect();
+        assert_eq!(flat_files.len(), 1, "expected one flat-layout file before relocation");
+
+        let dst_dir = temp_dir.path().join("tenant-default/2026-04");
+        std::fs::create_dir_all(&dst_dir).unwrap();
+        let dst = dst_dir.join(flat_files[0].file_name().unwrap());
+        std::fs::rename(&flat_files[0], &dst).unwrap();
+
+        let loaded = storage.load_all_events().unwrap();
+        assert_eq!(loaded.len(), 3, "load_all_events must walk into the tenant tree");
     }
 }
