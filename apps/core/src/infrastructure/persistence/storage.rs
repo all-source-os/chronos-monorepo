@@ -669,6 +669,72 @@ impl ParquetStorage {
         find_parquet_files_recursive(&self.storage_dir)
     }
 
+    /// List Parquet files belonging to a single tenant — i.e. only files
+    /// under `<storage_dir>/<tenant>/...`. Legacy flat-layout files at the
+    /// root are intentionally excluded; the migration tool moves them under
+    /// `default/` so once it has run a `tenant=default` query sees them.
+    ///
+    /// Returns an empty vec when the tenant subtree doesn't exist (no data
+    /// for that tenant yet). Returns an error only if `tenant_id` fails the
+    /// path-safety whitelist.
+    ///
+    /// This is the building block for tenant-scoped reads: the caller knows
+    /// which files might contain the tenant's data without opening any of
+    /// the others.
+    pub fn list_parquet_files_for_tenant(&self, tenant_id: &str) -> Result<Vec<PathBuf>> {
+        let safe = sanitize_tenant_id_for_path(tenant_id)?;
+        let tenant_root = self.storage_dir.join(safe);
+        if !tenant_root.is_dir() {
+            return Ok(Vec::new());
+        }
+        find_parquet_files_recursive(&tenant_root)
+    }
+
+    /// Load only the events belonging to `tenant_id`, walking just that
+    /// tenant's subtree on disk. The full-storage loader
+    /// (`load_all_events`) opens every Parquet file regardless of tenant;
+    /// this one only opens files under `<storage_dir>/<tenant>/`.
+    ///
+    /// Returns an empty vec when the tenant has no on-disk data. Returns
+    /// an error if the tenant_id fails the path-safety whitelist or any
+    /// individual file fails to load.
+    ///
+    /// This is the read-side complement to per-tenant flushing. It's the
+    /// foundation Step 2 (lazy per-tenant load on demand) needs: a way to
+    /// hydrate one tenant without paying the cost of loading every other
+    /// tenant's data into memory.
+    ///
+    /// Tenant identity for loaded events comes from the file path, the
+    /// same as `load_all_events` — `record_batch_to_events` stamps the
+    /// passed `tenant_id` onto every reconstructed event.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    pub fn load_events_for_tenant(&self, tenant_id: &str) -> Result<Vec<Event>> {
+        let parquet_files = self.list_parquet_files_for_tenant(tenant_id)?;
+        tracing::info!(
+            tenant_id = tenant_id,
+            file_count = parquet_files.len(),
+            "load_events_for_tenant: walking tenant subtree only"
+        );
+
+        let mut events = Vec::with_capacity(parquet_files.len() * self.config.batch_size);
+        for file_path in parquet_files {
+            tracing::debug!(
+                tenant_id = tenant_id,
+                file = %file_path.display(),
+                "load_events_for_tenant: opening file"
+            );
+            let file_events = self.load_events_from_file(&file_path, tenant_id)?;
+            events.extend(file_events);
+        }
+
+        tracing::info!(
+            tenant_id = tenant_id,
+            event_count = events.len(),
+            "load_events_for_tenant: complete"
+        );
+        Ok(events)
+    }
+
     /// Get the storage directory path.
     pub fn storage_dir(&self) -> &Path {
         &self.storage_dir
@@ -1606,6 +1672,129 @@ mod tests {
             msg.contains("disallowed character") || msg.contains("reserved"),
             "expected sanitization error message, got: {msg}"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // Tenant-pruned read tests (Step 1, commit #4).
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn test_load_events_for_tenant_only_walks_target_subtree() {
+        // Seed three tenants with distinct event counts. Loading one
+        // tenant must return only that tenant's events — and the file
+        // list helper must report only that tenant's files (the strong
+        // form of "didn't open the others").
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        for i in 0..2 {
+            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+        }
+        for i in 0..3 {
+            storage.append_event(event_with_tenant("bob", &format!("b-{i}"))).unwrap();
+        }
+        for i in 0..1 {
+            storage.append_event(event_with_tenant("carol", &format!("c-{i}"))).unwrap();
+        }
+        storage.flush().unwrap();
+
+        let alice_files = storage.list_parquet_files_for_tenant("alice").unwrap();
+        assert_eq!(alice_files.len(), 1);
+        assert!(
+            alice_files[0]
+                .to_string_lossy()
+                .contains(&format!("alice{}", std::path::MAIN_SEPARATOR)),
+            "expected alice file, got {}", alice_files[0].display()
+        );
+        // The pruned listing must NOT include any bob/carol files — this
+        // is the property Step 2 will rely on to avoid loading every
+        // tenant's data on a single-tenant query.
+        for f in &alice_files {
+            let s = f.to_string_lossy();
+            assert!(!s.contains("bob"), "alice listing leaked bob file: {s}");
+            assert!(!s.contains("carol"), "alice listing leaked carol file: {s}");
+        }
+
+        let alice_events = storage.load_events_for_tenant("alice").unwrap();
+        assert_eq!(alice_events.len(), 2);
+        for e in &alice_events {
+            assert_eq!(e.tenant_id_str(), "alice");
+        }
+
+        let bob_events = storage.load_events_for_tenant("bob").unwrap();
+        assert_eq!(bob_events.len(), 3);
+        for e in &bob_events {
+            assert_eq!(e.tenant_id_str(), "bob");
+        }
+
+        let carol_events = storage.load_events_for_tenant("carol").unwrap();
+        assert_eq!(carol_events.len(), 1);
+        assert_eq!(carol_events[0].tenant_id_str(), "carol");
+    }
+
+    #[test]
+    fn test_load_events_for_tenant_returns_empty_when_subtree_missing() {
+        // Querying a tenant that has never written must not error — it's
+        // a normal "no data" case, not a misconfiguration. Important for
+        // first-query latency on a fresh tenant.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        // Seed only alice so the storage_dir isn't empty (rule out the
+        // empty-dir trivial case).
+        storage.append_event(event_with_tenant("alice", "a-0")).unwrap();
+        storage.flush().unwrap();
+
+        let files = storage.list_parquet_files_for_tenant("nobody-here").unwrap();
+        assert!(files.is_empty());
+
+        let events = storage.load_events_for_tenant("nobody-here").unwrap();
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_load_events_for_tenant_rejects_unsafe_tenant_id() {
+        // Path traversal must fail at the API boundary, not after disk
+        // reads. Same whitelist as the write path.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        for unsafe_tid in ["..", "a/b", "a\\b", "", "a..b/.."] {
+            let result = storage.load_events_for_tenant(unsafe_tid);
+            assert!(
+                result.is_err(),
+                "tenant_id {unsafe_tid:?} should have been rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn test_load_events_for_tenant_ignores_legacy_flat_layout_files() {
+        // Flat-layout files at the storage root predate partitioning. A
+        // tenant-scoped load must not pick them up — the migration tool
+        // is what relocates them under default/. Until it runs, those
+        // files are invisible to per-tenant queries (correct behavior:
+        // the system has no way to tell which tenant they belong to
+        // beyond "default", and pretending otherwise would mis-attribute
+        // them).
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        // Seed a flat-layout file (relocates default/<yyyy-mm>/ → root).
+        let _flat = seed_flat_layout_file(&storage, 4);
+
+        // Querying default returns nothing — the flat file at the root
+        // isn't under default/.
+        let default_events = storage.load_events_for_tenant("default").unwrap();
+        assert!(
+            default_events.is_empty(),
+            "tenant-scoped load must not pick up flat-layout files; got {} events",
+            default_events.len()
+        );
+
+        // Sanity: the full loader still sees them via the recursive walk.
+        let all_events = storage.load_all_events().unwrap();
+        assert_eq!(all_events.len(), 4);
     }
 
     // -----------------------------------------------------------------
