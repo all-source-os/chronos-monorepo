@@ -12,6 +12,7 @@ use arrow::{
 };
 use parquet::{arrow::ArrowWriter, file::properties::WriterProperties};
 use std::{
+    collections::HashMap,
     fs::{self, File},
     path::{Path, PathBuf},
     sync::{
@@ -114,8 +115,15 @@ pub struct ParquetStorage {
     /// Base directory for storing parquet files
     storage_dir: PathBuf,
 
-    /// Current batch being accumulated (protected by mutex for thread safety)
-    current_batch: Mutex<Vec<Event>>,
+    /// Buffered events keyed by tenant_id. Each tenant accumulates its own
+    /// batch and flushes independently into its partition under
+    /// `storage_dir/<tenant_id>/<yyyy-mm>/`. Single outer mutex protects the
+    /// whole map: lookup is O(1), tenant cardinality is low (single digits
+    /// today; bounded by Step 3's cache budget later), so contention is
+    /// fine. We keep the mutex held only for the push, not for disk I/O —
+    /// flush takes ownership of a tenant's batch via remove() and writes
+    /// after the lock is released.
+    current_batches: Mutex<HashMap<String, Vec<Event>>>,
 
     /// Configuration
     config: ParquetStorageConfig,
@@ -170,7 +178,7 @@ impl ParquetStorage {
 
         Ok(Self {
             storage_dir,
-            current_batch: Mutex::new(Vec::with_capacity(config.batch_size)),
+            current_batches: Mutex::new(HashMap::new()),
             config,
             schema,
             last_flush_time: Mutex::new(Instant::now()),
@@ -197,21 +205,26 @@ impl ParquetStorage {
 
     /// Add an event to the current batch
     ///
-    /// Events are buffered until either:
-    /// - Batch size reaches configured limit (default: 10,000)
-    /// - Flush timeout is exceeded
-    /// - Manual flush() is called
+    /// Events are routed to a per-tenant batch keyed by `event.tenant_id_str()`.
+    /// A tenant's batch is buffered until any of:
+    /// - That tenant's batch hits the configured `batch_size` (default 10,000)
+    ///   — flushes only that tenant, not the whole world
+    /// - The flush timeout elapses — flushes every tenant with pending data
+    /// - `flush()` is called explicitly
+    /// - The process shuts down
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn append_event(&self, event: Event) -> Result<()> {
-        let should_flush = {
-            let mut batch = self.current_batch.lock().unwrap();
-            batch.push(event);
-            batch.len() >= self.config.batch_size
+        let tenant = event.tenant_id_str().to_string();
+        let should_flush_tenant = {
+            let mut batches = self.current_batches.lock().unwrap();
+            let entry = batches.entry(tenant.clone()).or_insert_with(Vec::new);
+            entry.push(event);
+            entry.len() >= self.config.batch_size
         };
 
-        if should_flush {
+        if should_flush_tenant {
             self.size_flushes.fetch_add(1, Ordering::Relaxed);
-            self.flush()?;
+            self.flush_tenant(&tenant)?;
         }
 
         Ok(())
@@ -219,38 +232,41 @@ impl ParquetStorage {
 
     /// Add multiple events to the batch (optimized batch insertion)
     ///
-    /// This is the preferred method for high-throughput ingestion.
-    /// Events are added atomically and flushed if batch size is reached.
+    /// Preferred entry point for high-throughput ingestion. Events are
+    /// grouped by tenant under a single mutex acquisition and any tenant
+    /// that crosses `batch_size` is flushed on the spot.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn batch_write(&self, events: Vec<Event>) -> Result<BatchWriteResult> {
         let start = Instant::now();
         let event_count = events.len();
-        let mut batches_flushed = 0;
 
-        // Add events in chunks to avoid holding lock too long
-        let mut remaining_events = events.into_iter().peekable();
+        // Pre-group by tenant to keep the lock window short — one acquire,
+        // one extend per tenant, decide which tenants are over threshold.
+        let mut grouped: HashMap<String, Vec<Event>> = HashMap::new();
+        for event in events {
+            grouped
+                .entry(event.tenant_id_str().to_string())
+                .or_default()
+                .push(event);
+        }
 
-        while remaining_events.peek().is_some() {
-            let should_flush = {
-                let mut batch = self.current_batch.lock().unwrap();
-                let available_space = self.config.batch_size.saturating_sub(batch.len());
-
-                if available_space == 0 {
-                    true
-                } else {
-                    // Take up to available_space events
-                    let to_add: Vec<Event> =
-                        remaining_events.by_ref().take(available_space).collect();
-                    batch.extend(to_add);
-                    batch.len() >= self.config.batch_size
+        let mut tenants_to_flush: Vec<String> = Vec::new();
+        {
+            let mut batches = self.current_batches.lock().unwrap();
+            for (tenant, mut new_events) in grouped {
+                let entry = batches.entry(tenant.clone()).or_insert_with(Vec::new);
+                entry.append(&mut new_events);
+                if entry.len() >= self.config.batch_size {
+                    tenants_to_flush.push(tenant);
                 }
-            };
-
-            if should_flush {
-                self.size_flushes.fetch_add(1, Ordering::Relaxed);
-                self.flush()?;
-                batches_flushed += 1;
             }
+        }
+
+        let mut batches_flushed = 0;
+        for tenant in tenants_to_flush {
+            self.size_flushes.fetch_add(1, Ordering::Relaxed);
+            self.flush_tenant(&tenant)?;
+            batches_flushed += 1;
         }
 
         let duration = start.elapsed();
@@ -266,13 +282,17 @@ impl ParquetStorage {
     /// Check if a timeout-based flush is needed and perform it
     ///
     /// Call this periodically (e.g., from a background task) to ensure
-    /// partial batches are flushed within the configured timeout.
+    /// partial batches are flushed within the configured timeout. When
+    /// triggered, every tenant with pending events flushes — the timer is
+    /// global, not per-tenant, so a slow-trickle tenant doesn't get
+    /// stranded waiting for its own batch to fill.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn check_timeout_flush(&self) -> Result<bool> {
         let should_flush = {
             let last_flush = self.last_flush_time.lock().unwrap();
-            let batch = self.current_batch.lock().unwrap();
-            !batch.is_empty() && last_flush.elapsed() >= self.config.flush_timeout
+            let batches = self.current_batches.lock().unwrap();
+            let any_pending = batches.values().any(|v| !v.is_empty());
+            any_pending && last_flush.elapsed() >= self.config.flush_timeout
         };
 
         if should_flush {
@@ -284,36 +304,74 @@ impl ParquetStorage {
         }
     }
 
-    /// Flush current batch to a Parquet file
+    /// Flush every tenant's pending batch to its partition.
     ///
-    /// Thread-safe: Can be called from multiple threads.
+    /// Thread-safe: callable from any thread. A snapshot of which tenants
+    /// have pending data is taken under a short lock; each tenant is then
+    /// flushed individually with its own lock cycle, so disk I/O for one
+    /// tenant doesn't block writes against another.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn flush(&self) -> Result<()> {
+        let tenants: Vec<String> = {
+            let batches = self.current_batches.lock().unwrap();
+            batches
+                .iter()
+                .filter(|(_, v)| !v.is_empty())
+                .map(|(k, _)| k.clone())
+                .collect()
+        };
+        if tenants.is_empty() {
+            return Ok(());
+        }
+        for tenant in tenants {
+            self.flush_tenant(&tenant)?;
+        }
+        Ok(())
+    }
+
+    /// Flush a single tenant's pending events into its partition file.
+    ///
+    /// File path: `storage_dir/<sanitized_tenant_id>/<yyyy-mm>/events-<ts>-<uuid>.parquet`.
+    /// `<yyyy-mm>` is taken from the wall-clock at flush time (matching the
+    /// pre-tenant filename's timestamp semantics) rather than from
+    /// individual event timestamps — keeps each flush to a single output
+    /// file even when buffered events span months.
+    fn flush_tenant(&self, tenant_id: &str) -> Result<()> {
         let events_to_write = {
-            let mut batch = self.current_batch.lock().unwrap();
-            if batch.is_empty() {
-                return Ok(());
+            let mut batches = self.current_batches.lock().unwrap();
+            match batches.get_mut(tenant_id) {
+                Some(v) if !v.is_empty() => std::mem::take(v),
+                _ => return Ok(()),
             }
-            std::mem::take(&mut *batch)
         };
 
         let batch_count = events_to_write.len();
-        tracing::info!("Flushing {} events to Parquet storage", batch_count);
-
         let start = Instant::now();
 
-        // Create record batch from events
         let record_batch = self.events_to_record_batch(&events_to_write)?;
 
-        // Generate filename with timestamp and unique suffix for concurrent writes
+        let now = chrono::Utc::now();
+        let partition_dir = partition_path_for_tenant(&self.storage_dir, tenant_id, now)?;
+        fs::create_dir_all(&partition_dir).map_err(|e| {
+            AllSourceError::StorageError(format!(
+                "Failed to create tenant partition {}: {e}",
+                partition_dir.display()
+            ))
+        })?;
         let filename = format!(
             "events-{}-{}.parquet",
-            chrono::Utc::now().format("%Y%m%d-%H%M%S%3f"),
+            now.format("%Y%m%d-%H%M%S%3f"),
             uuid::Uuid::new_v4().as_simple()
         );
-        let file_path = self.storage_dir.join(&filename);
+        let file_path = partition_dir.join(&filename);
 
-        // Write to Parquet file
+        tracing::info!(
+            "Flushing {} events for tenant={} to {}",
+            batch_count,
+            tenant_id,
+            file_path.display()
+        );
+
         let file = File::create(&file_path).map_err(|e| {
             AllSourceError::StorageError(format!("Failed to create parquet file: {e}"))
         })?;
@@ -323,13 +381,11 @@ impl ParquetStorage {
             .build();
 
         let mut writer = ArrowWriter::try_new(file, self.schema.clone(), Some(props))?;
-
         writer.write(&record_batch)?;
         let file_metadata = writer.close()?;
 
         let duration = start.elapsed();
 
-        // Update statistics
         self.batches_written.fetch_add(1, Ordering::Relaxed);
         self.events_written
             .fetch_add(batch_count as u64, Ordering::Relaxed);
@@ -343,15 +399,15 @@ impl ParquetStorage {
         self.total_write_time_ns
             .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
 
-        // Update last flush time
         {
             let mut last_flush = self.last_flush_time.lock().unwrap();
             *last_flush = Instant::now();
         }
 
         tracing::info!(
-            "Successfully wrote {} events to {} in {:?}",
+            "Wrote {} events for tenant={} to {} in {:?}",
             batch_count,
+            tenant_id,
             file_path.display(),
             duration
         );
@@ -359,22 +415,27 @@ impl ParquetStorage {
         Ok(())
     }
 
-    /// Force flush any remaining events (for shutdown handling)
+    /// Force flush any remaining events (for shutdown handling).
     ///
-    /// This ensures partial batches are persisted on graceful shutdown.
+    /// Sums pending counts across every tenant's batch so the caller can
+    /// log "we flushed N events on shutdown" without caring about
+    /// per-tenant breakdown.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn flush_on_shutdown(&self) -> Result<usize> {
-        let batch_size = {
-            let batch = self.current_batch.lock().unwrap();
-            batch.len()
+        let total_pending: usize = {
+            let batches = self.current_batches.lock().unwrap();
+            batches.values().map(Vec::len).sum()
         };
 
-        if batch_size > 0 {
-            tracing::info!("Shutdown: flushing partial batch of {} events", batch_size);
+        if total_pending > 0 {
+            tracing::info!(
+                "Shutdown: flushing {} pending events across all tenants",
+                total_pending
+            );
             self.flush()?;
         }
 
-        Ok(batch_size)
+        Ok(total_pending)
     }
 
     /// Get batch write statistics
@@ -406,9 +467,14 @@ impl ParquetStorage {
         }
     }
 
-    /// Get current batch size (pending events)
+    /// Total pending events across all tenant batches.
     pub fn pending_count(&self) -> usize {
-        self.current_batch.lock().unwrap().len()
+        self.current_batches
+            .lock()
+            .unwrap()
+            .values()
+            .map(Vec::len)
+            .sum()
     }
 
     /// Get configured batch size
@@ -479,7 +545,8 @@ impl ParquetStorage {
         let mut all_events = Vec::with_capacity(parquet_files.len() * self.config.batch_size);
         for file_path in parquet_files {
             tracing::info!("Loading events from {}", file_path.display());
-            let file_events = self.load_events_from_file(&file_path)?;
+            let tenant_id = tenant_id_from_path(&self.storage_dir, &file_path);
+            let file_events = self.load_events_from_file(&file_path, &tenant_id)?;
             all_events.extend(file_events);
         }
 
@@ -488,9 +555,13 @@ impl ParquetStorage {
         Ok(all_events)
     }
 
-    /// Load events from a single Parquet file
+    /// Load events from a single Parquet file. `tenant_id` is the value to
+    /// stamp onto each loaded event — derived from the file's location in
+    /// the tree by `load_all_events`. The Parquet schema doesn't include
+    /// tenant_id today (path is the source of truth), so this is how
+    /// per-tenant identity survives the round trip.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
-    fn load_events_from_file(&self, file_path: &Path) -> Result<Vec<Event>> {
+    fn load_events_from_file(&self, file_path: &Path, tenant_id: &str) -> Result<Vec<Event>> {
         use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
         let file = File::open(file_path).map_err(|e| {
@@ -503,16 +574,18 @@ impl ParquetStorage {
         let mut events = Vec::new();
 
         while let Some(Ok(batch)) = reader.next() {
-            let batch_events = self.record_batch_to_events(&batch)?;
+            let batch_events = self.record_batch_to_events(&batch, tenant_id)?;
             events.extend(batch_events);
         }
 
         Ok(events)
     }
 
-    /// Convert Arrow RecordBatch back to events
+    /// Convert Arrow RecordBatch back to events. `tenant_id` is stamped onto
+    /// each reconstructed event — the schema doesn't carry it today, so the
+    /// caller passes the value derived from the file path.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
-    fn record_batch_to_events(&self, batch: &RecordBatch) -> Result<Vec<Event>> {
+    fn record_batch_to_events(&self, batch: &RecordBatch, tenant_id: &str) -> Result<Vec<Event>> {
         let event_ids = batch
             .column(0)
             .as_any()
@@ -574,7 +647,7 @@ impl ParquetStorage {
                 id,
                 event_types.value(i).to_string(),
                 entity_ids.value(i).to_string(),
-                "default".to_string(), // Default tenant for backward compatibility
+                tenant_id.to_string(),
                 serde_json::from_str(payloads.value(i))?,
                 timestamp,
                 metadata,
@@ -611,7 +684,13 @@ impl ParquetStorage {
             }
         }
 
-        let current_batch_size = self.current_batch.lock().unwrap().len();
+        let current_batch_size: usize = self
+            .current_batches
+            .lock()
+            .unwrap()
+            .values()
+            .map(Vec::len)
+            .sum();
 
         Ok(StorageStats {
             total_files: parquet_files.len(),
@@ -619,6 +698,85 @@ impl ParquetStorage {
             storage_dir: self.storage_dir.clone(),
             current_batch_size,
         })
+    }
+}
+
+/// Validate a tenant ID for use as a filesystem path component.
+///
+/// Whitelist: ASCII letters, digits, `-`, `_`, `.` — covers UUIDs, the
+/// hyphen-and-lowercase tenant strings the onboarding flow produces, and
+/// the `system` tenant the heartbeat emitter uses. Rejects empty input,
+/// any path separator (`/`, `\`), and any "..". The whitelist is the
+/// primary defence against path traversal; the explicit ".." check is
+/// belt-and-braces in case the whitelist ever loosens.
+///
+/// Length capped at 128 bytes — comfortably above the 36-byte UUID and
+/// the longest onboarding tenant the system has produced, well below
+/// every common filesystem's NAME_MAX (typically 255).
+fn sanitize_tenant_id_for_path(tenant_id: &str) -> Result<&str> {
+    if tenant_id.is_empty() {
+        return Err(AllSourceError::StorageError(
+            "tenant_id is empty (cannot derive partition path)".to_string(),
+        ));
+    }
+    if tenant_id.len() > 128 {
+        return Err(AllSourceError::StorageError(format!(
+            "tenant_id is too long for partition path: {} bytes (max 128)",
+            tenant_id.len()
+        )));
+    }
+    if tenant_id == "." || tenant_id == ".." {
+        return Err(AllSourceError::StorageError(format!(
+            "tenant_id {tenant_id:?} is reserved"
+        )));
+    }
+    for c in tenant_id.chars() {
+        let ok = c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.';
+        if !ok {
+            return Err(AllSourceError::StorageError(format!(
+                "tenant_id {tenant_id:?} contains disallowed character {c:?} for partition path"
+            )));
+        }
+    }
+    Ok(tenant_id)
+}
+
+/// Resolve the directory a flush should write into for `(tenant, when)`.
+///
+/// Returns `<root>/<tenant>/<yyyy-mm>/`. Caller is responsible for
+/// `create_dir_all`-ing the result before opening files in it.
+fn partition_path_for_tenant(
+    root: &Path,
+    tenant_id: &str,
+    when: chrono::DateTime<chrono::Utc>,
+) -> Result<PathBuf> {
+    let safe = sanitize_tenant_id_for_path(tenant_id)?;
+    Ok(root.join(safe).join(when.format("%Y-%m").to_string()))
+}
+
+/// Reverse of `partition_path_for_tenant` — given a parquet file's full
+/// path and the storage root, return the tenant_id stored in the path.
+///
+/// Tenant-partitioned shape: `<root>/<tenant>/<yyyy-mm>/events-*.parquet`
+/// → first component after root is the tenant.
+///
+/// Legacy flat shape: `<root>/events-*.parquet` → no tenant in path, fall
+/// back to `"default"` so events written before the partitioning change
+/// keep loading with their original (and only ever) tenant identity.
+fn tenant_id_from_path(root: &Path, file_path: &Path) -> String {
+    let Ok(rel) = file_path.strip_prefix(root) else {
+        return "default".to_string();
+    };
+    let mut comps = rel.components();
+    let first = comps.next();
+    let next = comps.next();
+    match (first, next) {
+        // Two or more components: <tenant>/<rest>... → tenant
+        (Some(std::path::Component::Normal(tenant)), Some(_)) => {
+            tenant.to_string_lossy().into_owned()
+        }
+        // Single component (the parquet file itself): legacy flat layout.
+        _ => "default".to_string(),
     }
 }
 
@@ -786,22 +944,26 @@ mod tests {
         };
         let storage = ParquetStorage::with_config(temp_dir.path(), config).unwrap();
 
-        // Create 250 events (should trigger 2 flushes with 50 remaining)
+        // 250 events for a single tenant. With per-tenant flush, when the
+        // tenant's pending batch crosses batch_size we drain the whole
+        // tenant in one flush — not chunk at exactly batch_size like the
+        // old global-batch path did. So 250 events triggers exactly one
+        // size-flush (the appender pushes all 250 onto the tenant's batch
+        // under one lock, sees length >= 100, schedules a flush which
+        // drains everything). 0 left pending.
         let events: Vec<Event> = (0..250)
             .map(|i| create_test_event(&format!("entity-{i}")))
             .collect();
 
         let result = storage.batch_write(events).unwrap();
         assert_eq!(result.events_written, 250);
-        assert_eq!(result.batches_flushed, 2);
+        assert_eq!(result.batches_flushed, 1);
+        assert_eq!(storage.pending_count(), 0);
 
-        // 50 events should be pending
-        assert_eq!(storage.pending_count(), 50);
-
-        // Flush remaining
+        // Manual flush is a no-op since nothing's pending.
         storage.flush().unwrap();
 
-        // Load all events back
+        // All 250 events round-trip through the tenant-partitioned tree.
         let loaded = storage.load_all_events().unwrap();
         assert_eq!(loaded.len(), 250);
     }
@@ -896,7 +1058,10 @@ mod tests {
         };
         let storage = ParquetStorage::with_config(temp_dir.path(), config).unwrap();
 
-        // Write 100 events (2 batches)
+        // 100 events, single tenant, batch_size=50. Per-tenant flush
+        // drains the whole tenant on the first size trigger, so this
+        // produces exactly one size-flush and one batches_written event
+        // (vs. the pre-tenant world's two).
         let events: Vec<Event> = (0..100)
             .map(|i| create_test_event(&format!("entity-{i}")))
             .collect();
@@ -904,11 +1069,11 @@ mod tests {
         storage.batch_write(events).unwrap();
 
         let stats = storage.batch_stats();
-        assert_eq!(stats.batches_written, 2);
+        assert_eq!(stats.batches_written, 1);
         assert_eq!(stats.events_written, 100);
         assert!(stats.avg_batch_size > 0.0);
         assert!(stats.events_per_sec > 0.0);
-        assert_eq!(stats.size_flushes, 2);
+        assert_eq!(stats.size_flushes, 1);
     }
 
     #[test]
@@ -1075,38 +1240,214 @@ mod tests {
         assert_eq!(found[0].extension().and_then(|s| s.to_str()), Some("parquet"));
     }
 
+    /// Build an event whose tenant_id and entity_id we control, so tests
+    /// can verify per-tenant routing without depending on the helper that
+    /// hardcodes "default".
+    fn event_with_tenant(tenant: &str, entity_id: &str) -> Event {
+        Event::reconstruct_from_strings(
+            uuid::Uuid::new_v4(),
+            "test.event".to_string(),
+            entity_id.to_string(),
+            tenant.to_string(),
+            json!({"k": "v"}),
+            chrono::Utc::now(),
+            None,
+            1,
+        )
+    }
+
     #[test]
-    fn test_load_all_events_reads_through_partitioned_tree() {
-        // End-to-end: writing to a tenant-partitioned subdirectory by hand
-        // and asking load_all_events to recover them simulates what commit
-        // #2 (write-side per-tenant flush) will produce, ahead of that
-        // change landing. Exercising it now means commit #2 doesn't have
-        // to ship its own end-to-end loader test.
+    fn test_flush_writes_into_per_tenant_partition() {
+        // End-to-end check that the new write path produces
+        // <root>/<tenant>/<yyyy-mm>/events-*.parquet — no flat file at the
+        // root, no cross-tenant mixing.
         let temp_dir = TempDir::new().unwrap();
         let storage = ParquetStorage::new(temp_dir.path()).unwrap();
 
         for i in 0..3 {
-            storage.append_event(create_test_event(&format!("entity-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("default", &format!("entity-{i}")))
+                .unwrap();
         }
         storage.flush().unwrap();
 
-        // Move the produced flat file into a tenant tree to simulate the
-        // future write-side layout. After the move, load_all_events should
-        // still find the events.
-        let flat_files: Vec<_> = std::fs::read_dir(temp_dir.path())
-            .unwrap()
-            .filter_map(std::result::Result::ok)
-            .map(|e| e.path())
-            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("parquet"))
-            .collect();
-        assert_eq!(flat_files.len(), 1, "expected one flat-layout file before relocation");
+        let parquet_files = find_parquet_files_recursive(temp_dir.path()).unwrap();
+        assert_eq!(parquet_files.len(), 1);
 
-        let dst_dir = temp_dir.path().join("tenant-default/2026-04");
-        std::fs::create_dir_all(&dst_dir).unwrap();
-        let dst = dst_dir.join(flat_files[0].file_name().unwrap());
-        std::fs::rename(&flat_files[0], &dst).unwrap();
+        let rel = parquet_files[0]
+            .strip_prefix(temp_dir.path())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        // Path shape: default/<yyyy-mm>/events-*.parquet
+        let parts: Vec<&str> = rel.split(std::path::MAIN_SEPARATOR).collect();
+        assert_eq!(parts.len(), 3, "expected tenant/yyyy-mm/file, got {rel}");
+        assert_eq!(parts[0], "default");
+        // yyyy-mm is two digits dash four — loose check, exact month
+        // varies with wall-clock at test runtime.
+        assert!(parts[1].len() == 7 && parts[1].as_bytes()[4] == b'-', "expected yyyy-mm, got {}", parts[1]);
+        assert!(parts[2].starts_with("events-") && parts[2].ends_with(".parquet"));
 
         let loaded = storage.load_all_events().unwrap();
-        assert_eq!(loaded.len(), 3, "load_all_events must walk into the tenant tree");
+        assert_eq!(loaded.len(), 3);
+    }
+
+    #[test]
+    fn test_multiple_tenants_get_isolated_subtrees() {
+        // Per-tenant flush must not mix tenants into the same Parquet file
+        // and must put each tenant under its own subdirectory.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        for i in 0..2 {
+            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+        }
+        for i in 0..3 {
+            storage.append_event(event_with_tenant("bob", &format!("b-{i}"))).unwrap();
+        }
+        storage.flush().unwrap();
+
+        let alice_subtree = temp_dir.path().join("alice");
+        let bob_subtree = temp_dir.path().join("bob");
+        assert!(alice_subtree.is_dir(), "alice should have its own subtree");
+        assert!(bob_subtree.is_dir(), "bob should have its own subtree");
+
+        let alice_files = find_parquet_files_recursive(&alice_subtree).unwrap();
+        let bob_files = find_parquet_files_recursive(&bob_subtree).unwrap();
+        assert_eq!(alice_files.len(), 1);
+        assert_eq!(bob_files.len(), 1);
+
+        // Loaded events keep their tenant_id — round-trip preserves which
+        // tenant each event belonged to.
+        let loaded = storage.load_all_events().unwrap();
+        let (alice_count, bob_count) = loaded.iter().fold((0, 0), |(a, b), e| {
+            match e.tenant_id_str() {
+                "alice" => (a + 1, b),
+                "bob" => (a, b + 1),
+                _ => (a, b),
+            }
+        });
+        assert_eq!(alice_count, 2);
+        assert_eq!(bob_count, 3);
+    }
+
+    #[test]
+    fn test_size_flush_only_drains_full_tenant() {
+        // When one tenant exactly hits batch_size, only that tenant
+        // flushes; the other tenant keeps its events buffered. Prevents
+        // one noisy tenant from causing fragmented writes for everyone.
+        let temp_dir = TempDir::new().unwrap();
+        let config = ParquetStorageConfig { batch_size: 5, ..Default::default() };
+        let storage = ParquetStorage::with_config(temp_dir.path(), config).unwrap();
+
+        // Alice: 5 events → on the 5th, len == batch_size triggers flush
+        // which drains all 5. Alice ends empty.
+        for i in 0..5 {
+            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+        }
+        // Bob: 2 events → still under threshold, stays pending.
+        for i in 0..2 {
+            storage.append_event(event_with_tenant("bob", &format!("b-{i}"))).unwrap();
+        }
+
+        assert_eq!(storage.pending_count(), 2, "only bob's 2 events should be pending");
+
+        let parquet_files = find_parquet_files_recursive(temp_dir.path()).unwrap();
+        assert_eq!(parquet_files.len(), 1, "only alice should have flushed");
+        assert!(
+            parquet_files[0].to_string_lossy().contains(&format!("alice{}", std::path::MAIN_SEPARATOR)),
+            "expected alice partition, got {}", parquet_files[0].display()
+        );
+    }
+
+    #[test]
+    fn test_tenant_id_from_path_recovers_tenant_for_partitioned_files() {
+        let root = Path::new("/data/storage");
+        let f = Path::new("/data/storage/alice/2026-04/events-20260426-120000000-aaaa.parquet");
+        assert_eq!(tenant_id_from_path(root, f), "alice");
+    }
+
+    #[test]
+    fn test_tenant_id_from_path_falls_back_to_default_for_legacy_flat_layout() {
+        let root = Path::new("/data/storage");
+        let f = Path::new("/data/storage/events-20260426-120000000-aaaa.parquet");
+        // Legacy single-component path. Pre-tenant data was always
+        // commingled with tenant=default, so default is the right fallback.
+        assert_eq!(tenant_id_from_path(root, f), "default");
+    }
+
+    #[test]
+    fn test_sanitize_tenant_id_for_path_accepts_safe_inputs() {
+        for ok in [
+            "default",
+            "system",
+            "1e6b2d1c-2f64-4441-9cf9-42f2e451aa17",
+            "onboard-diagnostic-160-at-example-com",
+            "tenant_with_underscore",
+            "v1.0",
+        ] {
+            assert!(
+                sanitize_tenant_id_for_path(ok).is_ok(),
+                "{ok:?} should be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn test_sanitize_tenant_id_for_path_rejects_unsafe_inputs() {
+        for bad in [
+            "",            // empty
+            "..",          // parent traversal
+            ".",           // current dir
+            "foo/bar",     // path separator
+            "foo\\bar",    // windows-style separator
+            "foo bar",     // whitespace
+            "foo\nbar",    // newline
+            "foo\0bar",    // null byte
+            "tenant?",     // shell glob char
+            "tenant*",     // shell glob char
+        ] {
+            assert!(
+                sanitize_tenant_id_for_path(bad).is_err(),
+                "{bad:?} should be rejected"
+            );
+        }
+
+        // Length cap.
+        let too_long = "a".repeat(129);
+        assert!(sanitize_tenant_id_for_path(&too_long).is_err());
+    }
+
+    #[test]
+    fn test_partition_path_for_tenant_shape() {
+        let root = Path::new("/data");
+        let when = chrono::DateTime::parse_from_rfc3339("2026-04-26T12:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let path = partition_path_for_tenant(root, "alice", when).unwrap();
+        assert_eq!(path, Path::new("/data/alice/2026-04"));
+    }
+
+    #[test]
+    fn test_append_event_rejects_unsafe_tenant_at_flush() {
+        // Defence in depth: even if some upstream forgets to validate, the
+        // sanitizer in flush_tenant catches it. Since append doesn't write
+        // synchronously, the bad tenant is rejected on the first flush
+        // attempt. We test that flush surfaces an error rather than
+        // silently writing somewhere weird.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        // append accepts whatever tenant_id the event carries — domain
+        // construction would normally reject this, but if it slipped
+        // through, flush should refuse to derive a path from it.
+        storage.append_event(event_with_tenant("../escape", "e-0")).unwrap();
+        let result = storage.flush();
+        assert!(result.is_err(), "flush should reject unsafe tenant_id");
+        let msg = format!("{}", result.unwrap_err());
+        assert!(
+            msg.contains("disallowed character") || msg.contains("reserved"),
+            "expected sanitization error message, got: {msg}"
+        );
     }
 }
