@@ -1,6 +1,6 @@
 use crate::{
     error::{AllSourceError, Result},
-    infrastructure::persistence::storage::ParquetStorage,
+    infrastructure::persistence::{cold_tier::ArchiveTarget, storage::ParquetStorage},
 };
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
@@ -66,6 +66,15 @@ pub struct CompactionConfig {
     /// honors the bead: tenant `system` keeps 30 days; everyone
     /// else keeps forever.
     pub retention: RetentionConfig,
+
+    /// Optional cold-tier archive. When set, events that would be
+    /// dropped by retention are archived to this target BEFORE the
+    /// originals are deleted. A failed archive aborts the
+    /// compaction pass — originals stay on disk and the next run
+    /// retries. Default `None` preserves the pre-cold-tier behavior:
+    /// retention deletes outright. See
+    /// `infrastructure::persistence::cold_tier`.
+    pub archive: Option<Arc<dyn ArchiveTarget>>,
 }
 
 /// Per-tenant retention configuration. Look up a TTL via
@@ -138,6 +147,7 @@ impl Default for CompactionConfig {
             auto_compact: true,
             strategy: CompactionStrategy::SizeBased,
             retention: RetentionConfig::default(),
+            archive: None,
         }
     }
 }
@@ -537,14 +547,32 @@ impl CompactionManager {
         // the same crash-safe guarantee as the rest of the
         // compaction pipeline (snapshot rename completes BEFORE
         // any original is deleted; AC #6).
+        //
+        // Cold-tier (sustainability): when an `archive` target is
+        // configured, dropped events are written to it BEFORE this
+        // function deletes any original file. A failed archive
+        // returns `Err`, originals stay on disk, and the next
+        // compaction pass retries — same crash-safety contract as
+        // the snapshot path. Without an archive, retention behaves
+        // exactly as before (delete outright).
         let dropped_by_retention =
             if let Some(ttl) = self.config.retention.ttl_for(tenant_id) {
                 let cutoff = Utc::now()
                     - chrono::Duration::from_std(ttl)
                         .unwrap_or_else(|_| chrono::Duration::zero());
                 let before = events.len();
-                events.retain(|e| e.timestamp >= cutoff);
+
+                // Partition: drained = events past TTL, kept = events to keep.
+                // Using drain_filter would be simpler but it's unstable;
+                // partition + reassign keeps events: Vec<Event> with the
+                // kept slice in original order.
+                let (drained, kept): (Vec<_>, Vec<_>) =
+                    std::mem::take(&mut events)
+                        .into_iter()
+                        .partition(|e| e.timestamp < cutoff);
+                events = kept;
                 let dropped = before - events.len();
+
                 if dropped > 0 {
                     tracing::info!(
                         retention_tenant = tenant_id,
@@ -554,6 +582,26 @@ impl CompactionManager {
                         ttl_secs = ttl.as_secs(),
                         "retention: dropped events older than TTL"
                     );
+
+                    if let Some(archive) = self.config.archive.as_ref() {
+                        let from = drained
+                            .iter()
+                            .map(|e| e.timestamp)
+                            .min()
+                            .expect("dropped > 0 guarantees non-empty drained");
+                        let to = drained
+                            .iter()
+                            .map(|e| e.timestamp)
+                            .max()
+                            .expect("dropped > 0 guarantees non-empty drained");
+                        archive.archive(tenant_id, from, to, &drained)?;
+                        tracing::info!(
+                            retention_tenant = tenant_id,
+                            archived_to = %archive.description(),
+                            archived = drained.len(),
+                            "retention: dropped events archived to cold tier"
+                        );
+                    }
                 }
                 dropped
             } else {
@@ -699,8 +747,9 @@ pub struct CompactionResult {
 /// Format a UTC timestamp as a filename-safe ISO-8601 basic-form
 /// string: `2026-04-27T134567Z` — no colons, no fractional second.
 /// Used for the `<from>-<to>` portion of snapshot filenames so
-/// they're portable across filesystems.
-fn format_iso_basic(t: DateTime<Utc>) -> String {
+/// they're portable across filesystems. `pub(super)` so the
+/// cold-tier archive can reuse the same naming convention.
+pub(super) fn format_iso_basic(t: DateTime<Utc>) -> String {
     t.format("%Y-%m-%dT%H%M%SZ").to_string()
 }
 
@@ -1454,6 +1503,253 @@ mod tests {
         // Raw files survived; events queryable.
         let events = storage2.load_events_for_tenant("alice").unwrap();
         assert_eq!(events.len(), 3);
+    }
+
+    #[test]
+    fn test_cold_tier_archives_dropped_events_before_deletion() {
+        // Cold-tier integration: when retention drops events AND an
+        // archive target is configured, the dropped events end up
+        // in the archive root before originals are removed. This is
+        // the load-bearing property — without archive-before-delete
+        // the cold tier would silently lose data on retention runs.
+        use crate::infrastructure::persistence::cold_tier::LocalFsArchive;
+
+        let live_dir = TempDir::new().unwrap();
+        let archive_dir = TempDir::new().unwrap();
+
+        // Seed alice with 50 events spread across 60 days.
+        let storage = ParquetStorage::new(live_dir.path()).unwrap();
+        let now = Utc::now();
+        for i in 0..50 {
+            let day_offset = 60 - (i * 60 / 49);
+            let ts = now - chrono::Duration::days(day_offset as i64);
+            let event = crate::domain::entities::Event::reconstruct_from_strings(
+                uuid::Uuid::new_v4(),
+                "test.event".to_string(),
+                format!("e-{i}"),
+                "alice".to_string(),
+                serde_json::json!({"i": i}),
+                ts,
+                None,
+                1,
+            );
+            storage.append_event(event).unwrap();
+            if i % 5 == 4 {
+                storage.flush().unwrap();
+            }
+        }
+        storage.flush().unwrap();
+
+        // 30-day TTL + cold-tier archive.
+        let mut retention = RetentionConfig::default();
+        retention.set("alice", Some(Duration::from_secs(30 * 24 * 3600)));
+        let archive: Arc<dyn ArchiveTarget> =
+            Arc::new(LocalFsArchive::new(archive_dir.path()).unwrap());
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            small_file_threshold: 100 * 1024 * 1024,
+            strategy: CompactionStrategy::SizeBased,
+            retention,
+            archive: Some(archive),
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(live_dir.path(), config);
+
+        let result = manager.compact_tenant("alice").unwrap();
+        assert!(result.events_compacted > 0, "some events kept");
+        assert!(
+            result.events_compacted < 50,
+            "some events dropped to retention; kept {} of 50",
+            result.events_compacted
+        );
+
+        // Live storage: only events within the 30-day window.
+        let live_after = ParquetStorage::new(live_dir.path())
+            .unwrap()
+            .load_events_for_tenant("alice")
+            .unwrap();
+        assert_eq!(live_after.len(), result.events_compacted);
+
+        // Archive: contains the dropped events. Walk the archive root
+        // and load any archive.alice.* file we find.
+        let mut archive_files = vec![];
+        let mut stack = vec![archive_dir.path().to_path_buf()];
+        while let Some(d) = stack.pop() {
+            for entry in std::fs::read_dir(&d).unwrap().flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    stack.push(p);
+                } else if p
+                    .file_name()
+                    .is_some_and(|n| n.to_string_lossy().starts_with("archive.alice."))
+                {
+                    archive_files.push(p);
+                }
+            }
+        }
+        assert!(
+            !archive_files.is_empty(),
+            "archive directory must contain at least one archive.alice.* file"
+        );
+
+        // Sum events across archive files; total live + archived
+        // must equal the original 50 (no events lost in the pipeline).
+        let archive_storage = ParquetStorage::new(archive_dir.path()).unwrap();
+        let archived = archive_storage.load_events_for_tenant("alice").unwrap();
+        assert_eq!(
+            live_after.len() + archived.len(),
+            50,
+            "live + archived must equal original event count (live={}, archived={})",
+            live_after.len(),
+            archived.len()
+        );
+    }
+
+    #[test]
+    fn test_cold_tier_failure_keeps_originals_on_disk() {
+        // Crash-safety contract: a failing archive must NOT delete
+        // originals. We use a custom ArchiveTarget that always
+        // returns Err to simulate an outage.
+        let live_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(live_dir.path()).unwrap();
+        let now = Utc::now();
+        for i in 0..20 {
+            let ts = now - chrono::Duration::days(60 - i);
+            let event = crate::domain::entities::Event::reconstruct_from_strings(
+                uuid::Uuid::new_v4(),
+                "test.event".to_string(),
+                format!("e-{i}"),
+                "alice".to_string(),
+                serde_json::json!({"i": i}),
+                ts,
+                None,
+                1,
+            );
+            storage.append_event(event).unwrap();
+            if i % 5 == 4 {
+                storage.flush().unwrap();
+            }
+        }
+        storage.flush().unwrap();
+
+        // Count files before. The compaction pipeline should leave
+        // them all on disk after the failed archive.
+        let count_files = |dir: &std::path::Path| -> usize {
+            let mut n = 0;
+            let mut stack = vec![dir.to_path_buf()];
+            while let Some(d) = stack.pop() {
+                for entry in std::fs::read_dir(&d).unwrap().flatten() {
+                    let p = entry.path();
+                    if p.is_dir() {
+                        stack.push(p);
+                    } else if p.extension().is_some_and(|e| e == "parquet") {
+                        n += 1;
+                    }
+                }
+            }
+            n
+        };
+        let before = count_files(live_dir.path());
+        assert!(before > 0);
+
+        #[derive(Debug)]
+        struct FailingArchive;
+        impl ArchiveTarget for FailingArchive {
+            fn archive(
+                &self,
+                _: &str,
+                _: DateTime<Utc>,
+                _: DateTime<Utc>,
+                _: &[crate::domain::entities::Event],
+            ) -> Result<()> {
+                Err(AllSourceError::StorageError(
+                    "simulated archive outage".to_string(),
+                ))
+            }
+        }
+
+        let mut retention = RetentionConfig::default();
+        retention.set("alice", Some(Duration::from_secs(30 * 24 * 3600)));
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            small_file_threshold: 100 * 1024 * 1024,
+            strategy: CompactionStrategy::SizeBased,
+            retention,
+            archive: Some(Arc::new(FailingArchive) as Arc<dyn ArchiveTarget>),
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(live_dir.path(), config);
+
+        let result = manager.compact_tenant("alice");
+        assert!(
+            result.is_err(),
+            "compaction must fail when archive fails"
+        );
+
+        // Originals still on disk — every event still queryable.
+        let after = count_files(live_dir.path());
+        assert_eq!(
+            before, after,
+            "no files should be removed after archive failure"
+        );
+
+        let storage2 = ParquetStorage::new(live_dir.path()).unwrap();
+        let loaded = storage2.load_events_for_tenant("alice").unwrap();
+        assert_eq!(loaded.len(), 20, "all 20 events still present after failed archive");
+    }
+
+    #[test]
+    fn test_cold_tier_not_invoked_when_no_events_dropped() {
+        // If retention drops zero events (e.g. tenant has no TTL),
+        // the archive target must NOT be called. We assert by using
+        // an archive that panics on call.
+        let live_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(live_dir.path()).unwrap();
+        let now = Utc::now();
+        for i in 0..10 {
+            let ts = now - chrono::Duration::hours(i);
+            let event = crate::domain::entities::Event::reconstruct_from_strings(
+                uuid::Uuid::new_v4(),
+                "test.event".to_string(),
+                format!("e-{i}"),
+                "alice".to_string(),
+                serde_json::json!({"i": i}),
+                ts,
+                None,
+                1,
+            );
+            storage.append_event(event).unwrap();
+            if i % 3 == 2 {
+                storage.flush().unwrap();
+            }
+        }
+        storage.flush().unwrap();
+
+        #[derive(Debug)]
+        struct PanickingArchive;
+        impl ArchiveTarget for PanickingArchive {
+            fn archive(
+                &self,
+                _: &str,
+                _: DateTime<Utc>,
+                _: DateTime<Utc>,
+                _: &[crate::domain::entities::Event],
+            ) -> Result<()> {
+                panic!("archive must not be called when no events are dropped");
+            }
+        }
+
+        // Default retention → alice has no TTL → no events dropped.
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            small_file_threshold: 100 * 1024 * 1024,
+            strategy: CompactionStrategy::SizeBased,
+            archive: Some(Arc::new(PanickingArchive) as Arc<dyn ArchiveTarget>),
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(live_dir.path(), config);
+        let result = manager.compact_tenant("alice").unwrap();
+        assert_eq!(result.events_compacted, 10);
     }
 
     #[test]

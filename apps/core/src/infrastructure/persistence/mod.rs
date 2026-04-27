@@ -4,6 +4,7 @@
 pub mod arena_pool;
 pub mod backup;
 pub mod batch_processor;
+pub mod cold_tier;
 pub mod compaction;
 pub mod index;
 pub mod lock_free;
@@ -28,6 +29,7 @@ pub use batch_processor::{
     ArenaBatchBuffer, BatchProcessor, BatchProcessorConfig, BatchProcessorStats, BatchResult,
     RawEventData,
 };
+pub use cold_tier::{ArchiveTarget, LocalFsArchive};
 pub use compaction::{CompactionConfig, CompactionManager, CompactionResult, CompactionStrategy};
 pub use index::{EventIndex, IndexEntry};
 pub use lock_free::{
