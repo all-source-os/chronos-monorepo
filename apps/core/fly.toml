@@ -32,6 +32,14 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
   # Other tenants keep events forever by default.
   ALLSOURCE_RETENTION_SYSTEM_DAYS = "30"
 
+  # One-shot flat→tenant Parquet migration (Step 1 / commit bdd3cd8).
+  # The migrator is idempotent: once the storage tree has no flat files
+  # at the root, every subsequent boot's pre-Core check is a fast
+  # directory listing. Safe to leave set permanently — see
+  # apps/core/docker-entrypoint.sh and
+  # docs/migrations/STORAGE_LAYOUT_FLAT_TO_TENANT.md.
+  ALLSOURCE_MIGRATE_FLAT_TO_TENANT = "true"
+
 # Core is internal-only (bead t-0ff8). Public ingress removed 2026-04-17.
 # All user-facing traffic enters through Control Plane's delegation layer.
 # Internal .fly network (http://allsource-core.internal:3900) still works

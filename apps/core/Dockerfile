@@ -208,6 +208,8 @@ RUN apk add --no-cache curl ca-certificates && \
 WORKDIR /app
 COPY --from=builder-community --chown=allsource:allsource /app/target/release/allsource-core ./allsource-core
 COPY --from=builder-community --chown=allsource:allsource /app/target/release/allsource-migrate-storage ./allsource-migrate-storage
+COPY --chown=allsource:allsource apps/core/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 USER allsource
 EXPOSE 3900
 
@@ -221,7 +223,9 @@ ENV RUST_LOG=allsource_core=info,tower_http=info \
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3900/health || exit 1
 
-ENTRYPOINT ["./allsource-core"]
+# Wrapper script supports the optional ALLSOURCE_MIGRATE_FLAT_TO_TENANT
+# one-shot migration. When unset, the script execs allsource-core directly.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # =============================================================================
 # Stage 4d: Runtime Enterprise Alpine - With Docker HEALTHCHECK
@@ -251,6 +255,8 @@ RUN apk add --no-cache curl ca-certificates && \
 WORKDIR /app
 COPY --from=builder-enterprise --chown=allsource:allsource /app/target/release/allsource-core ./allsource-core
 COPY --from=builder-enterprise --chown=allsource:allsource /app/target/release/allsource-migrate-storage ./allsource-migrate-storage
+COPY --chown=allsource:allsource apps/core/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 USER allsource
 EXPOSE 3900
 
@@ -264,4 +270,6 @@ ENV RUST_LOG=allsource_core=info,tower_http=info \
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3900/health || exit 1
 
-ENTRYPOINT ["./allsource-core"]
+# Wrapper script supports the optional ALLSOURCE_MIGRATE_FLAT_TO_TENANT
+# one-shot migration. When unset, the script execs allsource-core directly.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
