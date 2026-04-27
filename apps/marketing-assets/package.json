@@ -5,8 +5,8 @@
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3"
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0"
   },
   "peerDependencies": {
     "typescript": "^6.0.3"
@@ -22,8 +22,8 @@
     "@remotion/bundler": "^4.0.450",
     "@remotion/cli": "^4.0.450",
     "@remotion/renderer": "4.0.450",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "remotion": "^4.0.450"
   }
 }

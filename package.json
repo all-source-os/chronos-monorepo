@@ -33,5 +33,11 @@
   "packageManager": "bun@1.1.29",
   "dependencies": {
     "undici": "^8.0.2"
+  },
+  "overrides": {
+    "@types/react": "19.2.10",
+    "@types/react-dom": "19.2.3",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
   }
 }
