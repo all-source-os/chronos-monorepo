@@ -23,7 +23,8 @@
 use dashmap::DashMap;
 use parking_lot::Mutex;
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 /// Default ceiling on how long a query may wait for an in-flight
 /// load of the same tenant before giving up. The 100k-event load
@@ -31,6 +32,7 @@ use std::time::Duration;
 /// acceptance criteria); 30s is comfortable headroom for that, well
 /// short of a request-timeout indistinguishable from a hang.
 pub const DEFAULT_LOAD_TIMEOUT: Duration = Duration::from_secs(30);
+
 
 /// Tracks which tenants have been hydrated into memory, serializes
 /// concurrent first-loads of the same tenant, and accounts for the
@@ -55,6 +57,14 @@ pub struct TenantLoader {
     loaded: DashMap<String, ()>,
     locks: DashMap<String, Arc<Mutex<()>>>,
     bytes: DashMap<String, u64>,
+    /// Last-used Instant per tenant — refreshed on every query
+    /// via `touch`. The eviction policy (Step 3 #3) picks the
+    /// tenant with the oldest entry as the LRU victim.
+    last_used: DashMap<String, Instant>,
+    /// Cache byte budget. 0 disables enforcement (keep every
+    /// loaded tenant resident). Production reads this from the
+    /// `ALLSOURCE_CACHE_BYTES` env var.
+    byte_budget: AtomicU64,
     load_timeout: Duration,
 }
 
@@ -68,8 +78,69 @@ impl TenantLoader {
             loaded: DashMap::new(),
             locks: DashMap::new(),
             bytes: DashMap::new(),
+            last_used: DashMap::new(),
+            byte_budget: AtomicU64::new(0),
             load_timeout,
         }
+    }
+
+    /// Set the cache byte budget. 0 disables enforcement.
+    pub fn set_byte_budget(&self, budget: u64) {
+        self.byte_budget.store(budget, Ordering::Relaxed);
+    }
+
+    pub fn byte_budget(&self) -> u64 {
+        self.byte_budget.load(Ordering::Relaxed)
+    }
+
+    /// True iff a budget is set AND total resident bytes exceed it.
+    pub fn over_budget(&self) -> bool {
+        let b = self.byte_budget();
+        b != 0 && self.total_bytes() > b
+    }
+
+    /// Mark `tenant_id` as just-used (LRU-Y end of the order).
+    /// Cheap — single DashMap insert. Called on every query that
+    /// touches this tenant. If the eviction policy picks an LRU
+    /// victim, the most-recently-touched tenants are last to go.
+    pub fn touch(&self, tenant_id: &str) {
+        self.last_used.insert(tenant_id.to_string(), Instant::now());
+    }
+
+    /// Pick the loaded tenant with the oldest `last_used` Instant,
+    /// excluding `excluded` (the freshly-loaded tenant we don't
+    /// want to immediately evict — would thrash). Returns None if
+    /// no other tenant is loaded — the caller should accept the
+    /// over-budget state in that case (a single tenant whose data
+    /// alone exceeds the budget can't be evicted in favor of
+    /// itself).
+    ///
+    /// `mark_loaded` always stamps `last_used`, so every loaded
+    /// tenant has a touch timestamp by construction.
+    pub fn pick_lru_excluding(&self, excluded: &str) -> Option<String> {
+        let mut victim: Option<(String, Instant)> = None;
+        for kv in self.loaded.iter() {
+            let tenant = kv.key();
+            if tenant == excluded {
+                continue;
+            }
+            let Some(last) = self.last_used.get(tenant).map(|v| *v) else {
+                // mark_loaded guarantees a stamp; if it's missing
+                // we have a state-management bug. Skip rather than
+                // crash production.
+                tracing::warn!(
+                    tenant_id = %tenant,
+                    "loaded tenant missing last_used stamp — skipping in LRU pick"
+                );
+                continue;
+            };
+            match &victim {
+                None => victim = Some((tenant.clone(), last)),
+                Some((_, t)) if last < *t => victim = Some((tenant.clone(), last)),
+                _ => {}
+            }
+        }
+        victim.map(|(t, _)| t)
     }
 
     /// Fast path probe — true if a previous call to `mark_loaded`
@@ -79,8 +150,12 @@ impl TenantLoader {
     }
 
     /// Record that this tenant has been hydrated. Idempotent.
+    /// Also stamps a fresh `last_used` so the tenant immediately
+    /// participates in LRU ordering and isn't picked as an
+    /// eviction victim before its first explicit touch.
     pub fn mark_loaded(&self, tenant_id: &str) {
         self.loaded.insert(tenant_id.to_string(), ());
+        self.last_used.insert(tenant_id.to_string(), Instant::now());
     }
 
     /// Reverse of `mark_loaded`: forget that this tenant is in
@@ -91,6 +166,7 @@ impl TenantLoader {
     pub fn mark_unloaded(&self, tenant_id: &str) {
         self.loaded.remove(tenant_id);
         self.bytes.remove(tenant_id);
+        self.last_used.remove(tenant_id);
     }
 
     /// Add `n` bytes to the resident-size estimate for `tenant_id`.
@@ -276,6 +352,53 @@ mod tests {
         let mut snapshot = loader.bytes_per_tenant();
         snapshot.sort();
         assert_eq!(snapshot, vec![("alice".to_string(), 150), ("bob".to_string(), 200)]);
+    }
+
+    #[test]
+    fn test_pick_lru_returns_oldest_excluding_target() {
+        // Touch alice, then bob, then carol — alice is oldest.
+        // Pick excluding "carol" (the freshly-loaded one) → alice.
+        let loader = TenantLoader::new();
+        loader.mark_loaded("alice");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        loader.mark_loaded("bob");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        loader.mark_loaded("carol");
+
+        assert_eq!(loader.pick_lru_excluding("carol"), Some("alice".to_string()));
+
+        // After touching alice, bob becomes oldest.
+        loader.touch("alice");
+        assert_eq!(loader.pick_lru_excluding("carol"), Some("bob".to_string()));
+    }
+
+    #[test]
+    fn test_pick_lru_returns_none_when_only_excluded_is_loaded() {
+        let loader = TenantLoader::new();
+        loader.mark_loaded("alice");
+        // Excluding alice from a single-tenant set → no victim.
+        assert_eq!(loader.pick_lru_excluding("alice"), None);
+    }
+
+    #[test]
+    fn test_pick_lru_returns_none_when_nothing_loaded() {
+        let loader = TenantLoader::new();
+        assert_eq!(loader.pick_lru_excluding("anyone"), None);
+    }
+
+    #[test]
+    fn test_over_budget_zero_budget_means_disabled() {
+        let loader = TenantLoader::new();
+        loader.mark_loaded("alice");
+        loader.add_bytes("alice", 1_000_000_000);
+        // No budget set (default 0) → over_budget is false even
+        // with massive resident bytes.
+        assert!(!loader.over_budget());
+
+        loader.set_byte_budget(100);
+        assert!(loader.over_budget());
+        loader.set_byte_budget(2_000_000_000);
+        assert!(!loader.over_budget());
     }
 
     #[test]

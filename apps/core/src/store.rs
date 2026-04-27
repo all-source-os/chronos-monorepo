@@ -248,7 +248,23 @@ impl EventStore {
             entity_versions: Arc::new(DashMap::new()),
             consumer_registry: Arc::new(ConsumerRegistry::new()),
             event_broadcast_tx,
-            tenant_loader: Arc::new(TenantLoader::new()),
+            tenant_loader: {
+                let loader = TenantLoader::new();
+                if let Some(budget) = config.cache_byte_budget {
+                    loader.set_byte_budget(budget);
+                    tracing::info!(
+                        "✅ Cache byte budget set to {} bytes ({:.2} GiB) — LRU eviction enabled",
+                        budget,
+                        budget as f64 / (1024.0 * 1024.0 * 1024.0)
+                    );
+                } else {
+                    tracing::info!(
+                        "✅ Cache budget unset — every loaded tenant stays resident \
+                         (set ALLSOURCE_CACHE_BYTES to enable eviction)"
+                    );
+                }
+                Arc::new(loader)
+            },
         };
 
         // Boot is now O(1) regardless of dataset size (Step 2 of the
@@ -1178,7 +1194,48 @@ impl EventStore {
             "ensure_tenant_loaded: tenant hydrated"
         );
 
+        // Budget check (Step 3 #3). After splicing the new
+        // tenant in, evict LRU tenants until we're back under
+        // budget. Excludes the just-loaded tenant from the
+        // candidate set — otherwise a single oversized tenant
+        // would evict itself in a tight loop. If no other tenant
+        // is loaded, accept the over-budget state and log a
+        // warning so ops can see it.
+        self.enforce_cache_budget(tenant_id);
+
         Ok(())
+    }
+
+    /// Walks the LRU until total resident bytes are within the
+    /// configured budget, calling `evict_tenant` on each victim.
+    /// Excludes `recently_touched` from the candidate set so we
+    /// don't evict the tenant that just triggered the call. Step 3
+    /// #3 entry point.
+    ///
+    /// No-op when no budget is set or when already under budget —
+    /// most queries take the early-return fast path. Eviction is
+    /// the cold path; with a well-sized budget this only fires
+    /// during warm-up of new tenants past the working-set size.
+    fn enforce_cache_budget(&self, recently_touched: &str) {
+        if !self.tenant_loader.over_budget() {
+            return;
+        }
+        loop {
+            let Some(victim) = self.tenant_loader.pick_lru_excluding(recently_touched) else {
+                tracing::warn!(
+                    cache_bytes = self.tenant_loader.total_bytes(),
+                    budget = self.tenant_loader.byte_budget(),
+                    recently_touched = recently_touched,
+                    "cache over budget but no other tenant available to evict — \
+                     a single tenant exceeds the budget; consider raising it"
+                );
+                return;
+            };
+            self.evict_tenant(&victim);
+            if !self.tenant_loader.over_budget() {
+                return;
+            }
+        }
     }
 
     /// True iff `ensure_tenant_loaded` has previously succeeded for
@@ -1503,6 +1560,10 @@ impl EventStore {
         // commit adds an explicit "load all tenants" admin path.
         if let Some(ref tenant_id) = request.tenant_id {
             self.ensure_tenant_loaded(tenant_id)?;
+            // LRU touch — the most-recently-queried tenant moves
+            // to the back of the eviction queue. Cheap (single
+            // DashMap insert), called on every per-tenant query.
+            self.tenant_loader.touch(tenant_id);
         }
 
         // Determine query type for metrics (v0.6 feature)
@@ -1879,6 +1940,14 @@ pub struct EventStoreConfig {
 
     /// Name of the default tenant to auto-create on first boot.
     pub bootstrap_tenant: Option<String>,
+
+    /// In-memory cache budget in bytes (Step 3). When the resident
+    /// total exceeds this after a load, the LRU tenant is evicted
+    /// until the cache fits. `None` (the default in tests) disables
+    /// the budget — every loaded tenant stays resident. Production
+    /// reads this from the `ALLSOURCE_CACHE_BYTES` env var; see
+    /// `from_env`.
+    pub cache_byte_budget: Option<u64>,
 }
 
 impl EventStoreConfig {
@@ -1966,6 +2035,7 @@ impl EventStoreConfig {
                 .ok()
                 .filter(|s| !s.is_empty()),
             std::env::var("ALLSOURCE_WAL_ENABLED").ok(),
+            std::env::var("ALLSOURCE_CACHE_BYTES").ok(),
         )
     }
 
@@ -1975,6 +2045,7 @@ impl EventStoreConfig {
         explicit_storage_dir: Option<String>,
         explicit_wal_dir: Option<String>,
         wal_enabled_var: Option<String>,
+        cache_bytes_var: Option<String>,
     ) -> (Self, &'static str) {
         let data_dir = data_dir.filter(|s| !s.is_empty());
         let storage_dir = explicit_storage_dir
@@ -1984,28 +2055,44 @@ impl EventStoreConfig {
             .filter(|s| !s.is_empty())
             .or_else(|| data_dir.as_ref().map(|d| format!("{d}/wal")));
         let wal_enabled = wal_enabled_var.is_none_or(|v| v == "true");
+        // ALLSOURCE_CACHE_BYTES: parse decimal bytes. Unparseable
+        // input is logged and ignored rather than failing boot —
+        // the unbounded fallback is safe (worst case is the
+        // original pre-Step-3 behavior).
+        let cache_byte_budget = cache_bytes_var
+            .filter(|s| !s.is_empty())
+            .and_then(|s| match s.parse::<u64>() {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    tracing::warn!(
+                        "ALLSOURCE_CACHE_BYTES={s:?} could not be parsed as u64: {e}; \
+                         cache budget disabled"
+                    );
+                    None
+                }
+            });
 
-        match (&storage_dir, &wal_dir) {
-            (Some(sd), Some(wd)) if wal_enabled => {
-                let config = Self::production(
-                    sd,
-                    wd,
-                    SnapshotConfig::default(),
-                    WALConfig::default(),
-                    CompactionConfig::default(),
-                );
-                (config, "wal+parquet")
-            }
-            (Some(sd), _) => {
-                let config = Self::with_persistence(sd);
-                (config, "parquet-only")
-            }
-            (_, Some(wd)) if wal_enabled => {
-                let config = Self::with_wal(wd, WALConfig::default());
-                (config, "wal-only")
-            }
-            _ => (Self::default(), "in-memory"),
-        }
+        let mut config = match (&storage_dir, &wal_dir) {
+            (Some(sd), Some(wd)) if wal_enabled => Self::production(
+                sd,
+                wd,
+                SnapshotConfig::default(),
+                WALConfig::default(),
+                CompactionConfig::default(),
+            ),
+            (Some(sd), _) => Self::with_persistence(sd),
+            (_, Some(wd)) if wal_enabled => Self::with_wal(wd, WALConfig::default()),
+            _ => Self::default(),
+        };
+        config.cache_byte_budget = cache_byte_budget;
+
+        let mode = match (&storage_dir, &wal_dir) {
+            (Some(_), Some(_)) if wal_enabled => "wal+parquet",
+            (Some(_), _) => "parquet-only",
+            (_, Some(_)) if wal_enabled => "wal-only",
+            _ => "in-memory",
+        };
+        (config, mode)
     }
 }
 
@@ -2311,6 +2398,162 @@ mod tests {
         for e in &bob_results {
             assert_eq!(e.tenant_id_str(), "bob");
         }
+    }
+
+    #[test]
+    fn test_budget_eviction_keeps_resident_set_bounded() {
+        // Configure a tiny budget. Load three tenants in sequence;
+        // the third load must evict the LRU tenant, keeping the
+        // resident set under (or near) the budget.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        // Persist 5 events per tenant with ~1 KiB payloads. Each
+        // tenant ends up at ~5 KiB + overhead.
+        let big_payload = serde_json::json!({"data": "x".repeat(1000)});
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for tenant in ["alice", "bob", "carol"] {
+                for i in 0..5 {
+                    store.ingest(&Event::from_strings(
+                        "test.event".to_string(),
+                        format!("{tenant}-{i}"),
+                        tenant.to_string(),
+                        big_payload.clone(),
+                        None,
+                    ).unwrap()).unwrap();
+                }
+            }
+            store.flush_storage().unwrap();
+        }
+
+        // Budget = 12 KiB. Two tenants (~6 KiB each = ~12 KiB) is
+        // tight; loading a third must evict.
+        let mut config = EventStoreConfig::with_persistence(&storage_dir);
+        config.cache_byte_budget = Some(12_000);
+        let store = EventStore::with_config(config);
+
+        // Load alice — under budget, no eviction.
+        store.ensure_tenant_loaded("alice").unwrap();
+        assert!(store.is_tenant_loaded("alice"));
+
+        // Touch alice and immediately load bob. Bob is the
+        // freshly-loaded one, so bob is excluded from eviction.
+        // Alice is the next-oldest. After the load, total may
+        // exceed budget — if so, evict alice.
+        store.tenant_loader.touch("alice");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        store.ensure_tenant_loaded("bob").unwrap();
+        assert!(store.is_tenant_loaded("bob"));
+
+        // Touch bob, load carol. Carol is freshly-loaded; the LRU
+        // candidate is the older of {alice, bob} — alice (since
+        // bob was just touched).
+        store.tenant_loader.touch("bob");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        store.ensure_tenant_loaded("carol").unwrap();
+        assert!(store.is_tenant_loaded("carol"));
+
+        // After all loads, the cache must respect the budget OR
+        // (if a single tenant alone exceeds it) we should at most
+        // hold the just-loaded tenant. The test budget is small
+        // enough that we expect at least one eviction.
+        let resident = store.cache_resident_bytes();
+        let budget = 12_000u64;
+
+        // Either we're within the budget, or only the freshly-loaded
+        // tenant is left (the "single oversized tenant" fallback).
+        if resident > budget {
+            let loaded_count = ["alice", "bob", "carol"]
+                .iter()
+                .filter(|t| store.is_tenant_loaded(t))
+                .count();
+            assert_eq!(
+                loaded_count, 1,
+                "over budget but more than one tenant loaded — eviction policy didn't fire"
+            );
+        }
+
+        // Carol must still be loaded — it's the most recent and
+        // never picked as a victim.
+        assert!(store.is_tenant_loaded("carol"));
+    }
+
+    #[test]
+    fn test_query_after_eviction_re_loads_transparently() {
+        // The end-to-end shape of AC #5: query → evict → query
+        // again returns the right data.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        let big_payload = serde_json::json!({"data": "x".repeat(2000)});
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for tenant in ["alice", "bob"] {
+                for i in 0..3 {
+                    store.ingest(&Event::from_strings(
+                        "test.event".to_string(),
+                        format!("{tenant}-{i}"),
+                        tenant.to_string(),
+                        big_payload.clone(),
+                        None,
+                    ).unwrap()).unwrap();
+                }
+            }
+            store.flush_storage().unwrap();
+        }
+
+        // Budget = 5 KiB — one tenant fits, two don't.
+        let mut config = EventStoreConfig::with_persistence(&storage_dir);
+        config.cache_byte_budget = Some(5_000);
+        let store = EventStore::with_config(config);
+
+        // Query alice — sized at ~6 KiB, so over budget but no
+        // peer to evict; alice stays as the single-oversized-tenant
+        // case.
+        let alice_first = store.query(&QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: Some("alice".to_string()),
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: None,
+            payload_filter: None,
+        }).unwrap();
+        assert_eq!(alice_first.len(), 3);
+
+        // Sleep to make alice older than bob in the LRU ordering.
+        std::thread::sleep(std::time::Duration::from_millis(15));
+        // Query bob — alice will get evicted.
+        let _bob = store.query(&QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: Some("bob".to_string()),
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: None,
+            payload_filter: None,
+        }).unwrap();
+        assert!(!store.is_tenant_loaded("alice"), "alice should have been evicted");
+
+        // Re-query alice — must transparently re-load.
+        let alice_second = store.query(&QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: Some("alice".to_string()),
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: None,
+            payload_filter: None,
+        }).unwrap();
+        assert_eq!(alice_second.len(), 3, "alice's events come back via re-load");
+        assert!(store.is_tenant_loaded("alice"));
     }
 
     #[test]
@@ -3042,8 +3285,13 @@ mod tests {
 
     #[test]
     fn test_from_env_vars_data_dir_enables_full_persistence() {
-        let (config, mode) =
-            EventStoreConfig::from_env_vars(Some("/app/data".to_string()), None, None, None);
+        let (config, mode) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            None,
+        );
         assert_eq!(mode, "wal+parquet");
         assert_eq!(
             config.storage_dir.unwrap().to_str().unwrap(),
@@ -3058,6 +3306,7 @@ mod tests {
             None,
             Some("/custom/storage".to_string()),
             Some("/custom/wal".to_string()),
+            None,
             None,
         );
         assert_eq!(mode, "wal+parquet");
@@ -3075,6 +3324,7 @@ mod tests {
             None,
             None,
             Some("false".to_string()),
+            None,
         );
         assert_eq!(mode, "parquet-only");
         assert!(config.storage_dir.is_some());
@@ -3083,7 +3333,7 @@ mod tests {
 
     #[test]
     fn test_from_env_vars_no_dirs_is_in_memory() {
-        let (config, mode) = EventStoreConfig::from_env_vars(None, None, None, None);
+        let (config, mode) = EventStoreConfig::from_env_vars(None, None, None, None, None);
         assert_eq!(mode, "in-memory");
         assert!(config.storage_dir.is_none());
         assert!(config.wal_dir.is_none());
@@ -3096,6 +3346,7 @@ mod tests {
             Some(String::new()),
             Some(String::new()),
             None,
+            None,
         );
         assert_eq!(mode, "in-memory");
     }
@@ -3106,6 +3357,7 @@ mod tests {
             Some("/app/data".to_string()),
             Some("/override/storage".to_string()),
             Some("/override/wal".to_string()),
+            None,
             None,
         );
         assert_eq!(mode, "wal+parquet");
@@ -3118,11 +3370,55 @@ mod tests {
 
     #[test]
     fn test_from_env_vars_wal_only() {
-        let (config, mode) =
-            EventStoreConfig::from_env_vars(None, None, Some("/wal/only".to_string()), None);
+        let (config, mode) = EventStoreConfig::from_env_vars(
+            None,
+            None,
+            Some("/wal/only".to_string()),
+            None,
+            None,
+        );
         assert_eq!(mode, "wal-only");
         assert!(config.storage_dir.is_none());
         assert_eq!(config.wal_dir.unwrap().to_str().unwrap(), "/wal/only");
+    }
+
+    #[test]
+    fn test_from_env_vars_cache_bytes_parses_decimal() {
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            Some("536870912".to_string()), // 512 MiB
+        );
+        assert_eq!(config.cache_byte_budget, Some(536_870_912));
+    }
+
+    #[test]
+    fn test_from_env_vars_cache_bytes_unparseable_disables_budget() {
+        // Garbage in CACHE_BYTES doesn't fail boot — we log and
+        // fall back to no-budget. The unbounded fallback is safe
+        // (just the pre-Step-3 behavior).
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            Some("not-a-number".to_string()),
+        );
+        assert_eq!(config.cache_byte_budget, None);
+    }
+
+    #[test]
+    fn test_from_env_vars_cache_bytes_empty_disables_budget() {
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            Some(String::new()),
+        );
+        assert_eq!(config.cache_byte_budget, None);
     }
 
     #[test]
