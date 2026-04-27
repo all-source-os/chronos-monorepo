@@ -761,6 +761,19 @@ impl ParquetStorage {
         Ok(events)
     }
 
+    /// Public wrapper around the internal single-file loader. Used
+    /// by the per-tenant compaction (Step 4) which needs to read a
+    /// specific candidate set rather than the whole tenant subtree.
+    /// Caller passes the tenant_id explicitly because the schema
+    /// doesn't carry it.
+    pub fn load_events_from_file_path(
+        &self,
+        file_path: &Path,
+        tenant_id: &str,
+    ) -> Result<Vec<Event>> {
+        self.load_events_from_file(file_path, tenant_id)
+    }
+
     /// Convert Arrow RecordBatch back to events. `tenant_id` is stamped onto
     /// each reconstructed event — the schema doesn't carry it today, so the
     /// caller passes the value derived from the file path.

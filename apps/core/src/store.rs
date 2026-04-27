@@ -2054,6 +2054,7 @@ impl EventStoreConfig {
                 .filter(|s| !s.is_empty()),
             std::env::var("ALLSOURCE_WAL_ENABLED").ok(),
             std::env::var("ALLSOURCE_CACHE_BYTES").ok(),
+            std::env::var("ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS").ok(),
         )
     }
 
@@ -2064,6 +2065,7 @@ impl EventStoreConfig {
         explicit_wal_dir: Option<String>,
         wal_enabled_var: Option<String>,
         cache_bytes_var: Option<String>,
+        snapshot_interval_var: Option<String>,
     ) -> (Self, &'static str) {
         let data_dir = data_dir.filter(|s| !s.is_empty());
         let storage_dir = explicit_storage_dir
@@ -2089,6 +2091,7 @@ impl EventStoreConfig {
                     None
                 }
             });
+        let compaction_config = CompactionConfig::from_env_var(snapshot_interval_var);
 
         let mut config = match (&storage_dir, &wal_dir) {
             (Some(sd), Some(wd)) if wal_enabled => Self::production(
@@ -2096,7 +2099,7 @@ impl EventStoreConfig {
                 wd,
                 SnapshotConfig::default(),
                 WALConfig::default(),
-                CompactionConfig::default(),
+                compaction_config,
             ),
             (Some(sd), _) => Self::with_persistence(sd),
             (_, Some(wd)) if wal_enabled => Self::with_wal(wd, WALConfig::default()),
@@ -3473,6 +3476,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert_eq!(mode, "wal+parquet");
         assert_eq!(
@@ -3488,6 +3492,7 @@ mod tests {
             None,
             Some("/custom/storage".to_string()),
             Some("/custom/wal".to_string()),
+            None,
             None,
             None,
         );
@@ -3507,6 +3512,7 @@ mod tests {
             None,
             Some("false".to_string()),
             None,
+            None,
         );
         assert_eq!(mode, "parquet-only");
         assert!(config.storage_dir.is_some());
@@ -3515,7 +3521,8 @@ mod tests {
 
     #[test]
     fn test_from_env_vars_no_dirs_is_in_memory() {
-        let (config, mode) = EventStoreConfig::from_env_vars(None, None, None, None, None);
+        let (config, mode) =
+            EventStoreConfig::from_env_vars(None, None, None, None, None, None);
         assert_eq!(mode, "in-memory");
         assert!(config.storage_dir.is_none());
         assert!(config.wal_dir.is_none());
@@ -3529,6 +3536,7 @@ mod tests {
             Some(String::new()),
             None,
             None,
+            None,
         );
         assert_eq!(mode, "in-memory");
     }
@@ -3539,6 +3547,7 @@ mod tests {
             Some("/app/data".to_string()),
             Some("/override/storage".to_string()),
             Some("/override/wal".to_string()),
+            None,
             None,
             None,
         );
@@ -3558,6 +3567,7 @@ mod tests {
             Some("/wal/only".to_string()),
             None,
             None,
+            None,
         );
         assert_eq!(mode, "wal-only");
         assert!(config.storage_dir.is_none());
@@ -3572,6 +3582,7 @@ mod tests {
             None,
             None,
             Some("536870912".to_string()), // 512 MiB
+            None,
         );
         assert_eq!(config.cache_byte_budget, Some(536_870_912));
     }
@@ -3587,6 +3598,7 @@ mod tests {
             None,
             None,
             Some("not-a-number".to_string()),
+            None,
         );
         assert_eq!(config.cache_byte_budget, None);
     }
@@ -3599,8 +3611,51 @@ mod tests {
             None,
             None,
             Some(String::new()),
+            None,
         );
         assert_eq!(config.cache_byte_budget, None);
+    }
+
+    #[test]
+    fn test_from_env_vars_snapshot_interval_overrides_default() {
+        // ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS plumbs through to
+        // CompactionConfig.compaction_interval_seconds. Default is
+        // 3600s (hourly) per the bead.
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            None,
+            Some("60".to_string()),
+        );
+        assert_eq!(config.compaction_config.compaction_interval_seconds, 60);
+    }
+
+    #[test]
+    fn test_from_env_vars_snapshot_interval_default_is_hourly() {
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(config.compaction_config.compaction_interval_seconds, 3600);
+    }
+
+    #[test]
+    fn test_from_env_vars_snapshot_interval_unparseable_falls_back() {
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            None,
+            Some("not-a-number".to_string()),
+        );
+        assert_eq!(config.compaction_config.compaction_interval_seconds, 3600);
     }
 
     #[test]

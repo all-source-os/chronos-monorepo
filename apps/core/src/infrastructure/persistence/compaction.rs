@@ -1,19 +1,21 @@
 use crate::{
-    domain::entities::Event,
     error::{AllSourceError, Result},
     infrastructure::persistence::storage::ParquetStorage,
 };
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 
-/// Manages Parquet file compaction for optimal storage and query performance
+/// Manages Parquet file compaction for optimal storage and query performance.
+///
+/// Step 4 of the sustainable data strategy moved compaction from a
+/// global-stream pass to a per-tenant pass. Each invocation iterates
+/// the tenants discovered under `<storage_dir>/<tenant>/...` and
+/// emits a `snapshot.<tenant>.<from>-<to>.parquet` per qualifying
+/// chunk. Snapshot files are written atomically (tmp + rename) and
+/// their constituent raw files are removed only after the rename
+/// succeeds — so a mid-compaction crash leaves data intact.
 pub struct CompactionManager {
     /// Directory where Parquet files are stored
     storage_dir: PathBuf,
@@ -27,6 +29,12 @@ pub struct CompactionManager {
     /// Last compaction time
     last_compaction: Arc<RwLock<Option<DateTime<Utc>>>>,
 }
+
+/// Filename prefix that marks a file as already-compacted output.
+/// Excluded from the input set when picking compaction candidates
+/// (we don't re-compact a snapshot until the snapshot itself
+/// triggers the strategy criteria from a future commit).
+const SNAPSHOT_PREFIX: &str = "snapshot.";
 
 #[derive(Debug, Clone)]
 pub struct CompactionConfig {
@@ -63,6 +71,38 @@ impl Default for CompactionConfig {
             auto_compact: true,
             strategy: CompactionStrategy::SizeBased,
         }
+    }
+}
+
+impl CompactionConfig {
+    /// Build a config with `compaction_interval_seconds` overridden
+    /// by the `ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS` env var when
+    /// present. Other fields take their `Default` values.
+    ///
+    /// Unparseable input logs a warning and falls back to the
+    /// default — boot doesn't fail. The default (3600s = 1 hour)
+    /// matches the bead's "default: hourly" requirement.
+    pub fn from_env() -> Self {
+        Self::from_env_var(std::env::var("ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS").ok())
+    }
+
+    /// Testable variant of `from_env`. Production calls `from_env`;
+    /// tests pass an explicit value.
+    pub fn from_env_var(interval_var: Option<String>) -> Self {
+        let mut config = Self::default();
+        if let Some(s) = interval_var.filter(|s| !s.is_empty()) {
+            match s.parse::<u64>() {
+                Ok(v) => config.compaction_interval_seconds = v,
+                Err(e) => {
+                    tracing::warn!(
+                        "ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS={s:?} could not be parsed as \
+                         u64: {e}; defaulting to {}s",
+                        config.compaction_interval_seconds
+                    );
+                }
+            }
+        }
+        config
     }
 }
 
@@ -220,224 +260,255 @@ impl CompactionManager {
         }
     }
 
-    /// Perform compaction of Parquet files
+    /// Perform compaction across every discovered tenant.
+    ///
+    /// Iterates the tenants under `<storage_dir>/<tenant>/...`, calls
+    /// `compact_tenant` for each, and aggregates the results. Step 4
+    /// of the sustainable data strategy: per-tenant compaction
+    /// instead of global, keyed off the per-tenant directory tree
+    /// Step 1 introduced.
+    ///
+    /// Errors compacting one tenant are logged but don't abort the
+    /// pass — other tenants still get compacted. The aggregate
+    /// result reflects what actually completed.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn compact(&self) -> Result<CompactionResult> {
         let start_time = std::time::Instant::now();
-        tracing::info!("🔄 Starting Parquet compaction...");
+        tracing::info!("🔄 Starting per-tenant compaction sweep...");
 
-        // List all Parquet files
-        let files = self.list_parquet_files()?;
-
-        if files.is_empty() {
-            tracing::debug!("No Parquet files to compact");
-            return Ok(CompactionResult {
-                files_compacted: 0,
-                bytes_before: 0,
-                bytes_after: 0,
-                events_compacted: 0,
-                duration_ms: 0,
-            });
+        let tenants = self.discover_tenants()?;
+        if tenants.is_empty() {
+            tracing::debug!("No tenants found under {}", self.storage_dir.display());
+            return Ok(CompactionResult::default());
         }
 
-        // Select files for compaction
-        let files_to_compact = self.select_files_for_compaction(&files);
-
-        if files_to_compact.is_empty() {
-            tracing::debug!(
-                "No files meet compaction criteria (strategy: {:?})",
-                self.config.strategy
-            );
-            return Ok(CompactionResult {
-                files_compacted: 0,
-                bytes_before: 0,
-                bytes_after: 0,
-                events_compacted: 0,
-                duration_ms: 0,
-            });
-        }
-
-        let bytes_before: u64 = files_to_compact.iter().map(|f| f.size).sum();
-
-        tracing::info!(
-            "Compacting {} files ({:.2} MB)",
-            files_to_compact.len(),
-            bytes_before as f64 / (1024.0 * 1024.0)
-        );
-
-        // Read events from all files to be compacted
-        let mut all_events = Vec::new();
-        for file_info in &files_to_compact {
-            match self.read_parquet_file(&file_info.path) {
-                Ok(mut events) => {
-                    all_events.append(&mut events);
+        let mut aggregate = CompactionResult::default();
+        for tenant in &tenants {
+            match self.compact_tenant(tenant) {
+                Ok(r) => {
+                    aggregate.files_compacted += r.files_compacted;
+                    aggregate.bytes_before += r.bytes_before;
+                    aggregate.bytes_after += r.bytes_after;
+                    aggregate.events_compacted += r.events_compacted;
                 }
                 Err(e) => {
-                    tracing::error!("Failed to read Parquet file {:?}: {}", file_info.path, e);
-                    // Continue with other files
+                    tracing::error!(
+                        tenant_id = %tenant,
+                        "compact_tenant failed: {e}"
+                    );
+                }
+            }
+        }
+        aggregate.duration_ms = start_time.elapsed().as_millis() as u64;
+
+        if aggregate.files_compacted > 0 {
+            let mut stats = self.stats.write();
+            stats.total_compactions += 1;
+            stats.total_files_compacted += aggregate.files_compacted as u64;
+            stats.total_bytes_before += aggregate.bytes_before;
+            stats.total_bytes_after += aggregate.bytes_after;
+            stats.total_events_compacted += aggregate.events_compacted as u64;
+            stats.last_compaction_duration_ms = aggregate.duration_ms;
+            stats.space_saved_bytes += aggregate
+                .bytes_before
+                .saturating_sub(aggregate.bytes_after);
+        }
+        *self.last_compaction.write() = Some(Utc::now());
+
+        tracing::info!(
+            "✅ Compaction sweep complete: {} files → 1 snapshot per tenant, \
+             {:.2} MB → {:.2} MB, {} events, {} tenants in {}ms",
+            aggregate.files_compacted,
+            aggregate.bytes_before as f64 / (1024.0 * 1024.0),
+            aggregate.bytes_after as f64 / (1024.0 * 1024.0),
+            aggregate.events_compacted,
+            tenants.len(),
+            aggregate.duration_ms
+        );
+
+        Ok(aggregate)
+    }
+
+    /// Compact one tenant's raw event files into a single snapshot
+    /// file under that tenant's partition.
+    ///
+    /// Per-tenant pipeline:
+    /// 1. List `<storage>/<tenant>/...*.parquet` excluding existing
+    ///    `snapshot.*` files.
+    /// 2. Apply the configured strategy (size / time / full) to
+    ///    pick candidate raw files.
+    /// 3. If enough candidates: read events, sort by timestamp,
+    ///    atomically write `snapshot.<tenant>.<from>-<to>.parquet`
+    ///    via `ParquetStorage::write_atomic_parquet`.
+    /// 4. After the snapshot rename succeeds, delete the
+    ///    constituent raw files. Crash between snapshot and delete
+    ///    leaves both on disk; the dedupe in `append_loaded_event`
+    ///    keeps memory consistent on next load. A future commit can
+    ///    record the constituent file list in the snapshot's
+    ///    metadata and let a cleanup pass finish the deletion.
+    pub fn compact_tenant(&self, tenant_id: &str) -> Result<CompactionResult> {
+        let start_time = std::time::Instant::now();
+
+        // 1. List raw files for this tenant.
+        let storage = ParquetStorage::new(&self.storage_dir)?;
+        let all_files = storage.list_parquet_files_for_tenant(tenant_id)?;
+        let raw_files: Vec<FileInfo> = all_files
+            .into_iter()
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_none_or(|n| !n.starts_with(SNAPSHOT_PREFIX))
+            })
+            .filter_map(|p| {
+                let metadata = fs::metadata(&p).ok()?;
+                let size = metadata.len();
+                let created = metadata
+                    .created()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .and_then(|d| DateTime::from_timestamp(d.as_secs() as i64, 0))
+                    .unwrap_or_else(Utc::now);
+                Some(FileInfo {
+                    path: p,
+                    size,
+                    created,
+                })
+            })
+            .collect();
+
+        // 2. Strategy filter.
+        let candidates = self.select_files_for_compaction(&raw_files);
+        if candidates.is_empty() {
+            tracing::debug!(
+                tenant_id = tenant_id,
+                strategy = ?self.config.strategy,
+                "no files meet compaction criteria"
+            );
+            return Ok(CompactionResult::default());
+        }
+
+        let bytes_before: u64 = candidates.iter().map(|f| f.size).sum();
+        tracing::info!(
+            tenant_id = tenant_id,
+            files = candidates.len(),
+            mib = bytes_before as f64 / (1024.0 * 1024.0),
+            "compacting tenant"
+        );
+
+        // 3. Read events from candidates. We deliberately read each
+        // file individually (not via load_events_for_tenant) so we
+        // only pick up the candidate set — concurrent writes that
+        // produced new files since step 1 are skipped, deferred to
+        // the next interval (AC #6).
+        let mut events = Vec::new();
+        for fi in &candidates {
+            // Recover tenant from path so loaded events keep
+            // their identity (Step 1's path-as-tenant-source).
+            let event_tenant = match fi.path.strip_prefix(&self.storage_dir).ok() {
+                Some(rel) => rel
+                    .components()
+                    .next()
+                    .and_then(|c| match c {
+                        std::path::Component::Normal(t) => Some(t.to_string_lossy().into_owned()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| "default".to_string()),
+                None => "default".to_string(),
+            };
+            match storage.load_events_from_file_path(&fi.path, &event_tenant) {
+                Ok(mut e) => events.append(&mut e),
+                Err(e) => {
+                    tracing::error!(
+                        file = %fi.path.display(),
+                        "failed to read parquet file for compaction: {e}"
+                    );
                 }
             }
         }
 
-        if all_events.is_empty() {
-            tracing::warn!("No events read from files to compact");
-            return Ok(CompactionResult {
-                files_compacted: 0,
-                bytes_before,
-                bytes_after: 0,
-                events_compacted: 0,
-                duration_ms: start_time.elapsed().as_millis() as u64,
-            });
+        if events.is_empty() {
+            tracing::warn!(
+                tenant_id = tenant_id,
+                "candidate files had no readable events; skipping snapshot"
+            );
+            return Ok(CompactionResult::default());
         }
 
-        // Sort events by timestamp for better compression and query performance
-        all_events.sort_by_key(|e| e.timestamp);
+        events.sort_by_key(|e| e.timestamp);
+        let from = events.first().expect("non-empty checked above").timestamp;
+        let to = events.last().expect("non-empty checked above").timestamp;
 
-        tracing::debug!("Read {} events for compaction", all_events.len());
+        // Filename: snapshot.<tenant>.<from>-<to> with filesystem-safe
+        // ISO-basic timestamps (no colons).
+        let file_stem = format!(
+            "snapshot.{tenant_id}.{}-{}",
+            format_iso_basic(from),
+            format_iso_basic(to)
+        );
+        let snapshot_path = storage.write_atomic_parquet(tenant_id, &file_stem, &events)?;
+        let bytes_after = fs::metadata(&snapshot_path).map(|m| m.len()).unwrap_or(0);
 
-        // Write compacted file(s)
-        let compacted_files = self.write_compacted_files(&all_events)?;
-
-        let bytes_after: u64 = compacted_files
-            .iter()
-            .map(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(0))
-            .sum();
-
-        // Delete original files atomically
-        for file_info in &files_to_compact {
-            if let Err(e) = fs::remove_file(&file_info.path) {
-                tracing::error!("Failed to remove old file {:?}: {}", file_info.path, e);
-            } else {
-                tracing::debug!("Removed old file: {:?}", file_info.path);
+        // 4. Delete originals AFTER snapshot is durably renamed.
+        // Crash between rename and delete leaves both on disk;
+        // append_loaded_event's index dedupe handles the
+        // overlap. A future commit can record file metadata in the
+        // snapshot to retry orphan cleanup deterministically.
+        for fi in &candidates {
+            if let Err(e) = fs::remove_file(&fi.path) {
+                tracing::error!(
+                    file = %fi.path.display(),
+                    "failed to remove pre-snapshot raw file: {e}"
+                );
             }
         }
 
         let duration_ms = start_time.elapsed().as_millis() as u64;
-
-        // Update statistics
-        let mut stats = self.stats.write();
-        stats.total_compactions += 1;
-        stats.total_files_compacted += files_to_compact.len() as u64;
-        stats.total_bytes_before += bytes_before;
-        stats.total_bytes_after += bytes_after;
-        stats.total_events_compacted += all_events.len() as u64;
-        stats.last_compaction_duration_ms = duration_ms;
-        stats.space_saved_bytes += bytes_before.saturating_sub(bytes_after);
-        drop(stats);
-
-        // Update last compaction time
-        *self.last_compaction.write() = Some(Utc::now());
-
-        let compression_ratio = if bytes_before > 0 {
-            (bytes_after as f64 / bytes_before as f64) * 100.0
-        } else {
-            100.0
-        };
-
         tracing::info!(
-            "✅ Compaction complete: {} files → {} files, {:.2} MB → {:.2} MB ({:.1}%), {} events, {}ms",
-            files_to_compact.len(),
-            compacted_files.len(),
-            bytes_before as f64 / (1024.0 * 1024.0),
-            bytes_after as f64 / (1024.0 * 1024.0),
-            compression_ratio,
-            all_events.len(),
-            duration_ms
+            tenant_id = tenant_id,
+            files_compacted = candidates.len(),
+            events = events.len(),
+            mib_before = bytes_before as f64 / (1024.0 * 1024.0),
+            mib_after = bytes_after as f64 / (1024.0 * 1024.0),
+            duration_ms = duration_ms,
+            "tenant compaction complete"
         );
 
         Ok(CompactionResult {
-            files_compacted: files_to_compact.len(),
+            files_compacted: candidates.len(),
             bytes_before,
             bytes_after,
-            events_compacted: all_events.len(),
+            events_compacted: events.len(),
             duration_ms,
         })
     }
 
-    /// Read events from a Parquet file
-    fn read_parquet_file(&self, path: &Path) -> Result<Vec<Event>> {
-        // Use ParquetStorage to read the file
-        let storage = ParquetStorage::new(&self.storage_dir)?;
-
-        // For now, we'll read all events and filter by file
-        // In a production system, you'd want to read specific files
-        let all_events = storage.load_all_events()?;
-
-        Ok(all_events)
-    }
-
-    /// Write compacted events to new Parquet file(s)
-    fn write_compacted_files(&self, events: &[Event]) -> Result<Vec<PathBuf>> {
-        let mut compacted_files = Vec::new();
-        let mut current_batch = Vec::new();
-        let mut current_size = 0;
-
-        for event in events {
-            // Estimate event size (rough approximation)
-            let event_size = serde_json::to_string(event)
-                .map(|s| s.len())
-                .unwrap_or(1024);
-
-            // Check if adding this event would exceed target size
-            if current_size + event_size > self.config.target_file_size && !current_batch.is_empty()
-            {
-                // Write current batch
-                let file_path = self.write_batch(&current_batch)?;
-                compacted_files.push(file_path);
-
-                // Start new batch
-                current_batch.clear();
-                current_size = 0;
-            }
-
-            current_batch.push(event.clone());
-            current_size += event_size;
-
-            // Also check max file size
-            if current_size >= self.config.max_file_size {
-                let file_path = self.write_batch(&current_batch)?;
-                compacted_files.push(file_path);
-
-                current_batch.clear();
-                current_size = 0;
-            }
-        }
-
-        // Write remaining events
-        if !current_batch.is_empty() {
-            let file_path = self.write_batch(&current_batch)?;
-            compacted_files.push(file_path);
-        }
-
-        Ok(compacted_files)
-    }
-
-    /// Write a batch of events to a new Parquet file
-    fn write_batch(&self, events: &[Event]) -> Result<PathBuf> {
-        let storage = ParquetStorage::new(&self.storage_dir)?;
-
-        // Generate filename with timestamp
-        let filename = format!(
-            "events-compacted-{}.parquet",
-            Utc::now().format("%Y%m%d-%H%M%S-%f")
-        );
-        let file_path = self.storage_dir.join(filename);
-
-        // Write events
-        for event in events {
-            storage.append_event(event.clone())?;
-        }
-
-        // Flush to disk
-        storage.flush()?;
-
-        tracing::debug!(
-            "Wrote compacted file: {:?} ({} events)",
-            file_path,
-            events.len()
-        );
-
-        Ok(file_path)
+    /// Discover tenant ids by scanning `<storage_dir>/<X>/` for
+    /// directories. The migration tool's flat-layout files at the
+    /// root are not picked up — Step 1 #3's migration moves them
+    /// under `default/`.
+    fn discover_tenants(&self) -> Result<Vec<String>> {
+        let entries = match fs::read_dir(&self.storage_dir) {
+            Ok(e) => e,
+            Err(_) => return Ok(Vec::new()),
+        };
+        let mut tenants: Vec<String> = entries
+            .filter_map(std::result::Result::ok)
+            .filter_map(|entry| {
+                let ft = entry.file_type().ok()?;
+                if !ft.is_dir() {
+                    return None;
+                }
+                let name = entry.file_name().to_string_lossy().into_owned();
+                // Skip the system metadata subtree (Core's own
+                // event-sourced repos) and any hidden folders.
+                if name.starts_with('.') || name == "__system" {
+                    return None;
+                }
+                Some(name)
+            })
+            .collect();
+        tenants.sort();
+        Ok(tenants)
     }
 
     /// Get compaction statistics
@@ -459,13 +530,21 @@ impl CompactionManager {
 }
 
 /// Result of a compaction operation
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct CompactionResult {
     pub files_compacted: usize,
     pub bytes_before: u64,
     pub bytes_after: u64,
     pub events_compacted: usize,
     pub duration_ms: u64,
+}
+
+/// Format a UTC timestamp as a filename-safe ISO-8601 basic-form
+/// string: `2026-04-27T134567Z` — no colons, no fractional second.
+/// Used for the `<from>-<to>` portion of snapshot filenames so
+/// they're portable across filesystems.
+fn format_iso_basic(t: DateTime<Utc>) -> String {
+    t.format("%Y-%m-%dT%H%M%SZ").to_string()
 }
 
 /// Background compaction task
@@ -851,5 +930,216 @@ mod tests {
 
         let files = manager.list_parquet_files().unwrap();
         assert!(files.is_empty()); // No parquet files
+    }
+
+    // -----------------------------------------------------------------
+    // Per-tenant compaction tests (Step 4, commit #2).
+    // -----------------------------------------------------------------
+
+    fn ingest_and_flush_per_call(
+        storage_dir: &std::path::Path,
+        tenant: &str,
+        count: usize,
+    ) {
+        // Each ingested batch produces one parquet file when its
+        // ParquetStorage is dropped, giving us multiple raw files
+        // per tenant for the strategy filter to pick up.
+        for i in 0..count {
+            let storage = ParquetStorage::with_config(
+                storage_dir,
+                crate::infrastructure::persistence::ParquetStorageConfig {
+                    batch_size: 1,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let event = crate::domain::entities::Event::from_strings(
+                "test.event".to_string(),
+                format!("{tenant}-{i}"),
+                tenant.to_string(),
+                serde_json::json!({"i": i}),
+                None,
+            )
+            .unwrap();
+            storage.append_event(event).unwrap();
+            storage.flush().unwrap();
+        }
+    }
+
+    #[test]
+    fn test_compact_tenant_emits_one_snapshot_and_removes_originals() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Seed 4 raw files for alice.
+        ingest_and_flush_per_call(temp_dir.path(), "alice", 4);
+
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            small_file_threshold: 100 * 1024 * 1024,
+            strategy: CompactionStrategy::SizeBased,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let result = manager.compact_tenant("alice").unwrap();
+        assert_eq!(result.files_compacted, 4);
+        assert_eq!(result.events_compacted, 4);
+
+        // After: zero raw files, exactly one snapshot.* file under
+        // alice's subtree.
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let alice_files = storage.list_parquet_files_for_tenant("alice").unwrap();
+        assert_eq!(alice_files.len(), 1, "expected exactly one snapshot file for alice");
+
+        let name = alice_files[0]
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap()
+            .to_string();
+        assert!(
+            name.starts_with("snapshot.alice."),
+            "expected snapshot prefix, got {name}"
+        );
+        assert!(name.ends_with(".parquet"));
+
+        // No tmp files left behind.
+        let tmps: Vec<_> = std::fs::read_dir(alice_files[0].parent().unwrap())
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .filter(|e| e.path().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(tmps.is_empty());
+
+        // Loaded events round-trip correctly.
+        let loaded = storage.load_events_for_tenant("alice").unwrap();
+        assert_eq!(loaded.len(), 4);
+        for e in &loaded {
+            assert_eq!(e.tenant_id_str(), "alice");
+        }
+    }
+
+    #[test]
+    fn test_compact_tenant_skips_existing_snapshot_files() {
+        // Seed alice with 4 raw files, run compaction → 1 snapshot.
+        // Run compaction AGAIN: the snapshot is excluded from the
+        // candidate set, no qualifying raw files remain, the second
+        // pass is a no-op.
+        let temp_dir = TempDir::new().unwrap();
+        ingest_and_flush_per_call(temp_dir.path(), "alice", 4);
+
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            small_file_threshold: 100 * 1024 * 1024,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let r1 = manager.compact_tenant("alice").unwrap();
+        assert_eq!(r1.files_compacted, 4);
+
+        let r2 = manager.compact_tenant("alice").unwrap();
+        assert_eq!(r2.files_compacted, 0, "snapshot must not be re-compacted");
+
+        // Still exactly one file on disk for alice.
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let alice_files = storage.list_parquet_files_for_tenant("alice").unwrap();
+        assert_eq!(alice_files.len(), 1);
+    }
+
+    #[test]
+    fn test_compact_tenant_below_threshold_is_a_noop() {
+        // 1 file < min_files_to_compact (default 3) → nothing happens.
+        let temp_dir = TempDir::new().unwrap();
+        ingest_and_flush_per_call(temp_dir.path(), "alice", 1);
+
+        let manager = CompactionManager::new(temp_dir.path(), CompactionConfig::default());
+        let result = manager.compact_tenant("alice").unwrap();
+        assert_eq!(result.files_compacted, 0);
+
+        // Raw file untouched.
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let alice_files = storage.list_parquet_files_for_tenant("alice").unwrap();
+        assert_eq!(alice_files.len(), 1);
+        let name = alice_files[0].file_name().unwrap().to_string_lossy().into_owned();
+        assert!(!name.starts_with("snapshot."), "raw file must not be renamed");
+    }
+
+    #[test]
+    fn test_compact_iterates_every_tenant() {
+        // Two tenants each with enough raw files. compact() must
+        // produce one snapshot per tenant.
+        let temp_dir = TempDir::new().unwrap();
+        ingest_and_flush_per_call(temp_dir.path(), "alice", 3);
+        ingest_and_flush_per_call(temp_dir.path(), "bob", 3);
+
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            small_file_threshold: 100 * 1024 * 1024,
+            strategy: CompactionStrategy::SizeBased,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let result = manager.compact().unwrap();
+        assert_eq!(result.files_compacted, 6);
+        assert_eq!(result.events_compacted, 6);
+
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        for tenant in ["alice", "bob"] {
+            let files = storage.list_parquet_files_for_tenant(tenant).unwrap();
+            assert_eq!(files.len(), 1, "{tenant} should have one snapshot");
+            let name = files[0].file_name().unwrap().to_string_lossy().into_owned();
+            assert!(name.starts_with(&format!("snapshot.{tenant}.")));
+        }
+    }
+
+    #[test]
+    fn test_compaction_with_simulated_crash_leaves_data_recoverable() {
+        // AC #7-#8: simulate "crash mid-snapshot" by manually
+        // dropping a tmp file in the partition, then asserting
+        // a fresh ParquetStorage::new boot cleans it up and the
+        // raw files (which would still be present in a real
+        // mid-rename crash) remain queryable.
+        let temp_dir = TempDir::new().unwrap();
+
+        // Seed alice with raw files.
+        ingest_and_flush_per_call(temp_dir.path(), "alice", 3);
+
+        // Locate alice's partition dir.
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let alice_files = storage.list_parquet_files_for_tenant("alice").unwrap();
+        let partition = alice_files[0].parent().unwrap().to_path_buf();
+
+        // Simulate the crash state: write a partial .tmp file as
+        // if write_atomic_parquet had crashed mid-rename.
+        let crashed_tmp = partition.join("snapshot.alice.range.parquet.tmp");
+        std::fs::write(&crashed_tmp, b"partial parquet bytes").unwrap();
+        assert!(crashed_tmp.is_file());
+
+        // Reboot — ParquetStorage::new triggers cleanup_partial_writes.
+        let storage2 = ParquetStorage::new(temp_dir.path()).unwrap();
+        assert!(
+            !crashed_tmp.exists(),
+            "stale tmp file should have been cleaned by ParquetStorage::new"
+        );
+
+        // Raw files survived; events queryable.
+        let events = storage2.load_events_for_tenant("alice").unwrap();
+        assert_eq!(events.len(), 3);
+    }
+
+    #[test]
+    fn test_discover_tenants_skips_system_and_hidden() {
+        // Ensure the tenant scan doesn't pick up __system or hidden
+        // directories — they're internal, not real tenants.
+        let temp_dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(temp_dir.path().join("alice")).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join("bob")).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join("__system")).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join(".hidden")).unwrap();
+
+        let manager = CompactionManager::new(temp_dir.path(), CompactionConfig::default());
+        let tenants = manager.discover_tenants().unwrap();
+        assert_eq!(tenants, vec!["alice".to_string(), "bob".to_string()]);
     }
 }
