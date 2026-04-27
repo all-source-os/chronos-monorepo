@@ -125,6 +125,13 @@ pub struct EventStore {
     /// `ensure_tenant_loaded` and Step 2 of the sustainable data
     /// strategy.
     tenant_loader: Arc<TenantLoader>,
+
+    /// Cadence of the runtime checkpoint loop (Step 6). `None` means
+    /// the loop is disabled — WAL grows until boot. Production reads
+    /// this from `ALLSOURCE_CHECKPOINT_INTERVAL_SECONDS`. Stored on
+    /// the store so background tasks can read it without re-parsing
+    /// the env.
+    checkpoint_interval_secs: Option<u64>,
 }
 
 /// A task queued for async webhook delivery
@@ -265,6 +272,7 @@ impl EventStore {
                 }
                 Arc::new(loader)
             },
+            checkpoint_interval_secs: config.checkpoint_interval_secs,
         };
 
         // Boot is now O(1) regardless of dataset size (Step 2 of the
@@ -316,6 +324,16 @@ impl EventStore {
                         store.events.write().push(event);
                         wal_new += 1;
                     }
+
+                    // Step 6: expose replay size as a gauge so ops
+                    // can graph "how big was the last replay?" and
+                    // catch regressions where the checkpoint loop
+                    // stops draining the WAL.
+                    #[cfg(feature = "server")]
+                    store
+                        .metrics
+                        .wal_replay_events_total
+                        .set(wal_new as i64);
 
                     if wal_new > 0 {
                         let total = store.events.read().len();
@@ -381,6 +399,8 @@ impl EventStore {
                 }
                 Ok(_) => {
                     tracing::debug!("No events to recover from WAL");
+                    #[cfg(feature = "server")]
+                    store.metrics.wal_replay_events_total.set(0);
                 }
                 Err(e) => {
                     tracing::error!("❌ WAL recovery failed: {}", e);
@@ -1112,6 +1132,47 @@ impl EventStore {
             tracing::info!("✅ Flushed events to persistent storage");
         }
         Ok(())
+    }
+
+    /// Run a checkpoint: flush pending Parquet batches, then truncate the
+    /// WAL through the checkpoint point (Step 6 of the sustainable data
+    /// strategy).
+    ///
+    /// Order matters. We flush Parquet first; only on success do we
+    /// truncate the WAL. If the process crashes between the flush and the
+    /// truncate, the WAL still contains the events that were just durably
+    /// written, and recovery will replay them. The dedupe in
+    /// `append_loaded_event` (index probe) makes that idempotent — the
+    /// event is already in Parquet, so the lazy-load splice no-ops once
+    /// the tenant is hydrated.
+    ///
+    /// The reverse order would be unsafe: a crash between truncate and
+    /// flush would lose committed events.
+    ///
+    /// This bounds dirty-restart replay time to one checkpoint interval
+    /// regardless of total dataset size — that's the load-bearing
+    /// property for cold-start time as ingest rate grows.
+    ///
+    /// No-op when no WAL is configured (in-memory-only mode).
+    pub fn checkpoint(&self) -> Result<()> {
+        let Some(ref wal) = self.wal else {
+            return Ok(());
+        };
+
+        // Flush before recording the truncation target — both
+        // because flush() may rotate the WAL underneath us and
+        // because we want the truncate point to reflect what's
+        // actually durable on disk.
+        self.flush_storage()?;
+        wal.truncate()?;
+        tracing::debug!("✅ Checkpoint complete: Parquet flushed, WAL truncated");
+        Ok(())
+    }
+
+    /// Get the configured checkpoint cadence (used by background tasks).
+    pub fn checkpoint_interval(&self) -> Option<std::time::Duration> {
+        self.checkpoint_interval_secs
+            .map(std::time::Duration::from_secs)
     }
 
     /// Hydrate `tenant_id`'s persisted Parquet data into the in-memory
@@ -1966,6 +2027,19 @@ pub struct EventStoreConfig {
     /// reads this from the `ALLSOURCE_CACHE_BYTES` env var; see
     /// `from_env`.
     pub cache_byte_budget: Option<u64>,
+
+    /// Cadence of the runtime checkpoint loop, in seconds (Step 6).
+    /// Each tick flushes pending Parquet batches and, on success,
+    /// truncates the WAL up through the checkpoint. This bounds
+    /// dirty-restart replay time to one interval of writes
+    /// regardless of total dataset size.
+    ///
+    /// `None` disables the loop — the WAL still grows but is only
+    /// truncated at boot, which is the pre-Step-6 behavior. Tests
+    /// default to `None`; production reads
+    /// `ALLSOURCE_CHECKPOINT_INTERVAL_SECONDS` (default 60s) via
+    /// `from_env_vars`.
+    pub checkpoint_interval_secs: Option<u64>,
 }
 
 impl EventStoreConfig {
@@ -2056,6 +2130,7 @@ impl EventStoreConfig {
             std::env::var("ALLSOURCE_CACHE_BYTES").ok(),
             std::env::var("ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS").ok(),
             std::env::var("ALLSOURCE_RETENTION_SYSTEM_DAYS").ok(),
+            std::env::var("ALLSOURCE_CHECKPOINT_INTERVAL_SECONDS").ok(),
         )
     }
 
@@ -2068,6 +2143,7 @@ impl EventStoreConfig {
         cache_bytes_var: Option<String>,
         snapshot_interval_var: Option<String>,
         retention_system_days_var: Option<String>,
+        checkpoint_interval_var: Option<String>,
     ) -> (Self, &'static str) {
         let data_dir = data_dir.filter(|s| !s.is_empty());
         let storage_dir = explicit_storage_dir
@@ -2096,6 +2172,28 @@ impl EventStoreConfig {
         let compaction_config =
             CompactionConfig::from_env_vars(snapshot_interval_var, retention_system_days_var);
 
+        // ALLSOURCE_CHECKPOINT_INTERVAL_SECONDS: parse decimal seconds. The
+        // default (60s) only applies when WAL is enabled — there's no
+        // checkpoint loop to run otherwise. Unparseable input is logged
+        // and falls back to the default rather than failing boot.
+        let checkpoint_interval_secs = if wal_enabled {
+            checkpoint_interval_var
+                .filter(|s| !s.is_empty())
+                .map(|s| match s.parse::<u64>() {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!(
+                            "ALLSOURCE_CHECKPOINT_INTERVAL_SECONDS={s:?} could not be parsed as \
+                             u64: {e}; falling back to default 60s"
+                        );
+                        60
+                    }
+                })
+                .or(Some(60))
+        } else {
+            None
+        };
+
         let mut config = match (&storage_dir, &wal_dir) {
             (Some(sd), Some(wd)) if wal_enabled => Self::production(
                 sd,
@@ -2109,6 +2207,7 @@ impl EventStoreConfig {
             _ => Self::default(),
         };
         config.cache_byte_budget = cache_byte_budget;
+        config.checkpoint_interval_secs = checkpoint_interval_secs;
 
         let mode = match (&storage_dir, &wal_dir) {
             (Some(_), Some(_)) if wal_enabled => "wal+parquet",
@@ -3481,6 +3580,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert_eq!(mode, "wal+parquet");
         assert_eq!(
@@ -3496,6 +3596,7 @@ mod tests {
             None,
             Some("/custom/storage".to_string()),
             Some("/custom/wal".to_string()),
+            None,
             None,
             None,
             None,
@@ -3519,6 +3620,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert_eq!(mode, "parquet-only");
         assert!(config.storage_dir.is_some());
@@ -3528,7 +3630,7 @@ mod tests {
     #[test]
     fn test_from_env_vars_no_dirs_is_in_memory() {
         let (config, mode) =
-            EventStoreConfig::from_env_vars(None, None, None, None, None, None, None);
+            EventStoreConfig::from_env_vars(None, None, None, None, None, None, None, None);
         assert_eq!(mode, "in-memory");
         assert!(config.storage_dir.is_none());
         assert!(config.wal_dir.is_none());
@@ -3544,6 +3646,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert_eq!(mode, "in-memory");
     }
@@ -3554,6 +3657,7 @@ mod tests {
             Some("/app/data".to_string()),
             Some("/override/storage".to_string()),
             Some("/override/wal".to_string()),
+            None,
             None,
             None,
             None,
@@ -3577,6 +3681,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert_eq!(mode, "wal-only");
         assert!(config.storage_dir.is_none());
@@ -3590,7 +3695,9 @@ mod tests {
             None,
             None,
             None,
-            Some("536870912".to_string()), // 512 MiB
+            Some("536870912".to_string()),
+            // 512 MiB
+            None,
             None,
             None,
         );
@@ -3610,6 +3717,7 @@ mod tests {
             Some("not-a-number".to_string()),
             None,
             None,
+            None,
         );
         assert_eq!(config.cache_byte_budget, None);
     }
@@ -3622,6 +3730,7 @@ mod tests {
             None,
             None,
             Some(String::new()),
+            None,
             None,
             None,
         );
@@ -3641,6 +3750,7 @@ mod tests {
             None,
             Some("60".to_string()),
             None,
+            None,
         );
         assert_eq!(config.compaction_config.compaction_interval_seconds, 60);
     }
@@ -3649,6 +3759,7 @@ mod tests {
     fn test_from_env_vars_snapshot_interval_default_is_hourly() {
         let (config, _) = EventStoreConfig::from_env_vars(
             Some("/app/data".to_string()),
+            None,
             None,
             None,
             None,
@@ -3669,6 +3780,7 @@ mod tests {
             None,
             Some("not-a-number".to_string()),
             None,
+            None,
         );
         assert_eq!(config.compaction_config.compaction_interval_seconds, 3600);
     }
@@ -3685,6 +3797,7 @@ mod tests {
             None,
             None,
             Some("7".to_string()),
+            None,
         );
         let ttl = config
             .compaction_config
@@ -3698,6 +3811,7 @@ mod tests {
     fn test_from_env_vars_retention_default_is_30_days_for_system() {
         let (config, _) = EventStoreConfig::from_env_vars(
             Some("/app/data".to_string()),
+            None,
             None,
             None,
             None,
@@ -4342,5 +4456,288 @@ mod tests {
             // is now logged (not silently swallowed).
             assert_eq!(store.stats().total_events, 0);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 6: Bounded WAL replay. Each successful checkpoint truncates the
+    // WAL so cold-start replay is O(one checkpoint interval) regardless of
+    // total dataset size.
+    // -----------------------------------------------------------------------
+
+    /// Count entries in every WAL file under `wal_dir` (any line that
+    /// parses as a valid JSON object — the line format is one
+    /// JSON-serialized WALEntry per line, see WALFile::write_entry).
+    fn count_wal_entries(wal_dir: &std::path::Path) -> usize {
+        use std::io::{BufRead, BufReader};
+        let mut total = 0usize;
+        let Ok(entries) = std::fs::read_dir(wal_dir) else {
+            return 0;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().is_none_or(|e| e != "log") {
+                continue;
+            }
+            let Ok(file) = std::fs::File::open(&path) else {
+                continue;
+            };
+            for line in BufReader::new(file).lines().map_while(std::result::Result::ok) {
+                if !line.trim().is_empty() {
+                    total += 1;
+                }
+            }
+        }
+        total
+    }
+
+    #[test]
+    fn test_checkpoint_truncates_wal_after_flush() {
+        // After a successful checkpoint, every previously-ingested event
+        // should be in Parquet, and the WAL should be empty (truncated).
+        // This is the load-bearing invariant for Step 6's bounded-replay
+        // promise — without truncation, the WAL grows unboundedly.
+        let data_dir = TempDir::new().unwrap();
+        let storage_dir = data_dir.path().join("storage");
+        let wal_dir = data_dir.path().join("wal");
+
+        let config = EventStoreConfig::production(
+            &storage_dir,
+            &wal_dir,
+            SnapshotConfig::default(),
+            WALConfig {
+                sync_on_write: true,
+                ..WALConfig::default()
+            },
+            CompactionConfig::default(),
+        );
+        let store = EventStore::with_config(config);
+
+        for i in 0..10 {
+            let event = Event::from_strings(
+                "test.created".to_string(),
+                format!("entity-{i}"),
+                "default".to_string(),
+                serde_json::json!({"i": i}),
+                None,
+            )
+            .unwrap();
+            store.ingest(&event).unwrap();
+        }
+
+        // Sanity: all 10 events are in the WAL pre-checkpoint.
+        assert_eq!(count_wal_entries(&wal_dir), 10, "WAL should have 10 events before checkpoint");
+
+        store.checkpoint().unwrap();
+
+        assert_eq!(
+            count_wal_entries(&wal_dir),
+            0,
+            "WAL should be empty after successful checkpoint"
+        );
+        let parquet_files = find_parquet_files(&storage_dir);
+        assert!(!parquet_files.is_empty(), "Parquet should hold the events");
+    }
+
+    #[test]
+    fn test_replay_only_post_checkpoint_events_after_crash() {
+        // Headline AC for the bead: write N events, checkpoint, write K
+        // more, simulate a crash, restart, and verify only K events go
+        // through replay (not N+K).
+        //
+        // Uses small N (50) and K (5) for test speed — the property
+        // is the same as the spec's 1M+10k example, just scaled down.
+        let data_dir = TempDir::new().unwrap();
+        let storage_dir = data_dir.path().join("storage");
+        let wal_dir = data_dir.path().join("wal");
+
+        let config_factory = || {
+            EventStoreConfig::production(
+                &storage_dir,
+                &wal_dir,
+                SnapshotConfig::default(),
+                WALConfig {
+                    sync_on_write: true,
+                    ..WALConfig::default()
+                },
+                CompactionConfig::default(),
+            )
+        };
+
+        // Session 1: ingest N, checkpoint, ingest K, then drop without
+        // a graceful shutdown — that's the crash.
+        const N: usize = 50;
+        const K: usize = 5;
+        {
+            let store = EventStore::with_config(config_factory());
+            for i in 0..N {
+                store
+                    .ingest(
+                        &Event::from_strings(
+                            "pre.checkpoint".to_string(),
+                            format!("e-{i}"),
+                            "default".to_string(),
+                            serde_json::json!({"i": i}),
+                            None,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+            }
+            store.checkpoint().unwrap();
+            assert_eq!(
+                count_wal_entries(&wal_dir),
+                0,
+                "WAL should be empty immediately after checkpoint"
+            );
+
+            for i in 0..K {
+                store
+                    .ingest(
+                        &Event::from_strings(
+                            "post.checkpoint".to_string(),
+                            format!("p-{i}"),
+                            "default".to_string(),
+                            serde_json::json!({"i": i}),
+                            None,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+            }
+            assert_eq!(
+                count_wal_entries(&wal_dir),
+                K,
+                "WAL should hold only post-checkpoint events"
+            );
+            // Drop without flushing — simulates a crash mid-write.
+        }
+
+        // Session 2: reopen. Recovery should replay only the K post-
+        // checkpoint events from the WAL — the N pre-checkpoint events
+        // are durable in Parquet and lazy-loaded on demand.
+        {
+            let store = EventStore::with_config(config_factory());
+            // total_events reflects only WAL-recovered events at boot
+            // (Step 2 — Parquet stays cold until first per-tenant
+            // query). So the WAL replay size IS exactly K.
+            assert_eq!(
+                store.stats().total_events,
+                K,
+                "Boot should replay exactly K events from WAL (the post-checkpoint window), not N+K"
+            );
+
+            // Lazy-load brings the rest in.
+            store.ensure_tenant_loaded("default").unwrap();
+            assert_eq!(
+                store.stats().total_events,
+                N + K,
+                "After lazy-load, both pre- and post-checkpoint events should be reachable"
+            );
+        }
+    }
+
+    #[test]
+    fn test_checkpoint_is_idempotent() {
+        // Calling checkpoint() twice in a row is safe: the second call
+        // finds an empty WAL and an empty Parquet batch, and no-ops.
+        let data_dir = TempDir::new().unwrap();
+        let storage_dir = data_dir.path().join("storage");
+        let wal_dir = data_dir.path().join("wal");
+
+        let store = EventStore::with_config(EventStoreConfig::production(
+            &storage_dir,
+            &wal_dir,
+            SnapshotConfig::default(),
+            WALConfig::default(),
+            CompactionConfig::default(),
+        ));
+
+        for i in 0..5 {
+            store
+                .ingest(
+                    &Event::from_strings(
+                        "x".to_string(),
+                        format!("e-{i}"),
+                        "default".to_string(),
+                        serde_json::json!({}),
+                        None,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+        }
+
+        store.checkpoint().unwrap();
+        // Second call is a no-op and must not error.
+        store.checkpoint().unwrap();
+        assert_eq!(count_wal_entries(&wal_dir), 0);
+    }
+
+    #[test]
+    fn test_checkpoint_noop_in_memory_only_mode() {
+        // Without WAL configured, checkpoint() is a no-op.
+        let store = EventStore::new();
+        store.checkpoint().unwrap();
+    }
+
+    #[test]
+    fn test_checkpoint_interval_from_env_defaults_to_60s_when_wal_enabled() {
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(config.checkpoint_interval_secs, Some(60));
+    }
+
+    #[test]
+    fn test_checkpoint_interval_from_env_overrides_default() {
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some("15".to_string()),
+        );
+        assert_eq!(config.checkpoint_interval_secs, Some(15));
+    }
+
+    #[test]
+    fn test_checkpoint_interval_disabled_when_wal_disabled() {
+        // No WAL → no checkpoint loop, regardless of env var value.
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            Some("false".to_string()),
+            None,
+            None,
+            None,
+            Some("15".to_string()),
+        );
+        assert_eq!(config.checkpoint_interval_secs, None);
+    }
+
+    #[test]
+    fn test_checkpoint_interval_unparseable_falls_back_to_default() {
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some("not-a-number".to_string()),
+        );
+        assert_eq!(config.checkpoint_interval_secs, Some(60));
     }
 }

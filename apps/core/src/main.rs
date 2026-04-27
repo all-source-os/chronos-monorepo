@@ -131,6 +131,32 @@ async fn main() -> Result<()> {
 
     let store = Arc::new(store);
 
+    // Step 6: spawn the background checkpoint loop if a cadence is
+    // configured. Each tick flushes pending Parquet batches and, on
+    // success, truncates the WAL — bounding dirty-restart replay to
+    // one interval of writes regardless of total dataset size.
+    if let Some(interval) = store.checkpoint_interval() {
+        let store_for_checkpoint = Arc::clone(&store);
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            ticker.tick().await; // first tick fires immediately — skip it
+            loop {
+                ticker.tick().await;
+                let store = Arc::clone(&store_for_checkpoint);
+                let result = tokio::task::spawn_blocking(move || store.checkpoint()).await;
+                match result {
+                    Ok(Ok(())) => tracing::debug!("✅ Background checkpoint complete"),
+                    Ok(Err(e)) => tracing::warn!("Background checkpoint failed: {e}"),
+                    Err(e) => tracing::warn!("Background checkpoint task panicked: {e}"),
+                }
+            }
+        });
+        tracing::info!(
+            "✅ Background WAL checkpoint loop started (interval: {:?})",
+            interval
+        );
+    }
+
     // Now that store is in Arc, attach it to the shipper and spawn
     #[cfg(feature = "replication")]
     let wal_shipper = if let Some(mut shipper) = wal_shipper_raw {

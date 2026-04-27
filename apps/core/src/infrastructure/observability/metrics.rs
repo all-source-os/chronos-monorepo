@@ -108,6 +108,14 @@ pub struct MetricsRegistry {
     // already cover disk-side state.
     pub cache_evictions_total: IntCounter,
     pub cache_bytes: IntGauge,
+
+    // WAL replay metric (Step 6 of the sustainable data strategy).
+    // Set on each successful WAL recovery; reflects the size of the
+    // last replay. After a checkpoint truncates the WAL, the next
+    // recovery should report a value bounded by the checkpoint
+    // interval — that's the metric to graph to verify Step 6's
+    // bounded-replay invariant.
+    pub wal_replay_events_total: IntGauge,
 }
 
 impl MetricsRegistry {
@@ -394,6 +402,13 @@ impl MetricsRegistry {
         ))
         .unwrap();
 
+        // WAL replay metric (Step 6): size of last recovery.
+        let wal_replay_events_total = IntGauge::with_opts(Opts::new(
+            "allsource_core_wal_replay_events_total",
+            "Number of events replayed from the WAL on the most recent boot",
+        ))
+        .unwrap();
+
         // WebSocket metrics
         let websocket_connections_active = IntGauge::with_opts(Opts::new(
             "allsource_websocket_connections_active",
@@ -643,6 +658,9 @@ impl MetricsRegistry {
             .register(Box::new(cache_evictions_total.clone()))
             .unwrap();
         registry.register(Box::new(cache_bytes.clone())).unwrap();
+        registry
+            .register(Box::new(wal_replay_events_total.clone()))
+            .unwrap();
 
         registry
             .register(Box::new(websocket_connections_active.clone()))
@@ -761,6 +779,7 @@ impl MetricsRegistry {
             replication_reconnects_total,
             cache_evictions_total,
             cache_bytes,
+            wal_replay_events_total,
         })
     }
 
