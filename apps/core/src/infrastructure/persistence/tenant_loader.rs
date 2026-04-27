@@ -32,20 +32,29 @@ use std::time::Duration;
 /// short of a request-timeout indistinguishable from a hang.
 pub const DEFAULT_LOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Tracks which tenants have been hydrated into memory and serializes
-/// concurrent first-loads of the same tenant.
+/// Tracks which tenants have been hydrated into memory, serializes
+/// concurrent first-loads of the same tenant, and accounts for the
+/// approximate bytes each loaded tenant occupies (Step 3 cache
+/// budget input).
 ///
 /// `loaded` is the source of truth for "is this tenant warm?". It's
-/// insert-only today; eviction lands in Step 3.
+/// insert-only until Step 3 #2's `mark_unloaded` (eviction) lands.
 ///
 /// `locks` holds one Mutex per tenant ever queried. Concurrent
 /// first-queries get the same Mutex; the second waiter re-checks
 /// `loaded` after acquiring it (the standard double-checked-lock
 /// pattern, sound here because `loaded`'s DashMap insert
 /// happens-before the lock release).
+///
+/// `bytes` accumulates per-tenant resident-byte estimates as
+/// events get spliced in via `append_loaded_event`. It's the input
+/// the budget-enforcement step (Step 3 #3) keys off — the LRU
+/// eviction policy compares the sum of these counters against the
+/// configured byte budget.
 pub struct TenantLoader {
     loaded: DashMap<String, ()>,
     locks: DashMap<String, Arc<Mutex<()>>>,
+    bytes: DashMap<String, u64>,
     load_timeout: Duration,
 }
 
@@ -58,6 +67,7 @@ impl TenantLoader {
         Self {
             loaded: DashMap::new(),
             locks: DashMap::new(),
+            bytes: DashMap::new(),
             load_timeout,
         }
     }
@@ -71,6 +81,37 @@ impl TenantLoader {
     /// Record that this tenant has been hydrated. Idempotent.
     pub fn mark_loaded(&self, tenant_id: &str) {
         self.loaded.insert(tenant_id.to_string(), ());
+    }
+
+    /// Add `n` bytes to the resident-size estimate for `tenant_id`.
+    /// Called once per event spliced into memory for that tenant.
+    /// The total is what the budget check compares against.
+    pub fn add_bytes(&self, tenant_id: &str, n: u64) {
+        *self.bytes.entry(tenant_id.to_string()).or_insert(0) += n;
+    }
+
+    /// Resident-byte estimate for a single tenant. Returns 0 for
+    /// tenants that have never been loaded (or that were evicted —
+    /// once eviction lands the counter resets to 0).
+    pub fn bytes_for(&self, tenant_id: &str) -> u64 {
+        self.bytes.get(tenant_id).map_or(0, |v| *v)
+    }
+
+    /// Sum of resident-byte estimates across every loaded tenant —
+    /// the input the budget check compares against. O(loaded
+    /// tenants), expected to be small.
+    pub fn total_bytes(&self) -> u64 {
+        self.bytes.iter().map(|kv| *kv.value()).sum()
+    }
+
+    /// Snapshot of `(tenant_id, bytes)` pairs for every tenant
+    /// that has any resident bytes. Used by the eviction policy
+    /// to pick a victim and by metrics endpoints.
+    pub fn bytes_per_tenant(&self) -> Vec<(String, u64)> {
+        self.bytes
+            .iter()
+            .map(|kv| (kv.key().clone(), *kv.value()))
+            .collect()
     }
 
     /// Get-or-insert the per-tenant Mutex used for singleflight
@@ -184,6 +225,29 @@ mod tests {
 
         t1.join().unwrap();
         t2.join().unwrap();
+    }
+
+    #[test]
+    fn test_bytes_default_to_zero() {
+        let loader = TenantLoader::new();
+        assert_eq!(loader.bytes_for("alice"), 0);
+        assert_eq!(loader.total_bytes(), 0);
+        assert!(loader.bytes_per_tenant().is_empty());
+    }
+
+    #[test]
+    fn test_add_bytes_accumulates_per_tenant() {
+        let loader = TenantLoader::new();
+        loader.add_bytes("alice", 100);
+        loader.add_bytes("alice", 50);
+        loader.add_bytes("bob", 200);
+        assert_eq!(loader.bytes_for("alice"), 150);
+        assert_eq!(loader.bytes_for("bob"), 200);
+        assert_eq!(loader.total_bytes(), 350);
+
+        let mut snapshot = loader.bytes_per_tenant();
+        snapshot.sort();
+        assert_eq!(snapshot, vec![("alice".to_string(), 150), ("bob".to_string(), 200)]);
     }
 
     #[test]

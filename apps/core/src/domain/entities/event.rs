@@ -203,6 +203,37 @@ impl Event {
         self.version
     }
 
+    /// Approximate resident size of this event in memory, in bytes.
+    /// Used by the per-tenant memory cache (Step 3 of the
+    /// sustainable data strategy) to make eviction decisions
+    /// against a configurable byte budget.
+    ///
+    /// The estimator uses serialized-JSON payload length plus a
+    /// fixed 256-byte overhead for the rest of the Event struct
+    /// (UUID, event_type, entity_id, tenant_id, timestamp,
+    /// version, plus DashMap and Vec slot overhead). It's
+    /// intentionally cheap and order-of-magnitude correct rather
+    /// than bytes-precise — the budget logic compares against a
+    /// 2 GiB target, so an estimator that's off by 30% per event
+    /// still produces a sensible cap.
+    ///
+    /// Cost: O(payload size) — one serde serialization per
+    /// event. Called once per event on the cache append path,
+    /// not on the query path.
+    pub fn estimated_size_bytes(&self) -> u64 {
+        const FIXED_OVERHEAD: u64 = 256;
+        let payload_bytes = serde_json::to_vec(&self.payload)
+            .map(|v| v.len() as u64)
+            .unwrap_or(0);
+        let metadata_bytes = self
+            .metadata
+            .as_ref()
+            .and_then(|m| serde_json::to_vec(m).ok())
+            .map(|v| v.len() as u64)
+            .unwrap_or(0);
+        FIXED_OVERHEAD + payload_bytes + metadata_bytes
+    }
+
     // Domain behavior methods
 
     /// Check if this event belongs to a specific tenant
@@ -271,6 +302,50 @@ mod tests {
 
     fn test_tenant_id() -> TenantId {
         TenantId::new("tenant-1".to_string()).unwrap()
+    }
+
+    #[test]
+    fn test_estimated_size_bytes_grows_with_payload() {
+        // Two events, identical except payload size — the larger
+        // payload must produce a larger estimate. Exact bytes
+        // aren't specified; ordering is.
+        let small = Event::new(
+            test_event_type(),
+            test_entity_id(),
+            test_tenant_id(),
+            json!({"k": "v"}),
+        );
+        let large_payload = json!({"data": "x".repeat(10_000)});
+        let large = Event::new(
+            test_event_type(),
+            test_entity_id(),
+            test_tenant_id(),
+            large_payload,
+        );
+
+        assert!(small.estimated_size_bytes() < large.estimated_size_bytes());
+        // The fixed overhead floors a tiny event at 256+ bytes;
+        // the large one with a 10k-char string must clear 10k.
+        assert!(small.estimated_size_bytes() >= 256);
+        assert!(large.estimated_size_bytes() > 10_000);
+    }
+
+    #[test]
+    fn test_estimated_size_bytes_includes_metadata() {
+        let no_meta = Event::new(
+            test_event_type(),
+            test_entity_id(),
+            test_tenant_id(),
+            json!({"k": "v"}),
+        );
+        let with_meta = Event::with_metadata(
+            test_event_type(),
+            test_entity_id(),
+            test_tenant_id(),
+            json!({"k": "v"}),
+            json!({"correlation_id": "abc-123-def-456-very-long"}),
+        );
+        assert!(with_meta.estimated_size_bytes() > no_meta.estimated_size_bytes());
     }
 
     #[test]

@@ -1187,6 +1187,19 @@ impl EventStore {
         self.tenant_loader.is_loaded(tenant_id)
     }
 
+    /// Approximate resident bytes a single tenant occupies in the
+    /// in-memory cache. Step 3 budget-tracking input. 0 for cold
+    /// or evicted tenants.
+    pub fn tenant_resident_bytes(&self, tenant_id: &str) -> u64 {
+        self.tenant_loader.bytes_for(tenant_id)
+    }
+
+    /// Sum of resident-byte estimates across every loaded tenant.
+    /// What the budget check compares against.
+    pub fn cache_resident_bytes(&self) -> u64 {
+        self.tenant_loader.total_bytes()
+    }
+
     /// Splice a single loaded event into the in-memory structures
     /// (events vec, index, projections, entity_versions) atomically
     /// w.r.t. concurrent ingest. Used by `ensure_tenant_loaded`.
@@ -1212,6 +1225,9 @@ impl EventStore {
             return;
         }
 
+        let event_bytes = event.estimated_size_bytes();
+        let tenant = event.tenant_id_str().to_string();
+
         let mut events = self.events.write();
         let offset = events.len();
 
@@ -1235,6 +1251,10 @@ impl EventStore {
             .or_insert(0) += 1;
 
         events.push(event);
+        // Account for the bytes AFTER the push so a panic in the
+        // index/projection path doesn't leave the counter inflated.
+        // The DashMap update is itself the last fallible step.
+        self.tenant_loader.add_bytes(&tenant, event_bytes);
     }
 
     /// Manually create a snapshot for an entity
@@ -2060,6 +2080,49 @@ mod tests {
         assert!(!store.is_tenant_loaded("never-existed"));
         store.ensure_tenant_loaded("never-existed").unwrap();
         assert!(store.is_tenant_loaded("never-existed"));
+    }
+
+    #[test]
+    fn test_lazy_load_accounts_bytes_per_tenant() {
+        // Step 3 #1: per-tenant byte tracking. Loading a tenant
+        // should accumulate bytes proportional to its event
+        // payload sizes; another tenant's counter must stay 0.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        // Persist 5 events for alice with measurable-size payloads.
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for i in 0..5 {
+                store.ingest(&Event::from_strings(
+                    "test.event".to_string(),
+                    format!("a-{i}"),
+                    "alice".to_string(),
+                    serde_json::json!({"data": "x".repeat(1000)}),
+                    None,
+                ).unwrap()).unwrap();
+            }
+            store.flush_storage().unwrap();
+        }
+
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+        // Cold: zero bytes accounted.
+        assert_eq!(store.tenant_resident_bytes("alice"), 0);
+        assert_eq!(store.cache_resident_bytes(), 0);
+
+        store.ensure_tenant_loaded("alice").unwrap();
+
+        // After load: alice's counter is non-trivial (5 events
+        // each carrying ~1000 bytes of payload + overhead).
+        let alice_bytes = store.tenant_resident_bytes("alice");
+        assert!(
+            alice_bytes >= 5 * 1000,
+            "alice should have at least 5 KiB resident; got {alice_bytes}"
+        );
+        // Bob never loaded → 0.
+        assert_eq!(store.tenant_resident_bytes("bob"), 0);
+        // Total equals alice's portion (only loaded tenant).
+        assert_eq!(store.cache_resident_bytes(), alice_bytes);
     }
 
     #[test]
