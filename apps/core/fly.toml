@@ -14,6 +14,24 @@ primary_region = "iad"  # US East (Virginia) - change to your preferred region
   ALLSOURCE_HOST = "::"
   # PORT is automatically set by Fly.io
 
+  # Sustainable data strategy (Steps 1-6, landed 2026-04-27 — see
+  # docs/proposals/SUSTAINABLE_DATA_STRATEGY.md). The cache budget is
+  # the headline fix for issue #160 (2026-04-25 OOM during WAL replay):
+  # resident set is now bounded regardless of dataset size. 2 GiB on
+  # the 4 GiB VM leaves headroom for the Rust runtime, replication
+  # buffers, and the Parquet flush staging area.
+  ALLSOURCE_CACHE_BYTES = "2147483648"
+  # Step 6: checkpoint cadence (Parquet flush + WAL truncate). Bounds
+  # cold-restart replay to ~one minute of writes regardless of how
+  # large the dataset has grown.
+  ALLSOURCE_CHECKPOINT_INTERVAL_SECONDS = "60"
+  # Step 4: per-tenant compaction cadence (default 3600s / hourly is
+  # also set by code; explicit here so ops can grep fly.toml).
+  ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS = "3600"
+  # Step 5: 30-day retention for the heartbeat-churning system tenant.
+  # Other tenants keep events forever by default.
+  ALLSOURCE_RETENTION_SYSTEM_DAYS = "30"
+
 # Core is internal-only (bead t-0ff8). Public ingress removed 2026-04-17.
 # All user-facing traffic enters through Control Plane's delegation layer.
 # Internal .fly network (http://allsource-core.internal:3900) still works
@@ -45,12 +63,12 @@ min_machines_running = 1
   # shared-cpu-2x to unlock 4 GiB (shared-cpu-1x caps at 2 GiB).
   cpu_kind = "shared"
   cpus = 2
-  # 4 GiB is a stop-gap, not a strategy. Today Core loads every persisted
-  # event into the in-memory DashMap at startup regardless of tenant. At
-  # 451k events that hit ~870 MB and the 1 GiB cap OOM-killed Core mid-replay
-  # (issue #160). The right fix is tenant-scoped replay (load events on first
-  # query per tenant, LRU-evict cold tenants) so memory tracks the working
-  # set, not the whole dataset. Until that lands, this gives ~4× current peak.
+  # 4 GiB host with a 2 GiB ALLSOURCE_CACHE_BYTES budget (above). The
+  # cache budget — not the VM size — is the load-bearing OOM control
+  # post-Step-3. The remaining ~2 GiB is headroom for the Rust runtime,
+  # replication buffers, and the Parquet flush staging area. The VM can
+  # be downsized once the budget runs at steady state with margin to
+  # spare; don't shrink it in the same change as flipping the budget on.
   memory_mb = 4096
 
 [mounts]

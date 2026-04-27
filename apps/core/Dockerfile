@@ -100,15 +100,19 @@ RUN mkdir -p apps/core/benches apps/core/tests/stress_tests && \
 # Stage 3a: Builder Community - Community edition (Apache 2.0)
 # =============================================================================
 FROM builder-base AS builder-community
-RUN CARGO_BUILD_JOBS=4 cargo build --release -p allsource-core --bin allsource-core --features community,analytics && \
-    strip /app/target/release/allsource-core
+RUN CARGO_BUILD_JOBS=4 cargo build --release -p allsource-core \
+        --bin allsource-core --bin allsource-migrate-storage \
+        --features community,analytics && \
+    strip /app/target/release/allsource-core /app/target/release/allsource-migrate-storage
 
 # =============================================================================
 # Stage 3b: Builder Enterprise - Enterprise edition (BSL 1.1)
 # =============================================================================
 FROM builder-base AS builder-enterprise
-RUN CARGO_BUILD_JOBS=4 cargo build --release -p allsource-core --bin allsource-core --features enterprise,analytics && \
-    strip /app/target/release/allsource-core
+RUN CARGO_BUILD_JOBS=4 cargo build --release -p allsource-core \
+        --bin allsource-core --bin allsource-migrate-storage \
+        --features enterprise,analytics && \
+    strip /app/target/release/allsource-core /app/target/release/allsource-migrate-storage
 
 # =============================================================================
 # Stage 4a: Runtime Community - Distroless (Apache 2.0, open source)
@@ -131,6 +135,7 @@ LABEL org.opencontainers.image.title="AllSource Core (Community)" \
 
 WORKDIR /app
 COPY --from=builder-community /app/target/release/allsource-core ./allsource-core
+COPY --from=builder-community /app/target/release/allsource-migrate-storage ./allsource-migrate-storage
 EXPOSE 3900
 
 ENV RUST_LOG=allsource_core=info,tower_http=info \
@@ -163,6 +168,7 @@ LABEL org.opencontainers.image.title="AllSource Core (Enterprise)" \
 
 WORKDIR /app
 COPY --from=builder-enterprise /app/target/release/allsource-core ./allsource-core
+COPY --from=builder-enterprise /app/target/release/allsource-migrate-storage ./allsource-migrate-storage
 EXPOSE 3900
 
 ENV RUST_LOG=allsource_core=info,tower_http=info \
@@ -201,6 +207,7 @@ RUN apk add --no-cache curl ca-certificates && \
 
 WORKDIR /app
 COPY --from=builder-community --chown=allsource:allsource /app/target/release/allsource-core ./allsource-core
+COPY --from=builder-community --chown=allsource:allsource /app/target/release/allsource-migrate-storage ./allsource-migrate-storage
 USER allsource
 EXPOSE 3900
 
@@ -243,6 +250,7 @@ RUN apk add --no-cache curl ca-certificates && \
 
 WORKDIR /app
 COPY --from=builder-enterprise --chown=allsource:allsource /app/target/release/allsource-core ./allsource-core
+COPY --from=builder-enterprise --chown=allsource:allsource /app/target/release/allsource-migrate-storage ./allsource-migrate-storage
 USER allsource
 EXPOSE 3900
 
