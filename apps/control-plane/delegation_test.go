@@ -267,3 +267,108 @@ func TestDelegation_UpstreamErrorPropagates(t *testing.T) {
 // to the checker when other tests in this file are compiled in isolation.
 var _ = entities.RoleDeveloper
 var _ = jwt.SigningMethodHS256
+
+// Step 2 of REGIONAL_INDEPENDENCE.md: coreForTenant routing. The
+// tests below cover the contract — single-region fast path,
+// multi-region routing by tenant home_region, and graceful fallback
+// to the default Core when the resolver returns "" or an unknown
+// region. They use the delegationClient directly (no HTTP) since
+// only the routing decision is under test.
+
+func newTestDelegation(t *testing.T) *delegationClient {
+	t.Helper()
+	d, err := newDelegationClient(
+		"http://core.iad.test",
+		"http://qs.test",
+		"http://prime.test",
+		func(_, _ string, _ entities.Role) (string, error) { return "tok", nil },
+		http.DefaultClient,
+	)
+	if err != nil {
+		t.Fatalf("newDelegationClient: %v", err)
+	}
+	return d
+}
+
+func TestDelegationClient_CoreForTenant_SingleRegionFastPath(t *testing.T) {
+	// Default config: no regional Cores registered, no resolver.
+	// Every tenant returns the default core, no resolver call.
+	d := newTestDelegation(t)
+
+	got := d.coreForTenant("acme")
+	if got.String() != "http://core.iad.test" {
+		t.Errorf("coreForTenant returned %q, want default core", got)
+	}
+}
+
+func TestDelegationClient_CoreForTenant_RoutesByRegion(t *testing.T) {
+	d := newTestDelegation(t)
+	if err := d.addRegionalCore("iad", "http://core.iad.test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.addRegionalCore("lhr", "http://core.lhr.test"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Resolver: tenants are pinned by ID prefix in this test.
+	d.setHomeRegionResolver(func(tenantID string) string {
+		switch {
+		case strings.HasPrefix(tenantID, "lhr-"):
+			return "lhr"
+		case strings.HasPrefix(tenantID, "iad-"):
+			return "iad"
+		default:
+			return ""
+		}
+	})
+
+	if got := d.coreForTenant("lhr-acme").String(); got != "http://core.lhr.test" {
+		t.Errorf("lhr-acme routed to %q, want core.lhr.test", got)
+	}
+	if got := d.coreForTenant("iad-acme").String(); got != "http://core.iad.test" {
+		t.Errorf("iad-acme routed to %q, want core.iad.test", got)
+	}
+}
+
+func TestDelegationClient_CoreForTenant_FallsBackOnUnknownRegion(t *testing.T) {
+	d := newTestDelegation(t)
+	if err := d.addRegionalCore("lhr", "http://core.lhr.test"); err != nil {
+		t.Fatal(err)
+	}
+	d.setHomeRegionResolver(func(_ string) string { return "atlantis" })
+
+	got := d.coreForTenant("acme")
+	if got.String() != "http://core.iad.test" {
+		t.Errorf("unknown region routed to %q, want default core fallback", got)
+	}
+}
+
+func TestDelegationClient_CoreForTenant_FallsBackOnEmptyResolver(t *testing.T) {
+	d := newTestDelegation(t)
+	if err := d.addRegionalCore("lhr", "http://core.lhr.test"); err != nil {
+		t.Fatal(err)
+	}
+	// Resolver returns "" — same path as a tenant with no
+	// home_region in metadata (legacy rows pre-migration).
+	d.setHomeRegionResolver(func(_ string) string { return "" })
+
+	got := d.coreForTenant("legacy-tenant")
+	if got.String() != "http://core.iad.test" {
+		t.Errorf("empty region routed to %q, want default core", got)
+	}
+}
+
+func TestDelegationClient_CoreForTenant_NoResolverIsSingleRegion(t *testing.T) {
+	// Regional Cores registered but no resolver wired → single-region
+	// behavior preserved. Useful for migrations where the URLs are
+	// added before the resolver is hooked up.
+	d := newTestDelegation(t)
+	if err := d.addRegionalCore("lhr", "http://core.lhr.test"); err != nil {
+		t.Fatal(err)
+	}
+
+	got := d.coreForTenant("any-tenant")
+	if got.String() != "http://core.iad.test" {
+		t.Errorf("no resolver routed to %q, want default core", got)
+	}
+}

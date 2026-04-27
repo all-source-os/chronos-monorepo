@@ -27,12 +27,25 @@ import (
 // client used to forward requests. signToken mints a per-request JWT for
 // the authenticated caller — NOT a Control Plane admin token — so backends
 // see the real tenant and role and enforce isolation accordingly.
+//
+// Regional routing (Step 2 of REGIONAL_INDEPENDENCE.md): when
+// coreByRegion has entries AND homeRegion is wired, writes route to
+// the tenant's home-region Core via coreForTenant; otherwise the
+// `core` field is the single target (current single-region default).
+// The single-region fast path skips the tenant lookup entirely so
+// there is zero overhead until multi-region followers exist.
 type delegationClient struct {
 	core         *url.URL
+	coreByRegion map[string]*url.URL
 	queryService *url.URL
 	prime        *url.URL
-	signToken    func(userID, tenantID string, role entities.Role) (string, error)
-	http         *http.Client
+	// homeRegion resolves a tenant ID to its home region. Wired by
+	// NewControlPlane to a closure over the tenant repository. nil
+	// means "single-region mode" — coreForTenant returns the default
+	// core unconditionally.
+	homeRegion func(tenantID string) string
+	signToken  func(userID, tenantID string, role entities.Role) (string, error)
+	http       *http.Client
 }
 
 func newDelegationClient(coreURL, queryURL, primeURL string, signToken func(userID, tenantID string, role entities.Role) (string, error), httpClient *http.Client) (*delegationClient, error) {
@@ -56,11 +69,57 @@ func newDelegationClient(coreURL, queryURL, primeURL string, signToken func(user
 	}
 	return &delegationClient{
 		core:         core,
+		coreByRegion: make(map[string]*url.URL),
 		queryService: qs,
 		prime:        prime,
 		signToken:    signToken,
 		http:         httpClient,
 	}, nil
+}
+
+// addRegionalCore registers a regional Core URL. After all calls, the
+// map is consulted by coreForTenant; an unknown region falls back to
+// the default core. Returns an error if url is unparseable.
+func (d *delegationClient) addRegionalCore(region, rawURL string) error {
+	u, err := url.Parse(strings.TrimRight(rawURL, "/"))
+	if err != nil {
+		return fmt.Errorf("parse regional core URL %q: %w", region, err)
+	}
+	d.coreByRegion[region] = u
+	return nil
+}
+
+// setHomeRegionResolver wires a tenant-id → region resolver. Pass nil
+// to revert to single-region mode (coreForTenant returns the default
+// core regardless of tenant). The resolver may return an empty
+// string or an unknown region; coreForTenant treats both as "fall
+// back to default."
+func (d *delegationClient) setHomeRegionResolver(f func(tenantID string) string) {
+	d.homeRegion = f
+}
+
+// coreForTenant returns the Core URL that owns writes for tenantID.
+// Single-region fast path (no regional cores configured OR no
+// resolver wired): returns the default core unconditionally with no
+// tenant lookup. Multi-region path: resolves the tenant's home
+// region via the wired resolver and returns the matching URL,
+// falling back to the default core on misses.
+//
+// The fast path means the routing change is a no-op until an
+// operator actually configures a second region — no risk of
+// regressing single-region performance just by landing this code.
+func (d *delegationClient) coreForTenant(tenantID string) *url.URL {
+	if len(d.coreByRegion) == 0 || d.homeRegion == nil {
+		return d.core
+	}
+	region := d.homeRegion(tenantID)
+	if region == "" {
+		return d.core
+	}
+	if u, ok := d.coreByRegion[region]; ok {
+		return u
+	}
+	return d.core
 }
 
 // authTenantFromContext returns the authenticated caller's tenant_id set by
@@ -235,7 +294,7 @@ func (cp *ControlPlane) proxyIngest(
 	if !ok {
 		return
 	}
-	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.core, upstreamPath, nil, rewritten, bearer)
+	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.coreForTenant(tenantID), upstreamPath, nil, rewritten, bearer)
 }
 
 // ProxyIngestSingle forwards POST /api/v1/events to Core with tenant_id
@@ -305,5 +364,10 @@ func (cp *ControlPlane) ProxyEventsQuery(c *gin.Context) {
 	if !ok {
 		return
 	}
-	cp.delegation.forwardRequest(c, http.MethodGet, cp.delegation.core, "/api/v1/events/query", q, nil, bearer)
+	// Reads currently route to the same core as writes. Once
+	// cross-region read replicas exist (Step 3 of
+	// REGIONAL_INDEPENDENCE.md), this should switch to
+	// coreForRegion(localRegion) so reads stay in-region. For now
+	// "home region" resolves to a single Core for both directions.
+	cp.delegation.forwardRequest(c, http.MethodGet, cp.delegation.coreForTenant(tenantID), "/api/v1/events/query", q, nil, bearer)
 }

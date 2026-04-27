@@ -20,13 +20,24 @@ func NewCoreTenantRepository(client clients.CoreClient) *CoreTenantRepository {
 	return &CoreTenantRepository{client: client}
 }
 
-// Save persists a new tenant to Core.
+// Save persists a new tenant to Core. The tenant's HomeRegion is
+// piggybacked onto Metadata under the key "home_region" so we don't
+// need a Core schema change to round-trip it. The entity layer's
+// EffectiveHomeRegion() handles tenants written before this field
+// existed.
 func (r *CoreTenantRepository) Save(tenant *entities.Tenant) error {
 	ctx := context.Background()
+	metadata := tenant.Metadata
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	if region := tenant.EffectiveHomeRegion(); region != "" {
+		metadata["home_region"] = region
+	}
 	_, err := r.client.CreateTenant(ctx, clients.CreateTenantRequest{
 		ID:       tenant.ID,
 		Name:     tenant.Name,
-		Metadata: tenant.Metadata,
+		Metadata: metadata,
 	})
 	return err
 }
@@ -128,12 +139,26 @@ func coreTenantToEntity(resp *clients.TenantResponse) *entities.Tenant {
 		status = entities.TenantStatusArchived
 	}
 
+	// Pull HomeRegion out of metadata. Legacy tenants written before
+	// the field existed have no key; EffectiveHomeRegion() falls back
+	// to DefaultHomeRegion at read time. We accept any string here
+	// rather than re-validating — Save validated on the way in, and
+	// we don't want a stale allowlist entry to lock a region out
+	// during read.
+	homeRegion := ""
+	if resp.Metadata != nil {
+		if v, ok := resp.Metadata["home_region"].(string); ok {
+			homeRegion = v
+		}
+	}
+
 	return &entities.Tenant{
-		ID:        resp.ID,
-		Name:      resp.Name,
-		Status:    status,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		Metadata:  resp.Metadata,
+		ID:         resp.ID,
+		Name:       resp.Name,
+		Status:     status,
+		HomeRegion: homeRegion,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+		Metadata:   resp.Metadata,
 	}
 }

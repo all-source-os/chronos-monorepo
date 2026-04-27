@@ -206,3 +206,112 @@ func TestTenantSlug(t *testing.T) {
 		})
 	}
 }
+
+// Step 1 of REGIONAL_INDEPENDENCE.md: home_region attribute on the
+// tenant entity. The tests below cover the contract every later
+// step depends on — default region, allowlist enforcement, the
+// EffectiveHomeRegion fallback for legacy rows, and the validated
+// SetHomeRegion mutation.
+
+func TestNewTenant_DefaultsToIad(t *testing.T) {
+	tenant, err := NewTenant("acme", "Acme Co", "")
+	if err != nil {
+		t.Fatalf("NewTenant returned error: %v", err)
+	}
+	if tenant.HomeRegion != DefaultHomeRegion {
+		t.Errorf("HomeRegion = %q, want %q (DefaultHomeRegion)", tenant.HomeRegion, DefaultHomeRegion)
+	}
+	if tenant.EffectiveHomeRegion() != DefaultHomeRegion {
+		t.Errorf("EffectiveHomeRegion() = %q, want %q", tenant.EffectiveHomeRegion(), DefaultHomeRegion)
+	}
+}
+
+func TestNewTenantInRegion(t *testing.T) {
+	tests := []struct {
+		name       string
+		homeRegion string
+		wantRegion string
+		wantErr    bool
+	}{
+		{"empty resolves to default", "", DefaultHomeRegion, false},
+		{"valid lhr", "lhr", "lhr", false},
+		{"valid fra", "fra", "fra", false},
+		{"unknown region rejected", "atlantis", "", true},
+		{"uppercase rejected (allowlist is case-sensitive)", "IAD", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tenant, err := NewTenantInRegion("acme", "Acme", "", tt.homeRegion)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("NewTenantInRegion err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if tenant.HomeRegion != tt.wantRegion {
+				t.Errorf("HomeRegion = %q, want %q", tenant.HomeRegion, tt.wantRegion)
+			}
+		})
+	}
+}
+
+func TestValidateHomeRegion(t *testing.T) {
+	tests := []struct {
+		name    string
+		region  string
+		wantErr bool
+	}{
+		{"iad allowed", "iad", false},
+		{"lhr allowed", "lhr", false},
+		{"ord allowed", "ord", false},
+		{"fra allowed", "fra", false},
+		{"syd allowed", "syd", false},
+		{"empty rejected", "", true},
+		{"unknown rejected", "atlantis", true},
+		{"uppercase rejected", "IAD", true},
+		{"mixed-case rejected", "Iad", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateHomeRegion(tt.region)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateHomeRegion(%q) err = %v, wantErr %v", tt.region, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestEffectiveHomeRegion_FallbackForLegacyRows(t *testing.T) {
+	// A tenant loaded from storage that pre-dates this field has
+	// HomeRegion = "" — EffectiveHomeRegion must paper over that
+	// without anyone needing to backfill the metadata column.
+	tenant := &Tenant{ID: "legacy", Name: "Legacy", HomeRegion: ""}
+	if got := tenant.EffectiveHomeRegion(); got != DefaultHomeRegion {
+		t.Errorf("EffectiveHomeRegion() for legacy row = %q, want %q", got, DefaultHomeRegion)
+	}
+}
+
+func TestTenant_SetHomeRegion(t *testing.T) {
+	tenant, err := NewTenant("acme", "Acme", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalUpdated := tenant.UpdatedAt
+
+	if err := tenant.SetHomeRegion("lhr"); err != nil {
+		t.Fatalf("SetHomeRegion(lhr) returned %v, want nil", err)
+	}
+	if tenant.HomeRegion != "lhr" {
+		t.Errorf("HomeRegion = %q after SetHomeRegion(lhr), want %q", tenant.HomeRegion, "lhr")
+	}
+	if !tenant.UpdatedAt.After(originalUpdated) {
+		t.Errorf("UpdatedAt did not advance: was %v, now %v", originalUpdated, tenant.UpdatedAt)
+	}
+
+	if err := tenant.SetHomeRegion("atlantis"); err == nil {
+		t.Error("SetHomeRegion(atlantis) returned nil, want error from allowlist check")
+	}
+	if tenant.HomeRegion != "lhr" {
+		t.Errorf("HomeRegion changed to %q after rejected SetHomeRegion call, want %q", tenant.HomeRegion, "lhr")
+	}
+}

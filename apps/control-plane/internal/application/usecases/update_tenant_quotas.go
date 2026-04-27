@@ -75,6 +75,7 @@ func (uc *UpdateTenantQuotasUseCase) Execute(ctx context.Context, id string, req
 		Name:        tenant.Name,
 		Description: tenant.Description,
 		Status:      string(tenant.Status),
+		HomeRegion:  tenant.EffectiveHomeRegion(),
 		Quotas: &dto.TenantQuotasResponse{
 			EventLimit:     tenant.Quotas.EventLimit,
 			QueryLimit:     tenant.Quotas.QueryLimit,

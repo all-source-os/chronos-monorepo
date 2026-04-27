@@ -27,6 +27,7 @@ func (uc *GetTenantUseCase) Execute(id string) (*dto.TenantResponse, error) {
 		Name:        tenant.Name,
 		Description: tenant.Description,
 		Status:      string(tenant.Status),
+		HomeRegion:  tenant.EffectiveHomeRegion(),
 		CreatedAt:   tenant.CreatedAt,
 		UpdatedAt:   tenant.UpdatedAt,
 		Metadata:    tenant.Metadata,

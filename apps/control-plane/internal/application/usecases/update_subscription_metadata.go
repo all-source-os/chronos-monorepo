@@ -70,6 +70,7 @@ func (uc *UpdateSubscriptionMetadataUseCase) Execute(tenantID string, billing *e
 		Name:        tenant.Name,
 		Description: tenant.Description,
 		Status:      string(tenant.Status),
+		HomeRegion:  tenant.EffectiveHomeRegion(),
 		CreatedAt:   tenant.CreatedAt,
 		UpdatedAt:   tenant.UpdatedAt,
 		Metadata:    tenant.Metadata,

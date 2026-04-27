@@ -110,6 +110,7 @@ func (uc *ListTenantsUseCase) Execute(req ListTenantsRequest) (*ListTenantsRespo
 			Name:        t.Name,
 			Description: t.Description,
 			Status:      string(t.Status),
+			HomeRegion:  t.EffectiveHomeRegion(),
 			CreatedAt:   t.CreatedAt,
 			UpdatedAt:   t.UpdatedAt,
 			Metadata:    t.Metadata,

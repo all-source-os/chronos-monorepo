@@ -7,7 +7,12 @@ type CreateTenantRequest struct {
 	ID          string                 `json:"id" binding:"required"`
 	Name        string                 `json:"name" binding:"required"`
 	Description string                 `json:"description"`
-	Metadata    map[string]interface{} `json:"metadata"`
+	// HomeRegion is the Fly region that owns this tenant's writes.
+	// Optional on create; empty string defers to the platform default
+	// (entities.DefaultHomeRegion). Must be in
+	// entities.allowedHomeRegions when non-empty.
+	HomeRegion string                 `json:"home_region"`
+	Metadata   map[string]interface{} `json:"metadata"`
 }
 
 // UpdateTenantRequest represents a request to update a tenant
@@ -53,6 +58,7 @@ type TenantResponse struct {
 	Description string                 `json:"description"`
 	Status      string                 `json:"status"`
 	Quotas      *TenantQuotasResponse  `json:"quotas,omitempty"`
+	HomeRegion  string                 `json:"home_region"`
 	CreatedAt   time.Time              `json:"created_at"`
 	UpdatedAt   time.Time              `json:"updated_at"`
 	Metadata    map[string]interface{} `json:"metadata"`

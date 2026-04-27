@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -274,6 +275,36 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	delegation, err := newDelegationClient(coreURL, queryURL, primeURL, authClient.SignDelegationJWT, NewPooledHTTPClient())
 	if err != nil {
 		return nil, fmt.Errorf("init delegation client: %w", err)
+	}
+
+	// Regional Core registration (Step 2 of REGIONAL_INDEPENDENCE.md).
+	// Reads CORE_SERVICE_URL_<REGION> for each region in the entity
+	// allowlist. Unset → skip; the delegation client's coreForTenant
+	// fast path returns the default Core for every tenant when the
+	// regional map is empty. Once any regional URL is set, writes
+	// route by tenant home_region.
+	regionalEnabled := false
+	for _, region := range []string{"iad", "lhr", "ord", "fra", "syd"} {
+		envKey := "CORE_SERVICE_URL_" + strings.ToUpper(region)
+		if u := os.Getenv(envKey); u != "" {
+			if err := delegation.addRegionalCore(region, u); err != nil {
+				return nil, fmt.Errorf("register regional core %s: %w", region, err)
+			}
+			regionalEnabled = true
+			log.Printf("Regional Core registered: %s → %s", region, u)
+		}
+	}
+	if regionalEnabled {
+		// Wire the home-region resolver to the tenant repository.
+		// Cold lookup per write request — caching is a follow-up if
+		// the latency cost shows up in practice.
+		delegation.setHomeRegionResolver(func(tenantID string) string {
+			t, err := container.TenantRepo.FindByID(tenantID)
+			if err != nil || t == nil {
+				return ""
+			}
+			return t.EffectiveHomeRegion()
+		})
 	}
 
 	cp := &ControlPlane{

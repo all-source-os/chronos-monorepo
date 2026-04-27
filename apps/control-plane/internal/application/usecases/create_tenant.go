@@ -36,8 +36,10 @@ func (uc *CreateTenantUseCase) Execute(req dto.CreateTenantRequest) (*dto.Tenant
 		return nil, domain.ErrTenantAlreadyExists
 	}
 
-	// Create domain entity
-	tenant, err := entities.NewTenant(req.ID, req.Name, req.Description)
+	// Create domain entity. Empty home_region in the request resolves
+	// to entities.DefaultHomeRegion inside NewTenantInRegion; a
+	// non-empty value gets validated against the allowlist.
+	tenant, err := entities.NewTenantInRegion(req.ID, req.Name, req.Description, req.HomeRegion)
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +65,7 @@ func (uc *CreateTenantUseCase) Execute(req dto.CreateTenantRequest) (*dto.Tenant
 		Name:        tenant.Name,
 		Description: tenant.Description,
 		Status:      string(tenant.Status),
+		HomeRegion:  tenant.EffectiveHomeRegion(),
 		CreatedAt:   tenant.CreatedAt,
 		UpdatedAt:   tenant.UpdatedAt,
 		Metadata:    tenant.Metadata,
