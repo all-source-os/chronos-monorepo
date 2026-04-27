@@ -5,7 +5,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, time::Duration};
 
 /// Manages Parquet file compaction for optimal storage and query performance.
 ///
@@ -58,6 +58,73 @@ pub struct CompactionConfig {
 
     /// Compaction strategy
     pub strategy: CompactionStrategy,
+
+    /// Per-tenant retention TTLs (Step 5 of the sustainable data
+    /// strategy). Applied during the same compaction pass — events
+    /// older than `now - ttl` for that tenant are dropped from the
+    /// snapshot output and the originals are removed. Default
+    /// honors the bead: tenant `system` keeps 30 days; everyone
+    /// else keeps forever.
+    pub retention: RetentionConfig,
+}
+
+/// Per-tenant retention configuration. Look up a TTL via
+/// `ttl_for(tenant_id)`; `None` means "keep forever" for that
+/// tenant.
+///
+/// The default rule (from the bead): the CP heartbeat tenant
+/// (`system`) defaults to 30 days. The CP emits ~69k heartbeat
+/// events/day; without retention this grows unbounded for data
+/// that has no audit value past the dashboard window. Other
+/// tenants default to no TTL — user data stays put unless the
+/// owner opts in.
+///
+/// Per-tenant overrides win over `default_ttl`; "no entry" falls
+/// back to `default_ttl`.
+#[derive(Debug, Clone)]
+pub struct RetentionConfig {
+    /// Default TTL when no per-tenant override exists. `None` = keep forever.
+    pub default_ttl: Option<Duration>,
+    /// Per-tenant overrides. `Some(None)` would mean "explicitly no
+    /// TTL"; the API uses `Option<Duration>` directly so an entry
+    /// can record an explicit "keep forever" decision distinct
+    /// from "no entry".
+    pub per_tenant_ttl: HashMap<String, Option<Duration>>,
+}
+
+impl Default for RetentionConfig {
+    fn default() -> Self {
+        let mut per_tenant_ttl = HashMap::new();
+        per_tenant_ttl.insert(
+            "system".to_string(),
+            Some(Duration::from_secs(30 * 24 * 3600)),
+        );
+        Self {
+            default_ttl: None,
+            per_tenant_ttl,
+        }
+    }
+}
+
+impl RetentionConfig {
+    /// Effective TTL for `tenant_id`. Returns `None` if the tenant
+    /// has no TTL (keep forever).
+    ///
+    /// Lookup order:
+    /// 1. Per-tenant entry → that value (whether Some or explicit None).
+    /// 2. No entry → fall back to `default_ttl`.
+    pub fn ttl_for(&self, tenant_id: &str) -> Option<Duration> {
+        match self.per_tenant_ttl.get(tenant_id) {
+            Some(v) => *v,
+            None => self.default_ttl,
+        }
+    }
+
+    /// Override the TTL for a specific tenant. Use `None` to mean
+    /// "keep forever for this tenant".
+    pub fn set(&mut self, tenant_id: &str, ttl: Option<Duration>) {
+        self.per_tenant_ttl.insert(tenant_id.to_string(), ttl);
+    }
 }
 
 impl Default for CompactionConfig {
@@ -70,25 +137,32 @@ impl Default for CompactionConfig {
             compaction_interval_seconds: 3600,      // 1 hour
             auto_compact: true,
             strategy: CompactionStrategy::SizeBased,
+            retention: RetentionConfig::default(),
         }
     }
 }
 
 impl CompactionConfig {
-    /// Build a config with `compaction_interval_seconds` overridden
-    /// by the `ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS` env var when
-    /// present. Other fields take their `Default` values.
-    ///
-    /// Unparseable input logs a warning and falls back to the
-    /// default — boot doesn't fail. The default (3600s = 1 hour)
-    /// matches the bead's "default: hourly" requirement.
+    /// Build a config from the relevant env vars:
+    /// - `ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS`: per-pass cadence
+    ///   (default 3600).
+    /// - `ALLSOURCE_RETENTION_SYSTEM_DAYS`: TTL for the `system`
+    ///   tenant in days (default 30).
+    /// Unparseable values log a warning and fall back to defaults
+    /// — boot doesn't fail.
     pub fn from_env() -> Self {
-        Self::from_env_var(std::env::var("ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS").ok())
+        Self::from_env_vars(
+            std::env::var("ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS").ok(),
+            std::env::var("ALLSOURCE_RETENTION_SYSTEM_DAYS").ok(),
+        )
     }
 
     /// Testable variant of `from_env`. Production calls `from_env`;
-    /// tests pass an explicit value.
-    pub fn from_env_var(interval_var: Option<String>) -> Self {
+    /// tests pass explicit values.
+    pub fn from_env_vars(
+        interval_var: Option<String>,
+        system_retention_days_var: Option<String>,
+    ) -> Self {
         let mut config = Self::default();
         if let Some(s) = interval_var.filter(|s| !s.is_empty()) {
             match s.parse::<u64>() {
@@ -102,7 +176,29 @@ impl CompactionConfig {
                 }
             }
         }
+        if let Some(s) = system_retention_days_var.filter(|s| !s.is_empty()) {
+            match s.parse::<u64>() {
+                Ok(days) => {
+                    config.retention.set(
+                        "system",
+                        Some(Duration::from_secs(days * 24 * 3600)),
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "ALLSOURCE_RETENTION_SYSTEM_DAYS={s:?} could not be parsed as u64: \
+                         {e}; defaulting to 30 days for tenant=system"
+                    );
+                }
+            }
+        }
         config
+    }
+
+    /// Backwards-compatible single-arg variant for existing
+    /// callers that only set the snapshot interval.
+    pub fn from_env_var(interval_var: Option<String>) -> Self {
+        Self::from_env_vars(interval_var, None)
     }
 }
 
@@ -434,6 +530,67 @@ impl CompactionManager {
             return Ok(CompactionResult::default());
         }
 
+        // Apply retention (Step 5). Drop events older than the
+        // tenant's TTL before they get rewritten into the
+        // snapshot. The originals get deleted at the end of the
+        // happy path either way, so dropped events go away with
+        // the same crash-safe guarantee as the rest of the
+        // compaction pipeline (snapshot rename completes BEFORE
+        // any original is deleted; AC #6).
+        let dropped_by_retention =
+            if let Some(ttl) = self.config.retention.ttl_for(tenant_id) {
+                let cutoff = Utc::now()
+                    - chrono::Duration::from_std(ttl)
+                        .unwrap_or_else(|_| chrono::Duration::zero());
+                let before = events.len();
+                events.retain(|e| e.timestamp >= cutoff);
+                let dropped = before - events.len();
+                if dropped > 0 {
+                    tracing::info!(
+                        retention_tenant = tenant_id,
+                        dropped = dropped,
+                        kept = events.len(),
+                        cutoff = %cutoff.to_rfc3339(),
+                        ttl_secs = ttl.as_secs(),
+                        "retention: dropped events older than TTL"
+                    );
+                }
+                dropped
+            } else {
+                0
+            };
+
+        // Edge case: every event aged out. Skip the snapshot
+        // write and just delete originals — the data is gone by
+        // design. Delete-without-snapshot is safe here because
+        // every event we'd have written to the snapshot was
+        // already past its TTL, and the input files live under
+        // the tenant's partition with nothing else relying on
+        // them.
+        if events.is_empty() {
+            tracing::info!(
+                tenant_id = tenant_id,
+                files_dropped = candidates.len(),
+                events_dropped = dropped_by_retention,
+                "retention: every event aged out — deleting originals without snapshot"
+            );
+            for fi in &candidates {
+                if let Err(e) = fs::remove_file(&fi.path) {
+                    tracing::error!(
+                        file = %fi.path.display(),
+                        "failed to remove fully-aged raw file: {e}"
+                    );
+                }
+            }
+            return Ok(CompactionResult {
+                files_compacted: candidates.len(),
+                bytes_before,
+                bytes_after: 0,
+                events_compacted: 0,
+                duration_ms: start_time.elapsed().as_millis() as u64,
+            });
+        }
+
         events.sort_by_key(|e| e.timestamp);
         let from = events.first().expect("non-empty checked above").timestamp;
         let to = events.last().expect("non-empty checked above").timestamp;
@@ -449,10 +606,9 @@ impl CompactionManager {
         let bytes_after = fs::metadata(&snapshot_path).map(|m| m.len()).unwrap_or(0);
 
         // 4. Delete originals AFTER snapshot is durably renamed.
-        // Crash between rename and delete leaves both on disk;
-        // append_loaded_event's index dedupe handles the
-        // overlap. A future commit can record file metadata in the
-        // snapshot to retry orphan cleanup deterministically.
+        // AC #6: a snapshot-write failure short-circuits via the
+        // `?` above, so originals stay on disk and events remain
+        // queryable until the next successful pass.
         for fi in &candidates {
             if let Err(e) = fs::remove_file(&fi.path) {
                 tracing::error!(
@@ -467,6 +623,7 @@ impl CompactionManager {
             tenant_id = tenant_id,
             files_compacted = candidates.len(),
             events = events.len(),
+            dropped_by_retention = dropped_by_retention,
             mib_before = bytes_before as f64 / (1024.0 * 1024.0),
             mib_after = bytes_after as f64 / (1024.0 * 1024.0),
             duration_ms = duration_ms,
@@ -1091,6 +1248,177 @@ mod tests {
             let name = files[0].file_name().unwrap().to_string_lossy().into_owned();
             assert!(name.starts_with(&format!("snapshot.{tenant}.")));
         }
+    }
+
+    #[test]
+    fn test_retention_drops_events_older_than_ttl() {
+        // Bead's integration test: ingest 100 events spanning 60
+        // days, run compaction with 30-day TTL, only the last
+        // 30 days remain queryable.
+        let temp_dir = TempDir::new().unwrap();
+
+        // Seed alice with 100 events, timestamps spread across
+        // 60 days. We can't backdate via ingest (timestamp = now()
+        // in domain), so write parquet directly via flush of
+        // back-dated events.
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let now = Utc::now();
+        for i in 0..100 {
+            // Day 0 = 60 days ago; day 99 ≈ now. Spreads evenly.
+            let day_offset = 60 - (i * 60 / 99);
+            let ts = now - chrono::Duration::days(day_offset as i64);
+            let event = crate::domain::entities::Event::reconstruct_from_strings(
+                uuid::Uuid::new_v4(),
+                "test.event".to_string(),
+                format!("e-{i}"),
+                "alice".to_string(),
+                serde_json::json!({"i": i}),
+                ts,
+                None,
+                1,
+            );
+            storage.append_event(event).unwrap();
+            // Every 10 events get a fresh storage to produce a
+            // separate file (so compaction has multiple files
+            // to merge).
+            if i % 10 == 9 {
+                storage.flush().unwrap();
+            }
+        }
+        storage.flush().unwrap();
+
+        // 30-day TTL for alice via per-tenant override.
+        let mut retention = RetentionConfig::default();
+        retention.set("alice", Some(Duration::from_secs(30 * 24 * 3600)));
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            small_file_threshold: 100 * 1024 * 1024,
+            strategy: CompactionStrategy::SizeBased,
+            retention,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+
+        let result = manager.compact_tenant("alice").unwrap();
+        assert!(result.events_compacted > 0);
+        assert!(
+            result.events_compacted < 100,
+            "retention should have dropped some events; kept {} of 100",
+            result.events_compacted
+        );
+
+        // Re-load to confirm the dropped events are gone.
+        let storage2 = ParquetStorage::new(temp_dir.path()).unwrap();
+        let loaded = storage2.load_events_for_tenant("alice").unwrap();
+        assert_eq!(loaded.len(), result.events_compacted);
+
+        // Every loaded event must be within the 30-day window
+        // (with a generous fudge for test-clock drift).
+        let cutoff = Utc::now() - chrono::Duration::days(30);
+        for e in &loaded {
+            assert!(
+                e.timestamp >= cutoff - chrono::Duration::seconds(60),
+                "event with ts {} survived retention but is older than cutoff {}",
+                e.timestamp.to_rfc3339(),
+                cutoff.to_rfc3339()
+            );
+        }
+    }
+
+    #[test]
+    fn test_retention_keeps_forever_by_default_for_non_system_tenants() {
+        // alice has no override → falls through to default_ttl
+        // which is None. All events kept regardless of age.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let now = Utc::now();
+        for i in 0..6 {
+            let ts = now - chrono::Duration::days(i * 365);
+            let event = crate::domain::entities::Event::reconstruct_from_strings(
+                uuid::Uuid::new_v4(),
+                "test.event".to_string(),
+                format!("e-{i}"),
+                "alice".to_string(),
+                serde_json::json!({"i": i}),
+                ts,
+                None,
+                1,
+            );
+            storage.append_event(event).unwrap();
+            if i % 2 == 1 {
+                storage.flush().unwrap();
+            }
+        }
+        storage.flush().unwrap();
+
+        // Default RetentionConfig: alice has no entry, default_ttl = None.
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            small_file_threshold: 100 * 1024 * 1024,
+            strategy: CompactionStrategy::SizeBased,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+        let result = manager.compact_tenant("alice").unwrap();
+        assert_eq!(result.events_compacted, 6, "no events should be dropped");
+    }
+
+    #[test]
+    fn test_retention_system_tenant_default_is_30_days() {
+        // The system tenant's 30-day TTL is the bead's headline
+        // requirement. Default config without any overrides
+        // should already enforce it.
+        let cfg = RetentionConfig::default();
+        let ttl = cfg.ttl_for("system").unwrap();
+        assert_eq!(ttl.as_secs(), 30 * 24 * 3600);
+        // No override for arbitrary tenants → keep forever.
+        assert!(cfg.ttl_for("acme").is_none());
+    }
+
+    #[test]
+    fn test_retention_drops_all_events_deletes_originals_without_snapshot() {
+        // Edge case: every event is past the TTL. We delete the
+        // raw files and emit no snapshot — there's nothing to
+        // write. Tenant ends with zero files on disk.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let very_old = Utc::now() - chrono::Duration::days(90);
+        for i in 0..6 {
+            let event = crate::domain::entities::Event::reconstruct_from_strings(
+                uuid::Uuid::new_v4(),
+                "test.event".to_string(),
+                format!("e-{i}"),
+                "alice".to_string(),
+                serde_json::json!({"i": i}),
+                very_old,
+                None,
+                1,
+            );
+            storage.append_event(event).unwrap();
+            if i % 2 == 1 {
+                storage.flush().unwrap();
+            }
+        }
+        storage.flush().unwrap();
+
+        let mut retention = RetentionConfig::default();
+        retention.set("alice", Some(Duration::from_secs(7 * 24 * 3600)));
+        let config = CompactionConfig {
+            min_files_to_compact: 2,
+            small_file_threshold: 100 * 1024 * 1024,
+            strategy: CompactionStrategy::SizeBased,
+            retention,
+            ..Default::default()
+        };
+        let manager = CompactionManager::new(temp_dir.path(), config);
+        let result = manager.compact_tenant("alice").unwrap();
+        assert_eq!(result.events_compacted, 0);
+        assert!(result.files_compacted >= 2); // originals were deleted
+
+        // Tenant subtree has zero parquet files now.
+        let storage2 = ParquetStorage::new(temp_dir.path()).unwrap();
+        let alice_files = storage2.list_parquet_files_for_tenant("alice").unwrap();
+        assert!(alice_files.is_empty(), "all originals should be deleted");
     }
 
     #[test]

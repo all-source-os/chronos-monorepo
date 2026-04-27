@@ -2055,6 +2055,7 @@ impl EventStoreConfig {
             std::env::var("ALLSOURCE_WAL_ENABLED").ok(),
             std::env::var("ALLSOURCE_CACHE_BYTES").ok(),
             std::env::var("ALLSOURCE_SNAPSHOT_INTERVAL_SECONDS").ok(),
+            std::env::var("ALLSOURCE_RETENTION_SYSTEM_DAYS").ok(),
         )
     }
 
@@ -2066,6 +2067,7 @@ impl EventStoreConfig {
         wal_enabled_var: Option<String>,
         cache_bytes_var: Option<String>,
         snapshot_interval_var: Option<String>,
+        retention_system_days_var: Option<String>,
     ) -> (Self, &'static str) {
         let data_dir = data_dir.filter(|s| !s.is_empty());
         let storage_dir = explicit_storage_dir
@@ -2091,7 +2093,8 @@ impl EventStoreConfig {
                     None
                 }
             });
-        let compaction_config = CompactionConfig::from_env_var(snapshot_interval_var);
+        let compaction_config =
+            CompactionConfig::from_env_vars(snapshot_interval_var, retention_system_days_var);
 
         let mut config = match (&storage_dir, &wal_dir) {
             (Some(sd), Some(wd)) if wal_enabled => Self::production(
@@ -3477,6 +3480,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert_eq!(mode, "wal+parquet");
         assert_eq!(
@@ -3492,6 +3496,7 @@ mod tests {
             None,
             Some("/custom/storage".to_string()),
             Some("/custom/wal".to_string()),
+            None,
             None,
             None,
             None,
@@ -3513,6 +3518,7 @@ mod tests {
             Some("false".to_string()),
             None,
             None,
+            None,
         );
         assert_eq!(mode, "parquet-only");
         assert!(config.storage_dir.is_some());
@@ -3522,7 +3528,7 @@ mod tests {
     #[test]
     fn test_from_env_vars_no_dirs_is_in_memory() {
         let (config, mode) =
-            EventStoreConfig::from_env_vars(None, None, None, None, None, None);
+            EventStoreConfig::from_env_vars(None, None, None, None, None, None, None);
         assert_eq!(mode, "in-memory");
         assert!(config.storage_dir.is_none());
         assert!(config.wal_dir.is_none());
@@ -3537,6 +3543,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert_eq!(mode, "in-memory");
     }
@@ -3547,6 +3554,7 @@ mod tests {
             Some("/app/data".to_string()),
             Some("/override/storage".to_string()),
             Some("/override/wal".to_string()),
+            None,
             None,
             None,
             None,
@@ -3568,6 +3576,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert_eq!(mode, "wal-only");
         assert!(config.storage_dir.is_none());
@@ -3582,6 +3591,7 @@ mod tests {
             None,
             None,
             Some("536870912".to_string()), // 512 MiB
+            None,
             None,
         );
         assert_eq!(config.cache_byte_budget, Some(536_870_912));
@@ -3599,6 +3609,7 @@ mod tests {
             None,
             Some("not-a-number".to_string()),
             None,
+            None,
         );
         assert_eq!(config.cache_byte_budget, None);
     }
@@ -3611,6 +3622,7 @@ mod tests {
             None,
             None,
             Some(String::new()),
+            None,
             None,
         );
         assert_eq!(config.cache_byte_budget, None);
@@ -3628,6 +3640,7 @@ mod tests {
             None,
             None,
             Some("60".to_string()),
+            None,
         );
         assert_eq!(config.compaction_config.compaction_interval_seconds, 60);
     }
@@ -3636,6 +3649,7 @@ mod tests {
     fn test_from_env_vars_snapshot_interval_default_is_hourly() {
         let (config, _) = EventStoreConfig::from_env_vars(
             Some("/app/data".to_string()),
+            None,
             None,
             None,
             None,
@@ -3654,8 +3668,57 @@ mod tests {
             None,
             None,
             Some("not-a-number".to_string()),
+            None,
         );
         assert_eq!(config.compaction_config.compaction_interval_seconds, 3600);
+    }
+
+    #[test]
+    fn test_from_env_vars_retention_system_days_overrides_default() {
+        // Step 5: ALLSOURCE_RETENTION_SYSTEM_DAYS overrides the
+        // default 30-day TTL for the system tenant.
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some("7".to_string()),
+        );
+        let ttl = config
+            .compaction_config
+            .retention
+            .ttl_for("system")
+            .unwrap();
+        assert_eq!(ttl.as_secs(), 7 * 24 * 3600);
+    }
+
+    #[test]
+    fn test_from_env_vars_retention_default_is_30_days_for_system() {
+        let (config, _) = EventStoreConfig::from_env_vars(
+            Some("/app/data".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        let ttl = config
+            .compaction_config
+            .retention
+            .ttl_for("system")
+            .unwrap();
+        assert_eq!(ttl.as_secs(), 30 * 24 * 3600);
+        // Other tenants keep forever by default.
+        assert!(
+            config
+                .compaction_config
+                .retention
+                .ttl_for("acme")
+                .is_none()
+        );
     }
 
     #[test]
