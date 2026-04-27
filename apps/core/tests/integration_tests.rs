@@ -96,6 +96,11 @@ fn test_parquet_persistence_and_recovery() {
         let config = EventStoreConfig::with_persistence(temp_dir.path());
         let store = EventStore::with_config(config);
 
+        // Step 2: boot is O(1) — Parquet stays cold until first
+        // per-tenant query. Hydrate the tenant the events were
+        // ingested under before checking stats.
+        store.ensure_tenant_loaded("default").unwrap();
+
         let stats = store.stats();
         assert_eq!(
             stats.total_events, 50,
