@@ -2141,6 +2141,199 @@ mod tests {
     }
 
     #[test]
+    fn test_query_concurrent_first_queries_for_same_tenant_all_succeed() {
+        // Singleflight: N threads racing to query the same cold
+        // tenant must all return the same correct result. The
+        // tenant-load must happen exactly once (verified
+        // structurally by the per-tenant Mutex in tenant_loader,
+        // tested directly in test_singleflight_blocks_second_caller).
+        // This integration test confirms the wiring at the query
+        // level — no thread observes a half-loaded state.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        // Persist 25 events for tenant "alice".
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for i in 0..25 {
+                let event = Event::from_strings(
+                    "test.event".to_string(),
+                    format!("e-{i}"),
+                    "alice".to_string(),
+                    serde_json::json!({"i": i}),
+                    None,
+                )
+                .unwrap();
+                store.ingest(&event).unwrap();
+            }
+            store.flush_storage().unwrap();
+        }
+
+        // Fresh boot, then 8 threads simultaneously query alice.
+        let store = Arc::new(EventStore::with_config(
+            EventStoreConfig::with_persistence(&storage_dir),
+        ));
+        assert!(!store.is_tenant_loaded("alice"));
+
+        let mut handles = Vec::new();
+        for _ in 0..8 {
+            let s = store.clone();
+            handles.push(std::thread::spawn(move || {
+                s.query(&QueryEventsRequest {
+                    entity_id: None,
+                    event_type: None,
+                    tenant_id: Some("alice".to_string()),
+                    as_of: None,
+                    since: None,
+                    until: None,
+                    limit: None,
+                    event_type_prefix: None,
+                    payload_filter: None,
+                })
+            }));
+        }
+
+        for h in handles {
+            let result = h.join().unwrap().unwrap();
+            assert_eq!(
+                result.len(),
+                25,
+                "every concurrent caller must see all 25 events"
+            );
+        }
+        assert!(store.is_tenant_loaded("alice"));
+        // Memory has exactly 25 events — no double-load.
+        assert_eq!(store.stats().total_events, 25);
+    }
+
+    #[test]
+    fn test_query_two_cold_tenants_load_independently() {
+        // Querying tenant A loads only A; querying B then loads
+        // only B. State after both queries: both tenants warm,
+        // memory has exactly the expected event counts.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for i in 0..3 {
+                store.ingest(&Event::from_strings(
+                    "test.event".to_string(),
+                    format!("a-{i}"),
+                    "alice".to_string(),
+                    serde_json::json!({"i": i}),
+                    None,
+                ).unwrap()).unwrap();
+            }
+            for i in 0..5 {
+                store.ingest(&Event::from_strings(
+                    "test.event".to_string(),
+                    format!("b-{i}"),
+                    "bob".to_string(),
+                    serde_json::json!({"i": i}),
+                    None,
+                ).unwrap()).unwrap();
+            }
+            store.flush_storage().unwrap();
+        }
+
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+        assert_eq!(store.stats().total_events, 0);
+
+        // Query alice — bob stays cold.
+        let alice = store.query(&QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: Some("alice".to_string()),
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: None,
+            payload_filter: None,
+        }).unwrap();
+        assert_eq!(alice.len(), 3);
+        assert!(store.is_tenant_loaded("alice"));
+        assert!(!store.is_tenant_loaded("bob"));
+        assert_eq!(store.stats().total_events, 3);
+
+        // Query bob — both warm now.
+        let bob = store.query(&QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: Some("bob".to_string()),
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: None,
+            payload_filter: None,
+        }).unwrap();
+        assert_eq!(bob.len(), 5);
+        assert!(store.is_tenant_loaded("bob"));
+        assert_eq!(store.stats().total_events, 8);
+    }
+
+    #[test]
+    fn test_boot_with_persisted_data_is_o1() {
+        // Step 2's headline acceptance criterion: boot time does
+        // not scale with persisted-data size. The 5M-events / <2s
+        // target is too large for a unit test, so this asserts the
+        // weaker but structural property: boot reads zero events
+        // into memory regardless of how many are on disk.
+        //
+        // We persist 50 events across 3 tenants in session 1,
+        // restart in session 2, and verify session 2's
+        // total_events is 0. The actual boot wall-clock isn't
+        // asserted here — it's machine-dependent — but the absence
+        // of any in-memory data is the structural proxy that the
+        // boot path no longer iterates Parquet.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for tenant in ["alice", "bob", "carol"] {
+                for i in 0..50 / 3 {
+                    store.ingest(&Event::from_strings(
+                        "test.event".to_string(),
+                        format!("{tenant}-{i}"),
+                        tenant.to_string(),
+                        serde_json::json!({"i": i}),
+                        None,
+                    ).unwrap()).unwrap();
+                }
+            }
+            store.flush_storage().unwrap();
+        }
+
+        // Confirm there is in fact data on disk to load.
+        let on_disk = find_parquet_files(&storage_dir);
+        assert!(
+            !on_disk.is_empty(),
+            "session 1 should have produced parquet files; pre-condition for the test"
+        );
+
+        let started = std::time::Instant::now();
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+        let boot_elapsed = started.elapsed();
+
+        assert_eq!(
+            store.stats().total_events,
+            0,
+            "boot must not pre-load any Parquet events"
+        );
+
+        // Sanity: even on a slow CI box, an O(1) boot finishes in
+        // well under a second. If this trips it's a strong signal
+        // the boot path regressed to scanning the Parquet tree.
+        assert!(
+            boot_elapsed < std::time::Duration::from_secs(2),
+            "boot took {boot_elapsed:?} — Step 2 boot should be O(1)"
+        );
+    }
+
+    #[test]
     fn test_query_warm_tenant_does_not_re_read_disk() {
         // Performance contract: a warm tenant query goes through the
         // DashMap fast path. We can't easily assert "no disk read"
