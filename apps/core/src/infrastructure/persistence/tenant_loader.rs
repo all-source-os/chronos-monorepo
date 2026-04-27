@@ -83,6 +83,16 @@ impl TenantLoader {
         self.loaded.insert(tenant_id.to_string(), ());
     }
 
+    /// Reverse of `mark_loaded`: forget that this tenant is in
+    /// memory and reset its byte counter to 0. The next call to
+    /// `is_loaded` returns false; the next ensure-load will
+    /// re-walk the tenant's subtree from disk. Called by the
+    /// eviction path.
+    pub fn mark_unloaded(&self, tenant_id: &str) {
+        self.loaded.remove(tenant_id);
+        self.bytes.remove(tenant_id);
+    }
+
     /// Add `n` bytes to the resident-size estimate for `tenant_id`.
     /// Called once per event spliced into memory for that tenant.
     /// The total is what the budget check compares against.
@@ -225,6 +235,24 @@ mod tests {
 
         t1.join().unwrap();
         t2.join().unwrap();
+    }
+
+    #[test]
+    fn test_mark_unloaded_clears_loaded_and_bytes() {
+        let loader = TenantLoader::new();
+        loader.mark_loaded("alice");
+        loader.add_bytes("alice", 100);
+        loader.mark_loaded("bob");
+        loader.add_bytes("bob", 200);
+
+        loader.mark_unloaded("alice");
+
+        assert!(!loader.is_loaded("alice"));
+        assert_eq!(loader.bytes_for("alice"), 0);
+        // Bob untouched.
+        assert!(loader.is_loaded("bob"));
+        assert_eq!(loader.bytes_for("bob"), 200);
+        assert_eq!(loader.total_bytes(), 200);
     }
 
     #[test]

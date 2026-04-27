@@ -1187,6 +1187,91 @@ impl EventStore {
         self.tenant_loader.is_loaded(tenant_id)
     }
 
+    /// Drop `tenant_id` from the in-memory cache. Step 3 #2 of the
+    /// sustainable data strategy.
+    ///
+    /// Removes every event for this tenant from the events Vec,
+    /// rebuilds the index/entity_versions for the retained events
+    /// (Vec offsets shift on remove, so the index has to be
+    /// rebuilt), and resets the tenant_loader bookkeeping so a
+    /// subsequent query triggers a fresh `ensure_tenant_loaded`.
+    ///
+    /// **Parquet is canonical, in-memory is just cache.** This
+    /// only affects the in-memory side. Disk data is untouched —
+    /// that's why eviction is safe even for tenants with
+    /// recently-ingested data: a query after eviction transparently
+    /// re-reads from Parquet.
+    ///
+    /// Projection state is NOT rolled back. Projections accumulate
+    /// across boots and tenants (their durability story is
+    /// separate); subtracting them would need replay support that
+    /// doesn't exist in this commit. After eviction + re-load,
+    /// projections may double-count the re-loaded events. Step 3
+    /// #4's stress test only asserts the cache budget is held; a
+    /// future commit will tackle projection-aware eviction.
+    ///
+    /// Locking: takes the events write lock for the full duration
+    /// of the filter + re-index. Concurrent ingest blocks until
+    /// done. Eviction is the cold path; the working set should
+    /// stay in budget so this rarely fires.
+    pub fn evict_tenant(&self, tenant_id: &str) {
+        let mut events = self.events.write();
+        let before = events.len();
+        let evicted_bytes = self.tenant_loader.bytes_for(tenant_id);
+
+        events.retain(|e| e.tenant_id_str() != tenant_id);
+        let after = events.len();
+        let dropped = before - after;
+
+        if dropped == 0 {
+            // Tenant had no events in memory. Still clear loader
+            // state (e.g. a "loaded with zero events" marker) so
+            // is_tenant_loaded reports the right thing.
+            drop(events);
+            self.tenant_loader.mark_unloaded(tenant_id);
+            return;
+        }
+
+        // Rebuild the index — Vec offsets shifted under retain().
+        // Rebuild entity_versions from scratch too, since the
+        // counter reflects "how many events of this entity remain".
+        self.index.clear();
+        self.entity_versions.clear();
+        for (offset, event) in events.iter().enumerate() {
+            if let Err(e) = self.index.index_event(
+                event.id,
+                event.entity_id_str(),
+                event.event_type_str(),
+                event.timestamp,
+                offset,
+            ) {
+                tracing::error!(
+                    "Failed to re-index event during eviction of {}: {}",
+                    tenant_id, e
+                );
+            }
+            *self
+                .entity_versions
+                .entry(event.entity_id_str().to_string())
+                .or_insert(0) += 1;
+        }
+        drop(events);
+
+        self.tenant_loader.mark_unloaded(tenant_id);
+
+        // total_ingested under Steps 2-3 means "events currently
+        // resident in memory". Subtract what we just dropped.
+        let mut t = self.total_ingested.write();
+        *t = t.saturating_sub(dropped as u64);
+
+        tracing::info!(
+            tenant_id = tenant_id,
+            events_dropped = dropped,
+            bytes_freed = evicted_bytes,
+            "evicted tenant from memory cache"
+        );
+    }
+
     /// Approximate resident bytes a single tenant occupies in the
     /// in-memory cache. Step 3 budget-tracking input. 0 for cold
     /// or evicted tenants.
@@ -2080,6 +2165,161 @@ mod tests {
         assert!(!store.is_tenant_loaded("never-existed"));
         store.ensure_tenant_loaded("never-existed").unwrap();
         assert!(store.is_tenant_loaded("never-existed"));
+    }
+
+    #[test]
+    fn test_evict_tenant_drops_events_and_resets_bytes() {
+        // After eviction, the tenant's events are gone from memory,
+        // its byte counter is reset, and is_tenant_loaded returns
+        // false. Other tenants are untouched.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for i in 0..3 {
+                store.ingest(&Event::from_strings(
+                    "test.event".to_string(),
+                    format!("a-{i}"),
+                    "alice".to_string(),
+                    serde_json::json!({"i": i}),
+                    None,
+                ).unwrap()).unwrap();
+            }
+            for i in 0..2 {
+                store.ingest(&Event::from_strings(
+                    "test.event".to_string(),
+                    format!("b-{i}"),
+                    "bob".to_string(),
+                    serde_json::json!({"i": i}),
+                    None,
+                ).unwrap()).unwrap();
+            }
+            store.flush_storage().unwrap();
+        }
+
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+        store.ensure_tenant_loaded("alice").unwrap();
+        store.ensure_tenant_loaded("bob").unwrap();
+        assert_eq!(store.stats().total_events, 5);
+        let alice_bytes = store.tenant_resident_bytes("alice");
+        let bob_bytes = store.tenant_resident_bytes("bob");
+        assert!(alice_bytes > 0 && bob_bytes > 0);
+
+        store.evict_tenant("alice");
+
+        assert!(!store.is_tenant_loaded("alice"));
+        assert!(store.is_tenant_loaded("bob"));
+        assert_eq!(store.tenant_resident_bytes("alice"), 0);
+        assert_eq!(store.tenant_resident_bytes("bob"), bob_bytes);
+        assert_eq!(store.stats().total_events, 2, "only bob's 2 events remain");
+    }
+
+    #[test]
+    fn test_evict_tenant_then_query_re_loads_from_disk() {
+        // The transparent re-load behavior the bead's AC #5 calls
+        // out: evict, then query the same tenant — its data comes
+        // back via ensure_tenant_loaded, sourced from Parquet.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for i in 0..4 {
+                store.ingest(&Event::from_strings(
+                    "test.event".to_string(),
+                    format!("a-{i}"),
+                    "alice".to_string(),
+                    serde_json::json!({"i": i}),
+                    None,
+                ).unwrap()).unwrap();
+            }
+            store.flush_storage().unwrap();
+        }
+
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+        store.ensure_tenant_loaded("alice").unwrap();
+        store.evict_tenant("alice");
+        assert_eq!(store.stats().total_events, 0);
+
+        // Query — re-load happens transparently.
+        let results = store.query(&QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: Some("alice".to_string()),
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: None,
+            payload_filter: None,
+        }).unwrap();
+        assert_eq!(results.len(), 4);
+        assert!(store.is_tenant_loaded("alice"));
+    }
+
+    #[test]
+    fn test_evict_tenant_rebuilds_index_with_new_offsets() {
+        // After eviction, the events Vec is compacted. The index
+        // must be rebuilt against the new offsets — otherwise
+        // queries return stale or wrong events. This test checks
+        // index correctness end-to-end via a query for the
+        // surviving tenant after the evicted tenant's events are
+        // gone.
+        let temp_dir = TempDir::new().unwrap();
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(temp_dir.path()));
+
+        // Interleave: alice, bob, alice, bob, alice. After
+        // evicting alice, the events Vec compacts to [bob, bob]
+        // and the index must reflect the new layout.
+        for i in 0..3 {
+            store.ingest(&Event::from_strings(
+                "test.event".to_string(),
+                format!("a-{i}"),
+                "alice".to_string(),
+                serde_json::json!({"i": i}),
+                None,
+            ).unwrap()).unwrap();
+            if i < 2 {
+                store.ingest(&Event::from_strings(
+                    "test.event".to_string(),
+                    format!("b-{i}"),
+                    "bob".to_string(),
+                    serde_json::json!({"i": i}),
+                    None,
+                ).unwrap()).unwrap();
+            }
+        }
+        // Mark both as loaded for accurate eviction bookkeeping.
+        store.tenant_loader.mark_loaded("alice");
+        store.tenant_loader.mark_loaded("bob");
+
+        store.evict_tenant("alice");
+
+        let bob_results = store.query(&QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: Some("bob".to_string()),
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: None,
+            payload_filter: None,
+        }).unwrap();
+        assert_eq!(bob_results.len(), 2);
+        for e in &bob_results {
+            assert_eq!(e.tenant_id_str(), "bob");
+        }
+    }
+
+    #[test]
+    fn test_evict_tenant_when_not_loaded_is_a_noop() {
+        // Eviction of a never-loaded tenant must not panic and
+        // must not affect other tenants.
+        let store = EventStore::new();
+        store.evict_tenant("nobody"); // should not panic
+        assert!(!store.is_tenant_loaded("nobody"));
     }
 
     #[test]
