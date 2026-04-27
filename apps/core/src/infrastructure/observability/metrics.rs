@@ -100,6 +100,14 @@ pub struct MetricsRegistry {
     pub replication_lag_seconds: IntGauge,
     pub replication_connected: IntGauge,
     pub replication_reconnects_total: IntCounter,
+
+    // Cache metrics (Step 3 of the sustainable data strategy).
+    // The cache is the in-memory representation of lazy-loaded
+    // tenant data; both metrics are scoped to that side of the
+    // system. `parquet_files_total` and `storage_size_bytes`
+    // already cover disk-side state.
+    pub cache_evictions_total: IntCounter,
+    pub cache_bytes: IntGauge,
 }
 
 impl MetricsRegistry {
@@ -373,6 +381,19 @@ impl MetricsRegistry {
         ))
         .unwrap();
 
+        // Cache metrics (Step 3): per-tenant in-memory eviction
+        let cache_evictions_total = IntCounter::with_opts(Opts::new(
+            "allsource_core_cache_evictions_total",
+            "Total tenant evictions from the in-memory cache",
+        ))
+        .unwrap();
+
+        let cache_bytes = IntGauge::with_opts(Opts::new(
+            "allsource_core_cache_bytes",
+            "Approximate resident bytes in the in-memory tenant cache",
+        ))
+        .unwrap();
+
         // WebSocket metrics
         let websocket_connections_active = IntGauge::with_opts(Opts::new(
             "allsource_websocket_connections_active",
@@ -619,6 +640,11 @@ impl MetricsRegistry {
             .unwrap();
 
         registry
+            .register(Box::new(cache_evictions_total.clone()))
+            .unwrap();
+        registry.register(Box::new(cache_bytes.clone())).unwrap();
+
+        registry
             .register(Box::new(websocket_connections_active.clone()))
             .unwrap();
         registry
@@ -733,6 +759,8 @@ impl MetricsRegistry {
             replication_lag_seconds,
             replication_connected,
             replication_reconnects_total,
+            cache_evictions_total,
+            cache_bytes,
         })
     }
 

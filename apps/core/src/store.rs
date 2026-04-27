@@ -1203,6 +1203,13 @@ impl EventStore {
         // warning so ops can see it.
         self.enforce_cache_budget(tenant_id);
 
+        // Refresh the resident-bytes gauge — covers both the
+        // load-with-no-eviction case and the post-eviction state.
+        #[cfg(feature = "server")]
+        self.metrics
+            .cache_bytes
+            .set(self.tenant_loader.total_bytes() as i64);
+
         Ok(())
     }
 
@@ -1320,6 +1327,17 @@ impl EventStore {
         // resident in memory". Subtract what we just dropped.
         let mut t = self.total_ingested.write();
         *t = t.saturating_sub(dropped as u64);
+        drop(t);
+
+        // Step 3 #4: cache observability. Increment the eviction
+        // counter, refresh the resident-bytes gauge.
+        #[cfg(feature = "server")]
+        {
+            self.metrics.cache_evictions_total.inc();
+            self.metrics
+                .cache_bytes
+                .set(self.tenant_loader.total_bytes() as i64);
+        }
 
         tracing::info!(
             tenant_id = tenant_id,
@@ -2554,6 +2572,170 @@ mod tests {
         }).unwrap();
         assert_eq!(alice_second.len(), 3, "alice's events come back via re-load");
         assert!(store.is_tenant_loaded("alice"));
+    }
+
+    #[test]
+    #[cfg(feature = "server")]
+    fn test_cache_metrics_track_evictions_and_bytes() {
+        // Smoke test for the Step 3 #4 Prometheus metrics —
+        // confirms the counter increments on eviction and the
+        // gauge tracks the resident bytes.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        let big_payload = serde_json::json!({"data": "x".repeat(2000)});
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for tenant in ["alice", "bob"] {
+                for i in 0..3 {
+                    store.ingest(&Event::from_strings(
+                        "test.event".to_string(),
+                        format!("{tenant}-{i}"),
+                        tenant.to_string(),
+                        big_payload.clone(),
+                        None,
+                    ).unwrap()).unwrap();
+                }
+            }
+            store.flush_storage().unwrap();
+        }
+
+        let mut config = EventStoreConfig::with_persistence(&storage_dir);
+        config.cache_byte_budget = Some(5_000); // forces eviction
+        let store = EventStore::with_config(config);
+
+        assert_eq!(store.metrics.cache_evictions_total.get(), 0);
+        assert_eq!(store.metrics.cache_bytes.get(), 0);
+
+        store.ensure_tenant_loaded("alice").unwrap();
+        // After loading alice, gauge reflects her bytes.
+        let after_alice = store.metrics.cache_bytes.get();
+        assert!(after_alice > 0, "gauge should reflect alice's bytes");
+        // Single oversized tenant — no eviction yet.
+        assert_eq!(store.metrics.cache_evictions_total.get(), 0);
+
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        store.ensure_tenant_loaded("bob").unwrap();
+
+        // Bob's load pushed total over budget; alice (older) was
+        // evicted. Counter increments.
+        assert_eq!(
+            store.metrics.cache_evictions_total.get(),
+            1,
+            "exactly one tenant evicted after bob's load"
+        );
+        // Gauge now reflects only bob's bytes.
+        let after_bob = store.metrics.cache_bytes.get();
+        assert!(after_bob > 0);
+        assert!(after_bob <= after_alice, "gauge dropped after eviction");
+    }
+
+    #[test]
+    fn test_stress_resident_set_stays_near_budget_under_rolling_queries() {
+        // Scaled-down version of the bead's stress test: the
+        // bead's 10 × 50 MB / 100 MB ratio (10× tenants vs
+        // budget-headroom) preserved at 500 KB / 1 MB to stay
+        // unit-test-fast. The same correctness property: after
+        // many rolling queries across more tenants than fit, the
+        // resident set must stay at-or-near the budget.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        const TENANT_COUNT: usize = 10;
+        const EVENTS_PER_TENANT: usize = 50;
+        // Per-event payload ~10 KiB → tenant ~ 500 KiB.
+        let big_payload = serde_json::json!({"data": "x".repeat(10_000)});
+
+        // Persist all tenants. Each ends up at ~500 KiB on disk
+        // (and roughly the same in memory once loaded).
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for t in 0..TENANT_COUNT {
+                let tenant = format!("tenant-{t}");
+                for i in 0..EVENTS_PER_TENANT {
+                    store.ingest(&Event::from_strings(
+                        "test.event".to_string(),
+                        format!("{tenant}-{i}"),
+                        tenant.clone(),
+                        big_payload.clone(),
+                        None,
+                    ).unwrap()).unwrap();
+                }
+            }
+            store.flush_storage().unwrap();
+        }
+
+        // Budget = 1 MiB → fits ~2 tenants. We're going to query
+        // all 10, so the LRU policy must hold the resident set
+        // near 1 MiB across the rolling sequence.
+        const BUDGET: u64 = 1_048_576;
+        let mut config = EventStoreConfig::with_persistence(&storage_dir);
+        config.cache_byte_budget = Some(BUDGET);
+        let store = EventStore::with_config(config);
+
+        // Sweep through tenants in order. Each query loads its
+        // tenant; if budget is exceeded after the load, an LRU
+        // eviction fires.
+        let mut peak_resident: u64 = 0;
+        for t in 0..TENANT_COUNT {
+            let tenant = format!("tenant-{t}");
+            let results = store.query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some(tenant.clone()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            }).unwrap();
+            assert_eq!(
+                results.len(), EVENTS_PER_TENANT,
+                "every per-tenant query must return all of that tenant's events"
+            );
+            // Track peak resident bytes seen during the sweep.
+            let resident = store.cache_resident_bytes();
+            if resident > peak_resident {
+                peak_resident = resident;
+            }
+        }
+
+        let final_resident = store.cache_resident_bytes();
+
+        // Tolerance: a tenant's bytes get added before eviction
+        // fires, so peak transiently exceeds the budget by at
+        // most one tenant's worth (~500 KiB). The final state
+        // after the sweep should be well-bounded.
+        let tolerance = BUDGET; // generous: 2× budget upper bound
+        assert!(
+            peak_resident <= BUDGET + tolerance,
+            "peak resident {peak_resident} exceeds budget {BUDGET} by more than {tolerance} \
+             — eviction policy not keeping up with the working-set churn"
+        );
+        assert!(
+            final_resident <= BUDGET + tolerance,
+            "final resident {final_resident} exceeds budget {BUDGET} by more than {tolerance}"
+        );
+
+        // The most-recently-queried tenant must still be loaded
+        // (it was just touched).
+        let last_tenant = format!("tenant-{}", TENANT_COUNT - 1);
+        assert!(
+            store.is_tenant_loaded(&last_tenant),
+            "the most-recent tenant must remain loaded after the sweep"
+        );
+
+        // At least some tenants must have been evicted — otherwise
+        // the budget didn't fire.
+        let still_loaded = (0..TENANT_COUNT)
+            .filter(|t| store.is_tenant_loaded(&format!("tenant-{t}")))
+            .count();
+        assert!(
+            still_loaded < TENANT_COUNT,
+            "no tenants evicted ({still_loaded}/{TENANT_COUNT} still loaded) — \
+             budget enforcement didn't engage"
+        );
     }
 
     #[test]
