@@ -13,7 +13,7 @@ export default function BlogCard({ data, priority }: { data: Post; priority?: bo
       <div className="bg-background rounded-lg p-4 mb-4 border hover:shadow-sm transition-shadow duration-200">
         {data.image && (
           <Image
-            className="rounded-t-lg object-cover border"
+            className="rounded-t-lg object-cover border mb-4"
             src={data.image}
             width={1200}
             height={630}
