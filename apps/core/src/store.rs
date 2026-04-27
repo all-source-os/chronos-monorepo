@@ -251,68 +251,32 @@ impl EventStore {
             tenant_loader: Arc::new(TenantLoader::new()),
         };
 
-        // Step 1: Load persisted events from Parquet (the durable baseline)
-        if let Some(ref storage) = store.storage {
-            match storage.read().load_all_events() {
-                Err(e) => {
-                    tracing::error!(
-                        "❌ Failed to load events from Parquet — data exists on disk but \
-                         could not be read. This means events are NOT available until the \
-                         issue is resolved. Error: {e}"
-                    );
-                }
-                Ok(persisted_events) if persisted_events.is_empty() => {
-                    tracing::info!("📂 No persisted events found in Parquet storage");
-                }
-                Ok(persisted_events) => {
-                    tracing::info!("📂 Loading {} persisted events...", persisted_events.len());
-
-                    for event in persisted_events {
-                        let offset = store.events.read().len();
-                        if let Err(e) = store.index.index_event(
-                            event.id,
-                            event.entity_id_str(),
-                            event.event_type_str(),
-                            event.timestamp,
-                            offset,
-                        ) {
-                            tracing::error!("Failed to re-index event {}: {}", event.id, e);
-                        }
-
-                        if let Err(e) = store.projections.read().process_event(&event) {
-                            tracing::error!("Failed to re-process event {}: {}", event.id, e);
-                        }
-
-                        // Track per-entity version
-                        *store
-                            .entity_versions
-                            .entry(event.entity_id_str().to_string())
-                            .or_insert(0) += 1;
-
-                        store.events.write().push(event);
-                    }
-
-                    let total = store.events.read().len();
-                    *store.total_ingested.write() = total as u64;
-                    tracing::info!("✅ Successfully loaded {} events from storage", total);
-                }
-            }
-        }
-
-        // Step 2: Recover WAL events (written after last Parquet checkpoint)
+        // Boot is now O(1) regardless of dataset size (Step 2 of the
+        // sustainable data strategy). Pre-Step-2 we scanned every
+        // Parquet file at startup; on the production volume that
+        // grew past available memory and Core OOM'd during recovery
+        // (issue #160). Now:
+        //
+        //   - Parquet data stays on disk. Tenants are hydrated on
+        //     demand by `ensure_tenant_loaded`, called from the
+        //     query path on first access.
+        //   - WAL is still recovered eagerly. WAL is bounded
+        //     (rotates / truncates after each Parquet flush), so
+        //     replaying it is O(recent un-flushed writes) — small
+        //     by construction and required for correctness, since
+        //     those events aren't durably in Parquet yet.
+        //
+        // After WAL recovery we still checkpoint recovered events
+        // to Parquet and truncate the WAL. The lazy-load path's
+        // dedupe in `append_loaded_event` (index.get_by_id check)
+        // makes it safe for the same event to be reachable through
+        // both WAL recovery and a subsequent ensure_tenant_loaded
+        // pass on the same tenant.
         if let Some(ref wal) = store.wal {
             match wal.recover() {
                 Ok(recovered_events) if !recovered_events.is_empty() => {
-                    // Collect IDs already loaded from Parquet to skip duplicates
-                    let existing_ids: std::collections::HashSet<uuid::Uuid> =
-                        store.events.read().iter().map(|e| e.id).collect();
-
                     let mut wal_new = 0usize;
                     for event in recovered_events {
-                        if existing_ids.contains(&event.id) {
-                            continue; // already loaded from Parquet
-                        }
-
                         let offset = store.events.read().len();
                         if let Err(e) = store.index.index_event(
                             event.id,
@@ -328,7 +292,6 @@ impl EventStore {
                             tracing::error!("Failed to re-process WAL event {}: {}", event.id, e);
                         }
 
-                        // Track per-entity version
                         *store
                             .entity_versions
                             .entry(event.entity_id_str().to_string())
@@ -340,18 +303,27 @@ impl EventStore {
 
                     if wal_new > 0 {
                         let total = store.events.read().len();
+                        // total_ingested now reflects "events the
+                        // process knows about" rather than "events
+                        // ever written" — Parquet data isn't loaded
+                        // on boot, so the count grows as tenants
+                        // get hydrated. Consumers that need the
+                        // historical total should look at Parquet
+                        // file stats, not this counter.
                         *store.total_ingested.write() = total as u64;
                         tracing::info!(
-                            "✅ Recovered {} new events from WAL ({} total)",
-                            wal_new,
-                            total
+                            "✅ Recovered {} events from WAL (Parquet data stays cold until \
+                             first per-tenant query)",
+                            wal_new
                         );
 
-                        // Checkpoint WAL events to Parquet — buffer them into
-                        // the Parquet batch first, then flush. Without this,
-                        // flush_storage() finds an empty current_batch and
-                        // silently no-ops, then we truncate the WAL and the
-                        // events exist only in memory (lost on next restart).
+                        // Checkpoint WAL events to Parquet — buffer
+                        // them into the per-tenant Parquet batches
+                        // first, then flush. Without this,
+                        // flush_storage() finds an empty current
+                        // batch and silently no-ops, the WAL gets
+                        // truncated, and the events exist only in
+                        // memory (lost on next restart).
                         if let Some(ref storage) = store.storage {
                             tracing::info!(
                                 "📸 Checkpointing {} WAL events to Parquet storage...",
@@ -398,6 +370,11 @@ impl EventStore {
                     tracing::error!("❌ WAL recovery failed: {}", e);
                 }
             }
+        } else if store.storage.is_some() {
+            tracing::info!(
+                "📂 Boot complete (lazy-load mode): Parquet data stays on disk until first \
+                 per-tenant query"
+            );
         }
 
         store
@@ -1179,18 +1156,24 @@ impl EventStore {
 
         let started = std::time::Instant::now();
         let events = storage.read().load_events_for_tenant(tenant_id)?;
-        let count = events.len();
+        let read_count = events.len();
 
+        let before = self.events.read().len();
         for event in events {
             self.append_loaded_event(event);
         }
+        let applied = self.events.read().len() - before;
 
-        *self.total_ingested.write() += count as u64;
+        // total_ingested only counts events newly added to memory.
+        // Dedupe (e.g. WAL events re-checkpointed to Parquet) makes
+        // applied < read_count possible.
+        *self.total_ingested.write() += applied as u64;
         self.tenant_loader.mark_loaded(tenant_id);
 
         tracing::info!(
             tenant_id = tenant_id,
-            event_count = count,
+            read = read_count,
+            applied = applied,
             elapsed_ms = started.elapsed().as_millis() as u64,
             "ensure_tenant_loaded: tenant hydrated"
         );
@@ -1208,12 +1191,27 @@ impl EventStore {
     /// (events vec, index, projections, entity_versions) atomically
     /// w.r.t. concurrent ingest. Used by `ensure_tenant_loaded`.
     ///
-    /// The boot-time loader has its own (single-threaded) variant
-    /// inline because boot can't race with ingest. This helper is
-    /// the variant safe to call while traffic is flowing — it holds
-    /// the events write lock across the index/offset assignment so
-    /// (offset, push) stays atomic.
+    /// The WAL recovery path on boot has its own (single-threaded)
+    /// variant inline because boot can't race with ingest. This
+    /// helper is the variant safe to call while traffic is flowing
+    /// — it holds the events write lock across the index/offset
+    /// assignment so (offset, push) stays atomic.
+    ///
+    /// Dedupes against events already in memory by event ID. Two
+    /// paths can surface the same event:
+    ///   1. WAL recovery on boot pushed it into memory.
+    ///   2. The event was then checkpointed to Parquet and the
+    ///      WAL truncated. A later ensure_tenant_loaded re-reads
+    ///      the Parquet file, including this event.
+    /// Without the dedupe, step 2 would double-count the event.
+    /// The check is O(1) — DashMap probe by UUID — and the
+    /// alternative (loading every tenant before truncating WAL)
+    /// would defeat the lazy-load.
     fn append_loaded_event(&self, event: Event) {
+        if self.index.get_by_id(&event.id).is_some() {
+            return;
+        }
+
         let mut events = self.events.write();
         let offset = events.len();
 
@@ -2977,7 +2975,8 @@ mod tests {
             );
         }
 
-        // Session 3: reopen again — events should load from Parquet (WAL was truncated)
+        // Session 3: reopen again — events should be reachable via
+        // lazy-load (Step 2: boot does not pre-load Parquet).
         {
             let config = EventStoreConfig::production(
                 &storage_dir,
@@ -2991,10 +2990,22 @@ mod tests {
             );
             let store = EventStore::with_config(config);
 
+            // Boot is now O(1) — Parquet stays cold until first
+            // per-tenant query. WAL was truncated in session 2,
+            // so nothing is pre-loaded.
+            assert_eq!(
+                store.stats().total_events,
+                0,
+                "Session 3 boot should not pre-load Parquet (lazy-load mode)"
+            );
+
+            // Trigger lazy load for the test tenant (events were
+            // ingested with tenant_id=\"default\").
+            store.ensure_tenant_loaded("default").unwrap();
             assert_eq!(
                 store.stats().total_events,
                 5,
-                "Session 3 should still have all 5 events from Parquet"
+                "Session 3 should have all 5 events after ensure_tenant_loaded"
             );
         }
     }
