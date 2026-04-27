@@ -1378,6 +1378,28 @@ impl EventStore {
     /// Query events based on filters (optimized with indices)
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn query(&self, request: &QueryEventsRequest) -> Result<Vec<Event>> {
+        // Lazy-load gate (Step 2): if the request scopes to a tenant,
+        // make sure that tenant's persisted data is in memory before
+        // running the in-memory index lookup. First call for a cold
+        // tenant blocks here for the disk read (single-digit seconds
+        // on ~100k events); warm tenants take the DashMap fast path
+        // and add no measurable latency.
+        //
+        // Errors propagate as `Err`; the HTTP layer turns that into
+        // a 5xx, which is the explicit "no infinite hangs" contract
+        // from the Step 2 acceptance criteria.
+        //
+        // Unfiltered (cross-tenant) queries — `tenant_id = None` —
+        // run against whatever is currently in memory. They cannot
+        // pre-load every tenant without defeating the whole point
+        // of the lazy-load model. In practice the gateway always
+        // injects an auth-derived `tenant_id`; an unfiltered query
+        // is admin-only and gets degraded results until a future
+        // commit adds an explicit "load all tenants" admin path.
+        if let Some(ref tenant_id) = request.tenant_id {
+            self.ensure_tenant_loaded(tenant_id)?;
+        }
+
         // Determine query type for metrics (v0.6 feature)
         let query_type = if request.entity_id.is_some() {
             "entity"
@@ -2038,6 +2060,152 @@ mod tests {
         assert!(!store.is_tenant_loaded("never-existed"));
         store.ensure_tenant_loaded("never-existed").unwrap();
         assert!(store.is_tenant_loaded("never-existed"));
+    }
+
+    #[test]
+    fn test_query_lazy_loads_tenant_on_first_call() {
+        // The end-to-end shape of Step 2: persist events for a
+        // tenant in session 1, restart, and confirm session 2 boots
+        // empty but a query for that tenant pulls them in.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        // Session 1: ingest 3 events for tenant "alice", flush, drop.
+        {
+            let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+            for i in 0..3 {
+                let event = Event::from_strings(
+                    "test.event".to_string(),
+                    format!("e-{i}"),
+                    "alice".to_string(),
+                    serde_json::json!({"i": i}),
+                    None,
+                )
+                .unwrap();
+                store.ingest(&event).unwrap();
+            }
+            store.flush_storage().unwrap();
+        }
+
+        // Session 2: fresh boot. Events on disk, nothing in memory.
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+        assert_eq!(
+            store.stats().total_events,
+            0,
+            "boot must be O(1) — no Parquet pre-load"
+        );
+        assert!(!store.is_tenant_loaded("alice"));
+        assert!(!store.is_tenant_loaded("bob"));
+
+        // First query for alice: triggers ensure_tenant_loaded.
+        let results = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("alice".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
+        assert_eq!(results.len(), 3, "alice's 3 events are returned");
+        assert!(store.is_tenant_loaded("alice"), "alice now warm");
+        // bob untouched — load is per-tenant, so a query for alice
+        // must not have hydrated bob.
+        assert!(!store.is_tenant_loaded("bob"), "bob still cold");
+    }
+
+    #[test]
+    fn test_query_invalid_tenant_id_returns_error_no_hang() {
+        // Step 2 acceptance criterion: in-flight load failures
+        // surface as errors, not infinite hangs. Path-traversal
+        // input fails fast at sanitization and propagates.
+        let temp_dir = TempDir::new().unwrap();
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(temp_dir.path()));
+
+        let result = store.query(&QueryEventsRequest {
+            entity_id: None,
+            event_type: None,
+            tenant_id: Some("../etc".to_string()),
+            as_of: None,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: None,
+            payload_filter: None,
+        });
+        assert!(result.is_err(), "unsafe tenant_id must surface as error");
+    }
+
+    #[test]
+    fn test_query_warm_tenant_does_not_re_read_disk() {
+        // Performance contract: a warm tenant query goes through the
+        // DashMap fast path. We can't easily assert "no disk read"
+        // directly in a unit test, but we CAN assert the call
+        // succeeds in O(in-memory-events) time even after the
+        // on-disk file is removed — proving we didn't re-walk it.
+        let temp_dir = TempDir::new().unwrap();
+        let storage_dir = temp_dir.path().to_path_buf();
+
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
+        for i in 0..3 {
+            let event = Event::from_strings(
+                "test.event".to_string(),
+                format!("e-{i}"),
+                "alice".to_string(),
+                serde_json::json!({"i": i}),
+                None,
+            )
+            .unwrap();
+            store.ingest(&event).unwrap();
+        }
+        store.flush_storage().unwrap();
+
+        // First query: cold, hits disk.
+        let _ = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("alice".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
+        assert!(store.is_tenant_loaded("alice"));
+
+        // Now wipe the on-disk file. A warm-path query must still
+        // succeed because it doesn't need disk.
+        let parquet_files = find_parquet_files(&storage_dir);
+        for f in parquet_files {
+            std::fs::remove_file(&f).unwrap();
+        }
+
+        let results = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("alice".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
+        assert_eq!(
+            results.len(),
+            3,
+            "warm tenant query must not need disk; got {} events from a deleted parquet",
+            results.len()
+        );
     }
 
     #[test]
