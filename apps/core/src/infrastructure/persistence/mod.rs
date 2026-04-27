@@ -15,6 +15,7 @@ pub mod storage;
 pub mod storage_integrity;
 pub mod system_bootstrap;
 pub mod system_store;
+pub mod tenant_loader;
 pub mod wal;
 
 // Re-exports for convenience
@@ -49,4 +50,5 @@ pub use storage::{
 pub use storage_integrity::{IntegrityCheckResult, StorageIntegrity};
 pub use system_bootstrap::{SystemBootstrap, SystemRepositories};
 pub use system_store::SystemMetadataStore;
+pub use tenant_loader::{DEFAULT_LOAD_TIMEOUT, TenantLoader};
 pub use wal::{WALConfig, WriteAheadLog};

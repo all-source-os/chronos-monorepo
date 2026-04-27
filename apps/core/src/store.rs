@@ -25,6 +25,7 @@ use crate::{
             index::{EventIndex, IndexEntry},
             snapshot::{SnapshotConfig, SnapshotManager, SnapshotType},
             storage::ParquetStorage,
+            tenant_loader::TenantLoader,
             wal::{WALConfig, WriteAheadLog},
         },
         query::geospatial::GeoIndex,
@@ -117,6 +118,13 @@ pub struct EventStore {
     /// so embedded consumers (TUI, web) can tail changes without the `server`
     /// feature / HTTP stack. Lagging receivers see `RecvError::Lagged`.
     event_broadcast_tx: tokio::sync::broadcast::Sender<Arc<Event>>,
+
+    /// Per-tenant lazy-load bookkeeping. Tracks which tenants have
+    /// been hydrated from Parquet into the in-memory pile and
+    /// serializes concurrent first-loads of the same tenant. See
+    /// `ensure_tenant_loaded` and Step 2 of the sustainable data
+    /// strategy.
+    tenant_loader: Arc<TenantLoader>,
 }
 
 /// A task queued for async webhook delivery
@@ -240,6 +248,7 @@ impl EventStore {
             entity_versions: Arc::new(DashMap::new()),
             consumer_registry: Arc::new(ConsumerRegistry::new()),
             event_broadcast_tx,
+            tenant_loader: Arc::new(TenantLoader::new()),
         };
 
         // Step 1: Load persisted events from Parquet (the durable baseline)
@@ -1112,6 +1121,124 @@ impl EventStore {
         Ok(())
     }
 
+    /// Hydrate `tenant_id`'s persisted Parquet data into the in-memory
+    /// pile if it isn't already loaded. Cheap on the warm path
+    /// (DashMap probe); on the cold path it walks just that tenant's
+    /// subtree (`load_events_for_tenant`) and splices the events into
+    /// `events`/`index`/`projections`/`entity_versions`.
+    ///
+    /// Concurrent first-callers for the same tenant serialize on a
+    /// per-tenant Mutex (singleflight) so the disk read happens once.
+    /// Other tenants are unaffected — distinct lock per tenant.
+    ///
+    /// Returns `Err` if the tenant_id fails the path-safety
+    /// whitelist, the Parquet read fails, or another in-flight load
+    /// holds the lock past the configured timeout. The caller (a
+    /// query handler) is expected to surface that as a 5xx — see
+    /// Step 2's "no infinite hangs" acceptance criterion.
+    ///
+    /// On failure, `loaded` is NOT marked, so a transient error is
+    /// retried on the next request rather than poisoning the tenant
+    /// permanently. A future commit may add a circuit breaker if
+    /// thrash becomes an issue.
+    ///
+    /// No-op (and Ok) when no Parquet storage is configured — the
+    /// in-memory-only mode used by tests has nothing to hydrate.
+    pub fn ensure_tenant_loaded(&self, tenant_id: &str) -> Result<()> {
+        // Fast path: warm tenant. Avoids the Mutex altogether.
+        if self.tenant_loader.is_loaded(tenant_id) {
+            return Ok(());
+        }
+
+        let storage = match &self.storage {
+            Some(s) => Arc::clone(s),
+            None => {
+                // No persistent storage to load from. Mark loaded so we
+                // don't keep re-entering the slow path.
+                self.tenant_loader.mark_loaded(tenant_id);
+                return Ok(());
+            }
+        };
+
+        // Singleflight: get-or-insert the per-tenant lock and try to
+        // acquire it within the timeout budget.
+        let lock = self.tenant_loader.lock_for(tenant_id);
+        let timeout = self.tenant_loader.load_timeout();
+        let _guard = lock.try_lock_for(timeout).ok_or_else(|| {
+            AllSourceError::StorageError(format!(
+                "ensure_tenant_loaded timed out after {timeout:?} waiting for in-flight load of \
+                 tenant {tenant_id:?}"
+            ))
+        })?;
+
+        // Re-check inside the lock — another thread may have completed
+        // the load while we were waiting.
+        if self.tenant_loader.is_loaded(tenant_id) {
+            return Ok(());
+        }
+
+        let started = std::time::Instant::now();
+        let events = storage.read().load_events_for_tenant(tenant_id)?;
+        let count = events.len();
+
+        for event in events {
+            self.append_loaded_event(event);
+        }
+
+        *self.total_ingested.write() += count as u64;
+        self.tenant_loader.mark_loaded(tenant_id);
+
+        tracing::info!(
+            tenant_id = tenant_id,
+            event_count = count,
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "ensure_tenant_loaded: tenant hydrated"
+        );
+
+        Ok(())
+    }
+
+    /// True iff `ensure_tenant_loaded` has previously succeeded for
+    /// this tenant. Diagnostic / testing API.
+    pub fn is_tenant_loaded(&self, tenant_id: &str) -> bool {
+        self.tenant_loader.is_loaded(tenant_id)
+    }
+
+    /// Splice a single loaded event into the in-memory structures
+    /// (events vec, index, projections, entity_versions) atomically
+    /// w.r.t. concurrent ingest. Used by `ensure_tenant_loaded`.
+    ///
+    /// The boot-time loader has its own (single-threaded) variant
+    /// inline because boot can't race with ingest. This helper is
+    /// the variant safe to call while traffic is flowing — it holds
+    /// the events write lock across the index/offset assignment so
+    /// (offset, push) stays atomic.
+    fn append_loaded_event(&self, event: Event) {
+        let mut events = self.events.write();
+        let offset = events.len();
+
+        if let Err(e) = self.index.index_event(
+            event.id,
+            event.entity_id_str(),
+            event.event_type_str(),
+            event.timestamp,
+            offset,
+        ) {
+            tracing::error!("Failed to index loaded event {}: {}", event.id, e);
+        }
+
+        if let Err(e) = self.projections.read().process_event(&event) {
+            tracing::error!("Failed to project loaded event {}: {}", event.id, e);
+        }
+
+        *self
+            .entity_versions
+            .entry(event.entity_id_str().to_string())
+            .or_insert(0) += 1;
+
+        events.push(event);
+    }
+
     /// Manually create a snapshot for an entity
     pub fn create_snapshot(&self, entity_id: &str) -> Result<()> {
         // Get all events for this entity
@@ -1799,6 +1926,27 @@ mod tests {
     use crate::domain::entities::Event;
     use tempfile::TempDir;
 
+    /// Recursively walk `dir` looking for `*.parquet` files.
+    /// Tests that pre-date Step 1's tenant-partitioned layout used a
+    /// flat `read_dir` here; after the move to <root>/<tenant>/<yyyy-mm>/
+    /// they need to walk subdirectories.
+    fn find_parquet_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+        let mut out = Vec::new();
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(d) = stack.pop() {
+            let Ok(entries) = std::fs::read_dir(&d) else { continue };
+            for e in entries.flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                } else if p.extension().and_then(|s| s.to_str()) == Some("parquet") {
+                    out.push(p);
+                }
+            }
+        }
+        out
+    }
+
     fn create_test_event(entity_id: &str, event_type: &str) -> Event {
         Event::from_strings(
             event_type.to_string(),
@@ -1830,6 +1978,68 @@ mod tests {
         let store = EventStore::new();
         assert_eq!(store.stats().total_events, 0);
         assert_eq!(store.stats().total_entities, 0);
+    }
+
+    // -----------------------------------------------------------------
+    // Step 2: ensure_tenant_loaded smoke tests. The full
+    // cold-boot/lazy-hydrate paths land in commit #2 (skip boot
+    // load) and commit #4 (integration test).
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn test_ensure_tenant_loaded_no_storage_is_a_noop() {
+        // An in-memory-only store (no ParquetStorage configured) has
+        // nothing to hydrate. The method must succeed and mark the
+        // tenant loaded so subsequent calls hit the fast path.
+        let store = EventStore::new();
+        assert!(!store.is_tenant_loaded("alice"));
+        store.ensure_tenant_loaded("alice").unwrap();
+        assert!(store.is_tenant_loaded("alice"));
+        // Other tenants stay cold — the call is per-tenant.
+        assert!(!store.is_tenant_loaded("bob"));
+    }
+
+    #[test]
+    fn test_ensure_tenant_loaded_warm_path_is_idempotent() {
+        let store = EventStore::new();
+        store.ensure_tenant_loaded("alice").unwrap();
+        // Second call hits the DashMap fast path and returns Ok.
+        store.ensure_tenant_loaded("alice").unwrap();
+    }
+
+    #[test]
+    fn test_ensure_tenant_loaded_rejects_unsafe_tenant_id() {
+        // With persistence configured, the call has to walk a
+        // tenant subtree, so the path-safety whitelist applies.
+        // The error must propagate; the tenant must NOT be marked
+        // loaded (otherwise an attacker probing path-traversal
+        // strings could spam the loaded-set with junk).
+        let temp_dir = TempDir::new().unwrap();
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(temp_dir.path()));
+        for unsafe_tid in ["..", "a/b", "a\\b", ""] {
+            let result = store.ensure_tenant_loaded(unsafe_tid);
+            assert!(
+                result.is_err(),
+                "tenant_id {unsafe_tid:?} should have been rejected"
+            );
+            assert!(
+                !store.is_tenant_loaded(unsafe_tid),
+                "rejected tenant {unsafe_tid:?} must not be marked loaded"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ensure_tenant_loaded_no_subtree_marks_loaded_with_zero_events() {
+        // A tenant that has no on-disk data (fresh tenant, never
+        // persisted) must still succeed — load_events_for_tenant
+        // returns empty, ensure_tenant_loaded marks it loaded so we
+        // don't re-walk the empty subtree on every query.
+        let temp_dir = TempDir::new().unwrap();
+        let store = EventStore::with_config(EventStoreConfig::with_persistence(temp_dir.path()));
+        assert!(!store.is_tenant_loaded("never-existed"));
+        store.ensure_tenant_loaded("never-existed").unwrap();
+        assert!(store.is_tenant_loaded("never-existed"));
     }
 
     #[test]
@@ -2757,12 +2967,10 @@ mod tests {
                 "Session 2 should have all 5 events after WAL recovery"
             );
 
-            // Parquet should now have files (checkpoint happened)
-            let parquet_files: Vec<_> = std::fs::read_dir(&storage_dir)
-                .unwrap()
-                .filter_map(std::result::Result::ok)
-                .filter(|e| e.path().extension().is_some_and(|ext| ext == "parquet"))
-                .collect();
+            // Parquet should now have files (checkpoint happened).
+            // After Step 1, files live under <root>/<tenant>/<yyyy-mm>/,
+            // so walk recursively.
+            let parquet_files = find_parquet_files(&storage_dir);
             assert!(
                 !parquet_files.is_empty(),
                 "Parquet file should exist after WAL checkpoint"
@@ -2830,16 +3038,13 @@ mod tests {
             assert_eq!(store.stats().total_events, 3);
         }
 
-        // Verify parquet file exists
-        let parquet_files: Vec<_> = std::fs::read_dir(&storage_dir)
-            .unwrap()
-            .filter_map(std::result::Result::ok)
-            .filter(|e| e.path().extension().is_some_and(|ext| ext == "parquet"))
-            .collect();
+        // Verify parquet file exists. After Step 1 the file lives
+        // under <root>/<tenant>/<yyyy-mm>/, so walk recursively.
+        let parquet_files = find_parquet_files(&storage_dir);
         assert!(!parquet_files.is_empty(), "Parquet file must exist");
 
         // Corrupt the parquet file
-        std::fs::write(parquet_files[0].path(), b"corrupted data").unwrap();
+        std::fs::write(&parquet_files[0], b"corrupted data").unwrap();
 
         // Truncate WAL so only Parquet matters
         for entry in std::fs::read_dir(&wal_dir).unwrap().flatten() {
