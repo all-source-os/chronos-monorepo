@@ -176,7 +176,7 @@ impl ParquetStorage {
             Field::new("version", DataType::UInt64, false),
         ]));
 
-        Ok(Self {
+        let storage = Self {
             storage_dir,
             current_batches: Mutex::new(HashMap::new()),
             config,
@@ -188,7 +188,24 @@ impl ParquetStorage {
             total_write_time_ns: AtomicU64::new(0),
             timeout_flushes: AtomicU64::new(0),
             size_flushes: AtomicU64::new(0),
-        })
+        };
+
+        // Boot-time crash recovery (Step 4 of the sustainable data
+        // strategy): clean up any leftover *.parquet.tmp files from
+        // a snapshot write that crashed mid-rename. Safe to delete
+        // unconditionally — the constituent raw files are still on
+        // disk (the snapshot pipeline deletes them only AFTER the
+        // rename succeeds).
+        match storage.cleanup_partial_writes() {
+            Ok(0) => {}
+            Ok(n) => tracing::warn!(
+                "cleaned up {n} orphan snapshot tmp file(s) on boot — \
+                 a previous run crashed mid-snapshot"
+            ),
+            Err(e) => tracing::error!("cleanup_partial_writes failed on boot: {e}"),
+        }
+
+        Ok(storage)
     }
 
     /// Create storage with legacy batch size (1000) for backward compatibility
@@ -413,6 +430,169 @@ impl ParquetStorage {
         );
 
         Ok(())
+    }
+
+    /// Atomically write `events` to a Parquet file under the tenant's
+    /// partition. Step 4 of the sustainable data strategy uses this to
+    /// emit per-tenant snapshot/compaction files (`snapshot.<tenant>.<from>-<to>`)
+    /// without risking partial files on crash.
+    ///
+    /// Crash-safety contract:
+    /// 1. Write to `<final_path>.tmp` first.
+    /// 2. fsync the .tmp file so the data is durably on disk.
+    /// 3. Rename `.tmp` → final name (atomic POSIX rename).
+    /// 4. fsync the parent directory so the rename is durable.
+    /// On any failure mid-way, the .tmp file gets cleaned up by
+    /// `cleanup_partial_writes` on next boot. The final file appears
+    /// atomically — readers either see the old state (no file) or
+    /// the complete new file, never a half-written one.
+    ///
+    /// `file_stem` is the filename without extension or partition path
+    /// — caller-controlled so the snapshot naming convention
+    /// (`snapshot.<tenant>.<from>-<to>`) lives in the compaction layer,
+    /// not here. The `.parquet` extension is appended automatically.
+    ///
+    /// Returns the final (post-rename) path so the caller can
+    /// confirm the file landed where expected.
+    pub fn write_atomic_parquet(
+        &self,
+        tenant_id: &str,
+        file_stem: &str,
+        events: &[Event],
+    ) -> Result<PathBuf> {
+        if events.is_empty() {
+            return Err(AllSourceError::StorageError(
+                "write_atomic_parquet called with empty event slice".to_string(),
+            ));
+        }
+        // Anchor partition by the earliest event's month — keeps the
+        // file in the same yyyy-mm bucket as the data it represents.
+        // Callers that span multiple months can use the earliest
+        // event's month and trust the recursive walker to find it.
+        let anchor_ts = events
+            .iter()
+            .map(|e| e.timestamp)
+            .min()
+            .unwrap_or_else(chrono::Utc::now);
+        let partition_dir = partition_path_for_tenant(&self.storage_dir, tenant_id, anchor_ts)?;
+        fs::create_dir_all(&partition_dir).map_err(|e| {
+            AllSourceError::StorageError(format!(
+                "Failed to create tenant partition {}: {e}",
+                partition_dir.display()
+            ))
+        })?;
+
+        let final_path = partition_dir.join(format!("{file_stem}.parquet"));
+        let tmp_path = partition_dir.join(format!("{file_stem}.parquet.tmp"));
+
+        // 1. Build the Arrow batch and write to .tmp.
+        let record_batch = self.events_to_record_batch(events)?;
+        {
+            let file = File::create(&tmp_path).map_err(|e| {
+                AllSourceError::StorageError(format!(
+                    "Failed to create snapshot tmp file {}: {e}",
+                    tmp_path.display()
+                ))
+            })?;
+
+            let props = WriterProperties::builder()
+                .set_compression(self.config.compression)
+                .build();
+
+            let mut writer = ArrowWriter::try_new(file, self.schema.clone(), Some(props))?;
+            writer.write(&record_batch)?;
+            // close() consumes writer and returns the file metadata; the
+            // underlying File is flushed and closed here. Take the file
+            // back out for fsync.
+            let _meta = writer.close()?;
+        }
+
+        // 2. fsync the .tmp file.
+        let tmp_file = File::open(&tmp_path).map_err(|e| {
+            AllSourceError::StorageError(format!(
+                "Failed to reopen snapshot tmp for fsync {}: {e}",
+                tmp_path.display()
+            ))
+        })?;
+        tmp_file.sync_all().map_err(|e| {
+            AllSourceError::StorageError(format!("fsync on snapshot tmp failed: {e}"))
+        })?;
+        drop(tmp_file);
+
+        // 3. Atomic rename.
+        fs::rename(&tmp_path, &final_path).map_err(|e| {
+            AllSourceError::StorageError(format!(
+                "Failed to rename {} → {}: {e}",
+                tmp_path.display(),
+                final_path.display()
+            ))
+        })?;
+
+        // 4. fsync the parent directory so the rename survives crash.
+        // Linux fsync-on-dir is the canonical way to make a rename
+        // durable; macOS no-ops the dir fsync but doesn't error.
+        if let Ok(dir) = File::open(&partition_dir) {
+            let _ = dir.sync_all();
+        }
+
+        tracing::info!(
+            tenant_id = tenant_id,
+            file = %final_path.display(),
+            event_count = events.len(),
+            "wrote atomic snapshot file"
+        );
+
+        Ok(final_path)
+    }
+
+    /// Sweep the storage tree for any leftover `*.parquet.tmp` files
+    /// — crash detritus from a snapshot write that didn't complete
+    /// the rename. Called on boot from `ParquetStorage::new` so
+    /// every cold start starts clean.
+    ///
+    /// Safe to delete unconditionally: `write_atomic_parquet`'s
+    /// rename-after-fsync contract means the only way a `.tmp` file
+    /// survives is if Core died between fsync and rename. The events
+    /// in that file are still in the constituent raw files (the
+    /// caller deletes those AFTER the rename succeeds), so the data
+    /// isn't lost — we just need to retry the snapshot.
+    ///
+    /// Returns the count of files deleted, for observability.
+    pub fn cleanup_partial_writes(&self) -> Result<usize> {
+        let mut deleted = 0usize;
+        let mut stack: Vec<PathBuf> = vec![self.storage_dir.clone()];
+        while let Some(dir) = stack.pop() {
+            let entries = match fs::read_dir(&dir) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let Ok(ft) = entry.file_type() else { continue };
+                if ft.is_dir() {
+                    stack.push(path);
+                } else if ft.is_file()
+                    && path.to_string_lossy().ends_with(".parquet.tmp")
+                {
+                    match fs::remove_file(&path) {
+                        Ok(_) => {
+                            tracing::warn!(
+                                file = %path.display(),
+                                "cleaned up orphan snapshot tmp file (crash recovery)"
+                            );
+                            deleted += 1;
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                file = %path.display(),
+                                "failed to remove orphan snapshot tmp file: {e}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        Ok(deleted)
     }
 
     /// Force flush any remaining events (for shutdown handling).
@@ -1795,6 +1975,131 @@ mod tests {
         // Sanity: the full loader still sees them via the recursive walk.
         let all_events = storage.load_all_events().unwrap();
         assert_eq!(all_events.len(), 4);
+    }
+
+    // -----------------------------------------------------------------
+    // Atomic snapshot write tests (Step 4, commit #1).
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn test_write_atomic_parquet_emits_file_under_tenant_partition() {
+        // Happy path: write 3 events for tenant alice, get back a
+        // path under <root>/alice/<yyyy-mm>/. The .tmp file should
+        // be gone (rename completed); the final file readable via
+        // load_events_for_tenant.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        let events: Vec<Event> = (0..3)
+            .map(|i| event_with_tenant("alice", &format!("a-{i}")))
+            .collect();
+
+        let final_path = storage
+            .write_atomic_parquet("alice", "snapshot.alice.range", &events)
+            .unwrap();
+
+        // Path shape: <root>/alice/<yyyy-mm>/snapshot.alice.range.parquet
+        let rel = final_path
+            .strip_prefix(temp_dir.path())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let parts: Vec<&str> = rel.split(std::path::MAIN_SEPARATOR).collect();
+        assert_eq!(parts.len(), 3, "expected tenant/yyyy-mm/file, got {rel}");
+        assert_eq!(parts[0], "alice");
+        assert_eq!(parts[2], "snapshot.alice.range.parquet");
+
+        // Final file must exist; .tmp must NOT.
+        assert!(final_path.is_file());
+        let tmp = final_path.with_extension("parquet.tmp");
+        assert!(
+            !tmp.exists(),
+            "tmp should have been renamed away; still at {}",
+            tmp.display()
+        );
+
+        // Loadable via the tenant loader.
+        let loaded = storage.load_events_for_tenant("alice").unwrap();
+        assert_eq!(loaded.len(), 3);
+    }
+
+    #[test]
+    fn test_write_atomic_parquet_rejects_empty_events() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let result = storage.write_atomic_parquet("alice", "snap", &[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_write_atomic_parquet_rejects_unsafe_tenant() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        let events = [event_with_tenant("alice", "e-0")];
+        for unsafe_tid in ["..", "a/b", ""] {
+            let result = storage.write_atomic_parquet(unsafe_tid, "snap", &events);
+            assert!(
+                result.is_err(),
+                "unsafe tenant_id {unsafe_tid:?} should have been rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn test_cleanup_partial_writes_removes_orphan_tmps() {
+        // Simulate a crashed mid-snapshot: pretend we have a leftover
+        // events-x.parquet.tmp file in a tenant partition. Cleanup
+        // must delete it without touching real .parquet files.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        // Seed a real parquet via a normal flush, so we have one
+        // legit file we don't want to delete.
+        for i in 0..2 {
+            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+        }
+        storage.flush().unwrap();
+        let real_files_before = find_parquet_files_recursive(temp_dir.path()).unwrap();
+        assert_eq!(real_files_before.len(), 1);
+
+        // Manufacture an orphan .tmp file in alice's partition.
+        let alice_subtree = temp_dir.path().join("alice");
+        let orphan_dir = real_files_before[0].parent().unwrap();
+        let orphan_path = orphan_dir.join("snapshot.alice.crashed.parquet.tmp");
+        std::fs::write(&orphan_path, b"fake partial parquet").unwrap();
+        assert!(orphan_path.is_file());
+
+        // And one nested deeper, just to confirm recursion.
+        let nested_dir = alice_subtree.join("2099-01");
+        std::fs::create_dir_all(&nested_dir).unwrap();
+        let nested_orphan = nested_dir.join("events-x.parquet.tmp");
+        std::fs::write(&nested_orphan, b"junk").unwrap();
+
+        let removed = storage.cleanup_partial_writes().unwrap();
+        assert_eq!(removed, 2, "two orphan tmps should have been cleaned");
+        assert!(!orphan_path.exists());
+        assert!(!nested_orphan.exists());
+
+        // Real parquet untouched.
+        let real_files_after = find_parquet_files_recursive(temp_dir.path()).unwrap();
+        assert_eq!(real_files_after, real_files_before);
+    }
+
+    #[test]
+    fn test_new_calls_cleanup_partial_writes_on_boot() {
+        // Drop a stale .tmp into a directory, then construct a
+        // fresh ParquetStorage on it. The constructor must clean
+        // it up.
+        let temp_dir = TempDir::new().unwrap();
+        let stale = temp_dir.path().join("orphan.parquet.tmp");
+        std::fs::write(&stale, b"crash detritus").unwrap();
+        assert!(stale.is_file());
+
+        let _storage = ParquetStorage::new(temp_dir.path()).unwrap();
+        assert!(
+            !stale.exists(),
+            "stale tmp should have been cleaned by ParquetStorage::new"
+        );
     }
 
     // -----------------------------------------------------------------
