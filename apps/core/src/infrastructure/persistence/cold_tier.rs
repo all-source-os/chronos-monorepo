@@ -64,7 +64,7 @@ pub trait ArchiveTarget: Send + Sync + fmt::Debug {
     /// Human-readable description of the backend, for logging.
     /// Defaults to the `Debug` representation.
     fn description(&self) -> String {
-        format!("{:?}", self)
+        format!("{self:?}")
     }
 }
 
@@ -254,7 +254,9 @@ mod tests {
         let archive = LocalFsArchive::new(dir.path()).unwrap();
 
         let now = Utc::now();
-        let events: Vec<_> = (0..3).map(|i| make_event("acme", now - Duration::hours(i))).collect();
+        let events: Vec<_> = (0..3)
+            .map(|i| make_event("acme", now - Duration::hours(i)))
+            .collect();
         let from = events.iter().map(|e| e.timestamp).min().unwrap();
         let to = events.iter().map(|e| e.timestamp).max().unwrap();
 
@@ -286,6 +288,9 @@ mod tests {
         let archive = LocalFsArchive::new(dir.path()).unwrap();
         let desc = archive.description();
         assert!(desc.starts_with("local-fs:"), "got {desc}");
-        assert!(desc.contains(&dir.path().display().to_string()), "got {desc}");
+        assert!(
+            desc.contains(&dir.path().display().to_string()),
+            "got {desc}"
+        );
     }
 }

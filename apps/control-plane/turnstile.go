@@ -60,7 +60,7 @@ func (tv *TurnstileVerifier) Verify(ctx context.Context, token, remoteIP string)
 	if err != nil {
 		return fmt.Errorf("turnstile siteverify failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // close-on-defer, non-actionable
 
 	var result struct {
 		Success    bool     `json:"success"`

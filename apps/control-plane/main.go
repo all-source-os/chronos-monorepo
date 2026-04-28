@@ -33,7 +33,7 @@ var openAPIYAML []byte
 // Control plane configuration constants.
 const (
 	// Version is the current version of the control plane.
-	Version = "0.19.2"
+	Version = "0.20.0"
 	// DefaultPort is the default port the control plane listens on.
 	DefaultPort = "3901"
 	// CoreServiceURL is the URL of the core event store service.
@@ -291,7 +291,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 				return nil, fmt.Errorf("register regional core %s: %w", region, err)
 			}
 			regionalEnabled = true
-			log.Printf("Regional Core registered: %s → %s", region, u)
+			log.Printf("Regional Core registered: %s → %s", region, u) //nolint:gosec // G706: region from hardcoded allowlist, u from operator-controlled env var — no taint source
 		}
 	}
 	if regionalEnabled {

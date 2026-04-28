@@ -158,6 +158,7 @@ impl CompactionConfig {
     ///   (default 3600).
     /// - `ALLSOURCE_RETENTION_SYSTEM_DAYS`: TTL for the `system`
     ///   tenant in days (default 30).
+    ///
     /// Unparseable values log a warning and fall back to defaults
     /// — boot doesn't fail.
     pub fn from_env() -> Self {
@@ -189,10 +190,9 @@ impl CompactionConfig {
         if let Some(s) = system_retention_days_var.filter(|s| !s.is_empty()) {
             match s.parse::<u64>() {
                 Ok(days) => {
-                    config.retention.set(
-                        "system",
-                        Some(Duration::from_secs(days * 24 * 3600)),
-                    );
+                    config
+                        .retention
+                        .set("system", Some(Duration::from_secs(days * 24 * 3600)));
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -415,9 +415,7 @@ impl CompactionManager {
             stats.total_bytes_after += aggregate.bytes_after;
             stats.total_events_compacted += aggregate.events_compacted as u64;
             stats.last_compaction_duration_ms = aggregate.duration_ms;
-            stats.space_saved_bytes += aggregate
-                .bytes_before
-                .saturating_sub(aggregate.bytes_after);
+            stats.space_saved_bytes += aggregate.bytes_before.saturating_sub(aggregate.bytes_after);
         }
         *self.last_compaction.write() = Some(Utc::now());
 
@@ -555,58 +553,55 @@ impl CompactionManager {
         // compaction pass retries — same crash-safety contract as
         // the snapshot path. Without an archive, retention behaves
         // exactly as before (delete outright).
-        let dropped_by_retention =
-            if let Some(ttl) = self.config.retention.ttl_for(tenant_id) {
-                let cutoff = Utc::now()
-                    - chrono::Duration::from_std(ttl)
-                        .unwrap_or_else(|_| chrono::Duration::zero());
-                let before = events.len();
+        let dropped_by_retention = if let Some(ttl) = self.config.retention.ttl_for(tenant_id) {
+            let cutoff = Utc::now()
+                - chrono::Duration::from_std(ttl).unwrap_or_else(|_| chrono::Duration::zero());
+            let before = events.len();
 
-                // Partition: drained = events past TTL, kept = events to keep.
-                // Using drain_filter would be simpler but it's unstable;
-                // partition + reassign keeps events: Vec<Event> with the
-                // kept slice in original order.
-                let (drained, kept): (Vec<_>, Vec<_>) =
-                    std::mem::take(&mut events)
-                        .into_iter()
-                        .partition(|e| e.timestamp < cutoff);
-                events = kept;
-                let dropped = before - events.len();
+            // Partition: drained = events past TTL, kept = events to keep.
+            // Using drain_filter would be simpler but it's unstable;
+            // partition + reassign keeps events: Vec<Event> with the
+            // kept slice in original order.
+            let (drained, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut events)
+                .into_iter()
+                .partition(|e| e.timestamp < cutoff);
+            events = kept;
+            let dropped = before - events.len();
 
-                if dropped > 0 {
+            if dropped > 0 {
+                tracing::info!(
+                    retention_tenant = tenant_id,
+                    dropped = dropped,
+                    kept = events.len(),
+                    cutoff = %cutoff.to_rfc3339(),
+                    ttl_secs = ttl.as_secs(),
+                    "retention: dropped events older than TTL"
+                );
+
+                if let Some(archive) = self.config.archive.as_ref() {
+                    let from = drained
+                        .iter()
+                        .map(|e| e.timestamp)
+                        .min()
+                        .expect("dropped > 0 guarantees non-empty drained");
+                    let to = drained
+                        .iter()
+                        .map(|e| e.timestamp)
+                        .max()
+                        .expect("dropped > 0 guarantees non-empty drained");
+                    archive.archive(tenant_id, from, to, &drained)?;
                     tracing::info!(
                         retention_tenant = tenant_id,
-                        dropped = dropped,
-                        kept = events.len(),
-                        cutoff = %cutoff.to_rfc3339(),
-                        ttl_secs = ttl.as_secs(),
-                        "retention: dropped events older than TTL"
+                        archived_to = %archive.description(),
+                        archived = drained.len(),
+                        "retention: dropped events archived to cold tier"
                     );
-
-                    if let Some(archive) = self.config.archive.as_ref() {
-                        let from = drained
-                            .iter()
-                            .map(|e| e.timestamp)
-                            .min()
-                            .expect("dropped > 0 guarantees non-empty drained");
-                        let to = drained
-                            .iter()
-                            .map(|e| e.timestamp)
-                            .max()
-                            .expect("dropped > 0 guarantees non-empty drained");
-                        archive.archive(tenant_id, from, to, &drained)?;
-                        tracing::info!(
-                            retention_tenant = tenant_id,
-                            archived_to = %archive.description(),
-                            archived = drained.len(),
-                            "retention: dropped events archived to cold tier"
-                        );
-                    }
                 }
-                dropped
-            } else {
-                0
-            };
+            }
+            dropped
+        } else {
+            0
+        };
 
         // Edge case: every event aged out. Skip the snapshot
         // write and just delete originals — the data is gone by
@@ -692,9 +687,8 @@ impl CompactionManager {
     /// root are not picked up — Step 1 #3's migration moves them
     /// under `default/`.
     fn discover_tenants(&self) -> Result<Vec<String>> {
-        let entries = match fs::read_dir(&self.storage_dir) {
-            Ok(e) => e,
-            Err(_) => return Ok(Vec::new()),
+        let Ok(entries) = fs::read_dir(&self.storage_dir) else {
+            return Ok(Vec::new());
         };
         let mut tenants: Vec<String> = entries
             .filter_map(std::result::Result::ok)
@@ -1142,11 +1136,7 @@ mod tests {
     // Per-tenant compaction tests (Step 4, commit #2).
     // -----------------------------------------------------------------
 
-    fn ingest_and_flush_per_call(
-        storage_dir: &std::path::Path,
-        tenant: &str,
-        count: usize,
-    ) {
+    fn ingest_and_flush_per_call(storage_dir: &std::path::Path, tenant: &str, count: usize) {
         // Each ingested batch produces one parquet file when its
         // ParquetStorage is dropped, giving us multiple raw files
         // per tenant for the strategy filter to pick up.
@@ -1195,7 +1185,11 @@ mod tests {
         // alice's subtree.
         let storage = ParquetStorage::new(temp_dir.path()).unwrap();
         let alice_files = storage.list_parquet_files_for_tenant("alice").unwrap();
-        assert_eq!(alice_files.len(), 1, "expected exactly one snapshot file for alice");
+        assert_eq!(
+            alice_files.len(),
+            1,
+            "expected exactly one snapshot file for alice"
+        );
 
         let name = alice_files[0]
             .file_name()
@@ -1266,8 +1260,15 @@ mod tests {
         let storage = ParquetStorage::new(temp_dir.path()).unwrap();
         let alice_files = storage.list_parquet_files_for_tenant("alice").unwrap();
         assert_eq!(alice_files.len(), 1);
-        let name = alice_files[0].file_name().unwrap().to_string_lossy().into_owned();
-        assert!(!name.starts_with("snapshot."), "raw file must not be renamed");
+        let name = alice_files[0]
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            !name.starts_with("snapshot."),
+            "raw file must not be renamed"
+        );
     }
 
     #[test]
@@ -1315,7 +1316,7 @@ mod tests {
         for i in 0..100 {
             // Day 0 = 60 days ago; day 99 ≈ now. Spreads evenly.
             let day_offset = 60 - (i * 60 / 99);
-            let ts = now - chrono::Duration::days(day_offset as i64);
+            let ts = now - chrono::Duration::days(i64::from(day_offset));
             let event = crate::domain::entities::Event::reconstruct_from_strings(
                 uuid::Uuid::new_v4(),
                 "test.event".to_string(),
@@ -1522,7 +1523,7 @@ mod tests {
         let now = Utc::now();
         for i in 0..50 {
             let day_offset = 60 - (i * 60 / 49);
-            let ts = now - chrono::Duration::days(day_offset as i64);
+            let ts = now - chrono::Duration::days(i64::from(day_offset));
             let event = crate::domain::entities::Event::reconstruct_from_strings(
                 uuid::Uuid::new_v4(),
                 "test.event".to_string(),
@@ -1681,10 +1682,7 @@ mod tests {
         let manager = CompactionManager::new(live_dir.path(), config);
 
         let result = manager.compact_tenant("alice");
-        assert!(
-            result.is_err(),
-            "compaction must fail when archive fails"
-        );
+        assert!(result.is_err(), "compaction must fail when archive fails");
 
         // Originals still on disk — every event still queryable.
         let after = count_files(live_dir.path());
@@ -1695,7 +1693,11 @@ mod tests {
 
         let storage2 = ParquetStorage::new(live_dir.path()).unwrap();
         let loaded = storage2.load_events_for_tenant("alice").unwrap();
-        assert_eq!(loaded.len(), 20, "all 20 events still present after failed archive");
+        assert_eq!(
+            loaded.len(),
+            20,
+            "all 20 events still present after failed archive"
+        );
     }
 
     #[test]

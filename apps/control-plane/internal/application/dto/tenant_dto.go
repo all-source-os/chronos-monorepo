@@ -4,9 +4,9 @@ import "time"
 
 // CreateTenantRequest represents a request to create a tenant
 type CreateTenantRequest struct {
-	ID          string                 `json:"id" binding:"required"`
-	Name        string                 `json:"name" binding:"required"`
-	Description string                 `json:"description"`
+	ID          string `json:"id" binding:"required"`
+	Name        string `json:"name" binding:"required"`
+	Description string `json:"description"`
 	// HomeRegion is the Fly region that owns this tenant's writes.
 	// Optional on create; empty string defers to the platform default
 	// (entities.DefaultHomeRegion). Must be in

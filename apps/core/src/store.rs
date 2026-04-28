@@ -330,10 +330,7 @@ impl EventStore {
                     // catch regressions where the checkpoint loop
                     // stops draining the WAL.
                     #[cfg(feature = "server")]
-                    store
-                        .metrics
-                        .wal_replay_events_total
-                        .set(wal_new as i64);
+                    store.metrics.wal_replay_events_total.set(wal_new as i64);
 
                     if wal_new > 0 {
                         let total = store.events.read().len();
@@ -1204,14 +1201,11 @@ impl EventStore {
             return Ok(());
         }
 
-        let storage = match &self.storage {
-            Some(s) => Arc::clone(s),
-            None => {
-                // No persistent storage to load from. Mark loaded so we
-                // don't keep re-entering the slow path.
-                self.tenant_loader.mark_loaded(tenant_id);
-                return Ok(());
-            }
+        let Some(storage) = self.storage.as_ref().map(Arc::clone) else {
+            // No persistent storage to load from. Mark loaded so we
+            // don't keep re-entering the slow path.
+            self.tenant_loader.mark_loaded(tenant_id);
+            return Ok(());
         };
 
         // Singleflight: get-or-insert the per-tenant lock and try to
@@ -1372,7 +1366,8 @@ impl EventStore {
             ) {
                 tracing::error!(
                     "Failed to re-index event during eviction of {}: {}",
-                    tenant_id, e
+                    tenant_id,
+                    e
                 );
             }
             *self
@@ -1433,10 +1428,11 @@ impl EventStore {
     ///
     /// Dedupes against events already in memory by event ID. Two
     /// paths can surface the same event:
-    ///   1. WAL recovery on boot pushed it into memory.
-    ///   2. The event was then checkpointed to Parquet and the
-    ///      WAL truncated. A later ensure_tenant_loaded re-reads
-    ///      the Parquet file, including this event.
+    /// 1. WAL recovery on boot pushed it into memory.
+    /// 2. The event was then checkpointed to Parquet and the
+    ///    WAL truncated. A later ensure_tenant_loaded re-reads
+    ///    the Parquet file, including this event.
+    ///
     /// Without the dedupe, step 2 would double-count the event.
     /// The check is O(1) — DashMap probe by UUID — and the
     /// alternative (loading every tenant before truncating WAL)
@@ -2157,18 +2153,19 @@ impl EventStoreConfig {
         // input is logged and ignored rather than failing boot —
         // the unbounded fallback is safe (worst case is the
         // original pre-Step-3 behavior).
-        let cache_byte_budget = cache_bytes_var
-            .filter(|s| !s.is_empty())
-            .and_then(|s| match s.parse::<u64>() {
-                Ok(v) => Some(v),
-                Err(e) => {
-                    tracing::warn!(
-                        "ALLSOURCE_CACHE_BYTES={s:?} could not be parsed as u64: {e}; \
+        let cache_byte_budget =
+            cache_bytes_var
+                .filter(|s| !s.is_empty())
+                .and_then(|s| match s.parse::<u64>() {
+                    Ok(v) => Some(v),
+                    Err(e) => {
+                        tracing::warn!(
+                            "ALLSOURCE_CACHE_BYTES={s:?} could not be parsed as u64: {e}; \
                          cache budget disabled"
-                    );
-                    None
-                }
-            });
+                        );
+                        None
+                    }
+                });
         let compaction_config =
             CompactionConfig::from_env_vars(snapshot_interval_var, retention_system_days_var);
 
@@ -2269,7 +2266,9 @@ mod tests {
         let mut out = Vec::new();
         let mut stack = vec![dir.to_path_buf()];
         while let Some(d) = stack.pop() {
-            let Ok(entries) = std::fs::read_dir(&d) else { continue };
+            let Ok(entries) = std::fs::read_dir(&d) else {
+                continue;
+            };
             for e in entries.flatten() {
                 let p = e.path();
                 if p.is_dir() {
@@ -2388,22 +2387,32 @@ mod tests {
         {
             let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
             for i in 0..3 {
-                store.ingest(&Event::from_strings(
-                    "test.event".to_string(),
-                    format!("a-{i}"),
-                    "alice".to_string(),
-                    serde_json::json!({"i": i}),
-                    None,
-                ).unwrap()).unwrap();
+                store
+                    .ingest(
+                        &Event::from_strings(
+                            "test.event".to_string(),
+                            format!("a-{i}"),
+                            "alice".to_string(),
+                            serde_json::json!({"i": i}),
+                            None,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
             }
             for i in 0..2 {
-                store.ingest(&Event::from_strings(
-                    "test.event".to_string(),
-                    format!("b-{i}"),
-                    "bob".to_string(),
-                    serde_json::json!({"i": i}),
-                    None,
-                ).unwrap()).unwrap();
+                store
+                    .ingest(
+                        &Event::from_strings(
+                            "test.event".to_string(),
+                            format!("b-{i}"),
+                            "bob".to_string(),
+                            serde_json::json!({"i": i}),
+                            None,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
             }
             store.flush_storage().unwrap();
         }
@@ -2436,13 +2445,18 @@ mod tests {
         {
             let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
             for i in 0..4 {
-                store.ingest(&Event::from_strings(
-                    "test.event".to_string(),
-                    format!("a-{i}"),
-                    "alice".to_string(),
-                    serde_json::json!({"i": i}),
-                    None,
-                ).unwrap()).unwrap();
+                store
+                    .ingest(
+                        &Event::from_strings(
+                            "test.event".to_string(),
+                            format!("a-{i}"),
+                            "alice".to_string(),
+                            serde_json::json!({"i": i}),
+                            None,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
             }
             store.flush_storage().unwrap();
         }
@@ -2453,17 +2467,19 @@ mod tests {
         assert_eq!(store.stats().total_events, 0);
 
         // Query — re-load happens transparently.
-        let results = store.query(&QueryEventsRequest {
-            entity_id: None,
-            event_type: None,
-            tenant_id: Some("alice".to_string()),
-            as_of: None,
-            since: None,
-            until: None,
-            limit: None,
-            event_type_prefix: None,
-            payload_filter: None,
-        }).unwrap();
+        let results = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("alice".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
         assert_eq!(results.len(), 4);
         assert!(store.is_tenant_loaded("alice"));
     }
@@ -2483,21 +2499,31 @@ mod tests {
         // evicting alice, the events Vec compacts to [bob, bob]
         // and the index must reflect the new layout.
         for i in 0..3 {
-            store.ingest(&Event::from_strings(
-                "test.event".to_string(),
-                format!("a-{i}"),
-                "alice".to_string(),
-                serde_json::json!({"i": i}),
-                None,
-            ).unwrap()).unwrap();
+            store
+                .ingest(
+                    &Event::from_strings(
+                        "test.event".to_string(),
+                        format!("a-{i}"),
+                        "alice".to_string(),
+                        serde_json::json!({"i": i}),
+                        None,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
             if i < 2 {
-                store.ingest(&Event::from_strings(
-                    "test.event".to_string(),
-                    format!("b-{i}"),
-                    "bob".to_string(),
-                    serde_json::json!({"i": i}),
-                    None,
-                ).unwrap()).unwrap();
+                store
+                    .ingest(
+                        &Event::from_strings(
+                            "test.event".to_string(),
+                            format!("b-{i}"),
+                            "bob".to_string(),
+                            serde_json::json!({"i": i}),
+                            None,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
             }
         }
         // Mark both as loaded for accurate eviction bookkeeping.
@@ -2506,17 +2532,19 @@ mod tests {
 
         store.evict_tenant("alice");
 
-        let bob_results = store.query(&QueryEventsRequest {
-            entity_id: None,
-            event_type: None,
-            tenant_id: Some("bob".to_string()),
-            as_of: None,
-            since: None,
-            until: None,
-            limit: None,
-            event_type_prefix: None,
-            payload_filter: None,
-        }).unwrap();
+        let bob_results = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("bob".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
         assert_eq!(bob_results.len(), 2);
         for e in &bob_results {
             assert_eq!(e.tenant_id_str(), "bob");
@@ -2538,13 +2566,18 @@ mod tests {
             let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
             for tenant in ["alice", "bob", "carol"] {
                 for i in 0..5 {
-                    store.ingest(&Event::from_strings(
-                        "test.event".to_string(),
-                        format!("{tenant}-{i}"),
-                        tenant.to_string(),
-                        big_payload.clone(),
-                        None,
-                    ).unwrap()).unwrap();
+                    store
+                        .ingest(
+                            &Event::from_strings(
+                                "test.event".to_string(),
+                                format!("{tenant}-{i}"),
+                                tenant.to_string(),
+                                big_payload.clone(),
+                                None,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
                 }
             }
             store.flush_storage().unwrap();
@@ -2614,13 +2647,18 @@ mod tests {
             let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
             for tenant in ["alice", "bob"] {
                 for i in 0..3 {
-                    store.ingest(&Event::from_strings(
-                        "test.event".to_string(),
-                        format!("{tenant}-{i}"),
-                        tenant.to_string(),
-                        big_payload.clone(),
-                        None,
-                    ).unwrap()).unwrap();
+                    store
+                        .ingest(
+                            &Event::from_strings(
+                                "test.event".to_string(),
+                                format!("{tenant}-{i}"),
+                                tenant.to_string(),
+                                big_payload.clone(),
+                                None,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
                 }
             }
             store.flush_storage().unwrap();
@@ -2634,48 +2672,61 @@ mod tests {
         // Query alice — sized at ~6 KiB, so over budget but no
         // peer to evict; alice stays as the single-oversized-tenant
         // case.
-        let alice_first = store.query(&QueryEventsRequest {
-            entity_id: None,
-            event_type: None,
-            tenant_id: Some("alice".to_string()),
-            as_of: None,
-            since: None,
-            until: None,
-            limit: None,
-            event_type_prefix: None,
-            payload_filter: None,
-        }).unwrap();
+        let alice_first = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("alice".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
         assert_eq!(alice_first.len(), 3);
 
         // Sleep to make alice older than bob in the LRU ordering.
         std::thread::sleep(std::time::Duration::from_millis(15));
         // Query bob — alice will get evicted.
-        let _bob = store.query(&QueryEventsRequest {
-            entity_id: None,
-            event_type: None,
-            tenant_id: Some("bob".to_string()),
-            as_of: None,
-            since: None,
-            until: None,
-            limit: None,
-            event_type_prefix: None,
-            payload_filter: None,
-        }).unwrap();
-        assert!(!store.is_tenant_loaded("alice"), "alice should have been evicted");
+        let _bob = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("bob".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
+        assert!(
+            !store.is_tenant_loaded("alice"),
+            "alice should have been evicted"
+        );
 
         // Re-query alice — must transparently re-load.
-        let alice_second = store.query(&QueryEventsRequest {
-            entity_id: None,
-            event_type: None,
-            tenant_id: Some("alice".to_string()),
-            as_of: None,
-            since: None,
-            until: None,
-            limit: None,
-            event_type_prefix: None,
-            payload_filter: None,
-        }).unwrap();
-        assert_eq!(alice_second.len(), 3, "alice's events come back via re-load");
+        let alice_second = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("alice".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
+        assert_eq!(
+            alice_second.len(),
+            3,
+            "alice's events come back via re-load"
+        );
         assert!(store.is_tenant_loaded("alice"));
     }
 
@@ -2693,13 +2744,18 @@ mod tests {
             let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
             for tenant in ["alice", "bob"] {
                 for i in 0..3 {
-                    store.ingest(&Event::from_strings(
-                        "test.event".to_string(),
-                        format!("{tenant}-{i}"),
-                        tenant.to_string(),
-                        big_payload.clone(),
-                        None,
-                    ).unwrap()).unwrap();
+                    store
+                        .ingest(
+                            &Event::from_strings(
+                                "test.event".to_string(),
+                                format!("{tenant}-{i}"),
+                                tenant.to_string(),
+                                big_payload.clone(),
+                                None,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
                 }
             }
             store.flush_storage().unwrap();
@@ -2758,13 +2814,18 @@ mod tests {
             for t in 0..TENANT_COUNT {
                 let tenant = format!("tenant-{t}");
                 for i in 0..EVENTS_PER_TENANT {
-                    store.ingest(&Event::from_strings(
-                        "test.event".to_string(),
-                        format!("{tenant}-{i}"),
-                        tenant.clone(),
-                        big_payload.clone(),
-                        None,
-                    ).unwrap()).unwrap();
+                    store
+                        .ingest(
+                            &Event::from_strings(
+                                "test.event".to_string(),
+                                format!("{tenant}-{i}"),
+                                tenant.clone(),
+                                big_payload.clone(),
+                                None,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
                 }
             }
             store.flush_storage().unwrap();
@@ -2784,19 +2845,22 @@ mod tests {
         let mut peak_resident: u64 = 0;
         for t in 0..TENANT_COUNT {
             let tenant = format!("tenant-{t}");
-            let results = store.query(&QueryEventsRequest {
-                entity_id: None,
-                event_type: None,
-                tenant_id: Some(tenant.clone()),
-                as_of: None,
-                since: None,
-                until: None,
-                limit: None,
-                event_type_prefix: None,
-                payload_filter: None,
-            }).unwrap();
+            let results = store
+                .query(&QueryEventsRequest {
+                    entity_id: None,
+                    event_type: None,
+                    tenant_id: Some(tenant.clone()),
+                    as_of: None,
+                    since: None,
+                    until: None,
+                    limit: None,
+                    event_type_prefix: None,
+                    payload_filter: None,
+                })
+                .unwrap();
             assert_eq!(
-                results.len(), EVENTS_PER_TENANT,
+                results.len(),
+                EVENTS_PER_TENANT,
                 "every per-tenant query must return all of that tenant's events"
             );
             // Track peak resident bytes seen during the sweep.
@@ -2864,13 +2928,18 @@ mod tests {
         {
             let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
             for i in 0..5 {
-                store.ingest(&Event::from_strings(
-                    "test.event".to_string(),
-                    format!("a-{i}"),
-                    "alice".to_string(),
-                    serde_json::json!({"data": "x".repeat(1000)}),
-                    None,
-                ).unwrap()).unwrap();
+                store
+                    .ingest(
+                        &Event::from_strings(
+                            "test.event".to_string(),
+                            format!("a-{i}"),
+                            "alice".to_string(),
+                            serde_json::json!({"data": "x".repeat(1000)}),
+                            None,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
             }
             store.flush_storage().unwrap();
         }
@@ -3003,9 +3072,9 @@ mod tests {
         }
 
         // Fresh boot, then 8 threads simultaneously query alice.
-        let store = Arc::new(EventStore::with_config(
-            EventStoreConfig::with_persistence(&storage_dir),
-        ));
+        let store = Arc::new(EventStore::with_config(EventStoreConfig::with_persistence(
+            &storage_dir,
+        )));
         assert!(!store.is_tenant_loaded("alice"));
 
         let mut handles = Vec::new();
@@ -3050,22 +3119,32 @@ mod tests {
         {
             let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
             for i in 0..3 {
-                store.ingest(&Event::from_strings(
-                    "test.event".to_string(),
-                    format!("a-{i}"),
-                    "alice".to_string(),
-                    serde_json::json!({"i": i}),
-                    None,
-                ).unwrap()).unwrap();
+                store
+                    .ingest(
+                        &Event::from_strings(
+                            "test.event".to_string(),
+                            format!("a-{i}"),
+                            "alice".to_string(),
+                            serde_json::json!({"i": i}),
+                            None,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
             }
             for i in 0..5 {
-                store.ingest(&Event::from_strings(
-                    "test.event".to_string(),
-                    format!("b-{i}"),
-                    "bob".to_string(),
-                    serde_json::json!({"i": i}),
-                    None,
-                ).unwrap()).unwrap();
+                store
+                    .ingest(
+                        &Event::from_strings(
+                            "test.event".to_string(),
+                            format!("b-{i}"),
+                            "bob".to_string(),
+                            serde_json::json!({"i": i}),
+                            None,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
             }
             store.flush_storage().unwrap();
         }
@@ -3074,34 +3153,38 @@ mod tests {
         assert_eq!(store.stats().total_events, 0);
 
         // Query alice — bob stays cold.
-        let alice = store.query(&QueryEventsRequest {
-            entity_id: None,
-            event_type: None,
-            tenant_id: Some("alice".to_string()),
-            as_of: None,
-            since: None,
-            until: None,
-            limit: None,
-            event_type_prefix: None,
-            payload_filter: None,
-        }).unwrap();
+        let alice = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("alice".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
         assert_eq!(alice.len(), 3);
         assert!(store.is_tenant_loaded("alice"));
         assert!(!store.is_tenant_loaded("bob"));
         assert_eq!(store.stats().total_events, 3);
 
         // Query bob — both warm now.
-        let bob = store.query(&QueryEventsRequest {
-            entity_id: None,
-            event_type: None,
-            tenant_id: Some("bob".to_string()),
-            as_of: None,
-            since: None,
-            until: None,
-            limit: None,
-            event_type_prefix: None,
-            payload_filter: None,
-        }).unwrap();
+        let bob = store
+            .query(&QueryEventsRequest {
+                entity_id: None,
+                event_type: None,
+                tenant_id: Some("bob".to_string()),
+                as_of: None,
+                since: None,
+                until: None,
+                limit: None,
+                event_type_prefix: None,
+                payload_filter: None,
+            })
+            .unwrap();
         assert_eq!(bob.len(), 5);
         assert!(store.is_tenant_loaded("bob"));
         assert_eq!(store.stats().total_events, 8);
@@ -3128,13 +3211,18 @@ mod tests {
             let store = EventStore::with_config(EventStoreConfig::with_persistence(&storage_dir));
             for tenant in ["alice", "bob", "carol"] {
                 for i in 0..50 / 3 {
-                    store.ingest(&Event::from_strings(
-                        "test.event".to_string(),
-                        format!("{tenant}-{i}"),
-                        tenant.to_string(),
-                        serde_json::json!({"i": i}),
-                        None,
-                    ).unwrap()).unwrap();
+                    store
+                        .ingest(
+                            &Event::from_strings(
+                                "test.event".to_string(),
+                                format!("{tenant}-{i}"),
+                                tenant.to_string(),
+                                serde_json::json!({"i": i}),
+                                None,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
                 }
             }
             store.flush_storage().unwrap();
@@ -3826,13 +3914,7 @@ mod tests {
             .unwrap();
         assert_eq!(ttl.as_secs(), 30 * 24 * 3600);
         // Other tenants keep forever by default.
-        assert!(
-            config
-                .compaction_config
-                .retention
-                .ttl_for("acme")
-                .is_none()
-        );
+        assert!(config.compaction_config.retention.ttl_for("acme").is_none());
     }
 
     #[test]
@@ -4481,7 +4563,10 @@ mod tests {
             let Ok(file) = std::fs::File::open(&path) else {
                 continue;
             };
-            for line in BufReader::new(file).lines().map_while(std::result::Result::ok) {
+            for line in BufReader::new(file)
+                .lines()
+                .map_while(std::result::Result::ok)
+            {
                 if !line.trim().is_empty() {
                     total += 1;
                 }
@@ -4525,7 +4610,11 @@ mod tests {
         }
 
         // Sanity: all 10 events are in the WAL pre-checkpoint.
-        assert_eq!(count_wal_entries(&wal_dir), 10, "WAL should have 10 events before checkpoint");
+        assert_eq!(
+            count_wal_entries(&wal_dir),
+            10,
+            "WAL should have 10 events before checkpoint"
+        );
 
         store.checkpoint().unwrap();
 

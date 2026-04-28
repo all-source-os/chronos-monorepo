@@ -22,9 +22,13 @@
 
 use dashmap::DashMap;
 use parking_lot::Mutex;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 /// Default ceiling on how long a query may wait for an in-flight
 /// load of the same tenant before giving up. The 100k-event load
@@ -32,7 +36,6 @@ use std::time::{Duration, Instant};
 /// acceptance criteria); 30s is comfortable headroom for that, well
 /// short of a request-timeout indistinguishable from a hang.
 pub const DEFAULT_LOAD_TIMEOUT: Duration = Duration::from_secs(30);
-
 
 /// Tracks which tenants have been hydrated into memory, serializes
 /// concurrent first-loads of the same tenant, and accounts for the
@@ -119,7 +122,7 @@ impl TenantLoader {
     /// tenant has a touch timestamp by construction.
     pub fn pick_lru_excluding(&self, excluded: &str) -> Option<String> {
         let mut victim: Option<(String, Instant)> = None;
-        for kv in self.loaded.iter() {
+        for kv in &self.loaded {
             let tenant = kv.key();
             if tenant == excluded {
                 continue;
@@ -232,8 +235,10 @@ impl Default for TenantLoader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::thread;
+    use std::{
+        sync::atomic::{AtomicUsize, Ordering},
+        thread,
+    };
 
     #[test]
     fn test_is_loaded_false_until_marked() {
@@ -351,7 +356,10 @@ mod tests {
 
         let mut snapshot = loader.bytes_per_tenant();
         snapshot.sort();
-        assert_eq!(snapshot, vec![("alice".to_string(), 150), ("bob".to_string(), 200)]);
+        assert_eq!(
+            snapshot,
+            vec![("alice".to_string(), 150), ("bob".to_string(), 200)]
+        );
     }
 
     #[test]
@@ -365,7 +373,10 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(5));
         loader.mark_loaded("carol");
 
-        assert_eq!(loader.pick_lru_excluding("carol"), Some("alice".to_string()));
+        assert_eq!(
+            loader.pick_lru_excluding("carol"),
+            Some("alice".to_string())
+        );
 
         // After touching alice, bob becomes oldest.
         loader.touch("alice");

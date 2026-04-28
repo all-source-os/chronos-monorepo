@@ -222,15 +222,12 @@ impl Event {
     /// not on the query path.
     pub fn estimated_size_bytes(&self) -> u64 {
         const FIXED_OVERHEAD: u64 = 256;
-        let payload_bytes = serde_json::to_vec(&self.payload)
-            .map(|v| v.len() as u64)
-            .unwrap_or(0);
+        let payload_bytes = serde_json::to_vec(&self.payload).map_or(0, |v| v.len() as u64);
         let metadata_bytes = self
             .metadata
             .as_ref()
             .and_then(|m| serde_json::to_vec(m).ok())
-            .map(|v| v.len() as u64)
-            .unwrap_or(0);
+            .map_or(0, |v| v.len() as u64);
         FIXED_OVERHEAD + payload_bytes + metadata_bytes
     }
 

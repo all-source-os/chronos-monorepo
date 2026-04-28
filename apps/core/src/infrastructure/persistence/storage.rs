@@ -234,7 +234,7 @@ impl ParquetStorage {
         let tenant = event.tenant_id_str().to_string();
         let should_flush_tenant = {
             let mut batches = self.current_batches.lock().unwrap();
-            let entry = batches.entry(tenant.clone()).or_insert_with(Vec::new);
+            let entry = batches.entry(tenant.clone()).or_default();
             entry.push(event);
             entry.len() >= self.config.batch_size
         };
@@ -271,7 +271,7 @@ impl ParquetStorage {
         {
             let mut batches = self.current_batches.lock().unwrap();
             for (tenant, mut new_events) in grouped {
-                let entry = batches.entry(tenant.clone()).or_insert_with(Vec::new);
+                let entry = batches.entry(tenant.clone()).or_default();
                 entry.append(&mut new_events);
                 if entry.len() >= self.config.batch_size {
                     tenants_to_flush.push(tenant);
@@ -442,6 +442,7 @@ impl ParquetStorage {
     /// 2. fsync the .tmp file so the data is durably on disk.
     /// 3. Rename `.tmp` → final name (atomic POSIX rename).
     /// 4. fsync the parent directory so the rename is durable.
+    ///
     /// On any failure mid-way, the .tmp file gets cleaned up by
     /// `cleanup_partial_writes` on next boot. The final file appears
     /// atomically — readers either see the old state (no file) or
@@ -562,20 +563,17 @@ impl ParquetStorage {
         let mut deleted = 0usize;
         let mut stack: Vec<PathBuf> = vec![self.storage_dir.clone()];
         while let Some(dir) = stack.pop() {
-            let entries = match fs::read_dir(&dir) {
-                Ok(e) => e,
-                Err(_) => continue,
+            let Ok(entries) = fs::read_dir(&dir) else {
+                continue;
             };
             for entry in entries.flatten() {
                 let path = entry.path();
                 let Ok(ft) = entry.file_type() else { continue };
                 if ft.is_dir() {
                     stack.push(path);
-                } else if ft.is_file()
-                    && path.to_string_lossy().ends_with(".parquet.tmp")
-                {
+                } else if ft.is_file() && path.to_string_lossy().ends_with(".parquet.tmp") {
                     match fs::remove_file(&path) {
-                        Ok(_) => {
+                        Ok(()) => {
                             tracing::warn!(
                                 file = %path.display(),
                                 "cleaned up orphan snapshot tmp file (crash recovery)"
@@ -1024,8 +1022,7 @@ impl ParquetStorage {
                     let props = WriterProperties::builder()
                         .set_compression(self.config.compression)
                         .build();
-                    let mut writer =
-                        ArrowWriter::try_new(file, self.schema.clone(), Some(props))?;
+                    let mut writer = ArrowWriter::try_new(file, self.schema.clone(), Some(props))?;
                     writer.write(&record_batch)?;
                     writer.close()?;
                     report.partitions_written += 1;
@@ -1214,9 +1211,8 @@ fn find_parquet_files_recursive(root: &Path) -> Result<Vec<PathBuf>> {
             // Use file_type() rather than metadata() so symlinks don't get
             // followed by accident (metadata() resolves symlinks, file_type()
             // doesn't).
-            let ft = match entry.file_type() {
-                Ok(ft) => ft,
-                Err(_) => continue,
+            let Ok(ft) = entry.file_type() else {
+                continue;
             };
             if ft.is_dir() {
                 stack.push(path);
@@ -1602,7 +1598,12 @@ mod tests {
         found.sort();
         assert_eq!(found.len(), 2);
         assert!(
-            found[0].file_name().unwrap().to_str().unwrap().starts_with("events-"),
+            found[0]
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("events-"),
             "expected events-* file, got {found:?}"
         );
     }
@@ -1653,7 +1654,10 @@ mod tests {
 
         let found = find_parquet_files_recursive(root).unwrap();
         assert_eq!(found.len(), 1);
-        assert_eq!(found[0].extension().and_then(|s| s.to_str()), Some("parquet"));
+        assert_eq!(
+            found[0].extension().and_then(|s| s.to_str()),
+            Some("parquet")
+        );
     }
 
     /// Build an event whose tenant_id and entity_id we control, so tests
@@ -1701,7 +1705,11 @@ mod tests {
         assert_eq!(parts[0], "default");
         // yyyy-mm is two digits dash four — loose check, exact month
         // varies with wall-clock at test runtime.
-        assert!(parts[1].len() == 7 && parts[1].as_bytes()[4] == b'-', "expected yyyy-mm, got {}", parts[1]);
+        assert!(
+            parts[1].len() == 7 && parts[1].as_bytes()[4] == b'-',
+            "expected yyyy-mm, got {}",
+            parts[1]
+        );
         assert!(parts[2].starts_with("events-") && parts[2].ends_with(".parquet"));
 
         let loaded = storage.load_all_events().unwrap();
@@ -1716,10 +1724,14 @@ mod tests {
         let storage = ParquetStorage::new(temp_dir.path()).unwrap();
 
         for i in 0..2 {
-            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("alice", &format!("a-{i}")))
+                .unwrap();
         }
         for i in 0..3 {
-            storage.append_event(event_with_tenant("bob", &format!("b-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("bob", &format!("b-{i}")))
+                .unwrap();
         }
         storage.flush().unwrap();
 
@@ -1736,13 +1748,14 @@ mod tests {
         // Loaded events keep their tenant_id — round-trip preserves which
         // tenant each event belonged to.
         let loaded = storage.load_all_events().unwrap();
-        let (alice_count, bob_count) = loaded.iter().fold((0, 0), |(a, b), e| {
-            match e.tenant_id_str() {
-                "alice" => (a + 1, b),
-                "bob" => (a, b + 1),
-                _ => (a, b),
-            }
-        });
+        let (alice_count, bob_count) =
+            loaded
+                .iter()
+                .fold((0, 0), |(a, b), e| match e.tenant_id_str() {
+                    "alice" => (a + 1, b),
+                    "bob" => (a, b + 1),
+                    _ => (a, b),
+                });
         assert_eq!(alice_count, 2);
         assert_eq!(bob_count, 3);
     }
@@ -1753,26 +1766,40 @@ mod tests {
         // flushes; the other tenant keeps its events buffered. Prevents
         // one noisy tenant from causing fragmented writes for everyone.
         let temp_dir = TempDir::new().unwrap();
-        let config = ParquetStorageConfig { batch_size: 5, ..Default::default() };
+        let config = ParquetStorageConfig {
+            batch_size: 5,
+            ..Default::default()
+        };
         let storage = ParquetStorage::with_config(temp_dir.path(), config).unwrap();
 
         // Alice: 5 events → on the 5th, len == batch_size triggers flush
         // which drains all 5. Alice ends empty.
         for i in 0..5 {
-            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("alice", &format!("a-{i}")))
+                .unwrap();
         }
         // Bob: 2 events → still under threshold, stays pending.
         for i in 0..2 {
-            storage.append_event(event_with_tenant("bob", &format!("b-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("bob", &format!("b-{i}")))
+                .unwrap();
         }
 
-        assert_eq!(storage.pending_count(), 2, "only bob's 2 events should be pending");
+        assert_eq!(
+            storage.pending_count(),
+            2,
+            "only bob's 2 events should be pending"
+        );
 
         let parquet_files = find_parquet_files_recursive(temp_dir.path()).unwrap();
         assert_eq!(parquet_files.len(), 1, "only alice should have flushed");
         assert!(
-            parquet_files[0].to_string_lossy().contains(&format!("alice{}", std::path::MAIN_SEPARATOR)),
-            "expected alice partition, got {}", parquet_files[0].display()
+            parquet_files[0]
+                .to_string_lossy()
+                .contains(&format!("alice{}", std::path::MAIN_SEPARATOR)),
+            "expected alice partition, got {}",
+            parquet_files[0].display()
         );
     }
 
@@ -1812,16 +1839,16 @@ mod tests {
     #[test]
     fn test_sanitize_tenant_id_for_path_rejects_unsafe_inputs() {
         for bad in [
-            "",            // empty
-            "..",          // parent traversal
-            ".",           // current dir
-            "foo/bar",     // path separator
-            "foo\\bar",    // windows-style separator
-            "foo bar",     // whitespace
-            "foo\nbar",    // newline
-            "foo\0bar",    // null byte
-            "tenant?",     // shell glob char
-            "tenant*",     // shell glob char
+            "",         // empty
+            "..",       // parent traversal
+            ".",        // current dir
+            "foo/bar",  // path separator
+            "foo\\bar", // windows-style separator
+            "foo bar",  // whitespace
+            "foo\nbar", // newline
+            "foo\0bar", // null byte
+            "tenant?",  // shell glob char
+            "tenant*",  // shell glob char
         ] {
             assert!(
                 sanitize_tenant_id_for_path(bad).is_err(),
@@ -1857,7 +1884,9 @@ mod tests {
         // append accepts whatever tenant_id the event carries — domain
         // construction would normally reject this, but if it slipped
         // through, flush should refuse to derive a path from it.
-        storage.append_event(event_with_tenant("../escape", "e-0")).unwrap();
+        storage
+            .append_event(event_with_tenant("../escape", "e-0"))
+            .unwrap();
         let result = storage.flush();
         assert!(result.is_err(), "flush should reject unsafe tenant_id");
         let msg = format!("{}", result.unwrap_err());
@@ -1881,13 +1910,19 @@ mod tests {
         let storage = ParquetStorage::new(temp_dir.path()).unwrap();
 
         for i in 0..2 {
-            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("alice", &format!("a-{i}")))
+                .unwrap();
         }
         for i in 0..3 {
-            storage.append_event(event_with_tenant("bob", &format!("b-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("bob", &format!("b-{i}")))
+                .unwrap();
         }
         for i in 0..1 {
-            storage.append_event(event_with_tenant("carol", &format!("c-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("carol", &format!("c-{i}")))
+                .unwrap();
         }
         storage.flush().unwrap();
 
@@ -1897,7 +1932,8 @@ mod tests {
             alice_files[0]
                 .to_string_lossy()
                 .contains(&format!("alice{}", std::path::MAIN_SEPARATOR)),
-            "expected alice file, got {}", alice_files[0].display()
+            "expected alice file, got {}",
+            alice_files[0].display()
         );
         // The pruned listing must NOT include any bob/carol files — this
         // is the property Step 2 will rely on to avoid loading every
@@ -1935,10 +1971,14 @@ mod tests {
 
         // Seed only alice so the storage_dir isn't empty (rule out the
         // empty-dir trivial case).
-        storage.append_event(event_with_tenant("alice", "a-0")).unwrap();
+        storage
+            .append_event(event_with_tenant("alice", "a-0"))
+            .unwrap();
         storage.flush().unwrap();
 
-        let files = storage.list_parquet_files_for_tenant("nobody-here").unwrap();
+        let files = storage
+            .list_parquet_files_for_tenant("nobody-here")
+            .unwrap();
         assert!(files.is_empty());
 
         let events = storage.load_events_for_tenant("nobody-here").unwrap();
@@ -2069,7 +2109,9 @@ mod tests {
         // Seed a real parquet via a normal flush, so we have one
         // legit file we don't want to delete.
         for i in 0..2 {
-            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("alice", &format!("a-{i}")))
+                .unwrap();
         }
         storage.flush().unwrap();
         let real_files_before = find_parquet_files_recursive(temp_dir.path()).unwrap();
@@ -2126,7 +2168,9 @@ mod tests {
     /// state.
     fn seed_flat_layout_file(storage: &ParquetStorage, count: usize) -> PathBuf {
         for i in 0..count {
-            storage.append_event(create_test_event(&format!("entity-{i}"))).unwrap();
+            storage
+                .append_event(create_test_event(&format!("entity-{i}")))
+                .unwrap();
         }
         storage.flush().unwrap();
 
@@ -2169,7 +2213,10 @@ mod tests {
         assert_eq!(report.events_migrated, 7);
         assert_eq!(report.flat_files_removed, 0);
         assert_eq!(report.partitions_written, 0);
-        assert!(flat.is_file(), "flat file must still be present after dry run");
+        assert!(
+            flat.is_file(),
+            "flat file must still be present after dry run"
+        );
     }
 
     #[test]
@@ -2184,12 +2231,19 @@ mod tests {
         assert_eq!(report.flat_files_removed, 1);
         assert_eq!(report.events_migrated, 5);
         assert!(report.partitions_written >= 1);
-        assert!(!flat.exists(), "flat file should be deleted after migration");
+        assert!(
+            !flat.exists(),
+            "flat file should be deleted after migration"
+        );
 
         let post = find_parquet_files_recursive(temp_dir.path()).unwrap();
         assert!(
             post.iter().all(|p| {
-                let rel = p.strip_prefix(temp_dir.path()).unwrap().to_string_lossy().into_owned();
+                let rel = p
+                    .strip_prefix(temp_dir.path())
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned();
                 rel.starts_with(&format!("default{}", std::path::MAIN_SEPARATOR))
             }),
             "all migrated files should be under default/"
@@ -2227,7 +2281,9 @@ mod tests {
         let storage = ParquetStorage::new(temp_dir.path()).unwrap();
 
         for i in 0..3 {
-            storage.append_event(event_with_tenant("alice", &format!("a-{i}"))).unwrap();
+            storage
+                .append_event(event_with_tenant("alice", &format!("a-{i}")))
+                .unwrap();
         }
         storage.flush().unwrap();
 
@@ -2242,8 +2298,14 @@ mod tests {
 
         let loaded = storage.load_all_events().unwrap();
         assert_eq!(loaded.len(), 5);
-        let alice_count = loaded.iter().filter(|e| e.tenant_id_str() == "alice").count();
-        let default_count = loaded.iter().filter(|e| e.tenant_id_str() == "default").count();
+        let alice_count = loaded
+            .iter()
+            .filter(|e| e.tenant_id_str() == "alice")
+            .count();
+        let default_count = loaded
+            .iter()
+            .filter(|e| e.tenant_id_str() == "default")
+            .count();
         assert_eq!(alice_count, 3);
         assert_eq!(default_count, 2);
     }
