@@ -215,8 +215,8 @@ export const siteConfig = {
     {
       title: "Platform",
       links: [
-        { href: "#", text: "Event Store", icon: null },
-        { href: "#", text: "Stream Processing", icon: null },
+        { href: "/platform/event-sourcing", text: "Event Store", icon: null },
+        { href: "/platform/stream-processing", text: "Stream Processing", icon: null },
         { href: "/docs/mcp", text: "MCP Server", icon: null },
         { href: "/docs", text: "Documentation", icon: null },
       ],
@@ -226,15 +226,15 @@ export const siteConfig = {
       links: [
         { href: "/docs", text: "Getting Started", icon: null },
         { href: "/docs/api", text: "API Reference", icon: null },
-        { href: "#", text: "SDKs", icon: null },
-        { href: "#", text: "Examples", icon: null },
+        { href: "/sdks", text: "SDKs", icon: null },
+        { href: "/examples", text: "Examples", icon: null },
         { href: "/changelog", text: "Changelog", icon: null },
       ],
     },
     {
       title: "Company",
       links: [
-        { href: "#", text: "About", icon: null },
+        { href: "/about", text: "About", icon: null },
         { href: "/blog", text: "Blog", icon: null },
         { href: "/status", text: "Status", icon: null },
         { href: "/privacy", text: "Privacy Policy", icon: null },
