@@ -190,17 +190,15 @@ impl ParquetStorage {
             size_flushes: AtomicU64::new(0),
         };
 
-        // Boot-time crash recovery (Step 4 of the sustainable data
-        // strategy): clean up any leftover *.parquet.tmp files from
-        // a snapshot write that crashed mid-rename. Safe to delete
-        // unconditionally — the constituent raw files are still on
-        // disk (the snapshot pipeline deletes them only AFTER the
-        // rename succeeds).
+        // Boot-time crash recovery: heal *.parquet.tmp files from
+        // crashed atomic writes (snapshot/compaction or, post-#166-fix,
+        // checkpoint flushes) and quarantine any 0-byte *.parquet files
+        // left over from pre-fix checkpoint crashes (issue #166).
         match storage.cleanup_partial_writes() {
             Ok(0) => {}
             Ok(n) => tracing::warn!(
-                "cleaned up {n} orphan snapshot tmp file(s) on boot — \
-                 a previous run crashed mid-snapshot"
+                "cleanup_partial_writes acted on {n} crash-detritus file(s) on boot — \
+                 see preceding logs for per-file detail"
             ),
             Err(e) => tracing::error!("cleanup_partial_writes failed on boot: {e}"),
         }
@@ -353,6 +351,13 @@ impl ParquetStorage {
     /// pre-tenant filename's timestamp semantics) rather than from
     /// individual event timestamps — keeps each flush to a single output
     /// file even when buffered events span months.
+    ///
+    /// The file is written atomically via `write_record_batch_atomic`:
+    /// crash mid-write leaves a `.parquet.tmp` file (cleaned on next boot)
+    /// rather than a 0-byte `.parquet` file with the final name. Issue
+    /// #166 — pre-fix, a SIGKILL inside this function bricked subsequent
+    /// loads because `load_all_events` aborted on the first unreadable
+    /// file.
     fn flush_tenant(&self, tenant_id: &str) -> Result<()> {
         let events_to_write = {
             let mut batches = self.current_batches.lock().unwrap();
@@ -375,31 +380,22 @@ impl ParquetStorage {
                 partition_dir.display()
             ))
         })?;
-        let filename = format!(
-            "events-{}-{}.parquet",
+        let file_stem = format!(
+            "events-{}-{}",
             now.format("%Y%m%d-%H%M%S%3f"),
             uuid::Uuid::new_v4().as_simple()
         );
-        let file_path = partition_dir.join(&filename);
 
         tracing::info!(
-            "Flushing {} events for tenant={} to {}",
+            "Flushing {} events for tenant={} to {}/{}.parquet",
             batch_count,
             tenant_id,
-            file_path.display()
+            partition_dir.display(),
+            file_stem
         );
 
-        let file = File::create(&file_path).map_err(|e| {
-            AllSourceError::StorageError(format!("Failed to create parquet file: {e}"))
-        })?;
-
-        let props = WriterProperties::builder()
-            .set_compression(self.config.compression)
-            .build();
-
-        let mut writer = ArrowWriter::try_new(file, self.schema.clone(), Some(props))?;
-        writer.write(&record_batch)?;
-        let file_metadata = writer.close()?;
+        let (file_path, file_metadata) =
+            self.write_record_batch_atomic(&partition_dir, &file_stem, &record_batch)?;
 
         let duration = start.elapsed();
 
@@ -430,6 +426,82 @@ impl ParquetStorage {
         );
 
         Ok(())
+    }
+
+    /// Write a single record batch atomically to
+    /// `<partition_dir>/<file_stem>.parquet`, returning the final path
+    /// and the parquet writer's metadata (used for byte-size metrics by
+    /// the checkpoint flush path).
+    ///
+    /// Crash-safety contract — same four steps as `write_atomic_parquet`:
+    /// 1. Write to `<final_path>.tmp` first.
+    /// 2. fsync the .tmp file so the data is durably on disk.
+    /// 3. Rename `.tmp` → final name (atomic POSIX rename).
+    /// 4. fsync the parent directory so the rename survives crash.
+    ///
+    /// Caller is responsible for choosing `partition_dir` (and creating
+    /// it). On any failure mid-way, the `.tmp` file gets cleaned up by
+    /// `cleanup_partial_writes` on next boot. The final file appears
+    /// atomically — readers either see the old state (no file) or the
+    /// complete new file, never a half-written one.
+    fn write_record_batch_atomic(
+        &self,
+        partition_dir: &Path,
+        file_stem: &str,
+        record_batch: &RecordBatch,
+    ) -> Result<(PathBuf, parquet::file::metadata::ParquetMetaData)> {
+        let final_path = partition_dir.join(format!("{file_stem}.parquet"));
+        let tmp_path = partition_dir.join(format!("{file_stem}.parquet.tmp"));
+
+        // 1. Write to .tmp.
+        let metadata = {
+            let file = File::create(&tmp_path).map_err(|e| {
+                AllSourceError::StorageError(format!(
+                    "Failed to create parquet tmp file {}: {e}",
+                    tmp_path.display()
+                ))
+            })?;
+
+            let props = WriterProperties::builder()
+                .set_compression(self.config.compression)
+                .build();
+
+            let mut writer = ArrowWriter::try_new(file, self.schema.clone(), Some(props))?;
+            writer.write(record_batch)?;
+            // close() consumes writer and returns the file metadata; the
+            // underlying File is flushed and closed here.
+            writer.close()?
+        };
+
+        // 2. fsync the .tmp file.
+        let tmp_file = File::open(&tmp_path).map_err(|e| {
+            AllSourceError::StorageError(format!(
+                "Failed to reopen parquet tmp for fsync {}: {e}",
+                tmp_path.display()
+            ))
+        })?;
+        tmp_file.sync_all().map_err(|e| {
+            AllSourceError::StorageError(format!("fsync on parquet tmp failed: {e}"))
+        })?;
+        drop(tmp_file);
+
+        // 3. Atomic rename.
+        fs::rename(&tmp_path, &final_path).map_err(|e| {
+            AllSourceError::StorageError(format!(
+                "Failed to rename {} → {}: {e}",
+                tmp_path.display(),
+                final_path.display()
+            ))
+        })?;
+
+        // 4. fsync the parent directory so the rename survives crash.
+        // Linux fsync-on-dir is the canonical way to make a rename
+        // durable; macOS no-ops the dir fsync but doesn't error.
+        if let Ok(dir) = File::open(partition_dir) {
+            let _ = dir.sync_all();
+        }
+
+        Ok((final_path, metadata))
     }
 
     /// Atomically write `events` to a Parquet file under the tenant's
@@ -483,58 +555,9 @@ impl ParquetStorage {
             ))
         })?;
 
-        let final_path = partition_dir.join(format!("{file_stem}.parquet"));
-        let tmp_path = partition_dir.join(format!("{file_stem}.parquet.tmp"));
-
-        // 1. Build the Arrow batch and write to .tmp.
         let record_batch = self.events_to_record_batch(events)?;
-        {
-            let file = File::create(&tmp_path).map_err(|e| {
-                AllSourceError::StorageError(format!(
-                    "Failed to create snapshot tmp file {}: {e}",
-                    tmp_path.display()
-                ))
-            })?;
-
-            let props = WriterProperties::builder()
-                .set_compression(self.config.compression)
-                .build();
-
-            let mut writer = ArrowWriter::try_new(file, self.schema.clone(), Some(props))?;
-            writer.write(&record_batch)?;
-            // close() consumes writer and returns the file metadata; the
-            // underlying File is flushed and closed here. Take the file
-            // back out for fsync.
-            let _meta = writer.close()?;
-        }
-
-        // 2. fsync the .tmp file.
-        let tmp_file = File::open(&tmp_path).map_err(|e| {
-            AllSourceError::StorageError(format!(
-                "Failed to reopen snapshot tmp for fsync {}: {e}",
-                tmp_path.display()
-            ))
-        })?;
-        tmp_file.sync_all().map_err(|e| {
-            AllSourceError::StorageError(format!("fsync on snapshot tmp failed: {e}"))
-        })?;
-        drop(tmp_file);
-
-        // 3. Atomic rename.
-        fs::rename(&tmp_path, &final_path).map_err(|e| {
-            AllSourceError::StorageError(format!(
-                "Failed to rename {} → {}: {e}",
-                tmp_path.display(),
-                final_path.display()
-            ))
-        })?;
-
-        // 4. fsync the parent directory so the rename survives crash.
-        // Linux fsync-on-dir is the canonical way to make a rename
-        // durable; macOS no-ops the dir fsync but doesn't error.
-        if let Ok(dir) = File::open(&partition_dir) {
-            let _ = dir.sync_all();
-        }
+        let (final_path, _meta) =
+            self.write_record_batch_atomic(&partition_dir, file_stem, &record_batch)?;
 
         tracing::info!(
             tenant_id = tenant_id,
@@ -546,21 +569,30 @@ impl ParquetStorage {
         Ok(final_path)
     }
 
-    /// Sweep the storage tree for any leftover `*.parquet.tmp` files
-    /// — crash detritus from a snapshot write that didn't complete
-    /// the rename. Called on boot from `ParquetStorage::new` so
-    /// every cold start starts clean.
+    /// Sweep the storage tree for crash detritus and heal it on boot.
+    /// Called on boot from `ParquetStorage::new` so every cold start
+    /// starts clean. Two kinds of leftovers are handled:
     ///
-    /// Safe to delete unconditionally: `write_atomic_parquet`'s
-    /// rename-after-fsync contract means the only way a `.tmp` file
-    /// survives is if Core died between fsync and rename. The events
-    /// in that file are still in the constituent raw files (the
-    /// caller deletes those AFTER the rename succeeds), so the data
-    /// isn't lost — we just need to retry the snapshot.
+    /// 1. **`*.parquet.tmp` files** — a snapshot or flush write that
+    ///    crashed between fsync and rename. Safe to delete: the data is
+    ///    either still in the WAL (for checkpoint flushes) or in the
+    ///    constituent raw files (for snapshot/compaction, which only
+    ///    deletes the inputs AFTER the rename succeeds). Either way, the
+    ///    failed write will be retried.
     ///
-    /// Returns the count of files deleted, for observability.
+    /// 2. **0-byte `*.parquet` files** — issue #166. Pre-fix releases
+    ///    (≤ 0.20.0 for the checkpoint path) wrote directly to the
+    ///    final filename, so SIGKILL between `File::create` and the
+    ///    first flush left a 0-byte `events-*.parquet` that bricked
+    ///    every subsequent load. Rather than delete, we rename to
+    ///    `<original>.parquet.corrupt-<unix-ts>` so an operator can
+    ///    inspect/forensicate before destroying the evidence — most
+    ///    will just `rm` after seeing the size.
+    ///
+    /// Returns the total number of files acted on, for boot-log
+    /// observability.
     pub fn cleanup_partial_writes(&self) -> Result<usize> {
-        let mut deleted = 0usize;
+        let mut acted = 0usize;
         let mut stack: Vec<PathBuf> = vec![self.storage_dir.clone()];
         while let Some(dir) = stack.pop() {
             let Ok(entries) = fs::read_dir(&dir) else {
@@ -571,14 +603,20 @@ impl ParquetStorage {
                 let Ok(ft) = entry.file_type() else { continue };
                 if ft.is_dir() {
                     stack.push(path);
-                } else if ft.is_file() && path.to_string_lossy().ends_with(".parquet.tmp") {
+                    continue;
+                }
+                if !ft.is_file() {
+                    continue;
+                }
+                let path_str = path.to_string_lossy();
+                if path_str.ends_with(".parquet.tmp") {
                     match fs::remove_file(&path) {
                         Ok(()) => {
                             tracing::warn!(
                                 file = %path.display(),
                                 "cleaned up orphan snapshot tmp file (crash recovery)"
                             );
-                            deleted += 1;
+                            acted += 1;
                         }
                         Err(e) => {
                             tracing::error!(
@@ -587,10 +625,35 @@ impl ParquetStorage {
                             );
                         }
                     }
+                } else if path_str.ends_with(".parquet")
+                    && fs::metadata(&path).is_ok_and(|m| m.len() == 0)
+                {
+                    // Issue #166: pre-fix checkpoint write left a 0-byte
+                    // .parquet file with the final name on crash. Quarantine
+                    // (rename) rather than delete — operator can inspect.
+                    let ts = chrono::Utc::now().timestamp();
+                    let quarantine_path = path.with_extension(format!("parquet.corrupt-{ts}"));
+                    match fs::rename(&path, &quarantine_path) {
+                        Ok(()) => {
+                            tracing::error!(
+                                from = %path.display(),
+                                to = %quarantine_path.display(),
+                                "quarantined 0-byte parquet file (issue #166 pre-fix crash). \
+                                 Operator: inspect and rm if not needed."
+                            );
+                            acted += 1;
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                file = %path.display(),
+                                "failed to quarantine 0-byte parquet file: {e}"
+                            );
+                        }
+                    }
                 }
             }
         }
-        Ok(deleted)
+        Ok(acted)
     }
 
     /// Force flush any remaining events (for shutdown handling).
@@ -721,14 +784,38 @@ impl ParquetStorage {
         let parquet_files = find_parquet_files_recursive(&self.storage_dir)?;
 
         let mut all_events = Vec::with_capacity(parquet_files.len() * self.config.batch_size);
+        let mut skipped = 0usize;
         for file_path in parquet_files {
             tracing::info!("Loading events from {}", file_path.display());
             let tenant_id = tenant_id_from_path(&self.storage_dir, &file_path);
-            let file_events = self.load_events_from_file(&file_path, &tenant_id)?;
-            all_events.extend(file_events);
+            // Issue #166: a single corrupt/0-byte parquet file (crash mid-write
+            // on pre-fix releases) would propagate up and abort the whole load,
+            // bricking access to every healthy file alongside it. Log and skip
+            // instead so one bad file can't take the rest down.
+            match self.load_events_from_file(&file_path, &tenant_id) {
+                Ok(file_events) => all_events.extend(file_events),
+                Err(e) => {
+                    tracing::error!(
+                        file = %file_path.display(),
+                        error = %e,
+                        "Skipping unreadable parquet file — other files will still load. \
+                         Likely a 0-byte or truncated file from an unclean shutdown; \
+                         inspect and remove manually after confirming."
+                    );
+                    skipped += 1;
+                }
+            }
         }
 
-        tracing::info!("Loaded {} total events from storage", all_events.len());
+        if skipped > 0 {
+            tracing::warn!(
+                "Loaded {} events from storage; skipped {} unreadable file(s)",
+                all_events.len(),
+                skipped
+            );
+        } else {
+            tracing::info!("Loaded {} total events from storage", all_events.len());
+        }
 
         Ok(all_events)
     }
@@ -908,19 +995,35 @@ impl ParquetStorage {
         );
 
         let mut events = Vec::with_capacity(parquet_files.len() * self.config.batch_size);
+        let mut skipped = 0usize;
         for file_path in parquet_files {
             tracing::debug!(
                 tenant_id = tenant_id,
                 file = %file_path.display(),
                 "load_events_for_tenant: opening file"
             );
-            let file_events = self.load_events_from_file(&file_path, tenant_id)?;
-            events.extend(file_events);
+            // Issue #166: same defensive log-and-skip as load_all_events.
+            // The lazy-load path can hit a corrupt file just as easily as
+            // boot can — failing the whole tenant load on one bad file
+            // would brick every query for that tenant.
+            match self.load_events_from_file(&file_path, tenant_id) {
+                Ok(file_events) => events.extend(file_events),
+                Err(e) => {
+                    tracing::error!(
+                        tenant_id = tenant_id,
+                        file = %file_path.display(),
+                        error = %e,
+                        "Skipping unreadable parquet file in tenant subtree"
+                    );
+                    skipped += 1;
+                }
+            }
         }
 
         tracing::info!(
             tenant_id = tenant_id,
             event_count = events.len(),
+            skipped_files = skipped,
             "load_events_for_tenant: complete"
         );
         Ok(events)
@@ -2138,6 +2241,163 @@ mod tests {
         // Real parquet untouched.
         let real_files_after = find_parquet_files_recursive(temp_dir.path()).unwrap();
         assert_eq!(real_files_after, real_files_before);
+    }
+
+    #[test]
+    fn test_cleanup_partial_writes_quarantines_zero_byte_parquet() {
+        // Issue #166 regression: a pre-fix checkpoint crash left a 0-byte
+        // events-*.parquet file with the FINAL extension (no .tmp). The
+        // cleanup pass must rename it aside rather than delete, so an
+        // operator can inspect.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        // Seed a real parquet alongside, to confirm we don't molest healthy data.
+        for i in 0..2 {
+            storage
+                .append_event(event_with_tenant("alice", &format!("a-{i}")))
+                .unwrap();
+        }
+        storage.flush().unwrap();
+        let healthy_files_before = find_parquet_files_recursive(temp_dir.path()).unwrap();
+        assert_eq!(healthy_files_before.len(), 1);
+        let healthy_file = &healthy_files_before[0];
+        let healthy_dir = healthy_file.parent().unwrap();
+
+        // Drop a 0-byte parquet next to the healthy one (the issue's failure mode).
+        let bricked = healthy_dir.join("events-bricked-deadbeef.parquet");
+        std::fs::write(&bricked, b"").unwrap();
+        assert_eq!(std::fs::metadata(&bricked).unwrap().len(), 0);
+
+        let acted = storage.cleanup_partial_writes().unwrap();
+        assert_eq!(acted, 1, "only the 0-byte file should have been acted on");
+
+        // 0-byte file is gone from its original name, but a quarantined
+        // sibling exists.
+        assert!(!bricked.exists(), "0-byte file should have been renamed");
+        let quarantined: Vec<_> = std::fs::read_dir(healthy_dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("events-bricked-deadbeef.parquet.corrupt-"))
+            })
+            .collect();
+        assert_eq!(
+            quarantined.len(),
+            1,
+            "expected one .parquet.corrupt-<ts> sibling"
+        );
+
+        // Healthy file untouched.
+        assert!(
+            healthy_file.exists(),
+            "healthy parquet must not be molested"
+        );
+    }
+
+    #[test]
+    fn test_load_all_events_skips_zero_byte_parquet() {
+        // Issue #166 defensive layer: a single bad file must not abort
+        // the whole load. With t-d8b1's match-and-continue, the healthy
+        // events still come back and the bad file is logged-and-skipped.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        // Two healthy events, flushed.
+        for i in 0..2 {
+            storage
+                .append_event(event_with_tenant("alice", &format!("a-{i}")))
+                .unwrap();
+        }
+        storage.flush().unwrap();
+
+        // Now drop a 0-byte parquet alongside (sneaking it in AFTER
+        // construction so cleanup_partial_writes doesn't rename it
+        // before we get to test the load path).
+        let healthy_files = find_parquet_files_recursive(temp_dir.path()).unwrap();
+        let bricked = healthy_files[0]
+            .parent()
+            .unwrap()
+            .join("events-bricked-cafef00d.parquet");
+        std::fs::write(&bricked, b"").unwrap();
+
+        let loaded = storage.load_all_events().unwrap();
+        assert_eq!(
+            loaded.len(),
+            2,
+            "all healthy events should still load despite the 0-byte file"
+        );
+    }
+
+    #[test]
+    fn test_load_events_for_tenant_skips_zero_byte_parquet() {
+        // Same defensive layer for the lazy-load path. A bad file in
+        // the tenant subtree must not poison subsequent queries.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        for i in 0..3 {
+            storage
+                .append_event(event_with_tenant("alice", &format!("a-{i}")))
+                .unwrap();
+        }
+        storage.flush().unwrap();
+
+        let healthy = find_parquet_files_recursive(temp_dir.path()).unwrap();
+        let bricked = healthy[0]
+            .parent()
+            .unwrap()
+            .join("events-bricked-feedface.parquet");
+        std::fs::write(&bricked, b"").unwrap();
+
+        let events = storage.load_events_for_tenant("alice").unwrap();
+        assert_eq!(events.len(), 3, "lazy load must skip the 0-byte file");
+    }
+
+    #[test]
+    fn test_flush_tenant_leaves_no_zero_byte_parquet_after_normal_flush() {
+        // Direct verification of t-c1d3: a successful flush_tenant
+        // leaves exactly one healthy *.parquet — no .tmp survivors,
+        // no 0-byte files.
+        let temp_dir = TempDir::new().unwrap();
+        let storage = ParquetStorage::new(temp_dir.path()).unwrap();
+
+        for i in 0..5 {
+            storage
+                .append_event(event_with_tenant("alice", &format!("a-{i}")))
+                .unwrap();
+        }
+        storage.flush().unwrap();
+
+        let mut tmp_count = 0;
+        let mut zero_byte_count = 0;
+        let mut healthy_count = 0;
+        let mut stack = vec![temp_dir.path().to_path_buf()];
+        while let Some(d) = stack.pop() {
+            for entry in std::fs::read_dir(&d).unwrap().flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    stack.push(p);
+                    continue;
+                }
+                let name = p.file_name().unwrap().to_string_lossy().into_owned();
+                if name.ends_with(".parquet.tmp") {
+                    tmp_count += 1;
+                } else if name.ends_with(".parquet") {
+                    if std::fs::metadata(&p).unwrap().len() == 0 {
+                        zero_byte_count += 1;
+                    } else {
+                        healthy_count += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(tmp_count, 0, ".parquet.tmp survivors after flush");
+        assert_eq!(zero_byte_count, 0, "0-byte .parquet survivors after flush");
+        assert_eq!(healthy_count, 1, "expected exactly one healthy parquet");
     }
 
     #[test]
