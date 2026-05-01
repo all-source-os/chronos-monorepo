@@ -4,8 +4,6 @@ import { buttonVariants, cn, Section } from "@allsource/ui";
 import { ChevronRight, Key, Shield, Terminal, Users } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
 
 const codeOnboard = `# Self-service onboard — no bootstrap key needed, no admin access
 # Creates a tenant + API key in one call
@@ -107,9 +105,7 @@ function CodeBlock({ title, code }: { title: string; code: string }) {
 
 export default function TenantSetupPage() {
   return (
-    <>
-      <Header />
-      <main className="pt-24">
+    <div className="pt-24">
         {/* Hero */}
         <Section className="pb-8">
           <motion.div
@@ -328,8 +324,6 @@ export default function TenantSetupPage() {
             </Link>
           </div>
         </Section>
-      </main>
-      <Footer />
-    </>
+    </div>
   );
 }

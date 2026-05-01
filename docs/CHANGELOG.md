@@ -4,6 +4,269 @@ All notable changes to AllSource Chronos are documented here.
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-04-30
+
+### Fixed
+
+- **Parquet checkpoint write is now atomic** (#166) — `ParquetStorage` writes new
+  checkpoints as `<file>.tmp`, fsyncs the file, renames into place, then fsyncs
+  the parent directory. Eliminates the failure mode where a 0-byte `*.parquet`
+  file left by a crashed/killed write would brick subsequent loads.
+- **Defensive checkpoint load** — `load_all_events` and `load_events_for_tenant`
+  log and skip per-file errors instead of aborting the whole boot. A single
+  corrupt checkpoint can no longer take the store offline.
+- **Boot-time quarantine** — `cleanup_partial_writes` now also detects 0-byte
+  `*.parquet` files and renames them to `<orig>.parquet.corrupt-<unix-ts>` so
+  operators can recover/inspect them without blocking startup.
+- 4 new regression tests cover the atomic write, partial-rename behaviour, and
+  the corrupt-quarantine path.
+
+## [0.20.0] - 2026-04-28
+
+### Added
+
+#### Per-tenant data strategy (Core)
+
+- **Tenant-partitioned on-disk layout** — events are written to
+  `data/<tenant>/...` instead of a single flat tree. New `TenantPath` encoding
+  threads tenant identity through every read/write.
+- **One-shot flat → tenant migration tool** plus a Fly entrypoint hook that
+  applies the migration on first boot of a v0.20.x container.
+- **Lazy tenant loading** — boot is now O(1). `TenantLoader` +
+  `ensure_tenant_loaded` singleflight pulls a tenant's checkpoints into the
+  in-memory cache on first query rather than at startup.
+- **LRU + memory-budget cache eviction** — per-tenant memory tracking, evict
+  on budget pressure, explicit `evict_tenant` API. Multi-tenant stress test
+  added.
+- **Per-tenant snapshot compaction** with per-tenant retention TTL applied
+  during compaction.
+- **Bounded WAL replay** — runtime checkpoint loop bounds replay work after a
+  crash.
+- **Cold-tier archive trait** with a local-filesystem backend, ready for S3/GCS
+  backends to be plugged in.
+
+#### Regional independence
+
+- `home_region` tenant attribute + tenant-pinned routing in Control Plane
+  (Steps 1+2 of the active-active proposal). Design doc:
+  `docs/proposals/regional-independence-tenant-pinned-active-active.md`.
+
+#### Auth
+
+- **`better-auth-allsource` 0.14.5 published to crates.io** — switches the
+  client from `X-API-Key` to `Authorization: Bearer`, unblocking customers
+  whose Control Plane traffic was 401-ing.
+
+### Changed
+
+- Web: blog card padding between cover image and meta row.
+- Web: `react` / `@types/react` versions pinned to fix the admin Vercel build.
+
+### Internal
+
+- 22 Rust clippy fixes across persistence (cast_lossless, manual_let_else,
+  doc_list_indent, redundant closures, etc.); 2 Go gosec/errcheck nolint
+  annotations for known-safe paths.
+
+## [0.19.2] - 2026-04-17
+
+### Added
+
+- **Event-sourced status page** — Control Plane heartbeat monitoring replaces
+  Vigil. Web reads the event-sourced feed at `/status`.
+- **Custom domain mapping** — `api.all-source.xyz` documented in the runbook.
+- Control Plane data-plane delegation layer for chronis + SDK traffic, with
+  per-request JWT minting and a cache for locally-minted `ask_` keys.
+- Catch-all Prime delegation route on Control Plane.
+
+### Changed
+
+- **Core is internal-only** — gateway-first tenant resolution, narrower auth
+  surface. Public auth always terminates at Control Plane.
+- chronis default remote URL now points at `api.all-source.xyz`.
+
+### Fixed
+
+- chronis: URL-encode `since=` timestamp in sync HTTP client.
+- Core/Prime: Fly internal-network compatibility.
+- Web: dashboard API-key UX cleanup; status link added.
+- Build: `set-version` regex handles 3-segment versions; Docker stubs
+  `sdks/rust/examples/asset_projection.rs` to keep the Core image lean.
+
+## [0.19.1] - 2026-04-17
+
+### Added
+
+- **Rust SDK `ProjectionWorker`** (#155) — full projection lifecycle in the
+  client: `EventStreamClient` over Core's WebSocket, `ProjectionWorker` builder
+  + event loop, `ProjectionHandle` (start/stop/reconnect), state push-back to
+  Core KV, integration tests against a live Core, and an `asset_projection`
+  example. New `ws` and `projection-worker` feature flags.
+- Custom-projections use-case guide (`docs/use-cases/custom-projections.md`).
+- Reference x402 endpoint at `/api/v1/agent-echo`; Pro-tier gate applied to
+  `AgentAutoPayMiddleware`.
+
+### Changed
+
+- **Pro tier wired across Control Plane, Core, Query Service.** Query Service
+  `subscription_tier` enum aligned with `tenant.ex`.
+- Web is on Vercel, not Fly — `apps/web/fly.toml` removed; CLAUDE.md and skills
+  updated to reflect the actual deployment topology.
+- Codified SDK-only release tag convention: `sdk-<lang>-v<version>` rather than
+  whole-monorepo `v<version>`.
+
+### Fixed
+
+- Control Plane: whitelist `/x402/*` paths in `AuthMiddleware`; set short
+  `tenant_id` context key alongside the long form.
+
+> **Note:** v0.19.0 is reserved for `sdk-rust-v0.19.0`, the SDK-only release
+> that introduced `ProjectionWorker`. The monorepo went v0.18.2 → v0.19.1.
+
+## [0.18.2] - 2026-04-14
+
+### Changed
+
+- Drop `x86_64-apple-darwin` from the Prime binary build matrix.
+- Proposal #130: PRD for read-only Core against a foreign data directory.
+
+## [0.18.1] - 2026-04-14
+
+### Fixed
+
+- Prime binary build: x86_64-apple-darwin target install step.
+
+## [0.18.0] - 2026-04-14
+
+### Added
+
+- **Live reload for chronis TUI and web** — WebSocket-based, with in-process
+  and WAL-tail backends.
+- `ALLSOURCE_AUTH_DISABLED` alias for local auth-free mode (Core).
+- Control Plane `ADMIN_EMAILS` allowlist grants `RoleAdmin` in signed JWTs.
+
+### Fixed
+
+- Core: validate paths at trust boundaries to prevent traversal.
+- MCP: clear error when `CORE_MODE=embedded` runs on a remote build.
+- MCP embedded transport: add Content-Length framing; harden WAL replay
+  (#144).
+- Blog: sanitize slug to prevent path traversal; upgrade undici to 8.x (#143).
+- Auth: returning-user login no longer fails with `tenant-already-exists`;
+  preserve auth header on redirects; fix web proxy path prefix.
+- Control Plane: derive tenant ID from email so Core accepts it.
+- UX: lead with Prime / agent memory throughout the marketing site.
+
+## [0.17.3] - 2026-03-30
+
+### Added
+
+#### x402 + agent payments
+
+- **Self-hosted x402 facilitator** with verify/settle and nonce replay
+  protection (US-004).
+- **CDP auto-pay** + remote facilitator that delegates to Coinbase by default.
+- x402 payment middleware for gin routes (US-005); MCP x402 transport, quota
+  gate, agent payments API, `QueryEvents` (US-005, 008, 009, 010).
+- Quota-gated x402 flow — free tier first, pay-per-use on overflow (US-008).
+- Agent self-registration endpoint + clean-architecture refactor on Control
+  Plane.
+
+#### Tenant isolation hardening
+
+- Enforce `tenant_id` filtering in the event store query engine (security
+  fix); verified end-to-end on signup + sync pagination (#128 prerequisite).
+- `OptionalAuth` extractor used for tenant enforcement; `State` extractor moved
+  to last position.
+
+#### Self-service
+
+- `allsource-onboard` skill for account + sync setup.
+- v1.0 roadmap with rock/sand/water estimates; self-service onboarding gap
+  analysis covering tenant isolation, auth, billing, and pagination.
+
+## [0.17.2] - 2026-03-26
+
+### Added
+
+- **Event-sourced billing via Core**, with billing architecture docs.
+- **better-auth service** with AllSource adapter — full auth migration (Rust +
+  AllSource, no Postgres needed).
+- Embedded Prime integration guide.
+- `fly-status` skill for Fly.io deployment health reports.
+
+### Changed
+
+- Query Service: remove LemonSqueezy billing code (now owned by Control
+  Plane).
+- Admin: match web login styling — DotPattern + BlurFade.
+- TS 6.0 compat: remove deprecated `baseUrl` from web/admin/ui tsconfigs.
+- Bump Elixir 1.17 → 1.18 across CI, Dockerfiles, and the security workflow.
+
+### Fixed
+
+- SEO: `robots.txt`, sitemap, canonical URLs, metadata; refresh stale stats.
+- Web: OG edge function size limit; turbo env-var warning.
+- Security: bump grpc and undici for CVEs (#126, #124).
+- E2E: API Keys dialog button unreachable — testid + scrollable card.
+- chronis: v0.6.2 — sync no longer un-archives beads (#125).
+
+## [0.17.1] - 2026-03-24
+
+### Fixed
+
+- MCP auth fix (#109).
+- Go SDK Go 1.26 compatibility (#116).
+- CSP headers (#123).
+- Web: demo login broken — proxy `/api/v1/demo/start` to Control Plane;
+  Recharts v3 Tooltip formatter type; TS2532 in onboarding test.
+- CI: Prime added to Docker Build and Release workflows; ignore transitive
+  dep advisories in security scan.
+
+### Added
+
+- Recall-bench improvements + benchmark results.
+- Media production and SEO checklist for marketing readiness.
+
+## [0.17.0] - 2026-03-23
+
+### Added
+
+#### AllSource Prime — unified agent memory engine
+
+- **Prime**: graph store + vector index + temporal recall, served as MCP
+  tools and over HTTP. New `apps/prime-mcp` workspace.
+- **Prime ecosystem integration**: CI, Docker, Core HTTP proxy.
+- **Web Demo Zone**: Prime Interactive Playground.
+- Full Prime documentation, blog posts, marketing pages, and deployment
+  config.
+
+### Changed
+
+- chronis v0.6.0: HTTP sync, remote mode, `CoreBackend` abstraction.
+- chronis v0.6.1: UTF-8 truncation panic fix; API key auth for sync.
+- chronis v0.5.3: adapt to allsource-core 0.16.0 API change.
+- Workspace: `unsafe_code = "deny"` lint, dep cleanup.
+
+### Fixed
+
+- Query Service: Elixir tests fail in community mode.
+- Rust: clippy lint fixes for `core_nif`, SDK client, and SDK tests.
+- Prime Dockerfile: copies workspace root for dependency resolution; uses
+  `rust:slim` runtime base to match glibc version.
+
+## [0.16.0] - 2026-03-14
+
+### Added
+
+- **Open-core licensing** with feature gating and dual Docker builds (community
+  vs. enterprise).
+- `allsource-mcp` prepared for crates.io publishing (closes #108).
+
+### Fixed
+
+- Shorten keyword to satisfy crates.io's 20-char limit.
+
 ## [0.15.0] - 2026-03-08
 
 ### Added
