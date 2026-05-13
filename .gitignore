@@ -81,6 +81,7 @@ tasks
 
 # AI Tools / IDE Assistants
 .agent/
+.agents/
 .cursor/
 .gemini/
 .github/skills/
