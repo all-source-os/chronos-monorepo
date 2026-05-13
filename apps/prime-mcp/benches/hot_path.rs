@@ -56,7 +56,7 @@ fn bench_add_node_batch(bencher: divan::Bencher, n: usize) {
                     .expect("add_node");
             }
             std::hint::black_box(prime.stats());
-        })
+        });
     });
 }
 
