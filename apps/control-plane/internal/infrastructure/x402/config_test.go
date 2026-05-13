@@ -137,6 +137,7 @@ func TestRequirementsForRoute(t *testing.T) {
 		req := config.RequirementsForRoute("POST /api/v1/events")
 		if req == nil {
 			t.Fatal("expected non-nil requirements")
+			return
 		}
 		if req.X402Version != Version {
 			t.Errorf("version: want %d, got %d", Version, req.X402Version)

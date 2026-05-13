@@ -74,11 +74,7 @@ mod inner {
             )
                 .into_response();
         }
-        (
-            [(header::CONTENT_TYPE, "application/octet-stream")],
-            buf,
-        )
-            .into_response()
+        ([(header::CONTENT_TYPE, "application/octet-stream")], buf).into_response()
     }
 
     pub fn routes<S: Clone + Send + Sync + 'static>() -> Router<S> {

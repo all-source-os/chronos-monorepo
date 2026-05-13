@@ -237,25 +237,30 @@ func TestAdminBillingGetDunning_WithPastDue(t *testing.T) {
 		t.Fatalf("expected 2 dunning items, got %d", len(items))
 	}
 
-	// Verify first item
-	item0 := items[0].(map[string]interface{}) //nolint:errcheck,forcetypeassert
-	if item0["tenant_id"] != "t-2" {
-		t.Errorf("expected tenant_id=t-2, got %v", item0["tenant_id"])
-	}
-	if item0["status"] != "past_due" {
-		t.Errorf("expected status=past_due, got %v", item0["status"])
-	}
-	if item0["retry_status"] != "pending_retry" {
-		t.Errorf("expected retry_status=pending_retry, got %v", item0["retry_status"])
+	itemsByTenant := make(map[string]map[string]interface{}, len(items))
+	for _, item := range items {
+		itemMap := item.(map[string]interface{})  //nolint:errcheck,forcetypeassert
+		tenantID := itemMap["tenant_id"].(string) //nolint:errcheck,forcetypeassert
+		itemsByTenant[tenantID] = itemMap
 	}
 
-	// Verify second item
-	item1 := items[1].(map[string]interface{}) //nolint:errcheck,forcetypeassert
-	if item1["tenant_id"] != "t-3" {
-		t.Errorf("expected tenant_id=t-3, got %v", item1["tenant_id"])
+	item2, ok := itemsByTenant["t-2"]
+	if !ok {
+		t.Fatal("expected dunning item for tenant t-2")
 	}
-	if item1["retry_status"] != "manual_review" {
-		t.Errorf("expected retry_status=manual_review, got %v", item1["retry_status"])
+	if item2["status"] != "past_due" {
+		t.Errorf("expected status=past_due, got %v", item2["status"])
+	}
+	if item2["retry_status"] != "pending_retry" {
+		t.Errorf("expected retry_status=pending_retry, got %v", item2["retry_status"])
+	}
+
+	item3, ok := itemsByTenant["t-3"]
+	if !ok {
+		t.Fatal("expected dunning item for tenant t-3")
+	}
+	if item3["retry_status"] != "manual_review" {
+		t.Errorf("expected retry_status=manual_review, got %v", item3["retry_status"])
 	}
 
 	// Verify HAL links

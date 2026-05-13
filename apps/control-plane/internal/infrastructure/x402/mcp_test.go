@@ -36,6 +36,7 @@ func TestProcessMCPPayment_NoPayment_ReturnsRequirements(t *testing.T) {
 	}
 	if requirements == nil {
 		t.Fatal("expected non-nil requirements")
+		return
 	}
 	if len(requirements.Accepts) != 1 {
 		t.Fatalf("accepts: want 1, got %d", len(requirements.Accepts))
@@ -88,6 +89,7 @@ func TestProcessMCPPayment_WithPayment_Settles(t *testing.T) {
 	}
 	if resp == nil {
 		t.Fatal("expected non-nil settle response")
+		return
 	}
 	if !resp.Success {
 		t.Errorf("expected success, got reason: %s", resp.ErrorReason)
