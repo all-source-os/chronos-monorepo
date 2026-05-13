@@ -24,10 +24,11 @@ version: "0.20.1"
 [![Web](https://img.shields.io/badge/Web-v0.17.3-000000?logo=next.js&logoColor=white)](apps/web/)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-61_tools-8A2BE2)](apps/mcp-server-elixir/)
 
-[![Core Image](https://img.shields.io/badge/ghcr.io-allsource--core:0.14.1-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-core)
-[![Control Plane Image](https://img.shields.io/badge/ghcr.io-allsource--control--plane:0.14.1-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-control-plane)
-[![Query Service Image](https://img.shields.io/badge/ghcr.io-allsource--query--service:0.14.1-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-query-service)
-[![Web Image](https://img.shields.io/badge/ghcr.io-allsource--web:0.14.1-blue?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-web)
+[![Core (Community)](https://img.shields.io/badge/ghcr.io-allsource--core--community-2ea44f?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-core-community)
+[![Query Service (Community)](https://img.shields.io/badge/ghcr.io-allsource--query--service--community-2ea44f?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-query-service-community)
+[![Enterprise images](https://img.shields.io/badge/ghcr.io-enterprise_(BSL_1.1,_auth_required)-orange?logo=docker&logoColor=white)](#docker-images)
+
+> **Pulling for OSS / CI?** Use the `*-community` images above (Apache 2.0, public, no auth). The unsuffixed `allsource-core` / `allsource-control-plane` / `allsource-query-service` images are BSL 1.1 enterprise builds and require GHCR authentication. See [Docker Images](#docker-images).
 
 </div>
 
@@ -282,7 +283,10 @@ docker pull ghcr.io/all-source-os/allsource-query-service:latest
 | `ghcr.io/all-source-os/allsource-core` | BSL 1.1 | **Private** | Distroless |
 | `ghcr.io/all-source-os/allsource-query-service` | BSL 1.1 | **Private** | Alpine |
 | `ghcr.io/all-source-os/allsource-control-plane` | BSL 1.1 | **Private** | Distroless |
-| `ghcr.io/all-source-os/allsource-web` | BSL 1.1 | **Private** | Alpine |
+| `ghcr.io/all-source-os/allsource-mcp-server` | BSL 1.1 | **Private** | Alpine |
+| `ghcr.io/all-source-os/allsource-prime` | BSL 1.1 | **Private** | Distroless |
+
+> The `allsource-web` frontend is not published to GHCR — it deploys to Vercel at https://www.all-source.xyz.
 
 ### Building from Source
 

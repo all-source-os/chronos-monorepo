@@ -155,6 +155,39 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
+  verify-community-public:
+    name: Verify -community packages are public
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.build.result == 'success'
+    permissions:
+      packages: read
+    steps:
+      - name: Check visibility of -community packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          owner="${{ github.repository_owner }}"
+          packages=(allsource-core-community allsource-query-service-community)
+          for pkg in "${packages[@]}"; do
+            vis=$(gh api "/orgs/$owner/packages/container/$pkg" --jq .visibility 2>/dev/null || echo "missing")
+            case "$vis" in
+              public)
+                echo "✅ $pkg is public"
+                ;;
+              private)
+                echo "::warning title=Community package is private::ghcr.io/$owner/$pkg is published as private — README claims it's public. Flip at https://github.com/orgs/$owner/packages/container/$pkg/settings (Danger Zone → Change visibility → Public)."
+                ;;
+              missing)
+                echo "::notice::Package $pkg has not been published yet — skipping visibility check."
+                ;;
+              *)
+                echo "::warning::Unexpected visibility '$vis' for $pkg"
+                ;;
+            esac
+          done
+
   summary:
     name: Summary
     runs-on: ubuntu-latest

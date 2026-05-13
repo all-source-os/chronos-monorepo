@@ -1,4 +1,4 @@
-.PHONY: help install dev build clean demo test lint check-versions \
+.PHONY: help install dev build clean clean-rust demo test lint check-versions \
         core control web mcp registry \
         docker-build docker-test docker-test-quick docker-clean docker-purge \
         docker-core docker-web docker-query docker-mcp docker-control docker-registry \
@@ -24,6 +24,7 @@ help:
 	@echo "  make dev            - Run all services in development mode"
 	@echo "  make build          - Build all services"
 	@echo "  make clean          - Clean all build artifacts"
+	@echo "  make clean-rust     - Clean every Rust target/ across the monorepo"
 	@echo "  make demo           - Quick demo setup (install + dev)"
 	@echo "  make test           - Run tests"
 	@echo "  make lint           - Run linters across all services"
@@ -103,12 +104,20 @@ build:
 	@echo "🔨 Building all services..."
 	bun build
 
-clean:
+clean: clean-rust
 	@echo "🧹 Cleaning build artifacts..."
 	bun clean
-	-cd apps/core && cargo clean
 	-cd apps/control-plane && rm -rf bin
 	-rm -rf .container-test-logs
+
+clean-rust:
+	@echo "🦀 Cleaning Rust target/ across all workspaces..."
+	@find . -type d -name target -not -path '*/node_modules/*' -prune | while read dir; do \
+		ws="$$(dirname $$dir)"; \
+		echo "  → cargo clean in $$ws"; \
+		(cd "$$ws" && cargo clean) 2>/dev/null || true; \
+		rm -rf "$$dir"; \
+	done
 
 demo: install
 	@echo "🎪 Starting AllSource demo..."
