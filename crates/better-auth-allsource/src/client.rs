@@ -2,6 +2,47 @@ use crate::error::AllsourceAuthError;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+/// Convert a `snake_case` field name to `camelCase`. Idempotent for inputs
+/// that have no underscores (e.g. `email`, `slug`, `credentialID`).
+///
+/// Used to bridge the gap between adapter callers, which pass snake_case
+/// field names, and serialized payloads, whose keys are camelCase because
+/// `better_auth_core`'s structs carry `#[serde(rename = "userId")]` etc.
+fn to_camel_case(field: &str) -> String {
+    if !field.contains('_') {
+        return field.to_string();
+    }
+    let mut out = String::with_capacity(field.len());
+    let mut upper_next = false;
+    for ch in field.chars() {
+        if ch == '_' {
+            upper_next = true;
+        } else if upper_next {
+            out.extend(ch.to_uppercase());
+            upper_next = false;
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Look up `field` on `payload`, trying the literal key first and then
+/// its camelCase form. Returns `None` if neither resolves to a string.
+fn payload_field_str<'a>(payload: &'a serde_json::Value, field: &str) -> Option<&'a str> {
+    payload
+        .get(field)
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            let camel = to_camel_case(field);
+            if camel == field {
+                None
+            } else {
+                payload.get(&camel).and_then(|v| v.as_str())
+            }
+        })
+}
+
 /// Low-level HTTP client for Allsource Core and Query Service.
 #[derive(Clone)]
 pub struct AllsourceClient {
@@ -189,6 +230,35 @@ impl AllsourceClient {
         field: &str,
         value: &str,
     ) -> Result<Option<T>, AllsourceAuthError> {
+        // Try the literal field name first, then the camelCase form if it
+        // differs. Payloads are stored with `#[serde(rename = "userId")]`
+        // style keys, so callers passing `user_id` need the camel retry.
+        match self
+            .find_by_field_filtered::<T>(event_type_prefix, field, value)
+            .await?
+        {
+            Some(entity) => Ok(Some(entity)),
+            None => {
+                let camel = to_camel_case(field);
+                if camel != field {
+                    self.find_by_field_filtered::<T>(event_type_prefix, &camel, value)
+                        .await
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+
+    /// Inner helper: issues exactly one server-side `payload_filter` query for
+    /// `field`. On `400`/`422` (filter unsupported) it falls back to the
+    /// case-tolerant in-memory scan.
+    async fn find_by_field_filtered<T: DeserializeOwned>(
+        &self,
+        event_type_prefix: &str,
+        field: &str,
+        value: &str,
+    ) -> Result<Option<T>, AllsourceAuthError> {
         let url = format!("{}/api/v1/events/query", self.query_url);
 
         let filter = serde_json::json!({
@@ -211,7 +281,6 @@ impl AllsourceClient {
 
         let status = resp.status();
         if !status.is_success() {
-            // If payload_filter is not supported, fall back to scanning
             if status.as_u16() == 400 || status.as_u16() == 422 {
                 return self
                     .find_by_field_scan(event_type_prefix, field, value)
@@ -299,7 +368,7 @@ impl AllsourceClient {
                 continue;
             }
 
-            let field_val = event.payload.get(field).and_then(|v| v.as_str());
+            let field_val = payload_field_str(&event.payload, field);
             if field_val == Some(value) {
                 if let Ok(entity) = serde_json::from_value::<T>(event.payload.clone()) {
                     return Ok(Some(entity));
@@ -361,7 +430,7 @@ impl AllsourceClient {
                 continue;
             }
 
-            let field_val = event.payload.get(field).and_then(|v| v.as_str());
+            let field_val = payload_field_str(&event.payload, field);
             if field_val == Some(value) {
                 if let Ok(entity) = serde_json::from_value::<T>(event.payload.clone()) {
                     results.push(entity);
@@ -400,4 +469,46 @@ async fn extract_error_message(resp: reqwest::Response) -> String {
         }
     }
     body
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_camel_case_basic() {
+        assert_eq!(to_camel_case("user_id"), "userId");
+        assert_eq!(to_camel_case("organization_id"), "organizationId");
+        assert_eq!(to_camel_case("created_at"), "createdAt");
+        assert_eq!(to_camel_case("two_factor_id"), "twoFactorId");
+    }
+
+    #[test]
+    fn to_camel_case_idempotent_for_camel_or_flat() {
+        assert_eq!(to_camel_case("email"), "email");
+        assert_eq!(to_camel_case("slug"), "slug");
+        assert_eq!(to_camel_case("credentialID"), "credentialID");
+        assert_eq!(to_camel_case("userId"), "userId");
+    }
+
+    #[test]
+    fn payload_field_str_prefers_literal_then_camel() {
+        // Camel-keyed payload (what better_auth_core actually serializes).
+        let camel = serde_json::json!({
+            "userId": "uid-1",
+            "organizationId": "org-1",
+            "email": "a@b",
+        });
+        // Snake caller keys resolve via the camel fallback.
+        assert_eq!(payload_field_str(&camel, "user_id"), Some("uid-1"));
+        assert_eq!(payload_field_str(&camel, "organization_id"), Some("org-1"));
+        // Non-renamed keys still work.
+        assert_eq!(payload_field_str(&camel, "email"), Some("a@b"));
+        // Missing key returns None.
+        assert_eq!(payload_field_str(&camel, "missing_field"), None);
+
+        // Snake-keyed payload (hypothetical legacy data) still resolves.
+        let snake = serde_json::json!({ "user_id": "uid-2" });
+        assert_eq!(payload_field_str(&snake, "user_id"), Some("uid-2"));
+    }
 }
