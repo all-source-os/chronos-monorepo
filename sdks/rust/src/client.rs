@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 
 use crate::{
-    circuit_breaker::CircuitBreaker, error::Error, fold::EventFolder,
+    circuit_breaker::CircuitBreaker,
+    error::Error,
+    fold::EventFolder,
     normalize::normalize_event_type,
     paginate::{EntityPaginator, EventPaginator, DEFAULT_PAGE_SIZE},
     types::*,

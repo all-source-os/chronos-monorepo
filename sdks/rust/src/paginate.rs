@@ -13,9 +13,11 @@
 //! a stream that is still receiving writes can shift; prefer ascending order
 //! when paging a live stream.
 
-use crate::client::QueryClient;
-use crate::error::Error;
-use crate::types::{EntitySummary, Event, ListEntitiesParams, QueryEventsParams};
+use crate::{
+    client::QueryClient,
+    error::Error,
+    types::{EntitySummary, Event, ListEntitiesParams, QueryEventsParams},
+};
 
 /// Per-page item count used when the supplied params set no `limit`.
 pub const DEFAULT_PAGE_SIZE: u32 = 100;

@@ -594,7 +594,11 @@ pub async fn list_entities(
         .collect();
     summaries.sort_by(|a, b| {
         let by_time = a.last_event_at.cmp(&b.last_event_at);
-        let by_time = if ascending { by_time } else { by_time.reverse() };
+        let by_time = if ascending {
+            by_time
+        } else {
+            by_time.reverse()
+        };
         by_time.then_with(|| a.entity_id.cmp(&b.entity_id))
     });
 
@@ -2547,7 +2551,12 @@ mod tests {
         )
         .await
         .unwrap();
-        let desc_ids: Vec<&str> = desc.0.entities.iter().map(|e| e.entity_id.as_str()).collect();
+        let desc_ids: Vec<&str> = desc
+            .0
+            .entities
+            .iter()
+            .map(|e| e.entity_id.as_str())
+            .collect();
         assert_eq!(desc_ids, ["org-c", "org-b", "org-a"]);
 
         // order=asc: oldest activity first.
@@ -2561,7 +2570,12 @@ mod tests {
         )
         .await
         .unwrap();
-        let asc_ids: Vec<&str> = asc.0.entities.iter().map(|e| e.entity_id.as_str()).collect();
+        let asc_ids: Vec<&str> = asc
+            .0
+            .entities
+            .iter()
+            .map(|e| e.entity_id.as_str())
+            .collect();
         assert_eq!(asc_ids, ["org-a", "org-b", "org-c"]);
 
         // Offset pagination over the deterministic asc order: page 2, size 1.
