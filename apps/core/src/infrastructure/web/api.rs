@@ -441,13 +441,38 @@ pub async fn ingest_events_batch_v1(
     }))
 }
 
+/// Sort-order query parameter for `GET /api/v1/events/query`. Kept separate
+/// from `QueryEventsRequest` so ordering is purely an HTTP-layer concern and
+/// the internal query DTO (used by ~50 call sites) stays untouched.
+#[derive(Debug, Deserialize)]
+pub struct EventOrderParam {
+    /// `asc` (oldest first, the default) or `desc` (newest first).
+    pub order: Option<String>,
+}
+
 pub async fn query_events(
     OptionalAuth(auth): OptionalAuth,
     Query(req): Query<QueryEventsRequest>,
+    Query(order_param): Query<EventOrderParam>,
     State(store): State<SharedStore>,
 ) -> Result<Json<QueryEventsResponse>> {
     let requested_limit = req.limit;
     let queried_entity_id = req.entity_id.clone();
+
+    // Sort order. Default is ascending (oldest first) to preserve replay
+    // semantics for existing consumers. `order=desc` returns newest first,
+    // so `?entity_id=<id>&limit=1&order=desc` reliably yields the latest
+    // event for an entity (issue #177).
+    let descending = match order_param.order.as_deref() {
+        None => false,
+        Some(o) if o.eq_ignore_ascii_case("asc") => false,
+        Some(o) if o.eq_ignore_ascii_case("desc") => true,
+        Some(other) => {
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "invalid 'order' value '{other}': expected 'asc' or 'desc'"
+            )));
+        }
+    };
 
     // Tenant resolution. Since Core is internal-only (bead t-0ff8), the only
     // callers are Control Plane's delegation layer and other internal Fly
@@ -473,8 +498,14 @@ pub async fn query_events(
         event_type_prefix: req.event_type_prefix,
         payload_filter: req.payload_filter,
     };
-    let all_events = store.query(&unlimited_req)?;
+    let mut all_events = store.query(&unlimited_req)?;
     let total_count = all_events.len();
+
+    // store.query() returns events ascending by (timestamp, version).
+    // Reverse for `order=desc` so the limit below takes the newest events.
+    if descending {
+        all_events.reverse();
+    }
 
     // Apply limit
     let limited_events: Vec<Event> = if let Some(limit) = requested_limit {
@@ -2366,6 +2397,50 @@ mod tests {
         assert_eq!(count, 5);
         assert_eq!(total_count, 5);
         assert!(!has_more);
+    }
+
+    // Regression test for issue #177: `order=desc` + `limit=1` must return
+    // the NEWEST event for an entity, not the oldest. Mirrors the ordering
+    // logic in `query_events` (store.query → reverse-if-desc → take(limit)).
+    #[tokio::test]
+    async fn test_query_events_order_desc_returns_latest() {
+        let store = create_test_store();
+
+        // Three events for the same entity with strictly increasing
+        // timestamps — mimics a backfill appending a corrected event.
+        let base = chrono::Utc::now();
+        for i in 0..3i64 {
+            let mut event = create_test_event("org-1", "auth.org.updated");
+            event.timestamp = base + chrono::Duration::seconds(i);
+            event.version = i + 1;
+            store.ingest(&event).unwrap();
+        }
+
+        let req = QueryEventsRequest {
+            entity_id: Some("org-1".to_string()),
+            ..Default::default()
+        };
+        let ascending = store.query(&req).unwrap();
+        assert_eq!(ascending.len(), 3);
+        // Ascending order: oldest timestamp first.
+        assert!(ascending[0].timestamp < ascending[1].timestamp);
+        assert!(ascending[1].timestamp < ascending[2].timestamp);
+        let oldest_ts = ascending[0].timestamp;
+        let newest_ts = ascending[2].timestamp;
+
+        // `order=desc`: handler reverses, then `limit=1` takes the front.
+        let mut descending = ascending.clone();
+        descending.reverse();
+        let latest: Vec<Event> = descending.into_iter().take(1).collect();
+        assert_eq!(latest.len(), 1);
+        assert_eq!(
+            latest[0].timestamp, newest_ts,
+            "order=desc&limit=1 must yield the newest event"
+        );
+
+        // Default (ascending) + limit=1 still yields the oldest event.
+        let oldest: Vec<Event> = ascending.into_iter().take(1).collect();
+        assert_eq!(oldest[0].timestamp, oldest_ts);
     }
 
     #[tokio::test]

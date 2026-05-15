@@ -89,7 +89,7 @@ Clients → Query Service (Elixir, port 3902) → Core (Rust, port 3900)
 
 All Core endpoints use the `/api/v1/` prefix. Key endpoints:
 - `POST /api/v1/events` — ingest event (returns 200, not 201)
-- `GET /api/v1/events/query` — query events (returns `{"events": [...], "count": N}`)
+- `GET /api/v1/events/query` — query events (returns `{"events": [...], "count": N}`). Results are ordered by `(timestamp, version)`. Default order is ascending (oldest first); pass `order=desc` for newest first — e.g. `?entity_id=<id>&limit=1&order=desc` fetches the latest event for an entity.
 - `GET /api/v1/projections` — list projections (returns `{"projections": [...], "total": N}`)
 - `GET /api/v1/snapshots` — list snapshots
 - `GET /api/v1/schemas` — list schemas

@@ -1698,8 +1698,15 @@ impl EventStore {
             .filter(|event| self.apply_filters(event, request))
             .collect();
 
-        // Sort by timestamp (ascending)
-        results.sort_by_key(|x| x.timestamp);
+        // Sort by timestamp ascending, with version as a deterministic
+        // tie-breaker so events that share a timestamp keep a stable,
+        // well-defined order — "the latest event" must be unambiguous
+        // (issue #177).
+        results.sort_by(|a, b| {
+            a.timestamp
+                .cmp(&b.timestamp)
+                .then_with(|| a.version.cmp(&b.version))
+        });
 
         // Apply limit
         if let Some(limit) = request.limit {
