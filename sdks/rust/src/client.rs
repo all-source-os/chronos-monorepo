@@ -280,7 +280,10 @@ impl QueryClient {
 
     /// Query events with filters.
     ///
-    /// Uses Core's `/api/v1/events/query` endpoint.
+    /// Uses Core's `/api/v1/events/query` endpoint. Results are ordered by
+    /// `(timestamp, version)` — ascending (oldest first) by default, or set
+    /// [`QueryEventsParams::order`] / [`QueryEventsParams::order_desc`] for
+    /// newest-first.
     pub async fn query_events(
         &self,
         params: QueryEventsParams,

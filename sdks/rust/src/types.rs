@@ -32,6 +32,32 @@ pub struct Event {
     pub tenant_id: Option<String>,
 }
 
+/// Sort order for [`QueryEventsParams`] results.
+///
+/// Core orders events by `(timestamp, version)`. [`SortOrder::Asc`] returns the
+/// oldest event first (the default, preserving event-replay semantics);
+/// [`SortOrder::Desc`] returns the newest first. Combined with `limit`, `Desc`
+/// lets you fetch the latest events for an entity without folding the whole
+/// stream client-side — e.g. `?entity_id=<id>&limit=1&order=desc`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SortOrder {
+    /// Oldest event first, ordered by `(timestamp, version)`. This is the default.
+    #[default]
+    Asc,
+    /// Newest event first, ordered by `(timestamp, version)`.
+    Desc,
+}
+
+impl SortOrder {
+    /// The query-string value Core expects (`"asc"` or `"desc"`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SortOrder::Asc => "asc",
+            SortOrder::Desc => "desc",
+        }
+    }
+}
+
 /// Query parameters for filtering events. Uses builder pattern.
 ///
 /// Supports two event type filters:
@@ -42,12 +68,26 @@ pub struct Event {
 /// Core applies a default limit of 100 events. Use [`has_more`](QueryEventsResponse::has_more)
 /// on the response to check if more results are available, then paginate with `offset`.
 ///
+/// Results are ordered by `(timestamp, version)`. The default is ascending
+/// (oldest first); pass [`order`](Self::order) (or [`order_desc`](Self::order_desc))
+/// for newest-first. Because the order is well-defined, `limit`/`offset`
+/// pagination is stable across pages.
+///
 /// # Example: querying all index.* events with prefix
 /// ```
 /// # use allsource::QueryEventsParams;
 /// let params = QueryEventsParams::new()
 ///     .event_type_prefix("index.")
 ///     .limit(50);
+/// ```
+///
+/// # Example: fetch the latest event for an entity
+/// ```
+/// # use allsource::QueryEventsParams;
+/// let params = QueryEventsParams::new()
+///     .entity_id("user-123")
+///     .order_desc()
+///     .limit(1);
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct QueryEventsParams {
@@ -64,6 +104,9 @@ pub struct QueryEventsParams {
     /// Filter by payload fields. Keys and values are matched exactly against top-level payload fields.
     /// Multiple entries use AND logic (all must match).
     pub payload_filter: Option<std::collections::HashMap<String, String>>,
+    /// Sort order for the returned events, by `(timestamp, version)`.
+    /// `None` leaves Core's default (ascending / oldest first) in effect.
+    pub order: Option<SortOrder>,
 }
 
 impl QueryEventsParams {
@@ -119,6 +162,22 @@ impl QueryEventsParams {
         self
     }
 
+    /// Set the sort order of returned events (by `(timestamp, version)`).
+    pub fn order(mut self, order: SortOrder) -> Self {
+        self.order = Some(order);
+        self
+    }
+
+    /// Return events newest first. Shorthand for `.order(SortOrder::Desc)`.
+    pub fn order_desc(self) -> Self {
+        self.order(SortOrder::Desc)
+    }
+
+    /// Return events oldest first (Core's default). Shorthand for `.order(SortOrder::Asc)`.
+    pub fn order_asc(self) -> Self {
+        self.order(SortOrder::Asc)
+    }
+
     /// Convert to query string pairs for reqwest.
     pub(crate) fn to_query_pairs(&self) -> Vec<(&str, String)> {
         let mut pairs = Vec::new();
@@ -148,6 +207,9 @@ impl QueryEventsParams {
                 pairs.push(("payload_filter", json));
             }
         }
+        if let Some(v) = self.order {
+            pairs.push(("order", v.as_str().to_string()));
+        }
         pairs
     }
 }
@@ -160,6 +222,11 @@ impl QueryEventsParams {
 ///
 /// The `total_count` and `has_more` fields are `Option` for backward compatibility
 /// with older Core versions that do not include them.
+///
+/// `events` is ordered by `(timestamp, version)` — ascending (oldest first) by
+/// default, or descending when the request set [`QueryEventsParams::order`] to
+/// [`SortOrder::Desc`]. This ordering is stable, so `limit`/`offset` pagination
+/// over a sorted view is well-defined.
 #[derive(Debug, Clone, Deserialize)]
 pub struct QueryEventsResponse {
     pub count: u64,
@@ -318,6 +385,33 @@ mod tests {
             .iter()
             .any(|(k, v)| *k == "entity_id" && v == "order-123"));
         assert!(pairs.iter().any(|(k, v)| *k == "limit" && v == "10"));
+    }
+
+    #[test]
+    fn test_query_params_order_desc() {
+        let params = QueryEventsParams::new()
+            .entity_id("user-123")
+            .order_desc()
+            .limit(1);
+        let pairs = params.to_query_pairs();
+        assert!(pairs.iter().any(|(k, v)| *k == "order" && v == "desc"));
+    }
+
+    #[test]
+    fn test_query_params_order_omitted_by_default() {
+        let params = QueryEventsParams::new().entity_id("e1");
+        let pairs = params.to_query_pairs();
+        assert!(
+            !pairs.iter().any(|(k, _)| *k == "order"),
+            "order must not be sent unless set, so Core's default applies"
+        );
+    }
+
+    #[test]
+    fn test_sort_order_as_str() {
+        assert_eq!(SortOrder::Asc.as_str(), "asc");
+        assert_eq!(SortOrder::Desc.as_str(), "desc");
+        assert_eq!(SortOrder::default(), SortOrder::Asc);
     }
 
     #[test]

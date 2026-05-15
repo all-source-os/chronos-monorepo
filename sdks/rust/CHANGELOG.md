@@ -4,6 +4,23 @@ All notable changes to the `allsource` Rust SDK.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- `QueryEventsParams::order` plus the `SortOrder` enum (`Asc`/`Desc`) and the
+  `order_desc()` / `order_asc()` builder shorthands. This sends `order=desc` to
+  Core's `/api/v1/events/query`, so clients can fetch newest-first (e.g. the
+  latest event for an entity with `.order_desc().limit(1)`) without folding the
+  whole stream in memory. Resolves issue #178.
+
+### Changed
+
+- `QueryEventsParams` / `QueryEventsResponse` / `query_events` rustdoc now state
+  the result ordering guarantee: events are ordered by `(timestamp, version)`,
+  ascending by default, so `limit`/`offset` pagination over a sorted view is
+  well-defined.
+
 ## [0.19.2] — 2026-04-17
 
 ### Changed
