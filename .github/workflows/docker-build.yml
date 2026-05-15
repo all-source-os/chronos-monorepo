@@ -78,6 +78,10 @@ jobs:
           add_service "control-plane" "apps/control-plane" "${{ steps.filter.outputs.control-plane }}"
           add_service "query-service" "apps/query-service" "${{ steps.filter.outputs.query-service }}" "" "" "ALLSOURCE_EDITION=enterprise"
           add_service "mcp-server" "apps/mcp-server-elixir" "${{ steps.filter.outputs.mcp-server }}"
+          # Embedded MCP variant — in-process Core via Rustler NIF (issue #129).
+          # Separate image (allsource-mcp-server-embedded), same pattern as the
+          # -community variants below; built from Dockerfile.embedded.
+          add_service "mcp-server-embedded" "apps/mcp-server-elixir" "${{ steps.filter.outputs.mcp-server }}" "apps/mcp-server-elixir/Dockerfile.embedded"
           add_service "prime" "." "${{ steps.filter.outputs.prime }}" "apps/prime-mcp/Dockerfile" "runtime" ""
           # Community editions (public images)
           add_service "core-community" "." "${{ steps.filter.outputs.core }}" "apps/core/Dockerfile" "runtime-community" ""
@@ -218,4 +222,5 @@ jobs:
           echo "ghcr.io/${{ github.repository_owner }}/allsource-control-plane" >> "$GITHUB_STEP_SUMMARY"
           echo "ghcr.io/${{ github.repository_owner }}/allsource-query-service" >> "$GITHUB_STEP_SUMMARY"
           echo "ghcr.io/${{ github.repository_owner }}/allsource-mcp-server" >> "$GITHUB_STEP_SUMMARY"
+          echo "ghcr.io/${{ github.repository_owner }}/allsource-mcp-server-embedded" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
