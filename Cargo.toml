@@ -2,11 +2,15 @@
 resolver = "3"
 members = [
     "apps/core",
-    "apps/mcp-server-elixir/native/core_nif",
     "sdks/rust",
     "tooling/performance",
 ]
 exclude = [
+    # core_nif is the embedded-mode Rustler NIF for the MCP server. It builds
+    # standalone (own Cargo.lock, allsource-core from crates.io) so the
+    # embedded Docker image can be built from the apps/mcp-server-elixir
+    # context without copying apps/core source — see issue #129.
+    "apps/mcp-server-elixir/native/core_nif",
     "apps/auth",
     "apps/chronis",
     "apps/prime-mcp",

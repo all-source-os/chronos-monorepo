@@ -62,10 +62,10 @@ defmodule McpServerElixir.Application do
 
          Options:
            1. Use CORE_MODE=remote and point at a running Core HTTP endpoint.
-           2. Rebuild the image with the Rust toolchain installed and
-              `CORE_MODE=embedded` set during `mix compile`.
-
-         See GitHub issue #129 for the full build-system fix.
+           2. Use the embedded image — built from `Dockerfile.embedded`, which
+              compiles the Rustler NIF with `CORE_MODE=embedded`. Pull the
+              `:embedded` tag, or build it locally:
+                docker build -f Dockerfile.embedded -t allsource-mcp:embedded .
       """)
 
       System.halt(1)

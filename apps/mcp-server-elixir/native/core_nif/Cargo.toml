@@ -1,3 +1,7 @@
+# Standalone crate — intentionally excluded from the root Cargo workspace
+# (see root Cargo.toml `exclude`). It depends on allsource-core from
+# crates.io rather than a path so the embedded MCP Docker image can build
+# from the apps/mcp-server-elixir context without copying apps/core.
 [package]
 name = "core_nif"
 version = "0.1.0"
@@ -14,10 +18,12 @@ embedded-toon = []
 embedded-sync = []
 
 [dependencies]
-allsource-core = { path = "../../../core", features = ["embedded", "embedded-toon", "embedded-projections", "embedded-sync"] }
+allsource-core = { version = "0.20", features = [
+    "embedded",
+    "embedded-toon",
+    "embedded-projections",
+    "embedded-sync",
+] }
 rustler = "0.37"
 serde_json = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread"] }
-
-[lints]
-workspace = true
