@@ -8,34 +8,44 @@
 #
 # The default `Dockerfile` builds CORE_MODE=remote and does NOT include the
 # embedded modules (they are guarded by a compile-time `CORE_MODE` check).
-# Use this file to publish the separate `:embedded` image tag.
+# Use this file to publish the separate `allsource-mcp-server-embedded` image.
 #
 # Build context is apps/mcp-server-elixir. core_nif depends on allsource-core
 # from crates.io (not a path), so no other app's source is copied — the
 # monorepo isolation rule still holds.
+#
+# This variant is Debian-based, not Alpine: the embedded dependency tree
+# (rocksdb, simd-json, fastembed/onnx) builds far more reliably against glibc
+# than musl. Builder and runtime share glibc so the NIF .so is portable.
 # =============================================================================
 
 ARG ELIXIR_VERSION=1.18
 ARG OTP_VERSION=27
-ARG ALPINE_VERSION=3.23
+ARG RUST_VERSION=1.92.0
 
 # =============================================================================
 # Stage 1: Build (Elixir + Rust toolchain)
 # =============================================================================
-FROM elixir:${ELIXIR_VERSION}-otp-${OTP_VERSION}-alpine AS builder
+FROM elixir:${ELIXIR_VERSION}-otp-${OTP_VERSION} AS builder
 
 ARG VERSION=dev
 ARG REVISION=unknown
+ARG RUST_VERSION
 
-# Elixir build deps + Rust toolchain for the Rustler NIF. clang/llvm + cmake
-# are required by allsource-core's embedded dependency tree (rocksdb bindgen,
-# simd-json); linux-headers/openssl-dev cover the rest of the native crates.
-RUN apk add --no-cache \
-    git build-base \
-    cargo rust \
-    clang llvm-dev \
-    cmake linux-headers \
-    openssl-dev perl
+# Elixir build deps + the native deps the embedded crate tree needs:
+# clang/libclang (rocksdb bindgen), cmake, libssl/pkg-config.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential cmake clang libclang-dev llvm-dev \
+    libssl-dev pkg-config curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Rust via rustup — the distro `rustc` is too old for rustler 0.37 (needs
+# rustc 1.91+). Pinned for reproducible builds.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal
 
 # Embedded mode is a compile-time decision — set it before `mix compile` so the
 # CoreEmbedded / CoreNif modules and the NIF are built into the release.
@@ -65,7 +75,7 @@ RUN mix compile && \
 # =============================================================================
 # Stage 2: Runtime
 # =============================================================================
-FROM alpine:${ALPINE_VERSION}
+FROM debian:bookworm-slim
 
 ARG VERSION=dev
 ARG REVISION=unknown
@@ -80,16 +90,12 @@ LABEL org.opencontainers.image.title="AllSource MCP Server (embedded)" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source="https://github.com/all-source-os/all-source"
 
-# libstdc++/libgcc also cover the Rust NIF's runtime needs.
-RUN apk add --no-cache \
-    libstdc++ \
-    libgcc \
-    ncurses-libs \
-    openssl \
-    tini && \
-    rm -rf /var/cache/apk/* /tmp/* && \
-    addgroup -g 1000 allsource && \
-    adduser -u 1000 -G allsource -s /sbin/nologin -D allsource
+# Runtime libs for the Elixir release + the Rust NIF.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl libncurses6 libstdc++6 tini ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -g 1000 allsource \
+    && useradd -u 1000 -g allsource -s /usr/sbin/nologin -M allsource
 
 WORKDIR /app
 
@@ -110,6 +116,6 @@ ENV PHX_SERVER=true \
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD bin/mcp_server_elixir rpc "System.otp_release()" || exit 1
 
-ENTRYPOINT ["/sbin/tini", "-g", "--"]
+ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
 
 CMD ["bin/mcp_server_elixir", "start"]
