@@ -627,14 +627,14 @@ func (cp *ControlPlane) healthHandler(c *gin.Context) {
 		if err != nil {
 			coreStatus = "unreachable"
 		} else {
-			coreStatus = "healthy"
+			coreStatus = statusHealthy
 		}
 	}
 
-	overall := "healthy"
+	overall := statusHealthy
 	httpStatus := http.StatusOK
-	if coreStatus != "healthy" {
-		overall = "unhealthy"
+	if coreStatus != statusHealthy {
+		overall = statusUnhealthy
 		httpStatus = http.StatusServiceUnavailable
 	}
 
@@ -669,7 +669,7 @@ func (cp *ControlPlane) coreHealthHandler(c *gin.Context) {
 	if err != nil {
 		cp.metrics.CoreHealthCheckTotal.WithLabelValues("error").Inc()
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"status": "unhealthy",
+			"status": statusUnhealthy,
 			"error":  err.Error(),
 		})
 		return
