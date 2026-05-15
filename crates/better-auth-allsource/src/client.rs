@@ -125,11 +125,18 @@ impl AllsourceClient {
     ) -> Result<Option<T>, AllsourceAuthError> {
         let url = format!("{}/api/v1/events/query", self.query_url);
 
+        // `order=desc` so `limit=1` returns the NEWEST event. Without it Core
+        // defaults to oldest-first and this returns the entity's first-ever
+        // event — a stale payload missing later schema fields (issue #177).
         let resp = self
             .http
             .get(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .query(&[("entity_id", entity_id), ("limit", "1")])
+            .query(&[
+                ("entity_id", entity_id),
+                ("limit", "1"),
+                ("order", "desc"),
+            ])
             .send()
             .await?;
 
@@ -175,6 +182,7 @@ impl AllsourceClient {
             .query(&[
                 ("event_type_prefix", event_type_prefix),
                 ("limit", &limit.to_string()),
+                ("order", "desc"),
             ])
             .send()
             .await?;
@@ -191,7 +199,9 @@ impl AllsourceClient {
         let query_resp: QueryResponse = resp.json().await?;
         let mut results = Vec::new();
 
-        // Group by entity_id, take latest per entity (events come sorted by time desc)
+        // Group by entity_id, take latest per entity. The `order=desc` param
+        // above makes Core return newest-first, so the first event seen for
+        // each entity_id is its current state.
         let mut seen = std::collections::HashSet::new();
         for event in &query_resp.events {
             let entity_id = event
@@ -275,6 +285,7 @@ impl AllsourceClient {
                 ("event_type_prefix", event_type_prefix),
                 ("payload_filter", &filter.to_string()),
                 ("limit", "1"),
+                ("order", "desc"),
             ])
             .send()
             .await?;
@@ -331,7 +342,11 @@ impl AllsourceClient {
             .http
             .get(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .query(&[("event_type_prefix", event_type_prefix), ("limit", "10000")])
+            .query(&[
+                ("event_type_prefix", event_type_prefix),
+                ("limit", "10000"),
+                ("order", "desc"),
+            ])
             .send()
             .await?;
 
@@ -392,7 +407,11 @@ impl AllsourceClient {
             .http
             .get(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .query(&[("event_type_prefix", event_type_prefix), ("limit", "10000")])
+            .query(&[
+                ("event_type_prefix", event_type_prefix),
+                ("limit", "10000"),
+                ("order", "desc"),
+            ])
             .send()
             .await?;
 
