@@ -3,6 +3,13 @@
 //! These tests spin up a leader EventStore with a WAL shipper and a follower
 //! EventStore with a WAL receiver, ingest events into the leader, and verify
 //! that the follower receives and replays them via the TCP replication protocol.
+//!
+//! The real `WalShipper` / `WalReceiver` types only exist when the
+//! `replication` feature is enabled — community builds compile in stub structs
+//! with no constructors. Gate the whole file on the feature so default-feature
+//! builds (and `quality-rust` CI) don't fail to compile against the stubs. Run
+//! with: `cargo test -p allsource-core --features replication -- --ignored`.
+#![cfg(feature = "replication")]
 
 use allsource_core::{
     QueryEventsRequest,
