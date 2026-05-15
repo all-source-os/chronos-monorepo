@@ -4,7 +4,7 @@ defmodule McpServerElixir.MixProject do
   def project do
     [
       app: :mcp_server_elixir,
-      version: "0.20.2",
+      version: "0.21.0",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,

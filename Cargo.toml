@@ -1,18 +1,14 @@
 [workspace]
 resolver = "3"
-members = [
-    "apps/core",
-    "sdks/rust",
-    "tooling/performance",
-]
+members = ["apps/core", "sdks/rust", "tooling/performance"]
 exclude = [
+    "apps/auth",
+    "apps/chronis",
     # core_nif is the embedded-mode Rustler NIF for the MCP server. It builds
     # standalone (own Cargo.lock, allsource-core from crates.io) so the
     # embedded Docker image can be built from the apps/mcp-server-elixir
     # context without copying apps/core source — see issue #129.
     "apps/mcp-server-elixir/native/core_nif",
-    "apps/auth",
-    "apps/chronis",
     "apps/prime-mcp",
     "apps/registry",
     "crates/better-auth-allsource",

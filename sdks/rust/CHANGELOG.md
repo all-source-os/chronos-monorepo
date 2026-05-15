@@ -4,7 +4,7 @@ All notable changes to the `allsource` Rust SDK.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org).
 
-## [Unreleased]
+## [0.21.0] — 2026-05-16
 
 ### Added
 
