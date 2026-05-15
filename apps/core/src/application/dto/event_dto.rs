@@ -115,7 +115,7 @@ impl From<Event> for EventDto {
 }
 
 /// Request parameters for listing entities
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct ListEntitiesRequest {
     /// Filter entities by event type prefix
     pub event_type_prefix: Option<String>,
@@ -125,6 +125,11 @@ pub struct ListEntitiesRequest {
     pub limit: Option<usize>,
     /// Offset for pagination
     pub offset: Option<usize>,
+    /// Sort direction by last-event time: `desc` (newest activity first, the
+    /// default) or `asc` (oldest activity first). Entities with the same
+    /// last-event time are tie-broken by `entity_id` ascending so offset
+    /// pagination is stable.
+    pub order: Option<String>,
 }
 
 /// A single entity summary in the list response

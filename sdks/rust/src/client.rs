@@ -4,7 +4,9 @@ use std::{sync::Arc, time::Duration};
 
 use crate::{
     circuit_breaker::CircuitBreaker, error::Error, fold::EventFolder,
-    normalize::normalize_event_type, types::*,
+    normalize::normalize_event_type,
+    paginate::{EntityPaginator, EventPaginator, DEFAULT_PAGE_SIZE},
+    types::*,
 };
 
 /// Retry configuration for transient failures.
@@ -318,26 +320,41 @@ impl QueryClient {
 
     /// List distinct entities, optionally filtered by event type prefix.
     ///
-    /// Uses Core's `/api/v1/entities` endpoint.
+    /// Uses Core's `/api/v1/entities` endpoint. Entities are sorted by
+    /// last-event time — most recently active first by default, or set
+    /// [`ListEntitiesParams::order`] / [`ListEntitiesParams::order_asc`] for the
+    /// opposite. The order is total (ties broken by `entity_id`), so
+    /// `limit`/`offset` pagination is stable; see [`Self::list_entities_paged`].
     pub async fn list_entities(
         &self,
-        event_type_prefix: Option<&str>,
-        limit: Option<u32>,
-        offset: Option<u32>,
+        params: ListEntitiesParams,
     ) -> Result<ListEntitiesResponse, Error> {
-        let mut pairs: Vec<(&str, String)> = Vec::new();
-        if let Some(prefix) = event_type_prefix {
-            pairs.push(("event_type_prefix", prefix.to_string()));
-        }
-        if let Some(limit) = limit {
-            pairs.push(("limit", limit.to_string()));
-        }
-        if let Some(offset) = offset {
-            pairs.push(("offset", offset.to_string()));
-        }
+        let pairs = params.to_query_pairs();
         self.transport
             .get_with_query("/api/v1/entities", &pairs)
             .await
+    }
+
+    /// Auto-paginating cursor over [`Self::query_events`].
+    ///
+    /// Drives `limit`/`offset` paging for you: each [`EventPaginator::next_page`]
+    /// fetches the next batch until the server reports no more. The `limit` set
+    /// on `params` (default [`DEFAULT_PAGE_SIZE`]) becomes the per-page size;
+    /// any `offset` on `params` is the starting offset.
+    pub fn query_events_paged(&self, params: QueryEventsParams) -> EventPaginator {
+        let page_size = params.limit.unwrap_or(DEFAULT_PAGE_SIZE);
+        EventPaginator::new(self.clone(), params, page_size)
+    }
+
+    /// Auto-paginating cursor over [`Self::list_entities`].
+    ///
+    /// Drives `limit`/`offset` paging for you: each [`EntityPaginator::next_page`]
+    /// fetches the next batch until the server reports no more. The `limit` set
+    /// on `params` (default [`DEFAULT_PAGE_SIZE`]) becomes the per-page size;
+    /// any `offset` on `params` is the starting offset.
+    pub fn list_entities_paged(&self, params: ListEntitiesParams) -> EntityPaginator {
+        let page_size = params.limit.unwrap_or(DEFAULT_PAGE_SIZE);
+        EntityPaginator::new(self.clone(), params, page_size)
     }
 
     /// Detect duplicate entities by grouping on payload field values.

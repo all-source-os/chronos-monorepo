@@ -48,6 +48,34 @@ async fn main() -> Result<(), allsource::Error> {
 
 See the [connection-path guide](https://all-source.xyz/blog/connection-path) for a deeper treatment of the direct-vs-gateway tradeoff, including latency numbers and when each pattern is the wrong default.
 
+### Paginating large result sets
+
+`query_events` and `list_entities` page with `limit`/`offset` and return a `has_more` flag. Rather than hand-rolling offset arithmetic — and risking a silent truncation at the first page — let the SDK drive the loop:
+
+```rust
+use allsource::{QueryClient, QueryEventsParams};
+
+async fn process_all(query: &QueryClient) -> Result<(), allsource::Error> {
+    // Page through, one batch at a time:
+    let mut pages = query.query_events_paged(
+        QueryEventsParams::new().event_type_prefix("auth.org.").limit(500),
+    );
+    while let Some(events) = pages.next_page().await? {
+        println!("page of {} events", events.len());
+    }
+
+    // …or drain everything into one Vec:
+    let all = query
+        .query_events_paged(QueryEventsParams::new().event_type_prefix("auth.org."))
+        .collect_all()
+        .await?;
+    println!("{} events total", all.len());
+    Ok(())
+}
+```
+
+Results are ordered — `query_events` by `(timestamp, version)`, `list_entities` by last-event time with an `entity_id` tie-break — so paging is stable: no row is skipped or repeated across pages. Pass `.order(SortOrder::Desc)` for newest-first. `list_entities_paged` works the same way over `ListEntitiesParams`.
+
 ## Performance cheatsheet
 
 The SDK defaults are tuned for typical use. A few things worth knowing:

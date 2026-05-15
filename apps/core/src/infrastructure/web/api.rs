@@ -563,7 +563,23 @@ pub async fn list_entities(
             .push(event);
     }
 
-    // Build entity summaries sorted by last event time (descending)
+    // Sort direction by last-event time. Default is `desc` (newest activity
+    // first) to preserve the endpoint's long-standing behavior; `order=asc`
+    // returns oldest activity first (issue #178).
+    let ascending = match req.order.as_deref() {
+        None => false,
+        Some(o) if o.eq_ignore_ascii_case("desc") => false,
+        Some(o) if o.eq_ignore_ascii_case("asc") => true,
+        Some(other) => {
+            return Err(crate::error::AllSourceError::InvalidInput(format!(
+                "invalid 'order' value '{other}': expected 'asc' or 'desc'"
+            )));
+        }
+    };
+
+    // Build entity summaries, then sort by last-event time in the requested
+    // direction. Ties are broken by `entity_id` (always ascending) so the
+    // total order is deterministic — required for stable offset pagination.
     let mut summaries: Vec<EntitySummary> = entity_map
         .into_iter()
         .map(|(entity_id, events)| {
@@ -576,7 +592,11 @@ pub async fn list_entities(
             }
         })
         .collect();
-    summaries.sort_by(|a, b| b.last_event_at.cmp(&a.last_event_at));
+    summaries.sort_by(|a, b| {
+        let by_time = a.last_event_at.cmp(&b.last_event_at);
+        let by_time = if ascending { by_time } else { by_time.reverse() };
+        by_time.then_with(|| a.entity_id.cmp(&b.entity_id))
+    });
 
     let total = summaries.len();
 
@@ -2471,9 +2491,7 @@ mod tests {
         // List entities for index.*
         let req = ListEntitiesRequest {
             event_type_prefix: Some("index.".to_string()),
-            payload_filter: None,
-            limit: None,
-            offset: None,
+            ..Default::default()
         };
         let query_req = QueryEventsRequest {
             entity_id: None,
@@ -2502,6 +2520,79 @@ mod tests {
         assert_eq!(entity_map["idx-1"].len(), 2); // 2 events for idx-1
         assert_eq!(entity_map["idx-2"].len(), 1);
         assert_eq!(entity_map["idx-3"].len(), 1);
+    }
+
+    // Issue #178: `list_entities` accepts an `order` param and pages
+    // deterministically over the resulting sort.
+    #[tokio::test]
+    async fn test_list_entities_order_and_pagination() {
+        let store = create_test_store();
+
+        // Three entities with strictly increasing last-event times.
+        let base = chrono::Utc::now();
+        for (i, eid) in ["org-a", "org-b", "org-c"].iter().enumerate() {
+            let mut event = create_test_event(eid, "auth.org.created");
+            event.timestamp = base + chrono::Duration::seconds(i as i64);
+            store.ingest(&event).unwrap();
+        }
+        let prefix = || Some("auth.org.".to_string());
+
+        // Default: newest activity first (desc) — preserves prior behavior.
+        let desc = list_entities(
+            State(store.clone()),
+            Query(ListEntitiesRequest {
+                event_type_prefix: prefix(),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+        let desc_ids: Vec<&str> = desc.0.entities.iter().map(|e| e.entity_id.as_str()).collect();
+        assert_eq!(desc_ids, ["org-c", "org-b", "org-a"]);
+
+        // order=asc: oldest activity first.
+        let asc = list_entities(
+            State(store.clone()),
+            Query(ListEntitiesRequest {
+                event_type_prefix: prefix(),
+                order: Some("asc".to_string()),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+        let asc_ids: Vec<&str> = asc.0.entities.iter().map(|e| e.entity_id.as_str()).collect();
+        assert_eq!(asc_ids, ["org-a", "org-b", "org-c"]);
+
+        // Offset pagination over the deterministic asc order: page 2, size 1.
+        let page2 = list_entities(
+            State(store.clone()),
+            Query(ListEntitiesRequest {
+                event_type_prefix: prefix(),
+                order: Some("asc".to_string()),
+                limit: Some(1),
+                offset: Some(1),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(page2.0.entities.len(), 1);
+        assert_eq!(page2.0.entities[0].entity_id, "org-b");
+        assert_eq!(page2.0.total, 3);
+        assert!(page2.0.has_more);
+
+        // Invalid order value is rejected.
+        let err = list_entities(
+            State(store.clone()),
+            Query(ListEntitiesRequest {
+                event_type_prefix: prefix(),
+                order: Some("sideways".to_string()),
+                ..Default::default()
+            }),
+        )
+        .await;
+        assert!(err.is_err(), "invalid order value must be rejected");
     }
 
     fn create_test_event_with_payload(

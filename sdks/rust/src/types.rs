@@ -214,6 +214,92 @@ impl QueryEventsParams {
     }
 }
 
+/// Query parameters for [`QueryClient::list_entities`](crate::QueryClient::list_entities).
+/// Uses builder pattern.
+///
+/// Entities are sorted by last-event time. Core's default is descending (most
+/// recently active first); set [`order`](Self::order) — or the
+/// [`order_asc`](Self::order_asc) shorthand — for the opposite. Entities with
+/// the same last-event time are tie-broken by `entity_id`, so the order is a
+/// total one and `limit`/`offset` pagination is stable.
+///
+/// # Example
+/// ```
+/// # use allsource::ListEntitiesParams;
+/// let params = ListEntitiesParams::new()
+///     .event_type_prefix("auth.org.")
+///     .order_asc()
+///     .limit(50);
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct ListEntitiesParams {
+    /// Restrict to entities with at least one event matching this type prefix.
+    pub event_type_prefix: Option<String>,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+    /// Sort direction by last-event time. `None` leaves Core's default
+    /// (descending / most recently active first) in effect.
+    pub order: Option<SortOrder>,
+}
+
+impl ListEntitiesParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Restrict to entities with at least one event matching this type prefix
+    /// (e.g. `"auth.org."`).
+    pub fn event_type_prefix(mut self, prefix: &str) -> Self {
+        self.event_type_prefix = Some(prefix.to_string());
+        self
+    }
+
+    pub fn limit(mut self, n: u32) -> Self {
+        self.limit = Some(n);
+        self
+    }
+
+    pub fn offset(mut self, n: u32) -> Self {
+        self.offset = Some(n);
+        self
+    }
+
+    /// Set the sort direction of returned entities (by last-event time).
+    pub fn order(mut self, order: SortOrder) -> Self {
+        self.order = Some(order);
+        self
+    }
+
+    /// Return entities most-recently-active first (Core's default).
+    /// Shorthand for `.order(SortOrder::Desc)`.
+    pub fn order_desc(self) -> Self {
+        self.order(SortOrder::Desc)
+    }
+
+    /// Return entities oldest-active first. Shorthand for `.order(SortOrder::Asc)`.
+    pub fn order_asc(self) -> Self {
+        self.order(SortOrder::Asc)
+    }
+
+    /// Convert to query string pairs for reqwest.
+    pub(crate) fn to_query_pairs(&self) -> Vec<(&str, String)> {
+        let mut pairs = Vec::new();
+        if let Some(ref v) = self.event_type_prefix {
+            pairs.push(("event_type_prefix", v.clone()));
+        }
+        if let Some(v) = self.limit {
+            pairs.push(("limit", v.to_string()));
+        }
+        if let Some(v) = self.offset {
+            pairs.push(("offset", v.to_string()));
+        }
+        if let Some(v) = self.order {
+            pairs.push(("order", v.as_str().to_string()));
+        }
+        pairs
+    }
+}
+
 /// Response from querying events.
 ///
 /// Core returns `{"events": [...], "count": N, "total_count": N, "has_more": bool}`.
@@ -248,10 +334,17 @@ pub struct EntitySummary {
 }
 
 /// Response from listing entities.
+///
+/// `entities` is sorted by last-event time — descending (most recently active
+/// first) by default, or ascending when the request set
+/// [`ListEntitiesParams::order`] to [`SortOrder::Asc`]. Ties are broken by
+/// `entity_id`, so the order is total and `limit`/`offset` pagination is stable.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListEntitiesResponse {
     pub entities: Vec<EntitySummary>,
+    /// Total number of matching entities, before `limit`/`offset` are applied.
     pub total: u64,
+    /// Whether more entities are available beyond the current page.
     pub has_more: bool,
 }
 
@@ -412,6 +505,32 @@ mod tests {
         assert_eq!(SortOrder::Asc.as_str(), "asc");
         assert_eq!(SortOrder::Desc.as_str(), "desc");
         assert_eq!(SortOrder::default(), SortOrder::Asc);
+    }
+
+    #[test]
+    fn test_list_entities_params_builder() {
+        let params = ListEntitiesParams::new()
+            .event_type_prefix("auth.org.")
+            .order_asc()
+            .limit(50)
+            .offset(100);
+        let pairs = params.to_query_pairs();
+        assert!(pairs
+            .iter()
+            .any(|(k, v)| *k == "event_type_prefix" && v == "auth.org."));
+        assert!(pairs.iter().any(|(k, v)| *k == "order" && v == "asc"));
+        assert!(pairs.iter().any(|(k, v)| *k == "limit" && v == "50"));
+        assert!(pairs.iter().any(|(k, v)| *k == "offset" && v == "100"));
+    }
+
+    #[test]
+    fn test_list_entities_params_order_omitted_by_default() {
+        let params = ListEntitiesParams::new().event_type_prefix("auth.org.");
+        let pairs = params.to_query_pairs();
+        assert!(
+            !pairs.iter().any(|(k, _)| *k == "order"),
+            "order must not be sent unless set, so Core's default applies"
+        );
     }
 
     #[test]

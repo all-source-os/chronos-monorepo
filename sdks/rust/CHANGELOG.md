@@ -13,9 +13,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versio
   Core's `/api/v1/events/query`, so clients can fetch newest-first (e.g. the
   latest event for an entity with `.order_desc().limit(1)`) without folding the
   whole stream in memory. Resolves issue #178.
+- `EventPaginator` / `EntityPaginator` and the `QueryClient::query_events_paged`
+  / `list_entities_paged` constructors. They drive `limit`/`offset` paging:
+  `next_page()` fetches the next batch until the server reports no more,
+  `collect_all()` drains everything. `has_more` is used when present, with
+  short-page fallback for older Core. `DEFAULT_PAGE_SIZE` (100) is the per-page
+  size when params set no `limit`.
+- `list_entities` now accepts an `order` parameter (`asc`/`desc`) via the new
+  `ListEntitiesParams::order`. Core's entity-listing endpoint sorts by
+  last-event time with an `entity_id` tie-break, making the order total and
+  offset pagination stable.
 
 ### Changed
 
+- **Breaking:** `QueryClient::list_entities` now takes a single
+  `ListEntitiesParams` (builder: `event_type_prefix` / `limit` / `offset` /
+  `order`) instead of three positional `Option` arguments. Migration:
+  `list_entities(Some("p."), Some(50), None)` →
+  `list_entities(ListEntitiesParams::new().event_type_prefix("p.").limit(50))`.
 - `QueryEventsParams` / `QueryEventsResponse` / `query_events` rustdoc now state
   the result ordering guarantee: events are ordered by `(timestamp, version)`,
   ascending by default, so `limit`/`offset` pagination over a sorted view is

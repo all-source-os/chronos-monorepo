@@ -84,6 +84,7 @@ mod client;
 mod error;
 mod fold;
 mod normalize;
+mod paginate;
 mod projection_api;
 #[cfg(feature = "projection-worker")]
 pub mod projection_worker;
@@ -96,6 +97,7 @@ pub use client::{ClientConfig, CoreClient, QueryClient, RetryConfig};
 pub use error::Error;
 pub use fold::{fold_events, EventFolder};
 pub use normalize::normalize_event_type;
+pub use paginate::{EntityPaginator, EventPaginator, DEFAULT_PAGE_SIZE};
 pub use types::*;
 
 #[cfg(feature = "ws")]
