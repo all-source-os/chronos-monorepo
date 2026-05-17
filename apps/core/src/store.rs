@@ -948,6 +948,12 @@ impl EventStore {
     /// After registration, the projection will also receive all future events.
     /// Historical events are replayed under a read lock — the projection's
     /// internal state (typically DashMap) handles concurrent access.
+    ///
+    /// Replay is ordered by `(timestamp, version)`. The in-memory pile can be
+    /// physically out of order when Parquet is hydrated after WAL recovery —
+    /// the WAL tail holds the newest events while Parquet holds the older
+    /// history — so the backfill must sort before replaying. Projections with
+    /// last-write-wins merge semantics produce wrong state otherwise.
     pub fn register_projection_with_backfill(
         &self,
         projection: &Arc<dyn crate::application::services::projection::Projection>,
@@ -958,13 +964,60 @@ impl EventStore {
             pm.register(Arc::clone(projection));
         }
 
-        // Then replay existing events under read lock
+        // Then replay existing events in chronological order under read lock
         let events = self.events.read();
-        for event in events.iter() {
+        let mut ordered: Vec<&Event> = events.iter().collect();
+        ordered.sort_by(|a, b| {
+            a.timestamp
+                .cmp(&b.timestamp)
+                .then_with(|| a.version.cmp(&b.version))
+        });
+        for event in ordered {
             projection.process(event)?;
         }
 
         Ok(())
+    }
+
+    /// Eagerly reconstruct the in-memory event pile from the full Parquet
+    /// archive.
+    ///
+    /// The default boot path (Step 2, issue #160) keeps Parquet cold and
+    /// hydrates tenants lazily on first query — the multi-tenant server
+    /// cannot fit every tenant in memory. Embedded single-store consumers
+    /// like Prime are the opposite case: their projections *are* the
+    /// queryable surface and never trigger the lazy query path, so the
+    /// projections must be backfilled from the complete history.
+    ///
+    /// Call this *before* registering projections. The dedupe in
+    /// [`Self::append_loaded_event`] makes it safe to run after WAL
+    /// recovery — events already replayed from the WAL are not
+    /// double-counted. No-op (and `Ok(0)`) when no Parquet storage is
+    /// configured, e.g. in-memory test mode.
+    ///
+    /// Returns the number of events newly loaded from Parquet.
+    pub fn hydrate_all_from_storage(&self) -> Result<usize> {
+        let Some(storage) = self.storage.as_ref().map(Arc::clone) else {
+            return Ok(0);
+        };
+
+        let events = storage.read().load_all_events()?;
+        let read_count = events.len();
+        let before = self.events.read().len();
+        for event in events {
+            self.append_loaded_event(event);
+        }
+        let applied = self.events.read().len() - before;
+
+        // The pile is now the authoritative full history.
+        *self.total_ingested.write() = self.events.read().len() as u64;
+
+        tracing::info!(
+            read = read_count,
+            applied = applied,
+            "🔄 hydrate_all_from_storage: in-memory pile reconstructed from Parquet"
+        );
+        Ok(applied)
     }
 
     /// Get the projection state cache for this store (v0.7 feature)

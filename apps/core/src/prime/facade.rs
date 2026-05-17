@@ -130,6 +130,17 @@ impl Prime {
     /// Build a `Prime` instance from a configured `EmbeddedCore`.
     fn from_core(core: EmbeddedCore) -> Self {
         let store = core.inner();
+
+        // Prime's graph projections are its entire queryable surface; unlike
+        // the multi-tenant server, Prime never goes through the lazy
+        // per-tenant query path that hydrates Parquet on demand. Reconstruct
+        // the event pile from the full archive *before* registering
+        // projections — otherwise a post-compaction boot backfills from an
+        // empty (truncated) WAL and silently loses all memory (issue #180).
+        if let Err(e) = store.hydrate_all_from_storage() {
+            tracing::error!("Prime boot: failed to hydrate events from Parquet: {e}");
+        }
+
         let (
             node_state,
             node_type_index,
@@ -2162,6 +2173,72 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(events.len(), 1);
+            prime.shutdown().await.unwrap();
+        }
+    }
+
+    /// Regression test for issue #180: projections must rebuild from the full
+    /// Parquet archive, not the WAL alone.
+    ///
+    /// The WAL is compacted into Parquet and truncated during the *second*
+    /// process's boot. From the third boot onward the WAL is empty, so a
+    /// WAL-only backfill would leave every projection blank. The graph must
+    /// survive an arbitrary number of restarts via `prime.stats()` and the
+    /// node/edge projections — the surface MCP clients actually query.
+    #[tokio::test]
+    async fn test_projections_survive_wal_compaction() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut node_ids = Vec::new();
+
+        // Boot 1: ingest a small graph (3 nodes + 1 edge).
+        {
+            let prime = Prime::open(dir.path()).await.unwrap();
+            for name in ["Alice", "Bob", "Carol"] {
+                let id = prime
+                    .add_node("person", json!({"name": name, "domain": "team"}))
+                    .await
+                    .unwrap();
+                node_ids.push(crate::prime::EntityId::node("person", id.as_str()).to_wire());
+            }
+            prime
+                .add_edge(&node_ids[0], &node_ids[1], "manages", None)
+                .await
+                .unwrap();
+
+            let stats = prime.stats();
+            assert_eq!(stats.total_nodes, 3);
+            assert_eq!(stats.total_edges, 1);
+            prime.shutdown().await.unwrap();
+        }
+
+        // Boots 2-4: boot 2 compacts the WAL into Parquet and truncates it;
+        // boots 3 and 4 start with an empty WAL and must hydrate from Parquet.
+        for boot in 2..=4 {
+            let prime = Prime::open(dir.path()).await.unwrap();
+            let stats = prime.stats();
+            assert_eq!(
+                stats.total_nodes, 3,
+                "boot {boot}: nodes lost — projection rebuilt from WAL only"
+            );
+            assert_eq!(
+                stats.total_edges, 1,
+                "boot {boot}: edges lost — projection rebuilt from WAL only"
+            );
+
+            // node_state must carry full properties, not just counts.
+            let alice = prime
+                .get_node(&node_ids[0])
+                .unwrap_or_else(|| panic!("boot {boot}: Alice missing from node_state"));
+            assert_eq!(alice.properties["name"], "Alice");
+
+            // adjacency must still resolve the edge.
+            let neighbors = prime.neighbors(&node_ids[0], None, Direction::Outgoing);
+            assert_eq!(
+                neighbors.len(),
+                1,
+                "boot {boot}: edge lost from adjacency projection"
+            );
+
             prime.shutdown().await.unwrap();
         }
     }
