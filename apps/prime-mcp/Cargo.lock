@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "allsource-prime"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "allsource-core",
  "anyhow",
