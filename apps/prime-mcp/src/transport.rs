@@ -1,8 +1,10 @@
-//! MCP stdio transport with Content-Length header framing (per MCP spec).
+//! MCP stdio transport — newline-delimited JSON-RPC (per MCP spec).
 //!
-//! Reads JSON-RPC messages from stdin using `Content-Length: N\r\n\r\n<body>` framing
-//! (identical to the Language Server Protocol). Falls back to line-delimited JSON
-//! if the first line looks like JSON (for backward compatibility with simple tests).
+//! The MCP stdio transport frames messages as one JSON-RPC object per line:
+//! no headers, no embedded newlines. Responses are written compact and
+//! `\n`-terminated. Inbound parsing also tolerates legacy `Content-Length:`
+//! (LSP-style) framing so older callers keep working, but spec-compliant
+//! clients (e.g. Claude Code) only ever see line-delimited output.
 
 use allsource_core::prime::{Prime, recall::RecallEngine};
 use anyhow::Result;
@@ -238,8 +240,10 @@ impl StdioTransport {
 /// Read a single MCP message from the reader.
 ///
 /// Supports two modes:
-/// 1. **Content-Length framing** (MCP spec): headers ending with blank line, then exact body bytes
-/// 2. **Line-delimited fallback**: if first line starts with `{`, treat as line-delimited JSON
+/// 1. **Newline-delimited JSON** (MCP spec): if the first line starts with `{`,
+///    it is one complete JSON-RPC object.
+/// 2. **Content-Length framing** (legacy LSP-style): headers ending with a
+///    blank line, then exact body bytes — accepted for backward compatibility.
 fn read_message(reader: &mut impl BufRead) -> Result<Option<String>> {
     let mut first_line = String::new();
     let bytes_read = reader.read_line(&mut first_line)?;
@@ -285,11 +289,15 @@ fn read_message(reader: &mut impl BufRead) -> Result<Option<String>> {
     Ok(Some(String::from_utf8_lossy(&body).to_string()))
 }
 
-/// Write a response with Content-Length header framing.
+/// Write a response as newline-delimited JSON-RPC (per the MCP stdio spec).
+///
+/// `serde_json::to_string` produces compact output with no embedded newlines,
+/// so a single trailing `\n` cleanly delimits the message for line-based
+/// clients.
 fn write_response(writer: &mut impl Write, resp: &Response) -> Result<()> {
     let json = serde_json::to_string(resp)?;
     tracing::debug!("send: {json}");
-    write!(writer, "Content-Length: {}\r\n\r\n{}", json.len(), json)?;
+    writeln!(writer, "{json}")?;
     writer.flush()?;
     Ok(())
 }

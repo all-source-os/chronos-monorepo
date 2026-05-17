@@ -21,16 +21,27 @@ mod http;
 mod profiling;
 mod protocol;
 mod tools;
+mod toon;
 mod transport;
 
 use transport::StdioTransport;
 
 #[derive(Clone, Debug, clap::ValueEnum)]
 enum Mode {
-    /// MCP server over stdio (JSON-RPC with Content-Length framing)
+    /// MCP server over stdio (newline-delimited JSON-RPC, per the MCP spec)
     Mcp,
     /// HTTP REST API server
     Http,
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum Format {
+    /// Pretty-printed JSON (default — maximally compatible)
+    Json,
+    /// Token-Oriented Object Notation — compact, ~40-60% fewer tokens on
+    /// uniform result arrays. Encodes the tool-result payload only; the
+    /// JSON-RPC envelope is always standard JSON.
+    Toon,
 }
 
 #[derive(Parser)]
@@ -51,6 +62,10 @@ struct Cli {
     /// HTTP port (only used in http mode)
     #[arg(long, env = "PRIME_PORT", default_value = "3905")]
     port: u16,
+
+    /// Tool-result payload encoding: json or toon (mcp mode only)
+    #[arg(long, env = "PRIME_RESULT_FORMAT", default_value = "json")]
+    format: Format,
 
     /// Log level (trace, debug, info, warn, error)
     #[arg(long, env = "PRIME_LOG_LEVEL", default_value = "info")]
@@ -91,9 +106,17 @@ async fn main() -> Result<()> {
     let recall =
         allsource_core::prime::recall::RecallEngine::with_deps(prime.recall_deps(), &recall_config);
 
+    tools::set_result_format(match cli.format {
+        Format::Json => tools::ResultFormat::Json,
+        Format::Toon => tools::ResultFormat::Toon,
+    });
+
     match cli.mode {
         Mode::Mcp => {
-            tracing::info!("Starting MCP server (stdio transport)");
+            tracing::info!(
+                "Starting MCP server (stdio transport, {:?} payloads)",
+                cli.format
+            );
             let mut transport = StdioTransport::new(prime, recall);
             if cli.auto_inject {
                 tracing::info!(

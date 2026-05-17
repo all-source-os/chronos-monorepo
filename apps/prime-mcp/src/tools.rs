@@ -3,8 +3,31 @@
 //! Each tool maps to a Prime facade method. Tool descriptions are written for
 //! AI agent consumption — they explain *when* to use each tool.
 
+use std::sync::OnceLock;
+
 use allsource_core::prime::{Prime, recall::RecallEngine};
 use serde_json::{Value, json};
+
+/// Encoding for the text payload of MCP tool results.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResultFormat {
+    /// Pretty-printed JSON.
+    Json,
+    /// TOON — compact, token-efficient (see [`crate::toon`]).
+    Toon,
+}
+
+static RESULT_FORMAT: OnceLock<ResultFormat> = OnceLock::new();
+
+/// Set the tool-result payload format. Called once at startup; later calls
+/// are ignored. Defaults to [`ResultFormat::Json`] if never set.
+pub fn set_result_format(fmt: ResultFormat) {
+    let _ = RESULT_FORMAT.set(fmt);
+}
+
+fn result_format() -> ResultFormat {
+    RESULT_FORMAT.get().copied().unwrap_or(ResultFormat::Json)
+}
 
 /// Return MCP tool definitions (for `tools/list`).
 pub fn tool_definitions() -> Value {
@@ -202,10 +225,17 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
 
 #[allow(clippy::needless_pass_by_value)]
 fn tool_result(content: Value) -> Value {
+    let text = match result_format() {
+        // A leading `format: toon` line tells the consuming model how to read
+        // the payload; it is itself a valid TOON field, so the result stays
+        // well-formed TOON end to end.
+        ResultFormat::Toon => format!("format: toon\n{}", crate::toon::encode(&content)),
+        ResultFormat::Json => serde_json::to_string_pretty(&content).unwrap_or_default(),
+    };
     json!({
         "content": [{
             "type": "text",
-            "text": serde_json::to_string_pretty(&content).unwrap_or_default()
+            "text": text
         }]
     })
 }
