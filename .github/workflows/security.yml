@@ -53,6 +53,8 @@ jobs:
         if: matrix.name == 'rust'
         # Audit the root workspace lockfile — apps/core is a workspace
         # member and doesn't have its own Cargo.lock.
+        # RUSTSEC-2026-0112/0113 (astral-tokio-tar): dev-only, pulled via
+        # testcontainers, never in a shipped artifact; no upstream fix yet.
         run: |
           cargo audit \
             --file Cargo.lock \
@@ -61,7 +63,9 @@ jobs:
             --ignore RUSTSEC-2026-0049 \
             --ignore RUSTSEC-2026-0066 \
             --ignore RUSTSEC-2026-0067 \
-            --ignore RUSTSEC-2026-0068
+            --ignore RUSTSEC-2026-0068 \
+            --ignore RUSTSEC-2026-0112 \
+            --ignore RUSTSEC-2026-0113
 
       # Go dependencies
       - name: Set up Go
