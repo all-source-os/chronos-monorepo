@@ -94,9 +94,13 @@ jobs:
       - name: Elixir dependency audit
         if: matrix.name == 'elixir'
         working-directory: ${{ matrix.working-directory }}
+        # GHSA-g2wm-735q-3f56 (cowlib cookie injection): severity low, no
+        # upstream fix. cowlib is transitive via the optional plug_cowboy
+        # chain — the query-service runs on Bandit, not Cowboy, so the
+        # vulnerable cow_cookie path is never on the runtime path.
         run: |
           mix deps.get
-          mix deps.audit
+          mix deps.audit --ignore-advisory-ids "GHSA-g2wm-735q-3f56"
 
   # ============================================================================
   # CodeQL Analysis - SAST for multiple languages
