@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 pub enum ResultFormat {
     /// Pretty-printed JSON.
     Json,
-    /// TOON — compact, token-efficient (see [`crate::toon`]).
+    /// TOON — compact, token-efficient (see the `toon` module).
     Toon,
 }
 

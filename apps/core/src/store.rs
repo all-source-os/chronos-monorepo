@@ -990,10 +990,10 @@ impl EventStore {
     /// projections must be backfilled from the complete history.
     ///
     /// Call this *before* registering projections. The dedupe in
-    /// [`Self::append_loaded_event`] makes it safe to run after WAL
-    /// recovery — events already replayed from the WAL are not
-    /// double-counted. No-op (and `Ok(0)`) when no Parquet storage is
-    /// configured, e.g. in-memory test mode.
+    /// `append_loaded_event` makes it safe to run after WAL recovery —
+    /// events already replayed from the WAL are not double-counted.
+    /// No-op (and `Ok(0)`) when no Parquet storage is configured, e.g.
+    /// in-memory test mode.
     ///
     /// Returns the number of events newly loaded from Parquet.
     pub fn hydrate_all_from_storage(&self) -> Result<usize> {
