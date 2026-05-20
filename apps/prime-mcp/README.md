@@ -99,6 +99,53 @@ Exposes `prime://auto-context` as an MCP resource — the agent's system prompt 
 └─────────────────────────────────────────────┘
 ```
 
+## How it stores and embeds
+
+**Storage.** Prime is an AllSource event store, not a separate database. Every
+mutation — node, edge, vector, schema, soft-delete — appends an immutable event
+to the WAL and is replayed by projections that hold the queryable state:
+
+| Event                  | Emitted by                                | Indexed by                                                        |
+|------------------------|-------------------------------------------|-------------------------------------------------------------------|
+| `prime.node.created`   | `prime_add_node`                          | `NodeState`, `NodeTypeIndex`, `DomainIndex`                       |
+| `prime.node.updated`   | `prime.update_node`                        | `NodeState`                                                       |
+| `prime.node.deleted`   | `prime_forget`                            | `NodeState` (soft-delete)                                         |
+| `prime.edge.created`   | `prime_add_edge`                          | `AdjacencyList`, `ReverseIndex`, `CrossDomain`, `GraphStats`      |
+| `prime.edge.deleted`   | cascade from `prime_forget`                | `AdjacencyList`, `ReverseIndex`                                   |
+| `prime.vector.stored`  | `prime_embed`                             | `VectorIndex` (HNSW via `instant-distance`)                       |
+| `prime.vector.deleted` | `prime.delete_vector`                      | `VectorIndex`                                                     |
+
+Durability comes from AllSource Core: WAL with CRC32 checksums and configurable
+fsync, periodic Snappy-compressed Parquet snapshots, and projection checkpoints.
+Use `prime_history` on any entity to see the full audit trail; use the time-
+travel projections (`get_node_as_of`) for point-in-time reads.
+
+**Embeddings.** Embeddings are computed **in-process** via
+[`fastembed`](https://crates.io/crates/fastembed) (pure-Rust ONNX runtime).
+Default model is `AllMiniLML6V2` — 384 dims, ~25 MB, auto-downloaded into the
+fastembed cache on first call. **No external embedding service is required.**
+
+That means `prime_embed` and `prime_recall` accept either a precomputed
+`vector` *or* plain `text`; if you pass `text` alone the server embeds it
+in-process before storing or searching. Same for the HTTP endpoints:
+
+```bash
+# Store via text only — server embeds
+curl -X POST http://localhost:3905/api/v1/prime/vectors \
+  -H 'Content-Type: application/json' \
+  -d '{"id": "node:concept:abc", "text": "agents need persistent memory"}'
+
+# Search via text only — server embeds the query
+curl -X POST http://localhost:3905/api/v1/prime/vectors/search \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "what do I know about memory?", "top_k": 5}'
+```
+
+Pass `vector` instead of (or alongside) `text` if you already have an
+embedding from a different model — Prime won't re-embed when `vector` is set.
+The first text-embedding call in a process pays the model download; subsequent
+calls take ~1–3 ms.
+
 ## License
 
 Apache-2.0

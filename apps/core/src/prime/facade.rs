@@ -4,6 +4,8 @@
 //! and exposes graph-aware convenience methods on top of the event store.
 
 use std::{path::Path, sync::Arc};
+#[cfg(feature = "prime-vectors")]
+use std::sync::OnceLock;
 
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
@@ -55,6 +57,10 @@ pub struct Prime {
     cross_domain: Arc<CrossDomainProjection>,
     #[cfg(feature = "prime-vectors")]
     vector_index: Arc<super::vectors::VectorIndexProjection>,
+    /// Lazily-initialized text → vector embedder. Built on the first
+    /// `embed_text` call so graph-only callers don't download the model.
+    #[cfg(feature = "prime-vectors")]
+    embedder: OnceLock<Arc<super::vectors::TextEmbedder>>,
 }
 
 impl Prime {
@@ -166,6 +172,8 @@ impl Prime {
             cross_domain,
             #[cfg(feature = "prime-vectors")]
             vector_index,
+            #[cfg(feature = "prime-vectors")]
+            embedder: OnceLock::new(),
         }
     }
 
@@ -749,6 +757,36 @@ impl Prime {
     // =========================================================================
     // Vector Operations (requires `prime-vectors` feature)
     // =========================================================================
+
+    /// Lazily initialize and return the in-process text embedder.
+    ///
+    /// First call downloads the AllMiniLML6V2 model into the fastembed cache
+    /// (~25 MB); subsequent calls reuse the cached model. Embedding latency
+    /// on AllMiniLML6V2 is ~1–3 ms for short strings on modern CPUs.
+    #[cfg(feature = "prime-vectors")]
+    pub fn embedder(&self) -> PrimeResult<&Arc<super::vectors::TextEmbedder>> {
+        if let Some(e) = self.embedder.get() {
+            return Ok(e);
+        }
+        let new = Arc::new(super::vectors::TextEmbedder::new()?);
+        // If another thread won the race, our `new` is dropped and we read
+        // theirs back via `get` below.
+        let _ = self.embedder.set(new);
+        Ok(self
+            .embedder
+            .get()
+            .expect("embedder was just set or already initialized"))
+    }
+
+    /// Convert text to an embedding vector using the in-process embedder.
+    ///
+    /// Lets MCP/HTTP callers that only have text supply vector-based tools
+    /// like [`Prime::embed`], [`Prime::vector_search`], and [`Prime::recall`]
+    /// without standing up a separate embedding service.
+    #[cfg(feature = "prime-vectors")]
+    pub fn embed_text(&self, text: &str) -> PrimeResult<Vec<f32>> {
+        self.embedder()?.embed(text)
+    }
 
     /// Store a vector embedding associated with an entity.
     #[cfg(feature = "prime-vectors")]

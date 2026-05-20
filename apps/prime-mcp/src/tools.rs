@@ -161,16 +161,16 @@ pub fn tool_definitions() -> Value {
         // ─── Vector Operations ───────────────────────────────────────
         {
             "name": "prime_embed",
-            "description": "Store a vector embedding for semantic search. Always pair with prime_add_node — create the node first, then embed it using the node's entity_id. This makes the node findable by meaning, not just by type or graph position. Without an embedding, prime_recall won't find the node.",
+            "description": "Store a vector embedding for semantic search. Always pair with prime_add_node — create the node first, then embed it using the node's entity_id. This makes the node findable by meaning, not just by type or graph position. Supply 'text' alone and the server will embed it in-process via fastembed (AllMiniLML6V2, 384 dims). Supply 'vector' if you already have a precomputed embedding. At least one of 'text' or 'vector' is required.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "id": { "type": "string", "description": "Entity_id of the node to embed (use the entity_id returned by prime_add_node)" },
-                    "text": { "type": "string", "description": "Source text that was embedded (stored for display in search results)" },
-                    "vector": { "type": "array", "items": { "type": "number" }, "description": "Embedding vector (float array from your embedding model)" },
+                    "text": { "type": "string", "description": "Source text. Stored alongside the vector for display in search results, and — if 'vector' is omitted — embedded server-side via the bundled fastembed model." },
+                    "vector": { "type": "array", "items": { "type": "number" }, "description": "Precomputed embedding vector. Optional when 'text' is supplied — the server will embed for you." },
                     "metadata": { "type": "object", "description": "Optional: tags, source URL, confidence score" }
                 },
-                "required": ["id", "vector"]
+                "required": ["id"]
             }
         },
         {
@@ -187,17 +187,16 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "prime_recall",
-            "description": "Hybrid recall: vectors + graph + temporal recency. Your PRIMARY tool for 'what do I know about X?' questions. Finds semantically similar facts via embedding, then expands through graph connections to discover related context. Set depth=0 for vector-only, depth=1+ to include graph neighbors. For cross-domain questions, use prime_context instead (it adds the compressed index).",
+            "description": "Hybrid recall: vectors + graph + temporal recency. Your PRIMARY tool for 'what do I know about X?' questions. Finds semantically similar facts via embedding, then expands through graph connections to discover related context. Supply 'text' alone and the server embeds it in-process via fastembed (AllMiniLML6V2, 384 dims) — no client-side embedding model required. Supply 'vector' if you already have a precomputed query embedding. Set depth=0 for vector-only, depth=1+ to include graph neighbors. For cross-domain questions, use prime_context instead (it adds the compressed index).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "vector": { "type": "array", "items": { "type": "number" }, "description": "Query embedding vector" },
+                    "text": { "type": "string", "description": "Natural language query. Embedded server-side via fastembed when 'vector' is not supplied." },
+                    "vector": { "type": "array", "items": { "type": "number" }, "description": "Precomputed query embedding vector. Optional — supply 'text' instead to have the server embed for you." },
                     "node_type": { "type": "string", "description": "Filter to this node type only" },
                     "depth": { "type": "integer", "description": "Graph expansion hops from vector matches (0=vector-only, 1+=include neighbors, default: 1)" },
-                    "top_k": { "type": "integer", "description": "Max results (default: 10)" },
-                    "text": { "type": "string", "description": "Query text for logging/debugging" }
-                },
-                "required": ["vector"]
+                    "top_k": { "type": "integer", "description": "Max results (default: 10)" }
+                }
             }
         }
     ])
@@ -422,13 +421,20 @@ async fn call_embed(prime: &Prime, args: &Value) -> Value {
         return tool_error("missing 'id'");
     };
     let text = args.get("text").and_then(Value::as_str);
-    let Some(vector) = args.get("vector").and_then(|v| v.as_array()) else {
-        return tool_error("missing 'vector'");
+
+    let vector: Vec<f32> = if let Some(arr) = args.get("vector").and_then(|v| v.as_array()) {
+        arr.iter()
+            .filter_map(|v| v.as_f64().map(|f| f as f32))
+            .collect()
+    } else if let Some(t) = text {
+        match prime.embed_text(t) {
+            Ok(v) => v,
+            Err(e) => return tool_error(&format!("server-side embedding failed: {e}")),
+        }
+    } else {
+        return tool_error("missing 'vector' or 'text' — supply at least one");
     };
-    let vector: Vec<f32> = vector
-        .iter()
-        .filter_map(|v| v.as_f64().map(|f| f as f32))
-        .collect();
+
     let metadata = args.get("metadata").cloned();
 
     match prime.embed_with_metadata(id, text, vector, metadata).await {
@@ -461,21 +467,38 @@ fn call_similar(prime: &Prime, args: &Value) -> Value {
 async fn call_recall(prime: &Prime, args: &Value) -> Value {
     use allsource_core::prime::types::RecallQuery;
 
-    let Some(vector) = args.get("vector").and_then(|v| v.as_array()) else {
-        return tool_error("missing 'vector'");
-    };
-    let vector: Vec<f32> = vector
-        .iter()
-        .filter_map(|v| v.as_f64().map(|f| f as f32))
-        .collect();
+    let text = args.get("text").and_then(Value::as_str).map(String::from);
+    let node_type = args
+        .get("node_type")
+        .and_then(Value::as_str)
+        .map(String::from);
+
+    let vector: Option<Vec<f32>> =
+        if let Some(arr) = args.get("vector").and_then(|v| v.as_array()) {
+            Some(
+                arr.iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect(),
+            )
+        } else if let Some(ref t) = text {
+            match prime.embed_text(t) {
+                Ok(v) => Some(v),
+                Err(e) => return tool_error(&format!("server-side embedding failed: {e}")),
+            }
+        } else {
+            None
+        };
+
+    if vector.is_none() && node_type.is_none() {
+        return tool_error(
+            "missing input — supply 'text', 'vector', or 'node_type' so recall has something to search on",
+        );
+    }
 
     let query = RecallQuery {
-        text: args.get("text").and_then(Value::as_str).map(String::from),
-        vector: Some(vector),
-        node_type: args
-            .get("node_type")
-            .and_then(Value::as_str)
-            .map(String::from),
+        text,
+        vector,
+        node_type,
         depth: args
             .get("depth")
             .and_then(Value::as_u64)
@@ -579,4 +602,72 @@ async fn call_context(recall: &RecallEngine, args: &Value) -> Value {
         "stats": ctx.stats,
         "token_count": ctx.token_count,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn find_tool<'a>(defs: &'a Value, name: &str) -> &'a Value {
+        defs.as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["name"] == name)
+            .unwrap_or_else(|| panic!("tool {name} not in definitions"))
+    }
+
+    #[test]
+    fn prime_embed_schema_does_not_require_vector() {
+        // Issue #186: agents can't precompute vectors, so the server must
+        // accept `text` alone and embed it in-process. `vector` being in
+        // `required` reintroduces the asymmetry.
+        let defs = tool_definitions();
+        let embed = find_tool(&defs, "prime_embed");
+        let required = embed["inputSchema"]["required"].as_array().unwrap();
+        assert!(
+            required.iter().any(|v| v == "id"),
+            "id should still be required"
+        );
+        assert!(
+            !required.iter().any(|v| v == "vector"),
+            "vector must NOT be required — text alone is valid input"
+        );
+    }
+
+    #[test]
+    fn prime_recall_schema_does_not_require_vector() {
+        let defs = tool_definitions();
+        let recall = find_tool(&defs, "prime_recall");
+        let required = recall["inputSchema"]
+            .get("required")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            !required.iter().any(|v| v == "vector"),
+            "vector must NOT be required for prime_recall"
+        );
+    }
+
+    #[test]
+    fn prime_embed_description_mentions_text_only_path() {
+        let defs = tool_definitions();
+        let embed = find_tool(&defs, "prime_embed");
+        let desc = embed["description"].as_str().unwrap();
+        assert!(
+            desc.contains("text"),
+            "description should mention text-only embedding path"
+        );
+    }
+
+    #[test]
+    fn prime_recall_description_mentions_text_only_path() {
+        let defs = tool_definitions();
+        let recall = find_tool(&defs, "prime_recall");
+        let desc = recall["description"].as_str().unwrap();
+        assert!(
+            desc.contains("text"),
+            "description should mention text-only query path"
+        );
+    }
 }

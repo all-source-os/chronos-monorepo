@@ -96,13 +96,18 @@ struct CreateEdgeRequest {
 struct StoreVectorRequest {
     id: String,
     text: Option<String>,
-    vector: Vec<f32>,
+    /// Optional when `text` is supplied — the server embeds it in-process
+    /// via the bundled fastembed model.
+    vector: Option<Vec<f32>>,
     metadata: Option<Value>,
 }
 
 #[derive(Deserialize)]
 struct VectorSearchRequest {
-    vector: Vec<f32>,
+    /// Optional when `text` is supplied — the server embeds it in-process.
+    vector: Option<Vec<f32>>,
+    /// Natural-language query. Embedded server-side when `vector` is absent.
+    text: Option<String>,
     top_k: Option<usize>,
 }
 
@@ -294,9 +299,30 @@ async fn store_vector(
     State(state): State<Arc<AppState>>,
     Json(req): Json<StoreVectorRequest>,
 ) -> impl IntoResponse {
+    let vector = match req.vector {
+        Some(v) => v,
+        None => match req.text.as_deref() {
+            Some(t) => match state.prime.embed_text(t) {
+                Ok(v) => v,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"error": format!("server-side embedding failed: {e}")})),
+                    );
+                }
+            },
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": "missing 'vector' or 'text' — supply at least one"})),
+                );
+            }
+        },
+    };
+
     match state
         .prime
-        .embed_with_metadata(&req.id, req.text.as_deref(), req.vector, req.metadata)
+        .embed_with_metadata(&req.id, req.text.as_deref(), vector, req.metadata)
         .await
     {
         Ok(()) => (
@@ -315,12 +341,32 @@ async fn search_vectors(
     Json(req): Json<VectorSearchRequest>,
 ) -> impl IntoResponse {
     let top_k = req.top_k.unwrap_or(10);
-    let results = state.prime.vector_search(&req.vector, top_k);
+    let vector = match req.vector {
+        Some(v) => v,
+        None => match req.text.as_deref() {
+            Some(t) => match state.prime.embed_text(t) {
+                Ok(v) => v,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"error": format!("server-side embedding failed: {e}")})),
+                    );
+                }
+            },
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": "missing 'vector' or 'text' — supply at least one"})),
+                );
+            }
+        },
+    };
+    let results = state.prime.vector_search(&vector, top_k);
     let results_json: Vec<Value> = results
         .iter()
         .map(|r| json!({"id": r.id, "score": r.score, "text": r.text}))
         .collect();
-    Json(json!({"results": results_json}))
+    (StatusCode::OK, Json(json!({"results": results_json})))
 }
 
 async fn delete_vector(
@@ -358,9 +404,25 @@ async fn recall(
 ) -> impl IntoResponse {
     use allsource_core::prime::types::RecallQuery;
 
+    let vector = match req.vector {
+        Some(v) => Some(v),
+        None => match req.text.as_deref() {
+            Some(t) => match state.prime.embed_text(t) {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"error": format!("server-side embedding failed: {e}")})),
+                    );
+                }
+            },
+            None => None,
+        },
+    };
+
     let query = RecallQuery {
         text: req.text,
-        vector: req.vector,
+        vector,
         node_type: req.node_type,
         depth: req.depth.unwrap_or(1),
         top_k: req.top_k.unwrap_or(10),
