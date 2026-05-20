@@ -43,6 +43,27 @@ fn payload_field_str<'a>(payload: &'a serde_json::Value, field: &str) -> Option<
         })
 }
 
+/// Build the `payload_filter` query value Core expects: a flat
+/// `{"<field>": "<value>"}` map. Core's filter parser
+/// (`apps/core/src/store.rs::matches_filter`) decodes the string as a
+/// `Map<String, Value>` and requires `payload[k] == v` for every entry.
+///
+/// An earlier version of this client sent a structured
+/// `{"field": "payload.<field>", "op": "eq", "value": <value>}` body. Core
+/// interpreted that as "payload must contain literal keys `field`, `op`,
+/// `value`", which never matches a real event, so every server-side filter
+/// query returned an empty result. The adapter's scan fallback only fires on
+/// HTTP 400/422, not on 200-with-empty, so `find_by_field` always returned
+/// `None` — duplicating users on every signin (issue #187).
+fn build_payload_filter(field: &str, value: &str) -> String {
+    serde_json::Value::Object(
+        [(field.to_string(), serde_json::Value::String(value.to_string()))]
+            .into_iter()
+            .collect(),
+    )
+    .to_string()
+}
+
 /// Low-level HTTP client for Allsource Core and Query Service.
 #[derive(Clone)]
 pub struct AllsourceClient {
@@ -271,11 +292,7 @@ impl AllsourceClient {
     ) -> Result<Option<T>, AllsourceAuthError> {
         let url = format!("{}/api/v1/events/query", self.query_url);
 
-        let filter = serde_json::json!({
-            "field": format!("payload.{}", field),
-            "op": "eq",
-            "value": value
-        });
+        let filter = build_payload_filter(field, value);
 
         let resp = self
             .http
@@ -283,7 +300,7 @@ impl AllsourceClient {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .query(&[
                 ("event_type_prefix", event_type_prefix),
-                ("payload_filter", &filter.to_string()),
+                ("payload_filter", &filter),
                 ("limit", "1"),
                 ("order", "desc"),
             ])
@@ -493,6 +510,11 @@ async fn extract_error_message(resp: reqwest::Response) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use better_auth_core::types::User;
+    use std::sync::Arc;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::TcpListener;
+    use tokio::sync::Mutex;
 
     #[test]
     fn to_camel_case_basic() {
@@ -529,5 +551,131 @@ mod tests {
         // Snake-keyed payload (hypothetical legacy data) still resolves.
         let snake = serde_json::json!({ "user_id": "uid-2" });
         assert_eq!(payload_field_str(&snake, "user_id"), Some("uid-2"));
+    }
+
+    /// Regression for issue #187. Core's `payload_filter` parser expects a
+    /// flat `{field: value}` JSON map. The previous structured shape
+    /// `{"field": "payload.email", "op": "eq", ...}` matched no events and
+    /// made `find_by_field` return `None` for every signin lookup.
+    #[test]
+    fn build_payload_filter_emits_flat_map() {
+        let raw = build_payload_filter("email", "alias+test1@example.com");
+        let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(
+            parsed,
+            serde_json::json!({ "email": "alias+test1@example.com" })
+        );
+    }
+
+    #[test]
+    fn build_payload_filter_preserves_special_chars() {
+        // Make sure `+` and `@` survive serialization; URL encoding is the
+        // HTTP client's job, not ours.
+        let raw = build_payload_filter("email", "a+b@c.io");
+        assert!(raw.contains("a+b@c.io"), "got {raw}");
+    }
+
+    /// End-to-end check that `find_by_field("email", ...)` sends Core a
+    /// `payload_filter` whose JSON decodes to `{"email": "<value>"}`. This
+    /// asserts the wire contract directly; if a future change re-wraps the
+    /// filter we'll catch it here.
+    #[tokio::test]
+    async fn find_by_field_sends_flat_payload_filter() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // Capture the inbound request line so we can assert on the query
+        // string after the handler returns.
+        let captured: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        let captured_clone = captured.clone();
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let (read_half, mut write_half) = stream.into_split();
+            let mut reader = BufReader::new(read_half);
+            let mut request_line = String::new();
+            reader.read_line(&mut request_line).await.unwrap();
+            *captured_clone.lock().await = Some(request_line.clone());
+
+            // Drain headers
+            loop {
+                let mut buf = String::new();
+                reader.read_line(&mut buf).await.unwrap();
+                if buf == "\r\n" || buf.is_empty() {
+                    break;
+                }
+            }
+
+            let body = r#"{"events":[]}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            write_half.write_all(response.as_bytes()).await.unwrap();
+            write_half.shutdown().await.ok();
+        });
+
+        let core_url = format!("http://{addr}");
+        let client = AllsourceClient::new(&core_url, &core_url, "test-key");
+        let _: Option<User> = client
+            .find_by_field("auth.user.created", "email", "alias+test1@example.com")
+            .await
+            .unwrap();
+
+        server.await.unwrap();
+        let line = captured.lock().await.clone().expect("request not captured");
+
+        // Extract the URL portion of the request line: `GET <url> HTTP/1.1`.
+        let path_and_query = line
+            .split_whitespace()
+            .nth(1)
+            .expect("request line malformed");
+        let qs = path_and_query
+            .split_once('?')
+            .map(|(_, q)| q)
+            .expect("query string missing");
+
+        // Find `payload_filter=<value>` and decode it.
+        let filter_raw = qs
+            .split('&')
+            .find_map(|pair| pair.strip_prefix("payload_filter="))
+            .expect("payload_filter param missing");
+        // `reqwest` percent-encodes the JSON; decode minimally for assertion.
+        let decoded = percent_decode(filter_raw);
+        let parsed: serde_json::Value = serde_json::from_str(&decoded)
+            .unwrap_or_else(|e| panic!("payload_filter not valid JSON: {decoded:?} ({e})"));
+
+        assert_eq!(
+            parsed,
+            serde_json::json!({ "email": "alias+test1@example.com" }),
+            "regression for #187: filter must be a flat key/value map Core can match"
+        );
+    }
+
+    /// Minimal percent-decoder for the assertion above; we only need to
+    /// reverse what `reqwest`'s query encoder produced.
+    fn percent_decode(input: &str) -> String {
+        let bytes = input.as_bytes();
+        let mut out = Vec::with_capacity(bytes.len());
+        let mut i = 0;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'+' => {
+                    out.push(b' ');
+                    i += 1;
+                }
+                b'%' if i + 2 < bytes.len() => {
+                    let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap();
+                    out.push(u8::from_str_radix(hex, 16).unwrap());
+                    i += 3;
+                }
+                b => {
+                    out.push(b);
+                    i += 1;
+                }
+            }
+        }
+        String::from_utf8(out).unwrap()
     }
 }
