@@ -5,6 +5,7 @@ import { cn } from "@allsource/ui/utils";
 import {
   Activity,
   BarChart3,
+  Brain,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -31,6 +32,7 @@ interface SidebarProps {
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Events", href: "/dashboard/events", icon: Activity },
+  { name: "Memory", href: "/dashboard/memory", icon: Brain },
   { name: "Pipelines", href: "/dashboard/pipelines", icon: GitBranch },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Demo Zone", href: "/dashboard/demo", icon: Zap },
