@@ -23,6 +23,7 @@
 mod adapter;
 mod client;
 mod error;
+mod user_record;
 
 pub use adapter::AllsourceAuthAdapter;
 pub use error::AllsourceAuthError;

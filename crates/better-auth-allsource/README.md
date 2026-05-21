@@ -99,6 +99,39 @@ better-auth-allsource = { version = "0.14", default-features = false, features =
 
 Writes go directly to Allsource Core (the event store). Reads go through the Query Service, which handles auth validation and query routing. Both are part of the [Allsource](https://github.com/all-source-os/all-source) platform.
 
+## Storing password hashes
+
+**Password hashes belong on `Account.password`, not on `User.metadata`.**
+
+`better-auth-core` models email/password credentials on the `Account` row (`AccountOps::create_account` takes a `password: Option<String>` field). That's the field `better-auth-core`'s own password-verify flow reads, and it round-trips through serde cleanly.
+
+```rust
+use better_auth_core::types::{CreateAccount, CreateUser};
+
+let user = db.create_user(CreateUser::new().with_email(&email)).await?;
+
+db.create_account(CreateAccount {
+    account_id: user.id.clone(),
+    provider_id: "credential".to_string(),
+    user_id: user.id.clone(),
+    password: Some(password_hash), // <- canonical home for the hash
+    access_token: None,
+    refresh_token: None,
+    id_token: None,
+    access_token_expires_at: None,
+    refresh_token_expires_at: None,
+    scope: None,
+}).await?;
+```
+
+`User.metadata` is for application-specific data (theme prefs, feature flags, etc.). Since v0.14.10 the adapter:
+
+- **round-trips `User.metadata` losslessly** through the event payload (previously dropped because of upstream `#[serde(skip)]` — see issue #187), so genuine app metadata survives create/update/read
+- **rejects** `create_user` / `update_user` whose `metadata` contains a `password`, `password_hash`, `passwordHash`, `passwd`, `hashed_password`, or `hashedPassword` key — these must move to `Account.password`
+- emits a `tracing::warn` whenever `metadata` is set, so any side-channel use stays visible in production logs
+
+If you are migrating off a `metadata.password_hash` pattern, copy the existing hash to `Account.password` first, then clear it from `metadata` on the next `update_user` call.
+
 ## Error Handling
 
 All methods return `AuthResult<T>` from `better-auth-core`. The adapter maps HTTP, JSON, and API errors into `AuthError::Database(DatabaseError::Query(...))`:

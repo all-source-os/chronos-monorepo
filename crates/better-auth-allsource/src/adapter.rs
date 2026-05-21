@@ -17,6 +17,69 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::client::AllsourceClient;
+use crate::user_record::UserRecord;
+
+/// Keys that better-auth-allsource refuses to accept inside `User.metadata`.
+/// These look like password hash storage, which belongs on
+/// [`Account::password`] per the better-auth-core data model.
+const FORBIDDEN_METADATA_KEYS: &[&str] = &[
+    "password",
+    "password_hash",
+    "passwordHash",
+    "passwd",
+    "hashed_password",
+    "hashedPassword",
+];
+
+/// Validate caller-supplied metadata before it lands in an event.
+///
+/// Returns an error if the map carries a key that looks like a password
+/// hash field. Password hashes belong on `Account.password` (which is
+/// what `AccountOps::create_account` accepts and what better-auth-core's
+/// password flow actually reads). Storing them under `User.metadata` is
+/// a side-channel that several consumers fell into; it is now rejected
+/// to keep the trap out of new code.
+///
+/// Any other non-null metadata is allowed but logged at `warn` level so
+/// side-channel use is at least visible in production logs.
+fn validate_metadata(metadata: Option<&serde_json::Value>) -> Result<(), AuthError> {
+    let Some(value) = metadata else {
+        return Ok(());
+    };
+    if value.is_null() {
+        return Ok(());
+    }
+    if let Some(obj) = value.as_object() {
+        for forbidden in FORBIDDEN_METADATA_KEYS {
+            if obj.contains_key(*forbidden) {
+                return Err(AuthError::config(format!(
+                    "User.metadata.{forbidden} is reserved — password hashes must be stored on Account.password (via AccountOps::create_account). See better-auth-allsource README §Storing password hashes."
+                )));
+            }
+        }
+        tracing::warn!(
+            keys = ?obj.keys().collect::<Vec<_>>(),
+            "User.metadata is set on create_user/update_user — confirm this is not a credentials side-channel; Account.password is the canonical password-hash field"
+        );
+    } else {
+        tracing::warn!(
+            metadata_type = %value_type_label(value),
+            "User.metadata is a non-object value — round-trips via UserRecord but most consumers expect an object",
+        );
+    }
+    Ok(())
+}
+
+fn value_type_label(v: &serde_json::Value) -> &'static str {
+    match v {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "bool",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
+    }
+}
 
 /// Allsource-backed `DatabaseAdapter` for better-auth-rs.
 ///
@@ -83,6 +146,8 @@ impl UserOps for AllsourceAuthAdapter {
     type User = User;
 
     async fn create_user(&self, input: CreateUser) -> AuthResult<User> {
+        validate_metadata(input.metadata.as_ref())?;
+
         let id = input
             .id
             .clone()
@@ -92,7 +157,7 @@ impl UserOps for AllsourceAuthAdapter {
         if let Some(email) = &input.email {
             if let Some(_existing) = self
                 .client
-                .find_by_field::<User>("auth.user.created", "email", email)
+                .find_by_field::<UserRecord>("auth.user.created", "email", email)
                 .await
                 .map_err(AuthError::from)?
             {
@@ -104,7 +169,7 @@ impl UserOps for AllsourceAuthAdapter {
         if let Some(username) = &input.username {
             if let Some(_existing) = self
                 .client
-                .find_by_field::<User>("auth.user.created", "username", username)
+                .find_by_field::<UserRecord>("auth.user.created", "username", username)
                 .await
                 .map_err(AuthError::from)?
             {
@@ -133,7 +198,10 @@ impl UserOps for AllsourceAuthAdapter {
             metadata: input.metadata.unwrap_or(serde_json::Value::Null),
         };
 
-        let payload = serde_json::to_value(&user).map_err(AuthError::from)?;
+        // Serialize through `UserRecord` so `metadata` round-trips through
+        // the event payload. Plain `serde_json::to_value(&user)` would drop
+        // the field because of upstream `#[serde(skip)]` (issue #187).
+        let payload = serde_json::to_value(UserRecord(user.clone())).map_err(AuthError::from)?;
         self.client
             .append_event(&user_entity(&id), "auth.user.created", payload)
             .await
@@ -146,27 +214,35 @@ impl UserOps for AllsourceAuthAdapter {
     }
 
     async fn get_user_by_id(&self, id: &str) -> AuthResult<Option<User>> {
-        self.client
+        let record: Option<UserRecord> = self
+            .client
             .get_latest(&user_entity(id))
             .await
-            .map_err(AuthError::from)
+            .map_err(AuthError::from)?;
+        Ok(record.map(UserRecord::into_user))
     }
 
     async fn get_user_by_email(&self, email: &str) -> AuthResult<Option<User>> {
-        self.client
+        let record: Option<UserRecord> = self
+            .client
             .find_by_field("auth.user.created", "email", email)
             .await
-            .map_err(AuthError::from)
+            .map_err(AuthError::from)?;
+        Ok(record.map(UserRecord::into_user))
     }
 
     async fn get_user_by_username(&self, username: &str) -> AuthResult<Option<User>> {
-        self.client
+        let record: Option<UserRecord> = self
+            .client
             .find_by_field("auth.user.created", "username", username)
             .await
-            .map_err(AuthError::from)
+            .map_err(AuthError::from)?;
+        Ok(record.map(UserRecord::into_user))
     }
 
     async fn update_user(&self, id: &str, update: UpdateUser) -> AuthResult<User> {
+        validate_metadata(update.metadata.as_ref())?;
+
         let mut user = self
             .get_user_by_id(id)
             .await?
@@ -210,7 +286,8 @@ impl UserOps for AllsourceAuthAdapter {
         }
         user.updated_at = Utc::now();
 
-        let payload = serde_json::to_value(&user).map_err(AuthError::from)?;
+        // Round-trip metadata via UserRecord (see create_user).
+        let payload = serde_json::to_value(UserRecord(user.clone())).map_err(AuthError::from)?;
         self.client
             .append_event(&user_entity(id), "auth.user.updated", payload)
             .await
@@ -227,11 +304,12 @@ impl UserOps for AllsourceAuthAdapter {
     }
 
     async fn list_users(&self, params: ListUsersParams) -> AuthResult<(Vec<User>, usize)> {
-        let mut users: Vec<User> = self
+        let records: Vec<UserRecord> = self
             .client
             .query_all("auth.user.created", 10000)
             .await
             .map_err(AuthError::from)?;
+        let mut users: Vec<User> = records.into_iter().map(UserRecord::into_user).collect();
 
         // Apply search filter
         if let Some(search_value) = &params.search_value {
@@ -1352,5 +1430,64 @@ impl PasskeyOps for AllsourceAuthAdapter {
             .append_delete(&passkey_entity(id), "auth.passkey.deleted")
             .await
             .map_err(AuthError::from)
+    }
+}
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::*;
+
+    #[test]
+    fn validate_metadata_allows_none() {
+        validate_metadata(None).expect("None metadata must be accepted");
+    }
+
+    #[test]
+    fn validate_metadata_allows_null() {
+        validate_metadata(Some(&serde_json::Value::Null)).expect("null metadata must be accepted");
+    }
+
+    #[test]
+    fn validate_metadata_allows_app_keys() {
+        let meta = serde_json::json!({
+            "preferred_theme": "dark",
+            "feature_flags": ["a", "b"],
+        });
+        validate_metadata(Some(&meta))
+            .expect("ordinary metadata keys must round-trip without error");
+    }
+
+    /// Regression / paved-path enforcement for the second half of #187.
+    /// Storing a password hash under `User.metadata.password_hash` was
+    /// the original Longhand pattern that masked the read-side miss; the
+    /// adapter now rejects it and points consumers at `Account.password`.
+    #[test]
+    fn validate_metadata_rejects_password_hash_key() {
+        let meta = serde_json::json!({ "password_hash": "$2b$10$abcd…" });
+        let err = validate_metadata(Some(&meta)).expect_err("password_hash must be rejected");
+        let rendered = format!("{err}");
+        assert!(
+            rendered.contains("Account.password"),
+            "error must point consumers to Account.password — got {rendered:?}"
+        );
+    }
+
+    #[test]
+    fn validate_metadata_rejects_each_forbidden_key() {
+        for key in FORBIDDEN_METADATA_KEYS {
+            let meta = serde_json::json!({ *key: "x" });
+            assert!(
+                validate_metadata(Some(&meta)).is_err(),
+                "metadata key {key} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_metadata_warns_but_allows_non_object() {
+        // Should not error; tracing::warn is fire-and-forget.
+        validate_metadata(Some(&serde_json::json!("just a string"))).unwrap();
+        validate_metadata(Some(&serde_json::json!(42))).unwrap();
+        validate_metadata(Some(&serde_json::json!(["a", "b"]))).unwrap();
     }
 }
