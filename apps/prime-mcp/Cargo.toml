@@ -1,6 +1,6 @@
 [package]
 name = "allsource-prime"
-version = "0.21.2"
+version = "0.21.3"
 edition = "2024"
 rust-version = "1.92"
 description = "MCP server for AllSource Prime — unified agent memory engine (stdio transport)"
@@ -24,7 +24,7 @@ profiling = ["dep:pprof"]
 dhat-heap = ["dep:dhat"]
 
 [dependencies]
-allsource-core = { version = "0.21.2", path = "../../apps/core", default-features = false, features = ["prime-recall", "prime-vectors"] }
+allsource-core = { version = "0.21.3", path = "../../apps/core", default-features = false, features = ["prime-recall", "prime-vectors"] }
 anyhow = "1.0"
 axum = { version = "0.8", features = ["json"] }
 chrono = { version = "0.4", features = ["serde"] }

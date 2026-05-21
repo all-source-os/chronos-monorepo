@@ -3,9 +3,9 @@
 //! Configures merge strategies for graph events, registers Prime projections,
 //! and exposes graph-aware convenience methods on top of the event store.
 
-use std::{path::Path, sync::Arc};
 #[cfg(feature = "prime-vectors")]
 use std::sync::OnceLock;
+use std::{path::Path, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
