@@ -28,15 +28,40 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/use-cases`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/compare/eventstoredb`, priority: 0.7, changeFrequency: "monthly" as const },
     { url: `${base}/platform/event-sourcing`, priority: 0.9, changeFrequency: "monthly" as const },
-    { url: `${base}/platform/stream-processing`, priority: 0.8, changeFrequency: "monthly" as const },
+    {
+      url: `${base}/platform/stream-processing`,
+      priority: 0.8,
+      changeFrequency: "monthly" as const,
+    },
     { url: `${base}/platform/prime`, priority: 0.8, changeFrequency: "monthly" as const },
+    { url: `${base}/prime`, priority: 0.9, changeFrequency: "weekly" as const },
     { url: `${base}/solutions/agent-memory`, priority: 0.9, changeFrequency: "monthly" as const },
-    { url: `${base}/solutions/audit-compliance`, priority: 0.8, changeFrequency: "monthly" as const },
-    { url: `${base}/solutions/real-time-analytics`, priority: 0.8, changeFrequency: "monthly" as const },
-    { url: `${base}/solutions/financial-services`, priority: 0.7, changeFrequency: "monthly" as const },
+    {
+      url: `${base}/solutions/audit-compliance`,
+      priority: 0.8,
+      changeFrequency: "monthly" as const,
+    },
+    {
+      url: `${base}/solutions/real-time-analytics`,
+      priority: 0.8,
+      changeFrequency: "monthly" as const,
+    },
+    {
+      url: `${base}/solutions/financial-services`,
+      priority: 0.7,
+      changeFrequency: "monthly" as const,
+    },
     { url: `${base}/solutions/iot-telemetry`, priority: 0.7, changeFrequency: "monthly" as const },
-    { url: `${base}/solutions/multi-tenant-saas`, priority: 0.7, changeFrequency: "monthly" as const },
-    { url: `${base}/solutions/quant-intelligence`, priority: 0.7, changeFrequency: "monthly" as const },
+    {
+      url: `${base}/solutions/multi-tenant-saas`,
+      priority: 0.7,
+      changeFrequency: "monthly" as const,
+    },
+    {
+      url: `${base}/solutions/quant-intelligence`,
+      priority: 0.7,
+      changeFrequency: "monthly" as const,
+    },
     { url: `${base}/changelog`, priority: 0.5, changeFrequency: "weekly" as const },
     { url: `${base}/privacy`, priority: 0.3, changeFrequency: "yearly" as const },
     { url: `${base}/terms`, priority: 0.3, changeFrequency: "yearly" as const },
@@ -51,8 +76,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "monthly" as const,
   }));
 
-  return [
-    ...staticPages.map((p) => ({ ...p, lastModified: now })),
-    ...blogPages,
-  ];
+  return [...staticPages.map((p) => ({ ...p, lastModified: now })), ...blogPages];
 }

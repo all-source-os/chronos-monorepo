@@ -48,6 +48,12 @@ export const siteConfig = {
             description: "43 MCP tools for Claude Desktop integration.",
           },
           {
+            href: "/prime",
+            title: "Prime — Memory for Claude",
+            description:
+              "Persistent agent memory via MCP. Install in 30 seconds, no embedding API needed.",
+          },
+          {
             href: "/solutions/quant-intelligence",
             title: "Quant Intelligence",
             description: "Probability-based market insights and AI queries.",
