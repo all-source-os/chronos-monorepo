@@ -8,7 +8,10 @@
 
 use allsource_core::prime::{Prime, recall::RecallEngine};
 use anyhow::Result;
-use std::io::{BufRead, Write};
+use std::{
+    io::{BufRead, Write},
+    sync::Arc,
+};
 
 use crate::{
     protocol::{self, Request, Response},
@@ -57,14 +60,14 @@ const COOKBOOK: &str = "\
 ";
 
 pub struct StdioTransport {
-    prime: Prime,
+    prime: Arc<Prime>,
     recall: RecallEngine,
     auto_inject: bool,
     auto_inject_max_tokens: usize,
 }
 
 impl StdioTransport {
-    pub fn new(prime: Prime, recall: RecallEngine) -> Self {
+    pub fn new(prime: Arc<Prime>, recall: RecallEngine) -> Self {
         Self {
             prime,
             recall,

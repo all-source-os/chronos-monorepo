@@ -20,6 +20,7 @@ use tracing_subscriber::EnvFilter;
 mod http;
 mod profiling;
 mod protocol;
+mod sync;
 mod tools;
 mod toon;
 mod transport;
@@ -78,6 +79,20 @@ struct Cli {
     /// Max tokens for auto-injected index (default: 1000)
     #[arg(long, env = "PRIME_AUTO_INJECT_MAX_TOKENS", default_value = "1000")]
     auto_inject_max_tokens: usize,
+
+    /// Remote `AllSource` Core base URL to push `prime.*` events to.
+    /// When set with `--api-key`, spawns a background sync loop that ships
+    /// events to your tenant so the web panel's Memory tab can show them.
+    #[arg(long, env = "PRIME_SYNC_TO")]
+    sync_to: Option<String>,
+
+    /// Tenant API key for sync. Required if `--sync-to` is set.
+    #[arg(long, env = "PRIME_API_KEY")]
+    api_key: Option<String>,
+
+    /// Sync flush interval in milliseconds (default: 1000ms).
+    #[arg(long, env = "PRIME_SYNC_INTERVAL_MS", default_value = "1000")]
+    sync_interval_ms: u64,
 }
 
 #[tokio::main]
@@ -94,7 +109,7 @@ async fn main() -> Result<()> {
 
     tracing::info!("Opening Prime at {:?}", cli.data_dir);
 
-    let prime = allsource_core::prime::Prime::open(&cli.data_dir).await?;
+    let prime = Arc::new(allsource_core::prime::Prime::open(&cli.data_dir).await?);
 
     tracing::info!(
         "Prime ready — {} nodes, {} edges",
@@ -110,6 +125,26 @@ async fn main() -> Result<()> {
         Format::Json => tools::ResultFormat::Json,
         Format::Toon => tools::ResultFormat::Toon,
     });
+
+    // Spawn the push-only sync loop when both --sync-to and --api-key are set.
+    // Mismatched flags are a user error worth surfacing rather than silently
+    // dropping sync.
+    match (cli.sync_to.as_deref(), cli.api_key.as_deref()) {
+        (Some(url), Some(key)) => {
+            let sync_config = sync::SyncConfig {
+                remote_url: url.to_string(),
+                api_key: key.to_string(),
+                interval: std::time::Duration::from_millis(cli.sync_interval_ms),
+            };
+            let sync_prime = Arc::clone(&prime);
+            let data_dir = cli.data_dir.clone();
+            tokio::spawn(sync::run_sync_loop(sync_prime, sync_config, data_dir));
+        }
+        (Some(_), None) | (None, Some(_)) => {
+            anyhow::bail!("--sync-to and --api-key must be supplied together (or neither)");
+        }
+        (None, None) => {}
+    }
 
     match cli.mode {
         Mode::Mcp => {

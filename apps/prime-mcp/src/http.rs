@@ -19,7 +19,7 @@ use tower_http::trace::TraceLayer;
 
 /// Shared state for HTTP handlers.
 pub struct AppState {
-    pub prime: Prime,
+    pub prime: Arc<Prime>,
     /// Recall engine — used by the `/recall` endpoint and kept for future index endpoints.
     #[allow(dead_code)]
     pub recall: RecallEngine,
