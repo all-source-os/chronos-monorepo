@@ -76,12 +76,15 @@ function LoginContent() {
         throw new Error(data.error?.message || data.message || "Login failed");
       }
 
-      // Route through the callback handler to set the httpOnly auth cookie
+      // Route through the callback handler to set the httpOnly auth cookie.
+      // Forward ?next= so deep-links like /connect resume after sign-in.
       if (data.token) {
         const isNewUser = data.new_user === true;
-        window.location.href = `/api/auth/callback?token=${encodeURIComponent(data.token)}&new_user=${isNewUser}`;
+        const next = searchParams.get("next");
+        const nextParam = next ? `&next=${encodeURIComponent(next)}` : "";
+        window.location.href = `/api/auth/callback?token=${encodeURIComponent(data.token)}&new_user=${isNewUser}${nextParam}`;
       } else {
-        router.push("/dashboard");
+        router.push(searchParams.get("next") ?? "/dashboard");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Please try again.");
@@ -126,9 +129,11 @@ function LoginContent() {
 
       if (loginData.token) {
         const isNewUser = loginData.new_user === true;
-        window.location.href = `/api/auth/callback?token=${encodeURIComponent(loginData.token)}&new_user=${isNewUser}`;
+        const next = searchParams.get("next");
+        const nextParam = next ? `&next=${encodeURIComponent(next)}` : "";
+        window.location.href = `/api/auth/callback?token=${encodeURIComponent(loginData.token)}&new_user=${isNewUser}${nextParam}`;
       } else {
-        router.push("/dashboard");
+        router.push(searchParams.get("next") ?? "/dashboard");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start demo. Please try again.");

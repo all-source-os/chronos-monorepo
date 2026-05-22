@@ -105,10 +105,13 @@ function SignUpContent() {
         throw new Error(data.error?.message || data.message || "Registration failed");
       }
 
-      // Route through the callback handler to set the httpOnly auth cookie
+      // Route through the callback handler to set the httpOnly auth cookie.
+      // Forward ?next= so deep-links like /connect resume after signup.
       if (data.token) {
         const isNewUser = data.new_user === true;
-        window.location.href = `/api/auth/callback?token=${encodeURIComponent(data.token)}&new_user=${isNewUser}`;
+        const next = searchParams.get("next");
+        const nextParam = next ? `&next=${encodeURIComponent(next)}` : "";
+        window.location.href = `/api/auth/callback?token=${encodeURIComponent(data.token)}&new_user=${isNewUser}${nextParam}`;
       } else {
         // Fallback: show email verification message
         setEmailSent(true);
@@ -166,6 +169,7 @@ function SignUpContent() {
                   <p className="text-xs text-muted-foreground">
                     Didn't receive the email? Check your spam folder or{" "}
                     <button
+                      type="button"
                       className="text-primary underline-offset-4 hover:underline"
                       onClick={handleEmailSignUp}
                       disabled={isSubmitting}

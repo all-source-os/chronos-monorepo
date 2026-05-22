@@ -13,36 +13,27 @@ If your primary "editor" is Claude — not a human typing in a polished WYSIWYG 
 
 This post walks through how to use AllSource Prime as the storage and graph half of a CMS, driven entirely from a Claude Desktop conversation. No editor UI. No "publish" button. Just MCP tools.
 
-## The setup (one time, ~30 seconds)
+## The setup (one time, ~1 minute)
 
-Install the binary and point it at your tenant on the hosted Core so the panel can see what Claude is writing:
+Open [www.all-source.xyz/connect](https://www.all-source.xyz/connect) (sign up for the free tier if you don't have an account), click **Create connection**, and pick either path:
 
-```bash
-cargo install allsource-prime
-# allsource-prime 0.21.4
-```
+- **Option A — one-line installer (macOS, Linux):** copy the `curl` command the page gives you. It downloads `allsource-prime`, writes the Claude Desktop config (preserving any existing MCP servers you've wired up), and prints the next step.
 
-Add to `~/.claude/claude_desktop_config.json`:
+  ```bash
+  curl -fsSL https://www.all-source.xyz/install.sh | ALLSOURCE_API_KEY=ask_xxx sh
+  ```
 
-```json
-{
-  "mcpServers": {
-    "prime": {
-      "command": "allsource-prime",
-      "args": [
-        "--data-dir", "~/.prime/memory",
-        "--auto-inject",
-        "--sync-to", "https://api.all-source.xyz",
-        "--api-key", "<your tenant API key>"
-      ]
-    }
-  }
-}
-```
+- **Option B — paste the config yourself:** the page renders a ready-to-paste JSON snippet with the API key baked in. Merge it into your Claude Desktop config file:
+
+  - macOS — `~/Library/Application Support/Claude/claude_desktop_config.json`
+  - Linux — `~/.config/Claude/claude_desktop_config.json`
+  - Windows — `%APPDATA%\Claude\claude_desktop_config.json`
+
+  Then `cargo install allsource-prime` (or grab the prebuilt binary from the GitHub release once that's live) and restart Claude Desktop.
 
 Restart Claude Desktop. You now have 13 MCP tools — `prime_add_node`, `prime_add_edge`, `prime_embed`, `prime_recall`, `prime_context`, and friends — and a `prime://auto-context` resource that injects a compressed index of everything you know into every conversation.
 
-That's the whole setup. No schemas to define, no migrations, no content types to register up front.
+That's the whole setup. No schemas to define, no migrations, no content types to register up front. The `/connect` page exists so you don't have to ask Claude Desktop to walk you through a 7-step checklist — it mints the API key and produces the exact config string for you.
 
 ## A workflow
 
