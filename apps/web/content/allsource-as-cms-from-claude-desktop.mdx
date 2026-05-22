@@ -1,0 +1,117 @@
+---
+title: "Using AllSource as a CMS from Claude Desktop"
+publishedAt: "2026-05-22"
+summary: "A walk-through of treating AllSource Prime as the memory layer for your content — drafting, editing, and querying posts entirely from a Claude Desktop conversation. The wedge isn't 'better CMS' — it's 'your CMS already lives where your agents work.'"
+author: "all.source team"
+category: "guides"
+---
+
+Strip a content management system down to load-bearing parts and you get three things: a place to store entities, a way to relate them, and an editor. Folk, Notion, Sanity, Strapi — they differ on the editor, but the storage and the graph are roughly the same shape: a typed document with relations.
+
+If your primary "editor" is Claude — not a human typing in a polished WYSIWYG — then the editor part is something you already have. The expensive piece every CMS optimizes for is the part you don't use. That's the wedge.
+
+This post walks through how to use AllSource Prime as the storage and graph half of a CMS, driven entirely from a Claude Desktop conversation. No editor UI. No "publish" button. Just MCP tools.
+
+## The setup (one time, ~30 seconds)
+
+Install the binary and point it at your tenant on the hosted Core so the panel can see what Claude is writing:
+
+```bash
+cargo install allsource-prime
+# allsource-prime 0.21.4
+```
+
+Add to `~/.claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "prime": {
+      "command": "allsource-prime",
+      "args": [
+        "--data-dir", "~/.prime/memory",
+        "--auto-inject",
+        "--sync-to", "https://api.all-source.xyz",
+        "--api-key", "<your tenant API key>"
+      ]
+    }
+  }
+}
+```
+
+Restart Claude Desktop. You now have 13 MCP tools — `prime_add_node`, `prime_add_edge`, `prime_embed`, `prime_recall`, `prime_context`, and friends — and a `prime://auto-context` resource that injects a compressed index of everything you know into every conversation.
+
+That's the whole setup. No schemas to define, no migrations, no content types to register up front.
+
+## A workflow
+
+Suppose you're maintaining a public engineering blog plus an internal decision log. Both are content. Both have entities (posts, authors, decisions), relations (post written by author, post references decision), and a need for cross-referencing ("which decisions did we publish posts about?").
+
+A traditional CMS makes you model this in advance. Prime doesn't — you tell Claude as you go.
+
+**Drafting a post:**
+
+> "I want to publish a short post about the embedding cache fix we shipped last week. Title: 'fastembed cache lives in `~/.local`, not your repo'. Tag it with the `engineering` domain and link it to the bug we fixed — that was the one Aria reported."
+
+Claude calls (you don't see this — the model picks the tools):
+
+- `prime_recall` with `text: "embedding cache bug reported by Aria"` to find the bug node
+- `prime_add_node` for the post (`type: "post"`, properties include title, status: "draft", domain: "engineering")
+- `prime_add_edge` from the post to the bug node with `relation: "references"`
+- `prime_add_edge` from the post to your author node with `relation: "authored_by"`
+
+The whole thing is three events in your Core's WAL. No staging table, no `posts_authors` join table. Just nodes and edges.
+
+**Editing something you wrote two months ago:**
+
+> "Update the 'Multi-region rollout' post — we shipped Step 4 last Tuesday, so flip its status to `shipped` and add a line about the cross-region follower latency we're now seeing."
+
+Claude uses `prime_recall` with the text "Multi-region rollout post" to find it, then `prime.update_node` to merge in the new properties. The audit trail (`prime_history`) shows both the original and the update with timestamps — no migration, no version table you have to design.
+
+**Querying:**
+
+> "What posts have I drafted this month, and which engineering decisions do they reference?"
+
+Claude calls `prime_search` for `type: "post"` to list them, filters client-side by `created_at`, then walks the `references` edges with `prime_neighbors`. You get back a list with the linked decisions inline. The query is just MCP tool calls — no GraphQL schema, no resolvers.
+
+## Where the published content lives
+
+Prime is storage. It doesn't host your blog. The handoff to a public site is whatever you want it to be:
+
+- **SSG**: run a build that queries Core for `prime.node.created` events with `node_type=post` and `status=published`, render to Markdown, and ship. Vercel rebuilds on a webhook from the panel.
+- **Direct render**: a Next.js route that queries Core at request time (Core's reads are sub-microsecond, this is fine).
+- **Dual-publishing**: Claude writes the same post to a `posts/{slug}.mdx` file in a git repo *and* to Prime. The repo is for humans; Prime is for cross-referencing and recall.
+
+The third option is what this site uses for blog posts like this one. Prime tracks the metadata graph; the actual prose lives in the repo for plain-text reviewability.
+
+## What you give up
+
+Be honest about this — it's not for every team.
+
+- **No polished editor UI.** If non-technical people need to edit content, they need a CMS chrome on top, or they need to learn to talk to Claude precisely. A folk-style UI doesn't exist for Prime today.
+- **No publishing pipeline.** There's no scheduled-publish, no preview environment, no role-based "needs approval before going live." You'd build those as projections over your event stream — doable, not done for you.
+- **No collaborative editing.** Two people prompting Claude simultaneously is operational chaos. Prime's CRDT layer means concurrent writes won't corrupt the graph, but you still need a coordination story for "who's authoritative on this post right now."
+
+## What you get
+
+The asymmetry that makes this interesting:
+
+- **Cross-domain recall by construction.** A post about engineering can be linked to a customer-success conversation, a sales objection, and a roadmap decision. `prime_context` returns all of them in one call. A CMS that lives in its own silo can't.
+- **Time-travel without a feature flag.** Every edit is an event. `prime_history` is a built-in audit log. "What did we say about pricing in March?" is a `prime.get_node_as_of` call away.
+- **One source of truth your agent already uses.** When Claude writes a follow-up post, it reads the *same memory* that produced the first one. There's no "sync the CMS to the vector store" step.
+- **The Memory tab.** Once `--sync-to` is wired up, you can watch the graph populate live at `www.all-source.xyz/dashboard/memory` — every node, edge, and vector your agent writes, in a tenant-scoped feed.
+
+## Who this is for
+
+Not everyone. If your editors are non-technical and your content is high-volume marketing pages, use Notion or folk. If your content is one human typing the occasional post, use a static-site generator with Markdown files in git.
+
+If you're an engineering-led team that already has Claude in the loop — writing decisions, drafting posts, recalling context across conversations — and you're tired of paying for a CMS whose "editor UI" sits idle while your agents do the actual writing, this is the shape that fits.
+
+The CMS lives where the agents already work.
+
+## Links
+
+- Landing page: [www.all-source.xyz/prime](https://www.all-source.xyz/prime)
+- MCP setup: [www.all-source.xyz/docs/prime/mcp](https://www.all-source.xyz/docs/prime/mcp)
+- Memory tab in the tenant panel: [www.all-source.xyz/dashboard/memory](https://www.all-source.xyz/dashboard/memory)
+- crates.io: [allsource-prime](https://crates.io/crates/allsource-prime)
