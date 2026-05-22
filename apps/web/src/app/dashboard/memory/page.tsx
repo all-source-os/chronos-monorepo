@@ -172,14 +172,14 @@ export default function MemoryPage() {
                 </div>
                 <p className="mb-3 text-sm text-muted-foreground">
                   Install <code className="font-mono">allsource-prime</code>, then launch it with
-                  the sync flags pointed at your tenant&apos;s Core URL and API key. (Sync wiring
-                  ships in a follow-up — track t-b597-sync.)
+                  the sync flags pointed at your tenant&apos;s Core URL and API key. Events show
+                  up here within a second.
                 </p>
                 <pre className="overflow-x-auto rounded border bg-background/60 p-3 text-xs font-mono leading-relaxed">
-                  {`# 1. install
+                  {`# 1. install (0.21.4+)
 cargo install allsource-prime
 
-# 2. (soon) launch with sync to this tenant
+# 2. launch with sync to this tenant
 allsource-prime \\
   --data-dir ~/.prime/memory \\
   --sync-to https://api.all-source.xyz \\
