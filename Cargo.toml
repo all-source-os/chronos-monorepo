@@ -54,7 +54,7 @@ crossterm = "0.29"
 ctrlc = "3.5"
 
 # Storage & Concurrency
-dashmap = "6.1"
+dashmap = "6.2"
 datafusion = "52.1"
 
 # Optional features
