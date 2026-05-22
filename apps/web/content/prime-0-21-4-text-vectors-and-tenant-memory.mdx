@@ -4,6 +4,7 @@ publishedAt: "2026-05-22"
 summary: "Three shipping changes for AllSource Prime — prime_embed and prime_recall take plain text, prime-mcp can push events to your tenant Core, and the panel grew a Memory tab to show them. Install in 30 seconds."
 author: "all.source team"
 category: "release"
+image: "/assets/blog/prime-0-21-4-text-vectors-and-tenant-memory.webp"
 ---
 
 A downstream integrator filed [issue #186](https://github.com/all-source-os/all-source/issues/186) last week with a clean diagnosis: `prime_context` accepted plain text and embedded it server-side via the bundled `fastembed` model, but `prime_embed` and `prime_recall` insisted on a precomputed `vector`. An MCP agent — with no access to an embedding model — was therefore locked out of the two tools that actually populate and query the vector index. The shape of the problem was an API asymmetry, not a missing capability.
