@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
+  // `output: "standalone"` is required by apps/web/Dockerfile (Fly/Docker
+  // deploys copy /app/apps/web/.next/standalone). It must NOT be set on
+  // Vercel: Vercel does its own packaging on top of the build and trips with
+  // `ERR_INVALID_ARG_TYPE` / "path argument must be of type string. Received
+  // undefined" when standalone output is also present. Vercel sets VERCEL=1
+  // on every build, Docker doesn't — gate on that.
+  output: process.env.VERCEL ? undefined : "standalone",
   // Transpile monorepo packages and icon libraries for proper SSR bundling
   transpilePackages: ["@allsource/ui", "react-icons"],
   images: {
