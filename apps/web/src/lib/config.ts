@@ -3,7 +3,11 @@ export const BLUR_FADE_DELAY = 0.15;
 export const siteConfig = {
   name: "AllSource",
   description: "AI-native event store for temporal data intelligence",
-  url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  // Falls back to the production URL — not localhost — so a missing
+  // NEXT_PUBLIC_APP_URL on Vercel (or any other consumer of this config) can't
+  // leak `http://localhost:3000` into og:url / canonical / share-sheet URLs.
+  // Override in `.env.local` if you want localhost in dev OG tags.
+  url: process.env.NEXT_PUBLIC_APP_URL || "https://www.all-source.xyz",
   keywords: [
     "Event Sourcing",
     "Event Store",
