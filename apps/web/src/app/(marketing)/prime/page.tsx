@@ -3,7 +3,7 @@ import { ArrowRight, Check, Minus } from "lucide-react";
 import Link from "next/link";
 import { FaGithub } from "react-icons/fa";
 
-const PRIME_VERSION = "0.21.3";
+const PRIME_VERSION = "0.21.4";
 
 const claudeDesktopConfig = `{
   "mcpServers": {
