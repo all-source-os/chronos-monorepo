@@ -26,10 +26,13 @@ readonly REMOTE_SYNC_URL="${ALLSOURCE_REMOTE_URL:-https://api.all-source.xyz}"
 readonly CRATES_PACKAGE="allsource-prime"
 readonly DATA_DIR_DEFAULT="${ALLSOURCE_PRIME_DATA_DIR:-${HOME}/.prime/memory}"
 
-# Prebuilt-binary release pipeline (task #9) — flip this on once
-# allsource-prime-vX.Y.Z tags publish darwin-arm64 / darwin-x64 /
-# linux-x64 binaries under github.com/all-source-os/all-source/releases.
-readonly USE_PREBUILT_BINARIES="${ALLSOURCE_USE_PREBUILT:-0}"
+# Prebuilt-binary path. The monorepo release pipeline ships:
+#   allsource-prime-linux-x86_64.tar.gz   (linux + x64)
+#   allsource-prime-macos-aarch64.tar.gz  (macos + arm64)
+# Other combinations (linux-arm64, macos-x64) fall back to cargo install.
+readonly USE_PREBUILT_BINARIES="${ALLSOURCE_USE_PREBUILT:-1}"
+readonly RELEASES_REPO="all-source-os/all-source"
+readonly INSTALL_BIN_DIR="${ALLSOURCE_INSTALL_BIN:-${HOME}/.local/bin}"
 
 # ─── Colors (skip if not a tty or NO_COLOR set) ──────────────────────────────
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
@@ -111,12 +114,83 @@ install_binary() {
 }
 
 install_prebuilt() {
-  # Placeholder — wired up once GH Releases publishes platform binaries.
-  # Expected layout once live:
-  #   https://github.com/all-source-os/all-source/releases/download/
-  #     allsource-prime-vX.Y.Z/allsource-prime-${platform_os}-${platform_arch}
-  warn "Prebuilt-binary install path not yet enabled. (Tracked as task #9.)"
-  return 1
+  local artifact tag tarball_url tmp_dir tarball
+
+  # Map detected platform to the artifact name published by release.yml.
+  # The Prime release matrix intentionally omits linux-arm64 and
+  # macos-x86_64 (ort/fastembed doesn't ship prebuilts for Intel macOS),
+  # so those platforms fall back to cargo install.
+  case "${platform_os}-${platform_arch}" in
+    linux-x64)    artifact="allsource-prime-linux-x86_64" ;;
+    macos-arm64)  artifact="allsource-prime-macos-aarch64" ;;
+    *)
+      warn "No prebuilt binary published for ${platform_os}-${platform_arch} yet; falling back to cargo install."
+      return 1
+      ;;
+  esac
+
+  tag="$(resolve_latest_release_tag)" || {
+    warn "Could not resolve latest release tag from GitHub; falling back to cargo install."
+    return 1
+  }
+
+  tarball_url="https://github.com/${RELEASES_REPO}/releases/download/${tag}/${artifact}.tar.gz"
+  tmp_dir="$(mktemp -d)"
+  tarball="${tmp_dir}/${artifact}.tar.gz"
+
+  info "Downloading ${c_bold}${artifact}${c_off} from ${c_dim}${tag}${c_off}"
+  if ! curl -fsSL --retry 2 -o "$tarball" "$tarball_url"; then
+    warn "Download failed: $tarball_url"
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  if ! tar -xzf "$tarball" -C "$tmp_dir"; then
+    warn "Failed to extract $tarball"
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  mkdir -p "$INSTALL_BIN_DIR"
+  install -m 0755 "${tmp_dir}/${artifact}" "${INSTALL_BIN_DIR}/allsource-prime"
+  rm -rf "$tmp_dir"
+
+  # Apple Gatekeeper flags downloaded binaries with com.apple.quarantine,
+  # which pops a one-shot dialog on first run. Strip it so the curl-pipe
+  # install just works. We never run anything besides our own binary, so
+  # this is scoped to the file we just dropped.
+  if [ "$platform_os" = "macos" ] && command -v xattr >/dev/null 2>&1; then
+    xattr -d com.apple.quarantine "${INSTALL_BIN_DIR}/allsource-prime" 2>/dev/null || true
+  fi
+
+  info "Installed to ${c_bold}${INSTALL_BIN_DIR}/allsource-prime${c_off}"
+
+  # Heads-up if the install dir isn't on PATH. Don't try to modify the
+  # user's shell rc files — too many shells and configs to mess with.
+  case ":${PATH}:" in
+    *":${INSTALL_BIN_DIR}:"*) ;;
+    *) warn "${INSTALL_BIN_DIR} is not on your PATH. Add this to your shell rc:
+       export PATH=\"${INSTALL_BIN_DIR}:\$PATH\"" ;;
+  esac
+
+  return 0
+}
+
+# Fetch the latest release tag (e.g. v0.21.4) from the GitHub Releases API.
+# Falls through cleanly to cargo if the API is unreachable or rate-limited.
+resolve_latest_release_tag() {
+  local api_url response tag
+  api_url="https://api.github.com/repos/${RELEASES_REPO}/releases/latest"
+  response="$(curl -fsSL --retry 1 -H 'Accept: application/vnd.github+json' "$api_url" 2>/dev/null)" || return 1
+  # Parse JSON with python3 if available (already a hard dep for the
+  # config-merge step), else a grep fallback.
+  if command -v python3 >/dev/null 2>&1; then
+    tag="$(printf '%s' "$response" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tag_name",""))')"
+  else
+    tag="$(printf '%s' "$response" | grep -oE '"tag_name":[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*"([^"]+)"$/\1/')"
+  fi
+  [ -n "$tag" ] || return 1
+  printf '%s' "$tag"
 }
 
 # ─── Step 4: Merge config into Claude Desktop ────────────────────────────────
