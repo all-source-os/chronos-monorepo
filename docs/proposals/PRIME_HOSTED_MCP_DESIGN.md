@@ -1,6 +1,6 @@
 # Hosted Prime MCP Server — Design Proposal
 
-## Status: Proposal
+## Status: Architecture approved (Option A) — 2026-05-23. Open questions below still pending.
 ## Date: 2026-05-23
 ## Owner: needs assignment
 
@@ -244,12 +244,12 @@ Rough estimate, broken into shippable atoms:
 
 This is a real product investment, not a weekend. Worth checking that the demand is there (or that we're confident enough in the wedge) before starting.
 
-## Decision Needed
+## Decision Status
 
-Before any code lands:
-
-- [ ] Sign off on Option A (new `prime-mcp-gateway` service)
+- [x] Sign off on Option A (new `prime-mcp-gateway` service) — approved 2026-05-23
 - [ ] Confirm the billing model (per-session aggregation vs per-call)
 - [ ] Confirm free-tier limits (sessions, concurrent connections)
 - [ ] Owner assignment (who builds this and when)
 - [ ] Sequencing vs other roadmap work (DXT is shipping, Bearer-MCP is months out)
+
+Implementation should not start until the remaining decisions are made — billing in particular needs to be settled before atoms 5/6 of the effort estimate.
