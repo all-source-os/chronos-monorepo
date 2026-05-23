@@ -473,21 +473,21 @@ async fn call_recall(prime: &Prime, args: &Value) -> Value {
         .and_then(Value::as_str)
         .map(String::from);
 
-    let vector: Option<Vec<f32>> =
-        if let Some(arr) = args.get("vector").and_then(|v| v.as_array()) {
-            Some(
-                arr.iter()
-                    .filter_map(|v| v.as_f64().map(|f| f as f32))
-                    .collect(),
-            )
-        } else if let Some(ref t) = text {
-            match prime.embed_text(t) {
-                Ok(v) => Some(v),
-                Err(e) => return tool_error(&format!("server-side embedding failed: {e}")),
-            }
-        } else {
-            None
-        };
+    let vector: Option<Vec<f32>> = if let Some(arr) = args.get("vector").and_then(|v| v.as_array())
+    {
+        Some(
+            arr.iter()
+                .filter_map(|v| v.as_f64().map(|f| f as f32))
+                .collect(),
+        )
+    } else if let Some(ref t) = text {
+        match prime.embed_text(t) {
+            Ok(v) => Some(v),
+            Err(e) => return tool_error(&format!("server-side embedding failed: {e}")),
+        }
+    } else {
+        None
+    };
 
     if vector.is_none() && node_type.is_none() {
         return tool_error(
