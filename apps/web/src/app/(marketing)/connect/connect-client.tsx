@@ -213,26 +213,23 @@ function ReadyState({ apiKey }: { apiKey: string }) {
       <section>
         <h2 className="mb-2 flex items-center gap-2 text-lg font-semibold">
           <Download className="h-4 w-4" />
-          Option A — Claude Desktop Extension (recommended)
+          Option A — Claude Desktop Extension
+          <span className="ml-1 rounded-md border border-dashed px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
+            ships with v0.21.5
+          </span>
         </h2>
         <p className="mb-3 text-sm text-muted-foreground">
-          Download the <code className="font-mono text-xs">.dxt</code> bundle and double-click it.
+          Download a <code className="font-mono text-xs">.dxt</code> bundle and double-click it.
           Claude Desktop installs it natively, prompts for your API key (paste below), and writes
-          the config for you. No terminal. macOS (Apple Silicon) and Linux x86_64.
+          the config for you. No terminal. macOS (Apple Silicon) and Linux x86_64. The .dxt attaches
+          to GitHub Releases automatically starting with v0.21.5; use Option B below until then.
         </p>
         <div className="flex flex-wrap gap-2">
           <Link
-            href="https://github.com/all-source-os/all-source/releases/latest/download/allsource-prime.dxt"
-            className={cn(buttonVariants(), "gap-1.5")}
-          >
-            <Download className="h-4 w-4" />
-            Download allsource-prime.dxt
-          </Link>
-          <Link
             href="https://github.com/all-source-os/all-source/releases/latest"
-            className={cn(buttonVariants({ variant: "ghost" }), "gap-1.5 text-sm")}
+            className={cn(buttonVariants({ variant: "outline" }), "gap-1.5 text-sm")}
           >
-            All assets
+            Check latest release
             <ExternalLink className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -241,7 +238,7 @@ function ReadyState({ apiKey }: { apiKey: string }) {
       <section>
         <h2 className="mb-2 flex items-center gap-2 text-lg font-semibold">
           <Terminal className="h-4 w-4" />
-          Option B — one-line installer (macOS, Linux)
+          Option B — one-line installer (macOS, Linux) — recommended today
         </h2>
         <p className="mb-3 text-sm text-muted-foreground">
           Downloads the <code className="font-mono text-xs">allsource-prime</code> binary, writes

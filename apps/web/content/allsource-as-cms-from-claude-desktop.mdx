@@ -17,9 +17,9 @@ This post walks through how to use AllSource Prime as the storage and graph half
 
 Open [www.all-source.xyz/connect](https://www.all-source.xyz/connect) (sign up for the free tier if you don't have an account), click **Create connection**, and pick a path:
 
-- **Option A — Claude Desktop Extension (recommended):** download the `.dxt` bundle the page links to, double-click it. Claude Desktop installs it natively and prompts for your API key — paste the one from the page into the dialog and you're done. No terminal, no config editing. macOS (Apple Silicon) and Linux x86_64.
+- **Option A — Claude Desktop Extension** _(ships with v0.21.5)_: download the `.dxt` bundle, double-click it. Claude Desktop installs it natively and prompts for your API key — paste the one from the page into the dialog and you're done. No terminal, no config editing. macOS (Apple Silicon) and Linux x86_64. The .dxt attaches to GitHub Releases automatically from v0.21.5 onward; use Option B until then.
 
-- **Option B — one-line installer:** copy the `curl` command the page gives you. It downloads `allsource-prime`, writes the Claude Desktop config (preserving any existing MCP servers you've wired up), and prints the next step.
+- **Option B — one-line installer** _(recommended today)_: copy the `curl` command the page gives you. It downloads `allsource-prime`, writes the Claude Desktop config (preserving any existing MCP servers you've wired up), and prints the next step.
 
   ```bash
   curl -fsSL https://www.all-source.xyz/install.sh | ALLSOURCE_API_KEY=ask_xxx sh
