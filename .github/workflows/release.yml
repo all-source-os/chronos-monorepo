@@ -286,6 +286,54 @@ jobs:
           if-no-files-found: error
 
   # ============================================================================
+  # Build Prime DXT (Claude Desktop Extension)
+  # ============================================================================
+  # Bundles both supported Prime binaries into a single multi-platform .dxt so
+  # Claude Desktop users can install with one drag-drop instead of editing
+  # claude_desktop_config.json by hand. Compatibility intentionally restricted
+  # to darwin + linux (the platforms the Prime release matrix builds).
+  build-prime-dxt:
+    name: Build Prime DXT
+    needs: [validate, build-prime-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download Prime tarballs
+        uses: actions/download-artifact@v8
+        with:
+          path: prime-artifacts
+          pattern: allsource-prime-*
+          merge-multiple: true
+
+      - name: Extract binaries
+        run: |
+          mkdir -p extracted
+          tar -xzf prime-artifacts/allsource-prime-linux-x86_64.tar.gz -C extracted
+          tar -xzf prime-artifacts/allsource-prime-macos-aarch64.tar.gz -C extracted
+          ls -la extracted/
+
+      - name: Build .dxt
+        run: |
+          apps/prime-mcp/scripts/build-dxt.sh \
+            --version "v${{ needs.validate.outputs.version }}" \
+            --darwin-binary extracted/allsource-prime-macos-aarch64 \
+            --linux-binary  extracted/allsource-prime-linux-x86_64 \
+            --out dist/allsource-prime.dxt
+
+      - name: Validate manifest against MCPB spec
+        run: |
+          unzip -p dist/allsource-prime.dxt manifest.json > /tmp/manifest.json
+          npx --yes @anthropic-ai/mcpb validate /tmp/manifest.json
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: allsource-prime-dxt
+          path: dist/allsource-prime.dxt
+          if-no-files-found: error
+
+  # ============================================================================
   # Build Go Binaries
   # ============================================================================
   build-go-binaries:
@@ -452,6 +500,7 @@ jobs:
       - build-images
       - build-rust-binaries
       - build-prime-binaries
+      - build-prime-dxt
       - build-go-binaries
     runs-on: ubuntu-latest
     steps:
@@ -505,6 +554,7 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/*.tar.gz
+            artifacts/*.dxt
           fail_on_unmatched_files: false
 
       - name: Generate release summary
