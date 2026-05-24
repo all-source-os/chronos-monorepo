@@ -1,0 +1,17 @@
+{
+  "entity_type": "organization",
+  "description": "A company, team, or institution. Use for employers, customers, vendors, or any group entity people belong to.",
+  "properties": {
+    "name": { "type": "string", "required": true, "description": "Organization name" },
+    "url": { "type": "string", "required": false, "description": "Website URL" },
+    "industry": { "type": "string", "required": false, "description": "Industry or sector" },
+    "size": { "type": "string", "required": false, "description": "Headcount or revenue band (e.g. '50-100 employees', 'Series A')" },
+    "domain": { "type": "string", "required": true, "description": "Knowledge domain (e.g. 'customers', 'partners')" },
+    "notes": { "type": "string", "required": false, "description": "Free-form notes" }
+  },
+  "suggested_relations": [
+    { "relation": "employs", "direction": "outgoing", "target_type": "person" },
+    { "relation": "partners_with", "direction": "outgoing", "target_type": "organization" },
+    { "relation": "uses_product", "direction": "outgoing", "target_type": "project" }
+  ]
+}

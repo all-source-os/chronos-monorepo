@@ -1,0 +1,19 @@
+{
+  "entity_type": "meeting",
+  "description": "A scheduled conversation between two or more people. Use for sync meetings, customer calls, interviews — anything where the participants, time, and outcomes matter.",
+  "properties": {
+    "title": { "type": "string", "required": true, "description": "Meeting subject (e.g. 'Q3 planning sync')" },
+    "started_at": { "type": "string", "required": true, "description": "ISO 8601 start timestamp" },
+    "ended_at": { "type": "string", "required": false, "description": "ISO 8601 end timestamp" },
+    "location": { "type": "string", "required": false, "description": "URL, room name, or address" },
+    "summary": { "type": "string", "required": false, "description": "What was discussed; the outcome that matters later" },
+    "domain": { "type": "string", "required": true, "description": "Knowledge domain (e.g. 'sales', 'engineering')" },
+    "notes": { "type": "string", "required": false, "description": "Full notes or transcript" }
+  },
+  "suggested_relations": [
+    { "relation": "attended_by", "direction": "outgoing", "target_type": "person" },
+    { "relation": "discussed", "direction": "outgoing", "target_type": "decision" },
+    { "relation": "discussed", "direction": "outgoing", "target_type": "project" },
+    { "relation": "produced", "direction": "outgoing", "target_type": "task" }
+  ]
+}

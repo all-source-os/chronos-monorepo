@@ -1,0 +1,19 @@
+{
+  "entity_type": "document",
+  "description": "A discrete piece of written content — a spec, RFC, PRD, contract, article, or note. Use when you need to reference 'the thing we wrote about X'.",
+  "properties": {
+    "title": { "type": "string", "required": true, "description": "Document title" },
+    "url": { "type": "string", "required": false, "description": "URL to the document if hosted externally" },
+    "path": { "type": "string", "required": false, "description": "Local filesystem path if file-based" },
+    "kind": { "type": "string", "required": false, "description": "Document kind (e.g. 'spec', 'rfc', 'prd', 'contract', 'note')" },
+    "status": { "type": "string", "required": false, "description": "One of: 'draft', 'review', 'published', 'archived'" },
+    "summary": { "type": "string", "required": false, "description": "One-paragraph summary of what's in it" },
+    "domain": { "type": "string", "required": true, "description": "Knowledge domain (e.g. 'engineering', 'legal')" }
+  },
+  "suggested_relations": [
+    { "relation": "authored_by", "direction": "outgoing", "target_type": "person" },
+    { "relation": "references", "direction": "outgoing", "target_type": "decision" },
+    { "relation": "describes", "direction": "outgoing", "target_type": "project" },
+    { "relation": "supersedes", "direction": "outgoing", "target_type": "document" }
+  ]
+}

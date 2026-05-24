@@ -1,0 +1,20 @@
+{
+  "entity_type": "transaction",
+  "description": "A financial event with a counterparty, amount, and direction. Use for invoices, payments, expenses, contracts with monetary value.",
+  "properties": {
+    "amount": { "type": "number", "required": true, "description": "Numeric amount (positive)" },
+    "currency": { "type": "string", "required": true, "description": "ISO 4217 code (e.g. 'USD', 'EUR')" },
+    "direction": { "type": "string", "required": true, "description": "One of: 'incoming' (we receive), 'outgoing' (we pay)" },
+    "counterparty": { "type": "string", "required": true, "description": "Name or entity_id of the other party" },
+    "occurred_at": { "type": "string", "required": true, "description": "ISO 8601 timestamp" },
+    "status": { "type": "string", "required": false, "description": "One of: 'pending', 'settled', 'failed', 'refunded'" },
+    "category": { "type": "string", "required": false, "description": "Bucket (e.g. 'subscription', 'consulting', 'tax')" },
+    "domain": { "type": "string", "required": true, "description": "Knowledge domain (e.g. 'finance', 'billing')" },
+    "notes": { "type": "string", "required": false, "description": "Free-form notes (invoice number, memo, etc.)" }
+  },
+  "suggested_relations": [
+    { "relation": "paid_to", "direction": "outgoing", "target_type": "organization" },
+    { "relation": "paid_by", "direction": "outgoing", "target_type": "organization" },
+    { "relation": "settles", "direction": "outgoing", "target_type": "transaction" }
+  ]
+}

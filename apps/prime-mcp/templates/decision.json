@@ -1,0 +1,19 @@
+{
+  "entity_type": "decision",
+  "description": "A choice made with rationale. Use for architectural decisions, hiring choices, product calls — anything where the 'why' matters as much as the 'what' and should survive turnover.",
+  "properties": {
+    "title": { "type": "string", "required": true, "description": "Short statement of the decision (e.g. 'Use Rust for Core')" },
+    "status": { "type": "string", "required": true, "description": "One of: 'proposed', 'accepted', 'rejected', 'superseded'" },
+    "rationale": { "type": "string", "required": true, "description": "Why this decision was made — the load-bearing reasoning" },
+    "alternatives_considered": { "type": "string", "required": false, "description": "Other options weighed and why they lost" },
+    "decided_at": { "type": "string", "required": false, "description": "ISO 8601 date" },
+    "decided_by": { "type": "string", "required": false, "description": "Name or entity_id of the decider" },
+    "domain": { "type": "string", "required": true, "description": "Knowledge domain (e.g. 'engineering', 'hiring', 'product')" }
+  },
+  "suggested_relations": [
+    { "relation": "decided_by", "direction": "outgoing", "target_type": "person" },
+    { "relation": "supersedes", "direction": "outgoing", "target_type": "decision" },
+    { "relation": "impacts", "direction": "outgoing", "target_type": "project" },
+    { "relation": "references", "direction": "outgoing", "target_type": "document" }
+  ]
+}

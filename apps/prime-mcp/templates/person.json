@@ -1,0 +1,18 @@
+{
+  "entity_type": "person",
+  "description": "An individual human. Use for teammates, customers, contacts, contributors, or anyone the agent needs to remember as a discrete entity.",
+  "properties": {
+    "name": { "type": "string", "required": true, "description": "Full name (e.g. 'Alice Chen')" },
+    "email": { "type": "string", "required": false, "description": "Primary email address" },
+    "role": { "type": "string", "required": false, "description": "Job title or function (e.g. 'engineer', 'design lead')" },
+    "company": { "type": "string", "required": false, "description": "Current employer or affiliation" },
+    "domain": { "type": "string", "required": true, "description": "Knowledge domain this person belongs to (e.g. 'engineering', 'sales')" },
+    "notes": { "type": "string", "required": false, "description": "Free-form notes" }
+  },
+  "suggested_relations": [
+    { "relation": "works_at", "direction": "outgoing", "target_type": "organization" },
+    { "relation": "manages", "direction": "outgoing", "target_type": "person" },
+    { "relation": "works_on", "direction": "outgoing", "target_type": "project" },
+    { "relation": "knows", "direction": "outgoing", "target_type": "person" }
+  ]
+}

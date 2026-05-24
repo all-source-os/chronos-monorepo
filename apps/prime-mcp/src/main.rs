@@ -21,6 +21,7 @@ mod http;
 mod profiling;
 mod protocol;
 mod sync;
+mod templates;
 mod tools;
 mod toon;
 mod transport;

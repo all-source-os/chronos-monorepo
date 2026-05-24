@@ -198,6 +198,23 @@ pub fn tool_definitions() -> Value {
                     "top_k": { "type": "integer", "description": "Max results (default: 10)" }
                 }
             }
+        },
+        // ─── Entity Templates ──────────────────────────────────────────
+        {
+            "name": "prime_list_templates",
+            "description": "List bundled entity-type templates (person, contact, organization, task, decision, transaction, meeting, document). Call this FIRST when starting to model a new domain — pick one whose shape matches what you're trying to remember, then use prime_load_template to read its full property + relation schema. Templates are descriptive guides, not enforced contracts; you can still create any shape via prime_add_node.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "prime_load_template",
+            "description": "Load a single entity-type template by name. Returns the full schema: entity_type, description, properties (with types + required flags), and suggested_relations (typical edges for this entity type). Use the returned shape when calling prime_add_node so the node matches the template's convention.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "Template name (e.g. 'person', 'task', 'decision'). List available names with prime_list_templates." }
+                },
+                "required": ["name"]
+            }
         }
     ])
 }
@@ -218,7 +235,25 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
         "prime_embed" => call_embed(prime, args).await,
         "prime_similar" => call_similar(prime, args),
         "prime_recall" => call_recall(prime, args).await,
+        "prime_list_templates" => call_list_templates(),
+        "prime_load_template" => call_load_template(args),
         _ => tool_error(&format!("Unknown tool: {name}")),
+    }
+}
+
+fn call_list_templates() -> Value {
+    tool_result(crate::templates::list_templates_summary())
+}
+
+fn call_load_template(args: &Value) -> Value {
+    let Some(name) = args.get("name").and_then(Value::as_str) else {
+        return tool_error("missing required argument: name");
+    };
+    match crate::templates::load_template(name) {
+        Some(t) => tool_result(t),
+        None => tool_error(&format!(
+            "unknown template: {name} — call prime_list_templates to see what's available"
+        )),
     }
 }
 
@@ -669,5 +704,55 @@ mod tests {
             desc.contains("text"),
             "description should mention text-only query path"
         );
+    }
+
+    #[test]
+    fn template_tools_are_exposed() {
+        let defs = tool_definitions();
+        let _ = find_tool(&defs, "prime_list_templates");
+        let load = find_tool(&defs, "prime_load_template");
+        let required = load["inputSchema"]["required"].as_array().unwrap();
+        assert!(
+            required.iter().any(|v| v == "name"),
+            "prime_load_template should require `name`"
+        );
+    }
+
+    /// End-to-end via the public dispatch surface: list_templates lists every
+    /// bundled template; load_template("contact") returns the shape an agent
+    /// would use to call prime_add_node with the right properties + relations.
+    #[test]
+    fn template_dispatch_round_trip() {
+        let listed = call_list_templates();
+        let text = listed["content"][0]["text"].as_str().unwrap();
+        // Result is JSON or TOON depending on RESULT_FORMAT; default Json.
+        assert!(
+            text.contains("contact") && text.contains("person") && text.contains("transaction"),
+            "list_templates should mention every bundled name; got: {text}"
+        );
+
+        let loaded = call_load_template(&json!({ "name": "contact" }));
+        let text = loaded["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("\"entity_type\": \"contact\""));
+        assert!(
+            text.contains("\"name\"") && text.contains("\"email\""),
+            "contact template should declare name + email properties"
+        );
+        assert!(
+            text.contains("suggested_relations"),
+            "contact template should suggest relations agents can use"
+        );
+    }
+
+    #[test]
+    fn template_dispatch_unknown_name_errors() {
+        let result = call_load_template(&json!({ "name": "nonexistent" }));
+        assert_eq!(result["isError"], json!(true));
+    }
+
+    #[test]
+    fn template_dispatch_missing_name_errors() {
+        let result = call_load_template(&json!({}));
+        assert_eq!(result["isError"], json!(true));
     }
 }
