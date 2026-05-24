@@ -21,6 +21,35 @@ const claudeCodeConfig = `claude mcp add prime allsource-prime \\
   --data-dir ~/.prime/memory \\
   --auto-inject`;
 
+// Cursor reads stdio MCP servers from ~/.cursor/mcp.json with the same
+// mcpServers shape as Claude Desktop. Verified against
+// https://cursor.com/docs/context/mcp on 2026-05-24.
+const cursorConfig = `{
+  "mcpServers": {
+    "prime": {
+      "command": "allsource-prime",
+      "args": [
+        "--data-dir", "~/.prime/memory",
+        "--auto-inject"
+      ]
+    }
+  }
+}`;
+
+// OpenCode uses a different envelope (top-level "mcp", "type": "local",
+// command as an array). Verified against https://opencode.ai/docs/mcp-servers
+// on 2026-05-24.
+const openCodeConfig = `{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "prime": {
+      "type": "local",
+      "command": ["allsource-prime", "--data-dir", "~/.prime/memory", "--auto-inject"],
+      "enabled": true
+    }
+  }
+}`;
+
 const tools = [
   {
     name: "prime_add_node",
@@ -119,7 +148,7 @@ const comparison: Comparison[] = [
     mem0: "no",
   },
   {
-    feature: "MCP-native (Claude Desktop, Claude Code, Cursor)",
+    feature: "MCP-native (Claude Desktop, Claude Code, Cursor, OpenCode)",
     prime: "yes",
     folk: "no",
     notion: "no",
@@ -177,10 +206,13 @@ export default function PrimeLandingPage() {
       {/* Install in 30s */}
       <BlurFade delay={0.2} inView>
         <section id="install" className="mt-16 scroll-mt-24">
-          <h2 className="mb-2 text-2xl font-semibold text-foreground">Install in 30 seconds</h2>
+          <h2 className="mb-2 text-2xl font-semibold text-foreground">
+            Same memory, every agent surface
+          </h2>
           <p className="mb-6 text-sm text-muted-foreground">
-            One <code className="rounded bg-muted px-1.5 py-0.5 font-mono">cargo install</code> and
-            one config edit. Restart your client. Done.
+            One <code className="rounded bg-muted px-1.5 py-0.5 font-mono">cargo install</code>, one
+            config edit per client. The same Prime store serves Claude Desktop, Claude Code, Cursor,
+            and OpenCode — one source of truth, every place your agents work.
           </p>
 
           <Card>
@@ -197,7 +229,9 @@ export default function PrimeLandingPage() {
               <div>
                 <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   2a. Claude Desktop —{" "}
-                  <code className="font-mono">~/.claude/claude_desktop_config.json</code>
+                  <code className="font-mono">
+                    ~/Library/Application Support/Claude/claude_desktop_config.json
+                  </code>
                 </div>
                 <pre className="overflow-x-auto rounded-md border bg-muted/30 px-3 py-2 text-xs font-mono leading-relaxed">
                   {claudeDesktopConfig}
@@ -213,12 +247,33 @@ export default function PrimeLandingPage() {
                 </pre>
               </div>
 
+              <div>
+                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  2c. Cursor — <code className="font-mono">~/.cursor/mcp.json</code>
+                </div>
+                <pre className="overflow-x-auto rounded-md border bg-muted/30 px-3 py-2 text-xs font-mono leading-relaxed">
+                  {cursorConfig}
+                </pre>
+              </div>
+
+              <div>
+                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  2d. OpenCode — <code className="font-mono">opencode.json</code>
+                </div>
+                <pre className="overflow-x-auto rounded-md border bg-muted/30 px-3 py-2 text-xs font-mono leading-relaxed">
+                  {openCodeConfig}
+                </pre>
+              </div>
+
               <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                 <strong className="text-foreground">Why this works.</strong> The{" "}
                 <code className="font-mono">--auto-inject</code> flag exposes a{" "}
-                <code className="font-mono">prime://auto-context</code> MCP resource. Claude reads
-                it at conversation start — a compressed markdown index of everything you&apos;ve
-                told it, organized by domain, in ~500–1,000 tokens. No prompt engineering required.
+                <code className="font-mono">prime://auto-context</code> MCP resource. Each client
+                reads it at conversation start — a compressed markdown index of everything
+                you&apos;ve told it, organized by domain, in ~500–1,000 tokens. No prompt
+                engineering required, and every client sees the same index because they share the
+                same local Prime store (or, if you wire <code className="font-mono">--sync-to</code>
+                , the same hosted one).
               </div>
             </CardContent>
           </Card>
