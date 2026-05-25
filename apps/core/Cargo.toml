@@ -146,6 +146,7 @@ uuid.workspace = true
 criterion.workspace = true
 ctrlc.workspace = true
 iai-callgrind = "0.14"
+proptest = "1"
 tempfile.workspace = true
 testcontainers = "0.26"
 testcontainers-modules = { version = "0.14", features = ["postgres"] }

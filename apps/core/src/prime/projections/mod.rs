@@ -6,6 +6,7 @@
 pub mod adjacency;
 pub mod contradiction;
 pub mod cross_domain;
+pub mod declarative;
 pub mod domain_index;
 pub mod node_state;
 pub mod node_type_index;
@@ -18,6 +19,7 @@ pub use adjacency::{
 };
 pub use contradiction::{Contradiction, ContradictionDetectionProjection};
 pub use cross_domain::{CrossDomainLink, CrossDomainProjection};
+pub use declarative::{EntitySnapshot, MergePolicy, Observation, ProjectionDef, fold};
 pub use domain_index::DomainIndexProjection;
 pub use node_state::NodeStateProjection;
 pub use node_type_index::NodeTypeIndexProjection;
