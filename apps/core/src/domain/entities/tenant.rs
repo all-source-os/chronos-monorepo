@@ -2,6 +2,31 @@ use crate::{domain::value_objects::TenantId, error::Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+/// Per-tenant policy for how registered schemas are enforced on event ingest.
+///
+/// Closes neotoma-gaps bead t-0795 — Core's `/api/v1/schemas` registry was
+/// advisory-only; this turns it into an opt-in write-time validator.
+///
+/// `Permissive` is the default so existing tenants are unaffected. Tenants
+/// opt into stricter modes via the tenant repository (no admin HTTP yet —
+/// that's a follow-up).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SchemaEnforcement {
+    /// Default. No validation — anything ingests cleanly. Matches Core's
+    /// historical behavior pre-v0.21.5; the fast path skips even the
+    /// schema-registry lookup so there's no perf regression.
+    #[default]
+    Permissive,
+    /// Validate when a schema exists for the event_type; log a warn on
+    /// violation but accept the write. Use this to discover schema drift
+    /// in production without breaking writes.
+    Warn,
+    /// Validate when a schema exists for the event_type; reject violations
+    /// with HTTP 422 + a structured `schema_violation` error.
+    Strict,
+}
+
 /// Value Object: Tenant Quotas
 ///
 /// Represents the resource limits for a tenant.
@@ -317,6 +342,11 @@ pub struct Tenant {
     #[serde(default)]
     is_demo: bool,
     metadata: serde_json::Value,
+    /// Schema enforcement policy for this tenant's event ingest. Defaults to
+    /// `Permissive` (current behavior) so existing serialized tenants without
+    /// this field continue to work via `serde(default)`.
+    #[serde(default)]
+    schema_enforcement: SchemaEnforcement,
 }
 
 impl Tenant {
@@ -336,6 +366,7 @@ impl Tenant {
             active: true,
             is_demo: false,
             metadata: serde_json::json!({}),
+            schema_enforcement: SchemaEnforcement::default(),
         })
     }
 
@@ -363,7 +394,17 @@ impl Tenant {
             active,
             is_demo,
             metadata,
+            schema_enforcement: SchemaEnforcement::default(),
         }
+    }
+
+    /// Builder-style setter — only used by callers that want a non-default
+    /// enforcement mode. Keeps `Tenant::new` / `reconstruct` signatures
+    /// stable so existing call sites compile unchanged.
+    #[must_use]
+    pub fn with_schema_enforcement(mut self, mode: SchemaEnforcement) -> Self {
+        self.schema_enforcement = mode;
+        self
     }
 
     // Getters
@@ -405,6 +446,15 @@ impl Tenant {
 
     pub fn metadata(&self) -> &serde_json::Value {
         &self.metadata
+    }
+
+    pub fn schema_enforcement(&self) -> SchemaEnforcement {
+        self.schema_enforcement
+    }
+
+    pub fn set_schema_enforcement(&mut self, mode: SchemaEnforcement) {
+        self.schema_enforcement = mode;
+        self.updated_at = Utc::now();
     }
 
     // Domain behavior methods
@@ -622,6 +672,93 @@ mod tests {
         assert_eq!(tenant.name(), "Test Tenant");
         assert!(tenant.is_active());
         assert_eq!(tenant.usage().total_events(), 0);
+    }
+
+    #[test]
+    fn schema_enforcement_default_is_permissive() {
+        // Locks the backwards-compat contract: existing tenants without the
+        // schema_enforcement field deserialize as Permissive, matching pre-
+        // v0.21.5 ingest behavior.
+        assert_eq!(SchemaEnforcement::default(), SchemaEnforcement::Permissive);
+    }
+
+    #[test]
+    fn schema_enforcement_serde_roundtrip() {
+        // snake_case wire format — used by future admin endpoints.
+        let json = serde_json::to_string(&SchemaEnforcement::Strict).unwrap();
+        assert_eq!(json, r#""strict""#);
+        let back: SchemaEnforcement = serde_json::from_str(r#""warn""#).unwrap();
+        assert_eq!(back, SchemaEnforcement::Warn);
+    }
+
+    #[test]
+    fn new_tenant_defaults_to_permissive_enforcement() {
+        let t = Tenant::new(
+            test_tenant_id(),
+            "Test".to_string(),
+            TenantQuotas::standard(),
+        )
+        .unwrap();
+        assert_eq!(t.schema_enforcement(), SchemaEnforcement::Permissive);
+    }
+
+    #[test]
+    fn with_schema_enforcement_builder_sets_mode() {
+        let t = Tenant::new(
+            test_tenant_id(),
+            "Test".to_string(),
+            TenantQuotas::standard(),
+        )
+        .unwrap()
+        .with_schema_enforcement(SchemaEnforcement::Strict);
+        assert_eq!(t.schema_enforcement(), SchemaEnforcement::Strict);
+    }
+
+    #[test]
+    fn set_schema_enforcement_mutator_bumps_updated_at() {
+        let mut t = Tenant::new(
+            test_tenant_id(),
+            "Test".to_string(),
+            TenantQuotas::standard(),
+        )
+        .unwrap();
+        let before = t.updated_at();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        t.set_schema_enforcement(SchemaEnforcement::Warn);
+        assert_eq!(t.schema_enforcement(), SchemaEnforcement::Warn);
+        assert!(
+            t.updated_at() > before,
+            "updated_at should bump when enforcement mode changes"
+        );
+    }
+
+    #[test]
+    fn tenant_with_missing_enforcement_field_deserializes_as_permissive() {
+        // Regression guard for the serde(default) on the new field. An
+        // existing serialized tenant from before v0.21.5 must still load.
+        // Build the "pre-v0.21.5 shape" by serializing a real tenant and
+        // stripping schema_enforcement — keeps the test in sync with the
+        // real struct shape automatically.
+        let t = Tenant::new(
+            test_tenant_id(),
+            "Test".to_string(),
+            TenantQuotas::standard(),
+        )
+        .unwrap();
+        let mut serialized = serde_json::to_value(&t).unwrap();
+        serialized
+            .as_object_mut()
+            .unwrap()
+            .remove("schema_enforcement");
+        assert!(
+            !serialized
+                .as_object()
+                .unwrap()
+                .contains_key("schema_enforcement"),
+            "test setup: schema_enforcement should be absent from the legacy payload"
+        );
+        let restored: Tenant = serde_json::from_value(serialized).unwrap();
+        assert_eq!(restored.schema_enforcement(), SchemaEnforcement::Permissive);
     }
 
     #[test]

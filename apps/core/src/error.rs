@@ -48,6 +48,18 @@ pub enum AllSourceError {
 
     #[error("Internal error: {0}")]
     InternalError(String),
+
+    /// Event payload failed validation against a registered schema. The
+    /// HTTP layer maps this to 422 with a structured body so callers can
+    /// distinguish schema problems from generic validation failures.
+    #[error(
+        "Schema violation for event_type '{event_type}' (schema v{schema_version}): {errors:?}"
+    )]
+    SchemaViolation {
+        event_type: String,
+        schema_version: u32,
+        errors: Vec<String>,
+    },
 }
 
 impl AllSourceError {
@@ -137,6 +149,26 @@ mod axum_impl {
                 }
                 AllSourceError::SerializationError(_) => {
                     (StatusCode::UNPROCESSABLE_ENTITY, self.to_string())
+                }
+                AllSourceError::SchemaViolation {
+                    event_type,
+                    schema_version,
+                    errors,
+                } => {
+                    let body = serde_json::json!({
+                        "error": {
+                            "code": "schema_violation",
+                            "message": format!(
+                                "Event payload does not match registered schema for '{event_type}'"
+                            ),
+                            "details": {
+                                "event_type": event_type,
+                                "schema_version": schema_version,
+                                "errors": errors,
+                            }
+                        }
+                    });
+                    return (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(body)).into_response();
                 }
             };
 
@@ -246,6 +278,31 @@ mod tests {
         let err = AllSourceError::QueueFull("queue is full".to_string());
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    /// Locks the wire contract from neotoma-gaps bead t-0795 AC #3:
+    /// 422 with `{error: {code: "schema_violation", details: {event_type,
+    /// schema_version, errors}}}`. Callers parse this shape — don't break it.
+    #[cfg(feature = "server")]
+    #[tokio::test]
+    async fn test_into_response_schema_violation() {
+        use axum::body::to_bytes;
+        let err = AllSourceError::SchemaViolation {
+            event_type: "user.created".to_string(),
+            schema_version: 2,
+            errors: vec!["Missing required field: email".to_string()],
+        };
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let body_bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(body["error"]["code"], "schema_violation");
+        assert_eq!(body["error"]["details"]["event_type"], "user.created");
+        assert_eq!(body["error"]["details"]["schema_version"], 2);
+        let errors = body["error"]["details"]["errors"].as_array().unwrap();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].as_str().unwrap().contains("email"));
     }
 
     #[cfg(feature = "server")]

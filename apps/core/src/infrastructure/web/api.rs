@@ -23,7 +23,10 @@ use crate::{
             webhook::{RegisterWebhookRequest, UpdateWebhookRequest},
         },
     },
-    domain::entities::Event,
+    domain::{
+        entities::{Event, SchemaEnforcement},
+        value_objects::TenantId,
+    },
     error::Result,
     infrastructure::{
         persistence::{
@@ -310,6 +313,85 @@ pub async fn ingest_event(
 /// Used by the v1 API. Tenant comes from `req.tenant_id` — the Control Plane
 /// delegation layer sets it from the authenticated caller before forwarding.
 /// Core is internal-only and does not authenticate public traffic.
+/// Look up the tenant's `SchemaEnforcement` mode and, if non-permissive,
+/// validate the event payload against any registered schema for the
+/// event_type.
+///
+/// Fast path: `Permissive` (default for unconfigured tenants AND for tenants
+/// not present in the repo, like dev/test setups) returns `Ok(())` without
+/// touching the schema registry — preserves the pre-v0.21.5 ingest cost.
+///
+/// `Warn`: validation runs, violations log at WARN, the write proceeds.
+/// `Strict`: violations return `AllSourceError::SchemaViolation` → 422 with
+/// the structured body the HTTP layer builds in `error.rs`.
+///
+/// If no schema is registered for the event_type, validation is a no-op
+/// regardless of mode — this matches the principle that schemas are
+/// opt-in per event_type, not per tenant.
+async fn enforce_schema_if_configured(
+    state: &AppState,
+    tenant_id: &str,
+    event: &Event,
+) -> Result<()> {
+    // Cheapest possible lookup: parse the tenant_id; if it fails, treat as
+    // permissive (defensive — Event::from_strings already validated, but
+    // this keeps the contract clear).
+    let Ok(parsed) = TenantId::new(tenant_id.to_string()) else {
+        return Ok(());
+    };
+    let mode = match state.tenant_repo.find_by_id(&parsed).await {
+        Ok(Some(t)) => t.schema_enforcement(),
+        // Unknown tenant → permissive. Avoids breaking the default tenant
+        // and any dev setups that ingest without pre-registering tenants.
+        _ => SchemaEnforcement::Permissive,
+    };
+    if matches!(mode, SchemaEnforcement::Permissive) {
+        return Ok(());
+    }
+
+    // Schema lookup keyed by event_type. Latest version only (None) — schema
+    // evolution is a separate concern; tenants pin a version via their own
+    // registration flow if they need to.
+    let registry = state.store.schema_registry();
+    let Ok(schema) = registry.get_schema(event.event_type.as_str(), None) else {
+        // No schema registered for this event_type → fast path, regardless
+        // of enforcement mode. Schemas are opt-in.
+        return Ok(());
+    };
+
+    let result = registry
+        .validate(
+            event.event_type.as_str(),
+            Some(schema.version),
+            &event.payload,
+        )
+        .map_err(|e| crate::error::AllSourceError::InternalError(e.to_string()))?;
+
+    if result.valid {
+        return Ok(());
+    }
+
+    match mode {
+        SchemaEnforcement::Strict => Err(crate::error::AllSourceError::SchemaViolation {
+            event_type: event.event_type.as_str().to_string(),
+            schema_version: result.schema_version,
+            errors: result.errors,
+        }),
+        SchemaEnforcement::Warn => {
+            tracing::warn!(
+                tenant = %tenant_id,
+                event_type = %event.event_type.as_str(),
+                schema_version = result.schema_version,
+                errors = ?result.errors,
+                "schema violation (warn mode — write accepted)"
+            );
+            Ok(())
+        }
+        // Already handled above
+        SchemaEnforcement::Permissive => Ok(()),
+    }
+}
+
 pub async fn ingest_event_v1(
     State(state): State<AppState>,
     Json(req): Json<IngestEventRequest>,
@@ -321,10 +403,14 @@ pub async fn ingest_event_v1(
     let event = Event::from_strings(
         req.event_type,
         req.entity_id,
-        tenant_id,
+        tenant_id.clone(),
         req.payload,
         req.metadata,
     )?;
+
+    // Per-tenant schema enforcement (Permissive is the fast path — no
+    // tenant lookup, no schema query). See neotoma-gaps bead t-0795.
+    enforce_schema_if_configured(&state, &tenant_id, &event).await?;
 
     let event_id = event.id;
     let timestamp = event.timestamp;
@@ -368,6 +454,11 @@ pub async fn ingest_events_batch(
             event_req.metadata,
         )?;
 
+        // Note: the non-v1 batch path uses State<SharedStore>, not AppState,
+        // so it has no tenant_repo to check enforcement against. Schema
+        // enforcement is wired through the v1 batch handler below — this
+        // path remains permissive (it predates the tenant_repo wiring).
+
         let event_id = event.id;
         let timestamp = event.timestamp;
 
@@ -409,10 +500,12 @@ pub async fn ingest_events_batch_v1(
         let event = Event::from_strings(
             event_req.event_type,
             event_req.entity_id,
-            tenant_id,
+            tenant_id.clone(),
             event_req.payload,
             event_req.metadata,
         )?;
+
+        enforce_schema_if_configured(&state, &tenant_id, &event).await?;
 
         let event_id = event.id;
         let timestamp = event.timestamp;
