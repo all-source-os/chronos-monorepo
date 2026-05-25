@@ -19,6 +19,7 @@ use tracing_subscriber::EnvFilter;
 
 mod http;
 mod profiling;
+mod projection_registry;
 mod protocol;
 mod sync;
 mod templates;

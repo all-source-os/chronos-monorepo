@@ -199,6 +199,51 @@ pub fn tool_definitions() -> Value {
                 }
             }
         },
+        // ─── Declarative Projections ──────────────────────────────────
+        {
+            "name": "prime_define_projection",
+            "description": "Register or replace a declarative projection definition for an entity type. The projection tells Prime how to fold a node's observation history into a single snapshot — one merge policy per field. Closes the foundation for 'what is the current state of this entity?' without bespoke fold code. Policies: 'last_write' (most recent observed_at — for changing-over-time fields like status), 'highest_priority' (highest source_priority metadata — for identity fields where user corrections beat AI extractions), 'most_specific' (highest specificity_score metadata — when one source produces dense facts and another shallow), 'merge_array' (union all observed values — for tags, aliases). Fields not in field_policies are dropped from the snapshot.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "entity_type": { "type": "string", "description": "Entity type this projection applies to (e.g. 'contact', 'task')" },
+                    "field_policies": {
+                        "type": "object",
+                        "description": "Map of field name to merge policy. Values: 'last_write' | 'highest_priority' | 'most_specific' | 'merge_array'",
+                        "additionalProperties": { "type": "string", "enum": ["last_write", "highest_priority", "most_specific", "merge_array"] }
+                    }
+                },
+                "required": ["entity_type", "field_policies"]
+            }
+        },
+        {
+            "name": "prime_list_projections",
+            "description": "List every projection definition registered in this process. Use to introspect what's defined before calling prime_define_projection — you can see the existing field policies and decide whether to extend or replace.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "prime_project_node",
+            "description": "Compute a node's snapshot by folding its event history through the registered projection definition for its entity type. Returns the merged field values according to each field's merge policy. Returns an error if no projection is defined for the node's entity type — register one first with prime_define_projection. The fold is deterministic: same observations always produce the same snapshot.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "node_id": { "type": "string", "description": "Node entity_id in 'node:{type}:{id}' format" }
+                },
+                "required": ["node_id"]
+            }
+        },
+        {
+            "name": "prime_node_provenance",
+            "description": "Answer 'where did this field's value come from?' for a single field on a node. Returns the source event_id, timestamp, value, and the merge policy that picked it. Surfaces the audit trail without manual event-history scanning. Returns an error for fields whose policy is 'merge_array' (no single source — value is a union of many events). Requires a projection defined for the node's entity type.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "node_id": { "type": "string", "description": "Node entity_id in 'node:{type}:{id}' format" },
+                    "field": { "type": "string", "description": "Field name to query provenance for" }
+                },
+                "required": ["node_id", "field"]
+            }
+        },
         // ─── Entity Templates ──────────────────────────────────────────
         {
             "name": "prime_list_templates",
@@ -237,7 +282,170 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
         "prime_recall" => call_recall(prime, args).await,
         "prime_list_templates" => call_list_templates(),
         "prime_load_template" => call_load_template(args),
+        "prime_define_projection" => call_define_projection(args),
+        "prime_list_projections" => call_list_projections(),
+        "prime_project_node" => call_project_node(prime, args).await,
+        "prime_node_provenance" => call_node_provenance(prime, args).await,
         _ => tool_error(&format!("Unknown tool: {name}")),
+    }
+}
+
+// ─── Declarative projections + provenance dispatch ──────────────────────
+//
+// These call into the in-memory projection registry (see
+// `crate::projection_registry`) and the pure fold/provenance functions in
+// `allsource_core::prime::projections`. The MCP layer's job is just
+// argument parsing, projection lookup, and result shaping — the
+// interesting logic lives in Core's declarative module.
+
+fn call_define_projection(args: &Value) -> Value {
+    use allsource_core::prime::projections::{MergePolicy, ProjectionDef};
+    use std::collections::BTreeMap;
+
+    let Some(entity_type) = args.get("entity_type").and_then(Value::as_str) else {
+        return tool_error("missing required argument: entity_type");
+    };
+    let Some(policies_map) = args.get("field_policies").and_then(Value::as_object) else {
+        return tool_error("missing required argument: field_policies (object)");
+    };
+
+    let mut field_policies = BTreeMap::new();
+    for (field, value) in policies_map {
+        let Some(policy_str) = value.as_str() else {
+            return tool_error(&format!(
+                "field_policies.{field} must be a string (one of last_write, highest_priority, most_specific, merge_array)"
+            ));
+        };
+        let policy: MergePolicy = match serde_json::from_value(json!(policy_str)) {
+            Ok(p) => p,
+            Err(_) => {
+                return tool_error(&format!(
+                    "field_policies.{field}: unknown policy '{policy_str}' — valid: last_write, highest_priority, most_specific, merge_array"
+                ));
+            }
+        };
+        field_policies.insert(field.clone(), policy);
+    }
+
+    let def = ProjectionDef {
+        entity_type: entity_type.to_string(),
+        field_policies,
+    };
+    let replaced = crate::projection_registry::upsert(def);
+    if replaced {
+        tracing::warn!(
+            entity_type = entity_type,
+            "prime_define_projection replaced an existing definition"
+        );
+    }
+    tool_result(json!({
+        "entity_type": entity_type,
+        "replaced": replaced,
+    }))
+}
+
+fn call_list_projections() -> Value {
+    let defs = crate::projection_registry::list();
+    let payload: Vec<Value> = defs
+        .iter()
+        .map(|d| {
+            let policies: serde_json::Map<String, Value> = d
+                .field_policies
+                .iter()
+                .map(|(field, policy)| {
+                    let policy_str =
+                        serde_json::to_value(policy).ok().and_then(|v| {
+                            v.as_str().map(String::from)
+                        }).unwrap_or_default();
+                    (field.clone(), Value::String(policy_str))
+                })
+                .collect();
+            json!({
+                "entity_type": d.entity_type,
+                "field_policies": policies,
+            })
+        })
+        .collect();
+    tool_result(json!({ "projections": payload }))
+}
+
+/// Parse a node entity_id of the form `node:{type}:{id}` and return the
+/// type segment. The format is documented in every node-related tool's
+/// description; this is the inverse used by the projection lookup path.
+fn entity_type_from_node_id(node_id: &str) -> Option<&str> {
+    let mut parts = node_id.splitn(3, ':');
+    let prefix = parts.next()?;
+    if prefix != "node" {
+        return None;
+    }
+    let entity_type = parts.next()?;
+    let _id = parts.next()?;
+    Some(entity_type)
+}
+
+async fn call_project_node(prime: &Prime, args: &Value) -> Value {
+    use allsource_core::prime::projections::fold;
+
+    let Some(node_id) = args.get("node_id").and_then(Value::as_str) else {
+        return tool_error("missing required argument: node_id");
+    };
+    let Some(entity_type) = entity_type_from_node_id(node_id) else {
+        return tool_error(&format!(
+            "node_id must be in 'node:{{type}}:{{id}}' format, got: {node_id}"
+        ));
+    };
+    let Some(def) = crate::projection_registry::get(entity_type) else {
+        return tool_error(&format!(
+            "no projection defined for entity_type '{entity_type}' — register one with prime_define_projection first"
+        ));
+    };
+    let observations = match prime.observations(node_id).await {
+        Ok(o) => o,
+        Err(e) => return tool_error(&format!("failed to load observations: {e}")),
+    };
+    let snapshot = fold(&observations, &def);
+    tool_result(json!({
+        "entity_type": snapshot.entity_type,
+        "fields": snapshot.fields,
+        "observation_count": observations.len(),
+    }))
+}
+
+async fn call_node_provenance(prime: &Prime, args: &Value) -> Value {
+    use allsource_core::prime::projections::provenance_for_field;
+
+    let Some(node_id) = args.get("node_id").and_then(Value::as_str) else {
+        return tool_error("missing required argument: node_id");
+    };
+    let Some(field) = args.get("field").and_then(Value::as_str) else {
+        return tool_error("missing required argument: field");
+    };
+    let Some(entity_type) = entity_type_from_node_id(node_id) else {
+        return tool_error(&format!(
+            "node_id must be in 'node:{{type}}:{{id}}' format, got: {node_id}"
+        ));
+    };
+    let Some(def) = crate::projection_registry::get(entity_type) else {
+        return tool_error(&format!(
+            "no projection defined for entity_type '{entity_type}' — register one with prime_define_projection first"
+        ));
+    };
+    let observations = match prime.observations(node_id).await {
+        Ok(o) => o,
+        Err(e) => return tool_error(&format!("failed to load observations: {e}")),
+    };
+    match provenance_for_field(&observations, &def, field) {
+        Some(p) => tool_result(json!({
+            "field": p.field,
+            "value": p.value,
+            "source_event_id": p.source_event_id,
+            "source_event_at": p.source_event_at,
+            "merge_policy_applied": p.merge_policy_applied,
+        })),
+        None => tool_error(&format!(
+            "no provenance available for field '{field}' on {node_id} \
+             (field may be missing, not in the projection, or have a merge_array policy which has no single source)"
+        )),
     }
 }
 
@@ -754,5 +962,112 @@ mod tests {
     fn template_dispatch_missing_name_errors() {
         let result = call_load_template(&json!({}));
         assert_eq!(result["isError"], json!(true));
+    }
+
+    // ─── Projection / provenance tool surface ─────────────────────────────
+
+    #[test]
+    fn projection_tools_are_exposed() {
+        let defs = tool_definitions();
+        for tool_name in [
+            "prime_define_projection",
+            "prime_list_projections",
+            "prime_project_node",
+            "prime_node_provenance",
+        ] {
+            let _ = find_tool(&defs, tool_name);
+        }
+        let define = find_tool(&defs, "prime_define_projection");
+        let required = define["inputSchema"]["required"].as_array().unwrap();
+        assert!(required.iter().any(|v| v == "entity_type"));
+        assert!(required.iter().any(|v| v == "field_policies"));
+    }
+
+    #[test]
+    fn entity_type_from_node_id_parses_canonical_format() {
+        assert_eq!(entity_type_from_node_id("node:contact:abc-123"), Some("contact"));
+        assert_eq!(entity_type_from_node_id("node:person:xyz"), Some("person"));
+        // Type segments can contain colons inside the id portion — splitn(3)
+        // means everything past the second colon stays in the id.
+        assert_eq!(entity_type_from_node_id("node:task:id:with:colons"), Some("task"));
+    }
+
+    #[test]
+    fn entity_type_from_node_id_rejects_non_node_ids() {
+        assert!(entity_type_from_node_id("edge:abc").is_none());
+        assert!(entity_type_from_node_id("malformed").is_none());
+        assert!(entity_type_from_node_id("node:only-type").is_none()); // no id segment
+    }
+
+    #[test]
+    fn call_define_projection_parses_policy_strings() {
+        crate::projection_registry::clear_for_test();
+        let result = call_define_projection(&json!({
+            "entity_type": "dispatch-test-1",
+            "field_policies": {
+                "status": "last_write",
+                "name": "highest_priority",
+                "role": "most_specific",
+                "tags": "merge_array",
+            }
+        }));
+        // Should be a success result, not an error
+        assert_ne!(result.get("isError"), Some(&json!(true)));
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("\"entity_type\": \"dispatch-test-1\""));
+        assert!(text.contains("\"replaced\": false"));
+        // And it should actually be in the registry
+        let def = crate::projection_registry::get("dispatch-test-1")
+            .expect("def should be registered");
+        assert_eq!(def.field_policies.len(), 4);
+    }
+
+    #[test]
+    fn call_define_projection_rejects_unknown_policy() {
+        crate::projection_registry::clear_for_test();
+        let result = call_define_projection(&json!({
+            "entity_type": "dispatch-test-2",
+            "field_policies": { "status": "not_a_real_policy" }
+        }));
+        assert_eq!(result["isError"], json!(true));
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("unknown policy"));
+    }
+
+    #[test]
+    fn call_define_projection_replaces_existing_and_flags_it() {
+        crate::projection_registry::clear_for_test();
+        // First definition: replaced=false
+        call_define_projection(&json!({
+            "entity_type": "dispatch-test-3",
+            "field_policies": { "status": "last_write" }
+        }));
+        // Second definition for same type: replaced=true
+        let result = call_define_projection(&json!({
+            "entity_type": "dispatch-test-3",
+            "field_policies": { "name": "highest_priority" }
+        }));
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("\"replaced\": true"));
+    }
+
+    #[test]
+    fn call_list_projections_returns_every_registered_def() {
+        crate::projection_registry::clear_for_test();
+        call_define_projection(&json!({
+            "entity_type": "dispatch-test-4a",
+            "field_policies": { "f": "last_write" }
+        }));
+        call_define_projection(&json!({
+            "entity_type": "dispatch-test-4b",
+            "field_policies": { "f": "merge_array" }
+        }));
+        let result = call_list_projections();
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("dispatch-test-4a"));
+        assert!(text.contains("dispatch-test-4b"));
+        // Policy strings should be the wire-format snake_case
+        assert!(text.contains("last_write"));
+        assert!(text.contains("merge_array"));
     }
 }

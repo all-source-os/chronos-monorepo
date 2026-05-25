@@ -1468,6 +1468,69 @@ impl Prime {
         Ok(entries)
     }
 
+    /// Project a node's event history into a list of [`Observation`]s
+    /// suitable for [`super::projections::declarative::fold`] and the
+    /// provenance API.
+    ///
+    /// Only `prime.node.created` and `prime.node.updated` events contribute
+    /// observations — deletes are out of scope for the fold (the snapshot
+    /// represents the live state of a node). Each observation carries:
+    /// - `observed_at` from the event's timestamp
+    /// - `source_event_id` from the event's id (load-bearing for provenance)
+    /// - `source_priority` and `specificity_score` from the event metadata,
+    ///   defaulting to 0 when absent — writers are expected to set these
+    ///   when they care about projection precedence (see the convention
+    ///   in `MergePolicy::HighestPriority`)
+    /// - `fields` from `payload.properties` (the canonical node-property
+    ///   bag emitted by `add_node` / `update_node`)
+    pub async fn observations(
+        &self,
+        entity_id: &str,
+    ) -> PrimeResult<Vec<super::projections::declarative::Observation>> {
+        use super::projections::declarative::Observation;
+        use std::collections::BTreeMap;
+
+        let events = self.core.query(Query::new().entity_id(entity_id)).await?;
+
+        let observations = events
+            .iter()
+            .filter(|e| {
+                e.event_type.as_str() == event_types::NODE_CREATED
+                    || e.event_type.as_str() == event_types::NODE_UPDATED
+            })
+            .map(|e| {
+                let fields = e
+                    .payload
+                    .get("properties")
+                    .and_then(|p| p.as_object())
+                    .map(|obj| {
+                        obj.iter()
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect::<BTreeMap<_, _>>()
+                    })
+                    .unwrap_or_default();
+                let metadata = e.metadata.as_ref();
+                let source_priority = metadata
+                    .and_then(|m| m.get("source_priority"))
+                    .and_then(serde_json::Value::as_i64)
+                    .map_or(0, |i| i as i32);
+                let specificity_score = metadata
+                    .and_then(|m| m.get("specificity_score"))
+                    .and_then(serde_json::Value::as_i64)
+                    .map_or(0, |i| i as i32);
+                Observation {
+                    observed_at: e.timestamp,
+                    source_priority,
+                    specificity_score,
+                    source_event_id: e.id.to_string(),
+                    fields,
+                }
+            })
+            .collect();
+
+        Ok(observations)
+    }
+
     /// Get what changed in the graph between two timestamps.
     pub async fn diff(
         &self,
