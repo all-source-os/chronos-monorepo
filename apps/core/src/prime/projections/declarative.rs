@@ -145,78 +145,183 @@ pub fn fold(observations: &[Observation], def: &ProjectionDef) -> EntitySnapshot
 }
 
 fn apply_policy(policy: MergePolicy, field: &str, observations: &[Observation]) -> Option<Value> {
+    apply_policy_with_source(policy, field, observations).map(|(value, _source)| value)
+}
+
+/// Same as [`apply_policy`] but additionally returns the single observation
+/// that contributed the value, when one exists. Returns `None` for the
+/// observation slot under [`MergePolicy::MergeArray`] because the union
+/// pulls from many — there's no single picker.
+///
+/// This is what [`provenance_for_field`] sits on top of; keeping it as a
+/// shared helper means `fold` and `fold_with_provenance` agree exactly on
+/// which observation wins, by construction.
+fn apply_policy_with_source<'a>(
+    policy: MergePolicy,
+    field: &str,
+    observations: &'a [Observation],
+) -> Option<(Value, Option<&'a Observation>)> {
     match policy {
-        MergePolicy::LastWrite => observations
-            .iter()
-            .filter(|o| o.fields.contains_key(field))
-            // Stable tiebreak: when two observations share observed_at, prefer
-            // the one with the lexicographically smaller source_event_id so
-            // input order can't change the result.
-            .max_by(|a, b| {
-                a.observed_at
-                    .cmp(&b.observed_at)
-                    .then_with(|| b.source_event_id.cmp(&a.source_event_id))
-            })
-            .and_then(|o| o.fields.get(field).cloned()),
+        MergePolicy::LastWrite => pick_observation(observations, field, |a, b| {
+            a.observed_at
+                .cmp(&b.observed_at)
+                // Stable tiebreak: when two observations share observed_at,
+                // prefer the one with the lexicographically smaller
+                // source_event_id so input order can't change the result.
+                .then_with(|| b.source_event_id.cmp(&a.source_event_id))
+        })
+        .map(|o| (o.fields[field].clone(), Some(o))),
 
-        MergePolicy::HighestPriority => observations
-            .iter()
-            .filter(|o| o.fields.contains_key(field))
-            .max_by(|a, b| {
-                a.source_priority
-                    .cmp(&b.source_priority)
-                    .then_with(|| a.observed_at.cmp(&b.observed_at))
-                    .then_with(|| b.source_event_id.cmp(&a.source_event_id))
-            })
-            .and_then(|o| o.fields.get(field).cloned()),
+        MergePolicy::HighestPriority => pick_observation(observations, field, |a, b| {
+            a.source_priority
+                .cmp(&b.source_priority)
+                .then_with(|| a.observed_at.cmp(&b.observed_at))
+                .then_with(|| b.source_event_id.cmp(&a.source_event_id))
+        })
+        .map(|o| (o.fields[field].clone(), Some(o))),
 
-        MergePolicy::MostSpecific => observations
-            .iter()
-            .filter(|o| o.fields.contains_key(field))
-            .max_by(|a, b| {
-                a.specificity_score
-                    .cmp(&b.specificity_score)
-                    .then_with(|| a.observed_at.cmp(&b.observed_at))
-                    .then_with(|| b.source_event_id.cmp(&a.source_event_id))
-            })
-            .and_then(|o| o.fields.get(field).cloned()),
+        MergePolicy::MostSpecific => pick_observation(observations, field, |a, b| {
+            a.specificity_score
+                .cmp(&b.specificity_score)
+                .then_with(|| a.observed_at.cmp(&b.observed_at))
+                .then_with(|| b.source_event_id.cmp(&a.source_event_id))
+        })
+        .map(|o| (o.fields[field].clone(), Some(o))),
 
-        MergePolicy::MergeArray => {
-            // Collect every observed value (scalar OR array elements), dedupe
-            // by stable JSON equality, and emit in a canonical order (sorted
-            // by JSON string representation) so the result doesn't depend on
-            // observation input order.
-            let mut collected: Vec<Value> = Vec::new();
-            for obs in observations {
-                if let Some(v) = obs.fields.get(field) {
-                    match v {
-                        Value::Array(items) => {
-                            for item in items {
-                                if !collected.contains(item) {
-                                    collected.push(item.clone());
-                                }
-                            }
-                        }
-                        other => {
-                            if !collected.contains(other) {
-                                collected.push(other.clone());
-                            }
+        MergePolicy::MergeArray => merge_array(observations, field).map(|value| (value, None)),
+    }
+}
+
+/// Generic single-picker: pick the observation that maximises the given
+/// ordering (among those that contain the field).
+fn pick_observation<'a, F>(
+    observations: &'a [Observation],
+    field: &str,
+    mut cmp: F,
+) -> Option<&'a Observation>
+where
+    F: FnMut(&Observation, &Observation) -> std::cmp::Ordering,
+{
+    observations
+        .iter()
+        .filter(|o| o.fields.contains_key(field))
+        .max_by(|a, b| cmp(a, b))
+}
+
+fn merge_array(observations: &[Observation], field: &str) -> Option<Value> {
+    // Collect every observed value (scalar OR array elements), dedupe by
+    // stable JSON equality, and emit in a canonical order (sorted by JSON
+    // string representation) so the result doesn't depend on observation
+    // input order.
+    let mut collected: Vec<Value> = Vec::new();
+    for obs in observations {
+        if let Some(v) = obs.fields.get(field) {
+            match v {
+                Value::Array(items) => {
+                    for item in items {
+                        if !collected.contains(item) {
+                            collected.push(item.clone());
                         }
                     }
                 }
-            }
-            if collected.is_empty() {
-                None
-            } else {
-                // Sort by JSON serialization for canonical order.
-                collected.sort_by(|a, b| {
-                    serde_json::to_string(a)
-                        .unwrap_or_default()
-                        .cmp(&serde_json::to_string(b).unwrap_or_default())
-                });
-                Some(Value::Array(collected))
+                other => {
+                    if !collected.contains(other) {
+                        collected.push(other.clone());
+                    }
+                }
             }
         }
+    }
+    if collected.is_empty() {
+        None
+    } else {
+        collected.sort_by(|a, b| {
+            serde_json::to_string(a)
+                .unwrap_or_default()
+                .cmp(&serde_json::to_string(b).unwrap_or_default())
+        });
+        Some(Value::Array(collected))
+    }
+}
+
+// ─── Provenance ───────────────────────────────────────────────────────────
+//
+// Closes neotoma-gaps bead t-af6f: "where did this field's value come from?"
+// is a first-class query against the projection layer rather than something
+// callers reconstruct manually by scanning event history.
+
+/// Provenance for a single field's value in a projected snapshot.
+///
+/// `MergeArray` policy fields do NOT produce provenance entries — the value
+/// is a union of many observations, so there's no single answer to "where
+/// did this come from?" Callers asking for provenance on a MergeArray field
+/// receive `None`. (Future: a `ProvenanceSource::Union` variant could carry
+/// the contributor list, but the bead's wire shape calls for a single
+/// source_event_id, so we keep it simple.)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Provenance {
+    /// Field whose provenance this describes.
+    pub field: String,
+    /// The current value for this field after folding.
+    pub value: Value,
+    /// Event that supplied this value.
+    pub source_event_id: String,
+    /// Timestamp on that event (the `observed_at` of the winning observation).
+    pub source_event_at: DateTime<Utc>,
+    /// Which merge policy was in effect — useful for debugging "why did this
+    /// value win over that one?" without re-reading the projection def.
+    pub merge_policy_applied: MergePolicy,
+}
+
+/// Per-field provenance for an entire snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProvenanceSnapshot {
+    pub entity_type: String,
+    /// Provenance per field. Fields with `MergeArray` policy are absent
+    /// here — see the note on [`Provenance`].
+    pub fields: BTreeMap<String, Provenance>,
+}
+
+/// Return the provenance for a single field. `None` if the field has no
+/// observations, the field isn't in the projection def, or the field's
+/// policy is `MergeArray` (union has no single source).
+pub fn provenance_for_field(
+    observations: &[Observation],
+    def: &ProjectionDef,
+    field: &str,
+) -> Option<Provenance> {
+    let policy = *def.field_policies.get(field)?;
+    let (value, source) = apply_policy_with_source(policy, field, observations)?;
+    let source = source?; // MergeArray returns None here — no provenance entry
+    Some(Provenance {
+        field: field.to_string(),
+        value,
+        source_event_id: source.source_event_id.clone(),
+        source_event_at: source.observed_at,
+        merge_policy_applied: policy,
+    })
+}
+
+/// Fold observations into a snapshot AND record provenance for every
+/// single-source field. MergeArray fields appear in the value snapshot
+/// (via [`fold`]) but are absent from the provenance map.
+///
+/// This is the function the future REST endpoint
+/// `GET /api/v1/prime/nodes/{id}/fields/{field}/provenance` will look up
+/// and project from.
+pub fn fold_with_provenance(
+    observations: &[Observation],
+    def: &ProjectionDef,
+) -> ProvenanceSnapshot {
+    let mut fields: BTreeMap<String, Provenance> = BTreeMap::new();
+    for field in def.field_policies.keys() {
+        if let Some(prov) = provenance_for_field(observations, def, field) {
+            fields.insert(field.clone(), prov);
+        }
+    }
+    ProvenanceSnapshot {
+        entity_type: def.entity_type.clone(),
+        fields,
     }
 }
 
@@ -380,6 +485,112 @@ mod tests {
             let s1 = fold(&[a.clone(), b.clone(), c.clone()], &def);
             let s2 = fold(&[c, b, a], &def);
             assert_eq!(s1, s2, "policy {policy:?} is order-dependent — bug");
+        }
+    }
+
+    // ─── Provenance ───────────────────────────────────────────────────────
+
+    #[test]
+    fn provenance_for_last_write_picks_winning_event() {
+        let obs = vec![
+            obs(100, 0, 0, "evt-a", json!({"status": "cold"})),
+            obs(200, 0, 0, "evt-b", json!({"status": "warm"})),
+            obs(150, 0, 0, "evt-c", json!({"status": "lukewarm"})),
+        ];
+        let d = def("status", MergePolicy::LastWrite);
+        let p = provenance_for_field(&obs, &d, "status").expect("should have provenance");
+        assert_eq!(p.field, "status");
+        assert_eq!(p.value, json!("warm"));
+        assert_eq!(p.source_event_id, "evt-b");
+        assert_eq!(p.merge_policy_applied, MergePolicy::LastWrite);
+    }
+
+    #[test]
+    fn provenance_for_highest_priority_credits_the_user_correction() {
+        // Same data as the user-correction-beats-AI test: provenance must
+        // surface the user correction as the source, not the AI extraction.
+        let obs = vec![
+            obs(100, 0, 0, "ai-evt", json!({"name": "alice chen"})),
+            obs(200, 1000, 0, "user-evt", json!({"name": "Alice Chen"})),
+        ];
+        let d = def("name", MergePolicy::HighestPriority);
+        let p = provenance_for_field(&obs, &d, "name").unwrap();
+        assert_eq!(p.source_event_id, "user-evt");
+        assert_eq!(p.value, json!("Alice Chen"));
+    }
+
+    #[test]
+    fn provenance_skips_merge_array_fields() {
+        // MergeArray has no single source — the bead's wire shape calls for
+        // one source_event_id, so we deliberately return None here.
+        let obs = vec![
+            obs(100, 0, 0, "e1", json!({"tags": "rust"})),
+            obs(200, 0, 0, "e2", json!({"tags": "agents"})),
+        ];
+        let d = def("tags", MergePolicy::MergeArray);
+        assert!(provenance_for_field(&obs, &d, "tags").is_none());
+    }
+
+    #[test]
+    fn provenance_for_unknown_field_returns_none() {
+        let obs = vec![obs(100, 0, 0, "e1", json!({"status": "x"}))];
+        let d = def("name", MergePolicy::LastWrite);
+        assert!(provenance_for_field(&obs, &d, "name").is_none());
+    }
+
+    #[test]
+    fn provenance_for_field_not_in_def_returns_none() {
+        let obs = vec![obs(100, 0, 0, "e1", json!({"status": "x"}))];
+        let d = def("name", MergePolicy::LastWrite); // def doesn't include "status"
+        assert!(provenance_for_field(&obs, &d, "status").is_none());
+    }
+
+    #[test]
+    fn fold_with_provenance_covers_every_single_source_field() {
+        let mut policies = BTreeMap::new();
+        policies.insert("status".to_string(), MergePolicy::LastWrite);
+        policies.insert("name".to_string(), MergePolicy::HighestPriority);
+        policies.insert("tags".to_string(), MergePolicy::MergeArray);
+        let def = ProjectionDef {
+            entity_type: "contact".to_string(),
+            field_policies: policies,
+        };
+        let obs = vec![
+            obs(100, 0, 0, "e1", json!({"status": "cold", "tags": "a"})),
+            obs(200, 1000, 0, "e2", json!({"name": "Alice", "tags": "b"})),
+            obs(150, 0, 0, "e3", json!({"status": "warm"})),
+        ];
+        let snap = fold_with_provenance(&obs, &def);
+        // status (LastWrite) and name (HighestPriority) get provenance entries
+        assert_eq!(snap.fields.len(), 2);
+        assert_eq!(snap.fields["status"].source_event_id, "e3");
+        assert_eq!(snap.fields["status"].value, json!("warm"));
+        assert_eq!(snap.fields["name"].source_event_id, "e2");
+        // tags (MergeArray) is intentionally absent
+        assert!(!snap.fields.contains_key("tags"));
+    }
+
+    /// Determinism contract extends to provenance: same observations in any
+    /// order produce the same provenance (and therefore the same
+    /// source_event_id). If this ever fails, the tiebreakers in
+    /// `pick_observation` callsites have leaked input order.
+    #[test]
+    fn provenance_is_order_independent() {
+        let a = obs(100, 1, 1, "e-a", json!({"f": "A"}));
+        let b = obs(200, 2, 2, "e-b", json!({"f": "B"}));
+        let c = obs(150, 3, 3, "e-c", json!({"f": "C"}));
+        for &policy in &[
+            MergePolicy::LastWrite,
+            MergePolicy::HighestPriority,
+            MergePolicy::MostSpecific,
+        ] {
+            let d = def("f", policy);
+            let p1 = provenance_for_field(&[a.clone(), b.clone(), c.clone()], &d, "f").unwrap();
+            let p2 = provenance_for_field(&[c.clone(), b.clone(), a.clone()], &d, "f").unwrap();
+            assert_eq!(
+                p1, p2,
+                "policy {policy:?} provenance is order-dependent — bug"
+            );
         }
     }
 

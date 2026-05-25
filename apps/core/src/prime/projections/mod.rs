@@ -19,7 +19,10 @@ pub use adjacency::{
 };
 pub use contradiction::{Contradiction, ContradictionDetectionProjection};
 pub use cross_domain::{CrossDomainLink, CrossDomainProjection};
-pub use declarative::{EntitySnapshot, MergePolicy, Observation, ProjectionDef, fold};
+pub use declarative::{
+    EntitySnapshot, MergePolicy, Observation, ProjectionDef, Provenance, ProvenanceSnapshot, fold,
+    fold_with_provenance, provenance_for_field,
+};
 pub use domain_index::DomainIndexProjection;
 pub use node_state::NodeStateProjection;
 pub use node_type_index::NodeTypeIndexProjection;
