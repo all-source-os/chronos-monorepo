@@ -1,23 +1,29 @@
-//! In-memory registry of declarative `ProjectionDef`s keyed by entity_type.
+//! **In-memory cache** of declarative `ProjectionDef`s keyed by entity_type.
 //!
-//! Closes the MCP-facing half of neotoma-gaps bead t-cdd2 alongside
-//! [`crate::tools::call_define_projection`] / `call_project_node` /
-//! `call_node_provenance`.
+//! The source of truth is the Core event log — every successful
+//! [`crate::tools::call_define_projection`] writes a
+//! `prime.projection.defined` event via [`allsource_core::prime::Prime::define_projection`].
+//! This module is the read-side cache that the MCP dispatch path queries
+//! synchronously; it's hydrated from the event log at server startup by
+//! [`hydrate`] and kept consistent with the log by [`upsert`] (which is
+//! always called *after* the persistence write succeeds).
 //!
-//! Scope of this v1:
-//! - Single-tenant (matches the current prime-mcp single-tenant architecture)
-//! - Definitions are in-memory only — survive the process lifetime, not a
-//!   restart. Event-sourced persistence is the next step under the
-//!   `prime.projection.defined` event type; not in this first cut so the
-//!   blast radius stays small.
-//! - Definitions are shared across all sessions inside the process — the
-//!   single MCP server process IS the tenant, so this is correct given the
-//!   architecture but worth re-checking once hosted multi-tenant Prime ships.
+//! Why this design:
+//! - Definitions survive process restarts — that's the AllSource pitch
+//! - Definitions are queryable, replayable, time-travellable like any
+//!   other event in Core
+//! - The cache layer keeps tool-call latency low (no per-call query)
 //!
 //! Concurrency: `RwLock<HashMap>` is overkill for the access pattern (MCP
 //! tools are dispatched sequentially per session) but matches Rust's
 //! idiomatic shared-state shape and lets multiple session futures read
 //! definitions concurrently if dispatch ever becomes parallel.
+//!
+//! Single-tenant for now — matches the current prime-mcp architecture
+//! where each process is one tenant. When hosted multi-tenant Prime ships,
+//! either (a) one cache per tenant keyed by tenant_id, or (b) the cache
+//! is folded into a per-tenant Prime instance. Either works because the
+//! durable side is already tenant-scoped via Core's per-event tenant_id.
 
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
@@ -55,6 +61,21 @@ pub fn get(entity_type: &str) -> Option<ProjectionDef> {
 pub fn list() -> Vec<ProjectionDef> {
     let guard = registry().read().expect("projection registry poisoned");
     guard.values().cloned().collect()
+}
+
+/// Bulk-load definitions into the cache. Called once at process startup
+/// after Prime is initialized and has replayed its event log.
+///
+/// Replaces the cache contents wholesale — the input `defs` is treated
+/// as the authoritative current state derived from the event log. If
+/// the cache already had entries (e.g. a process running tests calls
+/// hydrate twice), the second call wins.
+pub fn hydrate(defs: Vec<ProjectionDef>) {
+    let mut guard = registry().write().expect("projection registry poisoned");
+    guard.clear();
+    for def in defs {
+        guard.insert(def.entity_type.clone(), def);
+    }
 }
 
 /// Test-only: wipe the registry. Lives behind `#[cfg(test)]` so production
@@ -121,5 +142,25 @@ mod tests {
         let types: Vec<_> = listed.iter().map(|d| d.entity_type.as_str()).collect();
         assert!(types.contains(&"type-a"));
         assert!(types.contains(&"type-b"));
+    }
+
+    #[test]
+    fn hydrate_replaces_cache_with_provided_defs() {
+        clear_for_test();
+        upsert(def("stale-1"));
+        upsert(def("stale-2"));
+        // Simulates startup: Prime::load_projection_defs() returned [fresh-1]
+        hydrate(vec![def("fresh-1")]);
+        let listed = list();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].entity_type, "fresh-1");
+    }
+
+    #[test]
+    fn hydrate_with_empty_input_clears_the_cache() {
+        clear_for_test();
+        upsert(def("will-be-gone"));
+        hydrate(vec![]);
+        assert!(list().is_empty());
     }
 }

@@ -1531,6 +1531,87 @@ impl Prime {
         Ok(observations)
     }
 
+    /// Persist a declarative projection definition as a
+    /// `prime.projection.defined` event in Core. The event log is the
+    /// source of truth for projection defs — in-memory registries are
+    /// caches that hydrate from `load_projection_defs` on startup.
+    ///
+    /// Calling this multiple times for the same `entity_type` appends new
+    /// events; replay picks the latest by timestamp (last-write-wins),
+    /// so agents can iterate on a definition without losing prior
+    /// versions from the audit trail.
+    ///
+    /// Entity ID convention: `projection:{entity_type}`. One stream per
+    /// entity_type, so `history(entity_id)` gives the full evolution.
+    pub async fn define_projection(
+        &self,
+        def: &super::projections::declarative::ProjectionDef,
+    ) -> PrimeResult<()> {
+        let entity_id = format!("projection:{}", def.entity_type);
+        let payload = serde_json::to_value(def).map_err(|e| {
+            PrimeError::ValidationFailed(format!("failed to serialize ProjectionDef: {e}"))
+        })?;
+        self.core
+            .ingest(IngestEvent {
+                entity_id: &entity_id,
+                event_type: event_types::PROJECTION_DEFINED,
+                payload,
+                metadata: None,
+                tenant_id: None,
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// Replay every `prime.projection.defined` event and return the
+    /// latest definition per entity_type. Called at startup to hydrate
+    /// the in-memory cache that the MCP tools read from.
+    ///
+    /// "Latest" is determined by event timestamp; ties broken by
+    /// event ordering (whichever comes later in the WAL wins). This
+    /// matches how `MergePolicy::LastWrite` behaves and keeps the
+    /// replay outcome deterministic for a given event log.
+    pub async fn load_projection_defs(
+        &self,
+    ) -> PrimeResult<Vec<super::projections::declarative::ProjectionDef>> {
+        use super::projections::declarative::ProjectionDef;
+        use std::collections::HashMap;
+
+        let events = self
+            .core
+            .query(Query::new().event_type(event_types::PROJECTION_DEFINED))
+            .await?;
+
+        // Latest-by-timestamp per entity_id. HashMap dedupes; insertion
+        // order is preserved because we iterate events in their natural
+        // (chronological) order from the WAL.
+        let mut latest: HashMap<String, (chrono::DateTime<Utc>, ProjectionDef)> = HashMap::new();
+        for event in &events {
+            let def: ProjectionDef = match serde_json::from_value(event.payload.clone()) {
+                Ok(d) => d,
+                Err(e) => {
+                    tracing::warn!(
+                        entity_id = %event.entity_id,
+                        error = %e,
+                        "skipping malformed prime.projection.defined event during replay"
+                    );
+                    continue;
+                }
+            };
+            latest
+                .entry(event.entity_id.clone())
+                .and_modify(|(ts, existing)| {
+                    if event.timestamp >= *ts {
+                        *ts = event.timestamp;
+                        *existing = def.clone();
+                    }
+                })
+                .or_insert((event.timestamp, def));
+        }
+
+        Ok(latest.into_values().map(|(_, def)| def).collect())
+    }
+
     /// Get what changed in the graph between two timestamps.
     pub async fn diff(
         &self,
@@ -2274,6 +2355,134 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(events.len(), 1);
+            prime.shutdown().await.unwrap();
+        }
+    }
+
+    // ─── Declarative projection definitions are event-sourced ───────────
+    //
+    // Locks the contract from feedback_event_source_everything_in_allsource:
+    // ProjectionDefs persist via prime.projection.defined events, NOT in-memory
+    // state. If anyone "optimises" this back to a runtime registry, both of
+    // these tests fail.
+
+    #[tokio::test]
+    async fn define_projection_round_trips_through_event_log() {
+        use crate::prime::projections::{MergePolicy, ProjectionDef};
+        use std::collections::BTreeMap;
+
+        let prime = Prime::open_in_memory().await.unwrap();
+
+        let mut fields = BTreeMap::new();
+        fields.insert("status".to_string(), MergePolicy::LastWrite);
+        fields.insert("name".to_string(), MergePolicy::HighestPriority);
+        let def = ProjectionDef {
+            entity_type: "contact".to_string(),
+            field_policies: fields,
+        };
+        prime.define_projection(&def).await.unwrap();
+
+        let loaded = prime.load_projection_defs().await.unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].entity_type, "contact");
+        assert_eq!(
+            loaded[0].field_policies.get("status"),
+            Some(&MergePolicy::LastWrite)
+        );
+        prime.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn define_projection_latest_wins_across_repeated_definitions() {
+        use crate::prime::projections::{MergePolicy, ProjectionDef};
+        use std::collections::BTreeMap;
+
+        let prime = Prime::open_in_memory().await.unwrap();
+
+        // V1
+        let mut f1 = BTreeMap::new();
+        f1.insert("status".to_string(), MergePolicy::LastWrite);
+        prime
+            .define_projection(&ProjectionDef {
+                entity_type: "task".to_string(),
+                field_policies: f1,
+            })
+            .await
+            .unwrap();
+
+        // Tiny pause so the second event has a strictly later timestamp on
+        // platforms where the WAL's resolution can collapse same-millisecond
+        // events; keeps the "latest wins" assertion deterministic.
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+
+        // V2: replace status with merge_array, add a new field
+        let mut f2 = BTreeMap::new();
+        f2.insert("status".to_string(), MergePolicy::MergeArray);
+        f2.insert("priority".to_string(), MergePolicy::HighestPriority);
+        prime
+            .define_projection(&ProjectionDef {
+                entity_type: "task".to_string(),
+                field_policies: f2,
+            })
+            .await
+            .unwrap();
+
+        let loaded = prime.load_projection_defs().await.unwrap();
+        assert_eq!(loaded.len(), 1, "latest-wins should dedupe by entity_type");
+        let def = &loaded[0];
+        assert_eq!(def.entity_type, "task");
+        assert_eq!(
+            def.field_policies.get("status"),
+            Some(&MergePolicy::MergeArray),
+            "V2 replaced V1"
+        );
+        assert!(
+            def.field_policies.contains_key("priority"),
+            "V2's new field survives"
+        );
+        prime.shutdown().await.unwrap();
+    }
+
+    /// The acceptance criterion from bead t-cdd2: ProjectionDef survives a
+    /// process restart (i.e. a Prime reopen). Without this guarantee the
+    /// product can't claim "event-sourced storage" for projection defs.
+    #[tokio::test]
+    async fn projection_defs_survive_prime_reopen() {
+        use crate::prime::projections::{MergePolicy, ProjectionDef};
+        use std::collections::BTreeMap;
+
+        let dir = tempfile::tempdir().unwrap();
+
+        // Boot 1: define a projection, shutdown.
+        {
+            let prime = Prime::open(dir.path()).await.unwrap();
+            let mut fields = BTreeMap::new();
+            fields.insert("status".to_string(), MergePolicy::LastWrite);
+            fields.insert("tags".to_string(), MergePolicy::MergeArray);
+            prime
+                .define_projection(&ProjectionDef {
+                    entity_type: "post".to_string(),
+                    field_policies: fields,
+                })
+                .await
+                .unwrap();
+            prime.shutdown().await.unwrap();
+        }
+
+        // Boot 2: reopen, replay, projection def must still be there.
+        {
+            let prime = Prime::open(dir.path()).await.unwrap();
+            let loaded = prime.load_projection_defs().await.unwrap();
+            assert_eq!(
+                loaded.len(),
+                1,
+                "projection def did not survive Prime restart — durability regression"
+            );
+            assert_eq!(loaded[0].entity_type, "post");
+            assert_eq!(
+                loaded[0].field_policies.get("tags"),
+                Some(&MergePolicy::MergeArray)
+            );
             prime.shutdown().await.unwrap();
         }
     }

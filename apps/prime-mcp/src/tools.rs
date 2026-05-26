@@ -282,7 +282,7 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
         "prime_recall" => call_recall(prime, args).await,
         "prime_list_templates" => call_list_templates(),
         "prime_load_template" => call_load_template(args),
-        "prime_define_projection" => call_define_projection(args),
+        "prime_define_projection" => call_define_projection(prime, args).await,
         "prime_list_projections" => call_list_projections(),
         "prime_project_node" => call_project_node(prime, args).await,
         "prime_node_provenance" => call_node_provenance(prime, args).await,
@@ -298,7 +298,7 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
 // argument parsing, projection lookup, and result shaping — the
 // interesting logic lives in Core's declarative module.
 
-fn call_define_projection(args: &Value) -> Value {
+async fn call_define_projection(prime: &Prime, args: &Value) -> Value {
     use allsource_core::prime::projections::{MergePolicy, ProjectionDef};
     use std::collections::BTreeMap;
 
@@ -331,16 +331,24 @@ fn call_define_projection(args: &Value) -> Value {
         entity_type: entity_type.to_string(),
         field_policies,
     };
+
+    // Persistence FIRST, cache AFTER. If the event ingest fails, the cache
+    // stays consistent with the (unchanged) event log. The cache is just a
+    // read-side accelerator over the durable source of truth.
+    if let Err(e) = prime.define_projection(&def).await {
+        return tool_error(&format!("failed to persist projection definition: {e}"));
+    }
     let replaced = crate::projection_registry::upsert(def);
     if replaced {
         tracing::warn!(
             entity_type = entity_type,
-            "prime_define_projection replaced an existing definition"
+            "prime_define_projection replaced an existing definition (full history retained in event log)"
         );
     }
     tool_result(json!({
         "entity_type": entity_type,
         "replaced": replaced,
+        "persisted": true,
     }))
 }
 

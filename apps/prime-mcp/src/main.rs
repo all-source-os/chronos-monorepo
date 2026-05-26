@@ -128,6 +128,27 @@ async fn main() -> Result<()> {
         Format::Toon => tools::ResultFormat::Toon,
     });
 
+    // Hydrate the projection registry cache from the durable event log.
+    // The event log (prime.projection.defined events) is the source of
+    // truth; this just primes the in-memory accelerator. Failure is
+    // tolerable — agents can re-register projections — but a warn is
+    // logged so the operator notices.
+    match prime.load_projection_defs().await {
+        Ok(defs) => {
+            let count = defs.len();
+            projection_registry::hydrate(defs);
+            if count > 0 {
+                tracing::info!(
+                    "Hydrated {count} projection definition(s) from event log"
+                );
+            }
+        }
+        Err(e) => tracing::warn!(
+            error = %e,
+            "failed to hydrate projection registry from event log — agents will need to re-register"
+        ),
+    }
+
     // Spawn the push-only sync loop when both --sync-to and --api-key are set.
     // Mismatched flags are a user error worth surfacing rather than silently
     // dropping sync.

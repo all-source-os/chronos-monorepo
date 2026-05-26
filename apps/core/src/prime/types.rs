@@ -238,6 +238,13 @@ pub mod event_types {
     pub const NODE_DELETED: &str = "prime.node.deleted";
     pub const EDGE_CREATED: &str = "prime.edge.created";
     pub const EDGE_DELETED: &str = "prime.edge.deleted";
+
+    /// Declarative `ProjectionDef` registration. Emitted by
+    /// `Prime::define_projection`; replayed by `Prime::load_projection_defs`
+    /// on startup. Multiple events for the same entity_id (one per
+    /// entity_type) are valid — latest-by-timestamp wins on replay, so
+    /// agents can iterate on a projection without orphaning prior defs.
+    pub const PROJECTION_DEFINED: &str = "prime.projection.defined";
 }
 
 // =============================================================================
