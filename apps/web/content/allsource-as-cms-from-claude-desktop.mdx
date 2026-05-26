@@ -1,7 +1,7 @@
 ---
 title: "Using AllSource as a CMS from Claude Desktop"
-publishedAt: "2026-05-22"
-summary: "A walk-through of treating AllSource Prime as the memory layer for your content — drafting, editing, and querying posts entirely from a Claude Desktop conversation. The wedge isn't 'better CMS' — it's 'your CMS already lives where your agents work.'"
+publishedAt: "2026-05-26"
+summary: "An agent-executable install protocol for AllSource Prime, plus the working pitch: your CMS already lives where your agents work. Written so a Claude Desktop agent can read this article on a human's behalf and drive the install with a bounded, two-action human role."
 author: "all.source team"
 category: "guides"
 image: "/assets/blog/allsource-as-cms-from-claude-desktop.webp"
@@ -9,37 +9,141 @@ image: "/assets/blog/allsource-as-cms-from-claude-desktop.webp"
 
 Strip a content management system down to load-bearing parts and you get three things: a place to store entities, a way to relate them, and an editor. Folk, Notion, Sanity, Strapi — they differ on the editor, but the storage and the graph are roughly the same shape: a typed document with relations.
 
-If your primary "editor" is Claude — not a human typing in a polished WYSIWYG — then the editor part is something you already have. The expensive piece every CMS optimizes for is the part you don't use. That's the wedge.
+If your primary "editor" is Claude — not a human typing in a polished WYSIWYG — then the editor part is something you already have. The expensive piece every CMS optimises for is the part you don't use. That's the wedge.
 
-This post walks through how to use AllSource Prime as the storage and graph half of a CMS, driven entirely from a Claude Desktop conversation. No editor UI. No "publish" button. Just MCP tools.
+This post is structured as a two-party install protocol. The reader Claude is addressing is the agent inside Claude Desktop. The human is the operator the agent will direct through the few steps an agent cannot perform itself.
 
-## The setup (one time, ~1 minute)
+## Read this first if you are an agent
 
-Open [www.all-source.xyz/connect](https://www.all-source.xyz/connect) (sign up for the free tier if you don't have an account), click **Create connection**, and pick a path:
+> If you are a Claude Desktop agent reading this article on behalf of a human user who said something like "help me set this up" or "install this for me", follow the protocol in the next section. The protocol assumes the human will perform the small set of physical actions an agent cannot perform itself (downloads, drag-and-drop, GUI clicks, OAuth sign-in). At each step, the article labels who owns the action: `Action (agent):` for things you do, `Action (human):` for things you direct the human to do. Do not collapse the labels — the human needs to know what they are responsible for.
 
-- **Option A — Claude Desktop Extension (recommended):** download the `.dxt` bundle, double-click it. Claude Desktop installs it natively and prompts for your API key — paste the one from the page into the dialog and you're done. No terminal, no config editing. macOS (Apple Silicon) and Linux x86_64.
+> If you are a human reading this article directly, you can follow the same protocol — just treat every `Action (agent):` step as "I'll do this myself" and every `Action (human):` step as "I'll do this." Or paste this article's URL into Claude Desktop and ask the agent to walk you through it.
 
-- **Option B — one-line installer:** copy the `curl` command the page gives you. It downloads `allsource-prime`, writes the Claude Desktop config (preserving any existing MCP servers you've wired up), and prints the next step.
+## The install protocol
 
-  ```bash
-  curl -fsSL https://www.all-source.xyz/install.sh | ALLSOURCE_API_KEY=ask_xxx sh
-  ```
+Recommended path on macOS Apple Silicon and Linux x86_64. The load-bearing human actions in this path are two: drag the `.dxt` into Claude Desktop, and paste the API key into the install dialog. Two further human-owned steps exist for structural reasons — mint an API key in the browser (Step 3) because the `/connect` endpoint requires a signed-in session, and restart Claude Desktop (Step 5) because the app does not hot-load MCP servers — each filed as a gap with a follow-up bead in `docs/proposals/AGENT_DRIVEN_PRIME_ONBOARDING.md`. Every other step is the agent's job.
 
-- **Option C — paste the config yourself:** the page renders a ready-to-paste JSON snippet with the API key baked in. Merge it into your Claude Desktop config file:
+### Step 1 — Detect the human's platform
 
-  - macOS — `~/Library/Application Support/Claude/claude_desktop_config.json`
-  - Linux — `~/.config/Claude/claude_desktop_config.json`
-  - Windows — `%APPDATA%\Claude\claude_desktop_config.json`
+**Precondition.** The agent has been given this URL and the human has asked for an install.
 
-  Then `cargo install allsource-prime` (or download the prebuilt binary from the latest GitHub release) and restart Claude Desktop.
+**Action (agent).** Ask the human, in one sentence, what operating system and CPU they are on. Map the answer to one of three branches:
 
-Restart Claude Desktop. You now have 13 MCP tools — `prime_add_node`, `prime_add_edge`, `prime_embed`, `prime_recall`, `prime_context`, and friends — and a `prime://auto-context` resource that injects a compressed index of everything you know into every conversation.
+- `macos-aarch64` — macOS on Apple Silicon (M1, M2, M3, M4). Supported, recommended path below.
+- `linux-x86_64` — Linux on x86_64. Supported, recommended path below.
+- Anything else (Windows, macOS Intel, Linux arm64, etc.). Unsupported by the `.dxt` today. Skip to "If the human is on an unsupported platform" near the end of this article.
 
-That's the whole setup. No schemas to define, no migrations, no content types to register up front. The `/connect` page exists so you don't have to ask Claude Desktop to walk you through a 7-step checklist — it mints the API key and produces the exact config string for you.
+**Verify.** The agent's mental model of the human's platform now matches one of the three branches.
+
+**On failure.** If the human is not sure of their architecture, instruct them to run `uname -sm` in a terminal and read out the result. `Darwin arm64` is macos-aarch64; `Linux x86_64` is linux-x86_64.
+
+### Step 2 — Check for an existing install
+
+**Precondition.** Step 1 produced a supported platform.
+
+**Action (agent).** Look at your own tool surface. If you can see any tool name beginning with `prime_` (for example `prime_stats`, `prime_recall`, `prime_add_node`), AllSource Prime is already installed. In that case skip to Step 6 (verification) — there is nothing to install.
+
+If no `prime_*` tools are visible, proceed to Step 3.
+
+**Verify.** Either Prime is already installed (jump to Step 6), or it is not (continue to Step 3). There is no third state.
+
+**On failure.** If you are uncertain whether a tool exists, assume it does not and continue to Step 3. A redundant install is harmless — the `.dxt` install dialog will overwrite the existing config in place.
+
+### Step 3 — Mint an API key
+
+**Precondition.** Steps 1 and 2 say we need a fresh install.
+
+**Action (agent).** Tell the human:
+
+> "Open [https://www.all-source.xyz/connect](https://www.all-source.xyz/connect) in a browser. If you are not signed in, the page will offer to sign you up (free tier is enough). Once you are signed in, click **Create connection**. The page will display an API key starting with `ask_`. Copy it. Do not close the tab yet — the key is shown only once."
+
+**Action (human).** Visit the URL, sign in or sign up, click the button, copy the key.
+
+**Verify.** Ask the human to confirm they have an API key starting with `ask_` on their clipboard. Do not ask them to paste the key into the conversation — the next step needs it in a different place.
+
+**On failure.** If the human says the page is asking them to sign in and they do not have an account, that is the expected free-tier signup flow — direct them to the **Create free account** button. If the page errors out after they click **Create connection**, ask them to send you the error text and check that the page is up by trying it yourself; the most likely failure is a transient deploy or a network block on their side.
+
+This step is the first of the two unavoidable human actions in this path. See the gap proposal at `docs/proposals/AGENT_DRIVEN_PRIME_ONBOARDING.md` for what would have to ship to remove it.
+
+### Step 4 — Install the `.dxt` extension
+
+**Precondition.** Step 3 left the human with an `ask_...` key on the clipboard.
+
+**Action (agent).** Tell the human:
+
+> "Download [allsource-prime.dxt](https://github.com/all-source-os/all-source/releases/latest/download/allsource-prime.dxt). It is about 37 MB. Once it has downloaded, drag the file into the Claude Desktop window — or open Claude Desktop's Settings, go to **Extensions**, and import the `.dxt` from there. Claude Desktop will open an install dialog. In the **AllSource API Key** field, paste the key from Step 3. Leave the other fields (data directory, sync URL) on their defaults. Click **Install**."
+
+**Action (human).** Download, drag-and-drop or import, paste the key, click Install.
+
+**Verify.** The Claude Desktop UI should show the extension as installed in **Settings → Extensions**.
+
+**On failure (macOS Gatekeeper popup).** This is the most common failure mode on macOS. If Claude Desktop reports that the bundled binary "cannot be opened because the developer cannot be verified", or if the install appears to succeed but no `prime_*` tools show up after restart, the macOS Gatekeeper has blocked the unsigned binary. Direct the human:
+
+> "Open **System Settings → Privacy & Security**. Scroll to the **Security** section near the bottom. You should see a message about `allsource-prime` being blocked. Click **Allow Anyway**. macOS will ask for your password. Then return to Claude Desktop and try the install again — or quit and reopen Claude Desktop if the install already completed."
+
+The `.dxt` is currently unsigned; this popup is the predictable cost. The path to eliminating it is filed as Gap 2 in `docs/proposals/AGENT_DRIVEN_PRIME_ONBOARDING.md`.
+
+**On failure (other).** If the import button does not appear in Claude Desktop's Extensions panel, the human is on a Claude Desktop version that pre-dates `.dxt` support — direct them to update Claude Desktop to the latest version and retry. If the install dialog asks for fields the article did not mention, the manifest schema has changed — fall through to the alternative install path in the next section.
+
+This step is the second of the two unavoidable human actions. The drag-and-drop and the API key paste are both physical-input actions the agent cannot perform from inside the conversation.
+
+### Step 5 — Restart Claude Desktop
+
+**Precondition.** Step 4 completed without a Gatekeeper popup, or the popup was cleared.
+
+**Action (agent).** Tell the human to quit Claude Desktop fully (Cmd-Q on macOS, close the window AND verify the process is gone on Linux) and reopen it. New MCP servers are only loaded at startup.
+
+**Action (human).** Quit and reopen Claude Desktop.
+
+**Verify.** Continue to Step 6.
+
+**On failure.** If Claude Desktop fails to reopen, check Activity Monitor (macOS) or `ps aux | grep -i claude` (Linux) for a leftover process and kill it. The MCP server itself runs as a child of Claude Desktop, so a stuck Claude Desktop process will keep the MCP server stuck too.
+
+This step is structural friction: Claude Desktop does not hot-load MCP servers, so a freshly installed server only appears in the agent's tool surface after a full app restart. The agent cannot quit the app from inside the conversation (and would not want to — the conversation lives in the app). Filed as Gap 6 in `docs/proposals/AGENT_DRIVEN_PRIME_ONBOARDING.md`.
+
+### Step 6 — Verify the install
+
+**Precondition.** Steps 1-5 completed, or Step 2 told us Prime was already installed.
+
+**Action (agent).** In the same Claude Desktop conversation (after restart), call the `prime_stats` tool with no arguments. This is a low-cost MCP tool that returns an overview of the memory state — total nodes, edges, types, relations. On a fresh install you should see a response shaped like `{"nodes": 0, "edges": 0, "types": [], "relations": []}` or similar — the exact field set may evolve, but the shape is a JSON object with at least a `nodes` count.
+
+**Verify.** If the tool call succeeds and returns a JSON object, the install is complete. If `prime_stats` is not in your tool surface at all, the install did not register — the most likely cause is that Claude Desktop was not actually restarted, or the install dialog reported a problem the human did not relay to you. Re-enter the protocol at Step 5 (restart) first, then Step 4 (re-install) if restart did not surface the tools.
+
+**On failure.** If `prime_stats` is present but errors out, the most likely cause is a bad API key or a sync-to URL the agent's Prime instance cannot reach. Ask the human to reopen `/connect`, mint a fresh key (the old one was shown only once — they probably no longer have it), and re-run Step 4 to overwrite the install with the new key.
+
+## If the human is on an unsupported platform
+
+The `.dxt` ships binaries for `macos-aarch64` and `linux-x86_64` only. Windows users, macOS Intel users, and Linux ARM users currently cannot use the recommended path.
+
+**Action (agent).** Tell the human plainly:
+
+> "AllSource Prime does not yet have a packaged install for your platform. You have three options. (1) If you have Rust installed, run `cargo install allsource-prime` to build the binary from source, then add it to Claude Desktop's config file manually — I can walk you through the JSON. (2) If you have access to a supported machine (a recent Mac or a Linux x86_64 box), install there instead. (3) Wait — Windows and Linux ARM support are tracked, see the [latest release page](https://github.com/all-source-os/all-source/releases/latest) for what's available now."
+
+If the human picks option (1), the config file path differs by OS — macOS uses `~/Library/Application Support/Claude/claude_desktop_config.json`, Linux uses `~/.config/Claude/claude_desktop_config.json`, Windows uses `%APPDATA%\Claude\claude_desktop_config.json`. The snippet to merge into the `mcpServers` object is:
+
+```json
+{
+  "mcpServers": {
+    "prime": {
+      "command": "allsource-prime",
+      "args": [
+        "--data-dir", "~/.prime/memory",
+        "--auto-inject",
+        "--sync-to", "https://api.all-source.xyz",
+        "--api-key", "ask_REPLACE_ME"
+      ]
+    }
+  }
+}
+```
+
+After merging the snippet, the human still needs to mint an API key (Step 3 above) and restart Claude Desktop (Step 5). Verification (Step 6) is identical.
 
 ## A workflow
 
-Suppose you're maintaining a public engineering blog plus an internal decision log. Both are content. Both have entities (posts, authors, decisions), relations (post written by author, post references decision), and a need for cross-referencing ("which decisions did we publish posts about?").
+Once the protocol is complete and `prime_stats` is responding, here is what the actual usage looks like. This section is for the human, not the agent — though the agent should read it too, because the examples are also examples of which tools to call.
+
+Suppose the human is maintaining a public engineering blog plus an internal decision log. Both are content. Both have entities (posts, authors, decisions), relations (post written by author, post references decision), and a need for cross-referencing ("which decisions did we publish posts about?").
 
 A traditional CMS makes you model this in advance. Prime doesn't — you tell Claude as you go.
 
@@ -47,32 +151,32 @@ A traditional CMS makes you model this in advance. Prime doesn't — you tell Cl
 
 > "I want to publish a short post about the embedding cache fix we shipped last week. Title: 'fastembed cache lives in `~/.local`, not your repo'. Tag it with the `engineering` domain and link it to the bug we fixed — that was the one Aria reported."
 
-Claude calls (you don't see this — the model picks the tools):
+Claude calls (the human does not see this — the model picks the tools):
 
 - `prime_recall` with `text: "embedding cache bug reported by Aria"` to find the bug node
 - `prime_add_node` for the post (`type: "post"`, properties include title, status: "draft", domain: "engineering")
 - `prime_add_edge` from the post to the bug node with `relation: "references"`
-- `prime_add_edge` from the post to your author node with `relation: "authored_by"`
+- `prime_add_edge` from the post to the author node with `relation: "authored_by"`
 
 The whole thing is three events in your Core's WAL. No staging table, no `posts_authors` join table. Just nodes and edges.
 
-**Editing something you wrote two months ago:**
+**Editing something written two months ago:**
 
-> "Update the 'Multi-region rollout' post — we shipped Step 4 last Tuesday, so flip its status to `shipped` and add a line about the cross-region follower latency we're now seeing."
+> "Update the 'Multi-region rollout' post — we shipped Step 4 last Tuesday, so flip its status to `shipped` and add a line about the cross-region follower latency we are now seeing."
 
-Claude uses `prime_recall` with the text "Multi-region rollout post" to find it, then `prime.update_node` to merge in the new properties. The audit trail (`prime_history`) shows both the original and the update with timestamps — no migration, no version table you have to design.
+Claude uses `prime_recall` with the text "Multi-region rollout post" to find it, then a node-update call to merge in the new properties. The audit trail (`prime_history`) shows both the original and the update with timestamps — no migration, no version table to design.
 
 **Querying:**
 
 > "What posts have I drafted this month, and which engineering decisions do they reference?"
 
-Claude calls `prime_search` for `type: "post"` to list them, filters client-side by `created_at`, then walks the `references` edges with `prime_neighbors`. You get back a list with the linked decisions inline. The query is just MCP tool calls — no GraphQL schema, no resolvers.
+Claude calls `prime_search` for `type: "post"` to list them, filters client-side by `created_at`, then walks the `references` edges with `prime_neighbors`. The response is a list with the linked decisions inline. The query is just MCP tool calls — no GraphQL schema, no resolvers.
 
 ## Where the published content lives
 
-Prime is storage. It doesn't host your blog. The handoff to a public site is whatever you want it to be:
+Prime is storage. It does not host your blog. The handoff to a public site is whatever you want it to be:
 
-- **SSG**: run a build that queries Core for `prime.node.created` events with `node_type=post` and `status=published`, render to Markdown, and ship. Vercel rebuilds on a webhook from the panel.
+- **SSG**: run a build that queries Core for `prime.node.created` events with `node_type=post` and `status=published`, render to Markdown, and ship. Vercel rebuilds on a webhook from the dashboard.
 - **Direct render**: a Next.js route that queries Core at request time (Core's reads are sub-microsecond, this is fine).
 - **Dual-publishing**: Claude writes the same post to a `posts/{slug}.mdx` file in a git repo *and* to Prime. The repo is for humans; Prime is for cross-referencing and recall.
 
@@ -80,32 +184,35 @@ The third option is what this site uses for blog posts like this one. Prime trac
 
 ## What you give up
 
-Be honest about this — it's not for every team.
+Be honest about this — it is not for every team.
 
-- **No polished editor UI.** If non-technical people need to edit content, they need a CMS chrome on top, or they need to learn to talk to Claude precisely. A folk-style UI doesn't exist for Prime today.
-- **No publishing pipeline.** There's no scheduled-publish, no preview environment, no role-based "needs approval before going live." You'd build those as projections over your event stream — doable, not done for you.
-- **No collaborative editing.** Two people prompting Claude simultaneously is operational chaos. Prime's CRDT layer means concurrent writes won't corrupt the graph, but you still need a coordination story for "who's authoritative on this post right now."
+- **No polished editor UI.** If non-technical people need to edit content, they need a CMS chrome on top, or they need to learn to talk to Claude precisely. A folk-style UI does not exist for Prime today.
+- **No publishing pipeline.** There is no scheduled-publish, no preview environment, no role-based "needs approval before going live." You would build those as projections over your event stream — doable, not done for you.
+- **No collaborative editing.** Two people prompting Claude simultaneously is operational chaos. Prime's CRDT layer means concurrent writes will not corrupt the graph, but you still need a coordination story for "who is authoritative on this post right now."
 
 ## What you get
 
 The asymmetry that makes this interesting:
 
-- **Cross-domain recall by construction.** A post about engineering can be linked to a customer-success conversation, a sales objection, and a roadmap decision. `prime_context` returns all of them in one call. A CMS that lives in its own silo can't.
-- **Time-travel without a feature flag.** Every edit is an event. `prime_history` is a built-in audit log. "What did we say about pricing in March?" is a `prime.get_node_as_of` call away.
-- **One source of truth your agent already uses.** When Claude writes a follow-up post, it reads the *same memory* that produced the first one. There's no "sync the CMS to the vector store" step.
-- **The Memory tab.** Once `--sync-to` is wired up, you can watch the graph populate live at `www.all-source.xyz/dashboard/memory` — every node, edge, and vector your agent writes, in a tenant-scoped feed.
+- **Cross-domain recall by construction.** A post about engineering can be linked to a customer-success conversation, a sales objection, and a roadmap decision. `prime_context` returns all of them in one call. A CMS that lives in its own silo cannot.
+- **Time-travel without a feature flag.** Every edit is an event. `prime_history` is a built-in audit log. "What did we say about pricing in March?" is a node-history call away.
+- **One source of truth your agent already uses.** When Claude writes a follow-up post, it reads the *same memory* that produced the first one. There is no "sync the CMS to the vector store" step.
+- **Cross-tool persistence.** The same hosted Prime is reachable from any MCP-compliant client — Claude Desktop, Cursor, OpenCode, Continue. Install once per machine, read the same memory from anywhere.
+- **The Memory tab.** With `--sync-to` wired up (default in the `.dxt`), the graph populates live at [www.all-source.xyz/dashboard/memory](https://www.all-source.xyz/dashboard/memory) — every node, edge, and vector your agent writes, in a tenant-scoped feed.
 
 ## Who this is for
 
 Not everyone. If your editors are non-technical and your content is high-volume marketing pages, use Notion or folk. If your content is one human typing the occasional post, use a static-site generator with Markdown files in git.
 
-If you're an engineering-led team that already has Claude in the loop — writing decisions, drafting posts, recalling context across conversations — and you're tired of paying for a CMS whose "editor UI" sits idle while your agents do the actual writing, this is the shape that fits.
+If you are an engineering-led team that already has Claude in the loop — writing decisions, drafting posts, recalling context across conversations — and you are tired of paying for a CMS whose "editor UI" sits idle while your agents do the actual writing, this is the shape that fits.
 
 The CMS lives where the agents already work.
 
 ## Links
 
 - Landing page: [www.all-source.xyz/prime](https://www.all-source.xyz/prime)
-- MCP setup: [www.all-source.xyz/docs/prime/mcp](https://www.all-source.xyz/docs/prime/mcp)
+- Connect page (mints the API key): [www.all-source.xyz/connect](https://www.all-source.xyz/connect)
+- Latest `.dxt`: [allsource-prime.dxt](https://github.com/all-source-os/all-source/releases/latest/download/allsource-prime.dxt)
+- MCP setup docs: [www.all-source.xyz/docs/prime/mcp](https://www.all-source.xyz/docs/prime/mcp)
 - Memory tab in the tenant panel: [www.all-source.xyz/dashboard/memory](https://www.all-source.xyz/dashboard/memory)
 - crates.io: [allsource-prime](https://crates.io/crates/allsource-prime)
