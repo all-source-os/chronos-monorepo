@@ -137,21 +137,26 @@ python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$stage/manifest.json
 
 # .dxt is a zip with a specific extension. Need -X to strip extra fields
 # so the bundle is reproducible across systems.
+#
+# Absolutize $out BEFORE the cd-into-stage subshell — `zip` resolves its
+# output path relative to its cwd, so a relative $out like
+# "dist/allsource-prime.dxt" gets resolved against $stage (the mktemp
+# dir), which doesn't have a `dist/` subdir and the zip fails with
+# "No such file or directory". This was a real CI failure on the first
+# v0.21.5 release run (2026-05-23) — the local functional test passed
+# because mktemp's tmp dir happened to be writeable from the caller's
+# cwd, masking the bug.
 mkdir -p "$(dirname "$out")"
-( cd "$stage" && zip -qr -X "$out" . )
-mv "$stage/$(basename "$out")" "$out" 2>/dev/null || true  # if `zip` wrote a relative path
+case "$out" in
+  /*) out_abs="$out" ;;
+  *)  out_abs="$(cd "$(dirname "$out")" && pwd)/$(basename "$out")" ;;
+esac
+( cd "$stage" && zip -qr -X "$out_abs" . )
 
-# Resolve the final out path (zip with absolute dest writes there; relative
-# may have been resolved against $stage above). The trap will clean stage.
-if [ ! -f "$out" ]; then
-  # Fallback: zip wrote into stage; copy it out.
-  if [ -f "$stage/$(basename "$out")" ]; then
-    cp "$stage/$(basename "$out")" "$out"
-  else
-    echo "Failed to locate built .dxt" >&2
-    exit 1
-  fi
+if [ ! -f "$out_abs" ]; then
+  echo "Failed to build .dxt at $out_abs" >&2
+  exit 1
 fi
 
-size=$(du -h "$out" | awk '{print $1}')
-echo "✓ Built $out ($size)"
+size=$(du -h "$out_abs" | awk '{print $1}')
+echo "✓ Built $out_abs ($size)"
