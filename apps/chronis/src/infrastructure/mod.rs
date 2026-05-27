@@ -5,6 +5,7 @@ pub mod http_core_client;
 pub mod id;
 #[cfg(feature = "prime")]
 pub mod prime_memory;
+pub mod prime_setup;
 pub mod projection;
 pub mod remote_stream;
 pub mod wal_tail;

@@ -10,6 +10,25 @@ MCP server (stdio) and HTTP REST API for AI agents that need persistent, cross-d
 cargo install allsource-prime
 ```
 
+## Quick Start — Claude Code (project-scoped)
+
+From the project directory you want Prime available in:
+
+```bash
+cn prime setup
+```
+
+That writes a `.mcp.json` at the project root pointing at your installed
+`allsource-prime` and a per-project data dir (`<project>/.chronis/prime/`).
+The next `claude` session in that directory surfaces the
+`mcp__prime__*` tools automatically — no JSON hand-editing, no bearer
+tokens. Re-running is idempotent and preserves any other MCP entries
+already configured for the project.
+
+`cn` ships with chronis (`cargo install chronis`). If you don't use
+chronis, the same `.mcp.json` shape works — see the Claude Desktop
+example below for the equivalent JSON.
+
 ## Quick Start — MCP (Claude Desktop)
 
 Add to `~/.claude/claude_desktop_config.json`:

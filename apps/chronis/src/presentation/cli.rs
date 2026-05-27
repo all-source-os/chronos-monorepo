@@ -92,6 +92,9 @@ pub enum Command {
     /// Sync events with a remote Core (embedded mode only)
     Sync,
 
+    /// Configure AllSource Prime (agent memory) for this project
+    Prime(PrimeArgs),
+
     /// Launch interactive TUI dashboard
     Tui,
 
@@ -258,6 +261,29 @@ pub struct MigrateBeadsArgs {
     /// Path to .beads/ directory (default: .beads/ in current directory)
     #[arg(long, default_value = ".beads")]
     pub beads_dir: String,
+}
+
+#[derive(clap::Args)]
+pub struct PrimeArgs {
+    #[command(subcommand)]
+    pub subcommand: PrimeCommands,
+}
+
+#[derive(Subcommand)]
+pub enum PrimeCommands {
+    /// Wire AllSource Prime into Claude Code for this project (.mcp.json)
+    Setup(PrimeSetupArgs),
+}
+
+#[derive(clap::Args)]
+pub struct PrimeSetupArgs {
+    /// Override the `allsource-prime` binary path (default: $PATH lookup)
+    #[arg(long, value_name = "PATH")]
+    pub bin: Option<String>,
+
+    /// Override the Prime data directory (default: <workspace>/.chronis/prime)
+    #[arg(long, value_name = "DIR")]
+    pub data_dir: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args)]

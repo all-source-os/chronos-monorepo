@@ -30,6 +30,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Init(args) => {
             dispatch::dispatch_init(args)?;
         }
+        Command::Prime(args) => {
+            dispatch::dispatch_prime(args, cli.toon)?;
+        }
         Command::Tui => {
             let ws = Workspace::open().await?;
             let repo = ws.repo();

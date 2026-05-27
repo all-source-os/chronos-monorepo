@@ -11,10 +11,10 @@ use crate::{
     infrastructure::{
         config::{ChronisConfig, CoreMode},
         core_task_repo::CoreTaskRepository,
-        workspace,
+        prime_setup, workspace,
     },
     presentation::{
-        cli::{ArchiveArgs, Command, DepCommands, TaskCommands},
+        cli::{ArchiveArgs, Command, DepCommands, PrimeArgs, PrimeCommands, TaskCommands},
         output::print_task_table,
         toon,
     },
@@ -90,6 +90,48 @@ pub fn dispatch_init(args: &super::cli::InitArgs) -> Result<(), ChronError> {
         workspace::init_workspace_with_remote(&cwd, remote_url, args.api_key.as_deref())
     } else {
         workspace::init_workspace(&cwd)
+    }
+}
+
+/// Wire Prime MCP into Claude Code for the current project.
+///
+/// Runs outside the `Workspace::open` path because (a) it can operate on
+/// projects that haven't run `cn init` yet, and (b) it doesn't need the
+/// embedded chronis event store — Prime has its own data dir.
+pub fn dispatch_prime(args: &PrimeArgs, toon_mode: bool) -> Result<(), ChronError> {
+    let cwd = std::env::current_dir()?;
+    match &args.subcommand {
+        PrimeCommands::Setup(setup_args) => {
+            let report = prime_setup::run_prime_setup(
+                &cwd,
+                setup_args.bin.as_deref(),
+                setup_args.data_dir.as_deref(),
+            )?;
+            if toon_mode {
+                println!(
+                    "ok:prime.setup:{}:{}",
+                    report.mcp_json_path.display(),
+                    if report.replaced_existing { "replaced" } else { "added" }
+                );
+            } else {
+                let verb = if report.replaced_existing { "Updated" } else { "Added" };
+                println!("Prime MCP wired into Claude Code.");
+                println!("  Binary:       {} ({})", report.bin_path, report.bin_version);
+                println!("  Data dir:     {}", report.data_dir.display());
+                println!(
+                    "  {} `prime` entry in {}",
+                    verb,
+                    report.mcp_json_path.display()
+                );
+                println!();
+                println!(
+                    "Next: open a NEW Claude Code session in this directory. \
+                     `mcp__prime__*` tools will load on session start. \
+                     Try `prime_add_node` then `prime_recall` to confirm."
+                );
+            }
+            Ok(())
+        }
     }
 }
 
@@ -317,7 +359,7 @@ pub async fn dispatch(
                 }
             }
         }
-        Command::Tui | Command::Serve(_) => {
+        Command::Tui | Command::Serve(_) | Command::Prime(_) => {
             unreachable!("handled in main.rs")
         }
     }
