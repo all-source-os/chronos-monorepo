@@ -187,3 +187,25 @@ an arbitrary local project via project-scoped `.mcp.json`, and the
 `prime_add_node` + `prime_embed` + `prime_recall` round-trip succeeds
 with strong similarity scores. The original thread's "tools aren't
 surfaced / no Core auth token" failure mode does not reproduce.
+
+## Addendum — dep-pin follow-up closed (2026-05-27)
+
+The pre-existing `allsource-core = "^0.19"` constraint flagged above
+has been bumped to `"0.21"` to match the local `apps/core/` at 0.21.5
+(commit `8a96633` — `fix(chronis): bump allsource-core pin 0.19 → 0.21
+so cn prime setup is reachable`). After the bump:
+
+- `cargo check --features prime-full` from `apps/chronis/` builds
+  cleanly with no API breakage from the 0.19 → 0.21 jump.
+- All 4 `prime_setup` unit tests still pass.
+- The `cn` debug binary at
+  `apps/chronis/target/debug/cn prime setup` was exercised in a
+  fresh throwaway sibling project at
+  `/tmp/prime-mcp-deppin-verify-1779894354/`. It wrote a clean
+  `.mcp.json` on first run, reported `Updated` (not duplicated) on
+  the second run, and the resulting JSON matched byte-for-byte the
+  literal block in the main transcript above.
+- `claude mcp list` from that sibling project reports
+  `prime: allsource-prime --data-dir … - ✓ Connected` — the
+  last-mile gap is now closed and end users can actually invoke
+  `cn prime setup` themselves.
