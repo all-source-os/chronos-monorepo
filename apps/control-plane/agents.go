@@ -42,6 +42,42 @@ func (cp *ControlPlane) AgentRegisterHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
+// AgentAnonymousTrialHandler handles POST /api/v1/agents/anonymous-trial.
+//
+// Mints a low-quota, time-limited tenant + API key WITHOUT requiring a
+// signed-in user. Designed to let an agent (e.g. Claude Desktop walking a
+// human through the install protocol from
+// apps/web/content/allsource-as-cms-from-claude-desktop.mdx) skip the
+// /connect signup round-trip. Closes the mint half of bead t-072c; the
+// claim half lives in a separate follow-up.
+//
+// Rate limiting is applied at the route layer (see main.go) — without it,
+// this unauthenticated endpoint would be trivial to abuse.
+func (cp *ControlPlane) AgentAnonymousTrialHandler(c *gin.Context) {
+	var req dto.RegisterTrialAgentRequest
+	// Empty body is valid — agent_name and client_fingerprint are both
+	// optional. ShouldBindJSON returns an error on empty body, so tolerate
+	// it explicitly.
+	if err := c.ShouldBindJSON(&req); err != nil && c.Request.ContentLength > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	resp, err := cp.container.RegisterTrialAgentUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "trial_registration_failed",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, resp)
+}
+
 // AgentEchoHandler handles POST /api/v1/agent-echo — the reference x402
 // endpoint. It exists specifically to verify end-to-end x402 flows against
 // the deployed Control Plane: tier gate (free → 403), payment required

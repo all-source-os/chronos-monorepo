@@ -410,6 +410,15 @@ func (cp *ControlPlane) setupRoutes() {
 	agents := cp.router.Group("/api/v1/agents")
 	agents.POST("/register", cp.AgentRegisterHandler)
 
+	// Anonymous trial — stricter rate limit than the named-agent path
+	// (3/hour/IP) because every successful call creates a persistent
+	// tenant + API key with no caller identity to fall back on. Bead
+	// t-072c — Gap 1 of docs/proposals/AGENT_DRIVEN_PRIME_ONBOARDING.md.
+	trialLimiter := NewIPRateLimiter(3, time.Hour)
+	agentsTrial := cp.router.Group("/api/v1/agents")
+	agentsTrial.Use(IPRateLimitMiddleware(trialLimiter))
+	agentsTrial.POST("/anonymous-trial", cp.AgentAnonymousTrialHandler)
+
 	// Agent self-service endpoints (auth required)
 	agentsSelf := cp.router.Group("/api/v1/agents/me")
 	agentsSelf.GET("/payments", RequirePermission(entities.PermissionRead), cp.container.AgentHandler.GetPaymentHistory)
