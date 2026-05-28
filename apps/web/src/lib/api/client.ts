@@ -75,7 +75,7 @@ export class ApiClient {
         };
       }
 
-      return { data: ((data.data ?? data) as T) };
+      return { data: (data.data ?? data) as T };
     } catch (error) {
       return {
         error: {
@@ -210,6 +210,21 @@ export class ApiClient {
     return this.request<ApiKeyWithSecret>("/api/api-keys", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Claim an anonymous-trial tenant into the calling authenticated user.
+   * Closes bead t-e8b8 — the web-side counterpart to the control-plane
+   * POST /api/v1/agents/claim endpoint. Trial tenants are minted via
+   * POST /api/v1/agents/anonymous-trial; their claim_token is delivered
+   * to the human via the article install protocol, which then surfaces
+   * it here when the human visits /connect?claim=<token>.
+   */
+  async claimTrialAgent(claimToken: string): Promise<ApiResponse<ClaimTrialResult>> {
+    return this.request<ClaimTrialResult>("/api/v1/agents/claim", {
+      method: "POST",
+      body: JSON.stringify({ claim_token: claimToken }),
     });
   }
 
@@ -601,6 +616,22 @@ export interface ApiKey {
 
 export interface ApiKeyWithSecret extends ApiKey {
   key: string;
+}
+
+/**
+ * Response shape from POST /api/v1/agents/claim. Mirrors the control-plane
+ * dto.ClaimTrialAgentResponse — see
+ * apps/control-plane/internal/application/dto/agent_dto.go.
+ * events_migrated is always false in v1; trial events stay under the
+ * original tenant_id and a future gateway-resolved mapping reads
+ * claimed_by_tenant when serving them.
+ */
+export interface ClaimTrialResult {
+  trial_tenant_id: string;
+  claimed_at: string;
+  claimed_by_tenant: string;
+  events_migrated: boolean;
+  events_migration_note?: string;
 }
 
 export interface CreateApiKeyRequest {

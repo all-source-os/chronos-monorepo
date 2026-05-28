@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/allsource/control-plane/internal/application/dto"
+	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/domain"
 )
 
@@ -76,6 +77,71 @@ func (cp *ControlPlane) AgentAnonymousTrialHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, resp)
+}
+
+// AgentClaimHandler handles POST /api/v1/agents/claim (auth required).
+//
+// Closes the CLAIM half of bead t-e8b8. Associates a previously-minted
+// anonymous trial tenant with the calling authenticated user by:
+//   - looking up the trial tenant by claim_token in tenant metadata
+//   - verifying it hasn't expired or been claimed already
+//   - updating metadata to record the claim
+//   - writing audit + Core events
+//
+// Event migration (re-keying trial events under the new tenant) is OUT
+// OF SCOPE for v1 — the trial tenant's data stays put; a future
+// gateway-resolved mapping reads claimed_by_tenant when serving reads.
+func (cp *ControlPlane) AgentClaimHandler(c *gin.Context) {
+	var req dto.ClaimTrialAgentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	tenantIDVal, exists := c.Get("tenant_id")
+	if !exists {
+		// Should never happen — auth middleware sets this for every
+		// authenticated request. Defensive: surface as 401 rather than
+		// crash on type assertion.
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "missing_tenant_id",
+			"message": "tenant_id not set in auth context",
+		})
+		return
+	}
+	claimingTenantID, _ := tenantIDVal.(string) //nolint:errcheck // type assertion's second value is a bool ok-flag, not an error
+
+	resp, err := cp.container.ClaimTrialAgentUC.Execute(c.Request.Context(), req, claimingTenantID)
+	if err != nil {
+		switch {
+		case errors.Is(err, usecases.ErrClaimTokenNotFound):
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "claim_token_not_found",
+				"message": "No trial tenant matches this claim token.",
+			})
+		case errors.Is(err, usecases.ErrTrialExpired):
+			c.JSON(http.StatusGone, gin.H{
+				"error":   "trial_expired",
+				"message": "This trial has expired and can no longer be claimed.",
+			})
+		case errors.Is(err, usecases.ErrAlreadyClaimed):
+			c.JSON(http.StatusGone, gin.H{
+				"error":   "already_claimed",
+				"message": "This trial has already been claimed.",
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "claim_failed",
+				"message": err.Error(),
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // AgentEchoHandler handles POST /api/v1/agent-echo — the reference x402

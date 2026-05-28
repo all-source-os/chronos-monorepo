@@ -131,6 +131,7 @@ type Container struct {
 	// Use Cases — Agent Registration
 	RegisterAgentUC       *usecases.RegisterAgentUseCase
 	RegisterTrialAgentUC  *usecases.RegisterTrialAgentUseCase
+	ClaimTrialAgentUC     *usecases.ClaimTrialAgentUseCase
 	AgentPaymentHistoryUC *usecases.GetAgentPaymentHistoryUseCase
 
 	// Use Cases — Webhooks
@@ -320,6 +321,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		registerAgentUC = registerAgentUC.WithCDP(cfg.CDPClient)
 	}
 	registerTrialAgentUC := usecases.NewRegisterTrialAgentUseCase(createTenantUC, auditRepo, cfg.CoreClient, cfg.KeySigner)
+	claimTrialAgentUC := usecases.NewClaimTrialAgentUseCase(tenantRepo, auditRepo, cfg.CoreClient)
 	agentPaymentHistoryUC := usecases.NewGetAgentPaymentHistoryUseCase(cfg.CoreClient)
 
 	// Initialize use cases — Webhooks
@@ -466,6 +468,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		CDPClient:                  cfg.CDPClient,
 		RegisterAgentUC:            registerAgentUC,
 		RegisterTrialAgentUC:       registerTrialAgentUC,
+		ClaimTrialAgentUC:          claimTrialAgentUC,
 		AgentPaymentHistoryUC:      agentPaymentHistoryUC,
 		AlertHandler:               alertHandler,
 		SLOHandler:                 sloHandler,

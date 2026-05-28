@@ -48,3 +48,25 @@ type RegisterTrialAgentResponse struct {
 	ClaimToken string      `json:"claim_token"` // opaque, single-use
 	ClaimURL   string      `json:"claim_url"`   // pre-built /connect?claim=<token>
 }
+
+// ClaimTrialAgentRequest associates a previously-minted anonymous trial
+// tenant with the calling authenticated user. Closes the CLAIM half of
+// bead t-e8b8 (Gap 1 follow-up).
+type ClaimTrialAgentRequest struct {
+	ClaimToken string `json:"claim_token" binding:"required"`
+}
+
+// ClaimTrialAgentResponse confirms the trial tenant has been associated
+// with the calling authenticated user. Event migration is deliberately
+// out of scope for v1 — the proposal's open question about how to re-key
+// events under the new tenant_id needs its own design call. The trial
+// tenant's existing events stay where they were ingested; this endpoint
+// just records the association via metadata so the gateway-resolved
+// mapping (recommended option b in the bead) can read it later.
+type ClaimTrialAgentResponse struct {
+	TrialTenantID       string `json:"trial_tenant_id"`
+	ClaimedAt           string `json:"claimed_at"`        // RFC3339
+	ClaimedByTenant     string `json:"claimed_by_tenant"` // tenant_id of the caller
+	EventsMigrated      bool   `json:"events_migrated"`   // always false in v1
+	EventsMigrationNote string `json:"events_migration_note,omitempty"`
+}

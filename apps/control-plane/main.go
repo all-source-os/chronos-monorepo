@@ -423,6 +423,15 @@ func (cp *ControlPlane) setupRoutes() {
 	agentsSelf := cp.router.Group("/api/v1/agents/me")
 	agentsSelf.GET("/payments", RequirePermission(entities.PermissionRead), cp.container.AgentHandler.GetPaymentHistory)
 
+	// Trial-claim endpoint (auth required). Lets a signed-in user attach a
+	// previously-minted anonymous trial tenant to their account via the
+	// claim_token returned by /api/v1/agents/anonymous-trial. PermissionRead
+	// is the gate — claim is housekeeping on the caller's own account, not
+	// a write into someone else's data, and we want read-only API keys to
+	// be able to perform it too. Bead t-e8b8.
+	agentsAuthed := cp.router.Group("/api/v1/agents")
+	agentsAuthed.POST("/claim", RequirePermission(entities.PermissionRead), cp.AgentClaimHandler)
+
 	// x402 facilitator endpoints (public — called by payers to verify/settle payments)
 	x402Routes := cp.router.Group("/x402")
 	x402Routes.POST("/verify", cp.x402Handler.Verify)

@@ -14,7 +14,7 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, type ClaimTrialResult } from "@/lib/api/client";
 
 // The scopes Prime needs for `--sync-to`: it POSTs prime.* events to
 // /api/v1/events on the remote Core. events:read is included so the
@@ -34,9 +34,20 @@ type KeyState =
   | { status: "ready"; key: string }
   | { status: "error"; message: string };
 
+// Claim flow state (bead t-e8b8) — separate from the key-minting flow
+// because a single page visit can either mint OR claim (rarely both,
+// since a successful claim implies the human already has trial credentials
+// and doesn't need a new key right now).
+type ClaimState =
+  | { status: "idle" }
+  | { status: "claiming" }
+  | { status: "success"; result: ClaimTrialResult }
+  | { status: "error"; httpStatus?: number; message: string };
+
 export function ConnectClient() {
   const [session, setSession] = useState<SessionState>({ status: "loading" });
   const [key, setKey] = useState<KeyState>({ status: "idle" });
+  const [claim, setClaim] = useState<ClaimState>({ status: "idle" });
 
   // Deep-link contract (bead t-baff / gap 3):
   // - source — tags the minted API key's description so the maintainer
@@ -52,6 +63,11 @@ export function ConnectClient() {
   const sourceParam = params.get("source")?.trim() || null;
   const keyNameParam = params.get("key_name")?.trim() || null;
   const closeAfterMint = params.get("return") === "close";
+  // claim — bead t-e8b8. When present, a human who minted an anonymous
+  // trial via /api/v1/agents/anonymous-trial is returning here after
+  // signing up for a real account, so the trial tenant can be attached
+  // to their new account.
+  const claimToken = params.get("claim")?.trim() || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +91,36 @@ export function ConnectClient() {
       cancelled = true;
     };
   }, []);
+
+  // Trial-claim flow (bead t-e8b8). Fires once when (a) a claim token is
+  // in the URL and (b) the session is authenticated. If the human arrives
+  // unauthenticated, the UnauthenticatedCard shows the sign-up CTA with
+  // ?next=/connect?claim=<token>; once they sign in, this effect runs.
+  useEffect(() => {
+    if (!claimToken) return;
+    if (session.status !== "authenticated") return;
+    if (claim.status !== "idle") return;
+
+    let cancelled = false;
+    setClaim({ status: "claiming" });
+    (async () => {
+      const res = await apiClient.claimTrialAgent(claimToken);
+      if (cancelled) return;
+      if (res.error) {
+        setClaim({
+          status: "error",
+          message: res.error.message,
+        });
+        return;
+      }
+      if (res.data) {
+        setClaim({ status: "success", result: res.data });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [claimToken, session.status, claim.status]);
 
   const handleCreate = async () => {
     setKey({ status: "creating" });
@@ -116,6 +162,14 @@ export function ConnectClient() {
       </BlurFade>
 
       <div className="mt-10 space-y-6">
+        {/* Trial-claim card (bead t-e8b8). Renders when the URL carries
+            a claim token regardless of session state — the unauth case
+            tells the user they need to sign in first, then this same
+            card surfaces the result. */}
+        {claimToken && (
+          <ClaimResultCard state={claim} sessionLoading={session.status === "loading"} />
+        )}
+
         {session.status === "loading" && (
           <Card>
             <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
@@ -125,7 +179,7 @@ export function ConnectClient() {
           </Card>
         )}
 
-        {session.status === "unauthenticated" && <UnauthenticatedCard />}
+        {session.status === "unauthenticated" && <UnauthenticatedCard claimToken={claimToken} />}
 
         {session.status === "authenticated" && key.status !== "ready" && (
           <CreateKeyCard state={key} onCreate={handleCreate} />
@@ -137,28 +191,100 @@ export function ConnectClient() {
   );
 }
 
-function UnauthenticatedCard() {
+function UnauthenticatedCard({ claimToken }: { claimToken: string | null }) {
+  // Preserve the claim token through the auth round-trip so the user
+  // lands back here after signing up/in and the claim effect fires.
+  const nextPath = claimToken ? `/connect?claim=${encodeURIComponent(claimToken)}` : "/connect";
+  const signupHref = `/signup?next=${encodeURIComponent(nextPath)}`;
+  const loginHref = `/login?next=${encodeURIComponent(nextPath)}`;
   return (
     <Card>
       <CardContent className="space-y-4 py-6">
         <p className="text-sm text-muted-foreground">
-          You need an AllSource account before you can mint a Claude Desktop key. The free tier is
-          enough to follow the blog post end-to-end.
+          {claimToken ? (
+            <>
+              You have a trial claim waiting. Sign in (or sign up — the free tier is enough) to
+              attach it to your account.
+            </>
+          ) : (
+            <>
+              You need an AllSource account before you can mint a Claude Desktop key. The free tier
+              is enough to follow the blog post end-to-end.
+            </>
+          )}
         </p>
         <div className="flex flex-wrap gap-2">
-          <Link href="/signup?next=/connect" className={cn(buttonVariants(), "gap-1.5")}>
+          <Link href={signupHref} className={cn(buttonVariants(), "gap-1.5")}>
             Create free account
             <ArrowRight className="h-4 w-4" />
           </Link>
-          <Link href="/login?next=/connect" className={cn(buttonVariants({ variant: "outline" }))}>
+          <Link href={loginHref} className={cn(buttonVariants({ variant: "outline" }))}>
             Sign in
           </Link>
         </div>
         <p className="text-xs text-muted-foreground">
           Signing in with Google or GitHub? After auth, navigate back to{" "}
-          <code className="font-mono">/connect</code> manually — the OAuth round-trip drops the
-          return path.
+          <code className="font-mono">/connect{claimToken ? "?claim=…" : ""}</code> manually — the
+          OAuth round-trip drops the return path.
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ClaimResultCard renders the trial-claim flow's status. Top-of-page card
+// so it's the first thing the human sees when they land here via the
+// claim URL.
+function ClaimResultCard({
+  state,
+  sessionLoading,
+}: {
+  state: ClaimState;
+  sessionLoading: boolean;
+}) {
+  if (sessionLoading) {
+    return null; // wait for the session check before showing claim state
+  }
+  if (state.status === "idle") {
+    return null;
+  }
+  if (state.status === "claiming") {
+    return (
+      <Card>
+        <CardContent className="flex items-center gap-3 py-4 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Attaching your trial tenant to this account…
+        </CardContent>
+      </Card>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <Card className="border-destructive/40 bg-destructive/5">
+        <CardContent className="flex items-start gap-3 py-4 text-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="text-destructive">
+            <span className="font-medium">Trial claim failed.</span>{" "}
+            {state.message ||
+              "This claim link is invalid or expired. You can still mint a fresh key below."}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  // status === "success"
+  return (
+    <Card className="border-primary/40 bg-primary/5">
+      <CardContent className="flex items-start gap-3 py-4 text-sm">
+        <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <div>
+          <span className="font-medium">Trial attached.</span> Trial tenant{" "}
+          <code className="font-mono text-xs">{state.result.trial_tenant_id}</code> is now linked to
+          this account.{" "}
+          {state.result.events_migrated
+            ? "Existing trial events have been migrated."
+            : "Trial events stay on the original tenant — the gateway will resolve reads through the link going forward."}
+        </div>
       </CardContent>
     </Card>
   );
