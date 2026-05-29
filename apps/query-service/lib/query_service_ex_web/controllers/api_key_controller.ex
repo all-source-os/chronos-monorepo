@@ -185,7 +185,12 @@ defmodule QueryServiceExWeb.ApiKeyController do
           "sub" => key_id,
           "tenant_id" => tenant_id,
           "name" => name,
-          "role" => "service_account",
+          # Must match the canonical role string every RBAC consumer enforces:
+          # control-plane entities.RoleServiceAccount = "serviceaccount" and Core's
+          # serde(rename_all = "lowercase") Role::ServiceAccount = "serviceaccount".
+          # The underscore form ("service_account") falls through to no permissions,
+          # so every minted key silently 403s on read AND write.
+          "role" => "serviceaccount",
           "is_api_key" => true,
           "iat" => now,
           "exp" => exp

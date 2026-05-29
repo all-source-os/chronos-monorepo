@@ -1098,7 +1098,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:3901/api/v1/tenants
 | `admin` | Full system access |
 | `developer` | Read/write events, manage schemas and pipelines |
 | `readonly` | Read-only access to events and metrics |
-| `service_account` | Programmatic access for services |
+| `serviceaccount` | Programmatic access for services |
 
 ---
 
