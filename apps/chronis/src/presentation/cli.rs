@@ -1,6 +1,6 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
-use crate::domain::task::{Priority, TaskType};
+use crate::domain::task::{Priority, TaskStatus, TaskType};
 
 #[derive(Parser)]
 #[command(
@@ -22,7 +22,10 @@ use crate::domain::task::{Priority, TaskType};
           cn list --toon           → verify final state\n\n\
         QUICK REFERENCE:\n  \
           cn task create <title>   Create task (-p priority, -t type, --parent, --blocked-by, -d desc)\n  \
-          cn list [--status=S]     List tasks (--archived, --all, --toon)\n  \
+          cn task edit <id>        Edit a task (--title, -d desc, --append-description, -p, -t)\n  \
+          cn list [filters]        List tasks (--status, --priority, --type, --claimed-by,\n  \
+                                   --unclaimed, --parent [--depth all], --no-blockers,\n  \
+                                   --archived, --all, --format toon|json|tsv|table)\n  \
           cn ready                 Open + unblocked tasks\n  \
           cn show <id>             Task detail + event timeline\n  \
           cn claim <id>            Claim task (--cascade for epics)\n  \
@@ -123,6 +126,35 @@ pub struct TaskArgs {
 pub enum TaskCommands {
     /// Create a new task
     Create(CreateArgs),
+
+    /// Edit an existing task's title, description, priority, or type
+    Edit(EditArgs),
+}
+
+#[derive(clap::Args)]
+pub struct EditArgs {
+    /// Task ID to edit
+    pub id: String,
+
+    /// New title
+    #[arg(long)]
+    pub title: Option<String>,
+
+    /// New description (replaces the existing one; `-` reads from stdin)
+    #[arg(short = 'd', long)]
+    pub description: Option<String>,
+
+    /// Append to the existing description instead of replacing it
+    #[arg(long, conflicts_with = "description")]
+    pub append_description: Option<String>,
+
+    /// New priority (p0-p3)
+    #[arg(short, long)]
+    pub priority: Option<Priority>,
+
+    /// New task type (task, epic, bug, feature)
+    #[arg(short = 't', long = "type")]
+    pub task_type: Option<TaskType>,
 }
 
 #[derive(clap::Args)]
@@ -151,15 +183,70 @@ pub struct CreateArgs {
     pub description: Option<String>,
 }
 
+/// How far down the hierarchy `--parent` reaches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+pub enum Depth {
+    /// Direct children only
+    #[default]
+    Direct,
+    /// All descendants (children, grandchildren, …)
+    All,
+}
+
+/// Output format for `cn list` / `cn ready`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum OutputFormat {
+    /// Pipe-delimited TOON (token-optimized for agents)
+    Toon,
+    /// JSON array of task objects (for `jq` / downstream tooling)
+    Json,
+    /// Tab-separated values with a header row
+    Tsv,
+    /// Rounded human-readable table
+    Table,
+}
+
 #[derive(clap::Args)]
 pub struct ListArgs {
-    /// Filter by status (open, in-progress, done)
-    #[arg(short, long)]
-    pub status: Option<String>,
+    /// Filter by status — comma-separated, OR'd (e.g. open,in-progress)
+    #[arg(short, long, value_delimiter = ',')]
+    pub status: Vec<TaskStatus>,
 
-    /// Filter by type (task, epic, bug, feature)
-    #[arg(short = 't', long = "type")]
-    pub task_type: Option<String>,
+    /// Filter by priority — comma-separated, OR'd (e.g. p0,p1)
+    #[arg(short, long, value_delimiter = ',')]
+    pub priority: Vec<Priority>,
+
+    /// Filter by type — comma-separated, OR'd (e.g. bug,feature)
+    #[arg(short = 't', long = "type", value_delimiter = ',')]
+    pub task_type: Vec<TaskType>,
+
+    /// Only tasks claimed by this agent label (e.g. human, claude:f132c66c)
+    #[arg(long, value_name = "AGENT")]
+    pub claimed_by: Option<String>,
+
+    /// Only claimed tasks
+    #[arg(long, conflicts_with = "unclaimed")]
+    pub claimed: bool,
+
+    /// Only unclaimed tasks
+    #[arg(long)]
+    pub unclaimed: bool,
+
+    /// Only tasks under this parent (see --depth)
+    #[arg(long, value_name = "ID")]
+    pub parent: Option<String>,
+
+    /// How far --parent reaches: direct children or all descendants
+    #[arg(long, value_enum, default_value_t = Depth::Direct, requires = "parent")]
+    pub depth: Depth,
+
+    /// Only tasks blocked by this task ID
+    #[arg(long, value_name = "ID")]
+    pub blocked_by: Option<String>,
+
+    /// Only unblocked tasks (all blockers done) — composable `cn ready`
+    #[arg(long)]
+    pub no_blockers: bool,
 
     /// Show only archived tasks
     #[arg(long)]
@@ -168,6 +255,10 @@ pub struct ListArgs {
     /// Show all tasks (including archived)
     #[arg(long)]
     pub all: bool,
+
+    /// Output format (overrides the global --toon flag)
+    #[arg(long, value_enum)]
+    pub format: Option<OutputFormat>,
 }
 
 #[derive(clap::Args)]

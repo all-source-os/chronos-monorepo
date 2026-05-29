@@ -23,6 +23,11 @@ pub enum ChronError {
     #[error("task {0} is already done")]
     AlreadyDone(String),
 
+    #[error(
+        "nothing to edit: provide at least one of --title/--description/--append-description/--priority/--type"
+    )]
+    NothingToEdit,
+
     #[error("no .chronis/ found (searched from {0:?}). Run `cn init` first.")]
     NoWorkspace(std::path::PathBuf),
 

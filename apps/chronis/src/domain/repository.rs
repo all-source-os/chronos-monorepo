@@ -2,8 +2,30 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     error::ChronError,
-    task::{Task, TaskType},
+    task::{Priority, Task, TaskType},
 };
+
+/// Fields to overwrite on an existing task via `cn task edit`. A `None` field
+/// is left unchanged. Emitted as a single `task.updated` event carrying only
+/// the present fields; the projection applies last-write-wins per field.
+#[derive(Debug, Default, Clone)]
+pub struct TaskEdit {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub priority: Option<Priority>,
+    pub task_type: Option<TaskType>,
+}
+
+impl TaskEdit {
+    /// True when no field is set — editing with nothing to change is rejected
+    /// (`ChronError::NothingToEdit`) so we never emit an empty event.
+    pub fn is_empty(&self) -> bool {
+        self.title.is_none()
+            && self.description.is_none()
+            && self.priority.is_none()
+            && self.task_type.is_none()
+    }
+}
 
 /// Timeline entry for a task event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +70,12 @@ pub trait TaskRepository: Send + Sync {
         &self,
         id: &str,
         reason: Option<&str>,
+    ) -> impl std::future::Future<Output = Result<(), ChronError>> + Send;
+
+    fn edit_task(
+        &self,
+        id: &str,
+        edit: &TaskEdit,
     ) -> impl std::future::Future<Output = Result<(), ChronError>> + Send;
 
     fn approve_task(

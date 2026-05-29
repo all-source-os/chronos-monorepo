@@ -6,7 +6,7 @@ use serde_json::json;
 use super::backend::CoreBackend;
 use crate::domain::{
     error::{ChronError, CoreError},
-    repository::{TaskDetail, TaskRepository, TimelineEntry},
+    repository::{TaskDetail, TaskEdit, TaskRepository, TimelineEntry},
     task::{Task, TaskStatus, TaskType},
 };
 
@@ -220,6 +220,40 @@ impl TaskRepository for CoreTaskRepository {
             .ingest(IngestEvent {
                 entity_id: id,
                 event_type: "workflow.step.completed",
+                payload,
+                metadata: None,
+                tenant_id: None,
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    async fn edit_task(&self, id: &str, edit: &TaskEdit) -> Result<(), ChronError> {
+        // Editing a non-existent task is an error, not a silent create: a
+        // `task.updated` against an unknown entity_id would be a no-op in the
+        // projection (the field-setters all guard on get_mut), so fail loudly
+        // here rather than ingest an event that changes nothing.
+        let _ = self.get_task(id)?;
+
+        let mut payload = json!({});
+        if let Some(ref title) = edit.title {
+            payload["title"] = json!(title);
+        }
+        if let Some(ref description) = edit.description {
+            payload["description"] = json!(description);
+        }
+        if let Some(priority) = edit.priority {
+            payload["priority"] = json!(priority.to_string());
+        }
+        if let Some(task_type) = edit.task_type {
+            payload["task_type"] = json!(task_type.to_string());
+        }
+
+        self.backend
+            .ingest(IngestEvent {
+                entity_id: id,
+                event_type: "task.updated",
                 payload,
                 metadata: None,
                 tenant_id: None,

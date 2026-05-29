@@ -5,17 +5,25 @@ use chrono::Utc;
 use crate::{
     application::{
         add_dependency, approve_task, archive_task, claim_task, complete_task, create_task,
+        edit_task,
+        filter_tasks::{self, ArchivedScope, ClaimState, TaskFilter},
         get_task, list_tasks, migrate_beads, remove_dependency, sync_http,
     },
-    domain::{error::ChronError, repository::TaskRepository},
+    domain::{
+        error::ChronError,
+        repository::{TaskEdit, TaskRepository},
+    },
     infrastructure::{
         config::{ChronisConfig, CoreMode},
         core_task_repo::CoreTaskRepository,
         prime_setup, workspace,
     },
     presentation::{
-        cli::{ArchiveArgs, Command, DepCommands, PrimeArgs, PrimeCommands, TaskCommands},
-        output::print_task_table,
+        cli::{
+            ArchiveArgs, Command, DepCommands, Depth, OutputFormat, PrimeArgs, PrimeCommands,
+            TaskCommands,
+        },
+        output::{print_task_json, print_task_table, print_task_tsv},
         toon,
     },
 };
@@ -111,12 +119,23 @@ pub fn dispatch_prime(args: &PrimeArgs, toon_mode: bool) -> Result<(), ChronErro
                 println!(
                     "ok:prime.setup:{}:{}",
                     report.mcp_json_path.display(),
-                    if report.replaced_existing { "replaced" } else { "added" }
+                    if report.replaced_existing {
+                        "replaced"
+                    } else {
+                        "added"
+                    }
                 );
             } else {
-                let verb = if report.replaced_existing { "Updated" } else { "Added" };
+                let verb = if report.replaced_existing {
+                    "Updated"
+                } else {
+                    "Added"
+                };
                 println!("Prime MCP wired into Claude Code.");
-                println!("  Binary:       {} ({})", report.bin_path, report.bin_version);
+                println!(
+                    "  Binary:       {} ({})",
+                    report.bin_path, report.bin_version
+                );
                 println!("  Data dir:     {}", report.data_dir.display());
                 println!(
                     "  {} `prime` entry in {}",
@@ -175,23 +194,94 @@ pub async fn dispatch(
                     );
                 }
             }
+            TaskCommands::Edit(edit_args) => {
+                // Resolve the description: `-d -` reads stdin; --append-description
+                // reads the current value and appends (read-modify-write here so
+                // the event still carries the full final value — the projection
+                // stays a simple last-write-wins setter).
+                let description = if let Some(ref d) = edit_args.description {
+                    if d == "-" {
+                        use std::io::Read;
+                        let mut buf = String::new();
+                        std::io::stdin().read_to_string(&mut buf)?;
+                        Some(buf.trim_end().to_string())
+                    } else {
+                        Some(d.clone())
+                    }
+                } else if let Some(ref append) = edit_args.append_description {
+                    let current = repo
+                        .get_task(&edit_args.id)?
+                        .description
+                        .unwrap_or_default();
+                    Some(if current.is_empty() {
+                        append.clone()
+                    } else {
+                        format!("{current}\n{append}")
+                    })
+                } else {
+                    None
+                };
+
+                let edit = TaskEdit {
+                    title: edit_args.title.clone(),
+                    description,
+                    priority: edit_args.priority,
+                    task_type: edit_args.task_type,
+                };
+                edit_task::edit_task(repo, &edit_args.id, edit).await?;
+                if toon_mode {
+                    print!("{}", toon::action("edited", &edit_args.id));
+                } else {
+                    println!("Edited task {}", edit_args.id);
+                }
+            }
         },
         Command::List(args) => {
-            let mut tasks = if args.archived {
-                repo.list_tasks_archived()?
+            let archived = if args.archived {
+                ArchivedScope::Only
             } else if args.all {
-                repo.list_tasks_all(args.status.as_deref())?
+                ArchivedScope::All
             } else {
-                list_tasks::list_tasks(repo, args.status.as_deref())?
+                ArchivedScope::Active
             };
-            if let Some(ref type_filter) = args.task_type {
-                let tt: crate::domain::task::TaskType = type_filter.parse()?;
-                tasks.retain(|t| t.task_type == tt);
-            }
-            if toon_mode {
-                print!("{}", toon::tasks(&tasks));
+            let claim_state = if args.claimed {
+                ClaimState::Claimed
+            } else if args.unclaimed {
+                ClaimState::Unclaimed
             } else {
-                print_task_table(&tasks);
+                ClaimState::Any
+            };
+            let filter = TaskFilter {
+                statuses: args.status.clone(),
+                priorities: args.priority.clone(),
+                types: args.task_type.clone(),
+                claimed_by: args.claimed_by.clone(),
+                claim_state,
+                parent: args.parent.clone(),
+                recursive: args.depth == Depth::All,
+                blocked_by: args.blocked_by.clone(),
+                no_blockers: args.no_blockers,
+                archived,
+            };
+
+            // The filter resolves ancestry and blocker-done state, so it needs
+            // the FULL universe (including archived + done), not a pre-filtered
+            // slice. list_tasks_all(None) returns every task.
+            let universe = repo.list_tasks_all(None)?;
+            let tasks = filter_tasks::apply(&universe, &filter);
+
+            // Explicit --format wins; otherwise the global --toon flag selects
+            // TOON, falling back to the human table.
+            let format = args.format.unwrap_or(if toon_mode {
+                OutputFormat::Toon
+            } else {
+                OutputFormat::Table
+            });
+            match format {
+                OutputFormat::Toon => print!("{}", toon::tasks(&tasks)),
+                OutputFormat::Json => print_task_json(&tasks),
+                OutputFormat::Tsv => print_task_tsv(&tasks),
+                OutputFormat::Table => print_task_table(&tasks),
             }
         }
         Command::Show(args) => {

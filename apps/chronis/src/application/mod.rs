@@ -4,6 +4,8 @@ pub mod archive_task;
 pub mod claim_task;
 pub mod complete_task;
 pub mod create_task;
+pub mod edit_task;
+pub mod filter_tasks;
 pub mod get_task;
 pub mod list_tasks;
 pub mod migrate_beads;

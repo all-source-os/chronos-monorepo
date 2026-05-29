@@ -56,3 +56,33 @@ pub fn print_task_table(tasks: &[Task]) {
     table.with(Style::rounded());
     println!("{table}");
 }
+
+/// Render tasks as a JSON array (`--format json`) for downstream `jq`/tooling.
+pub fn print_task_json(tasks: &[Task]) {
+    // Tasks derive Serialize; pretty-print so the output is diff/readable.
+    match serde_json::to_string_pretty(tasks) {
+        Ok(s) => println!("{s}"),
+        Err(e) => eprintln!("error: failed to serialize tasks to JSON: {e}"),
+    }
+}
+
+/// Render tasks as tab-separated values with a header row (`--format tsv`).
+pub fn print_task_tsv(tasks: &[Task]) {
+    println!("id\ttype\ttitle\tpriority\tstatus\tclaimed_by\tblocked_by\tparent\tarchived");
+    for t in tasks {
+        // Tabs/newlines in a title would break the row; replace with spaces.
+        let title = t.title.replace(['\t', '\n'], " ");
+        println!(
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            t.id,
+            t.task_type,
+            title,
+            t.priority,
+            t.status,
+            t.claimed_by.as_deref().unwrap_or(""),
+            t.blocked_by.join(","),
+            t.parent.as_deref().unwrap_or(""),
+            t.archived,
+        );
+    }
+}

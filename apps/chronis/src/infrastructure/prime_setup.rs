@@ -265,12 +265,8 @@ mod tests {
         let bin = fake_bin_script(dir.path(), "allsource-prime 0.21.5");
         let override_dir = dir.path().join("custom-prime-dir");
 
-        let report = run_prime_setup(
-            dir.path(),
-            Some(bin.to_str().unwrap()),
-            Some(&override_dir),
-        )
-        .unwrap();
+        let report =
+            run_prime_setup(dir.path(), Some(bin.to_str().unwrap()), Some(&override_dir)).unwrap();
         assert_eq!(report.data_dir, override_dir);
         assert!(override_dir.is_dir());
     }
@@ -280,8 +276,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let bin = fake_bin_script(dir.path(), "allsource-prime 0.21.5");
         std::fs::write(dir.path().join(".mcp.json"), "{ not json").unwrap();
-        let err =
-            run_prime_setup(dir.path(), Some(bin.to_str().unwrap()), None).unwrap_err();
+        let err = run_prime_setup(dir.path(), Some(bin.to_str().unwrap()), None).unwrap_err();
         assert!(err.to_string().contains("not valid JSON"));
     }
 }

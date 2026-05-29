@@ -89,12 +89,20 @@ impl Projection for TaskProjection {
                 self.states.insert(entity_id, state);
             }
             "task.updated" => {
+                // Last-write-wins per field; only the fields present in the
+                // payload change (see `cn task edit` / TaskEdit).
                 if let Some(mut state) = self.states.get_mut(&entity_id) {
                     if let Some(title) = payload.get("title") {
                         state["title"] = title.clone();
                     }
                     if let Some(priority) = payload.get("priority") {
                         state["priority"] = priority.clone();
+                    }
+                    if let Some(description) = payload.get("description") {
+                        state["description"] = description.clone();
+                    }
+                    if let Some(task_type) = payload.get("task_type") {
+                        state["task_type"] = task_type.clone();
                     }
                 }
             }
