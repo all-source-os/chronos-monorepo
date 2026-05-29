@@ -146,6 +146,7 @@ uuid.workspace = true
 criterion.workspace = true
 ctrlc.workspace = true
 iai-callgrind = "0.14"
+tower = { version = "0.5", features = ["util"] }
 proptest = "1"
 tempfile.workspace = true
 testcontainers = "0.26"
