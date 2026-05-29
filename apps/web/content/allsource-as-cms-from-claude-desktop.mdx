@@ -65,8 +65,8 @@ The response is JSON shaped like:
 
 ```json
 {
-  "tenant_id": "…",
-  "api_key": "ask_…",
+  "tenant_id": "trial-…",
+  "api_key": "eyJhbGci…",
   "tier": "trial",
   "quotas": { "events_quota": 1000, "queries_quota": 100 },
   "expires_at": "2026-06-12T00:00:00Z",
@@ -75,11 +75,11 @@ The response is JSON shaped like:
 }
 ```
 
-Hold onto the `api_key` (you will give it to the human to paste in Step 4) and the `claim_url` (the human visits it later to attach the trial to a permanent account). The trial is capped at 1000 events / 100 queries and expires in 14 days. The endpoint is IP-rate-limited to 3 mints per hour, so don't retry in a tight loop.
+Hold onto the `api_key` (you will give it to the human to paste in Step 4) and the `claim_url` (the human visits it later to attach the trial to a permanent account). Note the trial key is a JWT — it starts with `eyJ`, not the `ask_` prefix that a sign-in-minted key carries; both work, they just take different validation paths. The trial is capped at 1000 events / 100 queries and expires in 14 days. The endpoint is IP-rate-limited to 3 mints per hour, so don't retry in a tight loop.
 
 **Action (human).** None at this step — you (the agent) did the minting.
 
-**Verify.** You have an `ask_…` key string in hand from the response body.
+**Verify.** You have the `api_key` string (an `eyJ…` JWT) in hand from the response body.
 
 **On failure.** A `429` means you've hit the per-IP rate limit — wait and retry, or fall back to the sign-in path below. Any other non-200, or no network access from your environment, also means falling back: tell the human to open `https://www.all-source.xyz/connect?source=claude-desktop&return=close` in a browser, sign in or take the free-tier signup, click **Create connection**, and copy the `ask_…` key the page shows once. The `?source` and `return=close` deep-link params (Gap 3) pre-fill the page's context and let it close itself after the key is minted. A permanent account this way also avoids the trial's quota cap and 14-day expiry.
 
@@ -87,9 +87,9 @@ Hold onto the `api_key` (you will give it to the human to paste in Step 4) and t
 
 ### Step 4 — Install the `.dxt` extension
 
-**Precondition.** Step 3 produced an `ask_…` key — you (the agent) are holding it.
+**Precondition.** Step 3 produced an API key (an `eyJ…` trial JWT, or an `ask_…` key from the sign-in fallback) — you (the agent) are holding it.
 
-**Action (agent).** Give the human the `ask_…` key from Step 3 and tell them:
+**Action (agent).** Give the human the key from Step 3 and tell them:
 
 > "Download [allsource-prime.dxt](https://github.com/all-source-os/all-source/releases/latest/download/allsource-prime.dxt). It is about 37 MB. Once it has downloaded, drag the file into the Claude Desktop window — or open Claude Desktop's Settings, go to **Extensions**, and import the `.dxt` from there. Claude Desktop will open an install dialog. In the **AllSource API Key** field, paste the key I just gave you. Leave the other fields (data directory, sync URL) on their defaults. Click **Install**."
 
