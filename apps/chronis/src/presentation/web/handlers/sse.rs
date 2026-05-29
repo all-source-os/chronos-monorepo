@@ -36,14 +36,10 @@ pub async fn events_stream(
         // Nudge newly-connected clients so they do an immediate refresh.
         let _ = tx.send(Ok::<Event, Infallible>(Event::default().data("{}")));
 
-        loop {
-            match sub.recv_change().await {
-                Ok(_) | Err(SubscribeError::Lagged(_)) => {
-                    if tx.send(Ok(Event::default().data("{}"))).is_err() {
-                        break;
-                    }
-                }
-                Err(SubscribeError::Closed) => break,
+        while let Ok(_) | Err(SubscribeError::Lagged(_)) = sub.recv_change().await {
+            // Any change (or a lag notification) nudges the client to refresh.
+            if tx.send(Ok(Event::default().data("{}"))).is_err() {
+                break;
             }
         }
     });

@@ -317,7 +317,7 @@ async fn synced_from_metadata_prevents_re_export() {
 async fn source_id_metadata_prevents_re_import() {
     let instance_id = "my-instance-123";
 
-    let remote_events = vec![
+    let remote_events = [
         json!({"entity_id": "t-other", "event_type": "task.created", "metadata": {"source_id": "other-instance"}}),
         json!({"entity_id": "t-mine", "event_type": "task.created", "metadata": {"source_id": instance_id}}),
         json!({"entity_id": "t-anon", "event_type": "task.created", "metadata": null}),

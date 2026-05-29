@@ -132,6 +132,19 @@ impl TaskRepository for CoreTaskRepository {
         parent: Option<&str>,
         description: Option<&str>,
     ) -> Result<(), ChronError> {
+        // INVARIANT (#194): a `task.created` event must never target an
+        // already-projected entity_id. If it did, the projection would drop
+        // the new task's title/description/type/parent (silent data loss) and
+        // the follow-up `task.dependency.added` events would leak onto the
+        // existing record as phantom blockers (silent corruption).
+        //
+        // We guard BEFORE any ingest, so a collision fails loudly and emits
+        // ZERO events — the existing record is left completely untouched. We
+        // do not mutate or rewrite past events; this is a read-check guard.
+        if self.get_task(id).is_ok() {
+            return Err(ChronError::IdAlreadyTaken(id.to_string()));
+        }
+
         let mut payload = json!({
             "title": title,
             "priority": priority,

@@ -5,6 +5,14 @@ pub enum ChronError {
     #[error("task {0} not found")]
     TaskNotFound(String),
 
+    #[error(
+        "could not allocate a free task ID after {0} attempts; the ID space is unexpectedly crowded"
+    )]
+    IdCollisionExhausted(usize),
+
+    #[error("refusing to create task: ID {0} is already taken")]
+    IdAlreadyTaken(String),
+
     #[error("task {id} is {current}, can only {action} open tasks")]
     InvalidTransition {
         id: String,

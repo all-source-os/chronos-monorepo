@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use allsource_core::embedded::{Config, EmbeddedCore};
 use chronis::{
+    application::create_task::{CreateTaskInput, create_task_with_id_gen},
     domain::{error::ChronError, repository::TaskRepository, task::TaskType},
     infrastructure::{
         backend::CoreBackend, core_task_repo::CoreTaskRepository, projection::TaskProjection,
@@ -298,4 +299,147 @@ async fn task_with_description() {
         task.description.as_deref(),
         Some("Users can't login with special characters in password")
     );
+}
+
+// ---------------------------------------------------------------------------
+// Issue #194: `cn task create` must never merge into / mutate an existing task
+// whose short ID collides. It must land on a fresh ID or fail loudly.
+// ---------------------------------------------------------------------------
+
+/// The repository guard rejects a `task.created` against an already-projected
+/// entity_id BEFORE emitting any event — so no dependency leaks onto the
+/// existing record.
+#[tokio::test]
+async fn create_task_on_taken_id_is_rejected_with_no_side_effects() {
+    let repo = setup().await;
+    repo.create_task("t-aaaa", "Original", "p1", &[], TaskType::Task, None, None)
+        .await
+        .unwrap();
+
+    // Direct repo call with a colliding ID and a phantom blocker. The guard
+    // must fire before the task.created OR the task.dependency.added is
+    // ingested.
+    let err = repo
+        .create_task(
+            "t-aaaa",
+            "Impostor",
+            "p0",
+            &["t-bbbb".to_string()],
+            TaskType::Bug,
+            Some("t-cccc"),
+            Some("should never persist"),
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ChronError::IdAlreadyTaken(id) if id == "t-aaaa"));
+
+    // The original record is completely untouched: title/type/priority intact,
+    // and crucially NO phantom blocked_by/parent leaked in.
+    let original = repo.get_task("t-aaaa").unwrap();
+    assert_eq!(original.title, "Original");
+    assert_eq!(original.task_type, TaskType::Task);
+    assert_eq!(original.priority.to_string(), "p1");
+    assert!(original.blocked_by.is_empty(), "no phantom blocker leaked");
+    assert_eq!(original.parent, None, "no phantom parent leaked");
+    assert_eq!(original.status.to_string(), "open");
+
+    // The timeline shows ONLY the original task.created — the impostor's
+    // events were never ingested.
+    let detail = repo.get_task_detail("t-aaaa").await.unwrap();
+    assert_eq!(detail.timeline.len(), 1);
+    assert_eq!(detail.timeline[0].event_type, "task.created");
+}
+
+/// When the first candidate ID collides, the application layer retries with a
+/// fresh ID and the new task is created under a DIFFERENT id with full content
+/// intact, while the pre-existing task is unchanged.
+#[tokio::test]
+async fn create_task_retries_past_collision_onto_fresh_id() {
+    let repo = setup().await;
+    repo.create_task(
+        "t-aaaa",
+        "Original",
+        "p1",
+        &["t-dead".to_string()],
+        TaskType::Epic,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Stub generator: first hand out the TAKEN id, then a free one.
+    let mut ids = vec!["t-ffff".to_string(), "t-aaaa".to_string()]; // popped from end
+    let out = create_task_with_id_gen(
+        &repo,
+        CreateTaskInput {
+            title: "Fresh task",
+            priority: "p0",
+            blocked_by: &["t-beef".to_string()],
+            task_type: TaskType::Bug,
+            parent: Some("t-aaaa"),
+            description: Some("full content"),
+        },
+        move || ids.pop().expect("generator exhausted"),
+    )
+    .await
+    .unwrap();
+
+    // Landed on the fresh, DIFFERENT id.
+    assert_eq!(out.id, "t-ffff");
+
+    // New task has its full content intact.
+    let fresh = repo.get_task("t-ffff").unwrap();
+    assert_eq!(fresh.title, "Fresh task");
+    assert_eq!(fresh.task_type, TaskType::Bug);
+    assert_eq!(fresh.priority.to_string(), "p0");
+    assert_eq!(fresh.parent.as_deref(), Some("t-aaaa"));
+    assert_eq!(fresh.description.as_deref(), Some("full content"));
+    assert_eq!(fresh.blocked_by, vec!["t-beef".to_string()]);
+
+    // Pre-existing task is UNCHANGED: title, type, status, and its original
+    // single blocker — no leakage from the impostor attempt.
+    let original = repo.get_task("t-aaaa").unwrap();
+    assert_eq!(original.title, "Original");
+    assert_eq!(original.task_type, TaskType::Epic);
+    assert_eq!(original.status.to_string(), "open");
+    assert_eq!(original.blocked_by, vec!["t-dead".to_string()]);
+    assert_eq!(original.parent, None);
+}
+
+/// When every candidate ID collides, create fails with a typed error and emits
+/// NO events against the existing record.
+#[tokio::test]
+async fn create_task_exhausts_retries_and_errors_without_side_effects() {
+    let repo = setup().await;
+    repo.create_task("t-aaaa", "Original", "p1", &[], TaskType::Task, None, None)
+        .await
+        .unwrap();
+
+    let before = repo.get_task_detail("t-aaaa").await.unwrap().timeline.len();
+
+    // Generator always returns the taken id — every attempt collides.
+    let err = create_task_with_id_gen(
+        &repo,
+        CreateTaskInput {
+            title: "Doomed",
+            priority: "p0",
+            blocked_by: &["t-beef".to_string()],
+            task_type: TaskType::Bug,
+            parent: Some("t-aaaa"),
+            description: None,
+        },
+        || "t-aaaa".to_string(),
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(err, ChronError::IdCollisionExhausted(_)));
+
+    // Existing record completely untouched — no phantom events at all.
+    let original = repo.get_task("t-aaaa").unwrap();
+    assert_eq!(original.title, "Original");
+    assert!(original.blocked_by.is_empty());
+    assert_eq!(original.parent, None);
+    let after = repo.get_task_detail("t-aaaa").await.unwrap().timeline.len();
+    assert_eq!(before, after, "no events emitted against existing record");
 }

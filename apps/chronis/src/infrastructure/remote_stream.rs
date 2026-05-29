@@ -82,7 +82,7 @@ async fn connect_and_pump(
         "filters": ["task.*", "workflow.*"],
     });
     write
-        .send(Message::Text(subscribe.to_string().into()))
+        .send(Message::Text(subscribe.to_string()))
         .await
         .map_err(|e| format!("send subscribe: {e}"))?;
 
@@ -116,10 +116,11 @@ async fn connect_and_pump(
 /// Parse one JSON text frame and route it.
 ///
 /// Core sends four frame shapes through this WebSocket:
-///   - `{"type":"replay","position":N,"event":{...}}` — replay of a past event
-///   - `{"type":"replay_complete","replayed":N}` — end-of-replay sentinel
-///   - `{"type":"lagged","missed":N}` — broadcast lag notification
-///   - a bare `Event` object (live broadcast, no wrapper)
+/// - `{"type":"replay","position":N,"event":{...}}` — replay of a past event
+/// - `{"type":"replay_complete","replayed":N}` — end-of-replay sentinel
+/// - `{"type":"lagged","missed":N}` — broadcast lag notification
+/// - a bare `Event` object (live broadcast, no wrapper)
+///
 /// Batch mode wraps any of these in a JSON array.
 async fn handle_text_frame(
     text: &str,
