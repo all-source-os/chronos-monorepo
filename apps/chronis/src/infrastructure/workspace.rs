@@ -58,6 +58,19 @@ impl Workspace {
 
                 let core = Arc::new(core);
 
+                // CRITICAL: hydrate the in-memory pile from the durable Parquet
+                // archive BEFORE registering the projection. EmbeddedCore::open
+                // recovers the WAL but leaves Parquet cold — the multi-tenant
+                // server hydrates lazily on first query, but embedded chronis
+                // has no such query path: the projection *is* the read surface.
+                // Without this, whenever the WAL is short or has been truncated/
+                // compacted the projection boots EMPTY and `cn list` reports
+                // "No tasks found" even though every event is durable on disk.
+                // The backfill below then replays the full hydrated history.
+                core.inner()
+                    .hydrate_all_from_storage()
+                    .map_err(|e| CoreError(e.to_string()))?;
+
                 core.inner()
                     .register_projection_with_backfill(
                         &(Arc::new(TaskProjection::new())
