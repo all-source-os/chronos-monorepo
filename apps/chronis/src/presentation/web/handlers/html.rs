@@ -200,6 +200,118 @@ pub fn graph_node_html(task: &Task, depth: usize) -> String {
     s
 }
 
+/// Render the collapsible epic→children tree (issue #196).
+///
+/// Epics are native `<details>` elements (zero-JS collapse). Each epic carries
+/// a roll-up badge (`done/total ✓`) and, when every child is done but the epic
+/// itself is not, a "stale" badge — the bookkeeping signal the issue calls out
+/// as the one eating triage time. Leaves are click-to-detail like the other
+/// views; data-* attributes drive the client-side filter sidebar.
+pub fn tree_html(tasks: &[Task]) -> String {
+    let tree = crate::presentation::shared::TaskTree::build(tasks);
+
+    if tree.epics.is_empty() && tree.standalone.is_empty() {
+        return String::from(
+            "<p class=\"empty-state\">No tasks — run <code>cn task create</code> to get started</p>",
+        );
+    }
+
+    let mut html = String::new();
+
+    for group in &tree.epics {
+        let total = group.children.len();
+        let done = group
+            .children
+            .iter()
+            .filter(|c| c.status == TaskStatus::Done)
+            .count();
+        let all_done = total > 0 && done == total;
+        let stale = all_done && group.epic.status != TaskStatus::Done;
+
+        html.push_str("<details class=\"tree-epic\" open data-status=\"");
+        html.push_str(&group.epic.status.to_string());
+        html.push_str("\" data-type=\"epic\" data-pri=\"");
+        html.push_str(&group.epic.priority.to_string());
+        html.push_str("\" data-text=\"");
+        html.push_str(&html_escape(&group.epic.title.to_lowercase()));
+        html.push_str("\">\n<summary class=\"tree-summary\">");
+        html.push_str(&tree_node_inner(group.epic));
+        html.push_str(&format!(
+            "<span class=\"rollup {}\">{done}/{total} \u{2713}</span>",
+            if all_done {
+                "rollup-complete"
+            } else {
+                "rollup-partial"
+            }
+        ));
+        if stale {
+            html.push_str(
+                "<span class=\"stale-badge\" title=\"all children done but epic still open — roll it up\">stale</span>",
+            );
+        }
+        html.push_str("</summary>\n<div class=\"tree-children\">\n");
+        for child in &group.children {
+            html.push_str(&tree_leaf_html(child));
+        }
+        if group.children.is_empty() {
+            html.push_str("<div class=\"tree-empty\">no children</div>\n");
+        }
+        html.push_str("</div>\n</details>\n");
+    }
+
+    if !tree.standalone.is_empty() {
+        html.push_str("<div class=\"tree-section\">Standalone</div>\n");
+        for task in &tree.standalone {
+            html.push_str(&tree_leaf_html(task));
+        }
+    }
+
+    html
+}
+
+/// Inline content of a tree node (id, type, priority, title, status,
+/// claimant). Shared by the epic summary and the leaf row.
+fn tree_node_inner(task: &Task) -> String {
+    let claimed = task
+        .claimed_by
+        .as_deref()
+        .map(|c| format!(" <span class=\"card-claimed\">@{}</span>", html_escape(c)))
+        .unwrap_or_default();
+    format!(
+        "<span class=\"tree-id\">{}</span>{} {} <span class=\"tree-title\">{}</span> <span class=\"{}\">{}</span>{}",
+        html_escape(&task.id),
+        type_badge(task.task_type),
+        pri_badge(task),
+        html_escape(&task.title),
+        crate::presentation::shared::status_css_class(task.status),
+        task.status,
+        claimed,
+    )
+}
+
+/// A clickable leaf node (child or standalone task) — opens the detail pane.
+fn tree_leaf_html(task: &Task) -> String {
+    let blocked = if task.blocked_by.is_empty() || task.status == TaskStatus::Done {
+        String::new()
+    } else {
+        format!(
+            " <span class=\"card-blocked\">blocked by {}</span>",
+            html_escape(&task.blocked_by.join(", "))
+        )
+    };
+    format!(
+        "<div class=\"tree-leaf\" data-status=\"{}\" data-type=\"{}\" data-pri=\"{}\" data-text=\"{}\" \
+         hx-get=\"/partials/task-detail/{}\" hx-target=\"#detail-pane\" hx-swap=\"innerHTML\">{}{}</div>\n",
+        task.status,
+        task.task_type,
+        task.priority,
+        html_escape(&task.title.to_lowercase()),
+        html_escape(&task.id),
+        tree_node_inner(task),
+        blocked,
+    )
+}
+
 /// Render markdown text to HTML.
 pub fn render_markdown_html(text: &str) -> String {
     let mut html = String::new();
@@ -254,6 +366,88 @@ pub fn render_markdown_html(text: &str) -> String {
     }
 
     html
+}
+
+#[cfg(test)]
+mod tree_tests {
+    use super::*;
+    use crate::domain::task::{Priority, Task, TaskStatus, TaskType};
+
+    fn task(id: &str, tt: TaskType, status: TaskStatus, parent: Option<&str>) -> Task {
+        Task {
+            id: id.into(),
+            title: format!("{id} title"),
+            priority: Priority::P2,
+            status,
+            task_type: tt,
+            parent: parent.map(String::from),
+            claimed_by: None,
+            blocked_by: vec![],
+            created_at: None,
+            done_reason: None,
+            done_at: None,
+            awaiting_approval: None,
+            approved: None,
+            approved_at: None,
+            description: None,
+            archived: false,
+        }
+    }
+
+    #[test]
+    fn empty_universe_renders_empty_state() {
+        assert!(tree_html(&[]).contains("No tasks"));
+    }
+
+    #[test]
+    fn epic_rolls_up_done_count_and_flags_stale() {
+        // Epic still open, but both children done → stale + 2/2 complete badge.
+        let tasks = vec![
+            task("t-ep", TaskType::Epic, TaskStatus::Open, None),
+            task("t-c1", TaskType::Task, TaskStatus::Done, Some("t-ep")),
+            task("t-c2", TaskType::Bug, TaskStatus::Done, Some("t-ep")),
+        ];
+        let html = tree_html(&tasks);
+        assert!(
+            html.contains("rollup-complete"),
+            "expected complete roll-up"
+        );
+        assert!(html.contains("2/2"), "expected 2/2 count");
+        assert!(
+            html.contains("stale-badge"),
+            "all-children-done open epic is stale"
+        );
+        assert!(
+            html.contains("<details"),
+            "epic is a collapsible details element"
+        );
+        assert!(html.contains("t-c1"), "children rendered");
+    }
+
+    #[test]
+    fn partial_epic_is_not_stale() {
+        let tasks = vec![
+            task("t-ep", TaskType::Epic, TaskStatus::Open, None),
+            task("t-c1", TaskType::Task, TaskStatus::Done, Some("t-ep")),
+            task("t-c2", TaskType::Task, TaskStatus::Open, Some("t-ep")),
+        ];
+        let html = tree_html(&tasks);
+        assert!(html.contains("rollup-partial"));
+        assert!(html.contains("1/2"));
+        assert!(
+            !html.contains("stale-badge"),
+            "partially-done epic is not stale"
+        );
+    }
+
+    #[test]
+    fn standalone_tasks_get_their_own_section() {
+        let tasks = vec![task("t-solo", TaskType::Task, TaskStatus::Open, None)];
+        let html = tree_html(&tasks);
+        assert!(html.contains("Standalone"));
+        assert!(html.contains("tree-leaf"));
+        assert!(html.contains("t-solo"));
+    }
 }
 
 fn inline_md(text: &str) -> String {

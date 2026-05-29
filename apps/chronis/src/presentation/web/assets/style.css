@@ -515,3 +515,100 @@ td {
     width: 100%;
   }
 }
+
+/* --- Tree view (issue #196) --- */
+.tree-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr 360px;
+  gap: 16px;
+  align-items: start;
+}
+.filter-sidebar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  position: sticky;
+  top: 12px;
+}
+.filter-section { margin-bottom: 14px; }
+.filter-section h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.filter-section label {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 1px 0;
+}
+.tree-panel {
+  overflow: auto;
+  max-height: calc(100vh - 160px);
+  padding: 8px 4px;
+}
+.tree-epic { margin-bottom: 4px; }
+.tree-summary {
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tree-summary::-webkit-details-marker { display: none; }
+.tree-summary::before {
+  content: "\25B8"; /* ▸ */
+  color: var(--text-dim);
+  transition: transform 0.1s;
+}
+.tree-epic[open] > .tree-summary::before { content: "\25BE"; } /* ▾ */
+.tree-summary:hover { background: var(--surface-hover); }
+.tree-children {
+  margin-left: 18px;
+  border-left: 1px solid var(--border);
+  padding-left: 8px;
+}
+.tree-leaf {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.tree-leaf:hover { background: var(--surface-hover); }
+.tree-id { color: var(--text-dim); font-family: monospace; font-size: 12px; }
+.tree-title { color: var(--text); }
+.tree-empty { color: var(--text-dim); font-size: 12px; padding: 2px 8px; }
+.tree-section {
+  margin: 14px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.rollup {
+  font-size: 11px;
+  font-family: monospace;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.rollup-partial { color: var(--yellow); background: rgba(224, 175, 104, 0.12); }
+.rollup-complete { color: var(--green); background: rgba(158, 206, 106, 0.12); }
+.stale-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--red);
+  background: rgba(247, 118, 142, 0.15);
+}

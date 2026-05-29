@@ -7,7 +7,7 @@ use super::{
     error::AppError,
     html::{
         graph_node_html, html_escape, kanban_card_html, pri_badge, render_markdown_html,
-        task_row_html, type_badge,
+        task_row_html, tree_html, type_badge,
     },
 };
 use crate::{
@@ -186,6 +186,13 @@ pub async fn partial_task_detail(
     }
 
     Ok(Html(html))
+}
+
+pub async fn partial_tree(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+    // The tree needs every task (incl. done children, for roll-up counts), so
+    // pull the full set rather than the default active-only listing.
+    let tasks = state.repo.list_tasks_all(None)?;
+    Ok(Html(tree_html(&tasks)))
 }
 
 pub async fn partial_kanban(State(state): State<AppState>) -> Result<Html<String>, AppError> {

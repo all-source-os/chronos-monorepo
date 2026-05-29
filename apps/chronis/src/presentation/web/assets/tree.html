@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>chronis — tree</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/htmx.min.js"></script>
+</head>
+<body hx-headers='{"Accept": "text/html"}'>
+  <div class="container">
+    <header>
+      <h1>chronis</h1>
+      <nav>
+        <a href="/">Dashboard</a>
+        <a href="/kanban">Kanban</a>
+        <a href="/graph">Graph</a>
+        <a href="/tree" class="active">Tree</a>
+      </nav>
+      <div class="stats-bar"
+           hx-get="/partials/stats"
+           hx-trigger="load, refresh from:body, every 30s"
+           hx-swap="innerHTML">
+      </div>
+    </header>
+
+    <div class="tree-layout">
+      <aside class="filter-sidebar">
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="Search title…" oninput="applyFilters()">
+        </div>
+
+        <div class="filter-section">
+          <h4>Status</h4>
+          <label><input type="checkbox" class="f-status" value="open" checked> open</label>
+          <label><input type="checkbox" class="f-status" value="in-progress" checked> in-progress</label>
+          <label><input type="checkbox" class="f-status" value="done"> done</label>
+        </div>
+
+        <div class="filter-section">
+          <h4>Priority</h4>
+          <label><input type="checkbox" class="f-pri" value="p0" checked> p0</label>
+          <label><input type="checkbox" class="f-pri" value="p1" checked> p1</label>
+          <label><input type="checkbox" class="f-pri" value="p2" checked> p2</label>
+          <label><input type="checkbox" class="f-pri" value="p3" checked> p3</label>
+        </div>
+
+        <div class="filter-section">
+          <h4>Type</h4>
+          <label><input type="checkbox" class="f-type" value="task" checked> task</label>
+          <label><input type="checkbox" class="f-type" value="epic" checked> epic</label>
+          <label><input type="checkbox" class="f-type" value="bug" checked> bug</label>
+          <label><input type="checkbox" class="f-type" value="feature" checked> feature</label>
+        </div>
+
+        <div class="filter-section">
+          <label><input type="checkbox" id="stale-only" onchange="applyFilters()"> stale epics only</label>
+        </div>
+
+        <div class="filter-section">
+          <button class="filter-btn" onclick="setAll(true)">Expand all</button>
+          <button class="filter-btn" onclick="setAll(false)">Collapse all</button>
+        </div>
+
+        <a href="/api/export" class="export-btn" download>Export .md</a>
+      </aside>
+
+      <div class="panel tree-panel"
+           id="tree-root"
+           hx-get="/partials/tree"
+           hx-trigger="load, refresh from:body, every 30s"
+           hx-swap="innerHTML">
+      </div>
+
+      <div class="panel" id="detail-pane">
+        <p class="empty-state">Click a task to see details</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    function checkedValues(cls) {
+      return Array.from(document.querySelectorAll('.' + cls))
+        .filter(c => c.checked).map(c => c.value);
+    }
+
+    function nodeMatches(el, statuses, pris, types, query) {
+      const s = el.dataset.status || '';
+      const p = el.dataset.pri || '';
+      const t = el.dataset.type || '';
+      const text = el.dataset.text || '';
+      return statuses.includes(s) && pris.includes(p) && types.includes(t)
+        && (!query || text.includes(query));
+    }
+
+    function applyFilters() {
+      const statuses = checkedValues('f-status');
+      const pris = checkedValues('f-pri');
+      const types = checkedValues('f-type');
+      const query = document.getElementById('search-input').value.toLowerCase();
+      const staleOnly = document.getElementById('stale-only').checked;
+
+      // Leaves first.
+      document.querySelectorAll('#tree-root .tree-leaf').forEach(leaf => {
+        leaf.style.display = nodeMatches(leaf, statuses, pris, types, query) ? '' : 'none';
+      });
+
+      // Then epics: visible if the epic itself matches OR any child is visible.
+      // When "stale epics only" is on, restrict to epics carrying a stale badge.
+      document.querySelectorAll('#tree-root .tree-epic').forEach(epic => {
+        const summary = epic.querySelector('.tree-summary');
+        const isStale = !!epic.querySelector('.stale-badge');
+        const epicMatches = nodeMatches(epic, statuses, pris, types, query);
+        const visibleChild = epic.querySelector('.tree-leaf:not([style*="display: none"])');
+        let show = (epicMatches || !!visibleChild);
+        if (staleOnly) show = show && isStale;
+        epic.style.display = show ? '' : 'none';
+        if (summary) summary.style.display = epicMatches ? '' : 'none';
+      });
+    }
+
+    function setAll(open) {
+      document.querySelectorAll('#tree-root .tree-epic').forEach(d => { d.open = open; });
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    document.querySelectorAll('.f-status, .f-pri, .f-type').forEach(cb => {
+      cb.addEventListener('change', applyFilters);
+    });
+
+    // Re-apply filters after the tree partial swaps in (load / live reload).
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+      if (e.detail.target.id === 'tree-root') applyFilters();
+    });
+    // Surface mutations (claim/done/approve) as a toast.
+    document.body.addEventListener('htmx:afterRequest', function (e) {
+      const p = e.detail.requestConfig && e.detail.requestConfig.path || '';
+      if (/\/api\/tasks\/.+\/(claim|done|approve)$/.test(p) && e.detail.successful) {
+        showToast('done — refreshing');
+      }
+    });
+
+    // Live reload via SSE (same pattern as the dashboard).
+    (function () {
+      function connect() {
+        var es = new EventSource('/events/stream');
+        es.onmessage = function () { htmx.trigger(document.body, 'refresh'); };
+        es.onerror = function () { es.close(); setTimeout(connect, 1000); };
+      }
+      connect();
+    })();
+  </script>
+</body>
+</html>

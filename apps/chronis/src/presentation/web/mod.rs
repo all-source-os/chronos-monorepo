@@ -19,6 +19,7 @@ pub async fn run(repo: CoreTaskRepository, port: u16, open_browser: bool) -> any
         .route("/", get(handlers::index))
         .route("/kanban", get(handlers::kanban_page))
         .route("/graph", get(handlers::graph_page))
+        .route("/tree", get(handlers::tree_page))
         // Static assets
         .route("/style.css", get(handlers::style_css))
         .route("/htmx.min.js", get(handlers::htmx_js))
@@ -40,6 +41,7 @@ pub async fn run(repo: CoreTaskRepository, port: u16, open_browser: bool) -> any
         )
         .route("/partials/kanban", get(handlers::partial_kanban))
         .route("/partials/graph", get(handlers::partial_graph))
+        .route("/partials/tree", get(handlers::partial_tree))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{port}");
