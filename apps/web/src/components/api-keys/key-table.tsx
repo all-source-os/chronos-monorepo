@@ -2,7 +2,7 @@
 
 import { Badge, Button } from "@allsource/ui";
 import { Check, Clock, Copy, Key, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { type MouseEvent, useState } from "react";
 import type { ApiKey } from "@/lib/api/client";
 
 interface KeyTableProps {
@@ -22,12 +22,29 @@ function KeyRow({
   onRevoke: () => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // The full secret is write-once (returned only at create/rotate via
+  // ApiKeyWithSecret); the list carries just key_prefix. Copy the clean prefix
+  // — no trailing "..." — so what lands on the clipboard is a real value.
   const copyPrefix = async () => {
-    await navigator.clipboard.writeText(`${apiKey.key_prefix}...`);
+    await navigator.clipboard.writeText(apiKey.key_prefix);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Position the menu with fixed coords from the trigger so it escapes the
+  // table wrapper's `overflow-hidden` (which clips an absolutely-positioned
+  // dropdown regardless of z-index).
+  const toggleMenu = (e: MouseEvent<HTMLButtonElement>) => {
+    if (showMenu) {
+      setShowMenu(false);
+      return;
+    }
+    const r = e.currentTarget.getBoundingClientRect();
+    setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    setShowMenu(true);
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -98,19 +115,17 @@ function KeyRow({
       </td>
       <td className="px-4 py-3">
         <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setShowMenu(!showMenu)}
-          >
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleMenu}>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
 
-          {showMenu && (
+          {showMenu && menuPos && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-border bg-popover p-1 shadow-lg">
+              <div
+                className="fixed z-50 w-40 rounded-lg border border-border bg-popover p-1 shadow-lg"
+                style={{ top: menuPos.top, right: menuPos.right }}
+              >
                 <button
                   onClick={() => {
                     setShowMenu(false);
