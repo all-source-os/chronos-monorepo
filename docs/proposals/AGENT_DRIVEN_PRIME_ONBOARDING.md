@@ -1,7 +1,9 @@
 # Agent-Driven Prime Onboarding
 
-## Status: Proposal
-## Date: 2026-05-26
+## Status: Implemented: gap-1, gap-3 · Remaining: gap-2 (.dxt signing), gap-4 (pre-signed URL), gap-5 + gap-6 (both upstream)
+## Date: 2026-05-26 (updated 2026-05-29)
+
+> **Shipped so far.** Gap 1 (anonymous-trial mint `POST /api/v1/agents/anonymous-trial` + `/connect?claim=` association) and Gap 3 (`/connect` deep-link params: `source`, `key_name`, `return=close`) are merged and live. The recommended path's unavoidable human actions are now down to **two** — drag the `.dxt` and paste the key — plus the conditional Gatekeeper click (Gap 2, open) and the restart (Gap 6, upstream). Trial-claim records the trial→account association only; event re-keying is still a deferred design call (see Gap 1 detail).
 
 ## Problem
 
