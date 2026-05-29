@@ -321,7 +321,13 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 		path := c.Request.URL.Path
 		isPublicAuthPath := strings.HasPrefix(path, "/api/v1/auth/") && path != "/api/v1/auth/session"
 		isPublicStatusPath := path == "/api/v1/status/services"
-		if path == pathHealth || path == pathLivez || path == pathMetrics || path == "/docs" || path == "/openapi" || path == "/api/v1/cluster/health" || isPublicStatusPath || strings.HasPrefix(path, "/api/v1/webhooks/") || isPublicAuthPath || strings.HasPrefix(path, "/api/v1/onboard/") || strings.HasPrefix(path, "/api/v1/demo/") || strings.HasPrefix(path, "/api/v1/admin/") || strings.HasPrefix(path, "/x402/") {
+		// Anonymous-trial mint is intentionally unauthenticated (Gap 1 of
+		// AGENT_DRIVEN_PRIME_ONBOARDING.md): an agent calls it to get a trial
+		// key WITHOUT a prior signed-in session. Exact-match only — sibling
+		// /api/v1/agents/claim and /api/v1/agents/register stay auth-gated, so
+		// this must not become a HasPrefix("/api/v1/agents/").
+		isPublicTrialMint := path == "/api/v1/agents/anonymous-trial"
+		if path == pathHealth || path == pathLivez || path == pathMetrics || path == "/docs" || path == "/openapi" || path == "/api/v1/cluster/health" || isPublicStatusPath || isPublicTrialMint || strings.HasPrefix(path, "/api/v1/webhooks/") || isPublicAuthPath || strings.HasPrefix(path, "/api/v1/onboard/") || strings.HasPrefix(path, "/api/v1/demo/") || strings.HasPrefix(path, "/api/v1/admin/") || strings.HasPrefix(path, "/x402/") {
 			c.Next()
 			return
 		}
