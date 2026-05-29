@@ -1,0 +1,5 @@
+METRIC   MEMORY  BASELINE  DELTA
+hit@3    0.89    0.78      +0.11
+hit@5    0.94    0.78      +0.17
+MRR      0.826   0.722     +0.104
+VERDICT: PASS — memory beats baseline

@@ -1,0 +1,18 @@
+{"query":"do users need to create an account before memory works out of the box?","gold":"install default is local-only"}
+{"query":"which coding agent should we support first and why?","gold":"first agent integration is Claude Code"}
+{"query":"what are we calling this whole project?","gold":"product name is mammoth"}
+{"query":"is event data lost when the server restarts?","gold":"Core is the database"}
+{"query":"where do we keep user accounts and billing info?","gold":"Postgres is metadata only"}
+{"query":"who handles login and where does authentication happen?","gold":"auth terminates at Control Plane"}
+{"query":"why does the docker build fail when targeting intel linux on my mac?","gold":"no amd64 cross-compile on Apple Silicon"}
+{"query":"where does the website get deployed versus the api services?","gold":"backend on Fly frontend on Vercel"}
+{"query":"should I open a pull request for a small fix?","gold":"commit direct to main"}
+{"query":"why did my commit get rejected for mentioning the AI assistant?","gold":"commit hook rejects AI attribution"}
+{"query":"how do we prove the memory product actually works to skeptics?","gold":"benchmark credibility is numbers"}
+{"query":"how does memory reach many different coding tools without lots of work?","gold":"recall rides MCP not per-agent shims"}
+{"query":"what model turns text into vectors and does it call an external API?","gold":"embeddings are in-process via fastembed"}
+{"query":"can we say everything in the stack is MIT licensed?","gold":"licenses are mixed not all MIT"}
+{"query":"how does the agent get prior context automatically each conversation?","gold":"auto-inject is the auto-activate engine"}
+{"query":"should the cross-machine sync tier be free for everyone?","gold":"hosted tier is metered not free"}
+{"query":"what gives the agent episodic memory of tasks and work done?","gold":"chronis is event-sourced tasks"}
+{"query":"is it safe to dump the whole source file into the memory store?","gold":"never store proprietary code in Prime"}
