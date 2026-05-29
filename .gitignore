@@ -79,6 +79,9 @@ tasks
 .chronis/sync/.remote_ids
 .chronis/sync/.local_ids
 
+# Prime MCP local data dir (WAL, Parquet, projection checkpoints)
+.prime/
+
 # AI Tools / IDE Assistants
 .agent/
 .agents/
