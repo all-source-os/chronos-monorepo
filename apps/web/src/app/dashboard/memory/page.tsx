@@ -102,9 +102,16 @@ function deriveStats(events: Event[]) {
 }
 
 export default function MemoryPage() {
-  // Pull the latest 200 events; we filter client-side to prime.*.
-  // Once the API exposes event_type_prefix this becomes a server filter.
-  const { events, isLoading, refresh } = useEvents({ limit: 200 });
+  // Server-side prefix filter so prime.* events can't be drowned out by other
+  // event types under a flat limit. The Query Service forwards
+  // event_type_prefix to Core, which filters before the limit is applied — so
+  // a high-traffic tenant with thousands of non-prime events still sees its
+  // memory. We keep the defensive client-side filter below in case the
+  // deployed gateway predates event_type_prefix support (graceful fallback).
+  const { events, isLoading, refresh } = useEvents({
+    event_type_prefix: PRIME_EVENT_PREFIX,
+    limit: 500,
+  });
 
   const primeEvents = useMemo(
     () => events.filter((e) => e.event_type.startsWith(PRIME_EVENT_PREFIX)),
@@ -156,12 +163,20 @@ export default function MemoryPage() {
                   <Brain className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
-                  <h2 className="mb-1 font-semibold text-foreground">No memory yet</h2>
+                  <h2 className="mb-1 font-semibold text-foreground">
+                    No memory is reaching this tenant yet
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    Prime stores everything as <code className="font-mono">prime.*</code> events.
-                    Once your local <code className="font-mono">allsource-prime</code> binary syncs
-                    to this tenant, you&apos;ll see nodes, edges, and vectors land here in real
-                    time.
+                    Prime stores everything as <code className="font-mono">prime.*</code> events. An
+                    empty panel almost always means{" "}
+                    <strong className="text-foreground">sync isn&apos;t configured</strong>, not
+                    that you have no memory: if <code className="font-mono">allsource-prime</code>{" "}
+                    is running without <code className="font-mono">--sync-to</code> and{" "}
+                    <code className="font-mono">--api-key</code>, your writes succeed{" "}
+                    <em>locally</em> but never ship here. Run{" "}
+                    <code className="font-mono">prime_stats</code> in your agent — its{" "}
+                    <code className="font-mono">sync</code> field tells you whether sync is enabled.
+                    Once it is, existing nodes, edges, and vectors backfill automatically.
                   </p>
                 </div>
               </div>
@@ -172,8 +187,8 @@ export default function MemoryPage() {
                 </div>
                 <p className="mb-3 text-sm text-muted-foreground">
                   Install <code className="font-mono">allsource-prime</code>, then launch it with
-                  the sync flags pointed at your tenant&apos;s Core URL and API key. Events show
-                  up here within a second.
+                  the sync flags pointed at your tenant&apos;s Core URL and API key. Events show up
+                  here within a second.
                 </p>
                 <pre className="overflow-x-auto rounded border bg-background/60 p-3 text-xs font-mono leading-relaxed">
                   {`# 1. install (0.21.4+)

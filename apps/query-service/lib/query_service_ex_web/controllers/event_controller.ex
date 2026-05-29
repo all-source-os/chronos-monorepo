@@ -26,7 +26,12 @@ defmodule QueryServiceExWeb.EventController do
     security: [%{"bearer_auth" => []}],
     parameters: [
       entity_id: [in: :query, type: :string, description: "Filter by entity ID"],
-      event_type: [in: :query, type: :string, description: "Filter by event type"],
+      event_type: [in: :query, type: :string, description: "Filter by event type (exact match)"],
+      event_type_prefix: [
+        in: :query,
+        type: :string,
+        description: "Filter by event type prefix (e.g. \"prime.\" matches prime.node.created)"
+      ],
       limit: [in: :query, type: :integer, description: "Maximum number of results (default: 100)"],
       offset: [in: :query, type: :integer, description: "Pagination offset (default: 0)"]
     ],
@@ -56,13 +61,14 @@ defmodule QueryServiceExWeb.EventController do
       %{limit: parse_int(params["limit"], 100), offset: parse_int(params["offset"], 0)}
       |> maybe_put(:entity_id, params["entity_id"])
       |> maybe_put(:event_type, params["event_type"])
+      |> maybe_put(:event_type_prefix, params["event_type_prefix"])
 
     case RustCoreClient.query_events(tenant_id, query_params, consistency: consistency) do
       {:ok, events} ->
         self_link =
           list_self_link(
             "/api/events",
-            Map.take(params, ["entity_id", "event_type", "limit", "offset"])
+            Map.take(params, ["entity_id", "event_type", "event_type_prefix", "limit", "offset"])
           )
 
         response =

@@ -540,6 +540,8 @@ export interface CreateEventRequest {
 export interface ListEventsParams {
   entity_id?: string;
   event_type?: string;
+  /** Server-side prefix filter, e.g. "prime." to fetch only Prime memory events. */
+  event_type_prefix?: string;
   limit?: number;
   offset?: number;
   as_of?: string;

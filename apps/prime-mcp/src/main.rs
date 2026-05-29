@@ -152,8 +152,25 @@ async fn main() -> Result<()> {
     // Spawn the push-only sync loop when both --sync-to and --api-key are set.
     // Mismatched flags are a user error worth surfacing rather than silently
     // dropping sync.
-    match (cli.sync_to.as_deref(), cli.api_key.as_deref()) {
+    //
+    // Treat blank strings as "not set". The Claude Desktop DXT manifest always
+    // passes `--sync-to ${user_config.sync_to}` / `--api-key ${...}`, so a user
+    // who clears the sync URL in the extension settings hands us `--sync-to ""`
+    // rather than omitting the flag. Without this guard that empty string would
+    // be taken as a real remote and every push would fail against `/api/v1/events`.
+    let sync_to = cli.sync_to.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let api_key = cli.api_key.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    match (sync_to, api_key) {
         (Some(url), Some(key)) => {
+            tracing::info!(
+                remote_url = %url,
+                "Prime sync ENABLED — prime.* events will be shipped to your AllSource tenant \
+                 and appear on the dashboard Memory tab (all-source.xyz/dashboard/memory)."
+            );
+            tools::set_sync_status(tools::SyncStatus {
+                enabled: true,
+                remote_url: Some(url.to_string()),
+            });
             let sync_config = sync::SyncConfig {
                 remote_url: url.to_string(),
                 api_key: key.to_string(),
@@ -164,9 +181,26 @@ async fn main() -> Result<()> {
             tokio::spawn(sync::run_sync_loop(sync_prime, sync_config, data_dir));
         }
         (Some(_), None) | (None, Some(_)) => {
-            anyhow::bail!("--sync-to and --api-key must be supplied together (or neither)");
+            anyhow::bail!(
+                "--sync-to and --api-key must be supplied together (or neither). \
+                 Get a tenant API key at https://www.all-source.xyz/connect."
+            );
         }
-        (None, None) => {}
+        (None, None) => {
+            tools::set_sync_status(tools::SyncStatus {
+                enabled: false,
+                remote_url: None,
+            });
+            // Loud, unmissable: a silent local-only mode is the exact failure
+            // that makes the dashboard show "No memory yet" while writes look
+            // like they're succeeding. Surface it at WARN on every startup.
+            tracing::warn!(
+                "Prime running LOCAL-ONLY — writes will NOT appear in your AllSource dashboard \
+                 (all-source.xyz/dashboard/memory). Pass --sync-to https://api.all-source.xyz \
+                 and --api-key <your tenant key> to sync. Get a key at \
+                 https://www.all-source.xyz/connect. Call prime_stats to confirm sync state."
+            );
+        }
     }
 
     match cli.mode {

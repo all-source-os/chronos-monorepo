@@ -145,6 +145,7 @@ async fn get_stats(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         "event_count": stats.event_count,
         "nodes_by_type": stats.nodes_by_type,
         "edges_by_relation": stats.edges_by_relation,
+        "sync": crate::tools::sync_status_json(),
     }))
 }
 

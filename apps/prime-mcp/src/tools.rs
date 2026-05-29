@@ -29,6 +29,64 @@ fn result_format() -> ResultFormat {
     RESULT_FORMAT.get().copied().unwrap_or(ResultFormat::Json)
 }
 
+/// Whether the running process is shipping `prime.*` events to a remote
+/// `AllSource` tenant (so the web dashboard's Memory tab can see them).
+///
+/// Recorded once at startup by `main` and surfaced through `prime_stats` so an
+/// agent — and the human reading its output — can tell at a glance whether
+/// memory is local-only or actually reaching the hosted dashboard. The whole
+/// point is that a silent local-only mode is no longer possible to mistake for
+/// a working sync.
+#[derive(Clone, Debug)]
+pub struct SyncStatus {
+    /// `true` when `--sync-to` + `--api-key` were supplied and the push loop
+    /// is running.
+    pub enabled: bool,
+    /// Remote base URL events are shipped to, when sync is enabled.
+    pub remote_url: Option<String>,
+}
+
+static SYNC_STATUS: OnceLock<SyncStatus> = OnceLock::new();
+
+/// Record the resolved sync status. Called once at startup; later calls are
+/// ignored.
+pub fn set_sync_status(status: SyncStatus) {
+    let _ = SYNC_STATUS.set(status);
+}
+
+fn sync_status() -> SyncStatus {
+    SYNC_STATUS
+        .get()
+        .cloned()
+        .unwrap_or(SyncStatus {
+            enabled: false,
+            remote_url: None,
+        })
+}
+
+/// Build the `sync` object embedded in `prime_stats` output. Mirrors the
+/// startup log so an agent can read back whether its writes will appear in the
+/// AllSource dashboard. Also reused by the HTTP `/api/v1/prime/stats` handler.
+pub fn sync_status_json() -> Value {
+    let status = sync_status();
+    if status.enabled {
+        json!({
+            "enabled": true,
+            "remote_url": status.remote_url,
+            "note": "prime.* events are syncing to your AllSource tenant — \
+                     writes will appear on the dashboard Memory tab.",
+        })
+    } else {
+        json!({
+            "enabled": false,
+            "remote_url": Value::Null,
+            "note": "LOCAL-ONLY: writes are NOT syncing to AllSource and will \
+                     NOT appear on the dashboard Memory tab. Relaunch prime with \
+                     --sync-to https://api.all-source.xyz and --api-key <key> to enable sync.",
+        })
+    }
+}
+
 /// Return MCP tool definitions (for `tools/list`).
 pub fn tool_definitions() -> Value {
     json!([
@@ -124,7 +182,7 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "prime_stats",
-            "description": "Quick overview of memory state: total nodes, edges, types, relations. Call this at conversation start to orient yourself. Low cost, no parameters needed.",
+            "description": "Quick overview of memory state: total nodes, edges, types, relations, AND sync status. Call this at conversation start to orient yourself. The 'sync' field tells you whether your writes are reaching the AllSource dashboard ('enabled': true) or are stranded local-only ('enabled': false) — if local-only, warn the user that nothing will appear at all-source.xyz/dashboard/memory until they relaunch prime with --sync-to and --api-key. Low cost, no parameters needed.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -649,6 +707,9 @@ fn call_stats(prime: &Prime) -> Value {
         "event_count": stats.event_count,
         "nodes_by_type": stats.nodes_by_type,
         "edges_by_relation": stats.edges_by_relation,
+        // Surface sync state so the agent can tell whether what it just wrote
+        // will reach the AllSource dashboard or is stranded local-only.
+        "sync": sync_status_json(),
     }))
 }
 
