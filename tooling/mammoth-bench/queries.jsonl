@@ -16,3 +16,45 @@
 {"query":"should the cross-machine sync tier be free for everyone?","gold":"hosted tier is metered not free"}
 {"query":"what gives the agent episodic memory of tasks and work done?","gold":"chronis is event-sourced tasks"}
 {"query":"is it safe to dump the whole source file into the memory store?","gold":"never store proprietary code in Prime"}
+{"query":"should we hide weak recall scores at launch?","gold":"benchmark honesty rule"}
+{"query":"do we expose manual commands or just rely on the automatic skill?","gold":"slash commands mirror auto-skill"}
+{"query":"does the installer require node to be installed?","gold":"installer needs no node"}
+{"query":"will running the installer twice wipe my other mcp servers?","gold":"idempotent mcp upsert preserves servers"}
+{"query":"how many memory tools does the server give the agent?","gold":"thirteen prime tools"}
+{"query":"what should the agent call first to get oriented?","gold":"prime_index orients first"}
+{"query":"how do I control how much context recall pulls in?","gold":"prime_context tiered recall"}
+{"query":"does recall only use vector similarity or also the graph?","gold":"recall is hybrid not vector-only"}
+{"query":"what index structure powers nearest-neighbor vector search?","gold":"HNSW via instant-distance"}
+{"query":"how do I get fewer tokens out of the task CLI for an agent?","gold":"chronis is TOON-optimized"}
+{"query":"why did cn reject my task with priority 1?","gold":"chronis priority enum"}
+{"query":"why did the task tool read zero tasks after an upgrade?","gold":"chronis cold-parquet boot bug"}
+{"query":"can I re-tag a release if it had a bug?","gold":"immutable tags policy"}
+{"query":"how do I tag a release for just one SDK language?","gold":"scoped release tags"}
+{"query":"when is it safe to cut a release tag?","gold":"release discipline three gates"}
+{"query":"what docker network do the services share?","gold":"docker network name"}
+{"query":"where is the Core container image published?","gold":"core docker image registry"}
+{"query":"what URL prefix do Core endpoints use and what status does ingest return?","gold":"core api v1 prefix"}
+{"query":"how do I fetch the most recent event for an entity?","gold":"core query default order"}
+{"query":"how fast is the event store at writes and reads?","gold":"core throughput numbers"}
+{"query":"should the env var be called RUST_CORE_URL?","gold":"clean env var names"}
+{"query":"which package manager do we use for the frontend?","gold":"bun only for js"}
+{"query":"what color format do the CSS variables use?","gold":"oklch css variables"}
+{"query":"where do blog posts live and how are share images made?","gold":"blog is mdx in content dir"}
+{"query":"what does the agent-memory comparison page stack us against?","gold":"compare page is 5-way"}
+{"query":"where does the backend run versus the website?","gold":"six fly apps"}
+{"query":"is it safe to fly deploy the web app?","gold":"no allsource-web fly app"}
+{"query":"how is the admin role decided for a user?","gold":"admin emails allowlist"}
+{"query":"why did all my minted API keys get 403?","gold":"api key role string contract"}
+{"query":"which packages go to crates.io versus a github registry?","gold":"five crates to cratesio"}
+{"query":"why does the github cli keep returning 401?","gold":"gh cli token workaround"}
+{"query":"how does Core scale without adding another database?","gold":"no raft no multileader"}
+{"query":"is it ok to store events in postgres?","gold":"postgres operational metadata only"}
+{"query":"do users have to pay before memory works at all?","gold":"hosted tier is the upgrade"}
+{"query":"what is the wow moment we are aiming for?","gold":"magic moment definition"}
+{"query":"are we competing with the token-compression tool?","gold":"compose with caveman"}
+{"query":"how does prior context get into the prompt automatically?","gold":"auto-context resource uri"}
+{"query":"how do I point the server at a different memory folder?","gold":"data dir env override"}
+{"query":"can I import my old beads issues into the task tool?","gold":"chronis migrate beads"}
+{"query":"does the event store authenticate public callers directly?","gold":"core is internal only"}
+{"query":"how do we prove memory survives a restart?","gold":"durability skill exists"}
+{"query":"why didn't we just call the project recall?","gold":"runner-up name recall rejected"}

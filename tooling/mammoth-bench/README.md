@@ -20,18 +20,27 @@ Two arms over the same seeded store and the same queries:
 Each query has a single labeled gold memory, so "Precision@5" is read honestly as
 hit-rate (gold appears in top-k). Also reports MRR.
 
+## Two harnesses
+
+- **`bench.py`** — the P0 smoke gate: precision@k only, fast. One claim, one table.
+- **`bench2.py`** — the full 5-claim harness (bead `t-12c2`): precision, a
+  cross-session continuity proxy, tokens-saved, recall latency p50/p95, and a
+  write→restart→read durability check. Honest about which numbers are measured
+  vs. proxied (see the docstring).
+
 ## Run
 
 ```bash
 cd tooling/mammoth-bench
-python3 bench.py            # uses fixtures.jsonl + queries.jsonl
-python3 bench.py --verbose  # per-query ranks
+python3 bench.py             # P0 smoke: precision only
+python3 bench2.py            # full 5-claim benchmark
+python3 bench2.py --verbose  # + per-query ranks
 ```
 
-Needs `allsource-prime >= 0.21.3` on `~/.cargo/bin` (or set `PRIME_BIN`). The
-harness drives the binary over stdio JSON-RPC against a throwaway temp
-`--data-dir`, so it never touches your real `.prime/` store. Exits non-zero if
-memory fails to beat baseline (so it can gate CI).
+Needs `allsource-prime >= 0.21.3` on `~/.cargo/bin` (or set `PRIME_BIN`). Both
+harnesses drive the binary over stdio JSON-RPC against a throwaway temp
+`--data-dir`, so they never touch your real `.prime/` store. Exit non-zero on
+failure (so they can gate CI).
 
 ## Files
 
@@ -40,8 +49,9 @@ memory fails to beat baseline (so it can gate CI).
   project's actual knowledge.
 - `queries.jsonl` — `query` (worded unlike the stored text, on purpose) + `gold`
   (the fixture `name` it should recall).
-- `bench.py` — the harness.
-- `RESULTS.txt` — last captured run.
+- `bench.py` — P0 smoke harness (precision only).
+- `bench2.py` — full 5-claim harness.
+- `RESULTS.txt` / `RESULTS-full.txt` — last captured runs.
 
 ## Baseline result (2026-05-30, 18 memories / 18 queries, k=5)
 
