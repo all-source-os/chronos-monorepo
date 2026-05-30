@@ -8,13 +8,12 @@ import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { siteConfig } from "@/lib/config";
 
-export type BlogCategory = "engineering" | "use-cases" | "product" | "company";
+export type BlogCategory = "engineering" | "use-cases" | "product";
 
 export const BLOG_CATEGORIES: { value: BlogCategory; label: string }[] = [
   { value: "engineering", label: "Engineering" },
   { value: "use-cases", label: "Use Cases" },
   { value: "product", label: "Product" },
-  { value: "company", label: "Company" },
 ];
 
 export type Post = {
