@@ -16,37 +16,99 @@ graph + vector + temporal over a durable event store) and
 memory). caveman compresses what you *say*; mammoth remembers what you *said*.
 They compose.
 
+## The magic moment
+
+Sessions later, you ask *"why did we pick X over Y?"* — and the agent answers
+from memory, without you pasting any history. It recalled a decision from a
+session it was never in. That's the whole product.
+
 ## What you get
 
-A `mammoth-memory` skill that runs a recall/record loop, plus the Prime MCP
-server wired in via `.mcp.json` exposing 13 `prime_*` tools (`prime_recall`,
-`prime_context`, `prime_add_node`, `prime_embed`, `prime_stats`, …) and the
-`prime://auto-context` resource — a compressed knowledge index auto-injected into
-every conversation.
+- A `mammoth-memory` skill that runs the recall/record loop automatically.
+- `/remember`, `/recall`, `/memory-status` slash commands (explicit escape hatches).
+- The Prime MCP server wired via `.mcp.json` — **13 `prime_*` tools**
+  (`prime_recall`, `prime_context`, `prime_add_node`, `prime_embed`,
+  `prime_stats`, …) plus the `prime://auto-context` resource: a compressed
+  knowledge index auto-injected into every conversation.
 
-## Prerequisite
-
-The `allsource-prime` binary must be on your `PATH`:
+## Prerequisite (all agents)
 
 ```bash
-cargo install allsource-prime
+cargo install allsource-prime   # needs >= 0.21.3 (in-process fastembed, no external service)
 ```
 
-(Requires `>= 0.21.3` for in-process text embedding via fastembed — no external
-embedding service.)
+The binary must be on your `PATH`.
 
-## Install (Claude Code)
+## Install
 
-Add the marketplace and install the plugin:
+### Claude Code (richest — plugin)
 
 ```
 /plugin marketplace add all-source-os/chronos
 /plugin install mammoth
 ```
 
-Restart Claude Code and approve the project `prime` MCP server when prompted. The
-`mammoth-memory` skill activates automatically; recall fires before
-prior-knowledge questions and salient facts get recorded as you work.
+Restart and approve the project `prime` MCP server when prompted. The
+`mammoth-memory` skill then activates automatically.
+
+### One-line installer (any supported agent)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/all-source-os/chronos/main/plugin/mammoth/install.sh | bash
+```
+
+Auto-detects your agents, installs the binary if needed, and writes the MCP
+config. `--print` to preview, `--help` for flags. Windows: `install.ps1`.
+
+### Install matrix
+
+mammoth's core capability is one MCP server — any MCP agent gets all 13 tools by
+adding one stanza. See [INSTALL.md](./INSTALL.md) for per-agent placement.
+
+| Agent | Path |
+|-------|------|
+| **Claude Code** | plugin (above) or project `.mcp.json` — also gets the skill + slash commands |
+| **Cursor** | `.cursor/mcp.json` |
+| **Cline** | Cline MCP settings |
+| **Windsurf** | `~/.codeium/windsurf/mcp_config.json` |
+| **Codex** | Codex MCP config |
+| **Gemini CLI** | `~/.gemini/settings.json` |
+
+The shared MCP stanza:
+
+```jsonc
+{
+  "mcpServers": {
+    "prime": {
+      "command": "allsource-prime",
+      "args": ["--data-dir", "~/.prime/memory", "--auto-inject", "--auto-inject-max-tokens", "1000"]
+    }
+  }
+}
+```
+
+## Does it actually work? (benchmarks)
+
+Reproducible harness in [`tooling/mammoth-bench/`](../../tooling/mammoth-bench/)
+— run it yourself. Recall is scored against a keyword search+grep baseline over
+the same store, with queries deliberately worded *unlike* the stored text.
+
+Full run, 60 memories / 60 queries, k=5 (`bench2.py`):
+
+| metric | result | kind |
+|--------|--------|------|
+| Recall hit@5 | **0.90** (baseline 0.83, Δ +0.07) | measured |
+| Recall hit@3 / MRR | 0.87 / 0.783 | measured |
+| Cross-session continuity win-rate | 0.07 | proxy |
+| Median tokens saved / recall | 19 (986 total over 54 hits) | estimate |
+| Recall latency p50 / p95 | **3.0ms / 3.6ms** | measured |
+| Durability (write→restart→read) | **PASS** | measured |
+
+Honest note: on a smaller 18-memory set the edge was +0.17; it narrows to +0.07
+as the corpus densifies and the keyword baseline gets more overlap to exploit.
+Memory still wins every metric. The improvement levers (hybrid keyword+vector,
+graph `depth`, a larger embedder) are unused here — headroom, not yet spent. We
+publish the softening rather than hide it.
 
 ## How it stores
 
@@ -56,9 +118,10 @@ AllSource Core engine. Your memory survives restarts and never leaves your
 machine. No account required.
 
 Cross-machine / team memory is the upgrade: add `--sync-to <url> --api-key <key>`
-to ship `prime.*` events to a hosted AllSource Core. Free tier remembers across
-sessions on *this machine*; cross-machine and team memory need a free AllSource
-account.
+to ship `prime.*` events to a hosted AllSource Core.
+
+> **Free tier** remembers across sessions on *this machine*, no account.
+> Cross-machine and team memory need a free AllSource account.
 
 ## Provenance
 
@@ -68,5 +131,6 @@ file contents into memory unless you explicitly allow it.
 
 ## License
 
-MIT (plugin layer). The engines: `allsource-prime` and `allsource-core` are
-Apache-2.0; `chronis` is MIT.
+MIT (plugin layer — `plugin/mammoth/` + `.claude-plugin/`). The engines:
+`allsource-prime` and `allsource-core` are Apache-2.0; `chronis` is MIT. See
+[LICENSE](./LICENSE).
