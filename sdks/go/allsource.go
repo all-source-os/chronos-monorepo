@@ -365,6 +365,113 @@ func (c *Client) GetProjections(ctx context.Context) (*ProjectionList, error) {
 	return &pl, nil
 }
 
+// PrimeProjection describes a Prime projection definition: the entity type and
+// the per-field merge policies that govern how observations fold into fields.
+type PrimeProjection struct {
+	EntityType    string            `json:"entity_type"`
+	FieldPolicies map[string]string `json:"field_policies"`
+}
+
+// PrimeProjectionAck is the acknowledgement returned when a Prime projection is
+// defined.
+type PrimeProjectionAck struct {
+	EntityType string `json:"entity_type"`
+	Persisted  bool   `json:"persisted"`
+}
+
+// PrimeSnapshot is the materialized field view of a Prime node, produced by
+// folding its observations through the entity type's merge policies.
+type PrimeSnapshot struct {
+	EntityType       string         `json:"entity_type"`
+	Fields           map[string]any `json:"fields"`
+	ObservationCount int            `json:"observation_count"`
+}
+
+// PrimeProvenance describes which source event supplied a node field's current
+// value and the merge policy that selected it.
+type PrimeProvenance struct {
+	Field              string `json:"field"`
+	Value              any    `json:"value"`
+	SourceEventID      string `json:"source_event_id"`
+	SourceEventAt      string `json:"source_event_at"`
+	MergePolicyApplied string `json:"merge_policy_applied"`
+}
+
+// GetPrimeProjections returns all Prime projection definitions.
+func (c *Client) GetPrimeProjections(ctx context.Context) ([]PrimeProjection, error) {
+	respData, _, err := c.do(ctx, http.MethodGet, "/api/v1/prime/projections", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var w struct {
+		Data []PrimeProjection `json:"data"`
+	}
+	if err := json.Unmarshal(respData, &w); err != nil {
+		return nil, fmt.Errorf("decode prime projections: %w", err)
+	}
+	return w.Data, nil
+}
+
+// DefinePrimeProjection defines (or updates) a Prime projection for an entity
+// type with the given per-field merge policies (e.g. last_write,
+// highest_priority, most_specific, merge_array).
+func (c *Client) DefinePrimeProjection(ctx context.Context, entityType string, fieldPolicies map[string]string) (*PrimeProjectionAck, error) {
+	body := map[string]any{
+		"entity_type":    entityType,
+		"field_policies": fieldPolicies,
+	}
+	respData, _, err := c.do(ctx, http.MethodPost, "/api/v1/prime/projections", body)
+	if err != nil {
+		return nil, err
+	}
+
+	var w struct {
+		Data PrimeProjectionAck `json:"data"`
+	}
+	if err := json.Unmarshal(respData, &w); err != nil {
+		return nil, fmt.Errorf("decode prime projection ack: %w", err)
+	}
+	return &w.Data, nil
+}
+
+// ProjectNode materializes the current field snapshot for a Prime node by
+// folding its observations through the entity type's merge policies.
+func (c *Client) ProjectNode(ctx context.Context, nodeID string) (*PrimeSnapshot, error) {
+	path := fmt.Sprintf("/api/v1/prime/nodes/%s/project", nodeID)
+	respData, _, err := c.do(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var w struct {
+		Data PrimeSnapshot `json:"data"`
+	}
+	if err := json.Unmarshal(respData, &w); err != nil {
+		return nil, fmt.Errorf("decode prime snapshot: %w", err)
+	}
+	return &w.Data, nil
+}
+
+// NodeFieldProvenance returns the provenance for a single field of a Prime node:
+// which source event supplied the current value and the merge policy applied.
+// A 404 propagates as an *APIError; callers can check apiErr.IsNotFound().
+func (c *Client) NodeFieldProvenance(ctx context.Context, nodeID, field string) (*PrimeProvenance, error) {
+	path := fmt.Sprintf("/api/v1/prime/nodes/%s/fields/%s/provenance", nodeID, field)
+	respData, _, err := c.do(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var w struct {
+		Data PrimeProvenance `json:"data"`
+	}
+	if err := json.Unmarshal(respData, &w); err != nil {
+		return nil, fmt.Errorf("decode prime provenance: %w", err)
+	}
+	return &w.Data, nil
+}
+
 // Health checks the API health endpoint.
 func (c *Client) Health(ctx context.Context) (map[string]any, error) {
 	respData, _, err := c.do(ctx, http.MethodGet, "/health", nil)

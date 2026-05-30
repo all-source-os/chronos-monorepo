@@ -192,6 +192,118 @@ describe("listProjections", () => {
   });
 });
 
+describe("listPrimeProjections", () => {
+  test("sends GET /api/v1/prime/projections and unwraps data", async () => {
+    const client = createClient();
+    const projections = [
+      { entity_type: "user", field_policies: { name: "last_write", role: "highest_priority" } },
+    ];
+
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ data: projections, count: 1 }), { status: 200 }),
+      ),
+    );
+
+    const result = await client.listPrimeProjections();
+
+    expect(result).toEqual(projections);
+    expect(result.length).toBe(1);
+
+    const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${MOCK_BASE_URL}/api/v1/prime/projections`);
+    expect(options.method).toBe("GET");
+  });
+});
+
+describe("definePrimeProjection", () => {
+  test("sends POST /api/v1/prime/projections with snake_case body and unwraps data", async () => {
+    const client = createClient();
+    const ack = { entity_type: "user", persisted: true };
+
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ data: ack }), { status: 201 })),
+    );
+
+    const fieldPolicies = { name: "last_write", role: "most_specific" };
+    const result = await client.definePrimeProjection("user", fieldPolicies);
+
+    expect(result).toEqual(ack);
+
+    const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${MOCK_BASE_URL}/api/v1/prime/projections`);
+    expect(options.method).toBe("POST");
+    const sent = JSON.parse(options.body as string);
+    expect(sent.entity_type).toBe("user");
+    expect(sent.field_policies).toEqual(fieldPolicies);
+  });
+});
+
+describe("projectNode", () => {
+  test("sends POST /api/v1/prime/nodes/{id}/project and unwraps data", async () => {
+    const client = createClient();
+    const snapshot = {
+      entity_type: "user",
+      fields: { name: "Ada" },
+      observation_count: 3,
+    };
+
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ data: snapshot }), { status: 200 })),
+    );
+
+    const result = await client.projectNode("user:abc");
+
+    expect(result).toEqual(snapshot);
+
+    const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${MOCK_BASE_URL}/api/v1/prime/nodes/user:abc/project`);
+    expect(options.method).toBe("POST");
+  });
+});
+
+describe("nodeFieldProvenance", () => {
+  test("sends GET provenance path and unwraps data", async () => {
+    const client = createClient();
+    const provenance = {
+      field: "name",
+      value: "Ada",
+      source_event_id: "evt-1",
+      source_event_at: "2026-02-16T00:00:00Z",
+      merge_policy_applied: "last_write",
+    };
+
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ data: provenance }), { status: 200 })),
+    );
+
+    const result = await client.nodeFieldProvenance("user:abc", "name");
+
+    expect(result).toEqual(provenance);
+
+    const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${MOCK_BASE_URL}/api/v1/prime/nodes/user:abc/fields/name/provenance`);
+    expect(options.method).toBe("GET");
+  });
+
+  test("rejects with AllSourceError (404) when no provenance exists", async () => {
+    const client = createClient({ retry: { maxRetries: 0 } });
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: "not found" }), { status: 404 }),
+      ),
+    );
+
+    try {
+      await client.nodeFieldProvenance("user:abc", "missing");
+      expect(true).toBe(false); // should not reach
+    } catch (err) {
+      expect(err).toBeInstanceOf(AllSourceError);
+      expect((err as AllSourceError).isNotFound()).toBe(true);
+    }
+  });
+});
+
 describe("error handling", () => {
   test("throws AllSourceError on non-2xx response", async () => {
     const client = createClient({ retry: { maxRetries: 0 } });

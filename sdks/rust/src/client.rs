@@ -268,6 +268,19 @@ pub struct QueryClient {
     transport: Arc<HttpTransport>,
 }
 
+/// Gateway responses wrap their payload in a `{"data": ...}` envelope.
+#[derive(Deserialize)]
+struct Envelope<T> {
+    data: T,
+}
+
+/// Request body for [`QueryClient::define_prime_projection`].
+#[derive(Serialize)]
+struct DefinePrimeProjectionRequest {
+    entity_type: String,
+    field_policies: std::collections::BTreeMap<String, String>,
+}
+
 impl QueryClient {
     /// Create a new Query Service client.
     pub fn new(base_url: &str, api_key: &str) -> Result<Self, Error> {
@@ -313,6 +326,63 @@ impl QueryClient {
     /// List projections.
     pub async fn list_projections(&self) -> Result<ProjectionsResponse, Error> {
         self.transport.get("/api/v1/projections").await
+    }
+
+    /// List all Prime projection definitions.
+    ///
+    /// Proxies the gateway's `GET /api/v1/prime/projections`. Each entry maps an
+    /// entity type to its per-field merge policies.
+    pub async fn list_prime_projections(&self) -> Result<Vec<PrimeProjection>, Error> {
+        let resp: Envelope<Vec<PrimeProjection>> =
+            self.transport.get("/api/v1/prime/projections").await?;
+        Ok(resp.data)
+    }
+
+    /// Define (or replace) a Prime projection for an entity type.
+    ///
+    /// Proxies the gateway's `POST /api/v1/prime/projections`. `field_policies`
+    /// maps each field to a policy string
+    /// (`last_write` | `highest_priority` | `most_specific` | `merge_array`).
+    pub async fn define_prime_projection(
+        &self,
+        entity_type: &str,
+        field_policies: std::collections::BTreeMap<String, String>,
+    ) -> Result<PrimeProjectionAck, Error> {
+        let body = DefinePrimeProjectionRequest {
+            entity_type: entity_type.to_string(),
+            field_policies,
+        };
+        let resp: Envelope<PrimeProjectionAck> = self
+            .transport
+            .post("/api/v1/prime/projections", &body)
+            .await?;
+        Ok(resp.data)
+    }
+
+    /// Materialize a Prime node's current projected state.
+    ///
+    /// Proxies the gateway's `POST /api/v1/prime/nodes/{id}/project`. Node ids
+    /// (e.g. `node:contact:1`) are interpolated raw — the `:` characters are
+    /// path-safe — to stay consistent with the Go and TypeScript SDKs.
+    pub async fn project_node(&self, node_id: &str) -> Result<PrimeSnapshot, Error> {
+        let path = format!("/api/v1/prime/nodes/{node_id}/project");
+        let resp: Envelope<PrimeSnapshot> = self.transport.post(&path, &serde_json::json!({})).await?;
+        Ok(resp.data)
+    }
+
+    /// Fetch provenance for a single field of a Prime node.
+    ///
+    /// Proxies the gateway's
+    /// `GET /api/v1/prime/nodes/{id}/fields/{field}/provenance`. Returns `None`
+    /// when the gateway responds 404 (no provenance recorded for that field).
+    pub async fn node_field_provenance(
+        &self,
+        node_id: &str,
+        field: &str,
+    ) -> Result<Option<PrimeProvenance>, Error> {
+        let path = format!("/api/v1/prime/nodes/{node_id}/fields/{field}/provenance");
+        let resp: Option<Envelope<PrimeProvenance>> = self.transport.get_optional(&path).await?;
+        Ok(resp.map(|e| e.data))
     }
 
     /// Check health.
@@ -521,5 +591,144 @@ mod tests {
         assert_eq!(cfg.max_retries, 3);
         assert_eq!(cfg.base_delay, Duration::from_millis(200));
         assert_eq!(cfg.backoff_factor, 2.0);
+    }
+
+    mod prime {
+        use super::*;
+        use serde_json::json;
+        use wiremock::{
+            matchers::{method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+
+        fn make_client(server: &MockServer) -> QueryClient {
+            QueryClient::new(&server.uri(), "test-key").unwrap()
+        }
+
+        #[tokio::test]
+        async fn list_prime_projections_unwraps_data() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/api/v1/prime/projections"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "data": [
+                        {
+                            "entity_type": "contact",
+                            "field_policies": {
+                                "name": "last_write",
+                                "tags": "merge_array"
+                            }
+                        }
+                    ],
+                    "count": 1
+                })))
+                .mount(&server)
+                .await;
+
+            let client = make_client(&server);
+            let projections = client.list_prime_projections().await.unwrap();
+            assert_eq!(projections.len(), 1);
+            assert_eq!(projections[0].entity_type, "contact");
+            assert_eq!(
+                projections[0].field_policies.get("name").map(String::as_str),
+                Some("last_write")
+            );
+            assert_eq!(
+                projections[0].field_policies.get("tags").map(String::as_str),
+                Some("merge_array")
+            );
+        }
+
+        #[tokio::test]
+        async fn define_prime_projection_returns_ack() {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/api/v1/prime/projections"))
+                .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                    "data": { "entity_type": "contact", "persisted": true }
+                })))
+                .mount(&server)
+                .await;
+
+            let client = make_client(&server);
+            let mut policies = std::collections::BTreeMap::new();
+            policies.insert("name".to_string(), "last_write".to_string());
+            let ack = client
+                .define_prime_projection("contact", policies)
+                .await
+                .unwrap();
+            assert_eq!(ack.entity_type, "contact");
+            assert!(ack.persisted);
+        }
+
+        #[tokio::test]
+        async fn project_node_returns_snapshot() {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/api/v1/prime/nodes/node:contact:1/project"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "data": {
+                        "entity_type": "contact",
+                        "fields": { "name": "Ada", "email": "ada@example.com" },
+                        "observation_count": 3
+                    }
+                })))
+                .mount(&server)
+                .await;
+
+            let client = make_client(&server);
+            let snapshot = client.project_node("node:contact:1").await.unwrap();
+            assert_eq!(snapshot.entity_type, "contact");
+            assert_eq!(snapshot.observation_count, 3);
+            assert_eq!(snapshot.fields.get("name").and_then(|v| v.as_str()), Some("Ada"));
+        }
+
+        #[tokio::test]
+        async fn node_field_provenance_returns_some() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/api/v1/prime/nodes/node:contact:1/fields/name/provenance"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "data": {
+                        "field": "name",
+                        "value": "Ada",
+                        "source_event_id": "evt-7",
+                        "source_event_at": "2026-05-29T12:00:00Z",
+                        "merge_policy_applied": "last_write"
+                    }
+                })))
+                .mount(&server)
+                .await;
+
+            let client = make_client(&server);
+            let prov = client
+                .node_field_provenance("node:contact:1", "name")
+                .await
+                .unwrap()
+                .expect("provenance should be present");
+            assert_eq!(prov.field, "name");
+            assert_eq!(prov.value.as_str(), Some("Ada"));
+            assert_eq!(prov.source_event_id, "evt-7");
+            assert_eq!(prov.merge_policy_applied, "last_write");
+        }
+
+        #[tokio::test]
+        async fn node_field_provenance_404_returns_none() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/api/v1/prime/nodes/node:contact:1/fields/missing/provenance"))
+                .respond_with(ResponseTemplate::new(404).set_body_json(json!({
+                    "error": "not found"
+                })))
+                .mount(&server)
+                .await;
+
+            let client = make_client(&server);
+            let prov = client
+                .node_field_provenance("node:contact:1", "missing")
+                .await
+                .unwrap();
+            assert!(prov.is_none());
+        }
     }
 }

@@ -1,5 +1,7 @@
 """Tests for the async AllSource client."""
 
+import json
+
 import pytest
 from pytest_httpx import HTTPXMock
 
@@ -110,6 +112,112 @@ class TestAsyncProjections:
 
         p = await client.get_projection("my-proj")
         assert p.name == "my-proj"
+        await client.close()
+
+
+class TestAsyncPrime:
+    async def test_list_prime_projections(
+        self, client: AllSourceAsyncClient, httpx_mock: HTTPXMock
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/projections",
+            method="GET",
+            json={
+                "data": [
+                    {
+                        "entity_type": "person",
+                        "field_policies": {"name": "last_write"},
+                    }
+                ],
+                "count": 1,
+            },
+        )
+
+        projections = await client.list_prime_projections()
+        assert len(projections) == 1
+        assert projections[0].entity_type == "person"
+        assert projections[0].field_policies["name"] == "last_write"
+        await client.close()
+
+    async def test_define_prime_projection(
+        self, client: AllSourceAsyncClient, httpx_mock: HTTPXMock
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/projections",
+            method="POST",
+            status_code=201,
+            json={"data": {"entity_type": "person", "persisted": True}},
+        )
+
+        ack = await client.define_prime_projection(
+            "person", {"name": "merge_array"}
+        )
+        assert ack.entity_type == "person"
+        assert ack.persisted is True
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        body = json.loads(request.content)
+        assert body["entity_type"] == "person"
+        assert body["field_policies"] == {"name": "merge_array"}
+        await client.close()
+
+    async def test_project_node(
+        self, client: AllSourceAsyncClient, httpx_mock: HTTPXMock
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/nodes/person:alice/project",
+            method="POST",
+            json={
+                "data": {
+                    "entity_type": "person",
+                    "fields": {"name": "Alice"},
+                    "observation_count": 2,
+                }
+            },
+        )
+
+        snapshot = await client.project_node("person:alice")
+        assert snapshot.entity_type == "person"
+        assert snapshot.fields["name"] == "Alice"
+        assert snapshot.observation_count == 2
+        await client.close()
+
+    async def test_node_field_provenance(
+        self, client: AllSourceAsyncClient, httpx_mock: HTTPXMock
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/nodes/person:alice/fields/name/provenance",
+            method="GET",
+            json={
+                "data": {
+                    "field": "name",
+                    "value": "Alice",
+                    "source_event_id": "evt-7",
+                    "source_event_at": "2026-01-01T00:00:00Z",
+                    "merge_policy_applied": "last_write",
+                }
+            },
+        )
+
+        prov = await client.node_field_provenance("person:alice", "name")
+        assert prov is not None
+        assert prov.field == "name"
+        assert prov.source_event_id == "evt-7"
+        await client.close()
+
+    async def test_node_field_provenance_404(
+        self, client: AllSourceAsyncClient, httpx_mock: HTTPXMock
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/nodes/person:alice/fields/missing/provenance",
+            method="GET",
+            status_code=404,
+            json={"error": {"code": "not_found", "message": "no provenance"}},
+        )
+
+        prov = await client.node_field_provenance("person:alice", "missing")
+        assert prov is None
         await client.close()
 
 

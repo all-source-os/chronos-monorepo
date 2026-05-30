@@ -180,6 +180,201 @@ func TestGetProjections(t *testing.T) {
 	}
 }
 
+func TestGetPrimeProjections(t *testing.T) {
+	srv, client := setupTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/v1/prime/projections" {
+			t.Errorf("expected /api/v1/prime/projections, got %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{
+				{
+					"entity_type": "person",
+					"field_policies": map[string]any{
+						"name":  "last_write",
+						"email": "highest_priority",
+					},
+				},
+			},
+			"count": 1,
+		})
+	})
+	defer srv.Close()
+
+	result, err := client.GetPrimeProjections(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 projection, got %d", len(result))
+	}
+	if result[0].EntityType != "person" {
+		t.Errorf("expected entity_type person, got %s", result[0].EntityType)
+	}
+	if result[0].FieldPolicies["name"] != "last_write" {
+		t.Errorf("expected name policy last_write, got %s", result[0].FieldPolicies["name"])
+	}
+	if result[0].FieldPolicies["email"] != "highest_priority" {
+		t.Errorf("expected email policy highest_priority, got %s", result[0].FieldPolicies["email"])
+	}
+}
+
+func TestDefinePrimeProjection(t *testing.T) {
+	srv, client := setupTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/v1/prime/projections" {
+			t.Errorf("expected /api/v1/prime/projections, got %s", r.URL.Path)
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if body["entity_type"] != "person" {
+			t.Errorf("expected entity_type person, got %v", body["entity_type"])
+		}
+		policies, ok := body["field_policies"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected field_policies map, got %T", body["field_policies"])
+		}
+		if policies["tags"] != "merge_array" {
+			t.Errorf("expected tags policy merge_array, got %v", policies["tags"])
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"entity_type": "person",
+				"persisted":   true,
+			},
+		})
+	})
+	defer srv.Close()
+
+	ack, err := client.DefinePrimeProjection(context.Background(), "person", map[string]string{
+		"tags": "merge_array",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ack.EntityType != "person" {
+		t.Errorf("expected entity_type person, got %s", ack.EntityType)
+	}
+	if !ack.Persisted {
+		t.Error("expected persisted true")
+	}
+}
+
+func TestProjectNode(t *testing.T) {
+	srv, client := setupTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/v1/prime/nodes/person:alice/project" {
+			t.Errorf("expected /api/v1/prime/nodes/person:alice/project, got %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"entity_type": "person",
+				"fields": map[string]any{
+					"name": "Alice",
+				},
+				"observation_count": 3,
+			},
+		})
+	})
+	defer srv.Close()
+
+	snap, err := client.ProjectNode(context.Background(), "person:alice")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if snap.EntityType != "person" {
+		t.Errorf("expected entity_type person, got %s", snap.EntityType)
+	}
+	if snap.Fields["name"] != "Alice" {
+		t.Errorf("expected field name Alice, got %v", snap.Fields["name"])
+	}
+	if snap.ObservationCount != 3 {
+		t.Errorf("expected observation_count 3, got %d", snap.ObservationCount)
+	}
+}
+
+func TestNodeFieldProvenance(t *testing.T) {
+	srv, client := setupTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/v1/prime/nodes/person:alice/fields/name/provenance" {
+			t.Errorf("expected /api/v1/prime/nodes/person:alice/fields/name/provenance, got %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"field":                "name",
+				"value":                "Alice",
+				"source_event_id":      "evt-42",
+				"source_event_at":      "2026-01-01T00:00:00Z",
+				"merge_policy_applied": "last_write",
+			},
+		})
+	})
+	defer srv.Close()
+
+	prov, err := client.NodeFieldProvenance(context.Background(), "person:alice", "name")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if prov.Field != "name" {
+		t.Errorf("expected field name, got %s", prov.Field)
+	}
+	if prov.Value != "Alice" {
+		t.Errorf("expected value Alice, got %v", prov.Value)
+	}
+	if prov.SourceEventID != "evt-42" {
+		t.Errorf("expected source_event_id evt-42, got %s", prov.SourceEventID)
+	}
+	if prov.MergePolicyApplied != "last_write" {
+		t.Errorf("expected merge_policy_applied last_write, got %s", prov.MergePolicyApplied)
+	}
+}
+
+func TestNodeFieldProvenanceNotFound(t *testing.T) {
+	srv, client := setupTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": map[string]any{
+				"code":    "not_found",
+				"message": "no provenance for field",
+			},
+		})
+	})
+	defer srv.Close()
+
+	_, err := client.NodeFieldProvenance(context.Background(), "person:alice", "name")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Errorf("expected IsNotFound, got status %d", apiErr.StatusCode)
+	}
+}
+
 func TestHealth(t *testing.T) {
 	srv, client := setupTestServer(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/health" {

@@ -105,6 +105,74 @@ class Webhook:
 
 
 @dataclass
+class PrimeProjection:
+    """A Prime entity-type projection definition."""
+
+    entity_type: str
+    field_policies: Dict[str, str]
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> PrimeProjection:
+        return cls(
+            entity_type=data.get("entity_type", ""),
+            field_policies=data.get("field_policies", {}),
+        )
+
+
+@dataclass
+class PrimeProjectionAck:
+    """Acknowledgement of a defined Prime projection."""
+
+    entity_type: str
+    persisted: bool
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> PrimeProjectionAck:
+        return cls(
+            entity_type=data.get("entity_type", ""),
+            persisted=data.get("persisted", False),
+        )
+
+
+@dataclass
+class PrimeSnapshot:
+    """A projected snapshot of a Prime node."""
+
+    entity_type: str
+    fields: Dict[str, Any]
+    observation_count: int
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> PrimeSnapshot:
+        return cls(
+            entity_type=data.get("entity_type", ""),
+            fields=data.get("fields", {}),
+            observation_count=data.get("observation_count", 0),
+        )
+
+
+@dataclass
+class PrimeProvenance:
+    """Provenance for a single projected field of a Prime node."""
+
+    field: str
+    value: Any
+    source_event_id: str
+    source_event_at: str
+    merge_policy_applied: str
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> PrimeProvenance:
+        return cls(
+            field=data.get("field", ""),
+            value=data.get("value"),
+            source_event_id=data.get("source_event_id", ""),
+            source_event_at=data.get("source_event_at", ""),
+            merge_policy_applied=data.get("merge_policy_applied", ""),
+        )
+
+
+@dataclass
 class WebhookDelivery:
     """A webhook delivery record."""
 

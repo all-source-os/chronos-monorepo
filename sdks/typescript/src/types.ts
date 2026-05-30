@@ -94,6 +94,34 @@ export interface ProjectionsResponse {
   total: number;
 }
 
+/** A Prime projection definition (entity type plus per-field merge policies). */
+export interface PrimeProjection {
+  entity_type: string;
+  field_policies: Record<string, string>;
+}
+
+/** Acknowledgement returned when defining a Prime projection. */
+export interface PrimeProjectionAck {
+  entity_type: string;
+  persisted: boolean;
+}
+
+/** A materialized Prime node snapshot. */
+export interface PrimeSnapshot {
+  entity_type: string;
+  fields: Record<string, unknown>;
+  observation_count: number;
+}
+
+/** Provenance for a single field on a Prime node. */
+export interface PrimeProvenance {
+  field: string;
+  value: unknown;
+  source_event_id: string;
+  source_event_at: string;
+  merge_policy_applied: string;
+}
+
 /** Response from the health endpoint. */
 export interface HealthResponse {
   status: string;

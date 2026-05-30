@@ -6,6 +6,10 @@ import {
   type Event,
   type HealthResponse,
   type IngestEventInput,
+  type PrimeProjection,
+  type PrimeProjectionAck,
+  type PrimeProvenance,
+  type PrimeSnapshot,
   type ProjectionsResponse,
   type QueryEventsParams,
   type QueryEventsResponse,
@@ -88,6 +92,49 @@ export class AllSourceClient {
   /** List all projections from AllSource Core. */
   async listProjections(): Promise<ProjectionsResponse> {
     return this.request<ProjectionsResponse>("GET", "/api/v1/projections");
+  }
+
+  /** List all Prime projection definitions from the gateway. */
+  async listPrimeProjections(): Promise<PrimeProjection[]> {
+    const res = await this.request<{ data: PrimeProjection[]; count: number }>(
+      "GET",
+      "/api/v1/prime/projections",
+    );
+    return res.data;
+  }
+
+  /** Define (or update) a Prime projection with per-field merge policies. */
+  async definePrimeProjection(
+    entityType: string,
+    fieldPolicies: Record<string, string>,
+  ): Promise<PrimeProjectionAck> {
+    const res = await this.request<{ data: PrimeProjectionAck }>(
+      "POST",
+      "/api/v1/prime/projections",
+      { entity_type: entityType, field_policies: fieldPolicies },
+    );
+    return res.data;
+  }
+
+  /** Project a Prime node into a materialized snapshot. */
+  async projectNode(nodeId: string): Promise<PrimeSnapshot> {
+    const res = await this.request<{ data: PrimeSnapshot }>(
+      "POST",
+      `/api/v1/prime/nodes/${nodeId}/project`,
+    );
+    return res.data;
+  }
+
+  /** Fetch provenance for a single field on a Prime node. Throws AllSourceError (404) when none. */
+  async nodeFieldProvenance(
+    nodeId: string,
+    field: string,
+  ): Promise<PrimeProvenance> {
+    const res = await this.request<{ data: PrimeProvenance }>(
+      "GET",
+      `/api/v1/prime/nodes/${nodeId}/fields/${field}/provenance`,
+    );
+    return res.data;
   }
 
   /** Query events and fold them into a state using the provided folder. */

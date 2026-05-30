@@ -10,6 +10,10 @@ from allsource_client.types import (
     AllSourceError,
     Event,
     EventList,
+    PrimeProjection,
+    PrimeProjectionAck,
+    PrimeProvenance,
+    PrimeSnapshot,
     Projection,
     Webhook,
     WebhookDelivery,
@@ -182,6 +186,57 @@ class AllSourceClient:
         result = self._request("POST", "/api/projections", json=body)
         data = result.get("data", result)
         return Projection.from_dict(data)
+
+    # --- Prime ---
+
+    def list_prime_projections(self) -> List[PrimeProjection]:
+        """List all Prime projection definitions."""
+        result = self._request("GET", "/api/v1/prime/projections")
+        data = result.get("data", result)
+        if isinstance(data, list):
+            return [PrimeProjection.from_dict(p) for p in data]
+        return []
+
+    def define_prime_projection(
+        self,
+        entity_type: str,
+        field_policies: Dict[str, str],
+    ) -> PrimeProjectionAck:
+        """Define (or update) a Prime projection for an entity type."""
+        result = self._request(
+            "POST",
+            "/api/v1/prime/projections",
+            json={"entity_type": entity_type, "field_policies": field_policies},
+        )
+        data = result.get("data", result)
+        return PrimeProjectionAck.from_dict(data)
+
+    def project_node(self, node_id: str) -> PrimeSnapshot:
+        """Project the current snapshot for a Prime node."""
+        result = self._request("POST", f"/api/v1/prime/nodes/{node_id}/project")
+        data = result.get("data", result)
+        return PrimeSnapshot.from_dict(data)
+
+    def node_field_provenance(
+        self,
+        node_id: str,
+        field: str,
+    ) -> Optional[PrimeProvenance]:
+        """Get provenance for a single projected field of a Prime node.
+
+        Returns None if no provenance exists for the field (404).
+        """
+        try:
+            result = self._request(
+                "GET",
+                f"/api/v1/prime/nodes/{node_id}/fields/{field}/provenance",
+            )
+        except AllSourceError as e:
+            if e.status_code == 404:
+                return None
+            raise
+        data = result.get("data", result)
+        return PrimeProvenance.from_dict(data)
 
     # --- Webhooks ---
 

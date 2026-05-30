@@ -213,6 +213,108 @@ class TestProjections:
         assert projection.name == "order-totals"
 
 
+class TestPrime:
+    def test_list_prime_projections(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/projections",
+            method="GET",
+            json={
+                "data": [
+                    {
+                        "entity_type": "person",
+                        "field_policies": {"name": "last_write", "tags": "merge_array"},
+                    }
+                ],
+                "count": 1,
+            },
+        )
+
+        projections = client.list_prime_projections()
+
+        assert len(projections) == 1
+        assert projections[0].entity_type == "person"
+        assert projections[0].field_policies["name"] == "last_write"
+        assert projections[0].field_policies["tags"] == "merge_array"
+
+    def test_define_prime_projection(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/projections",
+            method="POST",
+            status_code=201,
+            json={"data": {"entity_type": "person", "persisted": True}},
+        )
+
+        ack = client.define_prime_projection(
+            "person",
+            {"name": "highest_priority", "email": "most_specific"},
+        )
+
+        assert ack.entity_type == "person"
+        assert ack.persisted is True
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        body = json.loads(request.content)
+        assert body["entity_type"] == "person"
+        assert body["field_policies"] == {
+            "name": "highest_priority",
+            "email": "most_specific",
+        }
+
+    def test_project_node(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/nodes/person:alice/project",
+            method="POST",
+            json={
+                "data": {
+                    "entity_type": "person",
+                    "fields": {"name": "Alice", "email": "alice@example.com"},
+                    "observation_count": 3,
+                }
+            },
+        )
+
+        snapshot = client.project_node("person:alice")
+
+        assert snapshot.entity_type == "person"
+        assert snapshot.fields["name"] == "Alice"
+        assert snapshot.observation_count == 3
+
+    def test_node_field_provenance(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/nodes/person:alice/fields/name/provenance",
+            method="GET",
+            json={
+                "data": {
+                    "field": "name",
+                    "value": "Alice",
+                    "source_event_id": "evt-42",
+                    "source_event_at": "2026-01-01T00:00:00Z",
+                    "merge_policy_applied": "last_write",
+                }
+            },
+        )
+
+        prov = client.node_field_provenance("person:alice", "name")
+
+        assert prov is not None
+        assert prov.field == "name"
+        assert prov.value == "Alice"
+        assert prov.source_event_id == "evt-42"
+        assert prov.merge_policy_applied == "last_write"
+
+    def test_node_field_provenance_404(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/v1/prime/nodes/person:alice/fields/missing/provenance",
+            method="GET",
+            status_code=404,
+            json={"error": {"code": "not_found", "message": "no provenance"}},
+        )
+
+        prov = client.node_field_provenance("person:alice", "missing")
+        assert prov is None
+
+
 class TestWebhooks:
     def test_create_webhook(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
         httpx_mock.add_response(

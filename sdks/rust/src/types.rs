@@ -404,6 +404,44 @@ pub struct ProjectionsResponse {
     pub total: u64,
 }
 
+/// A Prime projection definition: an entity type and its per-field merge policies.
+///
+/// `field_policies` maps a field name to a policy string
+/// (`last_write` | `highest_priority` | `most_specific` | `merge_array`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct PrimeProjection {
+    pub entity_type: String,
+    pub field_policies: std::collections::BTreeMap<String, String>,
+}
+
+/// Acknowledgement returned when a Prime projection is defined/persisted.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PrimeProjectionAck {
+    pub entity_type: String,
+    #[serde(default)]
+    pub persisted: bool,
+}
+
+/// A materialized Prime node snapshot: merged fields plus how many observations
+/// contributed to it.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PrimeSnapshot {
+    pub entity_type: String,
+    pub fields: Value,
+    pub observation_count: u64,
+}
+
+/// Provenance for a single projected field: which source event produced the
+/// current value and which merge policy was applied.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PrimeProvenance {
+    pub field: String,
+    pub value: Value,
+    pub source_event_id: String,
+    pub source_event_at: String,
+    pub merge_policy_applied: String,
+}
+
 /// Health check response.
 #[derive(Debug, Clone, Deserialize)]
 pub struct HealthResponse {
