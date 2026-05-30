@@ -84,6 +84,24 @@ impl EmbeddedCore {
         let store_config = Self::build_store_config(&config);
         let store = Arc::new(EventStore::with_config(store_config));
 
+        // DATA-LOSS GUARD. Embedded consumers' projections ARE the read surface:
+        // there is no lazy query path to hydrate Parquet on demand the way the
+        // multi-tenant server has (issue #160). Reconstruct the in-memory pile
+        // from the full Parquet archive now — BEFORE any projection registration
+        // below or downstream `register_projection_with_backfill` — so the
+        // backfill replays the complete durable history instead of booting empty
+        // after a short/rotated/relocated WAL. Dedup in `append_loaded_event`
+        // makes this safe alongside WAL recovery; no-op without Parquet storage.
+        //
+        // Without this, a store with every event durable in Parquet but an empty
+        // WAL reads "No tasks found" — the chronis 0.7.1 regression that looked
+        // like the store had been nuked when nothing was actually lost. Fail loud
+        // on a read error rather than silently presenting an empty store.
+        if let Err(e) = store.hydrate_all_from_storage() {
+            tracing::error!(error = %e, "embedded boot: Parquet hydration failed");
+            return Err(e);
+        }
+
         // Register replicant worker projections when the feature is enabled
         #[cfg(feature = "embedded-replicant")]
         {
