@@ -1,0 +1,16 @@
+{
+  "name": "mammoth",
+  "owner": {
+    "name": "AllSource",
+    "url": "https://github.com/all-source-os"
+  },
+  "plugins": [
+    {
+      "name": "mammoth",
+      "source": "./plugin/mammoth",
+      "description": "Durable agent memory. Your coding agent remembers decisions, task history, and code context across sessions and recalls them automatically. caveman make few token, mammoth never forget token.",
+      "version": "0.1.0",
+      "strict": false
+    }
+  ]
+}

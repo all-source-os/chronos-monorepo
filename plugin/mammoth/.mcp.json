@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "prime": {
+      "command": "allsource-prime",
+      "args": [
+        "--data-dir",
+        "${CLAUDE_PROJECT_DIR}/.prime",
+        "--auto-inject",
+        "--auto-inject-max-tokens",
+        "1000"
+      ]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "mammoth",
+  "version": "0.1.0",
+  "description": "Durable agent memory via AllSource Prime. Recall decisions, task history, and code context across sessions automatically — stop re-explaining your project. Local-only by default (your disk, survives reboots), syncs across machines when you want. Works in any MCP agent.",
+  "author": {
+    "name": "AllSource",
+    "url": "https://github.com/all-source-os"
+  },
+  "homepage": "https://www.all-source.xyz/prime",
+  "repository": "https://github.com/all-source-os/chronos",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "recall",
+    "agent-memory",
+    "mcp",
+    "vector",
+    "knowledge-graph",
+    "event-sourcing",
+    "allsource",
+    "prime",
+    "mammoth"
+  ]
+}
