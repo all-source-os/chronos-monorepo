@@ -1,114 +1,76 @@
 ---
 title: "Your Coding Agent Has Goldfish Memory. Give It a Mammoth."
-date: "2026-05-30"
-excerpt: "mammoth gives any coding agent durable, cross-session memory — decisions, task history, and code context recalled automatically, so you stop re-explaining your project. Local-first, zero signup, MCP-native. Here's how it works and what the benchmarks say."
-author: "AllSource Team"
-tags: ["ai-agents", "memory", "mcp", "recall", "event-sourcing"]
-category: "AI & Agents"
+publishedAt: "2026-05-30"
+summary: "mammoth gives any coding agent durable, cross-session memory — decisions, task history, and code context recalled automatically, so you stop re-explaining your project. Local-first, zero signup, MCP-native. Here's how it works and what the benchmarks say."
+author: "all.source team"
+category: "product"
 image: "/assets/blog/ai-agents-need-memory.webp"
-readingTime: "7 min read"
 ---
 
-import { Callout } from "@/components/mdx/callout";
-import { CodeBlock } from "@/components/mdx/code-block";
+Every new session, your coding agent forgets. The architecture decision you made last Tuesday, the gotcha that cost you an afternoon, the reason you picked library X over Y — gone. So you paste it back in. Again. And again.
 
-Every new session, your coding agent forgets. The architecture decision you made
-last Tuesday, the gotcha that cost you an afternoon, the reason you picked
-library X over Y — gone. So you paste it back in. Again. And again.
+**mammoth** fixes that. It gives your agent durable memory: decisions, task history, and code context from past sessions get remembered and recalled *automatically* — so you never re-explain your project twice.
 
-**mammoth** fixes that. It gives your agent durable memory: decisions, task
-history, and code context from past sessions get remembered and recalled
-*automatically* — so you never re-explain your project twice.
+mammoth is the front door for two AllSource engines: **allsource-prime** (semantic recall — graph + vector + temporal over a durable event store) and **chronis** (`cn`, event-sourced task memory). It pairs naturally with [caveman](https://github.com/JuliusBrussee/caveman): caveman compresses what you *say*; mammoth remembers what you *said*.
 
-<Callout type="info">
-mammoth is the front door for two AllSource engines: <strong>allsource-prime</strong>
-(semantic recall — graph + vector + temporal over a durable event store) and
-<strong>chronis</strong> (<code>cn</code>, event-sourced task memory). It pairs
-naturally with <a href="https://github.com/JuliusBrussee/caveman">caveman</a>:
-caveman compresses what you <em>say</em>; mammoth remembers what you <em>said</em>.
-<em>caveman make few token. mammoth never forget token.</em>
-</Callout>
+> *caveman make few token. mammoth never forget token.*
 
 ## The magic moment
 
-Here's the whole product in one interaction. Three sessions after you decided
-something, you ask:
+Here's the whole product in one interaction. Three sessions after you decided something, you ask:
 
 > "Why did we go local-only instead of requiring an account?"
 
-And the agent answers — correctly, citing the decision — **without you pasting
-any history**. It recalled something from a session it was never part of. The
-first time you see it, you ask "wait, how did it know that?" That reaction is the
-point.
+And the agent answers — correctly, citing the decision — **without you pasting any history**. It recalled something from a session it was never part of. The first time you see it, you ask "wait, how did it know that?" That reaction is the point.
 
 ## How it works
 
-mammoth runs the [AllSource Prime](/prime) MCP server locally. Your agent gets 13
-`prime_*` tools and a recall/record loop:
+mammoth runs the [AllSource Prime](/prime) MCP server locally. Your agent gets 13 `prime_*` tools and a recall/record loop:
 
-- **Record** — when a decision, gotcha, or outcome happens, the agent writes it
-  as a node and embeds it (`prime_add_node` + `prime_embed`). Your own analysis,
-  never your raw source code.
-- **Recall** — before answering a question that depends on prior knowledge, the
-  agent calls `prime_recall` / `prime_context`: vector similarity fused with
-  graph neighbors and temporal recency.
-- **Auto-orient** — with `--auto-inject`, a compressed knowledge index is
-  injected into every conversation as the `prime://auto-context` resource. The
-  agent walks in already knowing the shape of what it knows.
+- **Record** — when a decision, gotcha, or outcome happens, the agent writes it as a node and embeds it (`prime_add_node` + `prime_embed`). Your own analysis, never your raw source code.
+- **Recall** — before answering a question that depends on prior knowledge, the agent calls `prime_recall` / `prime_context`: vector similarity fused with graph neighbors and temporal recency.
+- **Auto-orient** — with `--auto-inject`, a compressed knowledge index is injected into every conversation as the `prime://auto-context` resource. The agent walks in already knowing the shape of what it knows.
 
-Embeddings are computed **in-process** via fastembed (`AllMiniLML6V2`, 384-dim) —
-no external embedding service, no API key for the local tier.
+Embeddings are computed **in-process** via fastembed (`AllMiniLML6V2`, 384-dim) — no external embedding service, no API key for the local tier.
 
 ## Local-first, zero signup
 
-The thing that kills most "agent memory" tools is friction: a signup wall between
-install and value. mammoth's default is **local-only**.
+The thing that kills most "agent memory" tools is friction: a signup wall between install and value. mammoth's default is **local-only**.
 
-<CodeBlock language="bash">
-{`cargo install allsource-prime
-curl -fsSL https://raw.githubusercontent.com/all-source-os/chronos/main/plugin/mammoth/install.sh | bash`}
-</CodeBlock>
+```bash
+cargo install allsource-prime
+curl -fsSL https://raw.githubusercontent.com/all-source-os/chronos/main/plugin/mammoth/install.sh | bash
+```
 
-That runs a fully durable store on your disk — the same AllSource Core engine
-(WAL with CRC32 + fsync, Snappy Parquet snapshots). Your memory survives reboots
-and never leaves your machine. No account.
+That runs a fully durable store on your disk — the same AllSource Core engine (WAL with CRC32 + fsync, Snappy Parquet snapshots). Your memory survives reboots and never leaves your machine. No account.
 
-<Callout type="info">
-Free tier remembers across sessions on <em>this machine</em>, no account.
-Cross-machine and team memory are the upgrade — add <code>--sync-to</code> +
-<code>--api-key</code> to ship memory to a hosted AllSource Core. A pull, not a gate.
-</Callout>
+Free tier remembers across sessions on *this machine*, no account. Cross-machine and team memory are the upgrade — add `--sync-to` + `--api-key` to ship memory to a hosted AllSource Core. A pull, not a gate.
 
 ## Works in your agent
 
-mammoth's core capability is one MCP server, so any MCP-capable agent speaks all
-13 tools natively — Claude Code, Cursor, Cline, Windsurf, Codex, Gemini. One
-stanza, no per-agent shim:
+mammoth's core capability is one MCP server, so any MCP-capable agent speaks all 13 tools natively — Claude Code, Cursor, Cline, Windsurf, Codex, Gemini. One stanza, no per-agent shim:
 
-<CodeBlock language="json">
-{`{
+```json
+{
   "mcpServers": {
     "prime": {
       "command": "allsource-prime",
       "args": ["--data-dir", "~/.prime/memory", "--auto-inject"]
     }
   }
-}`}
-</CodeBlock>
+}
+```
 
-Claude Code gets the richest setup — the MCP tools plus a `mammoth-memory` skill
-and `/remember`, `/recall`, `/memory-status` slash commands — via the plugin:
+Claude Code gets the richest setup — the MCP tools plus a `mammoth-memory` skill and `/remember`, `/recall`, `/memory-status` slash commands — via the plugin:
 
-<CodeBlock language="text">
-{`/plugin marketplace add all-source-os/chronos
-/plugin install mammoth`}
-</CodeBlock>
+```text
+/plugin marketplace add all-source-os/chronos
+/plugin install mammoth
+```
 
 ## Does it actually work?
 
-Claims are cheap; mammoth ships a **reproducible benchmark** ([`tooling/mammoth-bench/`](https://github.com/all-source-os/chronos/tree/main/tooling/mammoth-bench))
-you can run yourself. It scores recall against a keyword search+grep baseline over
-the same store, with queries deliberately worded *unlike* the stored text.
+Claims are cheap; mammoth ships a **reproducible benchmark** ([`tooling/mammoth-bench/`](https://github.com/all-source-os/chronos/tree/main/tooling/mammoth-bench)) you can run yourself. It scores recall against a keyword search+grep baseline over the same store, with queries deliberately worded *unlike* the stored text.
 
 Full run — 60 memories, 60 queries, k=5:
 
@@ -120,24 +82,16 @@ Full run — 60 memories, 60 queries, k=5:
 | Recall latency p50 / p95 | **3.0ms / 3.6ms** |
 | Durability (write → restart → read) | **PASS** |
 
-<Callout type="warning">
-Honest note: on a smaller 18-memory set the edge over grep was +0.17; it narrows
-to +0.07 as the corpus densifies and the keyword baseline gets more overlap to
-exploit. Memory still wins every metric, and the improvement levers (hybrid
-keyword+vector, graph depth, a larger embedder) are unused here — headroom, not
-yet spent. We publish the softening rather than hide it. That's the same trust
-move caveman made with "affects output tokens only."
-</Callout>
+Honest note: on a smaller 18-memory set the edge over grep was +0.17; it narrows to +0.07 as the corpus densifies and the keyword baseline gets more overlap to exploit. Memory still wins every metric, and the improvement levers (hybrid keyword+vector, graph depth, a larger embedder) are unused here — headroom, not yet spent. We publish the softening rather than hide it. That's the same trust move caveman made with "affects output tokens only."
 
 ## Try it
 
-```
+```text
 cargo install allsource-prime
 /plugin marketplace add all-source-os/chronos
 /plugin install mammoth
 ```
 
-Then work normally. A few sessions in, ask your agent why you made some past
-decision — and watch it remember.
+Then work normally. A few sessions in, ask your agent why you made some past decision — and watch it remember.
 
 *Stop re-explaining your project. Give your agent a mammoth.*
