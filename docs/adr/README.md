@@ -23,6 +23,7 @@ This directory contains Architecture Decision Records (ADRs) documenting signifi
 | [015](015-prime-vector-index-generation.md) | Generation Counter for VectorIndexProjection | Accepted | 2026-03-20 | unreleased |
 | [016](016-prime-eventual-consistency.md) | Eventual Consistency Model for Prime | Accepted | 2026-03-20 | unreleased |
 | [017](017-chronis-prime-integration.md) | Chronis Prime Integration | Accepted | 2026-03-26 | unreleased |
+| [018](018-embedded-eager-parquet-hydration.md) | Eager Parquet Hydration on Embedded Boot | Accepted | 2026-05-30 | chronis v0.7.2 |
 
 ## Format
 
