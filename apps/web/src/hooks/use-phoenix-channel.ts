@@ -9,11 +9,35 @@ let sharedSocket: Socket | null = null;
 let socketRefCount = 0;
 let currentToken: string | null = null;
 
-function getSocketUrl(): string {
+/**
+ * Resolve the Phoenix socket base URL.
+ *
+ * Returns `null` when no real backend WS endpoint can be determined. In that
+ * case the hook skips connecting entirely instead of hammering a host that has
+ * no `/ws` route.
+ *
+ * Why this matters in production: the dashboard reaches the Query Service over
+ * the Next.js `/api/*` proxy using RELATIVE URLs, so `NEXT_PUBLIC_API_URL` is
+ * only read server-side and is undefined in the browser. WebSockets can't be
+ * tunneled through a Next.js route handler, so without an explicit
+ * `NEXT_PUBLIC_WS_URL` there is no backend to reach. Previously this fell back
+ * to `window.location.host` — the Vercel frontend (www.all-source.xyz), which
+ * has no Phoenix endpoint — producing an endless `wss://.../ws → 404` reconnect
+ * storm in the console. Only fall back to the page origin for local dev, where
+ * the dev server fronts the Query Service.
+ */
+function getSocketUrl(): string | null {
   if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
   if (typeof window !== "undefined") {
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${proto}//${window.location.host}`;
+    const { hostname, protocol, host } = window.location;
+    const isLocalDev = hostname === "localhost" || hostname === "127.0.0.1";
+    if (!isLocalDev) {
+      // Production with no configured WS URL: realtime is not wired. Bail out
+      // rather than retry-loop against a host that 404s the upgrade.
+      return null;
+    }
+    const proto = protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${host}`;
   }
   return "ws://localhost:3902";
 }
@@ -30,13 +54,18 @@ async function refreshToken(): Promise<string | null> {
   }
 }
 
-function acquireSocket(): Socket {
+function acquireSocket(): Socket | null {
   if (sharedSocket) {
     socketRefCount++;
     return sharedSocket;
   }
 
-  const url = `${getSocketUrl()}/ws`;
+  const base = getSocketUrl();
+  // No backend WS endpoint available (e.g. production without NEXT_PUBLIC_WS_URL).
+  // Skip connecting so we don't spin a reconnect storm against a 404 host.
+  if (!base) return null;
+
+  const url = `${base}/ws`;
 
   // #3 fix: params as a function so Phoenix re-reads currentToken on every
   // reconnect. refreshToken() updates currentToken before connect, and the
@@ -121,6 +150,12 @@ export function usePhoenixChannel(
       if (!connectingRef.current) return;
 
       const socket = acquireSocket();
+      // No WS backend configured — leave isConnected=false and don't retry.
+      if (!socket) {
+        connectingRef.current = false;
+        setIsConnected(false);
+        return;
+      }
       socketRef.current = socket;
 
       const channel = socket.channel(topic, {});

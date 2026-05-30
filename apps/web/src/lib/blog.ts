@@ -85,6 +85,12 @@ export async function getPost(slug: string) {
   if (!resolvedPath.startsWith(contentDir + path.sep)) {
     throw new Error(`Invalid blog slug: ${slug}`);
   }
+  // Missing post → return null so callers can render a 404 instead of throwing
+  // (which Next.js surfaces as an opaque 500). fs.readFileSync throws ENOENT
+  // for unknown slugs, so probe existence first.
+  if (!fs.existsSync(resolvedPath)) {
+    return null;
+  }
   const source = fs.readFileSync(filePath, "utf-8");
   const { content: rawContent, data: metadata } = parseFrontmatter(source);
   const content = await markdownToHTML(rawContent);
@@ -104,7 +110,13 @@ async function getAllPosts(dir: string) {
   return Promise.all(
     mdxFiles.map(async (file) => {
       const slug = path.basename(file, path.extname(file));
-      const { metadata, source } = await getPost(slug);
+      const post = await getPost(slug);
+      // getPost only returns null for missing files; these come straight from
+      // the directory listing so they always exist, but narrow for the type checker.
+      if (!post) {
+        throw new Error(`Blog post disappeared during read: ${slug}`);
+      }
+      const { metadata, source } = post;
       return {
         ...metadata,
         slug,
