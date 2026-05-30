@@ -1,15 +1,15 @@
 # mammoth-bench
 
-Precision@k harness for AllSource Prime recall — the P0 GO/KILL gate for the
-**mammoth** durable-agent-memory ecosystem (see
-`docs/proposals/ALLSOURCE_AGENT_MEMORY_ECOSYSTEM.md`, chronis bead `t-f6bf`).
+Recall benchmark for AllSource Prime — the evidence base for the **mammoth**
+durable-agent-memory ecosystem (see
+`docs/proposals/ALLSOURCE_AGENT_MEMORY_ECOSYSTEM.md`, chronis beads `t-f6bf` and
+`t-12c2`).
 
 ## What it proves
 
 The kill-criterion for mammoth: *does semantic recall beat a keyword search+grep
-baseline at surfacing the right prior memory for a **differently-worded**
-query?* If memory can't beat grep, the magic moment doesn't exist and the
-project stops.
+baseline at surfacing the right prior memory for a **differently-worded** query?*
+If memory can't beat grep, the magic moment doesn't exist and the project stops.
 
 Two arms over the same seeded store and the same queries:
 
@@ -70,12 +70,12 @@ failure (so they can gate CI).
 
 | # | metric | result | kind |
 |---|--------|--------|------|
-| 1 | Recall hit@5 | **0.90** (baseline 0.83, Δ +0.07) | measured |
+| 1 | Recall hit@5 | 0.90 (baseline 0.83, Δ +0.07) | measured |
 | 1 | Recall hit@3 / MRR | 0.87 / 0.783 | measured |
 | 2 | Cross-session continuity win-rate | 0.07 | proxy* |
 | 3 | Median tokens saved / recall | 19 (986 total over 54 hits) | estimate |
-| 4 | Recall latency p50 / p95 | **3.0ms / 3.6ms** | measured |
-| 5 | Durability (write→restart→read) | **PASS** | measured |
+| 4 | Recall latency p50 / p95 | 3.0ms / 3.6ms | measured |
+| 5 | Durability (write→restart→read) | PASS | measured |
 
 **VERDICT: PASS.** \*Continuity is a *proxy* — retrievability (can the agent
 answer at all), not a blind LLM-judged A/B. Durability checks node count via
