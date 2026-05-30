@@ -147,7 +147,7 @@ If the human picks option (1), the config file path differs by OS — macOS uses
     "prime": {
       "command": "allsource-prime",
       "args": [
-        "--data-dir", "~/.prime/memory",
+        "--data-dir", "/Users/you/.prime/memory",
         "--auto-inject",
         "--sync-to", "https://api.all-source.xyz",
         "--api-key", "ask_REPLACE_ME"
@@ -156,6 +156,8 @@ If the human picks option (1), the config file path differs by OS — macOS uses
   }
 }
 ```
+
+Use an **absolute** `--data-dir` — MCP hosts pass args-array values to the binary verbatim and don't expand `~`/`$HOME`/`${HOME}` (Prime ≥ `0.21.6` expands them as a fallback, but absolute is unambiguous).
 
 The `ask_REPLACE_ME` placeholder is the key from Step 3 — mint it the same way (the agent calls the anonymous-trial endpoint, or the human signs in at `/connect`) and substitute it into the snippet. After merging, the human restarts Claude Desktop (Step 5). Verification (Step 6) is identical.
 

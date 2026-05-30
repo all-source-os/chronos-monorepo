@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing_subscriber::EnvFilter;
 
 mod http;
@@ -97,6 +97,31 @@ struct Cli {
     sync_interval_ms: u64,
 }
 
+/// Expand a leading `~`/`~/` and `$HOME` / `${HOME}` references in a path.
+///
+/// The Claude Desktop DXT (and similar MCP launchers) substitute their own
+/// `${user_config.*}` placeholders but pass the resulting value to the binary
+/// verbatim — they do NOT run shell/env expansion. So a user-config value of
+/// `${HOME}/.prime/memory` reaches us as a literal string, and without this we
+/// would create a `${HOME}` directory relative to the process cwd. Expand the
+/// common `$HOME` forms (the only ones that bite in practice) so the data dir
+/// resolves to the intended absolute location.
+fn expand_home_path(raw: &Path) -> PathBuf {
+    let s = raw.to_string_lossy();
+    let Ok(home) = std::env::var("HOME") else {
+        return raw.to_path_buf();
+    };
+    // Braced before unbraced so `${HOME}` is consumed first. (`$HOME` is not a
+    // substring of `${HOME}`, so order is not strictly required, but explicit.)
+    let mut out = s.replace("${HOME}", &home).replace("$HOME", &home);
+    if out == "~" {
+        out = home;
+    } else if let Some(rest) = out.strip_prefix("~/") {
+        out = format!("{home}/{rest}");
+    }
+    PathBuf::from(out)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -109,9 +134,24 @@ async fn main() -> Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    tracing::info!("Opening Prime at {:?}", cli.data_dir);
+    // Expand `~`, `$HOME`, and `${HOME}` in the data dir. The Claude Desktop
+    // DXT passes `--data-dir` values verbatim — it does NOT expand shell/env
+    // syntax — so a user who configures the natural-looking `${HOME}/.prime/memory`
+    // would otherwise have Prime create a literal `${HOME}` directory under its
+    // cwd (often `/`, where it can't be written at all). Expand the common cases
+    // here so the data dir lands where the user meant.
+    let data_dir = expand_home_path(&cli.data_dir);
+    if data_dir != cli.data_dir {
+        tracing::info!(
+            raw = %cli.data_dir.display(),
+            expanded = %data_dir.display(),
+            "Expanded data dir (~ / $HOME / ${{HOME}})"
+        );
+    }
 
-    let prime = Arc::new(allsource_core::prime::Prime::open(&cli.data_dir).await?);
+    tracing::info!("Opening Prime at {:?}", data_dir);
+
+    let prime = Arc::new(allsource_core::prime::Prime::open(&data_dir).await?);
 
     tracing::info!(
         "Prime ready — {} nodes, {} edges",
@@ -177,8 +217,8 @@ async fn main() -> Result<()> {
                 interval: std::time::Duration::from_millis(cli.sync_interval_ms),
             };
             let sync_prime = Arc::clone(&prime);
-            let data_dir = cli.data_dir.clone();
-            tokio::spawn(sync::run_sync_loop(sync_prime, sync_config, data_dir));
+            let sync_data_dir = data_dir.clone();
+            tokio::spawn(sync::run_sync_loop(sync_prime, sync_config, sync_data_dir));
         }
         (Some(_), None) | (None, Some(_)) => {
             anyhow::bail!(
@@ -227,4 +267,29 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expand_home_path_handles_dxt_home_forms() {
+        let home = std::env::var("HOME").expect("HOME is set in the test environment");
+        let want = PathBuf::from(format!("{home}/.prime/memory"));
+
+        // The exact trap the Claude Desktop DXT hits: ${HOME} passed verbatim.
+        assert_eq!(expand_home_path(Path::new("${HOME}/.prime/memory")), want);
+        assert_eq!(expand_home_path(Path::new("$HOME/.prime/memory")), want);
+        assert_eq!(expand_home_path(Path::new("~/.prime/memory")), want);
+        assert_eq!(expand_home_path(Path::new("~")), PathBuf::from(&home));
+
+        // Absolute and unrelated paths are left untouched.
+        assert_eq!(
+            expand_home_path(Path::new("/Users/x/.prime/memory")),
+            PathBuf::from("/Users/x/.prime/memory")
+        );
+        // A tilde that is not the path prefix must not be expanded.
+        assert_eq!(expand_home_path(Path::new("/a/~/b")), PathBuf::from("/a/~/b"));
+    }
 }

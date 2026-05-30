@@ -82,7 +82,7 @@ Claude Desktop (`~/.claude/claude_desktop_config.json`):
     "prime": {
       "command": "allsource-prime",
       "args": [
-        "--data-dir", "~/.prime/memory",
+        "--data-dir", "/Users/you/.prime/memory",
         "--auto-inject",
         "--sync-to", "https://api.all-source.xyz",
         "--api-key", "<your tenant API key>"
@@ -91,6 +91,8 @@ Claude Desktop (`~/.claude/claude_desktop_config.json`):
   }
 }
 ```
+
+Use an **absolute** `--data-dir` here. Unlike a shell, MCP hosts (Claude Desktop, the DXT extension) pass args-array values to the binary verbatim — they don't expand `~`, `$HOME`, or `${HOME}`, so a value like `~/.prime/memory` would otherwise create a literal `~` directory wherever the host happens to run. (As of `allsource-prime 0.21.6`, Prime expands leading `~`/`$HOME`/`${HOME}` itself as a safety net, but an absolute path is the unambiguous choice.)
 
 Claude Code:
 
