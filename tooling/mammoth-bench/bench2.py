@@ -195,17 +195,18 @@ def main():
                 tokens_saved.append(max(0, saved))
             rows.append((q["query"][:46], q["gold"][:26], mr or "-", "Y" if mhit5 else "."))
 
-        # durability: close, reopen same dir, re-query a sample of golds
+        # durability: this is a PERSISTENCE check, not a recall-ranking check.
+        # Close the server, reopen on the same data dir, and confirm every seeded
+        # node is still present via prime_stats (total_nodes). Recall ranking can
+        # legitimately miss a top-5 slot without any data being lost, so ranking
+        # is the wrong signal for "did it survive the restart".
+        seeded = len(fixtures)
         prime.close()
         prime2 = Prime(a.prime_bin, data_dir)
-        sample = queries[:: max(1, n // 10)]  # ~10 spot checks
-        survived = 0
-        for q in sample:
-            rn, _ = recall_names(prime2, q["query"], a.k)
-            if rank_of(q["gold"], rn):
-                survived += 1
+        stats = prime2.call("prime_stats", {})
         prime2.close()
-        durability = "PASS" if survived == len(sample) else f"FAIL ({survived}/{len(sample)})"
+        after = stats.get("total_nodes") if isinstance(stats, dict) else None
+        durability = "PASS" if after == seeded else f"FAIL ({after}/{seeded} nodes after restart)"
     finally:
         shutil.rmtree(data_dir, ignore_errors=True)
     wall = time.time() - t_start
