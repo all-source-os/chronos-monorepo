@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
 import { getBlogPosts } from "@/lib/blog";
+import { integrations } from "@/lib/integrations";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const allPosts = await getBlogPosts();
@@ -35,6 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     { url: `${base}/platform/prime`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/prime`, priority: 0.9, changeFrequency: "weekly" as const },
+    { url: `${base}/install`, priority: 0.9, changeFrequency: "weekly" as const },
     { url: `${base}/solutions/agent-memory`, priority: 0.9, changeFrequency: "monthly" as const },
     {
       url: `${base}/solutions/audit-compliance`,
@@ -68,6 +70,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/status`, priority: 0.4, changeFrequency: "daily" as const },
   ];
 
+  // Per-tool install pages — derived from the integration data module so a new
+  // tool lands in the sitemap with no edit here.
+  const installPages = integrations.map((integration) => ({
+    url: `${base}/install/${integration.slug}`,
+    priority: 0.8,
+    changeFrequency: "monthly" as const,
+  }));
+
   // Blog posts
   const blogPages = allPosts.map((post) => ({
     url: `${base}/blog/${post.slug}`,
@@ -76,5 +86,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "monthly" as const,
   }));
 
-  return [...staticPages.map((p) => ({ ...p, lastModified: now })), ...blogPages];
+  return [
+    ...staticPages.map((p) => ({ ...p, lastModified: now })),
+    ...installPages.map((p) => ({ ...p, lastModified: now })),
+    ...blogPages,
+  ];
 }

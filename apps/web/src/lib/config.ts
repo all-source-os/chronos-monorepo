@@ -108,6 +108,10 @@ export const siteConfig = {
       },
     },
     {
+      href: "/install",
+      label: "Install",
+    },
+    {
       href: "/blog",
       label: "Blog",
     },
