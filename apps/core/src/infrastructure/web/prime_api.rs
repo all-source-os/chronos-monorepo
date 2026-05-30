@@ -429,7 +429,10 @@ async fn list_projections(State(state): State<Arc<PrimeState>>) -> impl IntoResp
                         .field_policies
                         .iter()
                         .map(|(field, policy)| {
-                            (field.clone(), serde_json::to_value(policy).unwrap_or(Value::Null))
+                            (
+                                field.clone(),
+                                serde_json::to_value(policy).unwrap_or(Value::Null),
+                            )
                         })
                         .collect();
                     json!({"entity_type": d.entity_type, "field_policies": policies})
@@ -566,8 +569,10 @@ async fn get_stats(State(state): State<Arc<PrimeState>>) -> impl IntoResponse {
 mod tests {
     use super::*;
     use crate::prime::{EntityId, Prime};
-    use axum::body::{Body, to_bytes};
-    use axum::http::Request;
+    use axum::{
+        body::{Body, to_bytes},
+        http::Request,
+    };
     use tower::ServiceExt; // for `oneshot`
 
     async fn test_app() -> (Router, Arc<PrimeState>) {
@@ -576,7 +581,12 @@ mod tests {
         (prime_router().with_state(state.clone()), state)
     }
 
-    async fn send(app: &Router, method: &str, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
+    async fn send(
+        app: &Router,
+        method: &str,
+        uri: &str,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
         let builder = Request::builder().method(method).uri(uri);
         let req = match body {
             Some(b) => builder
@@ -618,7 +628,10 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         let listed = body["projections"].as_array().unwrap();
         assert!(listed.iter().any(|p| p["entity_type"] == "contact"));
-        assert_eq!(body["projections"][0]["field_policies"]["status"], "last_write");
+        assert_eq!(
+            body["projections"][0]["field_policies"]["status"],
+            "last_write"
+        );
 
         // Seed a node (one observation) so project/provenance have something.
         let node_id = state
@@ -646,7 +659,11 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["value"], "active");
         assert_eq!(body["merge_policy_applied"], "last_write");
-        assert!(body["source_event_id"].as_str().is_some_and(|s| !s.is_empty()));
+        assert!(
+            body["source_event_id"]
+                .as_str()
+                .is_some_and(|s| !s.is_empty())
+        );
 
         // merge_array fields have no single source → 404.
         let (status, _) = send(
