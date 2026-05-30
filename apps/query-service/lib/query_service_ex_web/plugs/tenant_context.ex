@@ -163,6 +163,14 @@ defmodule QueryServiceExWeb.Plugs.TenantContext do
       "active"
   end
 
+  # Prefer the authoritative `tenant_id` slug over `id`. Core's TenantDto sets
+  # `id: Uuid::new_v4()` — a fresh random UUID on every serialization — while the
+  # real tenant key lives in `tenant_id` (the slug, e.g. "acme-at-gmail-com").
+  # Reading `id` here scoped every events query to a random UUID, so Core matched
+  # zero events and the Memory/Events tabs showed empty despite synced data.
+  # Fall back to `id` only for shapes that carry no `tenant_id` (e.g. the dev tenant).
+  defp tenant_id(%{tenant_id: tid}) when not is_nil(tid), do: tid
+  defp tenant_id(%{"tenant_id" => tid}) when not is_nil(tid), do: tid
   defp tenant_id(%{id: id}), do: id
   defp tenant_id(%{"id" => id}), do: id
 
