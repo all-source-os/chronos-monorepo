@@ -439,4 +439,15 @@ defmodule QueryServiceExWeb.Router do
     get("/projections/rebuild-stats", ProjectionController, :rebuild_stats)
     get("/projections/:name", ProjectionController, :show)
   end
+
+  # Prime declarative projections + per-field provenance (tenant-scoped).
+  # Proxies Core's internal /api/v1/prime/* projection routes (t-2ac8).
+  scope "/api/v1/prime", QueryServiceExWeb do
+    pipe_through([:tenant_scoped, :rate_limited])
+
+    get("/projections", PrimeController, :index)
+    post("/projections", PrimeController, :create)
+    post("/nodes/:id/project", PrimeController, :project)
+    get("/nodes/:id/fields/:field/provenance", PrimeController, :provenance)
+  end
 end

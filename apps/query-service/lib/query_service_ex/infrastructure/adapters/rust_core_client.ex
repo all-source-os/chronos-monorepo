@@ -1284,4 +1284,76 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
         {:error, reason}
     end
   end
+
+  ## Prime — declarative projections + per-field provenance
+  ##
+  ## Proxies Core's /api/v1/prime/* projection routes (added in t-2ac8) so
+  ## SDK/REST callers reach the same primitives the MCP tools expose. Core
+  ## stays internal-only; the gateway gates access via :tenant_scoped.
+
+  @doc "List declarative projection definitions registered in Prime"
+  def list_prime_projections do
+    case Tesla.get(read_client(), "/api/v1/prime/projections") do
+      {:ok, %Tesla.Env{status: 200, body: %{"projections" => projections}}} ->
+        {:ok, projections}
+
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Define (or replace) a declarative projection for an entity type"
+  def create_prime_projection(projection) when is_map(projection) do
+    case Tesla.post(write_client(), "/api/v1/prime/projections", projection) do
+      {:ok, %Tesla.Env{status: 201, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Fold a node's observation history into a snapshot via its projection"
+  def project_node(node_id) when is_binary(node_id) do
+    case Tesla.post(write_client(), "/api/v1/prime/nodes/#{node_id}/project", %{}) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Per-field provenance: which event supplied a node field's current value"
+  def node_field_provenance(node_id, field)
+      when is_binary(node_id) and is_binary(field) do
+    case Tesla.get(
+           read_client(),
+           "/api/v1/prime/nodes/#{node_id}/fields/#{field}/provenance"
+         ) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 end
