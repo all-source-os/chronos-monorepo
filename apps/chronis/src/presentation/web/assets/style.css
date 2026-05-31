@@ -209,6 +209,40 @@ td {
   border-bottom: 1px solid var(--border);
 }
 
+/* Sortable column headers (prompt 006). Additive — keep tokens/rules above
+   untouched so later prompts layer cleanly. The <th> keeps its sticky/padding
+   styling; the inner <button> carries the click target and focus ring. */
+th[data-sort-key] {
+  padding: 0;
+}
+.sort-th {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+}
+.sort-th:hover {
+  color: var(--accent);
+}
+.sort-th:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.sort-indicator {
+  color: var(--accent);
+  font-size: 10px;
+  min-width: 8px;
+}
+
 .task-row { cursor: pointer; transition: background 0.1s; }
 .task-row:hover { background: var(--surface-hover); }
 .task-row.selected { background: var(--bg); }

@@ -43,13 +43,13 @@
         <table>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Type</th>
-              <th>Title</th>
-              <th>Pri</th>
-              <th>Status</th>
-              <th>Claimed</th>
-              <th>Blocked</th>
+              <th aria-sort="none" data-sort-key="id"><button type="button" class="sort-th" onclick="sortBy('id')">ID<span class="sort-indicator" aria-hidden="true"></span></button></th>
+              <th aria-sort="none" data-sort-key="type"><button type="button" class="sort-th" onclick="sortBy('type')">Type<span class="sort-indicator" aria-hidden="true"></span></button></th>
+              <th aria-sort="none" data-sort-key="title"><button type="button" class="sort-th" onclick="sortBy('title')">Title<span class="sort-indicator" aria-hidden="true"></span></button></th>
+              <th aria-sort="none" data-sort-key="pri"><button type="button" class="sort-th" onclick="sortBy('pri')">Pri<span class="sort-indicator" aria-hidden="true"></span></button></th>
+              <th aria-sort="none" data-sort-key="status"><button type="button" class="sort-th" onclick="sortBy('status')">Status<span class="sort-indicator" aria-hidden="true"></span></button></th>
+              <th aria-sort="none" data-sort-key="claimed"><button type="button" class="sort-th" onclick="sortBy('claimed')">Claimed<span class="sort-indicator" aria-hidden="true"></span></button></th>
+              <th aria-sort="none" data-sort-key="blocked"><button type="button" class="sort-th" onclick="sortBy('blocked')">Blocked<span class="sort-indicator" aria-hidden="true"></span></button></th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -83,6 +83,103 @@
   <script>
     let currentFilter = 'all';
     let selectedRow = -1;
+
+    // ---- Sortable columns ---------------------------------------------------
+    // Sort runs client-side over the rows already in the DOM. Because the
+    // #task-list <tbody> is re-rendered every 30s and on every 'refresh' event,
+    // we persist the active sort in localStorage and re-apply it after each
+    // HTMX swap (see the htmx:afterSwap handler below).
+    const SORT_KEY = 'chronis.dashboard.sort';
+
+    // Semantic rank tables: lower number sorts first when ascending.
+    const PRI_RANK = { p0: 0, p1: 1, p2: 2, p3: 3 };
+    // Workflow order: in-progress first (active work), then open (queued),
+    // then done (closed) — matches how an operator triages the board.
+    const STATUS_RANK = { 'in-progress': 0, open: 1, done: 2 };
+    const TYPE_RANK = { epic: 0, feature: 1, task: 2, bug: 3 };
+
+    let activeSort = loadSort(); // { key, dir } | null
+
+    function loadSort() {
+      try {
+        const raw = localStorage.getItem(SORT_KEY);
+        if (!raw) return null;
+        const s = JSON.parse(raw);
+        if (s && s.key && (s.dir === 'asc' || s.dir === 'desc')) return s;
+      } catch (_) {}
+      return null;
+    }
+
+    function saveSort() {
+      try {
+        if (activeSort) localStorage.setItem(SORT_KEY, JSON.stringify(activeSort));
+        else localStorage.removeItem(SORT_KEY);
+      } catch (_) {}
+    }
+
+    // Build a comparable key for one row + column. Returns either a number
+    // (semantic columns) or a lowercase string (natural columns).
+    function sortValue(row, key) {
+      const cells = row.children;
+      switch (key) {
+        case 'id':      return (cells[0].textContent || '').trim().toLowerCase();
+        case 'type':    return TYPE_RANK[(row.dataset.type || '').toLowerCase()] ?? 99;
+        case 'title':   return (cells[2].textContent || '').trim().toLowerCase();
+        case 'pri':     return PRI_RANK[(row.dataset.pri || '').toLowerCase()] ?? 99;
+        case 'status':  return STATUS_RANK[(row.dataset.status || '').toLowerCase()] ?? 99;
+        case 'claimed': return (cells[5].textContent || '').trim().toLowerCase();
+        // blocked: blocked rows (data-blocked="1") group apart from unblocked.
+        case 'blocked': return row.dataset.blocked === '1' ? 0 : 1;
+        default:        return '';
+      }
+    }
+
+    function applySort() {
+      if (!activeSort) return;
+      const tbody = document.getElementById('task-list');
+      if (!tbody) return;
+      const rows = Array.from(tbody.querySelectorAll('.task-row'));
+      if (rows.length === 0) return;
+
+      const { key, dir } = activeSort;
+      const factor = dir === 'desc' ? -1 : 1;
+      // Stable sort with a decorated index tiebreaker so equal keys keep their
+      // server order.
+      rows.map((row, i) => [row, i]).sort((a, b) => {
+        const av = sortValue(a[0], key);
+        const bv = sortValue(b[0], key);
+        let cmp;
+        if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+        else cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+        if (cmp !== 0) return cmp * factor;
+        return a[1] - b[1];
+      }).forEach(([row]) => tbody.appendChild(row));
+    }
+
+    function updateSortIndicators() {
+      document.querySelectorAll('th[data-sort-key]').forEach(th => {
+        const indicator = th.querySelector('.sort-indicator');
+        if (activeSort && th.dataset.sortKey === activeSort.key) {
+          th.setAttribute('aria-sort', activeSort.dir === 'desc' ? 'descending' : 'ascending');
+          if (indicator) indicator.textContent = activeSort.dir === 'desc' ? '▼' : '▲';
+        } else {
+          th.setAttribute('aria-sort', 'none');
+          if (indicator) indicator.textContent = '';
+        }
+      });
+    }
+
+    function sortBy(key) {
+      // Cycle: asc -> desc -> asc (no unsorted state, per spec).
+      if (activeSort && activeSort.key === key) {
+        activeSort = { key, dir: activeSort.dir === 'asc' ? 'desc' : 'asc' };
+      } else {
+        activeSort = { key, dir: 'asc' };
+      }
+      saveSort();
+      updateSortIndicators();
+      applySort();
+    }
 
     function setFilter(filter) {
       currentFilter = filter;
@@ -161,12 +258,21 @@
       }
     });
 
-    // Re-apply filter after HTMX swaps
+    // Re-apply filter + sort after HTMX swaps. The task-list <tbody> re-renders
+    // every 30s and on every 'refresh' event, which would otherwise wipe a
+    // client-side sort — so we re-sort the freshly-swapped rows here. applySort
+    // reorders the DOM nodes; filterTasks only toggles display, so order is
+    // preserved and filtered-out rows are not un-hidden.
     document.body.addEventListener('htmx:afterSwap', function(e) {
       if (e.detail.target.id === 'task-list') {
+        applySort();
         filterTasks();
       }
     });
+
+    // Restore the persisted sort indicators on initial page load (the rows
+    // themselves are sorted by applySort once the first HTMX swap lands).
+    updateSortIndicators();
 
     // Live reload via SSE: when the backend signals a change, dispatch a
     // 'refresh' event on body, which htmx partials listen for via

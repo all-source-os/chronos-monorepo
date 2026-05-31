@@ -41,9 +41,20 @@ pub fn task_row_html(task: &Task) -> String {
     let title = html_escape(&task.title);
     let status = task.status.to_string();
 
+    // data-* attributes give the client-side column sort (index.html) stable,
+    // machine-readable keys so it sorts by semantic value rather than scraping
+    // badge text out of the rendered cells. data-blocked is "1" when the task
+    // has any blocker, "0" otherwise — the cell itself shows the blocker ids.
+    let blocked_flag = if task.blocked_by.is_empty() { "0" } else { "1" };
     let mut s = String::new();
     s.push_str("<tr class=\"task-row\" data-status=\"");
     s.push_str(&status);
+    s.push_str("\" data-pri=\"");
+    s.push_str(&task.priority.to_string());
+    s.push_str("\" data-type=\"");
+    s.push_str(&task.task_type.to_string());
+    s.push_str("\" data-blocked=\"");
+    s.push_str(blocked_flag);
     s.push_str("\" hx-get=\"/partials/task-detail/");
     s.push_str(id);
     s.push_str("\" hx-target=\"#detail-pane\" hx-swap=\"innerHTML\">\n");
