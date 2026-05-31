@@ -23,6 +23,7 @@ pub async fn run(repo: CoreTaskRepository, port: u16, open_browser: bool) -> any
         // Static assets
         .route("/style.css", get(handlers::style_css))
         .route("/htmx.min.js", get(handlers::htmx_js))
+        .route("/detail-pane.js", get(handlers::detail_pane_js))
         // JSON API
         .route("/api/tasks", get(handlers::api_tasks))
         .route("/api/tasks/{id}", get(handlers::api_task_detail))

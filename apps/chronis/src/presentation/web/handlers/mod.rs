@@ -51,3 +51,10 @@ pub async fn htmx_js() -> impl IntoResponse {
         include_str!("../assets/htmx.min.js"),
     )
 }
+
+pub async fn detail_pane_js() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "application/javascript")],
+        include_str!("../assets/detail-pane.js"),
+    )
+}

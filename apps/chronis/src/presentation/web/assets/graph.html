@@ -6,6 +6,7 @@
   <title>chronis — dependency graph</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/htmx.min.js"></script>
+  <script src="/detail-pane.js" defer></script>
 </head>
 <body hx-headers='{"Accept": "text/html"}'>
   <div class="container">
@@ -31,7 +32,7 @@
            hx-swap="innerHTML">
       </div>
 
-      <div class="panel" id="detail-pane">
+      <div class="panel" id="detail-pane" tabindex="-1" role="region" aria-label="Task detail">
         <p class="empty-state">Click a node to see details</p>
       </div>
     </div>

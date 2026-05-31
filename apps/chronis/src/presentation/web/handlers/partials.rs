@@ -55,6 +55,45 @@ pub async fn partial_task_list(State(state): State<AppState>) -> Result<Html<Str
     Ok(Html(html))
 }
 
+/// Render a single dependency entry: a clickable row that pivots the detail
+/// pane to that task. Shows id + short title + a status-colored badge, and is
+/// keyboard-focusable (`tabindex="0"`, Enter via the inline keydown). `known`
+/// is `Some(task)` when we resolved the referenced id to a real task; a
+/// dangling reference (blocker id with no matching task) still renders, marked
+/// "unknown", so a broken edge is visible rather than silently dropped.
+fn dep_entry_html(dep_id: &str, known: Option<&Task>) -> String {
+    let mut s = String::new();
+    s.push_str(
+        "<li class=\"dep-item\" tabindex=\"0\" role=\"link\" hx-get=\"/partials/task-detail/",
+    );
+    s.push_str(dep_id);
+    s.push_str("\" hx-target=\"#detail-pane\" hx-swap=\"innerHTML\" ");
+    // Enter/Space on the focused item triggers the same HTMX get the click does.
+    s.push_str(
+        "onkeydown=\"if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}\">",
+    );
+    s.push_str("<span class=\"dep-id\">");
+    s.push_str(&html_escape(dep_id));
+    s.push_str("</span>");
+    match known {
+        Some(t) => {
+            let status_class = crate::presentation::shared::status_css_class(t.status);
+            s.push_str(" <span class=\"dep-title\">");
+            s.push_str(&html_escape(&t.title));
+            s.push_str("</span> <span class=\"dep-status ");
+            s.push_str(status_class);
+            s.push_str("\">");
+            s.push_str(&t.status.to_string());
+            s.push_str("</span>");
+        }
+        None => {
+            s.push_str(" <span class=\"dep-status status-unknown\">unknown</span>");
+        }
+    }
+    s.push_str("</li>");
+    s
+}
+
 pub async fn partial_task_detail(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -62,10 +101,41 @@ pub async fn partial_task_detail(
     let detail = state.repo.get_task_detail(&id).await?;
     let task = &detail.task;
 
+    // Two-way dependency edges.
+    //
+    // The repository/domain only stores the FORWARD edge per task
+    // (`task.blocked_by` = upstream blockers). There is no stored reverse index
+    // for the inverse "blocks" (downstream) relation, so we derive it with a
+    // single bounded scan over the full task universe, collecting every task
+    // whose `blocked_by` contains this id. For a local single-workspace viewer
+    // the universe is small, so this O(n) pass is fine and — importantly — it
+    // reproduces exactly the same edge set the Graph view renders from
+    // `blocked_by`, keeping the two views consistent. We also use the same scan
+    // to resolve each upstream blocker id to its task (title + status) so both
+    // directions render with the same id/title/status format. `list_tasks_all`
+    // is used (not the active-only `list_tasks`) so a done blocker/blockee is
+    // still shown — a dependency doesn't disappear just because it closed.
+    let universe = state.repo.list_tasks_all(None)?;
+    let by_id: std::collections::HashMap<&str, &Task> =
+        universe.iter().map(|t| (t.id.as_str(), t)).collect();
+    let blocks: Vec<&Task> = universe
+        .iter()
+        .filter(|t| t.blocked_by.iter().any(|b| b == &task.id))
+        .collect();
+
     let mut html = String::new();
-    html.push_str("<h3>");
+    // Header row: title (h3) + expand/collapse control. The control's behaviour
+    // is wired by the shared detail-pane.js (delegated from <body>, survives
+    // HTMX swaps); we only emit the button + correct initial aria-expanded.
+    html.push_str("<div class=\"detail-header\"><h3>");
     html.push_str(&html_escape(&task.id));
-    html.push_str("</h3>\n<dl>\n");
+    html.push_str("</h3>");
+    html.push_str(
+        "<button type=\"button\" class=\"detail-expand-btn\" aria-expanded=\"false\" \
+         aria-label=\"Expand detail to full screen\" title=\"Expand (full screen)\" \
+         data-detail-expand>⛶</button>",
+    );
+    html.push_str("</div>\n<dl>\n");
 
     // Title
     html.push_str("  <dt>Title</dt><dd>");
@@ -113,12 +183,37 @@ pub async fn partial_task_detail(
 
     html.push_str("</dl>");
 
-    // Blocked by
-    if !task.blocked_by.is_empty() {
-        html.push_str("<dl><dt>Blocked by</dt><dd>");
-        html.push_str(&html_escape(&task.blocked_by.join(", ")));
-        html.push_str("</dd></dl>");
+    // Dependencies (two-way): upstream "Blocked by" + downstream "Blocks".
+    html.push_str("<h4>Dependencies</h4>\n<div class=\"dep-section\">\n");
+
+    // Upstream — what this task waits on.
+    html.push_str("<div class=\"dep-group\"><div class=\"dep-group-title\">Blocked by</div>");
+    if task.blocked_by.is_empty() {
+        html.push_str("<p class=\"dep-empty\">Nothing upstream</p>");
+    } else {
+        html.push_str("<ul class=\"dep-list\">");
+        for blocker_id in &task.blocked_by {
+            html.push_str(&dep_entry_html(
+                blocker_id,
+                by_id.get(blocker_id.as_str()).copied(),
+            ));
+        }
+        html.push_str("</ul>");
     }
+    html.push_str("</div>");
+
+    // Downstream — what waits on this task (reverse edges computed above).
+    html.push_str("<div class=\"dep-group\"><div class=\"dep-group-title\">Blocks</div>");
+    if blocks.is_empty() {
+        html.push_str("<p class=\"dep-empty\">Nothing downstream</p>");
+    } else {
+        html.push_str("<ul class=\"dep-list\">");
+        for t in &blocks {
+            html.push_str(&dep_entry_html(&t.id, Some(t)));
+        }
+        html.push_str("</ul>");
+    }
+    html.push_str("</div>\n</div>\n");
 
     // Approval status
     if task.awaiting_approval == Some(true) {

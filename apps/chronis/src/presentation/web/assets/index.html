@@ -6,6 +6,7 @@
   <title>chronis — dashboard</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/htmx.min.js"></script>
+  <script src="/detail-pane.js" defer></script>
 </head>
 <body hx-headers='{"Accept": "text/html"}'>
   <div class="container">
@@ -61,7 +62,7 @@
         </table>
       </div>
 
-      <div class="panel" id="detail-pane">
+      <div class="panel" id="detail-pane" tabindex="-1" role="region" aria-label="Task detail">
         <p class="empty-state">Click a task to see details</p>
       </div>
     </div>
