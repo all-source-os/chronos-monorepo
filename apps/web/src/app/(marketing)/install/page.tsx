@@ -69,6 +69,26 @@ export default function InstallHubPage() {
         </div>
       </div>
 
+      {/* Two access planes — MCP clients use the stdio binary; programmatic
+          callers use the hosted REST API. Stated once here, not on every page. */}
+      <div className="mt-8 rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">Two ways to reach Prime.</span> MCP clients
+        (the tools below) connect to the local{" "}
+        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">allsource-prime</code>{" "}
+        stdio binary and sync to your tenant with{" "}
+        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">--sync-to</code>. For
+        programmatic access, the same hosted memory is also a REST API behind the gateway at{" "}
+        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+          api.all-source.xyz/api/v1/prime
+        </code>{" "}
+        — use an{" "}
+        <Link href="/docs/prime" className="underline underline-offset-4 hover:text-foreground">
+          AllSource SDK
+        </Link>{" "}
+        for graph, vector, and recall calls. A hosted MCP-over-HTTP endpoint (connect a client
+        with no local binary) is on the roadmap.
+      </div>
+
       {/* Per-tool grid — each card links to its own install page. */}
       <h2 className="mb-4 mt-14 text-2xl font-semibold text-foreground">Choose your client</h2>
       <div className="grid gap-4 sm:grid-cols-2">
