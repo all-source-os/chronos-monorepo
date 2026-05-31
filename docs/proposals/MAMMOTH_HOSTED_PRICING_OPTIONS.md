@@ -1,7 +1,11 @@
 # mammoth hosted tier — pricing & abuse-control options
 
-> **Status:** Decision input for chronis bead `t-a238`. This is an **options
-> menu, not a decision** — the pricing call is the owner's. Drafted 2026-05-31.
+> **Status: DECIDED 2026-05-31 (bead `t-a238`).** Owner chose **Option B
+> (free-local → free-capped-sync → Pro → Team) + all five abuse controls**,
+> primary meter = stored memories, hard cap = synced events/month. The only
+> remaining input is the **numbers** (price points + cap thresholds), which need
+> a per-synced-user unit-cost estimate from Core's Fly bill — tracked as a
+> follow-up, not part of this structural decision.
 > Source positioning: `docs/proposals/ALLSOURCE_AGENT_MEMORY_ECOSYSTEM.md`.
 
 ## The one hard constraint (already decided)
