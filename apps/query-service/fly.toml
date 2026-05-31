@@ -10,6 +10,11 @@ primary_region = "iad"  # US East (Virginia)
 
 [env]
   MIX_ENV = "prod"
+  # Hosted multi-tenant deployment. MUST be "enterprise" — the code default is
+  # "community" (config.exs + runtime.exs), which makes TenantContext pin every
+  # request to the "community" tenant and hides each tenant's real data. Set
+  # explicitly here so a forgotten env can't silently single-tenant the gateway.
+  ALLSOURCE_EDITION = "enterprise"
   PHX_HOST = "allsource-query.fly.dev"
   CORE_URL = "http://allsource-core.internal:3900"
   CORE_WS_URL = "ws://allsource-core.internal:3900/api/v1/events/stream"
