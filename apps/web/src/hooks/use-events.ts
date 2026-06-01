@@ -2,7 +2,13 @@
 
 import useSWR, { mutate } from "swr";
 import { useTimeTravelOptional } from "@/hooks/use-time-travel";
-import { apiClient, type CreateEventRequest, type ListEventsParams } from "@/lib/api/client";
+import {
+  apiClient,
+  type CreateEventRequest,
+  type Event,
+  type EventListResponse,
+  type ListEventsParams,
+} from "@/lib/api/client";
 
 const fetcher = async (key: string) => {
   const params: ListEventsParams = {};
@@ -64,9 +70,17 @@ export function useEvents(params?: ListEventsParams) {
     return response.data;
   };
 
+  // apiClient.request() unwraps `{ data: X }` → X. The events endpoint returns
+  // `{ count, data: [...] }`, so that unwrap yields the Event[] array directly —
+  // the value here is already the array, NOT the EventListResponse wrapper.
+  // Doing `data.data` again returned undefined, which silently rendered every
+  // events/memory view empty even when the API returned rows. Handle both shapes.
+  const raw = data as Event[] | EventListResponse | undefined;
+  const list: Event[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
+
   return {
-    events: data?.data || [],
-    total: data?.count || 0,
+    events: list,
+    total: Array.isArray(raw) ? raw.length : (raw?.count ?? list.length),
     isLoading,
     isValidating,
     isHistorical,
