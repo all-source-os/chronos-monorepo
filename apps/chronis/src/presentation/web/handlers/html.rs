@@ -282,14 +282,26 @@ pub fn tree_html(tasks: &[Task]) -> String {
 
 /// Inline content of a tree node (id, type, priority, title, status,
 /// claimant). Shared by the epic summary and the leaf row.
+///
+/// The leading id/type/priority badges are grouped into a fixed `.tree-meta`
+/// column so the `.tree-body` (title + status + any trailing badges) flows and
+/// wraps with a consistent hanging indent instead of breaking ragged to col 0.
+/// `extra` carries renderer-specific trailing markup (e.g. the leaf's quiet
+/// blocked-by badge) so it lives inside the wrapping body column.
 fn tree_node_inner(task: &Task) -> String {
+    tree_node_inner_with(task, "")
+}
+
+fn tree_node_inner_with(task: &Task, extra: &str) -> String {
     let claimed = task
         .claimed_by
         .as_deref()
         .map(|c| format!(" <span class=\"card-claimed\">@{}</span>", html_escape(c)))
         .unwrap_or_default();
     format!(
-        "<span class=\"tree-id\">{}</span>{} {} <span class=\"tree-title\">{}</span> <span class=\"{}\">{}</span>{}",
+        "<span class=\"tree-meta\"><span class=\"tree-id\">{}</span>{} {}</span>\
+         <span class=\"tree-body\"><span class=\"tree-title\">{}</span> \
+         <span class=\"{}\">{}</span>{}{}</span>",
         html_escape(&task.id),
         type_badge(task.task_type),
         pri_badge(task),
@@ -297,29 +309,32 @@ fn tree_node_inner(task: &Task) -> String {
         crate::presentation::shared::status_css_class(task.status),
         task.status,
         claimed,
+        extra,
     )
 }
 
 /// A clickable leaf node (child or standalone task) — opens the detail pane.
 fn tree_leaf_html(task: &Task) -> String {
+    // Quiet, discoverable blocked-by badge (de-emphasised per the polish pass):
+    // it lives inside the wrapping `.tree-body` so it hangs under the title
+    // rather than shouting in loud red at the row's edge.
     let blocked = if task.blocked_by.is_empty() || task.status == TaskStatus::Done {
         String::new()
     } else {
         format!(
-            " <span class=\"card-blocked\">blocked by {}</span>",
+            " <span class=\"tree-blocked\" title=\"blocked by {0}\">\u{1F512} {0}</span>",
             html_escape(&task.blocked_by.join(", "))
         )
     };
     format!(
         "<div class=\"tree-leaf\" data-status=\"{}\" data-type=\"{}\" data-pri=\"{}\" data-text=\"{}\" \
-         hx-get=\"/partials/task-detail/{}\" hx-target=\"#detail-pane\" hx-swap=\"innerHTML\">{}{}</div>\n",
+         hx-get=\"/partials/task-detail/{}\" hx-target=\"#detail-pane\" hx-swap=\"innerHTML\">{}</div>\n",
         task.status,
         task.task_type,
         task.priority,
         html_escape(&task.title.to_lowercase()),
         html_escape(&task.id),
-        tree_node_inner(task),
-        blocked,
+        tree_node_inner_with(task, &blocked),
     )
 }
 

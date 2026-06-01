@@ -26,44 +26,43 @@
     </header>
 
     <div class="tree-layout">
-      <aside class="filter-sidebar">
-        <div class="search-box">
+      <aside class="filter-rail">
+        <div class="search-box filter-search">
           <input type="text" id="search-input" placeholder="Search title…" oninput="applyFilters()">
         </div>
 
         <div class="filter-section">
           <h4>Status</h4>
-          <label><input type="checkbox" class="f-status" value="open" checked> open</label>
-          <label><input type="checkbox" class="f-status" value="in-progress" checked> in-progress</label>
-          <label><input type="checkbox" class="f-status" value="done"> done</label>
+          <label class="filter-check"><input type="checkbox" class="f-status" value="open" checked> open</label>
+          <label class="filter-check"><input type="checkbox" class="f-status" value="in-progress" checked> in-progress</label>
+          <label class="filter-check"><input type="checkbox" class="f-status" value="done"> done</label>
         </div>
 
         <div class="filter-section">
           <h4>Priority</h4>
-          <label><input type="checkbox" class="f-pri" value="p0" checked> p0</label>
-          <label><input type="checkbox" class="f-pri" value="p1" checked> p1</label>
-          <label><input type="checkbox" class="f-pri" value="p2" checked> p2</label>
-          <label><input type="checkbox" class="f-pri" value="p3" checked> p3</label>
+          <label class="filter-check"><input type="checkbox" class="f-pri" value="p0" checked> p0</label>
+          <label class="filter-check"><input type="checkbox" class="f-pri" value="p1" checked> p1</label>
+          <label class="filter-check"><input type="checkbox" class="f-pri" value="p2" checked> p2</label>
+          <label class="filter-check"><input type="checkbox" class="f-pri" value="p3" checked> p3</label>
         </div>
 
         <div class="filter-section">
           <h4>Type</h4>
-          <label><input type="checkbox" class="f-type" value="task" checked> task</label>
-          <label><input type="checkbox" class="f-type" value="epic" checked> epic</label>
-          <label><input type="checkbox" class="f-type" value="bug" checked> bug</label>
-          <label><input type="checkbox" class="f-type" value="feature" checked> feature</label>
+          <label class="filter-check"><input type="checkbox" class="f-type" value="task" checked> task</label>
+          <label class="filter-check"><input type="checkbox" class="f-type" value="epic" checked> epic</label>
+          <label class="filter-check"><input type="checkbox" class="f-type" value="bug" checked> bug</label>
+          <label class="filter-check"><input type="checkbox" class="f-type" value="feature" checked> feature</label>
         </div>
 
-        <div class="filter-section">
-          <label><input type="checkbox" id="stale-only" onchange="applyFilters()"> stale epics only</label>
+        <div class="filter-section filter-section--toggle">
+          <label class="filter-check"><input type="checkbox" id="stale-only" onchange="applyFilters()"> stale epics only</label>
         </div>
 
-        <div class="filter-section">
+        <div class="filter-actions">
           <button class="filter-btn" onclick="setAll(true)">Expand all</button>
           <button class="filter-btn" onclick="setAll(false)">Collapse all</button>
+          <a href="/api/export" class="export-btn" download>Export .md</a>
         </div>
-
-        <a href="/api/export" class="export-btn" download>Export .md</a>
       </aside>
 
       <div class="panel tree-panel"

@@ -550,102 +550,214 @@ th[data-sort-key] {
   }
 }
 
-/* --- Tree view (issue #196) --- */
+/* ===== Tree view (issue #196; polished in prompt 009) ====================
+   A calm, scannable epic→child tree. All selectors are additive and scoped to
+   .tree-* / .filter-* so they never collide with 006's .sort-*, 007's
+   .detail-pane--expanded / .dep-*, or 008's .bubble-* / .bg-* rules. Shared
+   spacing tokens (--tree-row-pad, --tree-indent) keep vertical rhythm uniform
+   and let the four views read as one visual language. */
 .tree-layout {
   display: grid;
-  grid-template-columns: 200px 1fr 360px;
+  grid-template-columns: 210px 1fr 360px;
   gap: 16px;
   align-items: start;
 }
-.filter-sidebar {
+
+/* --- Filter rail ------------------------------------------------------- */
+.filter-rail {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 12px;
+  padding: 14px;
   position: sticky;
   top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.filter-section { margin-bottom: 14px; }
+.filter-search { flex: none; min-width: 0; margin-bottom: 6px; }
+.filter-search input { font-size: 13px; }
+.filter-section {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.filter-section:first-of-type { border-top: none; padding-top: 0; }
+.filter-section--toggle { padding-bottom: 4px; }
 .filter-section h4 {
-  margin: 0 0 6px;
-  font-size: 11px;
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: var(--text-dim);
 }
-.filter-section label {
-  display: block;
+.filter-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 13px;
   color: var(--text);
   cursor: pointer;
-  padding: 1px 0;
+  padding: 3px 4px;
+  border-radius: 4px;
+  transition: background 0.1s, color 0.1s;
 }
+.filter-check:hover { background: var(--surface-hover); color: var(--accent); }
+.filter-check input { accent-color: var(--accent); cursor: pointer; margin: 0; }
+.filter-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.filter-actions .filter-btn,
+.filter-actions .export-btn {
+  width: 100%;
+  text-align: center;
+}
+
+/* --- Tree panel & rows ------------------------------------------------- */
 .tree-panel {
   overflow: auto;
   max-height: calc(100vh - 160px);
-  padding: 8px 4px;
+  padding: 6px 8px;
+  --tree-row-pad: 7px;
+  --tree-indent: 20px;
 }
-.tree-epic { margin-bottom: 4px; }
+
+/* Epic group: a distinct card-ish band so parents read above their tasks. */
+.tree-epic { margin-bottom: 6px; }
 .tree-summary {
   cursor: pointer;
-  padding: 6px 8px;
+  padding: var(--tree-row-pad) 10px;
   border-radius: 6px;
   list-style: none;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  transition: border-color 0.12s, background 0.12s;
 }
 .tree-summary::-webkit-details-marker { display: none; }
 .tree-summary::before {
   content: "\25B8"; /* ▸ */
   color: var(--text-dim);
-  transition: transform 0.1s;
+  align-self: center;
+  transition: color 0.12s;
 }
 .tree-epic[open] > .tree-summary::before { content: "\25BE"; } /* ▾ */
-.tree-summary:hover { background: var(--surface-hover); }
-.tree-children {
-  margin-left: 18px;
-  border-left: 1px solid var(--border);
-  padding-left: 8px;
+.tree-summary:hover {
+  background: var(--surface-hover);
+  border-color: var(--text-dim);
 }
+.tree-summary:hover::before { color: var(--accent); }
+
+/* Children indent with a subtle vertical guide line. */
+.tree-children {
+  margin: 2px 0 2px var(--tree-indent);
+  border-left: 1px solid var(--border);
+  padding-left: 10px;
+}
+
+/* Leaf rows: uniform height; the title wraps inside its own column with a
+   hanging indent under the id/badges rather than breaking ragged to col 0. */
 .tree-leaf {
   cursor: pointer;
-  padding: 4px 8px;
+  padding: var(--tree-row-pad) 10px;
   border-radius: 6px;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
-  flex-wrap: wrap;
   font-size: 13px;
+  border: 1px solid transparent;
+  transition: background 0.1s, border-color 0.1s;
 }
-.tree-leaf:hover { background: var(--surface-hover); }
+.tree-leaf:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+/* Selected node: crisp accent ring (007 sets .selected on click targets). */
+.tree-leaf.selected,
+.tree-summary.selected {
+  border-color: var(--accent);
+  background: rgba(122, 162, 247, 0.08);
+}
+
+/* Meta column (id + type + pri) stays on the baseline; body column flexes
+   and wraps, giving a clean hanging indent for long titles. */
+.tree-meta {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.tree-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  line-height: 1.5;
+}
 .tree-id { color: var(--text-dim); font-family: monospace; font-size: 12px; }
 .tree-title { color: var(--text); }
-.tree-empty { color: var(--text-dim); font-size: 12px; padding: 2px 8px; }
+.tree-empty { color: var(--text-dim); font-size: 12px; padding: 4px 10px; font-style: italic; }
 .tree-section {
-  margin: 14px 0 4px;
-  font-size: 11px;
+  margin: 16px 0 6px;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: var(--text-dim);
 }
+
+/* Epic progress: compact chip carrying the numeric ratio + a slim proportion
+   bar so completion reads at a glance. The bar fill is set inline by width. */
 .rollup {
+  flex: none;
+  margin-left: auto;
+  align-self: center;
   font-size: 11px;
   font-family: monospace;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
 }
-.rollup-partial { color: var(--yellow); background: rgba(224, 175, 104, 0.12); }
-.rollup-complete { color: var(--green); background: rgba(158, 206, 106, 0.12); }
+.rollup-partial { color: var(--yellow); background: rgba(224, 175, 104, 0.14); }
+.rollup-complete { color: var(--green); background: rgba(158, 206, 106, 0.14); }
+
+/* Stale badge: still discoverable, no longer shouting — a quiet warning tint. */
 .stale-badge {
-  font-size: 11px;
+  flex: none;
+  align-self: center;
+  font-size: 10px;
   font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
-  color: var(--red);
-  background: rgba(247, 118, 142, 0.15);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: 10px;
+  color: var(--yellow);
+  background: rgba(224, 175, 104, 0.16);
+  border: 1px solid rgba(224, 175, 104, 0.35);
 }
+
+/* De-emphasised blocked-by badge: muted, small, discoverable on hover. */
+.tree-blocked {
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.tree-leaf:hover .tree-blocked { color: var(--yellow); border-color: var(--text-dim); }
 
 /* ===== 007: two-way dependencies + expand-in-place detail pane ===========
    All additive and namespaced (.detail-*, .dep-*) so it never collides with
