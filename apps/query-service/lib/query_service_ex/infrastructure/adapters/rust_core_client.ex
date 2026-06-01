@@ -903,6 +903,31 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   end
 
   @doc """
+  Set a tenant's schema-enforcement mode in Core (Gap 3 toggle).
+
+  `mode` is one of "permissive", "warn", "strict". Core's endpoint is
+  admin-gated; the gateway scopes this to the authenticated tenant.
+  """
+  def set_schema_enforcement(tenant_id, mode)
+      when is_binary(tenant_id) and is_binary(mode) do
+    body = %{schema_enforcement: mode}
+
+    case Tesla.put(write_client(), "/api/v1/tenants/#{tenant_id}/schema-enforcement", body) do
+      {:ok, %Tesla.Env{status: status}} when status in [200, 204] ->
+        {:ok, mode}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: resp_body}} ->
+        {:error, "HTTP #{status}: #{inspect(resp_body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Create a tenant in Core.
 
   Used for lazy auto-provisioning when a valid JWT references a tenant that

@@ -151,9 +151,87 @@ defmodule QueryServiceExWeb.TenantController do
     end
   end
 
+  @valid_enforcement_modes ~w(permissive warn strict)
+
+  @doc """
+  Returns the current tenant's schema-enforcement mode.
+
+  GET /api/tenant/schema-enforcement
+  """
+  def get_schema_enforcement(conn, _params) do
+    case current_tenant_id(conn) do
+      {:ok, tenant_id} ->
+        mode =
+          case RustCoreClient.get_tenant(tenant_id) do
+            {:ok, tenant} when is_map(tenant) -> tenant["schema_enforcement"] || "permissive"
+            _ -> "permissive"
+          end
+
+        json(conn, %{data: %{schema_enforcement: mode}})
+
+      :dev ->
+        # No persistent tenant in dev/standalone mode.
+        json(conn, %{data: %{schema_enforcement: "permissive"}})
+    end
+  end
+
+  @doc """
+  Sets the current tenant's schema-enforcement mode.
+
+  PUT /api/tenant/schema-enforcement  body: {"schema_enforcement": "strict"}
+  """
+  def set_schema_enforcement(conn, params) do
+    mode = params["schema_enforcement"]
+
+    if mode in @valid_enforcement_modes do
+      case current_tenant_id(conn) do
+        {:ok, tenant_id} ->
+          case RustCoreClient.set_schema_enforcement(tenant_id, mode) do
+            {:ok, _} ->
+              TenantCache.invalidate(tenant_id)
+              json(conn, %{data: %{schema_enforcement: mode}})
+
+            {:error, :not_found} ->
+              conn
+              |> put_status(:not_found)
+              |> json(%{error: %{code: "tenant_not_found", message: "Workspace not found"}})
+
+            {:error, reason} ->
+              conn
+              |> put_status(:bad_gateway)
+              |> json(%{error: %{code: "core_error", message: to_string(reason)}})
+          end
+
+        :dev ->
+          # Dev/standalone mode can't persist — echo the requested mode.
+          json(conn, %{data: %{schema_enforcement: mode}})
+      end
+    else
+      conn
+      |> put_status(:unprocessable_entity)
+      |> json(%{
+        error: %{
+          code: "invalid_mode",
+          message: "schema_enforcement must be one of: permissive, warn, strict"
+        }
+      })
+    end
+  end
+
   # -------------------------------------------------------------------
   # Private Helpers
   # -------------------------------------------------------------------
+
+  # Resolves the caller's tenant id, mirroring show/2. Returns `:dev` when
+  # auth is disabled (no persistent tenant to act on).
+  defp current_tenant_id(conn) do
+    if DevMode.auth_disabled?() do
+      :dev
+    else
+      user = conn.assigns[:current_user]
+      {:ok, user["tenant_id"] || user.tenant_id}
+    end
+  end
 
   @doc false
   def fetch_tenant(tenant_id) do

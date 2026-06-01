@@ -321,6 +321,10 @@ defmodule QueryServiceExWeb.Router do
 
       # Usage statistics
       get("/tenant/usage", TenantController, :usage)
+
+      # Schema-enforcement toggle (Gap 3) — proxies Core's per-tenant setting.
+      get("/tenant/schema-enforcement", TenantController, :get_schema_enforcement)
+      put("/tenant/schema-enforcement", TenantController, :set_schema_enforcement)
     end
 
     # -------------------------------------------------------------------
