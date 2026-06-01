@@ -1,5 +1,8 @@
 use crate::{
-    domain::{entities::TenantQuotas, value_objects::TenantId},
+    domain::{
+        entities::{SchemaEnforcement, TenantQuotas},
+        value_objects::TenantId,
+    },
     infrastructure::security::middleware::{Admin, Authenticated},
 };
 use axum::{Json, extract::State, http::StatusCode};
@@ -33,6 +36,7 @@ pub struct TenantResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub active: bool,
     pub is_demo: bool,
+    pub schema_enforcement: SchemaEnforcement,
 }
 
 impl TenantResponse {
@@ -46,6 +50,7 @@ impl TenantResponse {
             updated_at: tenant.updated_at(),
             active: tenant.is_active(),
             is_demo: tenant.is_demo(),
+            schema_enforcement: tenant.schema_enforcement(),
         }
     }
 }
@@ -61,6 +66,12 @@ pub struct UpdateTenantRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateQuotasRequest {
     pub quotas: TenantQuotas,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSchemaEnforcementRequest {
+    /// One of `permissive`, `warn`, `strict`.
+    pub schema_enforcement: SchemaEnforcement,
 }
 
 // ============================================================================
@@ -228,6 +239,37 @@ pub async fn update_quotas_handler(
     let updated = state
         .tenant_repo
         .update_quotas(&tid, req.quotas)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if !updated {
+        return Err((
+            StatusCode::NOT_FOUND,
+            format!("Tenant not found: {tenant_id}"),
+        ));
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Set a tenant's schema-enforcement mode (admin only).
+/// PUT /api/v1/tenants/:id/schema-enforcement
+///
+/// Gap 3 toggle: flips registered-schema validation on ingest between
+/// `permissive` (default), `warn`, and `strict`. The gateway exposes this to a
+/// tenant for their own tenant; Core keeps it admin-gated and internal.
+pub async fn update_schema_enforcement_handler(
+    State(state): State<AppState>,
+    Admin(_): Admin,
+    axum::extract::Path(tenant_id): axum::extract::Path<String>,
+    Json(req): Json<UpdateSchemaEnforcementRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let updated = state
+        .tenant_repo
+        .update_schema_enforcement(&tid, req.schema_enforcement)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

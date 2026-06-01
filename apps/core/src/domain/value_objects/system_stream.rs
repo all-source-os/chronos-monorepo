@@ -84,6 +84,7 @@ pub mod tenant_events {
     pub const DELETED: &str = "_system.tenant.deleted";
     pub const QUOTA_UPDATED: &str = "_system.tenant.quota_updated";
     pub const USAGE_UPDATED: &str = "_system.tenant.usage_updated";
+    pub const SCHEMA_ENFORCEMENT_UPDATED: &str = "_system.tenant.schema_enforcement_updated";
 }
 
 /// System event types for audit log.

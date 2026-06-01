@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{Tenant, TenantQuotas, TenantUsage},
+        entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage},
         repositories::TenantRepository,
         value_objects::{
             TenantId,
@@ -156,6 +156,13 @@ impl EventSourcedTenantRepository {
                     && let Ok(quotas) = serde_json::from_value::<TenantQuotas>(payload.clone())
                 {
                     entry.value_mut().update_quotas(quotas);
+                }
+            }
+            t if t == tenant_events::SCHEMA_ENFORCEMENT_UPDATED => {
+                if let Some(mut entry) = self.cache.get_mut(tenant_id_str)
+                    && let Ok(mode) = serde_json::from_value::<SchemaEnforcement>(payload.clone())
+                {
+                    entry.value_mut().set_schema_enforcement(mode);
                 }
             }
             t if t == tenant_events::USAGE_UPDATED => {
@@ -316,6 +323,23 @@ impl TenantRepository for EventSourcedTenantRepository {
         // Apply directly to cache since apply_event handles deserialization
         if let Some(mut entry) = self.cache.get_mut(id_str) {
             entry.value_mut().update_quotas(quotas);
+        }
+        Ok(true)
+    }
+
+    async fn update_schema_enforcement(
+        &self,
+        id: &TenantId,
+        mode: SchemaEnforcement,
+    ) -> Result<bool> {
+        let id_str = id.as_str();
+        if !self.cache.contains_key(id_str) {
+            return Ok(false);
+        }
+        let payload = serde_json::to_value(mode).unwrap_or_default();
+        self.emit_event(tenant_events::SCHEMA_ENFORCEMENT_UPDATED, id_str, payload)?;
+        if let Some(mut entry) = self.cache.get_mut(id_str) {
+            entry.value_mut().set_schema_enforcement(mode);
         }
         Ok(true)
     }
@@ -615,6 +639,62 @@ mod tests {
             assert_eq!(beta.name(), "Beta Inc");
             assert!(!beta.is_active());
         }
+    }
+
+    #[tokio::test]
+    async fn test_schema_enforcement_survives_restart() {
+        use crate::domain::entities::SchemaEnforcement;
+
+        let temp_dir = TempDir::new().unwrap();
+        let system_dir = temp_dir.path().join("__system");
+        let tid = TenantId::new("acme".to_string()).unwrap();
+
+        // Set Strict, then drop the repo (simulates restart).
+        {
+            let system_store = Arc::new(SystemMetadataStore::new(&system_dir).unwrap());
+            let repo = EventSourcedTenantRepository::new(system_store);
+            repo.create(tid.clone(), "ACME".to_string(), TenantQuotas::standard())
+                .await
+                .unwrap();
+            // Default is Permissive.
+            assert_eq!(
+                repo.find_by_id(&tid).await.unwrap().unwrap().schema_enforcement(),
+                SchemaEnforcement::Permissive
+            );
+            assert!(
+                repo.update_schema_enforcement(&tid, SchemaEnforcement::Strict)
+                    .await
+                    .unwrap()
+            );
+            assert_eq!(
+                repo.find_by_id(&tid).await.unwrap().unwrap().schema_enforcement(),
+                SchemaEnforcement::Strict
+            );
+        }
+
+        // Rebuild from WAL — the SCHEMA_ENFORCEMENT_UPDATED event must replay.
+        {
+            let system_store = Arc::new(SystemMetadataStore::new(&system_dir).unwrap());
+            let repo = EventSourcedTenantRepository::new(system_store);
+            assert_eq!(
+                repo.find_by_id(&tid).await.unwrap().unwrap().schema_enforcement(),
+                SchemaEnforcement::Strict,
+                "schema enforcement mode must survive a restart"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_update_schema_enforcement_unknown_tenant_returns_false() {
+        use crate::domain::entities::SchemaEnforcement;
+        let (repo, _dir) = create_test_repo();
+        let bad_id = TenantId::new("ghost".to_string()).unwrap();
+        assert!(
+            !repo
+                .update_schema_enforcement(&bad_id, SchemaEnforcement::Strict)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

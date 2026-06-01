@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{Tenant, TenantQuotas, TenantUsage},
+        entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage},
         repositories::TenantRepository,
         value_objects::TenantId,
     },
@@ -185,6 +185,22 @@ impl TenantRepository for InMemoryTenantRepository {
                 tenant.metadata().clone(),
             );
             *entry = updated;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    async fn update_schema_enforcement(
+        &self,
+        id: &TenantId,
+        mode: SchemaEnforcement,
+    ) -> Result<bool> {
+        // Mutate in place rather than `reconstruct` — reconstruct doesn't carry
+        // the schema_enforcement field and would reset it. `set_schema_enforcement`
+        // also bumps `updated_at`.
+        if let Some(mut entry) = self.tenants.get_mut(id.as_str()) {
+            entry.value_mut().set_schema_enforcement(mode);
             Ok(true)
         } else {
             Ok(false)

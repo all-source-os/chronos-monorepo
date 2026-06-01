@@ -22,7 +22,7 @@ use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 
 #[cfg(feature = "postgres")]
-use crate::domain::entities::{Tenant, TenantQuotas, TenantUsage};
+use crate::domain::entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage};
 #[cfg(feature = "postgres")]
 use crate::domain::repositories::TenantRepository;
 #[cfg(feature = "postgres")]
@@ -425,6 +425,44 @@ impl TenantRepository for PostgresTenantRepository {
         .execute(&self.pool)
         .await
         .map_err(|e| AllSourceError::StorageError(format!("Failed to update quotas: {e}")))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn update_schema_enforcement(
+        &self,
+        id: &TenantId,
+        mode: SchemaEnforcement,
+    ) -> Result<bool> {
+        // This repository is deprecated (see the type-level #[deprecated] note);
+        // the live path is EventSourcedTenantRepository. The `tenants` table has
+        // no dedicated schema_enforcement column, so we record the mode in the
+        // existing `metadata` JSONB for audit. Read-back into the domain entity
+        // is intentionally NOT wired here — callers needing enforcement use the
+        // event-sourced repo.
+        let mode_str = serde_json::to_value(mode)
+            .ok()
+            .and_then(|v| v.as_str().map(String::from))
+            .unwrap_or_else(|| "permissive".to_string());
+        let result = sqlx::query(
+            r"
+            UPDATE tenants SET
+                metadata = jsonb_set(
+                    COALESCE(metadata, '{}'::jsonb),
+                    '{schema_enforcement}',
+                    to_jsonb($2::text)
+                ),
+                updated_at = NOW()
+            WHERE id = $1
+            ",
+        )
+        .bind(id.as_str())
+        .bind(mode_str)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AllSourceError::StorageError(format!("Failed to update schema enforcement: {e}"))
+        })?;
 
         Ok(result.rows_affected() > 0)
     }

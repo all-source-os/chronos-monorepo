@@ -10,7 +10,7 @@
 
 use crate::{
     domain::{
-        entities::{Tenant, TenantQuotas, TenantUsage},
+        entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage},
         value_objects::TenantId,
     },
     error::Result,
@@ -182,6 +182,22 @@ pub trait TenantRepository: Send + Sync {
     /// # Errors
     /// - `StorageError` - If the operation fails
     async fn update_quotas(&self, id: &TenantId, quotas: TenantQuotas) -> Result<bool>;
+
+    /// Update a tenant's schema-enforcement mode (Gap 3 toggle).
+    ///
+    /// Controls whether registered schemas are enforced on event ingest:
+    /// `Permissive` (default), `Warn`, or `Strict`. See [`SchemaEnforcement`].
+    ///
+    /// # Returns
+    /// `true` if updated, `false` if tenant not found
+    ///
+    /// # Errors
+    /// - `StorageError` - If the operation fails
+    async fn update_schema_enforcement(
+        &self,
+        id: &TenantId,
+        mode: SchemaEnforcement,
+    ) -> Result<bool>;
 
     /// Update tenant usage statistics
     ///
