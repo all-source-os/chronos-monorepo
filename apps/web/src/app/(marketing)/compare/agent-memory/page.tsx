@@ -104,7 +104,7 @@ const approaches: Approach[] = [
       "Memory as an append-only log of events. Current state is projected from the log; full history is preserved. AllSource Prime adds a knowledge graph and vector recall on top of the same event spine.",
     wins: [
       'Time-travel by construction — "what did I know about X as of last Tuesday?" is a query',
-      "Full audit trail — every fact is preserved with provenance and timestamp",
+      'Per-field provenance — ask "where did this value come from?" and get the source event, via MCP, REST, or any SDK',
       "Graph + vector recall in one query (Prime's `prime_recall`)",
       "Hosted multi-tenant or local-first — same data shape both ways",
       "Cross-tool sync via MCP — same memory in Claude Desktop, the Anthropic CLI, Cursor, OpenCode",

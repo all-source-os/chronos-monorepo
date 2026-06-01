@@ -1,7 +1,26 @@
 # Neotoma Parity Completion Plan
 
-*Date: 2026-05-29*
+*Date: 2026-05-29 (status updated 2026-06)*
 *Status: internal planning — derived from a live-code re-audit of the 6 gaps in `docs/articles/neotoma-comparison.md`. Not for publication.*
+
+---
+
+## Status — SHIPPED (2026-06)
+
+The plan below is executed. The whole "deterministic primitives reachable beyond MCP" gap (§2 cross-cutting) plus the Gap 3 toggle are done, on Core REST + gateway + all four SDKs + dashboard:
+
+| Step (from §3 sequence) | Status | Commits |
+|---|---|---|
+| 1. Gap 3 toggle API + dashboard | ✅ shipped | Core `806c0a9`, gateway `58d0a04`, dashboard `f576c25` (bead t-445a) |
+| 2. Core REST routes (projections + provenance) | ✅ shipped | `f3f2578` (bead t-2ac8) |
+| 3. Gateway proxy for the new Prime routes | ✅ shipped | `63a8e2c` (bead t-9501) |
+| 4. SDK methods, all four languages | ✅ shipped | `6894976` (bead t-8bf4) |
+| 5. Docs + comparison/internal-doc copy | ✅ this update | comparison-doc rows + conclusion + this header (bead t-061e) |
+| 6. Gap 4 enforced-templates follow-up | ⏸ deferred | bead t-9d5a (p3) |
+
+Also shipped alongside: a per-tool `/install` integration hub (`f80afa9`) and the two-access-planes clarification (`adb758c`). One genuinely-new follow-up surfaced and is tracked: **hosted MCP-over-HTTP transport** (bead t-dbee53) — today `allsource-prime`'s hosted Fly app serves Prime's REST plane, not the MCP protocol over HTTP.
+
+**Caveat (verification):** every layer is covered by unit/in-process/mocked tests (router-level, controller-level, repo replay, SDK mock-server). There is **no end-to-end test** of the full Core→gateway→SDK chain against a running stack yet.
 
 ---
 

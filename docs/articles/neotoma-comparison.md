@@ -67,9 +67,9 @@ Notably absent from their feature set:
 |---|---|---|---|
 | **Append-only event log** | ✓ observations | ✓ events | Tie |
 | **Time-travel queries** | ✓ per-entity snapshots over versions | ✓ event-log range queries + as-of reads | **AllSource** (full event log, not just per-entity) |
-| **Per-field provenance** | ✓ first-class (observation → snapshot field) | ✗ derivable from events, not first-class | **Neotoma** |
-| **Declarative merge policies** | ✓ four built-in policies, no user code | ✗ projections are user-written | **Neotoma** |
-| **Schema enforcement at write** | ✓ schema-bound entity types | ⚠ schemas exist (`/schemas`) but not strictly enforced | **Neotoma** |
+| **Per-field provenance** | ✓ first-class (observation → snapshot field) | ✓ first-class `provenance(node, field)` → source event id/time/policy, on MCP + REST + all four SDKs *(shipped 2026-05/06)* | Tie |
+| **Declarative merge policies** | ✓ four built-in policies, no user code | ✓ same four (`last_write`/`highest_priority`/`most_specific`/`merge_array`), no user code, on MCP + REST + SDKs *(shipped)* | Tie |
+| **Schema enforcement at write** | ✓ schema-bound entity types | ✓ opt-in per-tenant `permissive`/`warn`/`strict`, dashboard toggle + gateway API *(shipped)* | Tie |
 | **Knowledge graph** | ✓ relationships first-class | ✓ Prime graph (nodes + edges) | Tie |
 | **Vector search** | ✗ explicitly absent | ✓ Prime vectors + hybrid recall | **AllSource** |
 | **MCP integration** | ✓ MCP server | ✓ allsource-prime MCP server + .dxt | Tie |
@@ -114,6 +114,8 @@ This is small but matters: it turns "I need to write a CRDT merge function" into
 ---
 
 ## Gaps in AllSource that Neotoma exposes
+
+> **Status (2026-06): Gaps 1–6 are all shipped.** Gap 1 (declarative projection primitive), Gap 2 (per-field provenance), and Gap 3 (schema enforcement) are now reachable on every surface — prime-mcp tools, Core REST under `/api/v1/prime/*`, the gateway, and all four SDKs — plus a per-tenant enforcement toggle (`/api/v1/tenants/{id}/schema-enforcement` → dashboard). Gap 4 templates ship as MCP guides (enforced-schema registration deferred until a tenant asks). Gaps 5–6 (cross-tool-sync marketing, `/compare/agent-memory`, plus a per-tool `/install` hub) shipped. Per-commit record: `docs/proposals/NEOTOMA_PARITY_COMPLETION_PLAN.md`. The gap descriptions below are kept as the original analysis.
 
 These aren't existential — none of them is "AllSource doesn't work." They're places where Neotoma's framing makes us look heavier than we need to. In priority order:
 
@@ -208,10 +210,10 @@ Total to fully close the ergonomic gap: ~3-4 weeks of focused work, with marketi
 
 If a buyer is evaluating Neotoma vs AllSource today, the honest answer is:
 
-- **Pick Neotoma if:** you want local-first, you don't need vector search, your workload is "store + recall structured entities" without semantic similarity, you value the declarative-merge-policy ergonomic over flexibility, and you're OK being early on a preview product.
-- **Pick AllSource if:** you need hosted multi-tenant, you want vector + graph + temporal hybrid recall, you're scale-sensitive (469K events/sec matters to you), you want SDKs in your language of choice, or you're already in production and need a system that's also in production.
+- **Pick Neotoma if:** you want strictly local-first (SQLite, no account), you don't need vector search, and you're OK being early on a preview product. That's now the whole list — the declarative-merge-policy and provenance ergonomics it used to win on are matched (see below).
+- **Pick AllSource if:** you need hosted multi-tenant, you want vector + graph + temporal hybrid recall, you're scale-sensitive (469K events/sec matters to you), you want SDKs in your language of choice, you want the deterministic primitives (declarative projections, per-field provenance, opt-in schema enforcement) reachable from REST/SDK and not just MCP, or you're already in production and need a system that's also in production.
 
-After we ship Gaps 1, 3, and 5: the "pick Neotoma if" list shrinks meaningfully. The local-first / no-vectors lane is theirs; everything else becomes a fair fight where AllSource's perf and multi-tenancy lead.
+**Status update (2026-06):** Gaps 1, 2, 3 are shipped, and on **every surface** — the declarative merge policies, `provenance(node, field)`, and per-tenant schema enforcement are now reachable via the prime-mcp tools, Core REST (`/api/v1/prime/*`, `/api/v1/tenants/{id}/schema-enforcement`), the gateway, and all four SDKs, with a dashboard enforcement toggle. The three rows Neotoma used to win (per-field provenance, declarative merge policies, schema enforcement) are now Tie. The "pick Neotoma if" list has collapsed to the local-first / no-vectors lane, exactly as predicted. See `docs/proposals/NEOTOMA_PARITY_COMPLETION_PLAN.md` for the per-commit record.
 
 ---
 
