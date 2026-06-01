@@ -10,7 +10,9 @@ use axum::{
 };
 
 // Re-export all handlers for use in router
-pub use api::{api_approve, api_claim, api_done, api_export, api_task_detail, api_tasks};
+pub use api::{
+    api_approve, api_claim, api_done, api_export, api_graph, api_task_detail, api_tasks,
+};
 pub use partials::{
     partial_graph, partial_kanban, partial_stats, partial_task_detail, partial_task_list,
     partial_tree,

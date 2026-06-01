@@ -30,6 +30,7 @@ pub async fn run(repo: CoreTaskRepository, port: u16, open_browser: bool) -> any
         .route("/api/tasks/{id}/claim", post(handlers::api_claim))
         .route("/api/tasks/{id}/done", post(handlers::api_done))
         .route("/api/tasks/{id}/approve", post(handlers::api_approve))
+        .route("/api/graph", get(handlers::api_graph))
         .route("/api/export", get(handlers::api_export))
         // SSE live-reload stream
         .route("/events/stream", get(handlers::events_stream))

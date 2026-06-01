@@ -26,10 +26,39 @@
     </header>
 
     <div style="display: grid; grid-template-columns: 1fr 380px; gap: 16px;">
-      <div class="graph-container"
-           hx-get="/partials/graph"
-           hx-trigger="load, refresh from:body, every 30s"
-           hx-swap="innerHTML">
+      <div class="bubble-graph">
+        <div class="bubble-toolbar" role="toolbar" aria-label="Graph controls">
+          <label class="bubble-toggle">
+            <input type="checkbox" id="bg-include-done"> include done
+          </label>
+          <label class="bubble-toggle">
+            <input type="checkbox" id="bg-list-view"> list view
+          </label>
+          <button type="button" class="btn btn-sm" id="bg-reset">reset view</button>
+          <span class="bubble-note" id="bg-note">done hidden by default</span>
+        </div>
+
+        <!-- Canvas force map (default). area ∝ subtree size, color = status. -->
+        <div class="bubble-canvas-wrap" id="bg-canvas-wrap">
+          <canvas id="bg-canvas" role="img"
+                  aria-label="Force-directed task dependency bubble map. Use the list view toggle for an accessible outline."></canvas>
+          <div class="bubble-status" id="bg-status">loading graph…</div>
+          <div class="bubble-tooltip" id="bg-tooltip" hidden></div>
+          <div class="bubble-legend" aria-hidden="true">
+            <span><i class="bg-dot bg-open"></i>open</span>
+            <span><i class="bg-dot bg-progress"></i>in-progress</span>
+            <span><i class="bg-dot bg-done"></i>done</span>
+          </div>
+        </div>
+
+        <!-- Accessible text/list fallback. Reuses the existing text Graph
+             partial; toggled visible for keyboard/screen-reader users or when
+             the canvas can't be used. -->
+        <div class="bubble-graph-list" id="bg-list" hidden
+             hx-get="/partials/graph"
+             hx-trigger="load, refresh from:body"
+             hx-swap="innerHTML">
+        </div>
       </div>
 
       <div class="panel" id="detail-pane" tabindex="-1" role="region" aria-label="Task detail">
@@ -37,6 +66,7 @@
       </div>
     </div>
   </div>
+
   <script>
     // Live reload via SSE
     (function () {
@@ -52,6 +82,448 @@
       }
       connect();
     })();
+  </script>
+
+  <!-- Bubble graph: hand-rolled canvas force simulation.
+       Rationale (offline-first, see prompt 008): rendering 700+ nodes needs
+       Canvas to stay smooth — SVG-per-node janks at this scale. Once we're
+       drawing to Canvas by hand, d3-selection/d3-zoom/d3-drag add little, and
+       d3-force+selection minified is ~80KB to vendor. A compact O(n^2)
+       repulsion + spring sim is plenty for the default open+in-progress view
+       (~70 nodes), caps cleanly, and adds ZERO vendored JS. So: no CDN, no new
+       asset — the whole renderer lives here. -->
+  <script>
+  (function () {
+    'use strict';
+
+    var STATUS_COLORS = {
+      'open': '#9ece6a',         // --green
+      'in-progress': '#e0af68',  // --yellow
+      'done': '#565f89'          // --text-dim
+    };
+    var ACCENT = '#7aa2f7';      // --accent (selection / link)
+    var BORDER = '#3b4261';      // --border
+    var TEXT = '#c0caf5';        // --text
+    var TEXT_DIM = '#565f89';
+
+    var canvas = document.getElementById('bg-canvas');
+    var wrap = document.getElementById('bg-canvas-wrap');
+    var statusEl = document.getElementById('bg-status');
+    var tooltip = document.getElementById('bg-tooltip');
+    var listEl = document.getElementById('bg-list');
+    var canvasWrap = document.getElementById('bg-canvas-wrap');
+    var includeDone = document.getElementById('bg-include-done');
+    var listView = document.getElementById('bg-list-view');
+    var resetBtn = document.getElementById('bg-reset');
+    var noteEl = document.getElementById('bg-note');
+    var ctx = canvas.getContext('2d');
+
+    var raw = { nodes: [], links: [] };
+    var nodes = [];          // active (filtered + positioned) nodes
+    var links = [];          // active links (both endpoints active)
+    var byId = {};           // id -> active node
+    var selectedId = null;
+    var hoverId = null;
+
+    // View transform (pan/zoom).
+    var view = { x: 0, y: 0, k: 1 };
+    var dragNode = null;     // node being dragged
+    var panning = false;
+    var lastPointer = { x: 0, y: 0 };
+    var movedDuringDrag = false;
+
+    var simTimer = null;
+    var dpr = window.devicePixelRatio || 1;
+
+    function fmtArea(subtreeSize) {
+      // Bubble AREA ∝ (subtreeSize + 1). Convert to radius. Min radius keeps
+      // leaves clickable; cap keeps mega-epics from swallowing the view.
+      var area = (subtreeSize + 1);
+      var r = Math.sqrt(area) * 5.5;
+      return Math.max(7, Math.min(r, 58));
+    }
+
+    function resize() {
+      var w = wrap.clientWidth;
+      var h = wrap.clientHeight;
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      draw();
+    }
+
+    function rebuild() {
+      var showDone = includeDone.checked;
+      var active = raw.nodes.filter(function (n) {
+        return showDone || n.status !== 'done';
+      });
+      var activeIds = {};
+      active.forEach(function (n) { activeIds[n.id] = true; });
+
+      var w = wrap.clientWidth || 800;
+      var h = wrap.clientHeight || 560;
+
+      // Preserve positions of nodes that were already placed, so toggling done
+      // doesn't reshuffle the whole map.
+      var prev = byId;
+      byId = {};
+      nodes = active.map(function (n) {
+        var p = prev[n.id];
+        var node = {
+          id: n.id, title: n.title, status: n.status,
+          priority: n.priority, type: n.type, subtreeSize: n.subtreeSize,
+          r: fmtArea(n.subtreeSize),
+          x: p ? p.x : (w / 2 + (Math.random() - 0.5) * w * 0.8),
+          y: p ? p.y : (h / 2 + (Math.random() - 0.5) * h * 0.8),
+          vx: 0, vy: 0
+        };
+        byId[n.id] = node;
+        return node;
+      });
+
+      links = raw.links.filter(function (l) {
+        return activeIds[l.source] && activeIds[l.target];
+      }).map(function (l) {
+        return { source: byId[l.source], target: byId[l.target] };
+      });
+
+      if (selectedId && !byId[selectedId]) selectedId = null;
+
+      var open = nodes.filter(function (n) { return n.status === 'open'; }).length;
+      var prog = nodes.filter(function (n) { return n.status === 'in-progress'; }).length;
+      var done = nodes.filter(function (n) { return n.status === 'done'; }).length;
+      noteEl.textContent = showDone
+        ? (nodes.length + ' shown (' + open + ' open, ' + prog + ' in-progress, ' + done + ' done)')
+        : 'done hidden — showing ' + nodes.length + ' (' + open + ' open, ' + prog + ' in-progress)';
+      // Surface the hidden-done caveat in the console too, per the spec, so the
+      // graph isn't mistaken for the whole dataset.
+      if (!showDone) {
+        console.info('[chronis graph] done tasks hidden by default — toggle "include done" to show all ' + raw.nodes.length + ' tasks.');
+      }
+
+      if (nodes.length === 0) {
+        statusEl.textContent = showDone ? 'No tasks' : 'No open or in-progress tasks — toggle "include done"';
+        statusEl.hidden = false;
+      } else {
+        statusEl.hidden = true;
+      }
+
+      startSim();
+    }
+
+    // --- Force simulation -------------------------------------------------
+    // Compact spring + repulsion + centering, cooling over a fixed budget.
+    function startSim() {
+      if (simTimer) cancelAnimationFrame(simTimer);
+      var alpha = 1;
+      var w = wrap.clientWidth || 800;
+      var h = wrap.clientHeight || 560;
+      var cx = w / 2, cy = h / 2;
+
+      function tick() {
+        var i, j, a, b, dx, dy, dist, force;
+        var n = nodes.length;
+
+        // Repulsion (O(n^2); fine for the default ~70-node view, tolerable for
+        // the full set since alpha cools fast and we cap node count visually).
+        for (i = 0; i < n; i++) {
+          a = nodes[i];
+          for (j = i + 1; j < n; j++) {
+            b = nodes[j];
+            dx = a.x - b.x; dy = a.y - b.y;
+            dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+            var minSep = a.r + b.r + 8;
+            // Charge scales with combined radius so big bubbles claim space.
+            force = (a.r + b.r) * 14 / (dist * dist);
+            if (dist < minSep) force += (minSep - dist) * 0.25 / dist;
+            var fx = dx / dist * force * alpha;
+            var fy = dy / dist * force * alpha;
+            a.vx += fx; a.vy += fy;
+            b.vx -= fx; b.vy -= fy;
+          }
+          // Centering.
+          a.vx += (cx - a.x) * 0.0009 * alpha;
+          a.vy += (cy - a.y) * 0.0009 * alpha;
+        }
+
+        // Springs (dependency links pull blocker & blocked together).
+        for (i = 0; i < links.length; i++) {
+          a = links[i].source; b = links[i].target;
+          dx = b.x - a.x; dy = b.y - a.y;
+          dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+          var target = a.r + b.r + 40;
+          force = (dist - target) * 0.02 * alpha;
+          var sx = dx / dist * force;
+          var sy = dy / dist * force;
+          a.vx += sx; a.vy += sy;
+          b.vx -= sx; b.vy -= sy;
+        }
+
+        for (i = 0; i < n; i++) {
+          a = nodes[i];
+          if (a === dragNode) { a.vx = 0; a.vy = 0; continue; }
+          a.vx *= 0.82; a.vy *= 0.82;
+          a.x += a.vx; a.y += a.vy;
+        }
+
+        alpha *= 0.985;
+        draw();
+        if (alpha > 0.02) {
+          simTimer = requestAnimationFrame(tick);
+        } else {
+          simTimer = null;
+        }
+      }
+      simTimer = requestAnimationFrame(tick);
+    }
+
+    function reheat() {
+      if (!simTimer) startSim();
+    }
+
+    // --- Rendering --------------------------------------------------------
+    function draw() {
+      if (!ctx) return;
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.translate(view.x, view.y);
+      ctx.scale(view.k, view.k);
+
+      // Links first (under bubbles).
+      ctx.lineWidth = 1 / view.k;
+      for (var i = 0; i < links.length; i++) {
+        var a = links[i].source, b = links[i].target;
+        var hot = (selectedId && (a.id === selectedId || b.id === selectedId)) ||
+                  (hoverId && (a.id === hoverId || b.id === hoverId));
+        ctx.strokeStyle = hot ? ACCENT : 'rgba(86,95,137,0.35)';
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+
+      // Bubbles.
+      var showLabels = view.k > 0.55;
+      for (var n = 0; n < nodes.length; n++) {
+        var node = nodes[n];
+        var sel = node.id === selectedId;
+        var hov = node.id === hoverId;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+        ctx.fillStyle = STATUS_COLORS[node.status] || TEXT_DIM;
+        ctx.globalAlpha = node.status === 'done' ? 0.55 : 0.92;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        if (sel || hov) {
+          ctx.lineWidth = (sel ? 3 : 2) / view.k;
+          ctx.strokeStyle = sel ? ACCENT : TEXT;
+          ctx.stroke();
+        } else {
+          ctx.lineWidth = 1 / view.k;
+          ctx.strokeStyle = 'rgba(26,27,38,0.6)';
+          ctx.stroke();
+        }
+
+        if (showLabels && (node.r * view.k > 13 || sel || hov)) {
+          ctx.fillStyle = node.status === 'done' ? TEXT : '#1a1b26';
+          var fs = Math.max(9, Math.min(node.r * 0.5, 13));
+          ctx.font = fs + "px 'SF Mono','Cascadia Code',monospace";
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(node.id, node.x, node.y);
+        }
+      }
+      ctx.restore();
+    }
+
+    // --- Coordinate helpers ----------------------------------------------
+    function toWorld(px, py) {
+      return { x: (px - view.x) / view.k, y: (py - view.y) / view.k };
+    }
+    function nodeAt(px, py) {
+      var w = toWorld(px, py);
+      // Reverse order so topmost (last drawn) wins.
+      for (var i = nodes.length - 1; i >= 0; i--) {
+        var n = nodes[i];
+        var dx = n.x - w.x, dy = n.y - w.y;
+        if (dx * dx + dy * dy <= n.r * n.r) return n;
+      }
+      return null;
+    }
+
+    // --- Interaction ------------------------------------------------------
+    function pointerPos(e) {
+      var rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    canvas.addEventListener('mousedown', function (e) {
+      var p = pointerPos(e);
+      lastPointer = p;
+      movedDuringDrag = false;
+      var hit = nodeAt(p.x, p.y);
+      if (hit) {
+        dragNode = hit;
+        canvas.style.cursor = 'grabbing';
+      } else {
+        panning = true;
+        canvas.style.cursor = 'grabbing';
+      }
+    });
+
+    window.addEventListener('mousemove', function (e) {
+      var p = pointerPos(e);
+      if (dragNode) {
+        var dx = (p.x - lastPointer.x), dy = (p.y - lastPointer.y);
+        if (Math.abs(dx) + Math.abs(dy) > 2) movedDuringDrag = true;
+        dragNode.x += dx / view.k;
+        dragNode.y += dy / view.k;
+        dragNode.vx = 0; dragNode.vy = 0;
+        lastPointer = p;
+        reheat();
+        return;
+      }
+      if (panning) {
+        view.x += (p.x - lastPointer.x);
+        view.y += (p.y - lastPointer.y);
+        lastPointer = p;
+        draw();
+        return;
+      }
+      // Hover: tooltip + cursor.
+      var hit = nodeAt(p.x, p.y);
+      var newHover = hit ? hit.id : null;
+      if (newHover !== hoverId) { hoverId = newHover; draw(); }
+      if (hit) {
+        canvas.style.cursor = 'pointer';
+        tooltip.hidden = false;
+        tooltip.innerHTML = '<b>' + hit.id + '</b> ' + escapeHtml(hit.title) +
+          '<span class="bg-tip-meta">' + hit.status + ' · ' + hit.priority + ' · ' + hit.type + '</span>';
+        var wr = wrap.getBoundingClientRect();
+        var tx = p.x + 14, ty = p.y + 14;
+        tooltip.style.left = Math.min(tx, wr.width - 260) + 'px';
+        tooltip.style.top = Math.min(ty, wr.height - 60) + 'px';
+      } else {
+        canvas.style.cursor = 'grab';
+        tooltip.hidden = true;
+      }
+    });
+
+    window.addEventListener('mouseup', function () {
+      if (dragNode && !movedDuringDrag) {
+        select(dragNode.id);
+      }
+      dragNode = null;
+      panning = false;
+      canvas.style.cursor = 'grab';
+    });
+
+    canvas.addEventListener('mouseleave', function () {
+      tooltip.hidden = true;
+      hoverId = null;
+      draw();
+    });
+
+    canvas.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var p = pointerPos(e);
+      var factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      var newK = Math.max(0.15, Math.min(view.k * factor, 4));
+      // Zoom toward the cursor.
+      var wx = (p.x - view.x) / view.k;
+      var wy = (p.y - view.y) / view.k;
+      view.k = newK;
+      view.x = p.x - wx * view.k;
+      view.y = p.y - wy * view.k;
+      draw();
+    }, { passive: false });
+
+    function select(id) {
+      selectedId = id;
+      draw();
+      // Load the task into the shared detail pane via HTMX so 007's
+      // expand-in-place + two-way dependencies work unchanged.
+      htmx.ajax('GET', '/partials/task-detail/' + encodeURIComponent(id), {
+        target: '#detail-pane', swap: 'innerHTML'
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+
+    // --- Controls ---------------------------------------------------------
+    includeDone.addEventListener('change', rebuild);
+
+    function applyListView() {
+      var on = listView.checked;
+      canvasWrap.hidden = on;
+      listEl.hidden = !on;
+      if (on && !listEl.dataset.loaded) {
+        listEl.dataset.loaded = '1';
+        htmx.trigger(listEl, 'load');
+      }
+    }
+    listView.addEventListener('change', applyListView);
+
+    resetBtn.addEventListener('click', function () {
+      view = { x: 0, y: 0, k: 1 };
+      fit();
+    });
+
+    // Center + scale the graph to fit the viewport after the sim settles.
+    function fit() {
+      if (nodes.length === 0) { draw(); return; }
+      var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      nodes.forEach(function (n) {
+        minX = Math.min(minX, n.x - n.r); maxX = Math.max(maxX, n.x + n.r);
+        minY = Math.min(minY, n.y - n.r); maxY = Math.max(maxY, n.y + n.r);
+      });
+      var w = wrap.clientWidth, h = wrap.clientHeight;
+      var gw = (maxX - minX) || 1, gh = (maxY - minY) || 1;
+      var k = Math.min(w / gw, h / gh) * 0.9;
+      view.k = Math.max(0.15, Math.min(k, 1.5));
+      view.x = w / 2 - ((minX + maxX) / 2) * view.k;
+      view.y = h / 2 - ((minY + maxY) / 2) * view.k;
+      draw();
+    }
+
+    // --- Load data --------------------------------------------------------
+    function load() {
+      fetch('/api/graph', { headers: { 'Accept': 'application/json' } })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          raw = data;
+          rebuild();
+          // Fit once the first sim pass has settled.
+          setTimeout(fit, 700);
+        })
+        .catch(function (err) {
+          statusEl.hidden = false;
+          statusEl.textContent = 'Failed to load graph: ' + err.message + ' — use list view.';
+          console.error('[chronis graph]', err);
+        });
+    }
+
+    window.addEventListener('resize', resize);
+
+    // Refresh on SSE-driven body refresh (new events) without nuking the view.
+    document.body.addEventListener('refresh', function () {
+      load();
+    });
+
+    // Init.
+    resize();
+    load();
+  })();
   </script>
 </body>
 </html>
