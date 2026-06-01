@@ -14,6 +14,9 @@ export interface ApiResponse<T> {
   error?: ApiError;
 }
 
+/** Per-tenant schema-enforcement mode (Gap 3). */
+export type SchemaEnforcementMode = "permissive" | "warn" | "strict";
+
 export class ApiClient {
   private baseUrl: string;
   private asOf: string | null = null;
@@ -109,6 +112,20 @@ export class ApiClient {
 
   async getTenantUsage(): Promise<ApiResponse<TenantUsage>> {
     return this.request<TenantUsage>("/api/tenant/usage");
+  }
+
+  // Schema-enforcement toggle (Gap 3) — proxied to Core's per-tenant setting.
+  async getSchemaEnforcement(): Promise<ApiResponse<{ schema_enforcement: SchemaEnforcementMode }>> {
+    return this.request("/api/tenant/schema-enforcement");
+  }
+
+  async setSchemaEnforcement(
+    mode: SchemaEnforcementMode
+  ): Promise<ApiResponse<{ schema_enforcement: SchemaEnforcementMode }>> {
+    return this.request("/api/tenant/schema-enforcement", {
+      method: "PUT",
+      body: JSON.stringify({ schema_enforcement: mode }),
+    });
   }
 
   // Events endpoints

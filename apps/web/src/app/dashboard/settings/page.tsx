@@ -14,13 +14,21 @@ import {
   Label,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Bell, Check, Copy, Shield, User } from "lucide-react";
+import { Bell, Check, Copy, Database, Shield, User } from "lucide-react";
 import { useState } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   useNotificationPreferences,
   type NotificationPreferences,
 } from "@/hooks/use-notification-preferences";
+import { useSchemaEnforcement } from "@/hooks/use-schema-enforcement";
+import type { SchemaEnforcementMode } from "@/lib/api/client";
+
+const ENFORCEMENT_OPTIONS: { mode: SchemaEnforcementMode; label: string; help: string }[] = [
+  { mode: "permissive", label: "Permissive", help: "No validation — anything ingests (default)." },
+  { mode: "warn", label: "Warn", help: "Validate against registered schemas; log violations but accept." },
+  { mode: "strict", label: "Strict", help: "Reject events that violate a registered schema (HTTP 422)." },
+];
 
 type Tab = "profile" | "security" | "notifications";
 
@@ -48,6 +56,7 @@ export default function SettingsPage() {
     setTimeout(() => setApiKeyCopied(false), 2000);
   };
   const { preferences, updatePreference } = useNotificationPreferences();
+  const { mode: enforcementMode, setMode: setEnforcementMode } = useSchemaEnforcement();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const tabs = [
     { id: "profile" as const, label: "Profile", icon: User },
@@ -238,6 +247,46 @@ export default function SettingsPage() {
                         <Badge variant="outline" className="opacity-50">Not available</Badge>
                       )}
                     </div>
+                  </CardContent>
+                </Card>
+
+                {/* Schema enforcement (Gap 3) — workspace data-integrity policy */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5" />
+                      Schema enforcement
+                    </CardTitle>
+                    <CardDescription>
+                      How registered schemas are enforced when events are ingested for this
+                      workspace.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {ENFORCEMENT_OPTIONS.map((opt) => {
+                      const selected = enforcementMode === opt.mode;
+                      return (
+                        <button
+                          key={opt.mode}
+                          type="button"
+                          onClick={() => {
+                            if (!selected) void setEnforcementMode(opt.mode);
+                          }}
+                          className={cn(
+                            "flex w-full items-center justify-between rounded-lg border p-4 text-left transition-colors",
+                            selected
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:bg-muted/50"
+                          )}
+                        >
+                          <div>
+                            <p className="font-medium">{opt.label}</p>
+                            <p className="text-sm text-muted-foreground">{opt.help}</p>
+                          </div>
+                          {selected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                        </button>
+                      );
+                    })}
                   </CardContent>
                 </Card>
 
