@@ -129,9 +129,10 @@ All five were real; the first four were fixed and the screen was *still* empty, 
 | 2 | DXT `--data-dir ${HOME}/...` not expanded; cwd `/` | writes never persisted | prime expands `~`/`$HOME`/`${HOME}` (`0.21.6`) |
 | 3 | Dashboard fetched latest-200 then client-filtered `prime.*` | prime events drowned by other types | server-side `event_type_prefix` filter |
 | 4 | **Red herring**: `tenant_context.tenant_id/1` read `id` not `tenant_id` | *looked* like the bug; was a no-op because the real tenant endpoint returns `id = <slug>` | harmless hardening only |
-| 5 | **Actual root cause**: `ALLSOURCE_EDITION=community` on the hosted Query Service | `TenantContext` hardcoded every request to the `community` tenant; prime synced under the real slug → dashboard read `community` → empty | set `ALLSOURCE_EDITION=enterprise` on `allsource-query` |
+| 5 | `ALLSOURCE_EDITION=community` on the hosted Query Service | `TenantContext` hardcoded every request to the `community` tenant; prime synced under the real slug → dashboard read `community` → empty | set `ALLSOURCE_EDITION=enterprise` on `allsource-query` |
+| 6 | **The actual final blocker — a frontend double-unwrap.** `apiClient.request()` unwraps `{data:X}→X`; the events body `{count, data:[...]}` became the bare array, then `useEvents` did `.data` again → `undefined` → `events=[]` | the API returned 71 rows the whole time; only the *rendered page* was empty — invisible to every API-level test | `useEvents` treats the value as the already-unwrapped array |
 
-The fast path would have reached #5 in three commands: Step 1 (data exists under `acme-at-gmail-com`), Step 3+4 (QS *writes* land under `community`), Step 5 (`env | grep edition` → `community`). Everything between was time spent because earlier reads were taken through the wrong path and a deploy was assumed to have shipped.
+The fast path would have reached the truth in: Step 1 (data exists under `acme-at-gmail-com`), Step 3+4 (QS *writes* land under `community`), Step 5 (`env | grep edition` → `community`) — then, crucially, **load the rendered page with the user's real session** and watch it stay empty while the network tab shows 71 rows, which points straight at the client. Everything else was time spent reading through the wrong path, assuming a deploy shipped, and (twice) declaring victory from an API call instead of the screen. The single highest-leverage habit: **verify through the user's exact rendered path, with their session, every time — an API that returns rows proves nothing about what the component renders.**
 
 ---
 
