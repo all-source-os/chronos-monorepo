@@ -104,7 +104,23 @@ config :phoenix, :json_library, Jason
 
 # Edition: :community (default) or :enterprise
 # Community mode disables tenant management, quota enforcement, and billing.
-config :query_service_ex, :edition, :community
+#
+# This is read at COMPILE time because the router gates whole route scopes behind
+# `if QueryServiceEx.Edition.enterprise?()` at module level (e.g. the
+# /api/tenants/me/analytics, team, and audit-log routes), which Phoenix evaluates
+# when the router module is compiled. runtime.exs also sets `:edition` at boot, but
+# that is too late to bring compiled-out routes back. So the build must compile with
+# the right edition: set ALLSOURCE_EDITION before `mix compile` (the Dockerfile
+# exports the build ARG as ENV; fly.toml passes it as a build arg). Default stays
+# :community.
+config :query_service_ex,
+       :edition,
+       (System.get_env("ALLSOURCE_EDITION", "community")
+        |> String.downcase()
+        |> case do
+          "enterprise" -> :enterprise
+          _ -> :community
+        end)
 
 # Configure rate limiting (requests per second)
 config :query_service_ex, QueryServiceEx.RateLimiter,

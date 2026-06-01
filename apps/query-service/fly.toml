@@ -7,6 +7,13 @@ primary_region = "iad"  # US East (Virginia)
 
 [build]
   dockerfile = "Dockerfile"
+  # Compile-time edition. The router gates enterprise-only routes (analytics, team,
+  # audit) behind a module-level `if enterprise?()` evaluated at compile time, so the
+  # image must be BUILT as enterprise, not just run with ALLSOURCE_EDITION=enterprise
+  # in [env] below. Both are required: this arg compiles the routes in; the [env] var
+  # keeps TenantContext multi-tenant at runtime.
+  [build.args]
+    ALLSOURCE_EDITION = "enterprise"
 
 [env]
   MIX_ENV = "prod"

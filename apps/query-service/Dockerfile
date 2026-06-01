@@ -33,8 +33,14 @@ WORKDIR /app
 
 ARG ALLSOURCE_EDITION=community
 
-# Set build environment
+# Set build environment.
+# ALLSOURCE_EDITION is exported as ENV so it is visible to `mix compile` below:
+# config.exs reads it at compile time and the router gates enterprise-only route
+# scopes (analytics, team, audit) behind a module-level `if enterprise?()`. An
+# enterprise image MUST compile with this set or those routes are stripped from the
+# release and return 404 at runtime even when ALLSOURCE_EDITION=enterprise is set.
 ENV MIX_ENV=prod \
+    ALLSOURCE_EDITION=${ALLSOURCE_EDITION} \
     SECRET_KEY_BASE=build_time_dummy_key_will_be_replaced_at_runtime_minimum_64_chars
 
 # Copy mix files first for dependency caching
