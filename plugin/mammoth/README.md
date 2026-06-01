@@ -25,6 +25,13 @@ session it was never in. That's the whole product.
 ## What you get
 
 - A `mammoth-memory` skill that runs the recall/record loop automatically.
+- A `voice-identity` skill + `/voice` command — build a durable, queryable
+  **voice file** (how you think, write, and decide) on the same Prime store, and
+  have any MCP agent write in your voice by recalling the relevant slice. Replaces
+  the viral "100-question interview → static 4k-token markdown blob" pattern with
+  something live, portable, and team-shareable. See
+  [`docs/proposals/PRIME_VOICE_FILE.md`](../../docs/proposals/PRIME_VOICE_FILE.md)
+  and the proof in [`tooling/voice-demo/`](../../tooling/voice-demo/).
 - `/remember`, `/recall`, `/memory-status` slash commands (explicit escape hatches).
 - The Prime MCP server wired via `.mcp.json` — **13 `prime_*` tools**
   (`prime_recall`, `prime_context`, `prime_add_node`, `prime_embed`,
