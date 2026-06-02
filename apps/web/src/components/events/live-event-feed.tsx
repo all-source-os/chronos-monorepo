@@ -28,9 +28,22 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
     [isPaused]
   );
 
-  const { isConnected, connect } = usePhoenixChannel("events:all", {
+  const { isConnected, status, connect } = usePhoenixChannel("events:all", {
     onEvent: handleChannelEvent,
   });
+
+  const disconnectedMessage = (() => {
+    switch (status) {
+      case "unconfigured":
+        return "Live stream not configured for this environment";
+      case "unauthenticated":
+        return "Sign in to stream live events";
+      case "connecting":
+        return "Connecting to live stream…";
+      default:
+        return "No events — WebSocket disconnected";
+    }
+  })();
 
   const clearEvents = () => {
     setEvents([]);
@@ -110,7 +123,7 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
                 ? "Feed paused"
                 : isConnected
                   ? "Waiting for events..."
-                  : "No events — WebSocket disconnected"}
+                  : disconnectedMessage}
             </div>
           ) : (
             <div className="space-y-1">

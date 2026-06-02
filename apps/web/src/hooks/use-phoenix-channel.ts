@@ -44,12 +44,21 @@ function getSocketUrl(): string | null {
 
 async function refreshToken(): Promise<string | null> {
   try {
-    const res = await fetch("/api/auth/session");
-    if (!res.ok) return null;
+    // The session JWT lives in an httpOnly `auth_token` cookie that browser JS
+    // can't read, and /api/auth/session deliberately does NOT echo the raw
+    // token. /api/auth/ws-token surfaces it server-side for exactly this:
+    // Phoenix UserSocket.connect/3 authenticates with this JWT as the `token`
+    // connect param (HS256-verified against JWT_SECRET on the QS side).
+    const res = await fetch("/api/auth/ws-token");
+    if (!res.ok) {
+      currentToken = null;
+      return null;
+    }
     const data = await res.json();
-    currentToken = data.token ?? null;
+    currentToken = typeof data.token === "string" ? data.token : null;
     return currentToken;
   } catch {
+    currentToken = null;
     return null;
   }
 }
@@ -114,8 +123,24 @@ interface UsePhoenixChannelOptions {
   enabled?: boolean;
 }
 
+/**
+ * Honest connection status so the UI can explain *why* the feed isn't live:
+ * - "connecting"   — handshake in flight
+ * - "connected"    — socket joined the channel
+ * - "unconfigured" — no NEXT_PUBLIC_WS_URL in prod, realtime simply isn't wired
+ * - "unauthenticated" — no session JWT to authenticate the socket
+ * - "disconnected" — had a connection / generic failure
+ */
+export type ChannelStatus =
+  | "connecting"
+  | "connected"
+  | "unconfigured"
+  | "unauthenticated"
+  | "disconnected";
+
 interface UsePhoenixChannelReturn {
   isConnected: boolean;
+  status: ChannelStatus;
   send: (event: string, payload: Record<string, unknown>) => void;
   connect: () => void;
 }
@@ -126,6 +151,7 @@ export function usePhoenixChannel(
 ): UsePhoenixChannelReturn {
   const { onEvent, on, enabled = true } = options;
   const [isConnected, setIsConnected] = useState(false);
+  const [status, setStatus] = useState<ChannelStatus>("connecting");
   const channelRef = useRef<Channel | null>(null);
   const socketRef = useRef<Socket | null>(null);
   // #4 fix: guard against concurrent connect() calls while token fetch is in-flight
@@ -144,16 +170,36 @@ export function usePhoenixChannel(
     // #4 fix: reject if already connected or a connect is in flight
     if (channelRef.current || connectingRef.current) return;
     connectingRef.current = true;
+    setStatus("connecting");
+
+    // No WS backend configured (prod without NEXT_PUBLIC_WS_URL) — realtime
+    // isn't wired. Report it honestly and don't spin a reconnect storm.
+    if (!getSocketUrl()) {
+      connectingRef.current = false;
+      setIsConnected(false);
+      setStatus("unconfigured");
+      return;
+    }
 
     refreshToken().then((token) => {
       // Component may have unmounted while we awaited the token
       if (!connectingRef.current) return;
+
+      // No session JWT — the QS socket would reject the handshake (403).
+      // Surface "unauthenticated" instead of a flat "disconnected".
+      if (!token) {
+        connectingRef.current = false;
+        setIsConnected(false);
+        setStatus("unauthenticated");
+        return;
+      }
 
       const socket = acquireSocket();
       // No WS backend configured — leave isConnected=false and don't retry.
       if (!socket) {
         connectingRef.current = false;
         setIsConnected(false);
+        setStatus("unconfigured");
         return;
       }
       socketRef.current = socket;
@@ -164,8 +210,14 @@ export function usePhoenixChannel(
 
       channel
         .join()
-        .receive("ok", () => setIsConnected(true))
-        .receive("error", () => setIsConnected(false));
+        .receive("ok", () => {
+          setIsConnected(true);
+          setStatus("connected");
+        })
+        .receive("error", () => {
+          setIsConnected(false);
+          setStatus("disconnected");
+        });
 
       // #6 fix: subscribe to all events the caller cares about via the
       // handlers ref. This indirection means we register stable listeners
@@ -185,8 +237,14 @@ export function usePhoenixChannel(
         });
       }
 
-      channel.onClose(() => setIsConnected(false));
-      channel.onError(() => setIsConnected(false));
+      channel.onClose(() => {
+        setIsConnected(false);
+        setStatus("disconnected");
+      });
+      channel.onError(() => {
+        setIsConnected(false);
+        setStatus("disconnected");
+      });
     });
   }, [topic]);
 
@@ -209,6 +267,7 @@ export function usePhoenixChannel(
         socketRef.current = null;
       }
       setIsConnected(false);
+      setStatus("connecting");
     };
   }, [connect, enabled]);
 
@@ -219,5 +278,5 @@ export function usePhoenixChannel(
   // #5 fix: removed `channel` from return — it was always stale (null) on
   // first render since channel creation is async. Consumers that need the
   // channel instance can use `send()` instead.
-  return { isConnected, send, connect };
+  return { isConnected, status, send, connect };
 }
