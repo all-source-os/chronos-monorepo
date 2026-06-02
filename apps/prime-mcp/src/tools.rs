@@ -334,7 +334,7 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
         "prime_history" => call_history(prime, args).await,
         "prime_stats" => call_stats(prime),
         "prime_index" => call_index(recall).await,
-        "prime_context" => call_context(recall, args).await,
+        "prime_context" => call_context(prime, recall, args).await,
         "prime_embed" => call_embed(prime, args).await,
         "prime_similar" => call_similar(prime, args),
         "prime_recall" => call_recall(prime, args).await,
@@ -859,7 +859,7 @@ async fn call_recall(prime: &Prime, args: &Value) -> Value {
     }
 }
 
-async fn call_context(recall: &RecallEngine, args: &Value) -> Value {
+async fn call_context(prime: &Prime, recall: &RecallEngine, args: &Value) -> Value {
     use allsource_core::prime::recall::{ContextTier, RecallContextQuery};
 
     let Some(query) = args.get("query").and_then(Value::as_str) else {
@@ -883,6 +883,9 @@ async fn call_context(recall: &RecallEngine, args: &Value) -> Value {
         Some(other) => return tool_error(&format!("invalid tier: {other}. Use L0, L1, or L2")),
     };
 
+    // Keep the query for the L2 vector arm below (the struct moves `query`).
+    let query_for_recall = query.clone();
+
     let ctx_query = RecallContextQuery {
         query,
         agent_id: args
@@ -905,11 +908,60 @@ async fn call_context(recall: &RecallEngine, args: &Value) -> Value {
 
     let ctx = recall.context(ctx_query).await;
 
+    // L2 is "full hybrid recall" — index + vectors + graph. The RecallEngine
+    // owns the compressed index but not the vector store, so its `vectors`/`nodes`
+    // are empty by design (a documented TODO in `context_l2`). Fill the vector +
+    // graph arms here from the facade's working `prime.recall()` path (embeds the
+    // query in-process, HNSW vector search + graph expansion). L0/L1 don't do
+    // vector recall, so leave them untouched.
+    let (vectors_json, nodes_json) = if matches!(tier, ContextTier::L2) {
+        use allsource_core::prime::types::RecallQuery;
+        match prime.embed_text(&query_for_recall) {
+            Ok(vector) => {
+                let rq = RecallQuery {
+                    text: Some(query_for_recall.clone()),
+                    vector: Some(vector),
+                    top_k,
+                    ..RecallQuery::default()
+                };
+                match prime.recall(rq).await {
+                    Ok(result) => {
+                        let v: Vec<Value> = result
+                            .vectors
+                            .iter()
+                            .map(|x| json!({ "id": x.id, "score": x.score, "text": x.text }))
+                            .collect();
+                        let n: Vec<Value> = result
+                            .nodes
+                            .iter()
+                            .map(|sn| {
+                                json!({
+                                    "id": sn.node.id.as_str(),
+                                    "type": sn.node.node_type,
+                                    "properties": sn.node.properties,
+                                    "score": sn.score,
+                                    "depth": sn.depth,
+                                })
+                            })
+                            .collect();
+                        (Value::Array(v), Value::Array(n))
+                    }
+                    // Recall failure shouldn't sink the whole context call — the
+                    // index is still useful. Fall back to the engine's (empty) arms.
+                    Err(_) => (json!(ctx.vectors), json!(ctx.nodes)),
+                }
+            }
+            Err(_) => (json!(ctx.vectors), json!(ctx.nodes)),
+        }
+    } else {
+        (json!(ctx.vectors), json!(ctx.nodes))
+    };
+
     tool_result(json!({
         "tier": format!("{:?}", ctx.tier),
         "index": ctx.index,
-        "vectors": ctx.vectors,
-        "nodes": ctx.nodes,
+        "vectors": vectors_json,
+        "nodes": nodes_json,
         "edges": ctx.edges,
         "stats": ctx.stats,
         "token_count": ctx.token_count,

@@ -355,7 +355,12 @@ impl RecallEngine {
             token_count = max;
         }
 
-        // TODO: vector search integration (requires prime-vectors feature)
+        // Vector + graph arms: the RecallEngine owns the compressed index but
+        // not the vector store (that lives on the Prime facade, behind the
+        // optional `prime-vectors` feature). Callers that have both — e.g.
+        // prime-mcp's `call_context` — fill these arms from `Prime::recall()`,
+        // which embeds the query in-process and runs HNSW + graph expansion.
+        // The engine itself returns the index here; vectors/nodes stay empty.
         let vectors: Vec<RankedMemory> = Vec::new();
         let nodes: Vec<Node> = Vec::new();
 
