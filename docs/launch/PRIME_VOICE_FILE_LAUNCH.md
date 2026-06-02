@@ -14,12 +14,14 @@ queryable, portable, team-shareable version — proven by a real voice-ON vs
 voice-OFF demo and `prime_recall` hitting the right facet by meaning.
 
 **The hero is `prime_recall`.** The auto-compressed index (`prime_index`), one-file
-export, and `--auto-inject` now work too (fixed in `allsource-prime 0.21.6`, commit
-4b61441) and may be presented as shipped. The ONE thing not to over-claim:
-`prime_context`'s L2 *vector* arm still returns empty (a documented TODO) — never
-claim `prime_context` returns vector hits; point people at `prime_recall` for the
-vector path. This is the cardinal rule — over-claiming on an identity product
-destroys the trust that is the entire point.
+export, and `--auto-inject` work too (fixed in `allsource-prime 0.21.6`, commit
+4b61441) and may be presented as shipped. `prime_context` L2 now returns full hybrid
+recall (compressed index + vector hits + graph nodes), fixed in commit 5083017 — so
+both `prime_recall` and `prime_context` L2 are valid vector paths. The cardinal rule
+is still: cite only what's proven (the captured recall numbers; the L2
+index+4-vectors+3-nodes / 0.73 figure) and don't invent metrics. L0 staying
+stats-only / vectorless is correct design, not a limitation. Over-claiming on an
+identity product destroys the trust that is the entire point.
 
 ## Assets (all committed, ready)
 
@@ -59,10 +61,12 @@ These are owner actions — an agent can't capture a clip, push your repo, or po
        12 facets, top hit 0.757, the named recalled facets, the voice-ON/OFF
        contrast. No invented numbers.
 6. [ ] **No over-claim audit** — `prime_index`, `/voice export`, `--auto-inject`,
-       and "compressed index/export" are shipped (0.21.6) and may be presented as
-       working. The single thing to guard against: any claim that `prime_context`'s
-       *vector* arm returns hits — it returns empty (documented TODO); the vector
-       path is `prime_recall`. Grep each asset and confirm none over-claim that.
+       "compressed index/export", and `prime_context` L2 hybrid recall (index +
+       vectors + graph nodes, fixed in commit 5083017) are all shipped and may be
+       presented as working. The thing to guard against now is the opposite:
+       inventing metrics. Cite only proven figures (the captured recall numbers, the
+       L2 4-vectors/3-nodes/0.73 figure). Grep each asset and confirm none invent
+       numbers or frame L0's stats-only design as a limitation.
 7. [ ] **Push `main`.** Blog + plugin resolve from the repo. `git status` first,
        include related dirty files, `git push origin main`.
 8. [ ] **Clean-machine smoke test** — `cargo install allsource-prime` →
@@ -95,13 +99,15 @@ Order matters — each step's link feeds the next.
 
 Lead with `prime_recall` (proven: top hit 0.757 on a reworded query) and the
 voice-ON/OFF demo. The auto-compressed index (`prime_index`), one-file export, and
-`--auto-inject` now work as of 0.21.6 (the 0-node projection bug is fixed, commit
+`--auto-inject` work as of 0.21.6 (the 0-node projection bug is fixed, commit
 4b61441) and may be shown as shipped — `prime_index` returns the live, populated
-index (12 nodes / 5 domains / 77 tokens). Keep ONE honest residual line: the
-*vector* sub-arm of `prime_context` L2 still returns empty (a documented `// TODO:
-vector search integration`), so the vector path is `prime_recall`. Publishing that
-one limit is the same trust move mammoth made with the narrowing-edge benchmark
-note. Never claim `prime_context` returns vector hits.
+index (12 nodes / 5 domains / 77 tokens). `prime_context` L2 now returns full hybrid
+recall too (index + vector hits + graph nodes, fixed in commit 5083017), so both
+`prime_recall` and `prime_context` L2 are valid vector paths. The honest line to
+keep is the real one: recall quality scales with how many facets you've recorded — a
+thin voice file recalls a thinner slice. That kind of plainly-stated real limit is
+the same trust move mammoth made with the narrowing-edge benchmark note. Cite only
+proven figures; don't invent metrics.
 
 ## Go-metric
 

@@ -7,12 +7,14 @@ until the GATE in `docs/launch/PRIME_VOICE_FILE_LAUNCH.md` is GO and commits are
 pushed. Pair each asset with the noted visual.
 
 **Honesty rule (non-negotiable):** `prime_recall` is the hero (works, proven), and
-the compressed auto-index (`prime_index`), one-file export, and `--auto-inject` now
-work too (fixed in 0.21.6) — present them as shipped. The ONE thing not to
-over-claim: `prime_context`'s L2 *vector* arm still returns empty (a documented
-TODO) — never claim `prime_context` returns vector hits; point people at
-`prime_recall` for the vector path. Over-claiming on an identity product destroys
-the exact trust that is the whole point.
+the compressed auto-index (`prime_index`), one-file export, and `--auto-inject`
+work too — present them as shipped. `prime_context` L2 now returns full hybrid
+recall (index + vectors + graph nodes), fixed in commit 5083017 — both
+`prime_recall` and `prime_context` L2 are valid vector paths. Don't swing the other
+way and over-claim: cite only what's proven (the recall numbers, the L2
+index+4-vectors+3-nodes / 0.73 figure), don't invent metrics. L0 being stats-only /
+vectorless is correct design, not a limitation. Over-claiming on an identity product
+destroys the exact trust that is the whole point.
 
 Cross-link mammoth + caveman — same family, complementary, not competitive.
 
@@ -165,12 +167,13 @@ Gemini) speaks it — one `--data-dir`, recalled everywhere, no per-tool re-past
 Team voice is an opt-in hosted-sync upgrade, not a gate.
 
 The auto-generated *compressed* index, the one-file export of it, and auto-inject
-all work as of `allsource-prime 0.21.6` — `prime_index` returns the live, populated
-voice index (12 nodes, 5 domains, 77 tokens) on demand. Recall, stats, and history
-work too, so the voice flow runs end-to-end. One honest residual limit: the *vector*
-sub-arm of `prime_context` L2 still returns empty (a documented `// TODO: vector
-search integration`); use `prime_recall` for the vector path — it works. We'd rather
-state the one TODO plainly than dress it up.
+all work — `prime_index` returns the live, populated voice index (12 nodes, 5
+domains, 77 tokens) on demand. Recall, stats, and history work too, so the voice
+flow runs end-to-end. `prime_context`'s tiered recall is complete: L2 returns full
+hybrid recall (compressed index + vector hits + graph nodes), so both `prime_recall`
+and `prime_context` L2 are valid vector paths. The honest, real limit is just that
+recall quality scales with how many facets you've recorded — a tiny voice file
+recalls a thinner slice than the full ~100-question pass.
 
 It ships in the same plugin as mammoth (durable agent memory) and composes with
 caveman (token compression). Plugin layer is MIT; engines (allsource-prime/core)
@@ -197,6 +200,6 @@ Demo: tooling/voice-demo/RESULTS.md
 Headline numbers, consistent across all assets (all trace to RESULTS.md):
 **12 facets recorded; `prime_recall` top hit 0.757 on a reworded query; the
 populated `prime_index` (12 nodes / 5 domains / 77 tokens); voice-ON vs voice-OFF
-on the same prompt.** `prime_index`/export/`--auto-inject` work as of 0.21.6 —
-present them as shipped. The only thing never to cite as working is
-`prime_context`'s vector arm (empty; use `prime_recall` for the vector path).
+on the same prompt.** `prime_index`/export/`--auto-inject` are shipped — present
+them as working. `prime_context` L2 now returns full hybrid recall (index + vectors
++ graph nodes); cite only proven figures and don't invent new metrics.

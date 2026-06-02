@@ -51,17 +51,20 @@ led with the punchline and a concrete war story; the voice-OFF draft was the gen
 hedged, list-y, emoji default. The recalled voice was the only variable. Full
 capture: `tooling/voice-demo/RESULTS.md`.
 
-## Honest note on the one residual limit
+## Honest note on the real limit
 
 The auto-generated *compressed* index (`prime_index`), the one-file `/voice export`
 of that view, and `--auto-inject` all **work** as of `allsource-prime 0.21.6`: the
 0-node projection bug is fixed (commit 4b61441), and `prime_index` returns the live,
-populated voice index (12 nodes / 5 domains / 77 tokens) on demand. The one residual
-limit, kept honest: `prime_context`'s L2 *vector* arm still returns an empty list (a
-documented `// TODO: vector search integration`). `prime_context` returns the
-populated index correctly; only its vector sub-field is unpopulated. Use
-`prime_recall` for the vector path — it works and is proven. We state the one TODO
-plainly rather than dress it up.
+populated voice index (12 nodes / 5 domains / 77 tokens) on demand. `prime_context`'s
+tiered recall is complete too: L2 returns full hybrid recall — the compressed index
+plus vector hits plus graph nodes (an L2 query returns the populated index + 4
+vectors + 3 graph nodes, top node score 0.73), fixed in commit 5083017. So both
+`prime_recall` (the direct vector path, proven) and `prime_context` L2 are valid
+vector-recall paths. L0 staying stats-only / vectorless is correct design, not a
+gap. The honest, real limit: recall quality scales with how many facets you've
+recorded — a voice file with a handful of answers recalls a thinner slice than one
+with the full ~100-question pass.
 
 ## Family fit
 

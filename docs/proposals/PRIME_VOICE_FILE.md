@@ -324,8 +324,8 @@ Core never authenticates public traffic (per `CLAUDE.md`). Prefer `PRIME_API_KEY
 
 Everything in this proposal is built from **existing tools as a convention** — no
 change to `apps/prime-mcp/`. The compressed-index path that was broken when this
-was first proven is now fixed; one narrow residual TODO remains and is documented
-here rather than papered over.
+was first proven is now fixed, and the `prime_context` L2 vector arm that was the
+last residual gap is fixed too (commit 5083017). There are no remaining recall gaps.
 
 ### Works today (verified against the real binary)
 
@@ -345,19 +345,18 @@ here rather than papered over.
 - `prime_history` for voice evolution — verified.
 - Portability stanza and team `--sync-to`/`--api-key` path — verified flags.
 
-### Residual TODO (narrow, documented — NOT the index)
+### No remaining recall gaps
 
-**`prime_context`'s L2 *vector* arm still returns an empty `[]` vectors list.**
-`prime_context` returns the populated *index* correctly; only its vector
-sub-field is unpopulated, because of a documented `// TODO: vector search
-integration` in `context_l2` (`apps/core/src/prime/recall/api.rs`). This is **not**
-the old 0-node index bug — the index works. Captured in `RESULTS.md` §3.
+The `prime_context` L2 vector arm — once a documented `// TODO: vector search
+integration` in `context_l2` — is now wired up (commit 5083017,
+`allsource-prime 0.21.6`). `prime_context` L2 returns **full hybrid recall**: the
+compressed index plus vector hits plus graph nodes (an L2 query returns the
+populated index + 4 vectors + 3 graph nodes, top node score 0.73). L0 stays
+stats-only and vectorless **by design** — that's the tier's contract, not a gap.
 
-**Impact on the voice flow:** none. The relevant-slice recall and the
-compressed-index export both run on paths that work. For the vector-recall path,
-use **`prime_recall`** (which works); don't rely on `prime_context`'s vector
-sub-field until that TODO lands. This is a Core recall-engine follow-up tracked
-outside the voice feature.
+Both `prime_recall` (the direct vector path, the load-bearing recall the voice
+flow leans on) and `prime_context` L2 are valid vector-recall paths now. There is
+no remaining `prime_context` / `prime_index` TODO.
 
 ---
 

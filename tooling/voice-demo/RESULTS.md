@@ -85,6 +85,12 @@ Instead of pasting the whole voice file, we recall only the facets relevant to T
 []
 ```
 
+> Post-fix note: the empty `[]` above is the captured output as it was at run time.
+> Since fixed in commit 5083017, `prime_context` L2 now returns full hybrid recall —
+> the populated index plus vector hits plus graph nodes (an L2 query returns the
+> index + 4 vectors + 3 graph nodes, top node score 0.73). The captured block is
+> left verbatim; only this note records the fix.
+
 ## 4. prime_recall for the prompt (REAL binary output)
 
 ```json
@@ -226,6 +232,9 @@ _wall 0.4s incl. first-call fastembed model load. Binary: allsource-prime 0.21.6
 > Note: `prime_index` (§2) now returns the live, populated compressed voice file
 > (12 nodes / 5 domains / 77 tokens) — the 0-node bug is fixed (allsource-prime
 > 0.21.6). `prime_recall` (§4) returns the relevant slice by meaning. `prime_context`
-> (§3) returns the populated index; its L2 *vector* arm is still empty here — a
-> separate documented `// TODO: vector search integration` in `context_l2`, not the
-> index bug. Use `prime_recall` for the vector path (it works).
+> (§3) showed an empty L2 *vector* arm `[]` **at capture time**; that has since been
+> fixed (commit 5083017) — `prime_context` L2 now returns full hybrid recall
+> (populated index + vector hits + graph nodes; an L2 query returns the index + 4
+> vectors + 3 graph nodes, top node score 0.73). Both `prime_recall` and
+> `prime_context` L2 are valid vector paths now. (L0 stays stats-only / vectorless by
+> design.)

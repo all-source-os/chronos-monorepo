@@ -1,0 +1,162 @@
+---
+title: "Why Your Agent's Memory Returned Nothing — and How We Fixed Hybrid Recall"
+publishedAt: "2026-06-02"
+summary: "AllSource Prime's compressed index reported zero nodes for everything you recorded, and prime_context's L2 tier returned no vectors. Three bugs, one event-sourcing lesson: a projection that isn't fed is a projection that lies. Here's the debugging story, the fix, and the real before/after numbers from the binary."
+author: "all.source team"
+category: "engineering"
+image: "/assets/blog/building-agent-memory-in-rust.webp"
+---
+
+You record a decision into your agent's memory. You ask for it back. You get
+nothing.
+
+Not an error. Not a slow query. An empty index — `0 nodes, 0 domains` — sitting
+next to a store that visibly held a dozen records. `prime_stats` said 12 nodes.
+`prime_index` said zero. Both were reading the "same" memory.
+
+This is the story of three bugs behind that contradiction in AllSource Prime, the
+event-sourcing lesson that ties them together, and the verified before/after.
+
+## The symptom
+
+Prime is an agent-memory engine: record facts as nodes, embed them for semantic
+search, recall the relevant slice on demand. Two retrieval surfaces matter here:
+
+- `prime_index` — a compressed, token-counted summary of everything the agent
+  knows, organized by domain. The thing you inject into a system prompt.
+- `prime_context` — tiered retrieval. L0 = stats only, L1 = recent context,
+  L2 = full hybrid recall (index + vectors + graph).
+
+Both came back empty for data recorded through the live tool path:
+
+```text
+prime_stats   ->  { "total_nodes": 12, "nodes_by_type": { "voice": 12 } }
+prime_index   ->  "# Knowledge Index\n\n_0 nodes, 0 domains, 0 cross-domain links_"
+```
+
+`prime_recall` (direct vector search) worked fine. So the data was *there* and
+*embedded* — but the index and context surfaces couldn't see it. Three separate
+defects, all hiding behind that one symptom.
+
+## Bug 1: a projection that was never fed
+
+Prime is event-sourced. State lives in **projections** — in-memory structures
+rebuilt by replaying the event log. The compressed index is built from a
+`DomainIndexProjection`. The facade registers every projection with the store and
+backfills it from history... except this one.
+
+The recall engine was handed a *fresh, empty* `DomainIndexProjection::new()` —
+never registered with the store, never backfilled, never fed a single live write.
+The code comment even said so, cheerfully:
+
+```rust
+// A fresh DomainIndexProjection is created (RecallEngine registers it separately).
+```
+
+It didn't register it separately. Nothing did. So the index projection sat at
+zero forever while every other projection tracked reality.
+
+**The event-sourcing lesson, stated once:** in an event-sourced system, a
+projection is only as live as its subscription. An unregistered, un-backfilled
+projection isn't "empty" — it's *lying*, and it will keep lying with total
+confidence. The fix is boring and correct: register it and backfill it like every
+sibling, then share that one instance with the recall engine.
+
+```rust
+let _ = store.register_projection_with_backfill(&(Arc::clone(&domain_index) as DynProj));
+// ...and hand the SAME Arc to the recall engine, not a fresh empty one.
+```
+
+## Bug 2: reading the wrong shape
+
+With the projection finally fed, it was still empty. Because it was reading a
+payload shape that the writer never produced.
+
+`add_node` emits:
+
+```json
+{ "id": "…", "node_type": "voice", "properties": { "domain": "architecture" } }
+```
+
+The projection read:
+
+```rust
+event.payload.get("domain")    // top-level — not where it lives
+event.payload.get("node_id")  // wrong key — it's "id"
+```
+
+`domain` lives under `properties`; the id key is `id`, not `node_id`. Every lookup
+missed, so every node was silently dropped from the index. Same mismatch in the
+cross-domain projection (which also keyed nodes by bare id instead of the
+entity_id that edges actually reference).
+
+The fix reads the canonical shape with a legacy fallback:
+
+```rust
+let domain = event.payload.get("properties").and_then(|p| p.get("domain"))
+    .and_then(Value::as_str)
+    .or_else(|| event.payload.get("domain").and_then(Value::as_str));
+```
+
+### Why the tests were green
+
+Here's the uncomfortable part. The projection had tests. They passed. They passed
+because the test fixtures hand-built events in the *wrong* shape — the same wrong
+shape the buggy code expected. The tests and the bug agreed with each other and
+both disagreed with production.
+
+A test that constructs its own input in the format the code-under-test happens to
+want isn't testing the contract — it's testing a tautology. The fix included
+rewriting the fixtures to emit the **real** `add_node`/`add_edge` payloads. That
+turned 11 green-on-a-lie tests into tests that actually exercise the writer's
+output. (210 prime tests pass on the corrected fixtures.)
+
+## Bug 3: the half-wired hybrid tier
+
+Index fixed, one surface remained thin. `prime_context` L2 advertises "full
+hybrid recall — index + vectors + graph," but returned the index with an empty
+vectors/nodes list. A standing `// TODO: vector search integration`.
+
+The cause was architectural, not a typo: the recall engine owns the compressed
+index but not the vector store (that lives on the Prime facade, behind an optional
+feature). So the engine *couldn't* fill the vector arm — it didn't have one.
+
+The fix wires the two together at the layer that has both: for an L2 query, embed
+the text in-process, run the facade's working vector + graph recall, and attach
+those hits to the context response. L0/L1 stay untouched (they don't do vector
+recall by design), and a recall failure falls back to the index alone rather than
+sinking the whole call.
+
+## Before and after
+
+All figures below are verbatim from the `allsource-prime` binary over stdio,
+against a throwaway data dir — same harness, before the fix vs after.
+
+| surface | before | after |
+|---------|--------|-------|
+| `prime_index` | `0 nodes, 0 domains` | **12 nodes, 5 domains, 77 tokens** |
+| `prime_context` L2 | index only, `vectors: []` | index + **4 vectors + 3 graph nodes** |
+| `prime_recall` top hit | 0.76 (already worked) | 0.76 (unchanged) |
+| prime test suite | 199 pass / 11 fail | **210 pass / 0 fail** |
+
+The recall query that returned nothing now returns the right slice by meaning. A
+reworded prompt — *"should I add a database when availability hurts?"* — surfaces
+the recorded contrarian take *"add a database is usually the wrong fix"* as the
+top node at 0.73, with the durability and event-sourcing facets right behind it.
+
+## The takeaway
+
+Three bugs, one root pattern: **the read path and the write path drifted, and
+nothing forced them back together.** An unregistered projection, a payload-shape
+mismatch, and a half-wired tier all produced the same lie — confident emptiness —
+and a test suite that validated the lie instead of the contract let it survive a
+release.
+
+If you build on event sourcing: register and backfill every projection that
+anything reads; assert your projections against the *writer's real output*, not a
+fixture you invented to match the reader; and when a tier claims "full hybrid,"
+make a test prove all three arms come back non-empty.
+
+Prime's recall — `prime_index`, `prime_context` across all tiers, and
+`prime_recall` — now works end to end. If you're building agent memory on
+AllSource, the compressed index you inject is the one your agent actually has.

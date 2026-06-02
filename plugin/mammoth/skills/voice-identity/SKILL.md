@@ -85,8 +85,8 @@ ADR, code review, proposal, email, README intro — or on "write this in my voic
 1. **Recall the relevant slice.** Call **`prime_recall`** with `text` = the writing
    task (e.g. the post topic), `top_k` 5–8, `depth` 1. This returns the facets that
    matter for *this* task, ranked by meaning — you do NOT paste the whole voice
-   file. (`prime_recall` is the load-bearing recall path; see the note below on
-   `prime_context`'s vector sub-arm.)
+   file. (`prime_recall` is the load-bearing recall path; `prime_context` L2 is an
+   equally valid hybrid-recall path — see the note below.)
 2. **Write from the recalled facets.** Fold the recalled `statement`s into the
    draft: adopt the recalled communication-style facets (sentence shape, tone,
    words to avoid), lead with the recalled thinking patterns, deploy the recalled
@@ -101,12 +101,14 @@ ADR, code review, proposal, email, README intro — or on "write this in my voic
 
 > **Recall path note (honest):** `prime_recall` returns the correct ranked slice,
 > and `prime_index` returns the live, populated compressed voice index (12 nodes /
-> 5 domains / 77 tokens in the demo) as of `allsource-prime 0.21.6` — the old
-> 0-node bug is fixed. The one residual limit: `prime_context`'s L2 *vector* arm
-> still returns an empty list (a documented `// TODO: vector search integration` in
-> `context_l2`). `prime_context` returns the populated index correctly; only its
-> vector sub-field is unpopulated. So **use `prime_recall` for the vector path** —
-> it works. See the proposal § "Convention vs. server" and
+> 5 domains / 77 tokens in the demo) as of `allsource-prime 0.21.6`. `prime_context`
+> L2 now returns **full hybrid recall** too — the compressed index plus vector hits
+> plus graph nodes (fixed in commit 5083017); the earlier empty-vector-arm gap is
+> resolved. So the skill can use **either** `prime_recall` **or** `prime_context` L2
+> for the vector-recall path; both work. (L0 is stats-only / vectorless by design —
+> that's the tier's contract, not a limit.) The provenance/privacy guard above still
+> applies regardless of which path you use: record self-analysis only, never
+> proprietary code or secrets. See the proposal § "Convention vs. server" and
 > `tooling/voice-demo/RESULTS.md`.
 
 ---

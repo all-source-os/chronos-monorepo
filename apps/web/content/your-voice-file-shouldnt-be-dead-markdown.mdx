@@ -4,7 +4,7 @@ publishedAt: "2026-06-02"
 summary: "The viral 'voice file' is right: in 2026 your identity layer is the moat, not your prompts. But a static 4k-token markdown blob goes stale, can't be queried, and has no history. prime makes your voice live — record facets once, recall the relevant slice by meaning per task. Proven with a real voice-ON vs voice-OFF demo."
 author: "all.source team"
 category: "product"
-image: "/assets/blog/your-voice-file-shouldnt-be-dead-markdown.webp"
+image: "/assets/blog/compressed-index-doubles-cross-domain-recall.webp"
 ---
 
 There's a thesis going around that's basically correct: **your voice is your last competitive moat.** We've hit peak AI homogenization. Every LinkedIn post sounds the same. Every code review reads identical. Every proposal uses the same three hedging phrases. When everyone runs the same frontier model with default settings, professional output flattens into one generic voice.
@@ -145,16 +145,15 @@ It composes with the rest of the family: [caveman](https://github.com/JuliusBrus
 | Team sharing | ❌ hand a file around | ✅ hosted sync (`--sync-to`) — shared team voice |
 | Auto-compressed one-file export | ✅ that's all it is | ✅ generated on demand (12 nodes / 5 domains / 77 tokens in the demo) |
 
-prime wins on durability, queryability, history, portability, and team — not by strawman. Markdown genuinely wins on simplicity and a single zero-infra file; prime's auto-compressed export now works too, generated live on demand (see honest limits below for the one residual TODO).
+prime wins on durability, queryability, history, portability, and team — not by strawman. Markdown genuinely wins on simplicity and a single zero-infra file; prime's auto-compressed export works too, generated live on demand (see honest limits below).
 
 ## Honest limits
 
 We hold over-claiming as the cardinal sin on an identity product, because the entire point of a voice file is trust. So, plainly:
 
-- **What works today, proven against the real binary (`allsource-prime 0.21.6`):** recording facets (`prime_add_node` + `prime_embed`), **`prime_recall`** (the relevant-slice recall — the hero feature, demo top hit 0.757), the auto-generated *compressed* voice index (`prime_index` returns the live, populated index — 12 nodes, 5 domains, 77 tokens — so the one-file export and `--auto-inject` work too), `prime_stats`, and `prime_history`. The voice flow runs end to end on these. The earlier 0-node index bug is fixed.
-- **The one residual TODO:** the *vector* sub-arm of `prime_context`'s L2 tier still returns an empty list — a documented `// TODO: vector search integration` in the recall engine. `prime_context` returns the populated index correctly; only its vector sub-field is unwired. For the vector-recall path, use `prime_recall`, which works and is what the voice flow already leans on.
-
-We'd rather state the one TODO plainly than dress it up. Recall is the hero, the compressed export is live, and the vector sub-arm of `prime_context` is the single thing still pending.
+- **What works today, proven against the real binary (`allsource-prime 0.21.6`+):** recording facets (`prime_add_node` + `prime_embed`), **`prime_recall`** (the relevant-slice recall — the hero feature, demo top hit 0.757), the auto-generated *compressed* voice index (`prime_index` returns the live, populated index — 12 nodes, 5 domains, 77 tokens — so the one-file export and `--auto-inject` work too), `prime_stats`, and `prime_history`. The voice flow runs end to end on these.
+- **`prime_context`'s tiered recall works across all tiers:** L0 is stats-only (no vectors — that's the tier's job, by design, not a gap), L1 carries recent-conversation context, and **L2 now returns full hybrid recall** — the compressed index plus vector hits plus graph nodes (an L2 query returns the populated index + 4 vectors + 3 graph nodes, top node score 0.73). The earlier vector-arm gap is fixed (commit 5083017). There is no remaining `prime_context` or `prime_index` TODO.
+- **The real, honest limit:** recall quality scales with how many facets you've recorded. A voice file with a handful of answers recalls a thinner slice than one with the full ~100-question pass — the index and the ranking are only as rich as what you've put in. Record more facets, recall more of your voice.
 
 ## The shift
 
