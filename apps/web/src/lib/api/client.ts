@@ -473,6 +473,24 @@ export class ApiClient {
     });
   }
 
+  // Prime knowledge-graph endpoint (allsource-prime, proxied through Core).
+  // Returns the tenant's full node+edge graph. Supports node_type + limit
+  // filters that are applied server-side (before the limit is reached).
+  async getPrimeGraph(params?: PrimeGraphParams): Promise<ApiResponse<PrimeGraph>> {
+    const queryString = params
+      ? `?${new URLSearchParams(
+          Object.entries(params).reduce(
+            (acc, [key, value]) => {
+              if (value !== undefined) acc[key] = String(value);
+              return acc;
+            },
+            {} as Record<string, string>
+          )
+        ).toString()}`
+      : "";
+    return this.request<PrimeGraph>(`/api/v1/prime/graph${queryString}`);
+  }
+
   // Entity timeline (formatted for visualization)
   async getEntityTimeline(
     entityId: string,
@@ -935,6 +953,47 @@ export interface UsageAnalyticsResponse {
   event_type_distribution: EventTypeDistribution[];
   top_entity_ids: TopEntity[];
   ingestion_rate: IngestionDataPoint[];
+}
+
+// Prime knowledge-graph types — mirror GET /api/v1/prime/graph.
+// node ids are `node:<type>:<uuid>`; properties carry human fields
+// (name, domain, notes, …). Edges connect node ids by relation.
+export interface PrimeGraphNode {
+  id: string;
+  node_type: string;
+  properties: Record<string, unknown>;
+  has_vector: boolean;
+  vector_dim: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PrimeGraphEdge {
+  source: string;
+  target: string;
+  relation: string;
+  properties: Record<string, unknown> | null;
+  weight: number | null;
+  created_at: string;
+}
+
+export interface PrimeGraphStats {
+  node_count: number;
+  edge_count: number;
+  vector_count: number;
+  nodes_by_type: Record<string, number>;
+}
+
+export interface PrimeGraph {
+  nodes: PrimeGraphNode[];
+  edges: PrimeGraphEdge[];
+  stats: PrimeGraphStats;
+  has_more: boolean;
+}
+
+export interface PrimeGraphParams {
+  node_type?: string;
+  limit?: number;
 }
 
 // Export singleton instance — uses relative URLs for browser requests
