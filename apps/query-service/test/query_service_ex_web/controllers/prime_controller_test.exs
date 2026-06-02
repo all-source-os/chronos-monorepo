@@ -22,6 +22,37 @@ defmodule QueryServiceExWeb.PrimeControllerTest do
     |> assign(:correlation_id, "test-correlation-id")
   end
 
+  describe "graph/2" do
+    test "raises when no tenant context is present (security: never a full read)" do
+      conn = build_json_conn(:get, "/api/v1/prime/graph")
+
+      assert_raise RuntimeError, ~r/Tenant context required/, fn ->
+        PrimeController.graph(conn, %{})
+      end
+    end
+
+    test "with a tenant present, either materializes a graph (200) or surfaces a gateway error" do
+      conn =
+        build_json_conn(:get, "/api/v1/prime/graph")
+        |> assign(:tenant_id, "tenant-123")
+
+      result = PrimeController.graph(conn, %{})
+
+      # Depending on whether Core answers the tenant-scoped query_events read in
+      # this env, the action either folds the events into the contract (200) or
+      # surfaces a gateway error — never an unhandled crash.
+      assert result.status in [200, 400, 502, 503]
+
+      if result.status == 200 do
+        body = Jason.decode!(result.resp_body)
+        assert Map.has_key?(body, "nodes")
+        assert Map.has_key?(body, "edges")
+        assert Map.has_key?(body, "stats")
+        assert Map.has_key?(body, "has_more")
+      end
+    end
+  end
+
   describe "index/2" do
     test "returns error status when Core is unavailable" do
       conn = build_json_conn(:get, "/api/v1/prime/projections")

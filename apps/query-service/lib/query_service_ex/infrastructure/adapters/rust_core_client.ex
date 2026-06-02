@@ -1362,12 +1362,20 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   end
 
   @doc """
-  Fetch the COMPLETE materialized Prime knowledge graph for a tenant.
+  Fetch the COMPLETE materialized Prime knowledge graph from Core's EMBEDDED
+  Prime store.
+
+  > #### Not used by the hosted graph endpoint {: .warning}
+  >
+  > Core's embedded Prime store is single-tenant (everything ingested with
+  > `tenant_id: None`) and SEPARATE from the main multi-tenant event store.
+  > Synced tenant memory (`prime.*` events) lives in the MAIN store, so this
+  > would return EMPTY for real tenants. `PrimeController.graph/2` therefore
+  > materializes the graph from the tenant's `prime.*` events via
+  > `QueryServiceEx.Prime.GraphFold` instead. Kept for embedded/local use only.
 
   Proxies Core's `GET /api/v1/prime/graph`, forwarding the authenticated
   tenant as `?tenant_id=` exactly like `query_events/3` does for events.
-  Core filters its single Prime store to nodes carrying a matching
-  `properties.tenant_id`, so one tenant can never read another's graph.
 
   `opts` accepts `:node_type` and `:limit`, mapped to Core's query params.
   Returns `{:ok, %{"nodes" => ..., "edges" => ..., "stats" => ..., "has_more" => ...}}`.

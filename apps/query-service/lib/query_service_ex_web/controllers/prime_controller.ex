@@ -10,29 +10,47 @@ defmodule QueryServiceExWeb.PrimeController do
   use Phoenix.Controller, formats: [:json]
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+  alias QueryServiceEx.Prime.GraphFold
+
+  # Upper bound on prime.* events folded per graph read. The graph is
+  # materialized server-side from the tenant's events; this caps the read so a
+  # pathological tenant can't OOM the gateway. The `?limit` on nodes is applied
+  # after the fold.
+  @event_scan_limit 10_000
 
   @doc """
   GET /api/v1/prime/graph — full materialized Prime knowledge graph for the
   authenticated tenant.
 
-  The tenant is derived from the authenticated caller (`conn.assigns`), NEVER
-  from client-supplied params, and forwarded to Core as `?tenant_id=` exactly
-  like the events endpoints. Core filters its single Prime store to that
-  tenant, so this can never leak another tenant's graph.
+  Synced tenant memory (`prime.*` events from allsource-prime →
+  control-plane → `/api/v1/events`) lives **tenant-scoped in the MAIN event
+  store**, not in Core's single-tenant embedded Prime store. So we build the
+  hosted graph by reading this tenant's `prime.*` events (the SAME tenant-scoped
+  main-store read the Memory tab uses) and folding them into the full-graph
+  contract — instead of forwarding to Core's embedded `/api/v1/prime/graph`,
+  which would return empty for real tenants.
 
-  Optional query params: `node_type`, `limit` (passed through to Core).
+  The tenant is derived from the authenticated caller (`conn.assigns`), NEVER
+  from client-supplied params — the same path the events endpoint uses — so this
+  can never read another tenant's memory.
+
+  Optional query params: `node_type`, `limit` (applied to the materialized
+  node set, mirroring 012's contract).
   """
   def graph(conn, params) do
     tenant_id = get_tenant_id!(conn)
+    consistency = conn.assigns[:consistency]
 
-    opts =
-      []
-      |> maybe_opt(:node_type, params["node_type"])
-      |> maybe_opt(:limit, params["limit"])
+    query = %{event_type_prefix: "prime.", limit: @event_scan_limit}
 
-    case RustCoreClient.get_prime_graph(tenant_id, opts) do
-      {:ok, graph} when is_map(graph) ->
-        json(conn, graph)
+    case RustCoreClient.query_events(tenant_id, query, consistency: consistency) do
+      {:ok, events} when is_list(events) ->
+        opts =
+          []
+          |> maybe_opt(:node_type, params["node_type"])
+          |> maybe_opt(:limit, params["limit"])
+
+        json(conn, GraphFold.fold(events, opts))
 
       {:error, reason} ->
         conn |> put_status(:bad_gateway) |> json(%{error: to_string(reason)})
