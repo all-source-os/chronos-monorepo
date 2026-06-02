@@ -17,6 +17,7 @@ use clap::Parser;
 use std::path::{Path, PathBuf};
 use tracing_subscriber::EnvFilter;
 
+mod dispatch;
 mod http;
 mod profiling;
 mod projection_registry;

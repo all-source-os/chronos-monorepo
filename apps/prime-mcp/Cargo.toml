@@ -45,6 +45,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 divan = "0.1"
 iai-callgrind = "0.14"
 tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
 
 [[bench]]
 name = "hot_path"

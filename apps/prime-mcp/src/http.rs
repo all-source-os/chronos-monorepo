@@ -8,8 +8,9 @@ use std::sync::Arc;
 use allsource_core::prime::{Direction, Prime, recall::RecallEngine};
 use axum::{
     Json, Router,
-    extract::{Path, State},
-    http::StatusCode,
+    body::Bytes,
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{delete, get, patch, post},
 };
@@ -49,6 +50,11 @@ pub async fn serve(state: Arc<AppState>, port: u16) -> anyhow::Result<()> {
         .route("/api/v1/prime/diff", get(get_diff))
         // Status endpoints
         .route("/api/v1/prime/stats", get(get_stats))
+        .route("/api/v1/prime/graph", get(get_full_graph))
+        // MCP-over-HTTP (Streamable HTTP transport) — lets MCP clients connect
+        // to the hosted Prime with no local binary. POST a JSON-RPC request,
+        // get a JSON-RPC response (or 202 for notifications).
+        .route("/mcp", post(mcp_handler))
         .route("/health", get(health))
         .merge(crate::profiling::routes())
         .layer(TraceLayer::new_for_http())
@@ -65,6 +71,65 @@ pub async fn serve(state: Arc<AppState>, port: u16) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+// =============================================================================
+// MCP-over-HTTP (Streamable HTTP transport)
+// =============================================================================
+
+/// Optional bearer/API-key gate for the `/mcp` endpoint.
+///
+/// If `PRIME_API_KEY` is set (and non-empty), the request must carry a matching
+/// key in `Authorization: Bearer <key>` (or a bare `Authorization`/`X-API-Key`).
+/// If the env var is unset, the endpoint is open — matching the existing REST
+/// handlers' behavior. Full per-tenant key validation through the gateway is a
+/// follow-up (see bead t-dbee53 notes).
+fn mcp_authorized(headers: &HeaderMap) -> bool {
+    let expected = match std::env::var("PRIME_API_KEY") {
+        Ok(k) if !k.is_empty() => k,
+        _ => return true, // no key configured → open
+    };
+    let provided = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.strip_prefix("Bearer ").unwrap_or(s))
+        .or_else(|| headers.get("x-api-key").and_then(|v| v.to_str().ok()));
+    provided == Some(expected.as_str())
+}
+
+/// MCP Streamable-HTTP endpoint. Accepts a single JSON-RPC request and returns
+/// the JSON-RPC response as `application/json`, or `202 Accepted` for
+/// notifications (which have no reply). Dispatch is shared with the stdio
+/// transport via [`crate::dispatch::handle_request`], so both transports expose
+/// the exact same methods and tools.
+async fn mcp_handler(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> impl IntoResponse {
+    if !mcp_authorized(&headers) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "invalid or missing API key" })),
+        )
+            .into_response();
+    }
+
+    let req: crate::protocol::Request = match serde_json::from_slice(&body) {
+        Ok(r) => r,
+        Err(e) => {
+            // JSON-RPC parse error: reply 200 with an error envelope (null id).
+            let resp = crate::protocol::Response::error(None, -32700, format!("Parse error: {e}"));
+            return (StatusCode::OK, Json(resp)).into_response();
+        }
+    };
+
+    // HTTP transport runs without auto-inject (that's a stdio system-prompt
+    // feature); pass the same defaults the stdio binary uses when disabled.
+    match crate::dispatch::handle_request(&state.prime, &state.recall, false, 1000, &req).await {
+        Some(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        None => StatusCode::ACCEPTED.into_response(),
+    }
 }
 
 // =============================================================================
@@ -118,6 +183,17 @@ struct ShortestPathRequest {
     relation: Option<String>,
 }
 
+/// Query parameters for `GET /api/v1/prime/graph`.
+///
+/// Mirrors Core's contract. prime-mcp is a LOCAL single-store with no tenant,
+/// so `tenant_id` is accepted for shape-parity but normally omitted.
+#[derive(Deserialize)]
+struct GraphQuery {
+    tenant_id: Option<String>,
+    node_type: Option<String>,
+    limit: Option<usize>,
+}
+
 #[derive(Deserialize)]
 struct RecallRequest {
     vector: Option<Vec<f32>>,
@@ -147,6 +223,25 @@ async fn get_stats(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         "edges_by_relation": stats.edges_by_relation,
         "sync": crate::tools::sync_status_json(),
     }))
+}
+
+/// `GET /api/v1/prime/graph` — full materialized knowledge graph from the
+/// local store, identical contract to Core's `/api/v1/prime/graph` (see the
+/// doc comment on Core's `get_full_graph` for the verbatim JSON shape).
+/// prime-mcp is local + single-store, so there is no tenant boundary here.
+async fn get_full_graph(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<GraphQuery>,
+) -> impl IntoResponse {
+    let graph = state.prime.full_graph(
+        q.tenant_id.as_deref(),
+        q.node_type.as_deref(),
+        q.limit,
+    );
+    (
+        StatusCode::OK,
+        Json(serde_json::to_value(&graph).unwrap_or(Value::Null)),
+    )
 }
 
 async fn create_node(
@@ -461,4 +556,177 @@ async fn get_diff(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         "total_edges": stats.total_edges,
         "event_count": stats.event_count,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use allsource_core::prime::EntityId;
+    use allsource_core::prime::recall::{IndexConfig, RecallEngine};
+    use axum::body::{Body, to_bytes};
+    use axum::http::Request;
+    use tower::ServiceExt; // for `oneshot`
+
+    async fn test_state() -> Arc<AppState> {
+        let prime = Prime::open_in_memory().await.unwrap();
+        let recall = RecallEngine::with_deps(prime.recall_deps(), &IndexConfig::default());
+        Arc::new(AppState {
+            prime: Arc::new(prime),
+            recall,
+        })
+    }
+
+    fn graph_router(state: Arc<AppState>) -> Router {
+        Router::new()
+            .route("/api/v1/prime/graph", get(get_full_graph))
+            .with_state(state)
+    }
+
+    /// A node + edge written to the local store appear in `/api/v1/prime/graph`
+    /// with full properties and the same contract Core serves.
+    #[tokio::test]
+    async fn graph_endpoint_returns_written_node_and_edge() {
+        let state = test_state().await;
+
+        let org_id = state
+            .prime
+            .add_node("organization", json!({ "name": "Acme" }))
+            .await
+            .unwrap();
+        let org = EntityId::node("organization", org_id.as_str()).to_wire();
+        let contact_id = state
+            .prime
+            .add_node("contact", json!({ "name": "Alice" }))
+            .await
+            .unwrap();
+        let contact = EntityId::node("contact", contact_id.as_str()).to_wire();
+        state
+            .prime
+            .add_edge(&contact, &org, "works_at", None)
+            .await
+            .unwrap();
+
+        let app = graph_router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/prime/graph")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+
+        let nodes = body["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 2);
+        let org_node = nodes.iter().find(|n| n["id"] == org).unwrap();
+        assert_eq!(org_node["properties"]["name"], "Acme");
+        assert_eq!(org_node["has_vector"], false);
+
+        let edges = body["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0]["source"], contact);
+        assert_eq!(edges[0]["target"], org);
+        assert_eq!(edges[0]["relation"], "works_at");
+
+        assert_eq!(body["stats"]["node_count"], 2);
+        assert_eq!(body["stats"]["edge_count"], 1);
+        assert_eq!(body["has_more"], false);
+    }
+
+    // ─── MCP-over-HTTP (Streamable HTTP transport) ────────────────────────
+
+    fn mcp_router(state: Arc<AppState>) -> Router {
+        Router::new().route("/mcp", post(mcp_handler)).with_state(state)
+    }
+
+    async fn mcp_post(app: &Router, payload: Value) -> (StatusCode, Value) {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = resp.status();
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = if bytes.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&bytes).unwrap()
+        };
+        (status, body)
+    }
+
+    /// A client can complete the full MCP handshake over HTTP: initialize,
+    /// tools/list, and a tools/call — the bead's acceptance criterion.
+    #[tokio::test]
+    async fn mcp_http_initialize_list_and_call() {
+        let app = mcp_router(test_state().await);
+
+        let (status, body) =
+            mcp_post(&app, json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" })).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["result"]["serverInfo"]["name"], "allsource-prime");
+        assert!(body["result"]["protocolVersion"].is_string());
+
+        let (status, body) =
+            mcp_post(&app, json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).await;
+        assert_eq!(status, StatusCode::OK);
+        let tools = body["result"]["tools"].as_array().unwrap();
+        assert!(!tools.is_empty(), "tools/list must return the Prime tools");
+
+        let (status, body) = mcp_post(
+            &app,
+            json!({
+                "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                "params": { "name": "prime_stats", "arguments": {} }
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(!body["result"].is_null(), "tools/call must return a result envelope");
+    }
+
+    /// Notifications (no id, no reply) get 202 Accepted with an empty body.
+    #[tokio::test]
+    async fn mcp_http_notification_returns_202() {
+        let app = mcp_router(test_state().await);
+        let (status, body) = mcp_post(
+            &app,
+            json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(body, Value::Null);
+    }
+
+    /// Malformed JSON yields a JSON-RPC parse-error envelope (not a 500).
+    #[tokio::test]
+    async fn mcp_http_parse_error_is_jsonrpc_envelope() {
+        let app = mcp_router(test_state().await);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header("content-type", "application/json")
+                    .body(Body::from("not json"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["error"]["code"], -32700);
+    }
 }

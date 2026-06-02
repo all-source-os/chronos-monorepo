@@ -1068,10 +1068,13 @@ mod tests {
         assert!(entity_type_from_node_id("node:only-type").is_none()); // no id segment
     }
 
-    #[test]
-    fn call_define_projection_parses_policy_strings() {
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)] // serial test guard, single-threaded — no deadlock
+    async fn call_define_projection_parses_policy_strings() {
+        let _guard = crate::projection_registry::test_guard();
         crate::projection_registry::clear_for_test();
-        let result = call_define_projection(&json!({
+        let prime = Prime::open_in_memory().await.unwrap();
+        let result = call_define_projection(&prime, &json!({
             "entity_type": "dispatch-test-1",
             "field_policies": {
                 "status": "last_write",
@@ -1079,7 +1082,8 @@ mod tests {
                 "role": "most_specific",
                 "tags": "merge_array",
             }
-        }));
+        }))
+        .await;
         // Should be a success result, not an error
         assert_ne!(result.get("isError"), Some(&json!(true)));
         let text = result["content"][0]["text"].as_str().unwrap();
@@ -1091,46 +1095,60 @@ mod tests {
         assert_eq!(def.field_policies.len(), 4);
     }
 
-    #[test]
-    fn call_define_projection_rejects_unknown_policy() {
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)] // serial test guard, single-threaded — no deadlock
+    async fn call_define_projection_rejects_unknown_policy() {
+        let _guard = crate::projection_registry::test_guard();
         crate::projection_registry::clear_for_test();
-        let result = call_define_projection(&json!({
+        let prime = Prime::open_in_memory().await.unwrap();
+        let result = call_define_projection(&prime, &json!({
             "entity_type": "dispatch-test-2",
             "field_policies": { "status": "not_a_real_policy" }
-        }));
+        }))
+        .await;
         assert_eq!(result["isError"], json!(true));
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("unknown policy"));
     }
 
-    #[test]
-    fn call_define_projection_replaces_existing_and_flags_it() {
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)] // serial test guard, single-threaded — no deadlock
+    async fn call_define_projection_replaces_existing_and_flags_it() {
+        let _guard = crate::projection_registry::test_guard();
         crate::projection_registry::clear_for_test();
+        let prime = Prime::open_in_memory().await.unwrap();
         // First definition: replaced=false
-        call_define_projection(&json!({
+        call_define_projection(&prime, &json!({
             "entity_type": "dispatch-test-3",
             "field_policies": { "status": "last_write" }
-        }));
+        }))
+        .await;
         // Second definition for same type: replaced=true
-        let result = call_define_projection(&json!({
+        let result = call_define_projection(&prime, &json!({
             "entity_type": "dispatch-test-3",
             "field_policies": { "name": "highest_priority" }
-        }));
+        }))
+        .await;
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("\"replaced\": true"));
     }
 
-    #[test]
-    fn call_list_projections_returns_every_registered_def() {
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)] // serial test guard, single-threaded — no deadlock
+    async fn call_list_projections_returns_every_registered_def() {
+        let _guard = crate::projection_registry::test_guard();
         crate::projection_registry::clear_for_test();
-        call_define_projection(&json!({
+        let prime = Prime::open_in_memory().await.unwrap();
+        call_define_projection(&prime, &json!({
             "entity_type": "dispatch-test-4a",
             "field_policies": { "f": "last_write" }
-        }));
-        call_define_projection(&json!({
+        }))
+        .await;
+        call_define_projection(&prime, &json!({
             "entity_type": "dispatch-test-4b",
             "field_policies": { "f": "merge_array" }
-        }));
+        }))
+        .await;
         let result = call_list_projections();
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("dispatch-test-4a"));

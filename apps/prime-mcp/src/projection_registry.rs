@@ -86,6 +86,17 @@ pub fn clear_for_test() {
     guard.clear();
 }
 
+/// Serializes tests that touch the process-global registry. Both this module's
+/// tests and `tools.rs`'s projection tests mutate the same static cache, so
+/// under `cargo test`'s parallel runner a `clear`/`upsert`/`list` in one test
+/// would otherwise corrupt another's exact-count assertions. Hold the returned
+/// guard for the whole test body.
+#[cfg(test)]
+pub(crate) fn test_guard() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,12 +114,14 @@ mod tests {
 
     #[test]
     fn upsert_returns_false_on_first_definition() {
+        let _guard = test_guard();
         clear_for_test();
         assert!(!upsert(def("contact-unique-1")));
     }
 
     #[test]
     fn upsert_returns_true_on_replacement() {
+        let _guard = test_guard();
         clear_for_test();
         upsert(def("contact-unique-2"));
         assert!(upsert(def("contact-unique-2")));
@@ -116,6 +129,7 @@ mod tests {
 
     #[test]
     fn get_returns_registered_definition() {
+        let _guard = test_guard();
         clear_for_test();
         upsert(def("contact-unique-3"));
         let fetched = get("contact-unique-3").expect("definition missing");
@@ -128,12 +142,14 @@ mod tests {
 
     #[test]
     fn get_for_unknown_type_returns_none() {
+        let _guard = test_guard();
         clear_for_test();
         assert!(get("does-not-exist").is_none());
     }
 
     #[test]
     fn list_contains_every_registered_definition() {
+        let _guard = test_guard();
         clear_for_test();
         upsert(def("type-a"));
         upsert(def("type-b"));
@@ -146,6 +162,7 @@ mod tests {
 
     #[test]
     fn hydrate_replaces_cache_with_provided_defs() {
+        let _guard = test_guard();
         clear_for_test();
         upsert(def("stale-1"));
         upsert(def("stale-2"));
@@ -158,6 +175,7 @@ mod tests {
 
     #[test]
     fn hydrate_with_empty_input_clears_the_cache() {
+        let _guard = test_guard();
         clear_for_test();
         upsert(def("will-be-gone"));
         hydrate(vec![]);
