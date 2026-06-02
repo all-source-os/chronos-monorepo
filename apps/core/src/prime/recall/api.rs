@@ -431,6 +431,9 @@ mod tests {
     };
     use uuid::Uuid;
 
+    // Canonical add_node/add_edge shape: node id under `id`, domain under
+    // `properties.domain`; edges carry `id` and reference nodes by entity_id
+    // (node_domains/domain_index key on these).
     fn make_node(node_id: &str, node_type: &str, domain: &str, name: &str) -> Event {
         Event::reconstruct_from_strings(
             Uuid::new_v4(),
@@ -438,10 +441,9 @@ mod tests {
             format!("node:{node_type}:{node_id}"),
             "default".to_string(),
             serde_json::json!({
-                "node_id": node_id,
+                "id": node_id,
                 "node_type": node_type,
-                "domain": domain,
-                "properties": {"name": name}
+                "properties": {"name": name, "domain": domain}
             }),
             Utc::now(),
             None,
@@ -456,7 +458,7 @@ mod tests {
             format!("edge:{edge_id}"),
             "default".to_string(),
             serde_json::json!({
-                "edge_id": edge_id,
+                "id": edge_id,
                 "source": source,
                 "target": target,
                 "relation": relation,
@@ -475,8 +477,9 @@ mod tests {
             make_node("n2", "metric", "revenue", "Churn Rate"),
             make_node("n3", "service", "engineering", "Core API"),
             make_node("n4", "feature", "product", "Dark Mode"),
-            make_edge("e1", "n1", "n3", "impacts"),
-            make_edge("e2", "n4", "n3", "depends_on"),
+            // source/target are node entity_ids (matching add_edge)
+            make_edge("e1", "node:metric:n1", "node:service:n3", "impacts"),
+            make_edge("e2", "node:feature:n4", "node:service:n3", "depends_on"),
         ];
 
         // Process events through the Arc'd projections

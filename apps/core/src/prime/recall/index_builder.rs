@@ -181,6 +181,9 @@ mod tests {
     };
     use uuid::Uuid;
 
+    // Canonical add_node/add_edge shape (facade.rs): node id under `id`, domain
+    // under `properties.domain`, node referenced by entity_id; edge id under `id`
+    // with entity_id source/target. node_domains/domain_index key on these.
     fn make_node(node_id: &str, node_type: &str, domain: &str, name: &str) -> Event {
         Event::reconstruct_from_strings(
             Uuid::new_v4(),
@@ -188,10 +191,9 @@ mod tests {
             format!("node:{node_type}:{node_id}"),
             "default".to_string(),
             serde_json::json!({
-                "node_id": node_id,
+                "id": node_id,
                 "node_type": node_type,
-                "domain": domain,
-                "properties": {"name": name}
+                "properties": {"name": name, "domain": domain}
             }),
             Utc::now(),
             None,
@@ -206,7 +208,7 @@ mod tests {
             format!("edge:{edge_id}"),
             "default".to_string(),
             serde_json::json!({
-                "edge_id": edge_id,
+                "id": edge_id,
                 "source": source,
                 "target": target,
                 "relation": relation,
@@ -231,10 +233,11 @@ mod tests {
             make_node("n5", "service", "engineering", "Query Service"),
             // Product domain
             make_node("n6", "feature", "product", "Dark Mode"),
-            // Cross-domain edges
-            make_edge("e1", "n3", "n1", "impacts"), // same domain
-            make_edge("e2", "n3", "n4", "requires"), // revenue -> engineering
-            make_edge("e3", "n6", "n5", "depends_on"), // product -> engineering
+            // Cross-domain edges. source/target are node entity_ids (matching
+            // how add_edge references nodes and how node_domains is keyed).
+            make_edge("e1", "node:decision:n3", "node:metric:n1", "impacts"), // same domain (revenue)
+            make_edge("e2", "node:decision:n3", "node:service:n4", "requires"), // revenue -> engineering
+            make_edge("e3", "node:feature:n6", "node:service:n5", "depends_on"), // product -> engineering
         ];
 
         for event in &events {

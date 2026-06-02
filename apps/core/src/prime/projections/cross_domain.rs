@@ -299,17 +299,25 @@ mod tests {
     use super::*;
     use uuid::Uuid;
 
+    // Emit events in the canonical add_node/add_edge shape: node entity_id is
+    // `node:concept:{node_id}`, domain lives under `properties.domain`, the id
+    // key is `id`; edges carry `id` and reference nodes by their entity_id in
+    // `source`/`target` (matching facade.rs). node_domains is keyed by entity_id,
+    // so edges must reference entity_ids — `node_entity_id` builds them here.
+    fn node_entity(node_id: &str) -> String {
+        format!("node:concept:{node_id}")
+    }
+
     fn make_node_event(node_id: &str, domain: &str) -> Event {
         Event::reconstruct_from_strings(
             Uuid::new_v4(),
             event_types::NODE_CREATED.to_string(),
-            format!("node:concept:{node_id}"),
+            node_entity(node_id),
             "default".to_string(),
             serde_json::json!({
-                "node_id": node_id,
+                "id": node_id,
                 "node_type": "concept",
-                "domain": domain,
-                "properties": {}
+                "properties": { "domain": domain }
             }),
             chrono::Utc::now(),
             None,
@@ -330,9 +338,9 @@ mod tests {
             format!("edge:{edge_id}"),
             "default".to_string(),
             serde_json::json!({
-                "edge_id": edge_id,
-                "source": source,
-                "target": target,
+                "id": edge_id,
+                "source": node_entity(source),
+                "target": node_entity(target),
                 "relation": relation,
             }),
             chrono::Utc::now(),
