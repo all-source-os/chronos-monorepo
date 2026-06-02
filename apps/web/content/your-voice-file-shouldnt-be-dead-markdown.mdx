@@ -34,7 +34,7 @@ That store is durable the same way the rest of AllSource is: every facet you rec
 
 ### The magic moment: recall the right slice by meaning
 
-Here's the working hero feature, and it's the whole point. We seeded a real voice file — 12 facets — into the live `allsource-prime` binary (v0.21.4) and asked it to recall for this writing task:
+Here's the working hero feature, and it's the whole point. We seeded a real voice file — 12 facets — into the live `allsource-prime` binary (v0.21.6) and asked it to recall for this writing task:
 
 > *"Write a short LinkedIn post arguing that when your system's availability hurts, adding another database is usually the wrong fix."*
 
@@ -143,18 +143,18 @@ It composes with the rest of the family: [caveman](https://github.com/JuliusBrus
 | History / provenance | ❌ none | ✅ `prime_history` time-travels every facet |
 | Portable across MCP agents | ⚠️ re-paste the file per tool | ✅ one `--data-dir`, every MCP agent natively |
 | Team sharing | ❌ hand a file around | ✅ hosted sync (`--sync-to`) — shared team voice |
-| Auto-compressed one-file export | ✅ that's all it is | 🛣️ **roadmap** (next Core release) |
+| Auto-compressed one-file export | ✅ that's all it is | ✅ generated on demand (12 nodes / 5 domains / 77 tokens in the demo) |
 
-prime wins on durability, queryability, history, portability, and team — not by strawman. Markdown genuinely wins on simplicity and one-file portability today, and the auto-compressed *export* is the one place prime is still catching up (see honest limits below).
+prime wins on durability, queryability, history, portability, and team — not by strawman. Markdown genuinely wins on simplicity and a single zero-infra file; prime's auto-compressed export now works too, generated live on demand (see honest limits below for the one residual TODO).
 
 ## Honest limits
 
 We hold over-claiming as the cardinal sin on an identity product, because the entire point of a voice file is trust. So, plainly:
 
-- **What works today, proven against the real binary:** recording facets (`prime_add_node` + `prime_embed`), **`prime_recall`** (the relevant-slice recall — the hero feature, demo top hit 0.757), `prime_stats`, and `prime_history`. The voice flow runs end to end on these.
-- **What's on the roadmap (next Core release), not shipped today:** the auto-generated *compressed* voice-index view, the one-file `/voice export` of that compressed view, and `--auto-inject`-ing the index into every conversation. These read the recall engine's domain-index projection, which in `allsource-prime 0.21.4` reports `0 nodes` for live-recorded facets — a documented Core recall-engine gap, tracked separately. Until it lands, `/voice export` still works by enumerating your facets (just not the token-compressed view), and the live `prime_recall` path — which is the better path anyway — is unaffected.
+- **What works today, proven against the real binary (`allsource-prime 0.21.6`):** recording facets (`prime_add_node` + `prime_embed`), **`prime_recall`** (the relevant-slice recall — the hero feature, demo top hit 0.757), the auto-generated *compressed* voice index (`prime_index` returns the live, populated index — 12 nodes, 5 domains, 77 tokens — so the one-file export and `--auto-inject` work too), `prime_stats`, and `prime_history`. The voice flow runs end to end on these. The earlier 0-node index bug is fixed.
+- **The one residual TODO:** the *vector* sub-arm of `prime_context`'s L2 tier still returns an empty list — a documented `// TODO: vector search integration` in the recall engine. `prime_context` returns the populated index correctly; only its vector sub-field is unwired. For the vector-recall path, use `prime_recall`, which works and is what the voice flow already leans on.
 
-We'd rather lead with the working magic moment than promise an export that isn't wired. Recall is the hero. The compressed export is coming.
+We'd rather state the one TODO plainly than dress it up. Recall is the hero, the compressed export is live, and the vector sub-arm of `prime_context` is the single thing still pending.
 
 ## The shift
 

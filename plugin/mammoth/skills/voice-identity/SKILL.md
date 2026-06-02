@@ -86,7 +86,7 @@ ADR, code review, proposal, email, README intro — or on "write this in my voic
    task (e.g. the post topic), `top_k` 5–8, `depth` 1. This returns the facets that
    matter for *this* task, ranked by meaning — you do NOT paste the whole voice
    file. (`prime_recall` is the load-bearing recall path; see the note below on
-   `prime_context`/`prime_index`.)
+   `prime_context`'s vector sub-arm.)
 2. **Write from the recalled facets.** Fold the recalled `statement`s into the
    draft: adopt the recalled communication-style facets (sentence shape, tone,
    words to avoid), lead with the recalled thinking patterns, deploy the recalled
@@ -99,12 +99,15 @@ ADR, code review, proposal, email, README intro — or on "write this in my voic
    'add a database is the wrong fix' take + your durability expertise") — that
    visibility is the magic moment.
 
-> **Recall path note (honest):** `prime_recall` returns the correct ranked slice
-> today. `prime_context` (L2) and `prime_index` currently report `0 nodes` for
-> live-recorded nodes in `allsource-prime 0.21.4` (a Core recall-engine gap, not a
-> convention issue — see the proposal § "Convention vs. server gap" and
-> `tooling/voice-demo/RESULTS.md`). So **use `prime_recall` as the primary recall**;
-> treat `prime_context`/`prime_index` output as best-effort until that lands.
+> **Recall path note (honest):** `prime_recall` returns the correct ranked slice,
+> and `prime_index` returns the live, populated compressed voice index (12 nodes /
+> 5 domains / 77 tokens in the demo) as of `allsource-prime 0.21.6` — the old
+> 0-node bug is fixed. The one residual limit: `prime_context`'s L2 *vector* arm
+> still returns an empty list (a documented `// TODO: vector search integration` in
+> `context_l2`). `prime_context` returns the populated index correctly; only its
+> vector sub-field is unpopulated. So **use `prime_recall` for the vector path** —
+> it works. See the proposal § "Convention vs. server" and
+> `tooling/voice-demo/RESULTS.md`.
 
 ---
 
@@ -115,8 +118,9 @@ ADR, code review, proposal, email, README intro — or on "write this in my voic
 2. `prime_search type:"voice"` → tally facets per `domain` so the user sees coverage
    per facet group ("thinking 6, communication 5, expertise 4, contrarian 3,
    frameworks 2 — contrarian + frameworks are thin").
-3. Try `prime_index` for the compressed token count; if it reports 0 nodes, note
-   the known gap and fall back to the `prime_search` tally as the real count.
+3. `prime_index` for the compressed view + token count — it returns the live,
+   populated index (works as of 0.21.6). The `prime_search` tally remains a fine
+   cross-check / fallback.
 
 ---
 
@@ -125,13 +129,14 @@ ADR, code review, proposal, email, README intro — or on "write this in my voic
 Emit the current voice file as portable markdown — the bridge to the post's
 "4k-token file," but generated live from durable facts.
 
-1. **Preferred:** `prime_index` → its `index` markdown IS the compressed voice file.
-   Emit it verbatim. (Blocked until the index projection gap is fixed — see note.)
-2. **Fallback (works today):** `prime_search type:"voice"`, group nodes by `domain`,
-   and render a markdown doc with one `##` section per facet group and each
-   `statement` as a bullet. Not token-compressed, but complete and current. Tell
-   the user this is the enumerated export and the compressed `prime_index` export
-   lands with the Core fix.
+1. **Preferred (works):** `prime_index` → its `index` markdown IS the compressed
+   voice file. Emit it verbatim — it returns the live, populated index as of
+   `allsource-prime 0.21.6`.
+2. **Fallback:** `prime_search type:"voice"`, group nodes by `domain`, and render a
+   markdown doc with one `##` section per facet group and each `statement` as a
+   bullet. Not token-compressed, but complete and current. Use this only if you want
+   the full enumerated export rather than the compressed `prime_index` view; it is
+   no longer required (the index works), just an option.
 
 The user can paste either into any tool — but the better path is Mode 2 (recall the
 relevant slice live), not pasting a static export.
@@ -182,7 +187,7 @@ isn't diluted by per-project facts. If sharing the mammoth store, filter by
 - [ ] Before any user-facing writing, recalled the relevant slice via `prime_recall`
       and wrote from it; made the recall visible; never fabricated voice on a cold
       store.
-- [ ] `/voice status` reports the real facet count (fall back to `prime_search`
-      tally if `prime_index` reports 0 — known gap).
+- [ ] `/voice status` reports the real facet count (`prime_index` returns the
+      populated index as of 0.21.6; `prime_search` tally is a fine cross-check).
 - [ ] Sync/team uses the existing `--sync-to`/`--api-key` upgrade path; key treated
       as a secret.

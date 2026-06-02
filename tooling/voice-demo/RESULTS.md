@@ -1,7 +1,7 @@
 # voice-demo results
 
-- binary: `/Users/decebaldobrica/.cargo/bin/allsource-prime` (allsource-prime 0.21.4)
-- run (UTC): 2026-06-01T22:39:16.364246+00:00
+- binary: `/Users/decebaldobrica/Projects/chronos/chronos-monorepo/tooling/voice-demo/../../apps/prime-mcp/target/release/allsource-prime` (allsource-prime 0.21.6)
+- run (UTC): 2026-06-02T11:10:38.245406+00:00
 - facets seeded: 12
 - prompt: "Write a short LinkedIn post arguing that when your system's availability hurts, adding another database is usually the wrong fix."
 
@@ -20,61 +20,70 @@ All output below is verbatim from the real `allsource-prime` binary over stdio M
   "edges_by_relation": {
     "relates_to": 7
   },
-  "sync": null
+  "sync": false
 }
 ```
 
 Sample recorded entity_ids (12 total):
 
 ```
-node:voice:71822023-75dd-47be-ac88-11fe6bdd354c  [thinking_pattern] First-principles over cargo-culting
-node:voice:d017a347-adcb-4eed-952b-758118667c93  [thinking_pattern] Invert the question
-node:voice:0039962d-1b79-428d-9194-37c480c50ad3  [thinking_pattern] Cost of being wrong, not odds of being right
-node:voice:a0f52ef0-23df-44f7-8ca4-e1596dfe2dfa  [communication_style] Lead with the punchline
+node:voice:fa108893-07e7-4f55-b066-b727b41a1878  [thinking_pattern] First-principles over cargo-culting
+node:voice:760739da-f3ea-4f26-b0b2-a38099a54197  [thinking_pattern] Invert the question
+node:voice:471b2322-b366-41dd-b445-3ab73ecf2d25  [thinking_pattern] Cost of being wrong, not odds of being right
+node:voice:d31ed3db-150b-4cfb-b8b1-32949f1f5355  [communication_style] Lead with the punchline
 ```
 
 ## 2. The compressed voice file (prime_index — REAL binary output)
 
 This is the auto-generated equivalent of the post's hand-compressed ~4k-token markdown — but always current and never copy-pasted.
 
-- token_count: 13
-- domains: []
+- token_count: 77
+- domains: ['voice.communication', 'voice.thinking', 'voice.frameworks', 'voice.expertise', 'voice.contrarian']
 - cross_references: []
-- last_updated: 2026-06-01T22:39:21.535134+00:00
+- last_updated: 2026-06-02T11:10:38.613501+00:00
 
 ```markdown
 # Knowledge Index
 
-_0 nodes, 0 domains, 0 cross-domain links_
-```
+_12 nodes, 5 domains, 0 cross-domain links_
 
-> **Honest finding (real server gap, not a harness bug).** In `allsource-prime
-> 0.21.4`, `prime_index` reports `0 nodes` even though `prime_stats` (section 1)
-> shows all 12 voice nodes durably recorded. The compressed-index path reads the
-> `DomainIndexProjection`/`CrossDomainProjection`, which are **not fed by the live
-> `prime_add_node` write path** in the MCP process — the gap persists even after
-> reopening the same `--data-dir` (re-tested, still `0 nodes`). The live graph,
-> vector index, and `prime_stats` ARE fed correctly, which is why `prime_recall`
-> below works perfectly. So the voice flow runs on `prime_recall` + `prime_stats`
-> today; the `prime_index`-based `/voice export` lands once this projection is
-> wired. See `docs/proposals/PRIME_VOICE_FILE.md` § "Convention vs. server gap".
+## Domains
+
+### voice.communication
+
+- **Nodes:** 3
+- **Examples:** d31ed3db-150b-4cfb-b8b1-32949f1f5355, 5b7e423d-c374-4b94-82fd-9831b609f734, f2b58771-077e-49ed-ba2d-04e4074869a2
+
+### voice.thinking
+
+- **Nodes:** 3
+- **Examples:** fa108893-07e7-4f55-b066-b727b41a1878, 760739da-f3ea-4f26-b0b2-a38099a54197, 471b2322-b366-41dd-b445-3ab73ecf2d25
+
+### voice.frameworks
+
+- **Nodes:** 2
+- **Examples:** 5ba192ca-d640-4a6f-aedb-2e3925a8ee6d, c486646b-7627-441d-b283-5a2b53f284a2
+
+### voice.expertise
+
+- **Nodes:** 2
+- **Examples:** 124511ed-5366-403c-b8c1-9c9d073d9e33, db2b98f1-bbd1-4be5-bae2-03fec3ae5b97
+
+### voice.contrarian
+
+- **Nodes:** 2
+- **Examples:** 4e3559a5-735c-4026-b04f-1df4dfa7d5d3, 54de985d-15bc-4809-98a2-8dafcab0b93e
+```
 
 ## 3. Voice slice recalled for the prompt (prime_context — REAL binary output)
 
 Instead of pasting the whole voice file, we recall only the facets relevant to THIS task. These are the vector hits returned for the prompt:
 
-- tier: L2  token_count: 13
+- tier: L2  token_count: 77
 
 ```json
 []
 ```
-
-> Same gap as section 2: `prime_context` at tier L2 leans on the index/domain
-> projections for its vector slice, so it returns empty against this build. The
-> production recall used by the skill is `prime_recall` (section 4), which reads
-> the live vector index and returns the correct, ranked voice slice. The skill
-> calls `prime_recall` first and only falls back to `prime_context` for the
-> compressed-index excerpt once that projection is wired.
 
 ## 4. prime_recall for the prompt (REAL binary output)
 
@@ -160,13 +169,13 @@ Instead of pasting the whole voice file, we recall only the facets relevant to T
 
 ## 5. The voice has history (prime_history — REAL binary output)
 
-Audit trail for one facet node (`node:voice:71822023-75dd-47be-ac88-11fe6bdd354c`). A static markdown blob has no provenance; a prime voice file time-travels.
+Audit trail for one facet node (`node:voice:fa108893-07e7-4f55-b066-b727b41a1878`). A static markdown blob has no provenance; a prime voice file time-travels.
 
 ```json
 [
   {
     "type": "prime.node.created",
-    "timestamp": "2026-06-01T22:39:16.421559+00:00"
+    "timestamp": "2026-06-02T11:10:38.259662+00:00"
   }
 ]
 ```
@@ -179,65 +188,44 @@ The recalled voice slice in sections 3-4 IS the injected context for the voice-O
 
 ### voice-OFF (no recall — generic)
 
-> Written with no voice recall. Default LLM register: hedged, list-y, hype words,
-> abstract.
-
-When your system's availability starts to suffer, it can be tempting to reach for
-another database to help share the load. However, adding a new database isn't
-always the best solution and can introduce a number of challenges that teams should
-carefully consider.
-
-Here are a few things to keep in mind:
-
-- 🚀 **Complexity:** Every new datastore adds operational overhead and another
-  moving part to maintain.
-- 🔄 **Consistency:** Keeping data in sync across multiple databases can be really
-  tricky and error-prone.
-- 💸 **Cost:** More infrastructure means more cost, both in dollars and engineering
-  time.
-
-Before adding another database, it's a great idea to first explore whether you can
-optimize what you already have. Sometimes the answer is replication or better
-caching! What's your experience been? Would love to hear your thoughts in the
-comments below. 👇
+> When your system's availability starts to suffer, it can be tempting to reach for
+> another database to solve the problem. However, adding a new datastore is often
+> not the right solution. It introduces additional operational complexity, new
+> failure modes, and consistency challenges that can actually make availability
+> worse. Before adding infrastructure, it's worth taking the time to understand the
+> root cause of your availability issues. Often the real fix is in your existing
+> architecture. What's your experience with scaling for availability? #engineering
+> #architecture #scaling
 
 ### voice-ON (recalled facets injected)
 
-> Written from the facets `prime_recall` returned for this prompt (section 4):
-> *"Add a database is usually the wrong fix"* (score 0.757) → "the better fix is
-> almost always replication of the system you already have… not bolting on a new
-> stateful component"; *"Distributed systems durability"* (0.688); plus the
-> communication-style facets *"Lead with the punchline"*, *"Concrete over
-> abstract"*, *"Short declarative sentences, dry humor"*. No emojis, no hype, a
-> number, the conclusion first.
+Written from the recalled facets in §4 — the contrarian take "add a database is
+usually the wrong fix" (0.76), the durability/event-sourcing expertise, "invert
+the question," and the communication style (lead with the punchline, short
+declarative lines, dry understatement):
 
-Adding a database is usually the wrong fix.
-
-When availability hurts, the reflex is to bolt on another stateful component — a
-replica database, a cache, a queue. It feels like progress. It isn't. You just
-added a second consistency surface to keep in sync and a second thing to page you
-at 3am.
-
-The bottleneck is almost never "not enough databases." It's one component that
-can't survive losing a node. So make that component survive losing a node.
-Leader-follower replication of the system you already run buys you the same
-availability without a new ops burden and without a new way for two stores to
-disagree.
-
-I watched a team add a read-replica datastore to fix p99 latency. Six weeks later
-the outage wasn't the original database — it was the replication lag between the
-two. They'd traded one failure mode for a worse one.
-
-Before you add a database, ask what you're actually trading. Usually it's a
-durability problem you never wrote down, dressed up as a scaling problem.
+> Your availability hurts, so you're adding a database. You just bought a second
+> thing that can be down.
+>
+> Adding a datastore to fix availability is usually backwards. You didn't have an
+> availability problem — you had a coupling problem, and now it spans two systems
+> with a network in between. New failure modes. New consistency story. Same outage,
+> longer postmortem.
+>
+> Invert it: don't ask "what do I add to stay up?" Ask "what is currently allowed
+> to take me down?" Nine times out of ten the answer is already in your stack — a
+> synchronous call that should be an event, a write path with no durability
+> guarantee, a dependency you never had to take.
+>
+> Fix the coupling. Make the implicit explicit. The database you don't add is the
+> one that never pages you at 3am.
 
 ---
-_The two completions answer the SAME prompt. The only difference is whether the
-voice slice from `prime_recall` (section 4) was injected. The ON arm carries the
-recalled contrarian thesis verbatim ("replication of the system you already run,"
-"not bolting on a new stateful component"), the recalled durability expertise, and
-the recorded style facets (punchline-first, a concrete war story, no emojis, no
-hype). That difference is the product._
+_wall 0.4s incl. first-call fastembed model load. Binary: allsource-prime 0.21.6._
 
----
-_wall 5.2s incl. first-call fastembed model load. Binary: allsource-prime 0.21.4._
+> Note: `prime_index` (§2) now returns the live, populated compressed voice file
+> (12 nodes / 5 domains / 77 tokens) — the 0-node bug is fixed (allsource-prime
+> 0.21.6). `prime_recall` (§4) returns the relevant slice by meaning. `prime_context`
+> (§3) returns the populated index; its L2 *vector* arm is still empty here — a
+> separate documented `// TODO: vector search integration` in `context_l2`, not the
+> index bug. Use `prime_recall` for the vector path (it works).

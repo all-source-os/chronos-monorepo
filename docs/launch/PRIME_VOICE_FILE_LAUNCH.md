@@ -13,9 +13,12 @@ prime: the static 4k-token markdown voice file is the v0; prime is the durable,
 queryable, portable, team-shareable version — proven by a real voice-ON vs
 voice-OFF demo and `prime_recall` hitting the right facet by meaning.
 
-**The hero is `prime_recall`.** The auto-compressed index / one-file export /
-`--auto-inject` are **roadmap** (next Core release) and must be labeled as such in
-every asset. This is the cardinal rule — over-claiming on an identity product
+**The hero is `prime_recall`.** The auto-compressed index (`prime_index`), one-file
+export, and `--auto-inject` now work too (fixed in `allsource-prime 0.21.6`, commit
+4b61441) and may be presented as shipped. The ONE thing not to over-claim:
+`prime_context`'s L2 *vector* arm still returns empty (a documented TODO) — never
+claim `prime_context` returns vector hits; point people at `prime_recall` for the
+vector path. This is the cardinal rule — over-claiming on an identity product
 destroys the trust that is the entire point.
 
 ## Assets (all committed, ready)
@@ -30,9 +33,9 @@ destroys the trust that is the entire point.
 | Captured demo | `tooling/voice-demo/RESULTS.md` | every number in every asset traces here |
 
 Headline numbers (consistent across all assets, all trace to RESULTS.md):
-**12 facets recorded; `prime_recall` top hit 0.757 on a reworded query; voice-ON vs
-voice-OFF on the same prompt.** One-liner: *your voice file shouldn't be a dead
-markdown file.*
+**12 facets recorded; `prime_recall` top hit 0.757 on a reworded query; the
+populated `prime_index` (12 nodes / 5 domains / 77 tokens); voice-ON vs voice-OFF
+on the same prompt.** One-liner: *your voice file shouldn't be a dead markdown file.*
 
 ## Pre-flight gates (must ALL be green before posting)
 
@@ -55,9 +58,11 @@ These are owner actions — an agent can't capture a clip, push your repo, or po
 5. [ ] **Every number traces to RESULTS.md** — the only metrics in any asset are:
        12 facets, top hit 0.757, the named recalled facets, the voice-ON/OFF
        contrast. No invented numbers.
-6. [ ] **No over-claim audit** — grep every asset: `prime_index`, `prime_context`,
-       `/voice export`, `--auto-inject`, "compressed index", "compressed export"
-       must each be labeled **roadmap / next Core release**, NEVER as shipped.
+6. [ ] **No over-claim audit** — `prime_index`, `/voice export`, `--auto-inject`,
+       and "compressed index/export" are shipped (0.21.6) and may be presented as
+       working. The single thing to guard against: any claim that `prime_context`'s
+       *vector* arm returns hits — it returns empty (documented TODO); the vector
+       path is `prime_recall`. Grep each asset and confirm none over-claim that.
 7. [ ] **Push `main`.** Blog + plugin resolve from the repo. `git status` first,
        include related dirty files, `git push origin main`.
 8. [ ] **Clean-machine smoke test** — `cargo install allsource-prime` →
@@ -76,7 +81,7 @@ Order matters — each step's link feeds the next.
    renders and the OG image resolves (`/og` auto-gen).
 3. **Post Show HN** — title + body from `docs/social/prime-voice-file-campaign.md`.
    Lead with the demo + the real captured recall numbers; HN rewards runnable
-   proof, and the honest roadmap caveat plays well there. *Morning ET weekday.*
+   proof, and the honest residual-limit note plays well there. *Morning ET weekday.*
 4. **Post the X thread** — 7 tweets from the same file. Tweet 1 = moat line + demo
    clip. Tweet 3 = recall table. Tweet 4 = voice-ON/OFF. **Cross-link @caveman +
    mammoth** — same family, complementary.
@@ -89,11 +94,14 @@ Order matters — each step's link feeds the next.
 ## Honesty (the trust move — keep it in every post)
 
 Lead with `prime_recall` (proven: top hit 0.757 on a reworded query) and the
-voice-ON/OFF demo. Label the auto-compressed index / one-file export /
-`--auto-inject` as roadmap (next Core release) — they read a Core recall-engine
-projection that reports 0 nodes for live-recorded facets in 0.21.4, a documented
-gap tracked separately. Publishing the limit is the same trust move mammoth made
-with the narrowing-edge benchmark note. Do not dress the roadmap up as shipped.
+voice-ON/OFF demo. The auto-compressed index (`prime_index`), one-file export, and
+`--auto-inject` now work as of 0.21.6 (the 0-node projection bug is fixed, commit
+4b61441) and may be shown as shipped — `prime_index` returns the live, populated
+index (12 nodes / 5 domains / 77 tokens). Keep ONE honest residual line: the
+*vector* sub-arm of `prime_context` L2 still returns empty (a documented `// TODO:
+vector search integration`), so the vector path is `prime_recall`. Publishing that
+one limit is the same trust move mammoth made with the narrowing-edge benchmark
+note. Never claim `prime_context` returns vector hits.
 
 ## Go-metric
 

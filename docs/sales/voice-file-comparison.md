@@ -7,8 +7,7 @@ and team sharing. No strawman — the audience includes people who already built
 markdown voice file, and they should keep it if it's working.
 
 Every prime claim traces to the captured demo in `tooling/voice-demo/RESULTS.md`
-(live `allsource-prime 0.21.4`) or `docs/proposals/PRIME_VOICE_FILE.md`. Roadmap
-items are marked **roadmap** — not current wins.
+(live `allsource-prime 0.21.6`) or `docs/proposals/PRIME_VOICE_FILE.md`.
 
 ## The idea both share
 
@@ -29,7 +28,7 @@ this. They differ on the data structure.
 | **Durability** | ✅ a file is a file | ✅ event store — WAL (CRC32 + fsync) + Snappy Parquet; survives restarts |
 | **Portable across MCP agents** | ⚠️ re-paste the file into each tool | ✅ one `--data-dir`, recalled natively by every MCP agent (Claude Code, Cursor, Cline, Windsurf, Codex, Gemini) |
 | **Team sharing** | ❌ hand a file around | ✅ hosted sync (`--sync-to`) — shared team voice, local-only stays free default |
-| **Auto-compressed one-file export** | ✅ that's all it is | 🛣️ **roadmap** (next Core release) — see note |
+| **Auto-compressed one-file export** | ✅ that's all it is | ✅ `prime_index` generates the compressed voice index on demand — always current (demo: 12 nodes / 5 domains / 77 tokens) |
 
 ## Where each genuinely wins
 
@@ -52,15 +51,17 @@ led with the punchline and a concrete war story; the voice-OFF draft was the gen
 hedged, list-y, emoji default. The recalled voice was the only variable. Full
 capture: `tooling/voice-demo/RESULTS.md`.
 
-## Honest note on the one roadmap row
+## Honest note on the one residual limit
 
-The auto-generated *compressed* index, the one-file `/voice export` of that view,
-and `--auto-inject` are **roadmap** (next Core release). They read the recall
-engine's domain-index projection, which in `allsource-prime 0.21.4` reports `0
-nodes` for live-recorded facets — a documented Core recall-engine gap, tracked
-separately. The live `prime_recall` path (the better path anyway) is unaffected and
-proven, so the voice flow runs end-to-end today. We label this as roadmap rather
-than dress it up as shipped.
+The auto-generated *compressed* index (`prime_index`), the one-file `/voice export`
+of that view, and `--auto-inject` all **work** as of `allsource-prime 0.21.6`: the
+0-node projection bug is fixed (commit 4b61441), and `prime_index` returns the live,
+populated voice index (12 nodes / 5 domains / 77 tokens) on demand. The one residual
+limit, kept honest: `prime_context`'s L2 *vector* arm still returns an empty list (a
+documented `// TODO: vector search integration`). `prime_context` returns the
+populated index correctly; only its vector sub-field is unpopulated. Use
+`prime_recall` for the vector path — it works and is proven. We state the one TODO
+plainly rather than dress it up.
 
 ## Family fit
 

@@ -2,14 +2,17 @@
 
 Status: **DRAFT** for owner review. Rides the viral "your voice is your moat"
 thesis and lands on prime — honestly. Numbers are real, captured from the live
-`allsource-prime 0.21.4` binary in `tooling/voice-demo/RESULTS.md`. Do not publish
+`allsource-prime 0.21.6` binary in `tooling/voice-demo/RESULTS.md`. Do not publish
 until the GATE in `docs/launch/PRIME_VOICE_FILE_LAUNCH.md` is GO and commits are
 pushed. Pair each asset with the noted visual.
 
-**Honesty rule (non-negotiable):** lead on `prime_recall` (works, proven). Label
-the compressed auto-index / one-file export / `--auto-inject` as **roadmap** (next
-Core release) everywhere — never as a shipped feature. Over-claiming on an identity
-product destroys the exact trust that is the whole point.
+**Honesty rule (non-negotiable):** `prime_recall` is the hero (works, proven), and
+the compressed auto-index (`prime_index`), one-file export, and `--auto-inject` now
+work too (fixed in 0.21.6) — present them as shipped. The ONE thing not to
+over-claim: `prime_context`'s L2 *vector* arm still returns empty (a documented
+TODO) — never claim `prime_context` returns vector hits; point people at
+`prime_recall` for the vector path. Over-claiming on an identity product destroys
+the exact trust that is the whole point.
 
 Cross-link mammoth + caveman — same family, complementary, not competitive.
 
@@ -45,8 +48,9 @@ the voice-ON draft led with the punchline and a war story; the voice-OFF draft w
 hedged, list-y, emoji. same prompt. the only difference was the recalled voice.
 
 one --data-dir, every MCP agent — claude, cursor, codex, gemini. version it like
-code. (the auto-compressed one-file export is on our roadmap, next core release —
-recall is what's live and it's the better path anyway.)
+code. and the auto-compressed one-file export is live too: prime generates the
+current compressed voice index on demand (12 nodes, 5 domains, 77 tokens in the
+demo) — no copy-paste, always current.
 
 what would your 100 questions reveal about how you actually think — and wouldn't
 you rather they stayed current?
@@ -123,7 +127,8 @@ cargo install allsource-prime
 voice file doesn't compete with @caveman or mammoth — same family. caveman
 compresses what you say; mammoth never forgets; the voice file is how you say it.
 
-(auto-compressed one-file export = roadmap, next core release. recall is live now.)
+(both paths live: recall the per-task slice, or emit the auto-compressed one-file
+index — generated on demand, always current.)
 
 repo + the real demo 👇
 [LINK: github.com/all-source-os/chronos + blog post]
@@ -147,7 +152,7 @@ AllSource Core engine — no account, survives restarts, never leaves your machi
 Then instead of pasting your voice, the agent *recalls* only the facets relevant to
 the current task via in-process vector recall.
 
-Real captured demo (`tooling/voice-demo/`, against `allsource-prime 0.21.4`):
+Real captured demo (`tooling/voice-demo/`, against `allsource-prime 0.21.6`):
 for the prompt "argue that adding another database is usually the wrong fix" — a
 reworded query that never said "contrarian take" — `prime_recall` returned the
 user's own contrarian thesis as the top hit (score 0.757), then their durability
@@ -159,11 +164,13 @@ It's MCP-native, so any MCP agent (Claude Code, Cursor, Cline, Windsurf, Codex,
 Gemini) speaks it — one `--data-dir`, recalled everywhere, no per-tool re-paste.
 Team voice is an opt-in hosted-sync upgrade, not a gate.
 
-Honest limit: the auto-generated *compressed* index / one-file export / auto-inject
-are on the roadmap (a documented Core recall-engine projection gap in 0.21.4 — it
-reports 0 nodes for live-recorded facets). Recall, stats, and history all work
-today, and recall is the better path anyway, so the voice flow runs end-to-end now.
-We'd rather ship the working magic moment than over-claim an export.
+The auto-generated *compressed* index, the one-file export of it, and auto-inject
+all work as of `allsource-prime 0.21.6` — `prime_index` returns the live, populated
+voice index (12 nodes, 5 domains, 77 tokens) on demand. Recall, stats, and history
+work too, so the voice flow runs end-to-end. One honest residual limit: the *vector*
+sub-arm of `prime_context` L2 still returns empty (a documented `// TODO: vector
+search integration`); use `prime_recall` for the vector path — it works. We'd rather
+state the one TODO plainly than dress it up.
 
 It ships in the same plugin as mammoth (durable agent memory) and composes with
 caveman (token compression). Plugin layer is MIT; engines (allsource-prime/core)
@@ -188,6 +195,8 @@ Demo: tooling/voice-demo/RESULTS.md
 | Show HN | text only; link the blog + RESULTS.md (HN rewards runnable proof) | — |
 
 Headline numbers, consistent across all assets (all trace to RESULTS.md):
-**12 facets recorded; `prime_recall` top hit 0.757 on a reworded query; voice-ON vs
-voice-OFF on the same prompt.** Never cite prime_index/export/auto-inject as
-working — roadmap only.
+**12 facets recorded; `prime_recall` top hit 0.757 on a reworded query; the
+populated `prime_index` (12 nodes / 5 domains / 77 tokens); voice-ON vs voice-OFF
+on the same prompt.** `prime_index`/export/`--auto-inject` work as of 0.21.6 —
+present them as shipped. The only thing never to cite as working is
+`prime_context`'s vector arm (empty; use `prime_recall` for the vector path).

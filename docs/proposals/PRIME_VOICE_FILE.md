@@ -240,7 +240,9 @@ The voice file is a Prime domain, not a file.
   facet (score **0.757**), then their durability/event-sourcing expertise.
 - **The compressed view:** `prime_index` is the auto-generated equivalent of the
   post's hand-compressed 4k-token markdown — always current, regenerated on
-  demand (see § "Convention vs. server gap" for the current status of this path).
+  demand. Verified working in `RESULTS.md` §2 (allsource-prime 0.21.6): it returns
+  the live, populated index — **12 nodes, 5 domains, token_count 77** — for nodes
+  recorded via the live MCP write path. The 0-node bug is fixed (commit 4b61441).
 - **History:** `prime_history` on any facet shows when it was recorded and every
   change. A markdown blob has no provenance. Verified in `RESULTS.md` §5.
 
@@ -280,8 +282,10 @@ Config file locations (same stanza, same `--data-dir`):
 
 `--auto-inject` exposes `prime://auto-context` as an MCP resource so the agent's
 system prompt automatically carries the compressed voice index every conversation
-(verified flag in `apps/prime-mcp/src/main.rs`). The voice follows the user
-because it's one store, spoken by every MCP agent natively — no per-tool re-paste.
+(verified flag in `apps/prime-mcp/src/main.rs`). Now that the index is populated
+(0.21.6), the resource carries the real compressed voice index. The voice follows
+the user because it's one store, spoken by every MCP agent natively — no per-tool
+re-paste.
 
 ### Wedge 3 — Team voice / shared identity
 
@@ -316,48 +320,44 @@ Core never authenticates public traffic (per `CLAUDE.md`). Prefer `PRIME_API_KEY
 
 ---
 
-## 4. Convention vs. server gap (honest separation)
+## 4. Convention vs. server (honest separation)
 
 Everything in this proposal is built from **existing tools as a convention** — no
-change to `apps/prime-mcp/`. One real server gap surfaced when proving it against
-the binary; it is documented here rather than worked around.
+change to `apps/prime-mcp/`. The compressed-index path that was broken when this
+was first proven is now fixed; one narrow residual TODO remains and is documented
+here rather than papered over.
 
-### Pure convention (works today, no server change)
+### Works today (verified against the real binary)
 
 - The `voice` node type + `domain`/`facet`/`statement` property shape.
 - Recording the interview via `prime_add_node` + `prime_embed` + `prime_add_edge`.
 - The relevant-slice recall loop via **`prime_recall`** (the load-bearing path —
-  verified working, §4 of `RESULTS.md`).
+  verified working, §4 of `RESULTS.md`; top hit 0.7572).
+- **`prime_index`** — the auto-generated compressed voice file — returns the live,
+  populated index (**12 nodes, 5 domains, token_count 77**) for nodes recorded via
+  the live MCP write path. The 0-node bug is **fixed** in `allsource-prime 0.21.6`
+  (commit 4b61441). Verified in `RESULTS.md` §2.
+- `/voice export` can emit that compressed index (the `prime_index` output) as
+  portable markdown.
+- `--auto-inject` exposes the populated index as the `prime://auto-context`
+  resource — works now that the index is populated.
 - `/voice status` via `prime_stats` (+ `prime_search type:voice`) — verified.
 - `prime_history` for voice evolution — verified.
 - Portability stanza and team `--sync-to`/`--api-key` path — verified flags.
 
-### Real server gap (documented as follow-up, NOT built here)
+### Residual TODO (narrow, documented — NOT the index)
 
-**`prime_index` / `prime_context` report `0 nodes` for nodes recorded via the
-live MCP write path** in `allsource-prime 0.21.4`. The compressed-index path
-reads `DomainIndexProjection` / `CrossDomainProjection`
-(`apps/core/src/prime/recall/index_builder.rs`), and those projections are **not
-fed by `prime_add_node` in the running MCP process** — re-tested across a
-`--data-dir` reopen (projections rehydrate from the durable log on open), still
-`0 nodes`. Meanwhile `prime_stats`, the live graph, and the vector index used by
-`prime_recall` ARE fed correctly, which is why recall works perfectly. Captured in
-`tooling/voice-demo/RESULTS.md` §2.
+**`prime_context`'s L2 *vector* arm still returns an empty `[]` vectors list.**
+`prime_context` returns the populated *index* correctly; only its vector
+sub-field is unpopulated, because of a documented `// TODO: vector search
+integration` in `context_l2` (`apps/core/src/prime/recall/api.rs`). This is **not**
+the old 0-node index bug — the index works. Captured in `RESULTS.md` §3.
 
-**Impact on the voice flow:** none for the core wedge — the relevant-slice recall
-runs entirely on `prime_recall`. The only deferred piece is `/voice export`'s
-"emit the compressed index as portable markdown," which depends on `prime_index`
-being populated. Until the projection is wired, `/voice export` reconstructs the
-markdown by enumerating `voice` nodes via `prime_search` (still works, just not
-the token-compressed view), and `--auto-inject` (which also reads the index)
-carries an empty index.
-
-**Follow-up (separate work, not this task):** wire the recall engine's
-`DomainIndexProjection`/`CrossDomainProjection` to the live `prime.node.created`
-write path in the MCP process (today they only update on a path that the MCP
-server doesn't exercise live), so `prime_index`, `prime_context` L2, and
-`--auto-inject` reflect freshly recorded nodes without a restart. This is a Core
-recall-engine fix, tracked outside the voice feature.
+**Impact on the voice flow:** none. The relevant-slice recall and the
+compressed-index export both run on paths that work. For the vector-recall path,
+use **`prime_recall`** (which works); don't rely on `prime_context`'s vector
+sub-field until that TODO lands. This is a Core recall-engine follow-up tracked
+outside the voice feature.
 
 ---
 
@@ -396,7 +396,7 @@ who want that separation; the default shares the mammoth store and filters by
 
 `tooling/voice-demo/` drives the real `allsource-prime` binary over stdio MCP
 against a throwaway temp `--data-dir`, records 12 voice facets, and captures:
-`prime_stats` (facets recorded), `prime_index` (the gap, honestly), `prime_recall`
-(the working relevant-slice recall, top hit 0.757), `prime_history` (provenance),
-and a voice-ON vs voice-OFF completion for the same prompt. See
-`tooling/voice-demo/RESULTS.md`.
+`prime_stats` (facets recorded), `prime_index` (the populated compressed index —
+12 nodes / 5 domains / 77 tokens), `prime_recall` (the working relevant-slice
+recall, top hit 0.7572), `prime_history` (provenance), and a voice-ON vs voice-OFF
+completion for the same prompt. See `tooling/voice-demo/RESULTS.md`.
