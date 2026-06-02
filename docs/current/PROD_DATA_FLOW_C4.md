@@ -1,7 +1,21 @@
 # AllSource — Production Data-Flow (C4-style)
 
 *Date: 2026-06-02*
-*Status: current-architecture trace, derived from a code read (file:line cited throughout). Two routing ambiguities need owner confirmation — see Open Questions. Supersedes ad-hoc mental models; corrects several CLAUDE.md claims (flagged).*
+*Status: current-architecture trace, code-read (file:line) + verified against the LIVE deployment (read-only probes, no changes). Supersedes ad-hoc mental models; corrects several CLAUDE.md claims (flagged).*
+
+---
+
+## Live verification (2026-06-02, read-only — nothing deployed/changed)
+
+| Probe | Result | Conclusion |
+|---|---|---|
+| `GET https://api.all-source.xyz/health` | `{"service":"allsource-control-plane", "persistence":"core", …}` | **The public edge at api.all-source.xyz IS the Control Plane**, not the Query Service. |
+| `GET api.all-source.xyz/api/v1/prime/graph` (no auth) | `401 unauthorized` | CP authenticates first, then delegates prime. |
+| `GET https://allsource-prime.fly.dev/health` | `{"status":"ok"}` | Standalone Prime app is up and **publicly reachable**. |
+| `GET allsource-prime.fly.dev/api/v1/prime/stats` | `total_nodes:17, total_edges:8, event_count:25` (types: feature×5, metric×6, insight×2, decision, policy, service, event) | Store C is **NOT empty** — it holds one shared, seeded/demo-shaped graph. No tenant partition. |
+| `POST allsource-prime.fly.dev/mcp` | `404` | The MCP-over-HTTP transport (bead t-dbee53) is committed locally but **not deployed**. |
+
+This resolves the old "Open Q1" empirically: **api.all-source.xyz = Control Plane.** It also corrects an earlier wrong claim that store C was "orphaned/empty" — it is populated with a single shared graph.
 
 ---
 
@@ -173,7 +187,7 @@ sequenceDiagram
 |---|---|---|---|---|---|
 | **A** | Local dev Prime `~/.prime/memory` | prime-mcp local WAL/Parquet | local MCP tools | local agent (stdio) | per-developer only |
 | **B** | **Main Core event store** | `allsource_data` | sync.rs → CP → Core `/events` (tenant-stamped) | **Web Overview tab + QS `prime/graph` GraphFold** | ✅ this is where real memory lives |
-| **C** | Hosted `allsource-prime` `/data` | its own WAL/Parquet | **nothing in prod** | CP `ProxyPrime` (but no first-party client routes there) | ⚠️ orphaned/empty |
+| **C** | Hosted `allsource-prime` `/data` | its own REST writes (incl. a seed) | CP `ProxyPrime` + direct public REST | ✅ **live, populated** (17 nodes/8 edges, single shared graph, no tenant partition) |
 | **D** | Core-embedded Prime | `#[cfg(feature="prime")]` | n/a | n/a | ❌ feature not compiled into prod Core |
 
 ---
@@ -184,7 +198,7 @@ sequenceDiagram
 
 2. **My own recently-shipped gateway prime routes are broken in prod.** `PrimeController.{index,create,project,provenance}` (beads **t-2ac8 / t-9501 / t-8bf4**) proxy to Core's `/api/v1/prime/*`, which 404s (no prime feature) → 502. They passed tests only because I built Core with `--features prime`. **This is live on `main`.** The `t-061e` comparison-doc claim that projections/provenance are "reachable via REST + SDK" is therefore **false for the shipped images** — true only for a prime-enabled Core build.
 
-3. **Two backends for `/api/v1/prime/graph`.** QS `PrimeController.graph` materializes it from store **B** (GraphFold over `prime.*` events, `prime_controller.ex:25-53`). But CP's blanket `api.Any("/prime/*path")` (`main.go:483`) forwards `/api/v1/prime/*` to the **empty store C**. If dashboard graph reads route through CP, they hit C and show empty while Overview (events query → B) shows data. **Which one answers depends on whether `api.all-source.xyz` is the QS edge or the CP edge — unresolved (Open Q1).**
+3. **Two backends for `/api/v1/prime/graph` — and prod uses C, not B.** QS `PrimeController.graph` materializes the graph from store **B** (GraphFold over `prime.*` events, `prime_controller.ex:25-53`). But the public edge is the Control Plane (live-verified), whose blanket `api.Any("/prime/*path")` (`main.go:483`) forwards `/api/v1/prime/*` to **store C** (the allsource-prime app). So in prod the dashboard graph is answered by C (a single shared seeded graph), while the Overview tab's events query is answered by B (the tenant's real `prime.*` events). **The QS GraphFold path is dead code on the public prime route** — it would only be hit if a client reached the Query Service directly.
 
 4. **Hosted `allsource-prime` app is write-orphaned.** Nothing syncs into its `/data`; sync flows local→Core (B), never into C.
 
@@ -196,8 +210,8 @@ sequenceDiagram
 
 ## Open questions for the owner
 
-1. **What sits at `https://api.all-source.xyz` — the Query Service or the Control Plane?** This single fact decides whether dashboard `/api/v1/prime/graph` is answered by QS+GraphFold (store B, works) or CP→hosted-prime (store C, empty), and whether the web client's `/api/v1/agents/claim` (a CP-only route) reaches CP. Everything in flow 3 hinges on it.
-2. **Where should hosted Prime live — store B (Core events + QS GraphFold) or store C (the allsource-prime app)?** The two are diverging. If B is the answer, the `allsource-prime` app and the gateway projection/provenance routes (and beads t-2ac8/t-9501/t-8bf4) are pointed at the wrong place. If C, then B's GraphFold path and the sync-to-Core design are the odd ones out, and C needs the tenant-isolation work (bead **t-10f876**).
+1. ~~What sits at api.all-source.xyz?~~ **RESOLVED by live probe: the Control Plane.** So prod `/api/v1/prime/*` is `web → CP (api.all-source.xyz) → ProxyPrime → allsource-prime app (store C)`. The Query Service's `PrimeController`/GraphFold (store B) is **not** on the public prime path — QS is an internal delegation target for events, and its prime routes are bypassed in prod.
+2. **What is the intended role of the `allsource-prime` app vs. the per-tenant `prime.*` events in Core?** (Earlier B-vs-C framing was wrong — they are not two candidate homes for one feature.) Empirically: store C is a **single, shared, seeded graph with no tenant partition**, served publicly and via CP; store B is per-tenant `prime.*` events synced into Core. Owner to state the correct model — e.g. is C a demo/showcase, a shared-knowledge instance, or the intended (pre-isolation) hosted memory? This determines whether beads **t-10f876 / t-be6360 / t-2ac8 / t-9501 / t-8bf4** are even pointed at the right place.
 3. **Is `apps/auth` (Rust better-auth, :3903) live, or has the Control Plane's Go auth superseded it?** Both exist; only CP has prod-wired public auth routes.
 
 ---
