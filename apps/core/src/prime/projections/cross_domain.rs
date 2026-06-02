@@ -122,18 +122,41 @@ impl Projection for CrossDomainProjection {
         match event_type {
             // Track node domains from node events
             event_types::NODE_CREATED | event_types::NODE_UPDATED => {
-                if let (Some(node_id), Some(domain)) = (
-                    event.payload.get("node_id").and_then(Value::as_str),
-                    event.payload.get("domain").and_then(Value::as_str),
-                ) {
-                    self.node_domains
-                        .insert(node_id.to_string(), domain.to_string());
+                // Canonical add_node shape: id under `id`, domain under
+                // `properties.domain`. Fall back to legacy top-level keys. Key
+                // node_domains by the full entity_id (`node:{type}:{id}`) so it
+                // matches the source/target on edge events (which carry
+                // entity_ids), not the bare uuid. Without this the projection
+                // silently tracks nothing and reports 0 cross-domain links.
+                let domain = event
+                    .payload
+                    .get("properties")
+                    .and_then(|p| p.get("domain"))
+                    .and_then(Value::as_str)
+                    .or_else(|| event.payload.get("domain").and_then(Value::as_str));
+                let entity_id = event.entity_id_str();
+                let key = if entity_id.is_empty() {
+                    event
+                        .payload
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .or_else(|| event.payload.get("node_id").and_then(Value::as_str))
+                        .map(str::to_string)
+                } else {
+                    Some(entity_id.to_string())
+                };
+                if let (Some(key), Some(domain)) = (key, domain) {
+                    self.node_domains.insert(key, domain.to_string());
                 }
             }
 
             event_types::EDGE_CREATED => {
                 if let (Some(edge_id), Some(source_id), Some(target_id)) = (
-                    event.payload.get("edge_id").and_then(Value::as_str),
+                    event
+                        .payload
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .or_else(|| event.payload.get("edge_id").and_then(Value::as_str)),
                     event.payload.get("source").and_then(Value::as_str),
                     event.payload.get("target").and_then(Value::as_str),
                 ) {
@@ -174,7 +197,12 @@ impl Projection for CrossDomainProjection {
             }
 
             event_types::EDGE_DELETED => {
-                if let Some(edge_id) = event.payload.get("edge_id").and_then(Value::as_str) {
+                if let Some(edge_id) = event
+                    .payload
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .or_else(|| event.payload.get("edge_id").and_then(Value::as_str))
+                {
                     // Remove edge from all cross-domain entries
                     let edge_str = edge_id.to_string();
                     let mut empty_keys = Vec::new();

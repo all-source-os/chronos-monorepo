@@ -70,11 +70,27 @@ impl Projection for DomainIndexProjection {
 
         match event_type {
             event_types::NODE_CREATED | event_types::NODE_UPDATED => {
-                // Extract domain and node_id from the event payload
-                if let (Some(domain), Some(node_id_str)) = (
-                    event.payload.get("domain").and_then(Value::as_str),
-                    event.payload.get("node_id").and_then(Value::as_str),
-                ) {
+                // Extract domain and node id from the event payload.
+                //
+                // The canonical `add_node`/`update_node` shape (facade.rs) is
+                // `{ "id": <id>, "node_type": ..., "properties": { "domain": ... } }`,
+                // i.e. the id key is `id` and `domain` lives under `properties`.
+                // Older/hand-crafted events used top-level `node_id` + `domain`.
+                // Read the canonical shape first, fall back to the legacy one —
+                // without this, domain never resolves and prime_index/context
+                // report 0 nodes for all live-recorded data (the prime_index bug).
+                let domain = event
+                    .payload
+                    .get("properties")
+                    .and_then(|p| p.get("domain"))
+                    .and_then(Value::as_str)
+                    .or_else(|| event.payload.get("domain").and_then(Value::as_str));
+                let node_id_str = event
+                    .payload
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .or_else(|| event.payload.get("node_id").and_then(Value::as_str));
+                if let (Some(domain), Some(node_id_str)) = (domain, node_id_str) {
                     let node_id = NodeId::new(node_id_str);
 
                     self.index
@@ -88,8 +104,15 @@ impl Projection for DomainIndexProjection {
                 }
             }
             event_types::NODE_DELETED => {
-                // Remove node from its domain
-                if let Some(node_id) = event.payload.get("node_id").and_then(Value::as_str) {
+                // Remove node from its domain. NODE_DELETED payloads carry the id
+                // under `id`; fall back to legacy `node_id`. (delete_node emits an
+                // empty payload + the entity_id, so also accept the entity_id tail.)
+                let node_id = event
+                    .payload
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .or_else(|| event.payload.get("node_id").and_then(Value::as_str));
+                if let Some(node_id) = node_id {
                     let target = NodeId::new(node_id);
                     // Remove from all domains (node may have changed domain)
                     for mut entry in self.index.iter_mut() {

@@ -1361,6 +1361,39 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
+  @doc """
+  Fetch the COMPLETE materialized Prime knowledge graph for a tenant.
+
+  Proxies Core's `GET /api/v1/prime/graph`, forwarding the authenticated
+  tenant as `?tenant_id=` exactly like `query_events/3` does for events.
+  Core filters its single Prime store to nodes carrying a matching
+  `properties.tenant_id`, so one tenant can never read another's graph.
+
+  `opts` accepts `:node_type` and `:limit`, mapped to Core's query params.
+  Returns `{:ok, %{"nodes" => ..., "edges" => ..., "stats" => ..., "has_more" => ...}}`.
+  """
+  def get_prime_graph(tenant_id, opts \\ []) when is_binary(tenant_id) do
+    query =
+      [tenant_id: tenant_id]
+      |> maybe_kw(:node_type, opts[:node_type])
+      |> maybe_kw(:limit, opts[:limit])
+
+    case Tesla.get(read_client(), "/api/v1/prime/graph", query: query) do
+      {:ok, %Tesla.Env{status: 200, body: body}} when is_map(body) ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp maybe_kw(kw, _key, nil), do: kw
+  defp maybe_kw(kw, _key, ""), do: kw
+  defp maybe_kw(kw, key, value), do: Keyword.put(kw, key, value)
+
   @doc "Per-field provenance: which event supplied a node field's current value"
   def node_field_provenance(node_id, field)
       when is_binary(node_id) and is_binary(field) do

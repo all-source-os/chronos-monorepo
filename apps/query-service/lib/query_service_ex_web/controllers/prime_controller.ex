@@ -11,6 +11,34 @@ defmodule QueryServiceExWeb.PrimeController do
 
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
 
+  @doc """
+  GET /api/v1/prime/graph — full materialized Prime knowledge graph for the
+  authenticated tenant.
+
+  The tenant is derived from the authenticated caller (`conn.assigns`), NEVER
+  from client-supplied params, and forwarded to Core as `?tenant_id=` exactly
+  like the events endpoints. Core filters its single Prime store to that
+  tenant, so this can never leak another tenant's graph.
+
+  Optional query params: `node_type`, `limit` (passed through to Core).
+  """
+  def graph(conn, params) do
+    tenant_id = get_tenant_id!(conn)
+
+    opts =
+      []
+      |> maybe_opt(:node_type, params["node_type"])
+      |> maybe_opt(:limit, params["limit"])
+
+    case RustCoreClient.get_prime_graph(tenant_id, opts) do
+      {:ok, graph} when is_map(graph) ->
+        json(conn, graph)
+
+      {:error, reason} ->
+        conn |> put_status(:bad_gateway) |> json(%{error: to_string(reason)})
+    end
+  end
+
   @doc "GET /api/v1/prime/projections — list registered projection definitions"
   def index(conn, _params) do
     case RustCoreClient.list_prime_projections() do
@@ -71,4 +99,21 @@ defmodule QueryServiceExWeb.PrimeController do
 
   defp length_of(list) when is_list(list), do: length(list)
   defp length_of(_), do: 0
+
+  defp maybe_opt(opts, _key, nil), do: opts
+  defp maybe_opt(opts, _key, ""), do: opts
+  defp maybe_opt(opts, key, value), do: Keyword.put(opts, key, value)
+
+  # Derive tenant from the authenticated caller; raise (caught by the
+  # :tenant_scoped pipeline / fallback) if absent — a missing tenant is a
+  # security violation, never a silent full-graph read.
+  defp get_tenant_id!(conn) do
+    case conn.assigns[:tenant_id] do
+      tenant_id when is_binary(tenant_id) ->
+        tenant_id
+
+      _ ->
+        raise "Tenant context required but not present - security violation"
+    end
+  end
 end

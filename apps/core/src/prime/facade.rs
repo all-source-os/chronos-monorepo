@@ -21,8 +21,8 @@ use super::{
     error::{PrimeError, PrimeResult},
     projections::{
         AdjacencyListProjection, Contradiction, ContradictionDetectionProjection,
-        CrossDomainProjection, GraphStatsProjection, NodeStateProjection, NodeTypeIndexProjection,
-        ReverseIndexProjection,
+        CrossDomainProjection, DomainIndexProjection, GraphStatsProjection, NodeStateProjection,
+        NodeTypeIndexProjection, ReverseIndexProjection,
     },
     schema::SchemaProjection,
     types::{
@@ -55,6 +55,7 @@ pub struct Prime {
     schema: Arc<SchemaProjection>,
     contradiction: Arc<ContradictionDetectionProjection>,
     cross_domain: Arc<CrossDomainProjection>,
+    domain_index: Arc<DomainIndexProjection>,
     #[cfg(feature = "prime-vectors")]
     vector_index: Arc<super::vectors::VectorIndexProjection>,
     /// Lazily-initialized text → vector embedder. Built on the first
@@ -87,6 +88,7 @@ impl Prime {
         Arc<SchemaProjection>,
         Arc<ContradictionDetectionProjection>,
         Arc<CrossDomainProjection>,
+        Arc<DomainIndexProjection>,
     ) {
         let node_state = Arc::new(NodeStateProjection::new(PROJ_NODE_STATE));
         let node_type_index = Arc::new(NodeTypeIndexProjection::new(PROJ_NODE_TYPE_INDEX));
@@ -96,6 +98,13 @@ impl Prime {
         let schema = Arc::new(SchemaProjection::new(PROJ_SCHEMA));
         let contradiction = Arc::new(ContradictionDetectionProjection::new(PROJ_CONTRADICTION));
         let cross_domain = Arc::new(CrossDomainProjection::new());
+        // The domain index feeds the Recall engine's compressed index
+        // (prime_index / prime_context). It MUST be registered + backfilled here
+        // like every other projection — otherwise a fresh, empty instance handed
+        // to RecallEngine reports 0 nodes for all live-recorded data (the
+        // prime_index 0-node bug). It is shared with RecallEngine via
+        // `recall_deps()` so live writes and the compressed index stay in sync.
+        let domain_index = Arc::new(DomainIndexProjection::new());
 
         type DynProj = Arc<dyn crate::application::services::projection::Projection>;
 
@@ -107,6 +116,7 @@ impl Prime {
         let _ = store.register_projection_with_backfill(&(Arc::clone(&schema) as DynProj));
         let _ = store.register_projection_with_backfill(&(Arc::clone(&contradiction) as DynProj));
         let _ = store.register_projection_with_backfill(&(Arc::clone(&cross_domain) as DynProj));
+        let _ = store.register_projection_with_backfill(&(Arc::clone(&domain_index) as DynProj));
 
         (
             node_state,
@@ -117,6 +127,7 @@ impl Prime {
             schema,
             contradiction,
             cross_domain,
+            domain_index,
         )
     }
 
@@ -156,6 +167,7 @@ impl Prime {
             schema,
             contradiction,
             cross_domain,
+            domain_index,
         ) = Self::register_graph_projections(&store);
         #[cfg(feature = "prime-vectors")]
         let vector_index = Self::register_vector_projection(&store);
@@ -170,6 +182,7 @@ impl Prime {
             schema,
             contradiction,
             cross_domain,
+            domain_index,
             #[cfg(feature = "prime-vectors")]
             vector_index,
             #[cfg(feature = "prime-vectors")]
@@ -208,13 +221,15 @@ impl Prime {
 
     /// Return shared projection dependencies for the Recall engine.
     ///
-    /// Shares Prime's node_state, adjacency, graph_stats, and cross_domain
-    /// projections with RecallEngine, enabling L0/L1 tiers. A fresh
-    /// `DomainIndexProjection` is created (RecallEngine registers it separately).
+    /// Shares Prime's node_state, adjacency, graph_stats, cross_domain, and
+    /// domain_index projections with RecallEngine, enabling L0/L1/L2 tiers.
+    /// `domain_index` is the live, registered+backfilled projection (not a
+    /// fresh empty one) so the Recall engine's compressed index reflects all
+    /// recorded nodes — the fix for the prime_index 0-node bug.
     #[cfg(feature = "prime-recall")]
     pub fn recall_deps(&self) -> super::recall::RecallDeps {
         super::recall::RecallDeps {
-            domain_index: Arc::new(super::projections::DomainIndexProjection::new()),
+            domain_index: Arc::clone(&self.domain_index),
             cross_domain: Arc::clone(&self.cross_domain),
             node_state: Some(Arc::clone(&self.node_state)),
             adjacency: Some(Arc::clone(&self.adjacency)),
@@ -443,6 +458,164 @@ impl Prime {
             .iter()
             .filter_map(|entity_id| self.get_node(entity_id))
             .collect()
+    }
+
+    /// Materialize the COMPLETE knowledge graph from the live projections —
+    /// every node (full properties + vector presence), every edge (relation +
+    /// properties), and summary stats — reading the `node_state` and
+    /// `adjacency` projections directly rather than reconstructing from an
+    /// events window.
+    ///
+    /// ## Tenant scoping (security)
+    ///
+    /// Prime is a **single-store** engine: its projections are keyed only by
+    /// `entity_id` (`node:{type}:{id}`), never by tenant — every Prime event
+    /// is ingested with `tenant_id: None` (see `add_node`/`add_edge`). There
+    /// is exactly one Prime graph per process/data-dir.
+    ///
+    /// To make this endpoint safe behind a multi-tenant gateway, `tenant`
+    /// filters on a `tenant_id` marker carried in each node's `properties`.
+    /// When `Some`, only nodes whose `properties.tenant_id` equals it are
+    /// returned, and edges are restricted to that node set — so tenant A can
+    /// never see tenant B's nodes even though they share one store. When
+    /// `None` (local prime-mcp, single-store, no tenant), the whole graph is
+    /// returned. Callers that own the tenant boundary at the *deployment*
+    /// level (one Prime per tenant) simply pass `None`.
+    ///
+    /// `node_type` further filters to a single type. `limit` caps the node
+    /// count (post-filter) and sets `has_more` when it truncates; edges are
+    /// always restricted to the returned nodes.
+    pub fn full_graph(
+        &self,
+        tenant: Option<&str>,
+        node_type: Option<&str>,
+        limit: Option<usize>,
+    ) -> super::types::FullGraph {
+        use super::types::{FullGraph, GraphEdge, GraphNode, GraphStats};
+        use std::collections::{BTreeMap, HashSet};
+
+        let node_tenant_matches = |n: &Node| -> bool {
+            match tenant {
+                None => true,
+                Some(t) => n
+                    .properties
+                    .get("tenant_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|nt| nt == t),
+            }
+        };
+
+        // 1. Collect live nodes, applying tenant + node_type filters.
+        let mut live: Vec<Node> = self
+            .node_state
+            .all_nodes()
+            .into_iter()
+            .filter(|n| node_type.is_none_or(|nt| n.node_type == nt))
+            .filter(|n| node_tenant_matches(n))
+            .collect();
+
+        // Stable ordering so pagination is deterministic.
+        live.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+
+        // nodes_by_type counts reflect the *unpaginated* filtered set.
+        let mut nodes_by_type: BTreeMap<String, usize> = BTreeMap::new();
+        for n in &live {
+            *nodes_by_type.entry(n.node_type.clone()).or_default() += 1;
+        }
+        let total_filtered = live.len();
+
+        let has_more = limit.is_some_and(|l| total_filtered > l);
+        if let Some(l) = limit {
+            live.truncate(l);
+        }
+
+        // Set of returned node wire-ids — edges are restricted to these so a
+        // tenant filter can't leak cross-tenant edges.
+        let included: HashSet<String> = live
+            .iter()
+            .map(|n| super::types::EntityId::node(&n.node_type, n.id.as_str()).to_wire())
+            .collect();
+
+        // 2. Build GraphNodes with vector presence/dimension.
+        let mut vector_count = 0usize;
+        let nodes: Vec<GraphNode> = live
+            .iter()
+            .map(|n| {
+                let wire = super::types::EntityId::node(&n.node_type, n.id.as_str()).to_wire();
+                let (has_vector, vector_dim) = self.vector_presence(&wire);
+                if has_vector {
+                    vector_count += 1;
+                }
+                GraphNode {
+                    id: wire,
+                    node_type: n.node_type.clone(),
+                    properties: n.properties.clone(),
+                    has_vector,
+                    vector_dim,
+                    created_at: n.created_at,
+                    updated_at: n.updated_at,
+                }
+            })
+            .collect();
+
+        // 3. Enumerate every live edge whose source AND target are included.
+        let edges: Vec<GraphEdge> = self
+            .adjacency
+            .all_edges()
+            .into_iter()
+            .filter(|(source, adj)| included.contains(source) && included.contains(&adj.peer))
+            .map(|(source, adj)| GraphEdge {
+                source,
+                target: adj.peer,
+                relation: adj.relation,
+                properties: None,
+                weight: adj.weight,
+                created_at: Utc::now(),
+            })
+            .collect();
+
+        let stats = GraphStats {
+            node_count: nodes.len(),
+            edge_count: edges.len(),
+            vector_count,
+            nodes_by_type,
+        };
+
+        FullGraph {
+            nodes,
+            edges,
+            stats,
+            has_more,
+        }
+    }
+
+    /// Report `(has_vector, dimension)` for a node wire-id, without returning
+    /// the raw embedding. Always `(false, None)` when the `prime-vectors`
+    /// feature is disabled.
+    fn vector_presence(&self, node_wire_id: &str) -> (bool, Option<usize>) {
+        #[cfg(feature = "prime-vectors")]
+        {
+            let vec_entity = super::vectors::vector_entity_id(node_wire_id);
+            if let Some(state) = self.vector_index.get_state(&vec_entity) {
+                let dim = state
+                    .get("vector")
+                    .and_then(serde_json::Value::as_array)
+                    .map(Vec::len)
+                    .or_else(|| {
+                        state
+                            .get("dimensions")
+                            .and_then(serde_json::Value::as_u64)
+                            .map(|d| d as usize)
+                    });
+                return (true, dim);
+            }
+            (false, None)
+        }
+        #[cfg(not(feature = "prime-vectors"))]
+        {
+            let _ = node_wire_id;
+            (false, None)
+        }
     }
 
     // =========================================================================

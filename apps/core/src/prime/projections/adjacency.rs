@@ -87,6 +87,30 @@ impl DirectedAdjacencyProjection {
         self.entries(target)
     }
 
+    /// Enumerate every edge in the projection as `(source, AdjEntry)` tuples.
+    ///
+    /// Only meaningful on a `Forward` projection: the key is the edge's
+    /// `source` and `AdjEntry.peer` is the `target`. Used by the full-graph
+    /// read endpoint to materialize every edge directly from the live
+    /// adjacency index (rather than reconstructing from the events window).
+    ///
+    /// O(E) — one entry per live edge. Soft-deleted edges have already been
+    /// removed from `adj` by the `EDGE_DELETED` handler, so this returns only
+    /// live edges.
+    pub fn all_edges(&self) -> Vec<(String, AdjEntry)> {
+        self.adj
+            .iter()
+            .flat_map(|entry| {
+                let source = entry.key().clone();
+                entry
+                    .value()
+                    .iter()
+                    .map(move |adj| (source.clone(), adj.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
     /// Extract key and peer from event payload based on direction.
     fn extract_key_peer(&self, payload: &Value) -> (String, String) {
         let source = payload

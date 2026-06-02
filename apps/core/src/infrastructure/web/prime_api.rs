@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{delete, get, patch, post},
@@ -51,7 +51,9 @@ pub fn prime_router() -> Router<Arc<PrimeState>> {
             get(field_provenance),
         )
         // Stats (always available)
-        .route("/stats", get(get_stats));
+        .route("/stats", get(get_stats))
+        // Full graph read (always available)
+        .route("/graph", get(get_full_graph));
 
     // Vector and recall routes require prime-vectors feature
     #[cfg(feature = "prime-vectors")]
@@ -547,6 +549,89 @@ async fn field_provenance(
     }
 }
 
+/// Query parameters for `GET /graph`.
+#[derive(Deserialize)]
+struct GraphQuery {
+    /// Tenant filter. See the security note on [`get_full_graph`]. When set,
+    /// only nodes whose `properties.tenant_id` matches are returned.
+    tenant_id: Option<String>,
+    /// Filter to a single `node_type`.
+    node_type: Option<String>,
+    /// Cap the node count (post-filter). Sets `has_more=true` when it truncates.
+    limit: Option<usize>,
+}
+
+/// `GET /api/v1/prime/graph` — return the COMPLETE materialized knowledge
+/// graph from storage: every live node (full properties + vector presence),
+/// every live edge (relation + properties), and summary stats. Reads the
+/// `node_state` + `adjacency` projections directly — NOT an events-window
+/// reconstruction — so "all details from storage" is real and uncapped.
+///
+/// # JSON contract (stable — visualizers and downstream beads 013/014 depend
+/// on this shape verbatim)
+///
+/// ```json
+/// {
+///   "nodes": [
+///     {
+///       "id": "node:organization:<uuid>",
+///       "node_type": "organization",
+///       "properties": { "...": "full node property bag" },
+///       "has_vector": true,
+///       "vector_dim": 384,
+///       "created_at": "2026-01-01T00:00:00Z",
+///       "updated_at": "2026-01-01T00:00:00Z"
+///     }
+///   ],
+///   "edges": [
+///     {
+///       "source": "node:contact:<uuid>",
+///       "target": "node:organization:<uuid>",
+///       "relation": "works_at",
+///       "properties": { "...": "full edge property bag, may be null" },
+///       "weight": null,
+///       "created_at": "2026-01-01T00:00:00Z"
+///     }
+///   ],
+///   "stats": {
+///     "node_count": 46,
+///     "edge_count": 31,
+///     "vector_count": 12,
+///     "nodes_by_type": { "organization": 22, "contact": 24 }
+///   },
+///   "has_more": false
+/// }
+/// ```
+///
+/// Vectors report PRESENCE + DIMENSION only (`has_vector`, `vector_dim`);
+/// raw float arrays are never returned (payload bloat). A future
+/// `?include_vectors=true` could opt into raw arrays at a known cost.
+///
+/// Query params: `?tenant_id=` (tenant filter — security), `?node_type=`
+/// (type filter), `?limit=` (node cap; default = whole graph, sets
+/// `has_more`).
+///
+/// # Tenant scoping (SECURITY)
+///
+/// Prime is a single-store engine — projections are keyed by `entity_id`
+/// only, never by tenant. There is one graph per process. When `tenant_id`
+/// is supplied, results are filtered to nodes carrying a matching
+/// `properties.tenant_id`, and edges are restricted to that node set, so one
+/// tenant can never read another's nodes through this endpoint even though
+/// they share a store. Omitting `tenant_id` (local prime-mcp / one-Prime-per-
+/// tenant deployments) returns the whole graph.
+async fn get_full_graph(
+    State(state): State<Arc<PrimeState>>,
+    Query(q): Query<GraphQuery>,
+) -> impl IntoResponse {
+    let graph = state.prime.full_graph(
+        q.tenant_id.as_deref(),
+        q.node_type.as_deref(),
+        q.limit,
+    );
+    (StatusCode::OK, Json(serde_json::to_value(&graph).unwrap_or(Value::Null)))
+}
+
 async fn get_stats(State(state): State<Arc<PrimeState>>) -> impl IntoResponse {
     let stats = state.prime.stats();
     Json(json!({
@@ -702,5 +787,148 @@ mod tests {
         let (app, _state) = test_app().await;
         let (status, _) = send(&app, "POST", "/nodes/not-a-node-id/project", None).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    // -- Full-graph endpoint -------------------------------------------------
+
+    /// Seed a node tagged with a tenant and return its wire entity_id.
+    async fn seed_tenant_node(
+        state: &Arc<PrimeState>,
+        tenant: &str,
+        node_type: &str,
+        name: &str,
+    ) -> String {
+        let id = state
+            .prime
+            .add_node(
+                node_type,
+                json!({ "name": name, "tenant_id": tenant }),
+            )
+            .await
+            .unwrap();
+        EntityId::node(node_type, id.as_str()).to_wire()
+    }
+
+    #[tokio::test]
+    async fn full_graph_returns_nodes_edges_and_stats() {
+        let (app, state) = test_app().await;
+
+        let org = seed_tenant_node(&state, "t1", "organization", "Acme").await;
+        let contact = seed_tenant_node(&state, "t1", "contact", "Alice").await;
+        state
+            .prime
+            .add_edge(&contact, &org, "works_at", Some(json!({ "since": "2026" })))
+            .await
+            .unwrap();
+
+        let (status, body) = send(&app, "GET", "/graph", None).await;
+        assert_eq!(status, StatusCode::OK);
+
+        let nodes = body["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 2);
+        // Full properties present, vector presence reported.
+        let org_node = nodes.iter().find(|n| n["id"] == org).unwrap();
+        assert_eq!(org_node["node_type"], "organization");
+        assert_eq!(org_node["properties"]["name"], "Acme");
+        assert_eq!(org_node["has_vector"], false);
+        assert!(org_node["created_at"].is_string());
+
+        let edges = body["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0]["source"], contact);
+        assert_eq!(edges[0]["target"], org);
+        assert_eq!(edges[0]["relation"], "works_at");
+
+        assert_eq!(body["stats"]["node_count"], 2);
+        assert_eq!(body["stats"]["edge_count"], 1);
+        assert_eq!(body["stats"]["nodes_by_type"]["organization"], 1);
+        assert_eq!(body["stats"]["nodes_by_type"]["contact"], 1);
+        assert_eq!(body["has_more"], false);
+    }
+
+    /// MANDATORY tenant-isolation test: two tenants share the single Prime
+    /// store; tenant A's `?tenant_id=` request must return ONLY tenant A's
+    /// graph — tenant B's nodes and the cross-set edge must be absent.
+    #[tokio::test]
+    async fn full_graph_is_tenant_isolated() {
+        let (app, state) = test_app().await;
+
+        // Tenant A: org + contact + edge.
+        let a_org = seed_tenant_node(&state, "tenant-a", "organization", "AlphaCorp").await;
+        let a_contact = seed_tenant_node(&state, "tenant-a", "contact", "Ann").await;
+        state
+            .prime
+            .add_edge(&a_contact, &a_org, "works_at", None)
+            .await
+            .unwrap();
+
+        // Tenant B: org + contact + edge.
+        let b_org = seed_tenant_node(&state, "tenant-b", "organization", "BetaCorp").await;
+        let b_contact = seed_tenant_node(&state, "tenant-b", "contact", "Bob").await;
+        state
+            .prime
+            .add_edge(&b_contact, &b_org, "works_at", None)
+            .await
+            .unwrap();
+
+        // Tenant A's view: only A's two nodes and A's one edge.
+        let (status, body) = send(&app, "GET", "/graph?tenant_id=tenant-a", None).await;
+        assert_eq!(status, StatusCode::OK);
+
+        let ids: Vec<&str> = body["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| n["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids.len(), 2, "tenant A must see exactly its 2 nodes");
+        assert!(ids.contains(&a_org.as_str()));
+        assert!(ids.contains(&a_contact.as_str()));
+        // Cross-tenant leak guard: B's nodes MUST be absent.
+        assert!(!ids.contains(&b_org.as_str()), "tenant B org leaked to tenant A");
+        assert!(!ids.contains(&b_contact.as_str()), "tenant B contact leaked to tenant A");
+
+        let edges = body["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 1, "tenant A must see only its own edge");
+        assert_eq!(edges[0]["source"], a_contact);
+        assert_eq!(edges[0]["target"], a_org);
+
+        assert_eq!(body["stats"]["node_count"], 2);
+        assert_eq!(body["stats"]["edge_count"], 1);
+
+        // Sanity: the unscoped view sees all four nodes (single store).
+        let (_, all) = send(&app, "GET", "/graph", None).await;
+        assert_eq!(all["nodes"].as_array().unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn full_graph_limit_sets_has_more_and_filters_edges() {
+        let (app, state) = test_app().await;
+        let a = seed_tenant_node(&state, "t", "thing", "a").await;
+        let b = seed_tenant_node(&state, "t", "thing", "b").await;
+        let c = seed_tenant_node(&state, "t", "thing", "c").await;
+        // Edge a->b and a->c; with limit=1 at most one node survives so edges drop.
+        state.prime.add_edge(&a, &b, "rel", None).await.unwrap();
+        state.prime.add_edge(&a, &c, "rel", None).await.unwrap();
+
+        let (status, body) = send(&app, "GET", "/graph?limit=1", None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["nodes"].as_array().unwrap().len(), 1);
+        assert_eq!(body["has_more"], true);
+        // edge_count counts only edges among returned nodes.
+        assert_eq!(body["stats"]["edge_count"], 0);
+    }
+
+    #[tokio::test]
+    async fn full_graph_node_type_filter() {
+        let (app, state) = test_app().await;
+        seed_tenant_node(&state, "t", "organization", "Org").await;
+        seed_tenant_node(&state, "t", "contact", "C").await;
+
+        let (status, body) = send(&app, "GET", "/graph?node_type=organization", None).await;
+        assert_eq!(status, StatusCode::OK);
+        let nodes = body["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0]["node_type"], "organization");
     }
 }

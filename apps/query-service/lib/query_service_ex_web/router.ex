@@ -449,6 +449,7 @@ defmodule QueryServiceExWeb.Router do
   scope "/api/v1/prime", QueryServiceExWeb do
     pipe_through([:tenant_scoped, :rate_limited])
 
+    get("/graph", PrimeController, :graph)
     get("/projections", PrimeController, :index)
     post("/projections", PrimeController, :create)
     post("/nodes/:id/project", PrimeController, :project)

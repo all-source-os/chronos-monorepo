@@ -162,6 +162,62 @@ pub struct GraphDiff {
 }
 
 // =============================================================================
+// Full-Graph Read Types
+// =============================================================================
+
+/// A single node in a full-graph read, including vector presence.
+///
+/// Wire shape is the documented full-graph contract (see
+/// `infrastructure::web::prime_api::get_full_graph`). `id` is the wire-format
+/// entity id `node:{type}:{id}`. `has_vector`/`vector_dim` report embedding
+/// presence and dimension only — raw float arrays are never returned by
+/// default (payload bloat).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphNode {
+    pub id: String,
+    pub node_type: String,
+    pub properties: Value,
+    pub has_vector: bool,
+    pub vector_dim: Option<usize>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// A single edge in a full-graph read. `source`/`target` are wire-format node
+/// entity ids. `properties` is the full edge property bag (may be null).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphEdge {
+    pub source: String,
+    pub target: String,
+    pub relation: String,
+    pub properties: Option<Value>,
+    pub weight: Option<f64>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Summary statistics for a full-graph read. Mirrors the documented
+/// `stats` block of the full-graph contract.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GraphStats {
+    pub node_count: usize,
+    pub edge_count: usize,
+    pub vector_count: usize,
+    pub nodes_by_type: std::collections::BTreeMap<String, usize>,
+}
+
+/// The complete materialized knowledge graph for one store, assembled from
+/// the live `node_state` + `adjacency` projections (not an events
+/// reconstruction). `has_more` is `true` when a `?limit` truncated the node
+/// set; edges are filtered to the returned node set.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FullGraph {
+    pub nodes: Vec<GraphNode>,
+    pub edges: Vec<GraphEdge>,
+    pub stats: GraphStats,
+    pub has_more: bool,
+}
+
+// =============================================================================
 // Hybrid Recall Types
 // =============================================================================
 
