@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<!--
+  AllSource Prime — local graph viewer.
+
+  Self-contained: this single HTML file is compiled into the allsource-prime
+  binary (include_str!) and served at /api/v1/prime/graph.html. It has NO
+  external <script src>/<link href> — all CSS + JS is inline so it renders on
+  an air-gapped laptop with the network disabled. On load it fetches the
+  same-origin /api/v1/prime/graph and renders the local on-disk store as a
+  force-directed bubble graph plus a detail list.
+
+  Render approach: a hand-rolled canvas force simulation (~a few hundred lines,
+  zero dependencies). We deliberately do NOT vendor a graph library (d3/cytoscape
+  are 250KB+ minified) — the simulation we need (repulsion + spring + centering)
+  is small, keeps the payload tiny, and avoids carrying third-party source we'd
+  have to maintain and security-audit inside the binary.
+
+  Visual language mirrors apps/web/src/components/memory/node-colors.ts:
+  identical type->color map, identical fallback palette + hash, identical
+  nodeLabel() property precedence — so the hosted dashboard and this local
+  viewer read identically.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prime — Memory Graph</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #141821;
+    --panel-2: #1b2030;
+    --border: #2a3142;
+    --text: #e6e9ef;
+    --muted: #8b93a7;
+    --accent: #6366f1;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  header h1 .dot { color: var(--accent); }
+  .stats { color: var(--muted); font-size: 12px; }
+  .spacer { flex: 1; }
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    background: var(--panel-2); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 12px; cursor: pointer; font-size: 13px;
+  }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.ghost {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 10px; cursor: pointer; font-size: 13px;
+  }
+  button.ghost:hover { border-color: var(--accent); }
+  select {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 8px; font-size: 13px;
+  }
+
+  #main { position: relative; height: calc(100vh - 49px); }
+
+  /* ---- Graph view ---- */
+  #graphView { position: absolute; inset: 0; }
+  #canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  #canvas.dragging { cursor: grabbing; }
+
+  #legend {
+    position: absolute; top: 12px; left: 12px;
+    background: rgba(20,24,33,.92); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; max-width: 220px;
+    font-size: 12px; backdrop-filter: blur(4px);
+  }
+  #legend .row { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+  #legend .swatch { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+  #legend .count { color: var(--muted); margin-left: auto; }
+  #legend .title { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 10px; margin-bottom: 4px; }
+
+  #hint {
+    position: absolute; bottom: 12px; left: 12px;
+    color: var(--muted); font-size: 11px;
+    background: rgba(20,24,33,.8); padding: 4px 8px; border-radius: 6px;
+  }
+
+  /* ---- Detail panel (node click) ---- */
+  #detail {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 360px;
+    background: var(--panel); border-left: 1px solid var(--border);
+    padding: 16px; overflow-y: auto; transform: translateX(100%);
+    transition: transform .15s ease; box-shadow: -8px 0 24px rgba(0,0,0,.3);
+  }
+  #detail.open { transform: translateX(0); }
+  #detail .close { position: absolute; top: 10px; right: 12px; cursor: pointer; color: var(--muted); font-size: 18px; }
+  #detail h2 { font-size: 15px; margin: 0 0 2px; word-break: break-word; }
+  #detail .type-badge {
+    display: inline-block; padding: 2px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; color: #fff; margin: 6px 0;
+  }
+  #detail .vec { font-size: 11px; color: var(--muted); margin-left: 8px; }
+  #detail .sub { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; margin: 16px 0 6px; }
+  #detail .kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 10px; font-size: 12px; }
+  #detail .kv .k { color: var(--muted); word-break: break-word; }
+  #detail .kv .v { word-break: break-word; white-space: pre-wrap; }
+  #detail .edge-item {
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 8px; margin-bottom: 6px; font-size: 12px; cursor: pointer;
+  }
+  #detail .edge-item:hover { border-color: var(--accent); }
+  #detail .edge-item .rel { color: var(--accent); font-weight: 600; }
+  #detail pre {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; overflow-x: auto;
+    font-size: 11px; margin: 8px 0 0;
+  }
+
+  /* ---- List view ---- */
+  #listView { position: absolute; inset: 0; overflow-y: auto; padding: 16px; display: none; }
+  #listView .filterbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  #listView h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin: 18px 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--panel-2); vertical-align: top; }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: var(--panel-2); }
+  .pill { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  td.json-cell { padding: 0; }
+  td.json-cell pre { margin: 0; background: var(--panel-2); padding: 10px; overflow-x: auto; font-size: 11px; border-radius: 0; }
+  .truncate { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---- Empty / error ---- */
+  #empty, #error {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 24px;
+  }
+  #empty .big, #error .big { font-size: 17px; margin-bottom: 8px; }
+  #empty .sub, #error .sub { color: var(--muted); max-width: 420px; }
+  #empty code, #error code { background: var(--panel-2); padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="dot">●</span> Prime Memory</h1>
+  <span class="stats" id="statsLine"></span>
+  <div class="spacer"></div>
+  <select id="typeFilter" title="Filter by node type" style="display:none">
+    <option value="">All types</option>
+  </select>
+  <div class="tabs">
+    <button class="tab active" id="tabGraph">Bubble graph</button>
+    <button class="tab" id="tabList">Detail list</button>
+  </div>
+  <button class="ghost" id="refresh" title="Re-fetch the local store">Refresh</button>
+</header>
+
+<div id="main">
+  <div id="graphView">
+    <canvas id="canvas"></canvas>
+    <div id="legend"></div>
+    <div id="hint">drag node to pin · scroll to zoom · drag bg to pan · click node for details</div>
+    <div id="detail">
+      <span class="close" id="detailClose">×</span>
+      <div id="detailBody"></div>
+    </div>
+  </div>
+
+  <div id="listView"></div>
+
+  <div id="empty">
+    <div class="big">No memory yet</div>
+    <div class="sub">Write some nodes (e.g. <code>POST /api/v1/prime/nodes</code> or the <code>prime_add_node</code> tool), then hit <b>Refresh</b>.</div>
+  </div>
+
+  <div id="error">
+    <div class="big">Could not load the graph</div>
+    <div class="sub" id="errorMsg"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ── Visual language — kept byte-for-byte in step with
+//    apps/web/src/components/memory/node-colors.ts ───────────────────────────
+const TYPE_COLORS = {
+  organization: "#6366f1", // indigo
+  contact: "#10b981",      // emerald
+  person: "#10b981",       // emerald (alias of contact)
+  task: "#f59e0b",         // amber
+  project: "#8b5cf6",      // violet
+  document: "#06b6d4",     // cyan
+  meeting: "#ec4899",      // pink
+  decision: "#ef4444",     // red
+  transaction: "#84cc16",  // lime
+};
+const FALLBACK_PALETTE = [
+  "#6366f1", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4",
+  "#ec4899", "#ef4444", "#84cc16", "#0ea5e9", "#f97316",
+];
+function colorForType(type) {
+  const known = TYPE_COLORS[type];
+  if (known) return known;
+  let hash = 0;
+  for (let i = 0; i < type.length; i++) hash = (hash * 31 + type.charCodeAt(i)) | 0;
+  return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length] || "#6366f1";
+}
+function nodeLabel(properties, id) {
+  const p = properties || {};
+  for (const key of ["name", "title", "label", "email", "domain"]) {
+    const v = p[key];
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  const parts = String(id).split(":");
+  return parts[parts.length - 1] || id;
+}
+
+// Initial-render cap so a huge store stays responsive. Beyond this the graph
+// shows the highest-degree N nodes (+ their edges); the list view + the type
+// filter let you reach the rest.
+const RENDER_CAP = 600;
+
+// ── State ────────────────────────────────────────────────────────────────────
+let RAW = null;          // last fetched { nodes, edges, stats, has_more }
+let sim = null;          // active simulation instance
+
+// ── Fetch + dispatch ─────────────────────────────────────────────────────────
+async function load() {
+  showOnly(null);
+  try {
+    const res = await fetch("/api/v1/prime/graph", { headers: { accept: "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status + " from /api/v1/prime/graph");
+    RAW = await res.json();
+  } catch (e) {
+    document.getElementById("errorMsg").textContent = String(e && e.message || e);
+    showOnly("error");
+    return;
+  }
+  const nodes = (RAW && RAW.nodes) || [];
+  const stats = (RAW && RAW.stats) || {};
+  document.getElementById("statsLine").textContent =
+    (stats.node_count ?? nodes.length) + " nodes · " +
+    (stats.edge_count ?? (RAW.edges || []).length) + " edges · " +
+    (stats.vector_count ?? 0) + " vectors" +
+    (RAW.has_more ? " · (truncated by server)" : "");
+
+  if (!nodes.length) { showOnly("empty"); return; }
+
+  buildTypeFilter(stats.nodes_by_type || {});
+  renderActiveView();
+}
+
+function showOnly(which) {
+  for (const id of ["graphView", "listView", "empty", "error"]) {
+    const el = document.getElementById(id);
+    el.style.display = (id === which) ? "flex" : "none";
+  }
+  if (which === null) return; // loading: hide everything
+}
+
+// View toggle keeps the chosen one visible; null means "whatever tab is active".
+let activeTab = "graph";
+function renderActiveView() {
+  const filter = document.getElementById("typeFilter").value;
+  if (activeTab === "graph") {
+    document.getElementById("listView").style.display = "none";
+    document.getElementById("empty").style.display = "none";
+    document.getElementById("error").style.display = "none";
+    document.getElementById("graphView").style.display = "block";
+    renderGraph(filter);
+  } else {
+    document.getElementById("graphView").style.display = "none";
+    document.getElementById("empty").style.display = "none";
+    document.getElementById("error").style.display = "none";
+    document.getElementById("listView").style.display = "block";
+    renderList(filter);
+  }
+}
+
+function buildTypeFilter(byType) {
+  const sel = document.getElementById("typeFilter");
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All types</option>';
+  Object.keys(byType).sort().forEach((t) => {
+    const o = document.createElement("option");
+    o.value = t; o.textContent = t + " (" + byType[t] + ")";
+    sel.appendChild(o);
+  });
+  sel.value = cur;
+  sel.style.display = Object.keys(byType).length > 1 ? "" : "none";
+}
+
+// Apply the type filter + render cap, returning { nodes, edges } to draw.
+function filteredSubset(filter) {
+  let nodes = RAW.nodes.slice();
+  if (filter) nodes = nodes.filter((n) => n.node_type === filter);
+
+  // degree map (across the *unfiltered* edge set for honest sizing)
+  const degree = {};
+  for (const e of RAW.edges) {
+    degree[e.source] = (degree[e.source] || 0) + 1;
+    degree[e.target] = (degree[e.target] || 0) + 1;
+  }
+  nodes.forEach((n) => { n._degree = degree[n.id] || 0; });
+
+  if (nodes.length > RENDER_CAP) {
+    nodes = nodes.slice().sort((a, b) => b._degree - a._degree).slice(0, RENDER_CAP);
+  }
+  const keep = new Set(nodes.map((n) => n.id));
+  const edges = RAW.edges.filter((e) => keep.has(e.source) && keep.has(e.target));
+  return { nodes, edges, degree };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Force-directed canvas graph (vanilla — no library)
+// ════════════════════════════════════════════════════════════════════════════
+function renderGraph(filter) {
+  const { nodes, edges } = filteredSubset(filter);
+  renderLegend(filter);
+  closeDetail();
+  if (sim) sim.stop();
+  sim = new ForceGraph(document.getElementById("canvas"), nodes, edges);
+  sim.start();
+}
+
+function renderLegend(filter) {
+  const byType = (RAW.stats && RAW.stats.nodes_by_type) || {};
+  const el = document.getElementById("legend");
+  const types = Object.keys(byType).sort((a, b) => byType[b] - byType[a]);
+  let html = '<div class="title">Node types</div>';
+  for (const t of types) {
+    const dim = filter && filter !== t ? "opacity:.4;" : "";
+    html += '<div class="row" style="' + dim + '">' +
+      '<span class="swatch" style="background:' + colorForType(t) + '"></span>' +
+      '<span>' + esc(t) + '</span><span class="count">' + byType[t] + '</span></div>';
+  }
+  el.innerHTML = html;
+}
+
+class ForceGraph {
+  constructor(canvas, nodes, edges) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d");
+    this.dpr = window.devicePixelRatio || 1;
+
+    const byId = new Map();
+    this.nodes = nodes.map((n) => {
+      const node = {
+        id: n.id, type: n.node_type, raw: n,
+        label: nodeLabel(n.properties, n.id),
+        degree: n._degree || 0,
+        x: (Math.random() - 0.5) * 400,
+        y: (Math.random() - 0.5) * 400,
+        vx: 0, vy: 0, fixed: false,
+      };
+      byId.set(n.id, node);
+      return node;
+    });
+    this.edges = edges
+      .map((e) => ({ s: byId.get(e.source), t: byId.get(e.target), raw: e }))
+      .filter((e) => e.s && e.t);
+
+    // view transform
+    this.scale = 1; this.tx = 0; this.ty = 0;
+    this.hoverEdge = null; this.selected = null;
+    this.alpha = 1;
+
+    this._resize = this.resize.bind(this);
+    this._tick = this.tick.bind(this);
+    window.addEventListener("resize", this._resize);
+    this.bindInteraction();
+    this.resize();
+    // center the view
+    this.tx = this.canvas.clientWidth / 2;
+    this.ty = this.canvas.clientHeight / 2;
+  }
+
+  resize() {
+    const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+    this.canvas.width = w * this.dpr;
+    this.canvas.height = h * this.dpr;
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+  }
+
+  start() { this.alpha = 1; this.running = true; requestAnimationFrame(this._tick); }
+  stop() {
+    this.running = false;
+    window.removeEventListener("resize", this._resize);
+  }
+
+  radius(n) { return 6 + Math.sqrt(n.degree) * 3; }
+
+  // One physics step: repulsion (Coulomb), springs (edges), gravity to center.
+  step() {
+    const ns = this.nodes;
+    const k = this.alpha;
+    // repulsion — O(n^2), fine under the RENDER_CAP
+    for (let i = 0; i < ns.length; i++) {
+      const a = ns[i];
+      for (let j = i + 1; j < ns.length; j++) {
+        const b = ns[j];
+        let dx = a.x - b.x, dy = a.y - b.y;
+        let d2 = dx * dx + dy * dy || 0.01;
+        const f = (4000 * k) / d2;
+        const d = Math.sqrt(d2);
+        const fx = (dx / d) * f, fy = (dy / d) * f;
+        a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+      }
+    }
+    // springs
+    for (const e of this.edges) {
+      let dx = e.t.x - e.s.x, dy = e.t.y - e.s.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      const f = ((d - 90) / d) * 0.05 * k;
+      const fx = dx * f, fy = dy * f;
+      e.s.vx += fx; e.s.vy += fy; e.t.vx -= fx; e.t.vy -= fy;
+    }
+    // gravity + integrate
+    for (const n of ns) {
+      if (n.fixed) { n.vx = 0; n.vy = 0; continue; }
+      n.vx += -n.x * 0.002 * k;
+      n.vy += -n.y * 0.002 * k;
+      n.vx *= 0.85; n.vy *= 0.85;
+      n.x += n.vx; n.y += n.vy;
+    }
+    this.alpha *= 0.992;
+    if (this.alpha < 0.02) this.alpha = 0.02; // keep a gentle floor so drags settle
+  }
+
+  tick() {
+    if (!this.running) return;
+    if (this.alpha > 0.025 || this._needsDraw) this.step();
+    this.draw();
+    this._needsDraw = false;
+    requestAnimationFrame(this._tick);
+  }
+
+  toScreen(n) { return { x: n.x * this.scale + this.tx, y: n.y * this.scale + this.ty }; }
+  toWorld(sx, sy) { return { x: (sx - this.tx) / this.scale, y: (sy - this.ty) / this.scale }; }
+
+  draw() {
+    const ctx = this.ctx;
+    const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    // edges
+    ctx.lineWidth = 1;
+    for (const e of this.edges) {
+      const s = this.toScreen(e.s), t = this.toScreen(e.t);
+      ctx.strokeStyle = e === this.hoverEdge ? "rgba(99,102,241,.9)" : "rgba(120,130,150,.28)";
+      ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+    }
+    // hovered edge label
+    if (this.hoverEdge) {
+      const s = this.toScreen(this.hoverEdge.s), t = this.toScreen(this.hoverEdge.t);
+      const mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2;
+      const label = this.hoverEdge.raw.relation || "";
+      ctx.font = "11px sans-serif";
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = "rgba(20,24,33,.92)";
+      ctx.fillRect(mx - tw / 2 - 5, my - 9, tw + 10, 16);
+      ctx.fillStyle = "#c7cdf5";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(label, mx, my);
+    }
+    // nodes
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (const n of this.nodes) {
+      const p = this.toScreen(n);
+      const r = this.radius(n) * Math.min(1.6, this.scale + 0.4);
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = colorForType(n.type);
+      ctx.globalAlpha = 1; ctx.fill();
+      if (n === this.selected) {
+        ctx.lineWidth = 2.5; ctx.strokeStyle = "#fff"; ctx.stroke();
+      }
+      // has_vector ring
+      if (n.raw.has_vector) {
+        ctx.beginPath(); ctx.arc(p.x, p.y, r + 3, 0, Math.PI * 2);
+        ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,255,255,.55)";
+        ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
+      }
+      if (this.scale > 0.55 || n === this.selected) {
+        ctx.fillStyle = "#cfd5e4"; ctx.font = "11px sans-serif";
+        ctx.fillText(trunc(n.label, 22), p.x, p.y + r + 3);
+      }
+    }
+  }
+
+  nodeAt(sx, sy) {
+    const wpt = this.toWorld(sx, sy);
+    for (let i = this.nodes.length - 1; i >= 0; i--) {
+      const n = this.nodes[i];
+      const dx = n.x - wpt.x, dy = n.y - wpt.y;
+      const r = this.radius(n) + 4;
+      if (dx * dx + dy * dy <= r * r) return n;
+    }
+    return null;
+  }
+  edgeAt(sx, sy) {
+    for (const e of this.edges) {
+      const s = this.toScreen(e.s), t = this.toScreen(e.t);
+      if (distToSeg(sx, sy, s.x, s.y, t.x, t.y) < 6) return e;
+    }
+    return null;
+  }
+
+  bindInteraction() {
+    const c = this.canvas;
+    let dragNode = null, panning = false, last = null, downAt = null;
+
+    const pos = (ev) => {
+      const r = c.getBoundingClientRect();
+      return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+    };
+
+    c.addEventListener("mousedown", (ev) => {
+      const p = pos(ev); downAt = p;
+      const n = this.nodeAt(p.x, p.y);
+      if (n) { dragNode = n; n.fixed = true; c.classList.add("dragging"); }
+      else { panning = true; last = p; c.classList.add("dragging"); }
+    });
+    window.addEventListener("mousemove", (ev) => {
+      const p = pos(ev);
+      if (dragNode) {
+        const wpt = this.toWorld(p.x, p.y);
+        dragNode.x = wpt.x; dragNode.y = wpt.y; dragNode.vx = 0; dragNode.vy = 0;
+        this.alpha = Math.max(this.alpha, 0.4); this._needsDraw = true;
+      } else if (panning) {
+        this.tx += p.x - last.x; this.ty += p.y - last.y; last = p; this._needsDraw = true;
+      } else {
+        this.hoverEdge = this.edgeAt(p.x, p.y); this._needsDraw = true;
+        const overNode = this.nodeAt(p.x, p.y);
+        c.style.cursor = overNode ? "pointer" : (this.hoverEdge ? "crosshair" : "grab");
+      }
+    });
+    window.addEventListener("mouseup", (ev) => {
+      const p = pos(ev);
+      c.classList.remove("dragging");
+      // treat as a click (not a drag) if the pointer barely moved
+      if (downAt && Math.hypot(p.x - downAt.x, p.y - downAt.y) < 4) {
+        const n = this.nodeAt(p.x, p.y);
+        if (n) { this.selected = n; openNodeDetail(n.raw); }
+      }
+      // un-pin a node only if it was a pure click (keep it pinned after a drag)
+      if (dragNode && downAt && Math.hypot(p.x - downAt.x, p.y - downAt.y) < 4) {
+        dragNode.fixed = false;
+      }
+      dragNode = null; panning = false; downAt = null;
+    });
+    c.addEventListener("wheel", (ev) => {
+      ev.preventDefault();
+      const p = pos(ev);
+      const before = this.toWorld(p.x, p.y);
+      const factor = ev.deltaY < 0 ? 1.1 : 0.9;
+      this.scale = Math.max(0.15, Math.min(5, this.scale * factor));
+      const after = this.toWorld(p.x, p.y);
+      this.tx += (after.x - before.x) * this.scale;
+      this.ty += (after.y - before.y) * this.scale;
+      this._needsDraw = true;
+    }, { passive: false });
+  }
+}
+
+// ── Node detail panel ────────────────────────────────────────────────────────
+function openNodeDetail(node) {
+  const edgesFor = RAW.edges.filter((e) => e.source === node.id || e.target === node.id);
+  const props = node.properties || {};
+  let html = "";
+  html += '<h2>' + esc(nodeLabel(props, node.id)) + '</h2>';
+  html += '<span class="type-badge" style="background:' + colorForType(node.node_type) + '">' + esc(node.node_type) + '</span>';
+  if (node.has_vector) html += '<span class="vec">◌ vector · dim ' + (node.vector_dim ?? "?") + '</span>';
+  html += '<div class="mono" style="color:var(--muted);font-size:11px;margin-top:4px;word-break:break-all">' + esc(node.id) + '</div>';
+
+  html += '<div class="sub">Properties</div><div class="kv">';
+  const keys = Object.keys(props);
+  if (!keys.length) html += '<div class="k">—</div><div class="v">(none)</div>';
+  for (const k of keys) {
+    html += '<div class="k">' + esc(k) + '</div><div class="v">' + esc(fmtVal(props[k])) + '</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="sub">Edges (' + edgesFor.length + ')</div>';
+  for (const e of edgesFor) {
+    const out = e.source === node.id;
+    const other = out ? e.target : e.source;
+    const otherNode = RAW.nodes.find((n) => n.id === other);
+    const otherLabel = otherNode ? nodeLabel(otherNode.properties, other) : other;
+    html += '<div class="edge-item" data-target="' + esc(other) + '">' +
+      (out ? '→ ' : '← ') + '<span class="rel">' + esc(e.relation) + '</span> ' +
+      esc(trunc(otherLabel, 28)) +
+      (e.weight != null ? ' <span style="color:var(--muted)">· w=' + e.weight + '</span>' : '') +
+      '</div>';
+  }
+
+  html += '<div class="sub">Raw JSON</div><pre>' + esc(JSON.stringify(node, null, 2)) + '</pre>';
+
+  const body = document.getElementById("detailBody");
+  body.innerHTML = html;
+  body.querySelectorAll(".edge-item").forEach((el) => {
+    el.addEventListener("click", () => {
+      const tid = el.getAttribute("data-target");
+      const target = RAW.nodes.find((n) => n.id === tid);
+      if (target) {
+        if (sim) { const sn = sim.nodes.find((n) => n.id === tid); if (sn) { sim.selected = sn; sim._needsDraw = true; } }
+        openNodeDetail(target);
+      }
+    });
+  });
+  document.getElementById("detail").classList.add("open");
+}
+function closeDetail() {
+  document.getElementById("detail").classList.remove("open");
+  if (sim) { sim.selected = null; sim._needsDraw = true; }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Detail list view
+// ════════════════════════════════════════════════════════════════════════════
+function renderList(filter) {
+  const view = document.getElementById("listView");
+  let nodes = RAW.nodes.slice();
+  let edges = RAW.edges.slice();
+  if (filter) {
+    nodes = nodes.filter((n) => n.node_type === filter);
+    const keep = new Set(nodes.map((n) => n.id));
+    edges = edges.filter((e) => keep.has(e.source) || keep.has(e.target));
+  }
+
+  let html = '';
+  html += '<h3>Nodes (' + nodes.length + ')</h3>';
+  html += '<table><thead><tr><th>Type</th><th>Label</th><th>Key props</th><th>Vec</th><th>Created</th><th>ID</th></tr></thead><tbody id="nodeRows"></tbody></table>';
+  html += '<h3>Edges (' + edges.length + ')</h3>';
+  html += '<table><thead><tr><th>Source</th><th>Relation</th><th>Target</th><th>Properties</th></tr></thead><tbody id="edgeRows"></tbody></table>';
+  view.innerHTML = html;
+
+  const nodeRows = view.querySelector("#nodeRows");
+  for (const n of nodes) {
+    const tr = document.createElement("tr");
+    tr.className = "row";
+    tr.innerHTML =
+      '<td><span class="pill" style="background:' + colorForType(n.node_type) + '"></span>' + esc(n.node_type) + '</td>' +
+      '<td>' + esc(nodeLabel(n.properties, n.id)) + '</td>' +
+      '<td class="truncate">' + esc(keyProps(n.properties)) + '</td>' +
+      '<td>' + (n.has_vector ? '◌ ' + (n.vector_dim ?? '') : '—') + '</td>' +
+      '<td class="mono">' + esc((n.created_at || '').slice(0, 19).replace('T', ' ')) + '</td>' +
+      '<td class="mono truncate">' + esc(n.id) + '</td>';
+    nodeRows.appendChild(tr);
+    addExpander(nodeRows, tr, 6, n);
+  }
+
+  const edgeRows = view.querySelector("#edgeRows");
+  for (const e of edges) {
+    const tr = document.createElement("tr");
+    tr.className = "row";
+    const sn = RAW.nodes.find((x) => x.id === e.source);
+    const tn = RAW.nodes.find((x) => x.id === e.target);
+    tr.innerHTML =
+      '<td>' + esc(sn ? nodeLabel(sn.properties, e.source) : e.source) + '</td>' +
+      '<td><span style="color:var(--accent);font-weight:600">' + esc(e.relation) + '</span></td>' +
+      '<td>' + esc(tn ? nodeLabel(tn.properties, e.target) : e.target) + '</td>' +
+      '<td class="truncate">' + esc(e.properties ? JSON.stringify(e.properties) : '—') +
+        (e.weight != null ? ' (w=' + e.weight + ')' : '') + '</td>';
+    edgeRows.appendChild(tr);
+    addExpander(edgeRows, tr, 4, e);
+  }
+}
+
+// Expand a row -> full JSON in a spanning cell below it.
+function addExpander(tbody, tr, cols, obj) {
+  let open = false, detail = null;
+  tr.addEventListener("click", () => {
+    if (open) { detail.remove(); open = false; return; }
+    detail = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = cols; td.className = "json-cell";
+    const pre = document.createElement("pre");
+    pre.textContent = JSON.stringify(obj, null, 2);
+    td.appendChild(pre); detail.appendChild(td);
+    tr.after(detail); open = true;
+  });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+function fmtVal(v) {
+  if (v == null) return "(null)";
+  if (typeof v === "object") return JSON.stringify(v, null, 2);
+  return String(v);
+}
+function keyProps(props) {
+  const p = props || {};
+  const out = [];
+  for (const k of Object.keys(p)) {
+    if (["name", "title", "label"].includes(k)) continue;
+    const v = p[k];
+    out.push(k + ": " + (typeof v === "object" ? JSON.stringify(v) : String(v)));
+    if (out.length >= 4) break;
+  }
+  return out.join(" · ") || "—";
+}
+function distToSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy || 1;
+  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t * dx, cy = ay + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+// ── Wiring ───────────────────────────────────────────────────────────────────
+document.getElementById("tabGraph").addEventListener("click", () => {
+  activeTab = "graph";
+  document.getElementById("tabGraph").classList.add("active");
+  document.getElementById("tabList").classList.remove("active");
+  if (RAW && RAW.nodes && RAW.nodes.length) renderActiveView();
+});
+document.getElementById("tabList").addEventListener("click", () => {
+  activeTab = "list";
+  document.getElementById("tabList").classList.add("active");
+  document.getElementById("tabGraph").classList.remove("active");
+  if (RAW && RAW.nodes && RAW.nodes.length) renderActiveView();
+});
+document.getElementById("typeFilter").addEventListener("change", () => {
+  if (RAW && RAW.nodes && RAW.nodes.length) renderActiveView();
+});
+document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("detailClose").addEventListener("click", closeDetail);
+
+load();
+</script>
+</body>
+</html>

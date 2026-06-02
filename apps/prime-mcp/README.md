@@ -78,6 +78,11 @@ curl -X POST http://localhost:3905/api/v1/prime/nodes \
 curl http://localhost:3905/api/v1/prime/stats
 ```
 
+In HTTP mode the binary also serves a self-contained, offline graph viewer at
+`http://localhost:3905/api/v1/prime/graph.html` (logged on startup) — open it
+in a browser to see your local memory as a bubble graph + detail list, no
+account or network required.
+
 ## Auto-Inject (zer0dex-style)
 
 Pre-inject a compressed knowledge index into every agent conversation:

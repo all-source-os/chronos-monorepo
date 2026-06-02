@@ -262,6 +262,11 @@ async fn main() -> Result<()> {
         }
         Mode::Http => {
             tracing::info!("Starting HTTP server on port {}", cli.port);
+            tracing::info!(
+                "Prime graph viewer: http://localhost:{}/api/v1/prime/graph.html \
+                 (open in a browser to see your memory as a bubble graph + detail list)",
+                cli.port
+            );
             let state = Arc::new(http::AppState { prime, recall });
             http::serve(state, cli.port).await?;
         }

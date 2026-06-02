@@ -11,7 +11,7 @@ use axum::{
     body::Bytes,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
+    response::{Html, IntoResponse},
     routing::{delete, get, patch, post},
 };
 use serde::Deserialize;
@@ -51,6 +51,10 @@ pub async fn serve(state: Arc<AppState>, port: u16) -> anyhow::Result<()> {
         // Status endpoints
         .route("/api/v1/prime/stats", get(get_stats))
         .route("/api/v1/prime/graph", get(get_full_graph))
+        // Self-contained local graph viewer (single HTML page, no CDN, offline).
+        // Fetches /api/v1/prime/graph from the same origin and renders the
+        // local store as a bubble graph + detail list.
+        .route("/api/v1/prime/graph.html", get(graph_viewer))
         // MCP-over-HTTP (Streamable HTTP transport) — lets MCP clients connect
         // to the hosted Prime with no local binary. POST a JSON-RPC request,
         // get a JSON-RPC response (or 202 for notifications).
@@ -209,6 +213,17 @@ struct RecallRequest {
 
 async fn health() -> impl IntoResponse {
     Json(json!({"status": "ok"}))
+}
+
+/// `GET /api/v1/prime/graph.html` — the self-contained local graph viewer.
+///
+/// The page is compiled into the binary via `include_str!` (same idiom as the
+/// entity templates in `templates.rs`), so it needs no static-file server and
+/// no companion assets on disk. It has no external `<script src>`/`<link href>`,
+/// so it renders offline; on load it fetches the same-origin
+/// `/api/v1/prime/graph` and draws the store as a bubble graph + detail list.
+async fn graph_viewer() -> impl IntoResponse {
+    Html(include_str!("../static/graph.html"))
 }
 
 async fn get_stats(State(state): State<Arc<AppState>>) -> impl IntoResponse {
