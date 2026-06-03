@@ -36,7 +36,7 @@ Benchmarked vs a keyword search+grep baseline on deliberately-reworded queries
 ## Install (the card's CTA)
 
 ```
-/plugin marketplace add all-source-os/chronos
+/plugin marketplace add all-source-os/all-source
 /plugin install mammoth
 ```
 
@@ -62,10 +62,10 @@ thread both need them:
 - [ ] **Plugin icon / logo** — a mammoth mark (caveman ships an SVG; match the
       register). Drop in `plugin/mammoth/assets/`.
 - [ ] **Verify `repository` URL** in `plugin.json` resolves once the repo is public
-      (`github.com/all-source-os/chronos`).
+      (`github.com/all-source-os/all-source`).
 - [ ] **Verify `homepage`** `https://www.all-source.xyz/prime` is live.
 - [ ] **Smoke-test the install path on a clean machine** — `/plugin marketplace
-      add all-source-os/chronos` → `/plugin install mammoth` → approve prime MCP →
+      add all-source-os/all-source` → `/plugin install mammoth` → approve prime MCP →
       tools appear. Don't list until this passes end-to-end (the README's
       verify-before-listing rule).
 - [ ] **Push `main`** — the marketplace resolves `source: ./plugin/mammoth` from
@@ -76,7 +76,7 @@ thread both need them:
 1. `git push origin main` (the marketplace reads the manifest from the repo).
 2. Tag a release if the marketplace keys off tags (follow the repo's immutable-tag
    policy; scoped tag if SDK-style versioning applies).
-3. Announce add path: `/plugin marketplace add all-source-os/chronos`.
+3. Announce add path: `/plugin marketplace add all-source-os/all-source`.
 4. Then bead `t-dc63` (launch) — blog + X/HN threads are drafted and ready.
 
 ## Not in scope here

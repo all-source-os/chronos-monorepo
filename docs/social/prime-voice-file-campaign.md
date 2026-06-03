@@ -133,7 +133,7 @@ compresses what you say; mammoth never forgets; the voice file is how you say it
 index — generated on demand, always current.)
 
 repo + the real demo 👇
-[LINK: github.com/all-source-os/chronos + blog post]
+[LINK: github.com/all-source-os/all-source + blog post]
 
 ---
 
@@ -181,7 +181,7 @@ are Apache-2.0, chronis MIT.
 
 Build it: `cargo install allsource-prime` → `/plugin install mammoth` → `/voice run`
 
-Repo: github.com/all-source-os/chronos
+Repo: github.com/all-source-os/all-source
 Demo: tooling/voice-demo/RESULTS.md
 
 ---

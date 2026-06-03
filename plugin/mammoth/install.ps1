@@ -8,7 +8,7 @@
   (WAL + Parquet), no account. caveman make few token. mammoth never forget token.
 
   One-line install:
-    irm https://raw.githubusercontent.com/all-source-os/chronos/main/plugin/mammoth/install.ps1 | iex
+    irm https://raw.githubusercontent.com/all-source-os/all-source/main/plugin/mammoth/install.ps1 | iex
 
 .PARAMETER Agent
   Wire specific agents: claude, cursor, windsurf, gemini (array). Default: auto-detect.
@@ -31,7 +31,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Repo = "all-source-os/chronos"
+$Repo = "all-source-os/all-source"
 function Log($m) { Write-Host "mammoth: $m" }
 
 # --- data dir ---
@@ -53,7 +53,7 @@ if (-not (Get-Command allsource-prime -ErrorAction SilentlyContinue)) {
   if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
     throw "allsource-prime not found and cargo is missing. Install Rust (https://rustup.rs) or the binary, then re-run."
   }
-  Log "installing allsource-prime via cargo (needs >= 0.21.3)..."
+  Log "installing allsource-prime via cargo (needs >= 0.21.6)..."
   cargo install allsource-prime
 } else {
   Log "allsource-prime present: $((Get-Command allsource-prime).Source)"

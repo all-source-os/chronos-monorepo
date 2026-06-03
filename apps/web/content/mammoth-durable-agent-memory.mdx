@@ -39,7 +39,7 @@ The thing that kills most "agent memory" tools is friction: a signup wall betwee
 
 ```bash
 cargo install allsource-prime
-curl -fsSL https://raw.githubusercontent.com/all-source-os/chronos/main/plugin/mammoth/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/all-source-os/all-source/main/plugin/mammoth/install.sh | bash
 ```
 
 That runs a fully durable store on your disk — the same AllSource Core engine (WAL with CRC32 + fsync, Snappy Parquet snapshots). Your memory survives reboots and never leaves your machine. No account.
@@ -64,13 +64,13 @@ mammoth's core capability is one MCP server, so any MCP-capable agent speaks all
 Claude Code gets the richest setup — the MCP tools plus a `mammoth-memory` skill and `/remember`, `/recall`, `/memory-status` slash commands — via the plugin:
 
 ```text
-/plugin marketplace add all-source-os/chronos
+/plugin marketplace add all-source-os/all-source
 /plugin install mammoth
 ```
 
 ## Does it actually work?
 
-Claims are cheap; mammoth ships a **reproducible benchmark** ([`tooling/mammoth-bench/`](https://github.com/all-source-os/chronos/tree/main/tooling/mammoth-bench)) you can run yourself. It scores recall against a keyword search+grep baseline over the same store, with queries deliberately worded *unlike* the stored text.
+Claims are cheap; mammoth ships a **reproducible benchmark** ([`tooling/mammoth-bench/`](https://github.com/all-source-os/all-source/tree/main/tooling/mammoth-bench)) you can run yourself. It scores recall against a keyword search+grep baseline over the same store, with queries deliberately worded *unlike* the stored text.
 
 Full run — 60 memories, 60 queries, k=5:
 
@@ -88,7 +88,7 @@ Honest note: on a smaller 18-memory set the edge over grep was +0.17; it narrows
 
 ```text
 cargo install allsource-prime
-/plugin marketplace add all-source-os/chronos
+/plugin marketplace add all-source-os/all-source
 /plugin install mammoth
 ```
 

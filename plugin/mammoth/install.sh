@@ -8,7 +8,7 @@
 #   caveman make few token. mammoth never forget token.
 #
 # One-line install (auto-detect agents in the current project / home):
-#   curl -fsSL https://raw.githubusercontent.com/all-source-os/chronos/main/plugin/mammoth/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/all-source-os/all-source/main/plugin/mammoth/install.sh | bash
 #
 # Flags:
 #   --agent <name>   Wire a specific agent: claude | cursor | cline | windsurf | gemini
@@ -24,7 +24,7 @@
 
 set -euo pipefail
 
-REPO="all-source-os/chronos"
+REPO="all-source-os/all-source"
 AGENTS=()
 DATA_DIR=""
 AUTO_INJECT=1
@@ -39,7 +39,7 @@ mammoth — durable agent memory installer.
 
 Installs allsource-prime and wires it into your agent(s). Local-only by default.
 
-  curl -fsSL https://raw.githubusercontent.com/all-source-os/chronos/main/plugin/mammoth/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/all-source-os/all-source/main/plugin/mammoth/install.sh | bash
 
 Flags:
   --agent <name>    claude | cursor | cline | windsurf | gemini (repeatable). Default: auto-detect.
@@ -71,7 +71,7 @@ ensure_prime() {
   fi
   command -v cargo >/dev/null 2>&1 || die \
     "allsource-prime not found and cargo is missing. Install Rust (https://rustup.rs) or the binary, then re-run."
-  log "installing allsource-prime via cargo (needs >= 0.21.3)…"
+  log "installing allsource-prime via cargo (needs >= 0.21.6)…"
   cargo install allsource-prime
 }
 

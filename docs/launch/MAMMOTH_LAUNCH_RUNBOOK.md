@@ -33,10 +33,10 @@ These are owner actions — an agent can't capture a GIF, push your repo, or pos
 3. [ ] **Render the benchmark table image** for the card + tweet 3.
 4. [ ] **Plugin icon** in `plugin/mammoth/assets/` (mammoth mark, caveman-register).
 5. [ ] **Clean-machine install smoke test** — `/plugin marketplace add
-       all-source-os/chronos` → `/plugin install mammoth` → approve prime → tools
+       all-source-os/all-source` → `/plugin install mammoth` → approve prime → tools
        appear. Do NOT launch if this fails (the verify-before-listing rule).
 6. [ ] **Verify live URLs** — `homepage` (`all-source.xyz/prime`) and `repository`
-       (`github.com/all-source-os/chronos`) both resolve publicly.
+       (`github.com/all-source-os/all-source`) both resolve publicly.
 7. [ ] **Blog renders** — confirm `/blog/mammoth-durable-agent-memory` builds on
        Vercel (frontmatter is schema-correct; verified no broken MDX imports).
 
@@ -45,7 +45,7 @@ These are owner actions — an agent can't capture a GIF, push your repo, or pos
 Order matters — each step's link feeds the next.
 
 1. **Publish the plugin** (`t-8882`): push done → `/plugin marketplace add
-   all-source-os/chronos`; tag a release if the marketplace keys off tags (follow
+   all-source-os/all-source`; tag a release if the marketplace keys off tags (follow
    the repo's immutable-tag policy).
 2. **Ship the blog** — it's already in `apps/web/content/`; a Vercel deploy on
    `main` push publishes it. Confirm the OG image renders (`/og` auto-gen).

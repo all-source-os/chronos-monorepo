@@ -41,7 +41,7 @@ session it was never in. That's the whole product.
 ## Prerequisite (all agents)
 
 ```bash
-cargo install allsource-prime   # needs >= 0.21.3 (in-process fastembed, no external service)
+cargo install allsource-prime   # needs >= 0.21.6 (in-process fastembed, no external service)
 ```
 
 The binary must be on your `PATH`.
@@ -51,7 +51,7 @@ The binary must be on your `PATH`.
 ### Claude Code (richest — plugin)
 
 ```
-/plugin marketplace add all-source-os/chronos
+/plugin marketplace add all-source-os/all-source
 /plugin install mammoth
 ```
 
@@ -61,7 +61,7 @@ Restart and approve the project `prime` MCP server when prompted. The
 ### One-line installer (any supported agent)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/all-source-os/chronos/main/plugin/mammoth/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/all-source-os/all-source/main/plugin/mammoth/install.sh | bash
 ```
 
 Auto-detects your agents, installs the binary if needed, and writes the MCP

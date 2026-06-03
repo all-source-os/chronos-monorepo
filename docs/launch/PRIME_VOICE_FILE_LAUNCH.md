@@ -73,7 +73,7 @@ These are owner actions — an agent can't capture a clip, push your repo, or po
        `/plugin install mammoth` → approve prime → `/voice run` records a facet →
        `prime_recall` returns it. Do NOT launch if this fails.
 9. [ ] **Verify live URLs** — `all-source.xyz/prime` and
-       `github.com/all-source-os/chronos` resolve publicly; the
+       `github.com/all-source-os/all-source` resolve publicly; the
        `tooling/voice-demo/RESULTS.md` link resolves.
 
 ## Launch sequence (owner, once gates green)

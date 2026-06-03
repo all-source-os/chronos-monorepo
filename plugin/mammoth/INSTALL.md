@@ -7,7 +7,7 @@ per-agent shim for the core capability.
 ## Prerequisite (all agents)
 
 ```bash
-cargo install allsource-prime   # needs >= 0.21.3 (in-process fastembed)
+cargo install allsource-prime   # needs >= 0.21.6 (fixed compressed index + in-process fastembed)
 ```
 
 The binary must be on your `PATH`. Memory is **local-only by default** — a
@@ -38,7 +38,7 @@ to cross-machine/team memory, add `"--sync-to", "<core-url>", "--api-key", "<key
 
 | Agent | Where the stanza goes | Notes |
 |-------|----------------------|-------|
-| **Claude Code** | Plugin (recommended): `/plugin marketplace add all-source-os/chronos` → `/plugin install mammoth`. Or project `.mcp.json`. | Richest surface — MCP + the `mammoth-memory` skill + `/remember` `/recall` `/memory-status`. Approve the `prime` server on restart. |
+| **Claude Code** | Plugin (recommended): `/plugin marketplace add all-source-os/all-source` → `/plugin install mammoth`. Or project `.mcp.json`. | Richest surface — MCP + the `mammoth-memory` skill + `/remember` `/recall` `/memory-status`. Approve the `prime` server on restart. |
 | **Cursor** | `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global) | Native MCP. `prime_*` tools appear after reload. |
 | **Cline** (VS Code) | Cline MCP settings → `cline_mcp_settings.json` | Native MCP. |
 | **Windsurf** | `~/.codeium/windsurf/mcp_config.json` | Native MCP. Uses the same `mcpServers` shape. |
