@@ -3,6 +3,7 @@ import { EarlyAccessBanner } from "@/components/early-access-banner";
 import { TailwindIndicator } from "@/components/tailwind-indicator";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { organizationSchema, websiteSchema } from "@/lib/structured-data";
 import { cn, constructMetadata } from "@/lib/utils";
 import "./globals.css";
 
@@ -33,26 +34,13 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "Organization",
-              name: "AllSource",
-              url: "https://all-source.xyz",
-              logo: "https://all-source.xyz/logo.png",
-              description:
-                "AI-native event store for temporal data intelligence. 469K events/sec, 11.9us queries, 43 MCP tools.",
-              sameAs: [
-                "https://github.com/all-source-os/all-source",
-                "https://twitter.com/allsourcedev",
-              ],
-              contactPoint: {
-                "@type": "ContactPoint",
-                email: "hello@all-source.xyz",
-                contactType: "customer service",
-              },
-            }),
-          }}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema()) }}
+        />
+        <script
+          type="application/ld+json"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema()) }}
         />
       </head>
       <body className={cn("min-h-screen bg-background antialiased w-full mx-auto scroll-smooth")}>

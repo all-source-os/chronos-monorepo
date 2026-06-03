@@ -4,9 +4,13 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import Author from "@/components/blog-author";
 import CtaSection from "@/components/sections/cta";
-import { getPost } from "@/lib/blog";
-import { siteConfig } from "@/lib/config";
-import { formatDate } from "@/lib/utils";
+import { BLOG_CATEGORIES, getPost } from "@/lib/blog";
+import { blogPostingSchema, breadcrumbSchema } from "@/lib/structured-data";
+import { constructMetadata, formatDate } from "@/lib/utils";
+
+function categoryLabel(category?: string) {
+  return BLOG_CATEGORIES.find((c) => c.value === category)?.label || category;
+}
 
 export async function generateMetadata({
   params,
@@ -18,33 +22,21 @@ export async function generateMetadata({
   if (!post) {
     return undefined;
   }
-  const { title, publishedAt: publishedTime, summary: description, image } = post.metadata;
+  const { title, publishedAt, updatedAt, summary, imageUrl, author, category } = post.metadata;
+  const section = categoryLabel(category);
 
-  return {
+  return constructMetadata({
     title,
-    description,
-    alternates: {
-      canonical: `/blog/${post.slug}`,
-    },
-    openGraph: {
-      title,
-      description,
-      type: "article",
-      publishedTime,
-      url: `${siteConfig.url}/blog/${post.slug}`,
-      images: [
-        {
-          url: image,
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: [image],
-    },
-  };
+    description: summary,
+    image: imageUrl,
+    imageAlt: title,
+    canonical: `/blog/${post.slug}`,
+    type: "article",
+    publishedTime: publishedAt,
+    modifiedTime: updatedAt || publishedAt,
+    ...(author && { authors: [author] }),
+    ...(section && { section }),
+  });
 }
 
 export default async function Blog({ params }: { params: Promise<{ slug: string }> }) {
@@ -53,44 +45,38 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
   if (!post) {
     notFound();
   }
+  const section = categoryLabel(post.metadata.category);
+  const blogPosting = blogPostingSchema({
+    title: post.metadata.title,
+    description: post.metadata.summary,
+    slug: post.slug,
+    image: post.metadata.imageUrl,
+    datePublished: post.metadata.publishedAt,
+    dateModified: post.metadata.updatedAt || post.metadata.publishedAt,
+    author: post.metadata.author,
+    section,
+    ...(section && { keywords: [section] }),
+    wordCount: post.metadata.wordCount,
+  });
+  const breadcrumb = breadcrumbSchema([
+    { name: "Home", path: "/" },
+    { name: "Blog", path: "/blog" },
+    { name: post.metadata.title, path: `/blog/${post.slug}` },
+  ]);
+
   return (
     <section id="blog">
       <script
         type="application/ld+json"
         suppressHydrationWarning
         // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "BlogPosting",
-            headline: post.metadata.title,
-            datePublished: post.metadata.publishedAt,
-            dateModified: post.metadata.publishedAt,
-            description: post.metadata.summary,
-            image: post.metadata.image
-              ? `${siteConfig.url}${post.metadata.image}`
-              : `${siteConfig.url}/blog/${post.slug}/opengraph-image`,
-            url: `${siteConfig.url}/blog/${post.slug}`,
-            mainEntityOfPage: {
-              "@type": "WebPage",
-              "@id": `${siteConfig.url}/blog/${post.slug}`,
-            },
-            author: {
-              "@type": "Organization",
-              name: post.metadata.author || "AllSource",
-              url: "https://all-source.xyz",
-            },
-            publisher: {
-              "@type": "Organization",
-              name: "AllSource",
-              url: "https://all-source.xyz",
-              logo: {
-                "@type": "ImageObject",
-                url: `${siteConfig.url}/logo.png`,
-              },
-            },
-          }),
-        }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogPosting) }}
+      />
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
       />
       <div className="mx-auto w-full max-w-[800px] px-4 sm:px-6 lg:px-8 space-y-4 my-12">
         <Suspense

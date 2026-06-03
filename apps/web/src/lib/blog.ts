@@ -19,6 +19,7 @@ export const BLOG_CATEGORIES: { value: BlogCategory; label: string }[] = [
 export type Post = {
   title: string;
   publishedAt: string;
+  updatedAt?: string;
   summary: string;
   author: string;
   slug: string;
@@ -94,11 +95,19 @@ export async function getPost(slug: string) {
   const { content: rawContent, data: metadata } = parseFrontmatter(source);
   const content = await markdownToHTML(rawContent);
   const defaultImage = `${siteConfig.url}/og?title=${encodeURIComponent(metadata.title)}`;
+  const image = metadata.image || defaultImage;
+  // Absolute form for OG/Twitter/JSON-LD (crawlers need a full URL). `image`
+  // stays as-authored so next/image can optimize same-origin /assets paths.
+  const imageUrl = image.startsWith("http") ? image : `${siteConfig.url}${image}`;
+  // Rough word count from the source markdown for BlogPosting wordCount.
+  const wordCount = rawContent.trim().split(/\s+/).filter(Boolean).length;
   return {
     source: content,
     metadata: {
       ...metadata,
-      image: metadata.image || defaultImage,
+      image,
+      imageUrl,
+      wordCount,
     },
     slug,
   };

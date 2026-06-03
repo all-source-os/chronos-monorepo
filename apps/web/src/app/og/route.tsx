@@ -21,8 +21,12 @@ export async function GET(req: NextRequest) {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#fff",
-        backgroundImage: `url(${siteConfig.url}/og.png)`,
+        // Branded dark gradient. Replaces a former url(/og.png) reference whose
+        // asset was missing, leaving every generated card on blank white.
+        backgroundColor: "#000",
+        backgroundImage:
+          "radial-gradient(circle at 25% 15%, #1e293b 0%, transparent 45%), radial-gradient(circle at 80% 0%, #0f172a 0%, transparent 50%)",
+        color: "#fff",
         fontSize: 32,
         fontWeight: 600,
       }}
@@ -47,6 +51,8 @@ export async function GET(req: NextRequest) {
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
+          role="img"
+          aria-label="AllSource logo"
         >
           <circle cx="12" cy="12" r="10" />
           <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />

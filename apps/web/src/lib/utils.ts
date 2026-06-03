@@ -11,19 +11,47 @@ export function absoluteUrl(path: string) {
   return `${process.env.NEXT_PUBLIC_APP_URL || siteConfig.url}${path}`;
 }
 
+// Twitter handle for card attribution. Not yet a live account — kept here as a
+// single source so cards stay consistent once it is claimed.
+const TWITTER_HANDLE = "@allsourcedev";
+
 export function constructMetadata({
   title = siteConfig.name,
   description = siteConfig.description,
   image = absoluteUrl("/og"),
+  imageAlt,
   canonical,
+  type = "website",
+  publishedTime,
+  modifiedTime,
+  authors,
+  section,
   ...props
 }: {
   title?: string;
   description?: string;
   image?: string;
+  imageAlt?: string;
   canonical?: string;
+  type?: "website" | "article";
+  publishedTime?: string;
+  modifiedTime?: string;
+  authors?: string[];
+  section?: string;
   [key: string]: Metadata[keyof Metadata];
 }): Metadata {
+  const url = canonical ? `${siteConfig.url}${canonical}` : siteConfig.url;
+  const article =
+    type === "article"
+      ? {
+          type: "article" as const,
+          ...(publishedTime && { publishedTime }),
+          ...(modifiedTime && { modifiedTime }),
+          ...(authors?.length && { authors }),
+          ...(section && { section }),
+        }
+      : { type: "website" as const };
+
   return {
     title: {
       template: `%s | ${siteConfig.name}`,
@@ -34,24 +62,26 @@ export function constructMetadata({
     openGraph: {
       title,
       description,
-      url: canonical ? `${siteConfig.url}${canonical}` : siteConfig.url,
+      url,
       siteName: siteConfig.name,
       images: [
         {
           url: image,
           width: 1200,
           height: 630,
-          alt: title,
+          alt: imageAlt || title,
         },
       ],
-      type: "website",
       locale: "en_US",
+      ...article,
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
       images: [image],
+      site: TWITTER_HANDLE,
+      creator: TWITTER_HANDLE,
     },
     icons: "/favicon.ico",
     metadataBase: new URL(siteConfig.url),
