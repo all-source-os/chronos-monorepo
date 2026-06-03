@@ -21,7 +21,8 @@ import { siteConfig } from "@/lib/config";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 function getPlanConfig(tier: string) {
-  return siteConfig.pricing.find((p) => p.tier === tier) ?? siteConfig.pricing[0]!;
+  // `tier` here is the backend `subscription_tier`; match it against billingTier.
+  return siteConfig.pricing.find((p) => p.billingTier === tier) ?? siteConfig.pricing[0]!;
 }
 
 export default function BillingPage() {
@@ -140,10 +141,7 @@ export default function BillingPage() {
               <CardTitle>Current Plan</CardTitle>
               <CardDescription>Your active subscription details</CardDescription>
             </div>
-            <Badge
-              variant={currentTier === "free" ? "secondary" : "default"}
-              className="text-sm"
-            >
+            <Badge variant={currentTier === "free" ? "secondary" : "default"} className="text-sm">
               {planConfig.name}
             </Badge>
           </CardHeader>
@@ -180,10 +178,7 @@ export default function BillingPage() {
                   </div>
                 )}
                 {currentTier === "free" && (
-                  <Button
-                    size="sm"
-                    onClick={() => handleUpgrade("growth")}
-                  >
+                  <Button size="sm" onClick={() => handleUpgrade("growth")}>
                     Upgrade
                   </Button>
                 )}

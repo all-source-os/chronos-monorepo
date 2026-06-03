@@ -5,7 +5,15 @@ import { cn } from "@allsource/ui/utils";
 import { ArrowDown, Check, Sparkles } from "lucide-react";
 import { siteConfig } from "@/lib/config";
 
-const TIER_RANK: Record<string, number> = { free: 0, growth: 1, enterprise: 2 };
+// Ranked by the backend `subscription_tier` value (billingTier), not the public
+// marketing id. `scale` has no backend tier yet (011 owns it) so it ranks above growth.
+const TIER_RANK: Record<string, number> = {
+  free: 0,
+  starter: 1,
+  growth: 2,
+  scale: 3,
+  enterprise: 4,
+};
 
 interface PlanCardsProps {
   currentPlan?: string;
@@ -14,14 +22,18 @@ interface PlanCardsProps {
 }
 
 export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }: PlanCardsProps) {
-  const plans = siteConfig.pricing;
+  // Dashboard only offers checkout for tiers with a backend billing tier.
+  // Self-Host has no checkout; surface it on /pricing instead.
+  const plans = siteConfig.pricing.filter((p) => !p.isSelfHost);
   const currentRank = TIER_RANK[currentPlan] ?? 0;
 
   return (
-    <div className="grid gap-6 md:grid-cols-3">
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
       {plans.map((plan) => {
-        const planRank = TIER_RANK[plan.tier] ?? 0;
-        const isCurrent = plan.tier === currentPlan;
+        // Match the live `subscription_tier` against the tier's backend equivalent.
+        const planBillingTier = plan.billingTier ?? plan.tier;
+        const planRank = TIER_RANK[planBillingTier] ?? 0;
+        const isCurrent = planBillingTier === currentPlan;
         const isAbove = planRank > currentRank;
         const isBelow = planRank < currentRank;
         const isPopular = plan.isPopular;
@@ -86,11 +98,11 @@ export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }:
                 <Button className="w-full" variant="outline" disabled>
                   Current Plan
                 </Button>
-              ) : plan.tier === "enterprise" ? (
+              ) : plan.isEnterprise ? (
                 <Button
                   className="w-full"
                   variant="outline"
-                  onClick={() => onUpgrade?.(plan.tier, isYearly ? "annual" : "monthly")}
+                  onClick={() => onUpgrade?.(planBillingTier, isYearly ? "annual" : "monthly")}
                 >
                   Contact Sales
                 </Button>
@@ -98,16 +110,16 @@ export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }:
                 <Button
                   className="w-full"
                   variant={isPopular ? "default" : "outline"}
-                  onClick={() => onUpgrade?.(plan.tier, isYearly ? "annual" : "monthly")}
+                  onClick={() => onUpgrade?.(planBillingTier, isYearly ? "annual" : "monthly")}
                 >
                   {isPopular && <Sparkles className="mr-2 h-4 w-4" />}
                   Upgrade
                 </Button>
-              ) : isBelow && plan.tier !== "free" ? (
+              ) : isBelow && planBillingTier !== "free" ? (
                 <Button
                   className="w-full"
                   variant="ghost"
-                  onClick={() => onUpgrade?.(plan.tier, isYearly ? "annual" : "monthly")}
+                  onClick={() => onUpgrade?.(planBillingTier, isYearly ? "annual" : "monthly")}
                 >
                   <ArrowDown className="mr-2 h-4 w-4" />
                   Downgrade
