@@ -115,6 +115,14 @@ export const siteConfig = {
       label: "Install",
     },
     {
+      href: "/ecosystem",
+      label: "Ecosystem",
+    },
+    {
+      href: "/architecture",
+      label: "Architecture",
+    },
+    {
       href: "/blog",
       label: "Blog",
     },
