@@ -24,7 +24,7 @@ export function EarlyAccessBanner() {
   return (
     <div
       className={cn(
-        "relative flex items-center justify-center gap-2 px-4 py-2",
+        "relative flex items-center justify-start gap-2 px-4 py-2 md:px-6",
         "bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10",
         "border-b border-primary/20 text-sm"
       )}
@@ -44,8 +44,9 @@ export function EarlyAccessBanner() {
         Share feedback
       </a>
       <button
+        type="button"
         onClick={handleDismiss}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground md:right-6"
         aria-label="Dismiss banner"
       >
         <X className="h-4 w-4" />
