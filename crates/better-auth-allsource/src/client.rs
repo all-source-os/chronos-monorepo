@@ -1,4 +1,5 @@
 use crate::error::AllsourceAuthError;
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -88,6 +89,47 @@ struct QueryResponse {
 #[derive(Debug, Deserialize)]
 pub struct StoredEvent {
     pub payload: serde_json::Value,
+    /// Core stamps every event with an ingestion timestamp and a per-entity
+    /// version. We carry both so the client can pick the genuine newest event
+    /// itself rather than trusting the order Core returned them in — see
+    /// `newest_event`. Optional/defaulted so a Core build that omits either
+    /// field still deserializes (the event then sorts oldest).
+    #[serde(default)]
+    pub timestamp: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub version: Option<i64>,
+}
+
+/// How many of an entity's most-recent events to pull when resolving its
+/// current state. Auth entities accrue only a handful of events, so this is
+/// effectively "the whole stream" while bounding pathological cases.
+const ENTITY_HISTORY_LIMIT: usize = 1000;
+
+/// True when an event payload carries the soft-delete tombstone written by
+/// `AllsourceClient::append_delete` (`{"_deleted": true, ...}`).
+fn is_deleted(payload: &serde_json::Value) -> bool {
+    payload
+        .get("_deleted")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// Pick the genuinely-newest event by `(timestamp, version)`, independent of
+/// the order Core returned them in.
+///
+/// The deletion-honoring read path used to trust `order=desc` and inspect only
+/// `events.first()`. If Core (any version/deployment) failed to honor `order`,
+/// `first()` was the entity's *oldest* event — so a deleted user, whose
+/// `auth.user.deleted` tombstone is the newest event, read back as live because
+/// the `created` event was the one inspected (issues #177, #188). Selecting the
+/// max here removes that dependency entirely. Events missing a timestamp sort
+/// oldest (`None < Some`), so any well-formed event wins.
+fn newest_event(events: &[StoredEvent]) -> Option<&StoredEvent> {
+    events.iter().max_by(|a, b| {
+        a.timestamp
+            .cmp(&b.timestamp)
+            .then_with(|| a.version.cmp(&b.version))
+    })
 }
 
 impl AllsourceClient {
@@ -146,16 +188,20 @@ impl AllsourceClient {
     ) -> Result<Option<T>, AllsourceAuthError> {
         let url = format!("{}/api/v1/events/query", self.query_url);
 
-        // `order=desc` so `limit=1` returns the NEWEST event. Without it Core
-        // defaults to oldest-first and this returns the entity's first-ever
-        // event — a stale payload missing later schema fields (issue #177).
+        // Fetch the entity's recent events and choose the newest CLIENT-SIDE by
+        // (timestamp, version). `order=desc` is sent as a hint so Core can keep
+        // the window cheap, but correctness does NOT depend on it: if a deleted
+        // user's `auth.user.deleted` tombstone is anywhere in the window, it is
+        // the newest event, so `get_latest` returns `None` (issues #177, #188).
+        // The limit is generous because auth entities (user/session/account)
+        // accrue only a handful of events.
         let resp = self
             .http
             .get(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .query(&[
                 ("entity_id", entity_id),
-                ("limit", "1"),
+                ("limit", &ENTITY_HISTORY_LIMIT.to_string()),
                 ("order", "desc"),
             ])
             .send()
@@ -172,13 +218,10 @@ impl AllsourceClient {
 
         let query_resp: QueryResponse = resp.json().await?;
 
-        match query_resp.events.first() {
+        match newest_event(&query_resp.events) {
             Some(event) => {
-                // Check if this is a deletion event
-                if let Some(deleted) = event.payload.get("_deleted") {
-                    if deleted.as_bool().unwrap_or(false) {
-                        return Ok(None);
-                    }
+                if is_deleted(&event.payload) {
+                    return Ok(None);
                 }
                 let entity: T = serde_json::from_value(event.payload.clone())?;
                 Ok(Some(entity))
@@ -237,12 +280,7 @@ impl AllsourceClient {
             seen.insert(entity_id.to_string());
 
             // Skip deleted entities
-            if event
-                .payload
-                .get("_deleted")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
+            if is_deleted(&event.payload) {
                 continue;
             }
 
@@ -324,12 +362,7 @@ impl AllsourceClient {
         let query_resp: QueryResponse = resp.json().await?;
         match query_resp.events.first() {
             Some(event) => {
-                if event
-                    .payload
-                    .get("_deleted")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false)
-                {
+                if is_deleted(&event.payload) {
                     return Ok(None);
                 }
                 match serde_json::from_value::<T>(event.payload.clone()) {
@@ -391,12 +424,7 @@ impl AllsourceClient {
             }
             seen.insert(entity_id.to_string());
 
-            if event
-                .payload
-                .get("_deleted")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
+            if is_deleted(&event.payload) {
                 continue;
             }
 
@@ -457,12 +485,7 @@ impl AllsourceClient {
             }
             seen.insert(entity_id.to_string());
 
-            if event
-                .payload
-                .get("_deleted")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
+            if is_deleted(&event.payload) {
                 continue;
             }
 
@@ -573,6 +596,83 @@ mod tests {
         // HTTP client's job, not ours.
         let raw = build_payload_filter("email", "a+b@c.io");
         assert!(raw.contains("a+b@c.io"), "got {raw}");
+    }
+
+    fn event_at(ts: &str, version: i64, payload: serde_json::Value) -> StoredEvent {
+        // Build through serde to also exercise StoredEvent deserialization of
+        // the Core-shaped event envelope (extra fields are ignored).
+        serde_json::from_value(serde_json::json!({
+            "id": "00000000-0000-0000-0000-000000000000",
+            "event_type": "auth.user.created",
+            "entity_id": "auth-user:u1",
+            "tenant_id": "t1",
+            "payload": payload,
+            "timestamp": ts,
+            "version": version,
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn is_deleted_detects_tombstone() {
+        assert!(is_deleted(&serde_json::json!({ "_deleted": true, "id": "u1" })));
+        assert!(!is_deleted(&serde_json::json!({ "_deleted": false, "id": "u1" })));
+        assert!(!is_deleted(&serde_json::json!({ "id": "u1", "email": "a@b" })));
+    }
+
+    /// Regression for issue #188. `get_user_by_id` reads via `get_latest`,
+    /// which must return the entity's NEWEST event so an `auth.user.deleted`
+    /// tombstone hides the user. Crucially this must hold even when Core hands
+    /// the events back oldest-first (i.e. ignores `order=desc`): the previous
+    /// `events.first()` logic then inspected the `created` event and reported a
+    /// deleted user as live. `newest_event` selects by (timestamp, version)
+    /// instead, so input order is irrelevant.
+    #[test]
+    fn newest_event_picks_latest_regardless_of_input_order() {
+        let created = event_at(
+            "2026-01-01T00:00:00Z",
+            0,
+            serde_json::json!({ "id": "u1", "email": "a@b" }),
+        );
+        let deleted = event_at(
+            "2026-06-01T00:00:00Z",
+            1,
+            serde_json::json!({ "_deleted": true, "id": "u1" }),
+        );
+
+        // Oldest-first (as a Core that ignores order=desc returns).
+        let ascending = vec![
+            event_at("2026-01-01T00:00:00Z", 0, created.payload.clone()),
+            event_at("2026-06-01T00:00:00Z", 1, deleted.payload.clone()),
+        ];
+        let newest = newest_event(&ascending).expect("non-empty");
+        assert!(is_deleted(&newest.payload), "tombstone must win → user hidden");
+
+        // Newest-first (order=desc honored) yields the same winner.
+        let descending = vec![
+            event_at("2026-06-01T00:00:00Z", 1, deleted.payload.clone()),
+            event_at("2026-01-01T00:00:00Z", 0, created.payload.clone()),
+        ];
+        assert!(is_deleted(&newest_event(&descending).unwrap().payload));
+    }
+
+    #[test]
+    fn newest_event_breaks_timestamp_ties_by_version() {
+        // Same timestamp: the higher per-entity version is the later write.
+        let events = vec![
+            event_at("2026-01-01T00:00:00Z", 5, serde_json::json!({ "id": "u1" })),
+            event_at(
+                "2026-01-01T00:00:00Z",
+                6,
+                serde_json::json!({ "_deleted": true, "id": "u1" }),
+            ),
+        ];
+        assert!(is_deleted(&newest_event(&events).unwrap().payload));
+    }
+
+    #[test]
+    fn newest_event_empty_is_none() {
+        assert!(newest_event(&[]).is_none());
     }
 
     /// End-to-end check that `find_by_field("email", ...)` sends Core a
