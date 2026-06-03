@@ -55,7 +55,7 @@ export default function Author({
       />
       <div className="flex flex-col">
         <p className="font-semibold text-foreground">{name}</p>
-        <p className="text-sm text-muted-foreground">@{name}</p>
+        <p className="text-sm text-muted-foreground">@{twitterUsername}</p>
       </div>
     </Link>
   );
