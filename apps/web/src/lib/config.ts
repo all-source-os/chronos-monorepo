@@ -18,6 +18,9 @@ export const siteConfig = {
     "CQRS",
     "Data Intelligence",
   ],
+  // Bare X/Twitter handle (no @) — single source for cards, JSON-LD, and the
+  // blog author chip. `links.twitter` is the profile URL built from it.
+  twitterHandle: "allsourcedev",
   links: {
     email: "hello@all-source.xyz",
     twitter: "https://twitter.com/allsourcedev",

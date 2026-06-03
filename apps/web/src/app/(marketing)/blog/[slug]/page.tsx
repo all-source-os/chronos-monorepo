@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import Author from "@/components/blog-author";
 import CtaSection from "@/components/sections/cta";
 import { BLOG_CATEGORIES, getPost } from "@/lib/blog";
+import { siteConfig } from "@/lib/config";
 import { blogPostingSchema, breadcrumbSchema } from "@/lib/structured-data";
 import { constructMetadata, formatDate } from "@/lib/utils";
 
@@ -108,7 +109,7 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
         </div>
         <div className="flex items-center space-x-2">
           <Author
-            twitterUsername="allsourcedev"
+            twitterUsername={siteConfig.twitterHandle}
             name={post.metadata.author}
             image={"/author.jpg"}
           />

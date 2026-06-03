@@ -11,9 +11,9 @@ export function absoluteUrl(path: string) {
   return `${process.env.NEXT_PUBLIC_APP_URL || siteConfig.url}${path}`;
 }
 
-// Twitter handle for card attribution. Not yet a live account — kept here as a
-// single source so cards stay consistent once it is claimed.
-const TWITTER_HANDLE = "@allsourcedev";
+// Twitter handle for card attribution, derived from siteConfig so the @ form
+// stays in lockstep with the bare handle used elsewhere.
+const TWITTER_HANDLE = `@${siteConfig.twitterHandle}`;
 
 export function constructMetadata({
   title = siteConfig.name,
