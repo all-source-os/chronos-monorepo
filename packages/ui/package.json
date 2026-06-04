@@ -63,7 +63,7 @@
     "embla-carousel-react": "^8.6.0",
     "lucide-react": "^1.8.0",
     "motion": "^12.29.2",
-    "react-day-picker": "^9",
+    "react-day-picker": "^10",
     "recharts": "^3.8.0",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2"
