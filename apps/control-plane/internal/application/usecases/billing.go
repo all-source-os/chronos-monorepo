@@ -20,12 +20,13 @@ const (
 
 // CheckoutRequest is the input for creating a billing checkout.
 type CheckoutRequest struct {
-	TenantID    string `json:"tenant_id" binding:"required"`
-	Tier        string `json:"tier" binding:"required"`
-	Provider    string `json:"provider,omitempty"` // "lemonsqueezy" (default) or "stripe"
-	Email       string `json:"email,omitempty"`
-	Name        string `json:"name,omitempty"`
-	RedirectURL string `json:"redirect_url,omitempty"`
+	TenantID      string `json:"tenant_id" binding:"required"`
+	Tier          string `json:"tier" binding:"required"`
+	BillingPeriod string `json:"billing_period,omitempty"` // "monthly" (default) or "annual"/"yearly"
+	Provider      string `json:"provider,omitempty"`       // "lemonsqueezy" (default) or "stripe"
+	Email         string `json:"email,omitempty"`
+	Name          string `json:"name,omitempty"`
+	RedirectURL   string `json:"redirect_url,omitempty"`
 }
 
 // CheckoutResult is the output of creating a billing checkout.
@@ -162,9 +163,18 @@ func (uc *CreateCheckoutUseCase) executeStripe(ctx context.Context, req Checkout
 		return nil, fmt.Errorf("stripe payment provider is not configured")
 	}
 
-	priceID, err := uc.stripeClient.LookupPriceID(req.Tier)
+	// Resolve tier + billing period to the right Stripe price (monthly vs annual).
+	// Canonicalize retired tier ids so an old "pro"/"growth" request still maps
+	// to a live 011 price during cutover.
+	canonicalTier := entities.MapRetiredTier(req.Tier)
+	priceID, err := uc.stripeClient.LookupPriceID(canonicalTier, req.BillingPeriod)
 	if err != nil {
-		return nil, fmt.Errorf("unknown billing tier %q: %w", req.Tier, err)
+		return nil, fmt.Errorf("resolve price for tier %q period %q: %w", req.Tier, req.BillingPeriod, err)
+	}
+
+	period := req.BillingPeriod
+	if period == "" {
+		period = "monthly"
 	}
 
 	successURL := req.RedirectURL
@@ -176,8 +186,9 @@ func (uc *CreateCheckoutUseCase) executeStripe(ctx context.Context, req Checkout
 		PriceID:       priceID,
 		CustomerEmail: req.Email,
 		Metadata: map[string]string{
-			"tenant_id": req.TenantID,
-			"tier":      req.Tier,
+			"tenant_id":      req.TenantID,
+			"tier":           canonicalTier,
+			"billing_period": period,
 		},
 		SuccessURL: successURL,
 		CancelURL:  successURL,
@@ -510,6 +521,21 @@ func quotasFromMap(m map[string]interface{}) entities.QuotaMetadata {
 	}
 	if v, ok := m["queries_used"].(float64); ok {
 		q.QueriesUsed = int64(v)
+	}
+	if v, ok := m["x402_allowance"].(float64); ok {
+		q.X402Allowance = int64(v)
+	}
+	if v, ok := m["x402_used"].(float64); ok {
+		q.X402Used = int64(v)
+	}
+	if v, ok := m["retention_days"].(float64); ok {
+		q.RetentionDays = int64(v)
+	}
+	if v, ok := m["max_streams"].(float64); ok {
+		q.MaxStreams = int64(v)
+	}
+	if v, ok := m["mcp_scope"].(string); ok {
+		q.MCPScope = v
 	}
 	return q
 }

@@ -164,32 +164,43 @@ func TestStripeGetSubscription_NotFound(t *testing.T) {
 }
 
 func TestStripeLookupPriceID(t *testing.T) {
+	// 011 price map: "<tier>:<period>" keys, plus a legacy bare-tier key to
+	// prove backwards-compatible fallback still works.
 	client := newStripeClient("http://unused", "key", StripePriceMap{
-		"free": "price_free",
-		"pro":  "price_pro",
-		"team": "price_team",
+		"indie:monthly":  "price_indie_m",
+		"indie:annual":   "price_indie_y",
+		"studio:monthly": "price_studio_m",
+		"studio:annual":  "price_studio_y",
+		"scale:monthly":  "price_scale_m",
+		"scale:annual":   "price_scale_y",
+		"legacy":         "price_legacy", // bare-tier key, treated as monthly
 	})
 
 	tests := []struct {
 		tier    string
+		period  string
 		wantID  string
 		wantErr bool
 	}{
-		{"free", "price_free", false},
-		{"pro", "price_pro", false},
-		{"team", "price_team", false},
-		{"Pro", "price_pro", false},   // case-insensitive
-		{"TEAM", "price_team", false}, // case-insensitive
-		{"unknown", "", true},
+		{"indie", "monthly", "price_indie_m", false},
+		{"indie", "annual", "price_indie_y", false},
+		{"indie", "yearly", "price_indie_y", false},  // yearly aliases annual
+		{"indie", "", "price_indie_m", false},        // empty period → monthly
+		{"Indie", "Monthly", "price_indie_m", false}, // case-insensitive
+		{"studio", "annual", "price_studio_y", false},
+		{"scale", "monthly", "price_scale_m", false},
+		{"studio", "garbage", "price_studio_m", false}, // unknown period → monthly
+		{"legacy", "annual", "price_legacy", false},    // bare-tier fallback
+		{"unknown", "monthly", "", true},
 	}
 
 	for _, tt := range tests {
-		id, err := client.LookupPriceID(tt.tier)
+		id, err := client.LookupPriceID(tt.tier, tt.period)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("LookupPriceID(%q): err=%v, wantErr=%v", tt.tier, err, tt.wantErr)
+			t.Errorf("LookupPriceID(%q,%q): err=%v, wantErr=%v", tt.tier, tt.period, err, tt.wantErr)
 		}
 		if id != tt.wantID {
-			t.Errorf("LookupPriceID(%q): got %q, want %q", tt.tier, id, tt.wantID)
+			t.Errorf("LookupPriceID(%q,%q): got %q, want %q", tt.tier, tt.period, id, tt.wantID)
 		}
 	}
 }
@@ -197,7 +208,7 @@ func TestStripeLookupPriceID(t *testing.T) {
 func TestStripeLookupPriceID_NoMap(t *testing.T) {
 	client := newStripeClient("http://unused", "key", nil)
 
-	_, err := client.LookupPriceID("free")
+	_, err := client.LookupPriceID("indie", "monthly")
 	if err == nil {
 		t.Fatal("expected error when price map is nil")
 	}

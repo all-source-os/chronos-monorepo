@@ -64,9 +64,9 @@ func TestUpdateSubscriptionMetadataUseCase_Execute(t *testing.T) {
 				CustomerID:     "cust_789",
 				SubscriptionID: "sub_012",
 				Status:         "active",
-				Tier:           "pro",
+				Tier:           "studio",
 			},
-			// No explicit Quotas — should auto-apply from tier
+			// No explicit Quotas — should auto-apply from the tier (011 §2: Studio = 5M/500K).
 		}
 
 		resp, err := updateSubUC.Execute("tenant-sub-1", billing)
@@ -78,11 +78,11 @@ func TestUpdateSubscriptionMetadataUseCase_Execute(t *testing.T) {
 		if !ok {
 			t.Fatalf("quotas should be *QuotaMetadata, got %T", resp.Metadata["quotas"])
 		}
-		if quotas.EventsQuota != 1_000_000 {
-			t.Errorf("EventsQuota = %d, want 1000000", quotas.EventsQuota)
+		if quotas.EventsQuota != 5_000_000 {
+			t.Errorf("EventsQuota = %d, want 5000000", quotas.EventsQuota)
 		}
-		if quotas.QueriesQuota != 100_000 {
-			t.Errorf("QueriesQuota = %d, want 100000", quotas.QueriesQuota)
+		if quotas.QueriesQuota != 500_000 {
+			t.Errorf("QueriesQuota = %d, want 500000", quotas.QueriesQuota)
 		}
 	})
 

@@ -118,6 +118,96 @@ func TestCoreQuotaChecker_NilTenant_ReturnsTrue(t *testing.T) {
 	}
 }
 
+func tenantWithX402(allowance, used float64) *clients.TenantResponse {
+	return &clients.TenantResponse{
+		ID: "tenant-1",
+		Metadata: map[string]any{
+			"quotas": map[string]any{
+				"x402_allowance": allowance,
+				"x402_used":      used,
+			},
+		},
+	}
+}
+
+func TestCoreQuotaChecker_X402Allowance_Basic(t *testing.T) {
+	// unlimited (-1) → always true
+	q := NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithX402(-1, 9_999_999)})
+	if !q.HasX402Allowance("tenant-1") {
+		t.Error("unlimited allowance: want true")
+	}
+	// no allowance (0) → false
+	q = NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithX402(0, 0)})
+	if q.HasX402Allowance("tenant-1") {
+		t.Error("zero allowance: want false")
+	}
+	// within allowance → true; at/over → false
+	q = NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithX402(100, 99)})
+	if !q.HasX402Allowance("tenant-1") {
+		t.Error("under allowance: want true")
+	}
+	q = NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithX402(100, 100)})
+	if q.HasX402Allowance("tenant-1") {
+		t.Error("at allowance: want false")
+	}
+}
+
+func TestCoreQuotaChecker_X402Allowance_FailsClosedOnError(t *testing.T) {
+	q := NewCoreQuotaChecker(&quotaTestCoreClient{tenant: nil, err: errors.New("core down")})
+	if q.HasX402Allowance("tenant-1") {
+		t.Error("error path must fail closed (false), got true")
+	}
+}
+
+// The in-process counter must stop a tenant overshooting its included allowance
+// between reconciler ticks: after `allowance` free calls are recorded, the gate
+// denies further free calls even though Core's x402_used has not been updated.
+func TestCoreQuotaChecker_X402Allowance_LocalCounterPreventsOvershoot(t *testing.T) {
+	q := NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithX402(2, 0)})
+
+	if !q.HasX402Allowance("tenant-1") {
+		t.Fatal("call 1: want true")
+	}
+	q.RecordAllowanceConsumed("tenant-1")
+	if !q.HasX402Allowance("tenant-1") {
+		t.Fatal("call 2: want true")
+	}
+	q.RecordAllowanceConsumed("tenant-1")
+	// Core still reports used=0, but locally we've served 2 of 2 → deny.
+	if q.HasX402Allowance("tenant-1") {
+		t.Error("call 3: want false (allowance spent locally), got true — overshoot")
+	}
+}
+
+// When the reconciler advances Core's x402_used, the local delta is dropped
+// (rebaselined) so consumption is not double-counted.
+func TestCoreQuotaChecker_X402Allowance_RebaselineOnCoreAdvance(t *testing.T) {
+	mock := &quotaTestCoreClient{tenant: tenantWithX402(5, 0)}
+	q := NewCoreQuotaChecker(mock)
+
+	q.RecordAllowanceConsumed("tenant-1")
+	q.RecordAllowanceConsumed("tenant-1")
+	q.RecordAllowanceConsumed("tenant-1") // local=3, effective=3
+	if !q.HasX402Allowance("tenant-1") {
+		t.Fatal("effective 3/5: want true")
+	}
+
+	// Reconciler catches up: Core now reports used=3. Local delta must reset so
+	// effective stays 3 (not 6) — no double count.
+	mock.tenant = tenantWithX402(5, 3)
+	if !q.HasX402Allowance("tenant-1") { // triggers rebaseline
+		t.Fatal("after rebaseline effective 3/5: want true")
+	}
+	q.RecordAllowanceConsumed("tenant-1") // local=1, effective=4
+	if !q.HasX402Allowance("tenant-1") {
+		t.Fatal("effective 4/5: want true")
+	}
+	q.RecordAllowanceConsumed("tenant-1") // local=2, effective=5
+	if q.HasX402Allowance("tenant-1") {
+		t.Error("effective 5/5: want false")
+	}
+}
+
 func TestCoreQuotaChecker_IntMetadataValues(t *testing.T) {
 	// Metadata may arrive as int or int64 instead of float64 in some code paths.
 	mock := &quotaTestCoreClient{tenant: &clients.TenantResponse{

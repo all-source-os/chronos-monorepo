@@ -29,6 +29,7 @@ type OperationScheduler struct {
 	coreClient         clients.CoreClient
 	reportUsageUC      *billing.ReportUsageUseCase
 	checkUsageWarnings *billing.CheckUsageWarningsUseCase
+	syncX402UsageUC    *billing.SyncX402UsageUseCase
 	tasks              []ScheduledTask
 	cancel             context.CancelFunc
 	wg                 sync.WaitGroup
@@ -48,6 +49,10 @@ func NewOperationScheduler(
 			{Name: "compaction", Interval: 6 * time.Hour, Enabled: true},
 			{Name: "overage_reporting", Interval: 1 * time.Hour, Enabled: true},
 			{Name: "usage_warnings", Interval: 1 * time.Hour, Enabled: true},
+			// 1-minute reconciliation bounds how far a tenant can overshoot its
+			// included x402 allowance between ticks; the in-process counter in
+			// CoreQuotaChecker tightens it further within each instance.
+			{Name: "x402_usage_sync", Interval: 1 * time.Minute, Enabled: true},
 		},
 	}
 }
@@ -62,6 +67,12 @@ func (s *OperationScheduler) SetReportUsageUseCase(uc *billing.ReportUsageUseCas
 // Must be called before Start if usage_warnings task is enabled.
 func (s *OperationScheduler) SetCheckUsageWarningsUseCase(uc *billing.CheckUsageWarningsUseCase) {
 	s.checkUsageWarnings = uc
+}
+
+// SetSyncX402UsageUseCase sets the x402 usage reconciliation use case for the
+// scheduler. Must be called before Start if x402_usage_sync is enabled.
+func (s *OperationScheduler) SetSyncX402UsageUseCase(uc *billing.SyncX402UsageUseCase) {
+	s.syncX402UsageUC = uc
 }
 
 // Start begins running scheduled tasks in the background.
@@ -113,6 +124,8 @@ func (s *OperationScheduler) executeTask(ctx context.Context, task ScheduledTask
 		s.executeOverageReporting(ctx)
 	case "usage_warnings":
 		s.executeUsageWarnings(ctx)
+	case "x402_usage_sync":
+		s.executeX402UsageSync(ctx)
 	default:
 		log.Printf("Unknown scheduled task: %s", task.Name)
 	}
@@ -191,6 +204,38 @@ func (s *OperationScheduler) executeOverageReporting(ctx context.Context) {
 	// Audit log
 	auditEvent, _ := entities.NewAuditEvent("billing.overage.scheduled_report", "execute", "SCHEDULER", "/billing/overage") //nolint:errcheck
 	auditEvent.AddMetadata("reported", fmt.Sprintf("%d", reported))
+	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
+	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
+	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck
+}
+
+// executeX402UsageSync reconciles each tenant's x402_used counter from the
+// durable x402 events in Core, so the per-tier allowance depletes and overage
+// kicks in (011). No-op when the use case is not wired.
+func (s *OperationScheduler) executeX402UsageSync(ctx context.Context) {
+	if s.syncX402UsageUC == nil {
+		return
+	}
+
+	results := s.syncX402UsageUC.ExecuteAll(ctx)
+
+	var synced, skipped, errored int
+	for _, r := range results {
+		switch {
+		case r.Error != nil:
+			errored++
+			log.Printf("Scheduler: x402 usage sync failed for tenant %s: %v", r.TenantID, r.Error)
+		case r.Skipped:
+			skipped++
+		default:
+			synced++
+		}
+	}
+
+	log.Printf("Scheduler: x402 usage sync complete — synced=%d skipped=%d errors=%d", synced, skipped, errored)
+
+	auditEvent, _ := entities.NewAuditEvent("billing.x402.scheduled_sync", "execute", "SCHEDULER", "/billing/x402") //nolint:errcheck
+	auditEvent.AddMetadata("synced", fmt.Sprintf("%d", synced))
 	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
 	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
 	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck

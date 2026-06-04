@@ -46,12 +46,21 @@ func (uc *UpdateSubscriptionMetadataUseCase) Execute(tenantID string, billing *e
 		tenant.Metadata[k] = v
 	}
 
-	// Apply tier-based quotas if subscription tier is set and quotas are not explicitly provided
+	// Apply tier-based entitlements if subscription tier is set and quotas are
+	// not explicitly provided. This resolves retired tiers to their successor
+	// (QuotasForTier handles that) and persists the FULL 011 entitlement set —
+	// events/queries quota, x402 allowance, retention, streams, MCP scope — so
+	// downstream enforcement (quota gate, x402 allowance checker) has everything
+	// it needs from a single tenant read.
 	if billing.Subscription != nil && billing.Subscription.Tier != "" && billing.Quotas == nil {
 		tierQuotas := entities.QuotasForTier(billing.Subscription.Tier)
 		tenant.Metadata["quotas"] = &entities.QuotaMetadata{
-			EventsQuota:  tierQuotas.EventsQuota,
-			QueriesQuota: tierQuotas.QueriesQuota,
+			EventsQuota:   tierQuotas.EventsQuota,
+			QueriesQuota:  tierQuotas.QueriesQuota,
+			X402Allowance: tierQuotas.X402Allowance,
+			RetentionDays: tierQuotas.RetentionDays,
+			MaxStreams:    tierQuotas.MaxStreams,
+			MCPScope:      tierQuotas.MCPScope,
 		}
 	}
 

@@ -348,6 +348,14 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		checkUsageWarningsUC = billing.NewCheckUsageWarningsUseCase(tenantRepo, auditRepo, cfg.EmailClient)
 	}
 
+	// Initialize use cases — Billing (x402 allowance reconciliation, 011).
+	// Reads the durable x402 events in Core to keep x402_used truthful so the
+	// per-tier allowance depletes and overage kicks in.
+	var syncX402UsageUC *billing.SyncX402UsageUseCase
+	if cfg.CoreClient != nil {
+		syncX402UsageUC = billing.NewSyncX402UsageUseCase(tenantRepo, auditRepo, cfg.CoreClient)
+	}
+
 	// Initialize use cases — Admin Billing
 	var adminListInvoicesUC *billing.AdminListInvoicesUseCase
 	var adminRevenueUC *billing.AdminRevenueUseCase
@@ -366,6 +374,9 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	}
 	if checkUsageWarningsUC != nil {
 		scheduler.SetCheckUsageWarningsUseCase(checkUsageWarningsUC)
+	}
+	if syncX402UsageUC != nil {
+		scheduler.SetSyncX402UsageUseCase(syncX402UsageUC)
 	}
 
 	// Initialize HTTP handlers (Layer 4)

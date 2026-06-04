@@ -23,7 +23,9 @@ type StripeClient interface {
 	CreateCheckoutSession(ctx context.Context, req StripeCheckoutRequest) (*StripeCheckoutResponse, error)
 	GetCustomerPortalURL(ctx context.Context, customerID, returnURL string) (string, error)
 	GetSubscription(ctx context.Context, subscriptionID string) (*StripeSubscriptionResponse, error)
-	LookupPriceID(tier string) (string, error)
+	// LookupPriceID resolves a tier + billing period to a Stripe price ID.
+	// period is "monthly" or "annual"; an empty period defaults to monthly.
+	LookupPriceID(tier, period string) (string, error)
 }
 
 // StripePriceMap maps plan tier names to Stripe price IDs.
@@ -79,8 +81,15 @@ type stripeClient struct {
 }
 
 // NewStripeClient creates a StripeClient from environment variables:
-//   - STRIPE_SECRET_KEY (required)
-//   - STRIPE_PRICE_MAP (optional JSON: {"free":"price_xxx","pro":"price_yyy","team":"price_zzz"})
+//   - STRIPE_SECRET_KEY (required) — use a sk_test_… key in non-prod.
+//   - STRIPE_PRICE_MAP (optional JSON). Keys are "<tier>:<period>" where period
+//     is "monthly" or "annual"; a bare "<tier>" key is treated as the monthly
+//     price. 011 tiers: indie, studio, scale. Example:
+//     {"indie:monthly":"price_a","indie:annual":"price_b",
+//      "studio:monthly":"price_c","studio:annual":"price_d",
+//      "scale:monthly":"price_e","scale:annual":"price_f"}
+//     See docs/runbooks/PRICING_BILLING_CUTOVER.md for how the price IDs are
+//     created (test + live) and wired in.
 func NewStripeClient() (StripeClient, error) {
 	secretKey := os.Getenv("STRIPE_SECRET_KEY")
 	if secretKey == "" {
@@ -222,14 +231,35 @@ func (c *stripeClient) GetSubscription(ctx context.Context, subscriptionID strin
 	return &sub, nil
 }
 
-// LookupPriceID resolves a plan tier name to a Stripe price ID using the configured price map.
-func (c *stripeClient) LookupPriceID(tier string) (string, error) {
+// LookupPriceID resolves a plan tier + billing period to a Stripe price ID.
+// Resolution order (first hit wins):
+//  1. "<tier>:<period>"  (e.g. "studio:annual")
+//  2. "<tier>:monthly"   when period is empty/unknown
+//  3. "<tier>"           legacy bare-tier key (treated as monthly)
+//
+// This keeps backwards compatibility with old single-price-per-tier maps while
+// supporting the 011 monthly/annual split.
+func (c *stripeClient) LookupPriceID(tier, period string) (string, error) {
 	if c.priceMap == nil {
 		return "", fmt.Errorf("price map not configured")
 	}
-	id, ok := c.priceMap[strings.ToLower(tier)]
-	if !ok {
-		return "", fmt.Errorf("unknown plan tier: %s", tier)
+	t := strings.ToLower(tier)
+	p := strings.ToLower(period)
+	if p == "" || (p != "monthly" && p != "annual" && p != "yearly") {
+		p = "monthly"
 	}
-	return id, nil
+	if p == "yearly" {
+		p = "annual"
+	}
+
+	if id, ok := c.priceMap[t+":"+p]; ok {
+		return id, nil
+	}
+	if id, ok := c.priceMap[t+":monthly"]; ok {
+		return id, nil
+	}
+	if id, ok := c.priceMap[t]; ok {
+		return id, nil
+	}
+	return "", fmt.Errorf("no Stripe price configured for tier %q period %q", tier, period)
 }

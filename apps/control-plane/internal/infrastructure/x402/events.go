@@ -13,6 +13,11 @@ const (
 	EventPaymentVerified  = "x402.payment.verified"
 	EventPaymentSettled   = "x402.payment.settled"
 	EventPaymentFailed    = "x402.payment.failed"
+	// EventAllowanceConsumed records an x402 priced-route call that was served
+	// for free out of the tenant's included per-tier allowance (011). These are
+	// reconciled into the tenant's x402_used counter so the allowance depletes
+	// and overage (pay-as-you-go) kicks in once exhausted.
+	EventAllowanceConsumed = "x402.allowance.consumed"
 )
 
 // EventLogger writes x402 payment events to Core for audit trail.
@@ -52,6 +57,15 @@ func (el *EventLogger) LogSettled(ctx context.Context, tenantID, txHash, payer, 
 		"network":     network,
 		"amount":      amount,
 		"endpoint":    endpoint,
+	})
+}
+
+// LogAllowanceConsumed records that a priced route was served free from the
+// tenant's included x402 allowance (no on-chain payment). One event per call;
+// reconciled into x402_used.
+func (el *EventLogger) LogAllowanceConsumed(ctx context.Context, tenantID, endpoint string) {
+	el.log(ctx, EventAllowanceConsumed, tenantID, map[string]any{
+		"endpoint": endpoint,
 	})
 }
 

@@ -86,6 +86,7 @@ func (uc *ProcessStripeWebhookUseCase) handleSubscriptionCreated(event StripeWeb
 			CustomerID:      strVal(obj, "customer"),
 			Status:          strVal(obj, "status"),
 			Tier:            tier,
+			BillingPeriod:   resolveStripeBillingPeriod(obj),
 			PaymentProvider: "stripe",
 		},
 	}
@@ -110,6 +111,7 @@ func (uc *ProcessStripeWebhookUseCase) handleSubscriptionUpdated(event StripeWeb
 			CustomerID:      strVal(obj, "customer"),
 			Status:          status,
 			Tier:            tier,
+			BillingPeriod:   resolveStripeBillingPeriod(obj),
 			PaymentProvider: "stripe",
 		},
 	}
@@ -198,15 +200,27 @@ func extractTenantIDFromStripeWebhook(event StripeWebhookEvent) string {
 	return ""
 }
 
-// resolveStripeSubscriptionTier extracts tier from subscription metadata.
-// Falls back to "free" if not set.
+// resolveStripeSubscriptionTier extracts tier from subscription metadata and
+// canonicalizes any retired tier id to its 011 successor so stored tenant
+// metadata never carries a deleted tier. Falls back to "free" if not set.
 func resolveStripeSubscriptionTier(obj map[string]interface{}) string {
 	if metadata, ok := obj["metadata"].(map[string]interface{}); ok {
 		if tier, ok := metadata["tier"].(string); ok && tier != "" {
-			return tier
+			return entities.MapRetiredTier(tier)
 		}
 	}
 	return defaultPlan
+}
+
+// resolveStripeBillingPeriod extracts the billing_period ("monthly"/"annual")
+// from subscription metadata. Returns "" when not set (older subscriptions).
+func resolveStripeBillingPeriod(obj map[string]interface{}) string {
+	if metadata, ok := obj["metadata"].(map[string]interface{}); ok {
+		if p, ok := metadata["billing_period"].(string); ok {
+			return p
+		}
+	}
+	return ""
 }
 
 // strVal safely extracts a string value from a map.

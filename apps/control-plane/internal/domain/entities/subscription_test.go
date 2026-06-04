@@ -11,12 +11,20 @@ func TestQuotasForTier(t *testing.T) {
 		wantQueries int64
 	}{
 		{"free", 100_000, 10_000},
-		{"pro", 1_000_000, 100_000},
-		{"growth", 10_000_000, 1_000_000},
+		// Canonical 011 tiers (PRICING_EXPOSURE_PLAN.md §2).
+		{"indie", 500_000, 50_000},
+		{"studio", 5_000_000, 500_000},
+		{"scale", 50_000_000, 5_000_000},
 		{"enterprise", -1, -1},
-		{"team", 10_000_000, 1_000_000}, // legacy alias for growth
-		{"unknown", 100_000, 10_000},    // defaults to free
-		{"", 100_000, 10_000},           // defaults to free
+		// Retired tiers resolve to their 011 successor via MapRetiredTier, but a
+		// retired PAID tier keeps its pre-011 events/queries quota (no-downgrade
+		// floor) so existing customers aren't silently halved.
+		{"pro", 1_000_000, 100_000},    // RETIRED → indie successor, floored to pro's old 1M
+		{"growth", 10_000_000, 1_000_000}, // RETIRED → studio successor, floored to growth's old 10M
+		{"team", 10_000_000, 1_000_000},   // RETIRED → studio successor, floored (legacy alias)
+		{"starter", 500_000, 50_000},   // RETIRED → indie (no floor; meets old entry quota)
+		{"unknown", 100_000, 10_000},   // defaults to free
+		{"", 100_000, 10_000},          // defaults to free
 	}
 
 	for _, tt := range tests {
@@ -39,10 +47,10 @@ func TestTierQuotas_IsUnlimited(t *testing.T) {
 		want bool
 	}{
 		{"free", TierQuotaMap[TierFree], false},
-		{"pro", TierQuotaMap[TierPro], false},
-		{"growth", TierQuotaMap[TierGrowth], false},
+		{"indie", TierQuotaMap[TierIndie], false},
+		{"studio", TierQuotaMap[TierStudio], false},
+		{"scale", TierQuotaMap[TierScale], false},
 		{"enterprise", TierQuotaMap[TierEnterprise], true},
-		{"team", TierQuotaMap[TierTeam], false},
 		{"custom_unlimited", TierQuotas{EventsQuota: -1, QueriesQuota: -1}, true},
 	}
 

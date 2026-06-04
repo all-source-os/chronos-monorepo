@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,14 +30,48 @@ type TierAllower interface {
 	AllowsX402(tenantID string) bool
 }
 
-// tierAllowedForX402 is the canonical gate list — pro, growth, enterprise, and
-// the legacy "team" alias. Anything else (including empty string and "free")
-// is denied.
+// AllowanceChecker is an optional interface a QuotaChecker may implement to
+// expose the per-tier included x402 allowance (011 / PRICING_EXPOSURE_PLAN.md
+// §2). When a tenant is still inside its included allowance, x402 priced routes
+// are served free (no on-chain payment); once the allowance is exhausted the
+// gate falls through to the x402 payment flow (pay-as-you-go overage at the
+// per-call rate configured in the pricing config).
+//
+// Separation of concerns: HasQuota tracks the events/queries subscription
+// quota; HasX402Allowance tracks the distinct x402 credit bucket. A tenant can
+// have events-quota remaining yet still owe per-call x402 once their credit
+// allowance is spent — these are independent meters.
+type AllowanceChecker interface {
+	// HasX402Allowance returns true if the tenant has x402 calls remaining in
+	// its included allowance for the current period. A tier with no allowance
+	// (allowance == 0) returns false so the gate proceeds to payment. A tier
+	// with unlimited allowance (-1) returns true.
+	HasX402Allowance(tenantID string) bool
+	// RecordAllowanceConsumed notes that one allowance call was just served
+	// free, so HasX402Allowance reflects it immediately rather than waiting for
+	// the next Core reconciliation tick. Without this, a tenant could overshoot
+	// its included allowance by a full reconciliation interval of traffic.
+	RecordAllowanceConsumed(tenantID string)
+}
+
+// tierAllowedForX402 is the canonical gate list. Per 011 the paid hosted tiers
+// (indie, studio, scale) plus enterprise may consume x402 priced routes. The
+// retired tiers (pro, growth, team, starter, developer) remain in the list so
+// in-flight subscriptions whose stored tenant metadata still carries the old
+// tier string are not abruptly denied mid-cutover. Anything else (including
+// empty string and "free"/Self-Host) is denied.
 var tierAllowedForX402 = map[string]bool{
-	"pro":        true,
-	"growth":     true,
+	// Canonical 011 paid tiers.
+	"indie":      true,
+	"studio":     true,
+	"scale":      true,
 	"enterprise": true,
-	"team":       true, // legacy alias for growth
+	// Retired aliases — keep until cutover backfill remaps stored metadata.
+	"pro":       true,
+	"growth":    true,
+	"team":      true,
+	"starter":   true,
+	"developer": true,
 }
 
 // QuotaGatedMiddleware only activates x402 payments when the tenant's quota is exceeded.
@@ -73,26 +108,50 @@ func QuotaGatedMiddleware(
 			tenantIDStr = ""
 		}
 
-		// Tier gate: free-tier tenants cannot consume x402 priced routes at
-		// all, regardless of quota or payment capability. Pro-and-above only.
+		// Tier gate: free-tier / Self-Host tenants cannot consume x402 priced
+		// routes at all, regardless of quota or payment capability. Paid hosted
+		// tiers (indie/studio/scale) and enterprise only.
 		if tierAllower, ok := quotaChecker.(TierAllower); ok && tenantIDStr != "" {
 			if !tierAllower.AllowsX402(tenantIDStr) {
 				c.JSON(http.StatusForbidden, gin.H{
 					"error":   "tier_not_allowed",
-					"message": "x402 agent endpoints require a Pro subscription or higher. Upgrade at https://all-source.xyz/billing",
+					"message": "x402 agent endpoints require a paid subscription (Indie or higher). Upgrade at https://all-source.xyz/billing",
 				})
 				c.Abort()
 				return
 			}
 		}
 
-		// If tenant has quota remaining, skip x402 — free access
+		// x402 allowance: paid tiers ship an included allowance of x402 calls
+		// (50K / 500K / 5M for indie/studio/scale). While the tenant is inside
+		// that allowance, priced routes are served free — no on-chain payment.
+		// Once exhausted the gate falls through to the x402 payment flow below
+		// (pay-as-you-go overage). Tiers without an allowance return false here
+		// and proceed straight to payment.
+		if allowanceChecker, ok := quotaChecker.(AllowanceChecker); ok && tenantIDStr != "" {
+			if allowanceChecker.HasX402Allowance(tenantIDStr) {
+				// Record the free allowance call so the counter depletes and
+				// overage eventually kicks in. Two records: the durable Core
+				// event (reconciled by SyncX402UsageUseCase, source of truth) and
+				// the in-process delta (so the very next request on this instance
+				// sees the consumption without waiting for the reconciler tick).
+				if logger != nil {
+					logger.LogAllowanceConsumed(c.Request.Context(), tenantIDStr, routeKey)
+				}
+				allowanceChecker.RecordAllowanceConsumed(tenantIDStr)
+				c.Next()
+				return
+			}
+		}
+
+		// If tenant has events/queries quota remaining, skip x402 — free access
 		if tenantIDStr != "" && quotaChecker.HasQuota(tenantIDStr, routeKey) {
 			c.Next()
 			return
 		}
 
-		// Quota exceeded — delegate to x402 middleware
+		// Allowance and quota both exhausted — delegate to x402 middleware
+		// (pay-as-you-go overage at the per-call rate in the pricing config).
 		x402Mw(c)
 	}
 }
@@ -104,6 +163,10 @@ func QuotaGatedMiddleware(
 type StaticQuotaChecker struct {
 	HasRemaining bool
 	TierDenied   bool
+	// AllowanceRemaining lets tests exercise the x402 allowance path. The zero
+	// value (false) means "no allowance remaining" so existing tests that don't
+	// set it fall through to the quota/payment path unchanged.
+	AllowanceRemaining bool
 }
 
 // HasQuota implements QuotaChecker.
@@ -111,15 +174,37 @@ func (s *StaticQuotaChecker) HasQuota(string, string) bool {
 	return s.HasRemaining
 }
 
+// HasX402Allowance implements AllowanceChecker for tests.
+func (s *StaticQuotaChecker) HasX402Allowance(string) bool {
+	return s.AllowanceRemaining
+}
+
+// RecordAllowanceConsumed implements AllowanceChecker for tests (no-op).
+func (s *StaticQuotaChecker) RecordAllowanceConsumed(string) {}
+
 // CoreQuotaChecker checks tenant quota by reading metadata from Core.
 // It maps route keys to quota dimensions: POST routes → events, all others → queries.
 type CoreQuotaChecker struct {
 	client clients.CoreClient
+
+	// In-process x402 allowance tightening. The scheduler reconciles the durable
+	// x402_used counter in Core every minute; between ticks this instance tracks
+	// the allowance calls it served free so HasX402Allowance reflects them
+	// immediately. Per-instance: multi-instance residual overshoot is bounded by
+	// (instances × calls-since-last-tick), far tighter than a full reconciliation
+	// window of traffic. Core remains the source of truth.
+	x402mu        sync.Mutex
+	x402LocalUsed map[string]int64 // tenantID → calls served free since baseline
+	x402Baseline  map[string]int64 // tenantID → Core x402_used at last reset
 }
 
 // NewCoreQuotaChecker creates a quota checker backed by Core tenant metadata.
 func NewCoreQuotaChecker(client clients.CoreClient) *CoreQuotaChecker {
-	return &CoreQuotaChecker{client: client}
+	return &CoreQuotaChecker{
+		client:        client,
+		x402LocalUsed: make(map[string]int64),
+		x402Baseline:  make(map[string]int64),
+	}
 }
 
 // HasQuota returns true if the tenant has remaining quota for the given route.
@@ -176,6 +261,71 @@ func (q *CoreQuotaChecker) AllowsX402(tenantID string) bool {
 		return false
 	}
 	return tierAllowedForX402[tier]
+}
+
+// HasX402Allowance reports whether the tenant still has x402 calls remaining in
+// its included per-tier allowance. It reads x402_allowance / x402_used from the
+// tenant's "quotas" metadata (written by UpdateSubscriptionMetadataUseCase from
+// the tier entitlement set). Semantics:
+//   - allowance < 0  → unlimited (enterprise) → always true
+//   - allowance == 0 → no included allowance → false (proceed to payment)
+//   - used < allowance → true (serve free)
+//   - used >= allowance → false (allowance spent → overage payment)
+//
+// Fails *closed* (false) on any error so an unreachable Core never silently
+// grants free x402 beyond the allowance — the worst case is a tenant inside
+// allowance being asked to pay, which is recoverable, vs. unbounded free usage.
+func (q *CoreQuotaChecker) HasX402Allowance(tenantID string) bool {
+	if q.client == nil || tenantID == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	tenant, err := q.client.GetTenant(ctx, tenantID)
+	if err != nil || tenant == nil {
+		return false
+	}
+
+	// Billing writes the entitlement bucket under "quotas" (plural).
+	quotaMeta, ok := tenant.Metadata["quotas"].(map[string]any)
+	if !ok {
+		return false
+	}
+
+	allowance := metadataInt64(quotaMeta, "x402_allowance")
+	if allowance < 0 {
+		return true // unlimited (enterprise)
+	}
+	if allowance == 0 {
+		return false // no included allowance for this tier
+	}
+	coreUsed := metadataInt64(quotaMeta, "x402_used")
+
+	// Add this instance's not-yet-reconciled consumption. When Core's counter
+	// changes (reconciler advanced it, or a new period reset it), the local
+	// delta is already reflected (or stale) → drop it and rebaseline.
+	q.x402mu.Lock()
+	if q.x402Baseline[tenantID] != coreUsed {
+		q.x402Baseline[tenantID] = coreUsed
+		q.x402LocalUsed[tenantID] = 0
+	}
+	effectiveUsed := coreUsed + q.x402LocalUsed[tenantID]
+	q.x402mu.Unlock()
+
+	return effectiveUsed < allowance
+}
+
+// RecordAllowanceConsumed increments this instance's local x402 counter for the
+// tenant. Called by the gate immediately after an allowance call is served free,
+// so the next request sees the consumption before the Core reconciler catches up.
+func (q *CoreQuotaChecker) RecordAllowanceConsumed(tenantID string) {
+	if tenantID == "" {
+		return
+	}
+	q.x402mu.Lock()
+	q.x402LocalUsed[tenantID]++
+	q.x402mu.Unlock()
 }
 
 // AllowsX402 implements TierAllower for the static test checker.
