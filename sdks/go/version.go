@@ -1,4 +1,4 @@
 package allsource
 
 // Version is the SDK version. Updated by `make set-version`.
-const Version = "0.21.5"
+const Version = "0.21.6"

@@ -4,7 +4,7 @@ defmodule QueryServiceEx.MixProject do
   def project do
     [
       app: :query_service_ex,
-      version: "0.21.5",
+      version: "0.21.6",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
