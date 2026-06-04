@@ -340,6 +340,15 @@ export const siteConfig = {
       ],
     },
     {
+      title: "Compare",
+      links: [
+        { href: "/event-sourcing-for-ai-agents", text: "Event Sourcing for AI Agents", icon: null },
+        { href: "/vs/mem0", text: "vs mem0", icon: null },
+        { href: "/vs/letta", text: "vs Letta", icon: null },
+        { href: "/vs/zep", text: "vs Zep", icon: null },
+      ],
+    },
+    {
       title: "Company",
       links: [
         { href: "/about", text: "About", icon: null },

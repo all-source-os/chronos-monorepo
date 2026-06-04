@@ -67,6 +67,29 @@ export function breadcrumbSchema(items: BreadcrumbItem[]) {
   };
 }
 
+export type FaqItem = { question: string; answer: string };
+
+/**
+ * FAQPage builder. Comparison pages answer the obvious "is X better than
+ * AllSource?" intent — emitting these as schema makes the answers eligible for
+ * AI-answer-engine and rich-result citation. Kept here (not inlined per page)
+ * so the FAQ shape stays consistent with the rest of the JSON-LD graph.
+ */
+export function faqPageSchema(items: FaqItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  };
+}
+
 export type BlogPostingInput = {
   title: string;
   description: string;

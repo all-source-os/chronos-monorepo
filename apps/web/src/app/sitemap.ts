@@ -29,6 +29,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/docs/prime/embedded`, priority: 0.7, changeFrequency: "monthly" as const },
     { url: `${base}/use-cases`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/compare/eventstoredb`, priority: 0.7, changeFrequency: "monthly" as const },
+    {
+      url: `${base}/event-sourcing-for-ai-agents`,
+      priority: 0.9,
+      changeFrequency: "weekly" as const,
+    },
+    { url: `${base}/vs/mem0`, priority: 0.8, changeFrequency: "monthly" as const },
+    { url: `${base}/vs/letta`, priority: 0.8, changeFrequency: "monthly" as const },
+    { url: `${base}/vs/zep`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/platform/event-sourcing`, priority: 0.9, changeFrequency: "monthly" as const },
     {
       url: `${base}/platform/stream-processing`,
