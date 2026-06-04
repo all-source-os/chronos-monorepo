@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "allsource-ea-dismissed";
 
@@ -22,16 +22,16 @@ export function EarlyAccessBanner() {
   return (
     <div className="relative isolate flex items-center gap-x-6 overflow-hidden bg-primary px-6 py-2.5 sm:px-3.5 sm:before:flex-1">
       <p className="text-sm/6 text-primary-foreground">
-        <strong className="font-semibold">Early Access</strong>
+        <strong className="font-semibold">Your AI agent can now pay per call</strong>
         <svg viewBox="0 0 2 2" aria-hidden="true" className="mx-2 inline size-0.5 fill-current">
           <circle r={1} cx={1} cy={1} />
         </svg>
-        AllSource is live. Sign up for free and start building.
+        x402 micropayments are live in v0.19.
         <a
-          href="/dashboard"
+          href="/pricing"
           className="ml-2 font-semibold text-primary-foreground underline underline-offset-2 hover:opacity-80"
         >
-          Get started &rarr;
+          See pricing &rarr;
         </a>
       </p>
       <div className="flex flex-1 justify-end">

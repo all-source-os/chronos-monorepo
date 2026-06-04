@@ -3,6 +3,21 @@ export const BLUR_FADE_DELAY = 0.15;
 export const siteConfig = {
   name: "AllSource",
   description: "AI-native event store for temporal data intelligence",
+  // Single source of truth for the headline performance numbers. Both the
+  // homepage demo chrome and the below-the-fold stat strip read from here so
+  // the values can never desync — and so they can be rendered at their FINAL
+  // value on first paint (no animate-from-zero "0K"/"0μs" flash).
+  //   display — the exact string to paint (already formatted).
+  //   numeric/suffix — used only by the optional count-up animation, which
+  //                    must START from `display`, never from 0.
+  stats: [
+    { display: "469K", numeric: 469, suffix: "K", label: "events/sec" },
+    { display: "11.9μs", numeric: 11.9, suffix: "μs", label: "p99 recall" },
+    { display: "43", numeric: 43, suffix: "", label: "MCP tools" },
+    { display: "129MB", numeric: 129, suffix: "MB", label: "footprint" },
+  ],
+  // The single µs figure the homepage demo stamps on the recalled answer.
+  recallLatency: "11.2μs",
   // Falls back to the production URL — not localhost — so a missing
   // NEXT_PUBLIC_APP_URL on Vercel (or any other consumer of this config) can't
   // leak `http://localhost:3000` into og:url / canonical / share-sheet URLs.
@@ -358,3 +373,8 @@ export const siteConfig = {
 };
 
 export type SiteConfig = typeof siteConfig;
+
+// The Indie tier's monthly price, sourced from the pricing array so the
+// homepage CTA ("Start Indie — $19") can never desync from /pricing.
+export const indieTier = siteConfig.pricing.find((p) => p.tier === "indie");
+export const indiePrice = indieTier?.price ?? "$19";

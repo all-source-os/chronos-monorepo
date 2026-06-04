@@ -12,6 +12,7 @@ import Problem from "@/components/sections/problem";
 import QuantIntelligence from "@/components/sections/quant-intelligence";
 import SocialProof from "@/components/sections/social-proof";
 import Solution from "@/components/sections/solution";
+import StatStrip from "@/components/sections/stat-strip";
 
 export default function Home() {
   return (
@@ -28,6 +29,8 @@ export default function Home() {
 
       <Header />
       <Hero />
+      {/* Stats demoted below the fold — final values painted, never "0K" flash */}
+      <StatStrip />
       {/* Logos section hidden - needs real partner logos */}
       {/* <Logos /> */}
       <Problem />

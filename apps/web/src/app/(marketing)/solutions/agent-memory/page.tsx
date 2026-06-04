@@ -77,44 +77,85 @@ const capabilities = [
 ];
 
 const comparison = [
-  { feature: "Compressed Index", zerodex: "Manual", mem0: "No", letta: "No", zep: "No", prime: "Auto-generated" },
+  {
+    feature: "Compressed Index",
+    zerodex: "Manual",
+    mem0: "No",
+    letta: "No",
+    zep: "No",
+    prime: "Auto-generated",
+  },
   { feature: "Temporal Queries", zerodex: "No", mem0: "No", letta: "No", zep: "Yes", prime: "Yes" },
-  { feature: "Provenance", zerodex: "No", mem0: "No", letta: "Partial", zep: "Partial", prime: "Full event audit" },
-  { feature: "Cross-Domain Recall", zerodex: "80%", mem0: "~50%", letta: "~37%", zep: "~85%", prime: "80%+" },
-  { feature: "Offline/Embedded", zerodex: "Yes", mem0: "No", letta: "No", zep: "Optional", prime: "Yes + sync" },
-  { feature: "Latency", zerodex: "70ms", mem0: "Variable", letta: "Variable", zep: "Variable", prime: "12μs" },
+  {
+    feature: "Provenance",
+    zerodex: "No",
+    mem0: "No",
+    letta: "Partial",
+    zep: "Partial",
+    prime: "Full event audit",
+  },
+  {
+    feature: "Cross-Domain Recall",
+    zerodex: "80%",
+    mem0: "~50%",
+    letta: "~37%",
+    zep: "~85%",
+    prime: "80%+",
+  },
+  {
+    feature: "Offline/Embedded",
+    zerodex: "Yes",
+    mem0: "No",
+    letta: "No",
+    zep: "Optional",
+    prime: "Yes + sync",
+  },
+  {
+    feature: "Latency",
+    zerodex: "70ms",
+    mem0: "Variable",
+    letta: "Variable",
+    zep: "Variable",
+    prime: "12μs",
+  },
   { feature: "Cost", zerodex: "$0", mem0: "$0-249/mo", letta: "Cloud", zep: "Cloud", prime: "$0" },
 ];
 
 const useCases = [
   {
     title: "Personal AI Assistant",
-    description: "Claude remembers your project context across sessions. Yesterday's decisions inform today's answers.",
+    description:
+      "Claude remembers your project context across sessions. Yesterday's decisions inform today's answers.",
     icon: Brain,
   },
   {
     title: "Multi-Agent Knowledge Sharing",
-    description: "Three agents work on different parts of a codebase. Findings flow through the shared graph.",
+    description:
+      "Three agents work on different parts of a codebase. Findings flow through the shared graph.",
     icon: GitBranch,
   },
   {
     title: "Incident Response Memory",
-    description: "Your oncall agent remembers every past incident. 'What happened last time this alert fired?'",
+    description:
+      "Your oncall agent remembers every past incident. 'What happened last time this alert fired?'",
     icon: Shield,
   },
   {
     title: "Research Assistant",
-    description: "Read 50 papers, build a knowledge graph. The compressed index surfaces unexpected cross-domain connections.",
+    description:
+      "Read 50 papers, build a knowledge graph. The compressed index surfaces unexpected cross-domain connections.",
     icon: Search,
   },
   {
     title: "Code Review Context",
-    description: "Agent remembers past review feedback. 'Last time you said X about error handling in this module.'",
+    description:
+      "Agent remembers past review feedback. 'Last time you said X about error handling in this module.'",
     icon: Code2,
   },
   {
     title: "Audit & Compliance",
-    description: "Full provenance on every memory. Who added what, when, from what source. Time-travel to any past state.",
+    description:
+      "Full provenance on every memory. Who added what, when, from what source. Time-travel to any past state.",
     icon: Layers,
   },
 ];
@@ -132,15 +173,15 @@ export default function AgentMemoryPage() {
             transition={{ duration: 0.6 }}
           >
             <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-              Give your AI agent
+              Give your AI agent memory that
               <br />
               <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                perfect memory
+                remembers every event
               </span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              Knowledge graph + vector search + compressed index in one binary.
-              No cloud dependency. No monthly fees. 12μs queries.
+              Knowledge graph + vector search + compressed index in one binary. No cloud dependency.
+              No monthly fees. 12μs queries.
             </p>
             <div className="mt-8 flex items-center justify-center gap-4">
               <div className="rounded-lg border bg-muted/50 px-4 py-2 font-mono text-sm">
@@ -167,7 +208,7 @@ export default function AgentMemoryPage() {
                 Add to <code>~/.claude/claude_desktop_config.json</code>:
               </p>
               <pre className="overflow-x-auto rounded bg-black/80 p-4 text-sm text-green-400">
-{`{
+                {`{
   "mcpServers": {
     "prime": {
       "command": "allsource-prime",
@@ -177,8 +218,8 @@ export default function AgentMemoryPage() {
 }`}
               </pre>
               <p className="mt-3 text-sm text-muted-foreground">
-                13 MCP tools: graph CRUD, vector search, hybrid recall,
-                compressed index, temporal queries.
+                13 MCP tools: graph CRUD, vector search, hybrid recall, compressed index, temporal
+                queries.
               </p>
             </div>
           </div>
@@ -186,9 +227,7 @@ export default function AgentMemoryPage() {
 
         {/* Capabilities */}
         <Section className="pb-16">
-          <h2 className="mb-12 text-center text-3xl font-bold">
-            How it works
-          </h2>
+          <h2 className="mb-12 text-center text-3xl font-bold">How it works</h2>
           <div className="grid gap-8 md:grid-cols-2">
             {capabilities.map((cap, i) => (
               <motion.div
@@ -213,9 +252,7 @@ export default function AgentMemoryPage() {
                   </span>
                 </div>
                 <h3 className="mb-2 text-lg font-semibold">{cap.question}</h3>
-                <p className="mb-4 text-sm text-muted-foreground">
-                  {cap.answer}
-                </p>
+                <p className="mb-4 text-sm text-muted-foreground">{cap.answer}</p>
                 <ul className="space-y-1">
                   {cap.details.map((d) => (
                     <li key={d} className="flex items-start gap-2 text-sm">
@@ -231,9 +268,7 @@ export default function AgentMemoryPage() {
 
         {/* Comparison Table */}
         <Section className="pb-16">
-          <h2 className="mb-4 text-center text-3xl font-bold">
-            How we compare
-          </h2>
+          <h2 className="mb-4 text-center text-3xl font-bold">How we compare</h2>
           <p className="mb-8 text-center text-muted-foreground">
             vs. zer0dex, Mem0, Letta, and Zep
           </p>
@@ -246,30 +281,18 @@ export default function AgentMemoryPage() {
                   <th className="p-3 text-center font-medium">Mem0</th>
                   <th className="p-3 text-center font-medium">Letta</th>
                   <th className="p-3 text-center font-medium">Zep</th>
-                  <th className="p-3 text-center font-medium text-purple-400">
-                    Prime
-                  </th>
+                  <th className="p-3 text-center font-medium text-purple-400">Prime</th>
                 </tr>
               </thead>
               <tbody>
                 {comparison.map((row) => (
                   <tr key={row.feature} className="border-b border-muted">
                     <td className="p-3 font-medium">{row.feature}</td>
-                    <td className="p-3 text-center text-muted-foreground">
-                      {row.zerodex}
-                    </td>
-                    <td className="p-3 text-center text-muted-foreground">
-                      {row.mem0}
-                    </td>
-                    <td className="p-3 text-center text-muted-foreground">
-                      {row.letta}
-                    </td>
-                    <td className="p-3 text-center text-muted-foreground">
-                      {row.zep}
-                    </td>
-                    <td className="p-3 text-center font-semibold text-purple-400">
-                      {row.prime}
-                    </td>
+                    <td className="p-3 text-center text-muted-foreground">{row.zerodex}</td>
+                    <td className="p-3 text-center text-muted-foreground">{row.mem0}</td>
+                    <td className="p-3 text-center text-muted-foreground">{row.letta}</td>
+                    <td className="p-3 text-center text-muted-foreground">{row.zep}</td>
+                    <td className="p-3 text-center font-semibold text-purple-400">{row.prime}</td>
                   </tr>
                 ))}
               </tbody>
@@ -277,10 +300,7 @@ export default function AgentMemoryPage() {
           </div>
           <p className="mt-4 text-center text-xs text-muted-foreground">
             Sources:{" "}
-            <Link
-              href="https://github.com/roli-lpci/zer0dex"
-              className="underline"
-            >
+            <Link href="https://github.com/roli-lpci/zer0dex" className="underline">
               zer0dex
             </Link>
             {" · "}
@@ -308,9 +328,7 @@ export default function AgentMemoryPage() {
               >
                 <uc.icon className="mb-3 h-8 w-8 text-purple-400" />
                 <h3 className="mb-2 font-semibold">{uc.title}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {uc.description}
-                </p>
+                <p className="text-sm text-muted-foreground">{uc.description}</p>
               </motion.div>
             ))}
           </div>
@@ -318,12 +336,10 @@ export default function AgentMemoryPage() {
 
         {/* Architecture */}
         <Section className="pb-16">
-          <h2 className="mb-8 text-center text-3xl font-bold">
-            One engine, not three databases
-          </h2>
+          <h2 className="mb-8 text-center text-3xl font-bold">One engine, not three databases</h2>
           <div className="mx-auto max-w-2xl">
             <pre className="overflow-x-auto rounded-lg border bg-muted/30 p-6 text-xs leading-relaxed">
-{`┌─────────────────────────────────────────────┐
+              {`┌─────────────────────────────────────────────┐
 │              AllSource Prime                 │
 │                                              │
 │  Graph    Vectors    Temporal    Compressed   │
@@ -339,9 +355,9 @@ export default function AgentMemoryPage() {
 └─────────────────────────────────────────────┘`}
             </pre>
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              Other agent memory frameworks glue together a vector DB + graph DB
-              + event store. Prime is one engine where vectors, graph nodes, and
-              edges are <em>all events</em> in the same durable WAL.
+              Other agent memory frameworks glue together a vector DB + graph DB + event store.
+              Prime is one engine where vectors, graph nodes, and edges are <em>all events</em> in
+              the same durable WAL.
             </p>
           </div>
         </Section>
@@ -349,9 +365,7 @@ export default function AgentMemoryPage() {
         {/* CTA */}
         <Section className="pb-24 text-center">
           <h2 className="mb-4 text-3xl font-bold">Start remembering</h2>
-          <p className="mb-8 text-muted-foreground">
-            One command. No cloud account. No API key.
-          </p>
+          <p className="mb-8 text-muted-foreground">One command. No cloud account. No API key.</p>
           <div className="flex items-center justify-center gap-4">
             <div className="rounded-lg border bg-muted/50 px-6 py-3 font-mono text-sm">
               <Terminal className="mr-2 inline h-4 w-4" />
@@ -368,10 +382,7 @@ export default function AgentMemoryPage() {
             >
               Examples
             </Link>
-            <Link
-              href="https://github.com/all-source-os/all-source"
-              className="underline"
-            >
+            <Link href="https://github.com/all-source-os/all-source" className="underline">
               GitHub
             </Link>
           </div>

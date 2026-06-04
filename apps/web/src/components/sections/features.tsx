@@ -40,7 +40,7 @@ const data = [
 export default function Component() {
   return (
     <Section
-      title="Temporal Intelligence"
+      title="Time-travel your data."
       subtitle="Not just storage—complete memory for your applications"
     >
       <Features collapseDelay={5000} linePosition="bottom" data={data} />

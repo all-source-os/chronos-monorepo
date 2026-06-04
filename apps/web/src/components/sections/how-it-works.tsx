@@ -31,7 +31,10 @@ const data = [
 
 export default function Component() {
   return (
-    <Section title="How It Works" subtitle="From events to perfect memory in three steps">
+    <Section
+      title="How It Works"
+      subtitle="From events to an agent that remembers every event, in three steps"
+    >
       <Features data={data} />
     </Section>
   );

@@ -31,7 +31,7 @@ export default function CtaSection() {
   return (
     <Section
       id="cta"
-      title="Give your AI agents perfect memory"
+      title="Give your AI agents an event log that remembers every event"
       subtitle="Immutable event sourcing with time-travel queries, 43 MCP tools, and x402 agent payments. Free tier — no credit card required."
       className="relative overflow-hidden rounded-xl py-16"
     >
@@ -58,7 +58,10 @@ export default function CtaSection() {
             Redirecting to sign up...
           </div>
         ) : (
-          <form onSubmit={handleWaitlist} className="flex w-full max-w-md flex-col gap-3 sm:flex-row">
+          <form
+            onSubmit={handleWaitlist}
+            className="flex w-full max-w-md flex-col gap-3 sm:flex-row"
+          >
             <input
               type="email"
               placeholder="you@example.com"
@@ -88,10 +91,10 @@ export default function CtaSection() {
             </motion.button>
           </form>
         )}
-        {errorMessage && (
-          <p className="mt-2 text-sm text-destructive">{errorMessage}</p>
-        )}
-        <p className="mt-3 text-xs text-muted-foreground">No credit card required. 10K events/month free.</p>
+        {errorMessage && <p className="mt-2 text-sm text-destructive">{errorMessage}</p>}
+        <p className="mt-3 text-xs text-muted-foreground">
+          No credit card required. 10K events/month free.
+        </p>
       </motion.div>
 
       {/* Action links */}
