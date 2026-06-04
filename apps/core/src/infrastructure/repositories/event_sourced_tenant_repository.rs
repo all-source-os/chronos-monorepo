@@ -658,7 +658,11 @@ mod tests {
                 .unwrap();
             // Default is Permissive.
             assert_eq!(
-                repo.find_by_id(&tid).await.unwrap().unwrap().schema_enforcement(),
+                repo.find_by_id(&tid)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .schema_enforcement(),
                 SchemaEnforcement::Permissive
             );
             assert!(
@@ -667,7 +671,11 @@ mod tests {
                     .unwrap()
             );
             assert_eq!(
-                repo.find_by_id(&tid).await.unwrap().unwrap().schema_enforcement(),
+                repo.find_by_id(&tid)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .schema_enforcement(),
                 SchemaEnforcement::Strict
             );
         }
@@ -677,7 +685,11 @@ mod tests {
             let system_store = Arc::new(SystemMetadataStore::new(&system_dir).unwrap());
             let repo = EventSourcedTenantRepository::new(system_store);
             assert_eq!(
-                repo.find_by_id(&tid).await.unwrap().unwrap().schema_enforcement(),
+                repo.find_by_id(&tid)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .schema_enforcement(),
                 SchemaEnforcement::Strict,
                 "schema enforcement mode must survive a restart"
             );

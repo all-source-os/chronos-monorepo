@@ -366,7 +366,8 @@ impl QueryClient {
     /// path-safe — to stay consistent with the Go and TypeScript SDKs.
     pub async fn project_node(&self, node_id: &str) -> Result<PrimeSnapshot, Error> {
         let path = format!("/api/v1/prime/nodes/{node_id}/project");
-        let resp: Envelope<PrimeSnapshot> = self.transport.post(&path, &serde_json::json!({})).await?;
+        let resp: Envelope<PrimeSnapshot> =
+            self.transport.post(&path, &serde_json::json!({})).await?;
         Ok(resp.data)
     }
 
@@ -630,11 +631,17 @@ mod tests {
             assert_eq!(projections.len(), 1);
             assert_eq!(projections[0].entity_type, "contact");
             assert_eq!(
-                projections[0].field_policies.get("name").map(String::as_str),
+                projections[0]
+                    .field_policies
+                    .get("name")
+                    .map(String::as_str),
                 Some("last_write")
             );
             assert_eq!(
-                projections[0].field_policies.get("tags").map(String::as_str),
+                projections[0]
+                    .field_policies
+                    .get("tags")
+                    .map(String::as_str),
                 Some("merge_array")
             );
         }
@@ -680,14 +687,19 @@ mod tests {
             let snapshot = client.project_node("node:contact:1").await.unwrap();
             assert_eq!(snapshot.entity_type, "contact");
             assert_eq!(snapshot.observation_count, 3);
-            assert_eq!(snapshot.fields.get("name").and_then(|v| v.as_str()), Some("Ada"));
+            assert_eq!(
+                snapshot.fields.get("name").and_then(|v| v.as_str()),
+                Some("Ada")
+            );
         }
 
         #[tokio::test]
         async fn node_field_provenance_returns_some() {
             let server = MockServer::start().await;
             Mock::given(method("GET"))
-                .and(path("/api/v1/prime/nodes/node:contact:1/fields/name/provenance"))
+                .and(path(
+                    "/api/v1/prime/nodes/node:contact:1/fields/name/provenance",
+                ))
                 .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                     "data": {
                         "field": "name",
@@ -716,7 +728,9 @@ mod tests {
         async fn node_field_provenance_404_returns_none() {
             let server = MockServer::start().await;
             Mock::given(method("GET"))
-                .and(path("/api/v1/prime/nodes/node:contact:1/fields/missing/provenance"))
+                .and(path(
+                    "/api/v1/prime/nodes/node:contact:1/fields/missing/provenance",
+                ))
                 .respond_with(ResponseTemplate::new(404).set_body_json(json!({
                     "error": "not found"
                 })))

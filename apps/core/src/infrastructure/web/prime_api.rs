@@ -624,12 +624,13 @@ async fn get_full_graph(
     State(state): State<Arc<PrimeState>>,
     Query(q): Query<GraphQuery>,
 ) -> impl IntoResponse {
-    let graph = state.prime.full_graph(
-        q.tenant_id.as_deref(),
-        q.node_type.as_deref(),
-        q.limit,
-    );
-    (StatusCode::OK, Json(serde_json::to_value(&graph).unwrap_or(Value::Null)))
+    let graph = state
+        .prime
+        .full_graph(q.tenant_id.as_deref(), q.node_type.as_deref(), q.limit);
+    (
+        StatusCode::OK,
+        Json(serde_json::to_value(&graph).unwrap_or(Value::Null)),
+    )
 }
 
 async fn get_stats(State(state): State<Arc<PrimeState>>) -> impl IntoResponse {
@@ -800,10 +801,7 @@ mod tests {
     ) -> String {
         let id = state
             .prime
-            .add_node(
-                node_type,
-                json!({ "name": name, "tenant_id": tenant }),
-            )
+            .add_node(node_type, json!({ "name": name, "tenant_id": tenant }))
             .await
             .unwrap();
         EntityId::node(node_type, id.as_str()).to_wire()
@@ -885,8 +883,14 @@ mod tests {
         assert!(ids.contains(&a_org.as_str()));
         assert!(ids.contains(&a_contact.as_str()));
         // Cross-tenant leak guard: B's nodes MUST be absent.
-        assert!(!ids.contains(&b_org.as_str()), "tenant B org leaked to tenant A");
-        assert!(!ids.contains(&b_contact.as_str()), "tenant B contact leaked to tenant A");
+        assert!(
+            !ids.contains(&b_org.as_str()),
+            "tenant B org leaked to tenant A"
+        );
+        assert!(
+            !ids.contains(&b_contact.as_str()),
+            "tenant B contact leaked to tenant A"
+        );
 
         let edges = body["edges"].as_array().unwrap();
         assert_eq!(edges.len(), 1, "tenant A must see only its own edge");
