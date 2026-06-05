@@ -19,12 +19,12 @@ func TestQuotasForTier(t *testing.T) {
 		// Retired tiers resolve to their 011 successor via MapRetiredTier, but a
 		// retired PAID tier keeps its pre-011 events/queries quota (no-downgrade
 		// floor) so existing customers aren't silently halved.
-		{"pro", 1_000_000, 100_000},    // RETIRED → indie successor, floored to pro's old 1M
+		{"pro", 1_000_000, 100_000},       // RETIRED → indie successor, floored to pro's old 1M
 		{"growth", 10_000_000, 1_000_000}, // RETIRED → studio successor, floored to growth's old 10M
 		{"team", 10_000_000, 1_000_000},   // RETIRED → studio successor, floored (legacy alias)
-		{"starter", 500_000, 50_000},   // RETIRED → indie (no floor; meets old entry quota)
-		{"unknown", 100_000, 10_000},   // defaults to free
-		{"", 100_000, 10_000},          // defaults to free
+		{"starter", 500_000, 50_000},      // RETIRED → indie (no floor; meets old entry quota)
+		{"unknown", 100_000, 10_000},      // defaults to free
+		{"", 100_000, 10_000},             // defaults to free
 	}
 
 	for _, tt := range tests {

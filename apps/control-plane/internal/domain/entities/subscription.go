@@ -88,11 +88,11 @@ func (s SubscriptionMetadata) IsGrandfathered(now time.Time) bool {
 
 // MCP scope values, gated by tier per PRICING_EXPOSURE_PLAN.md §2.
 const (
-	MCPScopeNone           = ""                        // Self-Host runs its own; no hosted MCP entitlement
-	MCPScopeRead           = "read"                    // Indie
-	MCPScopeReadWrite      = "read+write"              // Studio
-	MCPScopeReadWriteDedi  = "read+write+dedicated"   // Scale
-	MCPScopeDedicated      = "dedicated"               // Enterprise (negotiated cluster)
+	MCPScopeNone          = ""                     // Self-Host runs its own; no hosted MCP entitlement
+	MCPScopeRead          = "read"                 // Indie
+	MCPScopeReadWrite     = "read+write"           // Studio
+	MCPScopeReadWriteDedi = "read+write+dedicated" // Scale
+	MCPScopeDedicated     = "dedicated"            // Enterprise (negotiated cluster)
 )
 
 // QuotaMetadata holds usage quota data stored in Core tenant metadata.

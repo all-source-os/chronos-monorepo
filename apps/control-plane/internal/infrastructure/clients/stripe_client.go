@@ -86,8 +86,8 @@ type stripeClient struct {
 //     is "monthly" or "annual"; a bare "<tier>" key is treated as the monthly
 //     price. 011 tiers: indie, studio, scale. Example:
 //     {"indie:monthly":"price_a","indie:annual":"price_b",
-//      "studio:monthly":"price_c","studio:annual":"price_d",
-//      "scale:monthly":"price_e","scale:annual":"price_f"}
+//     "studio:monthly":"price_c","studio:annual":"price_d",
+//     "scale:monthly":"price_e","scale:annual":"price_f"}
 //     See docs/runbooks/PRICING_BILLING_CUTOVER.md for how the price IDs are
 //     created (test + live) and wired in.
 func NewStripeClient() (StripeClient, error) {
