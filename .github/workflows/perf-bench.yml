@@ -109,6 +109,12 @@ jobs:
           shared-key: iai-perf-${{ matrix.package }}
           cache-on-failure: true
 
+      # iai-callgrind needs its companion runner binary on PATH; without it the
+      # bench aborts with "Failed to run benchmarks: No such file or directory".
+      # The runner version MUST match the iai-callgrind crate version (0.14).
+      - name: Install iai-callgrind-runner
+        run: cargo install iai-callgrind-runner --version 0.14.2 --locked
+
       - name: Run iai-callgrind and compare to main baseline
         id: bench
         run: |
