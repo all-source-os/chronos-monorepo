@@ -36,6 +36,11 @@ enum Mode {
     Mcp,
     /// HTTP REST API server
     Http,
+    /// Preflight the embedder model, then exit. Run once with network access to
+    /// populate the fastembed cache (or with PRIME_EMBED_MODEL_DIR set to verify
+    /// an offline vendored model). Exits non-zero if the embedder can't load —
+    /// suitable as a CI canary against a fresh, cache-less container.
+    Warm,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -160,6 +165,30 @@ async fn main() -> Result<()> {
         prime.stats().total_edges
     );
 
+    // Warm mode: preflight the embedder and exit. This is the "make works-offline
+    // true at a moment of the user's choosing" path from #200 — and the CI canary
+    // hook: run it in a fresh container with no cache to catch model-fetch
+    // regressions before they ship. Skips sync/recall setup entirely.
+    if matches!(cli.mode, Mode::Warm) {
+        tracing::info!("Warming embedder model (this may download ~25 MB on first run)…");
+        match prime.embed_text("warm") {
+            Ok(v) => {
+                tracing::info!(
+                    "Embedder ready — produced a {}-dim vector. Model is cached/loaded; \
+                     prime_embed and prime_recall will work offline from here.",
+                    v.len()
+                );
+                return Ok(());
+            }
+            Err(e) => {
+                // The error already carries actionable recovery steps (cache dir,
+                // PRIME_EMBED_MODEL_DIR, HF_ENDPOINT, the bring-your-own-vector
+                // escape hatch). Surface it and exit non-zero for CI.
+                anyhow::bail!("embedder warm-up failed:\n{e}");
+            }
+        }
+    }
+
     let recall_config = allsource_core::prime::recall::IndexConfig::default();
     let recall =
         allsource_core::prime::recall::RecallEngine::with_deps(prime.recall_deps(), &recall_config);
@@ -270,6 +299,8 @@ async fn main() -> Result<()> {
             let state = Arc::new(http::AppState { prime, recall });
             http::serve(state, cli.port).await?;
         }
+        // Warm exits earlier, before sync/recall setup.
+        Mode::Warm => unreachable!("warm mode returns before the server match"),
     }
 
     Ok(())

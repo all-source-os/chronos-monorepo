@@ -170,6 +170,49 @@ embedding from a different model — Prime won't re-embed when `vector` is set.
 The first text-embedding call in a process pays the model download; subsequent
 calls take ~1–3 ms.
 
+### Offline embeddings (no network on first use)
+
+The model is auto-downloaded from HuggingFace **on first use**, so a brand-new
+install behind a proxy, on a flight, or in a region where HF is blocked will fail
+the *first* `prime_embed`/`prime_recall` with an actionable error. Three ways to
+make it truly offline:
+
+1. **Warm the cache ahead of time.** Run once where network is available:
+
+   ```bash
+   allsource-prime --data-dir ~/.prime/memory --mode warm
+   ```
+
+   This downloads the model, verifies a real embed, and exits 0 (non-zero if the
+   model can't load — good as a CI canary on a fresh, cache-less container). After
+   this, embeds work offline from the fastembed cache.
+
+2. **Vendor the model and point at it.** Copy the five files from the fastembed
+   cache snapshot dir (`model.onnx`, `tokenizer.json`, `config.json`,
+   `special_tokens_map.json`, `tokenizer_config.json`) somewhere stable and set:
+
+   ```bash
+   export PRIME_EMBED_MODEL_DIR=/path/to/vendored/all-MiniLM-L6-v2
+   ```
+
+   Prime loads straight from disk — **zero network access**, ever.
+
+3. **Bring your own vector.** Skip the in-process embedder entirely: compute a
+   384-dim `all-MiniLM-L6-v2` embedding yourself and pass `vector` to
+   `prime_embed` / `prime_recall`. ~10 lines of `sentence-transformers`:
+
+   ```python
+   from sentence_transformers import SentenceTransformer
+   m = SentenceTransformer("all-MiniLM-L6-v2")
+   vector = m.encode("test facet").tolist()  # 384 floats
+   # prime_embed({ "id": "node:insight:…", "vector": vector })
+   ```
+
+**Cache & proxy knobs:** `FASTEMBED_CACHE_DIR` overrides the cache location
+(default `.fastembed_cache/`). `HF_HOME` and `HF_ENDPOINT` (mirror URL) are
+honored by fastembed for the download path. A stale/partial download is fixed by
+deleting the cache dir and retrying.
+
 ## License
 
 Apache-2.0

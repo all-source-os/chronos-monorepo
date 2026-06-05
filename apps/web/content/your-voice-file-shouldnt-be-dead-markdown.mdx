@@ -137,7 +137,7 @@ It composes with the rest of the family: [caveman](https://github.com/JuliusBrus
 | | static markdown voice file | prime voice (recall) |
 |---|---|---|
 | Simplicity / zero-infra | ✅ one file, nothing to run | ⚠️ runs a local MCP server |
-| Works offline, today | ✅ yes | ✅ yes (local `--data-dir`) |
+| Works offline, today | ✅ yes | ⚠️ after a one-time embedder warm — `allsource-prime --mode warm` (or vendor the model dir via `PRIME_EMBED_MODEL_DIR`); then record/recall fully offline. First embed on a fresh install fetches the model |
 | Stays current | ❌ re-run interview + recompress | ✅ append one facet |
 | Query by relevance | ❌ paste the whole 4k-token blob | ✅ `prime_recall` returns only the relevant slice (top hit 0.757 in the demo) |
 | History / provenance | ❌ none | ✅ `prime_history` time-travels every facet |
@@ -152,6 +152,7 @@ prime wins on durability, queryability, history, portability, and team — not b
 We hold over-claiming as the cardinal sin on an identity product, because the entire point of a voice file is trust. So, plainly:
 
 - **What works today, proven against the real binary (`allsource-prime 0.21.6`, now on crates.io):** recording facets (`prime_add_node` + `prime_embed`), **`prime_recall`** (the relevant-slice recall — the hero feature, demo top hit 0.757), the auto-generated *compressed* voice index (`prime_index` returns the live, populated index — 12 nodes, 5 domains, 77 tokens — so the one-file export and `--auto-inject` work too), `prime_stats`, and `prime_history`. The voice flow runs end to end on these.
+- **The first `prime_embed` on a fresh install needs the network once.** The embedder model (`all-MiniLM-L6-v2`, 384 dims) is fetched from HuggingFace on first use, so the very first embed behind a proxy / firewall / offline will fail until the model is cached. Make it offline-clean by warming once (`allsource-prime --mode warm`) or vendoring the model (`PRIME_EMBED_MODEL_DIR`); or skip the bundled embedder entirely by passing your own 384-dim `vector` to `prime_embed` / `prime_recall`. Tracked in [#200](https://github.com/all-source-os/all-source/issues/200).
 - **`prime_context`'s tiered recall works across all tiers:** L0 is stats-only (no vectors — that's the tier's job, by design, not a gap), L1 carries recent-conversation context, and **L2 now returns full hybrid recall** — the compressed index plus vector hits plus graph nodes (an L2 query returns the populated index + 4 vectors + 3 graph nodes, top node score 0.73). The earlier vector-arm gap is fixed (commit 5083017). There is no remaining `prime_context` or `prime_index` TODO.
 - **The real, honest limit:** recall quality scales with how many facets you've recorded. A voice file with a handful of answers recalls a thinner slice than one with the full ~100-question pass — the index and the ranking are only as rich as what you've put in. Record more facets, recall more of your voice.
 

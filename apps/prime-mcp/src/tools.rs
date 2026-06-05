@@ -225,7 +225,7 @@ pub fn tool_definitions() -> Value {
                 "properties": {
                     "id": { "type": "string", "description": "Entity_id of the node to embed (use the entity_id returned by prime_add_node)" },
                     "text": { "type": "string", "description": "Source text. Stored alongside the vector for display in search results, and — if 'vector' is omitted — embedded server-side via the bundled fastembed model." },
-                    "vector": { "type": "array", "items": { "type": "number" }, "description": "Precomputed embedding vector. Optional when 'text' is supplied — the server will embed for you." },
+                    "vector": { "type": "array", "items": { "type": "number" }, "description": "Precomputed 384-dim embedding vector. Optional when 'text' is supplied. This is also the escape hatch when the in-process embedder is unavailable (no network on first use, restrictive proxy, model-fetch failure): compute the vector yourself with any all-MiniLM-L6-v2 embedder (e.g. ~10 lines of sentence-transformers) and pass it here — semantic recall keeps working without the bundled model." },
                     "metadata": { "type": "object", "description": "Optional: tags, source URL, confidence score" }
                 },
                 "required": ["id"]

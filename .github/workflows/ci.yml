@@ -224,6 +224,25 @@ jobs:
         working-directory: apps/prime-mcp
         run: cargo build --release
 
+      # Fresh-container embedder canary (issue #200): on a runner with NO
+      # model cache, the first prime_embed must succeed end to end — this is
+      # what breaks the "works offline" claim if the HF model-fetch path
+      # regresses (URL/sha/layout change, upstream gone). `--mode warm` does a
+      # real prime_add → embed → exits non-zero on any failure. We point
+      # FASTEMBED_CACHE_DIR at an empty temp dir to guarantee a cold fetch.
+      - name: Embedder warm canary (cold cache)
+        working-directory: apps/prime-mcp
+        run: |
+          set -euo pipefail
+          DATA_DIR="$(mktemp -d)"
+          FASTEMBED_CACHE_DIR="$(mktemp -d)"
+          export FASTEMBED_CACHE_DIR
+          echo "Cold fetch into $FASTEMBED_CACHE_DIR"
+          ./target/release/allsource-prime --data-dir "$DATA_DIR" --mode warm
+          # Second run must reuse the now-populated cache (no second download).
+          DATA_DIR2="$(mktemp -d)"
+          ./target/release/allsource-prime --data-dir "$DATA_DIR2" --mode warm
+
       - name: Build recall-bench
         working-directory: tooling/recall-bench
         run: cargo build
