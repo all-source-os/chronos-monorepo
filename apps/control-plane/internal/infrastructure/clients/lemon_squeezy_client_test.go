@@ -289,29 +289,35 @@ func TestReportUsage_APIError(t *testing.T) {
 
 func TestLookupVariantID(t *testing.T) {
 	client := newLemonSqueezyClient("http://unused", "key", "store", VariantMap{
-		"free": "var_1",
-		"pro":  "var_2",
-		"team": "var_3",
+		"indie:monthly":  "var_im",
+		"indie:annual":   "var_ia",
+		"studio:monthly": "var_sm",
+		"scale":          "var_legacy", // bare key = monthly fallback
 	})
 
 	tests := []struct {
 		tier    string
+		period  string
 		wantID  string
 		wantErr bool
 	}{
-		{"free", "var_1", false},
-		{"pro", "var_2", false},
-		{"team", "var_3", false},
-		{"unknown", "", true},
+		{"indie", "monthly", "var_im", false},
+		{"indie", "annual", "var_ia", false},
+		{"indie", "yearly", "var_ia", false}, // yearly normalizes to annual
+		{"indie", "", "var_im", false},       // empty defaults to monthly
+		{"studio", "annual", "var_sm", false}, // no annual key → falls back to monthly
+		{"scale", "monthly", "var_legacy", false}, // bare key fallback
+		{"scale", "annual", "var_legacy", false},  // bare key fallback for any period
+		{"unknown", "monthly", "", true},
 	}
 
 	for _, tt := range tests {
-		id, err := client.LookupVariantID(tt.tier)
+		id, err := client.LookupVariantID(tt.tier, tt.period)
 		if (err != nil) != tt.wantErr {
-			t.Errorf("LookupVariantID(%q): err=%v, wantErr=%v", tt.tier, err, tt.wantErr)
+			t.Errorf("LookupVariantID(%q,%q): err=%v, wantErr=%v", tt.tier, tt.period, err, tt.wantErr)
 		}
 		if id != tt.wantID {
-			t.Errorf("LookupVariantID(%q): got %q, want %q", tt.tier, id, tt.wantID)
+			t.Errorf("LookupVariantID(%q,%q): got %q, want %q", tt.tier, tt.period, id, tt.wantID)
 		}
 	}
 }
@@ -319,7 +325,7 @@ func TestLookupVariantID(t *testing.T) {
 func TestLookupVariantID_NoMap(t *testing.T) {
 	client := newLemonSqueezyClient("http://unused", "key", "store", nil)
 
-	_, err := client.LookupVariantID("free")
+	_, err := client.LookupVariantID("free", "monthly")
 	if err == nil {
 		t.Fatal("expected error when variant map is nil")
 	}

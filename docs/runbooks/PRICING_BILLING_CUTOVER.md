@@ -84,21 +84,34 @@ allowance between reconciliations:
   (`PaymentProvider` is `"lemonsqueezy" | "stripe"`; `BillingPeriod` recorded).
 - Tests updated to the new contract: `go test ./internal/...` green (391 pass).
 
+> **Provider: LemonSqueezy.** This deployment bills on LemonSqueezy
+> (`payment_provider` defaults to `lemonsqueezy`). The Stripe path exists in code
+> but is secondary — do the LemonSqueezy steps below for the live cutover. Both
+> paths now canonicalize retired tiers (`MapRetiredTier`) and resolve a variant
+> per billing period.
+
 ## What is NOT done — manual / human-gated steps
 
-1. **Stripe products & prices (TEST then LIVE).** Create, in Stripe **test mode** first:
+1. **LemonSqueezy variants (PRIMARY).** In the LemonSqueezy dashboard create a
+   product variant per tier × period:
    - Indie — $19/mo + annual (−20% ⇒ ~$182/yr)
    - Studio — $79/mo + annual (~$758/yr)
    - Scale — $299/mo + annual (~$2,870/yr)
-   Prices are **immutable** — to change an amount, create a NEW price and archive
-   the old; never mutate a live price.
-2. **Wire tier → Stripe price IDs.** The 011 diff adds Stripe client plumbing but
-   **no per-tier price-id table** yet. Add a `tier → {monthly,annual} priceID`
-   map (server config / env, never `NEXT_PUBLIC_`) and resolve it where the
-   checkout session is created; fill the `// 011: map tier -> price id` seam in
-   `apps/web` so `/pricing` CTAs hit the right Stripe price.
+   Then set `LEMON_SQUEEZY_VARIANT_MAP` with **`<tier>:<period>` keys**:
+   ```json
+   {"indie:monthly":"<var>","indie:annual":"<var>",
+    "studio:monthly":"<var>","studio:annual":"<var>",
+    "scale:monthly":"<var>","scale:annual":"<var>"}
+   ```
+   A bare `"<tier>"` key still works as the monthly fallback. The webhook resolves
+   the tier from the variant **name** (`Indie`/`Studio`/`Scale`) via `resolveTier`
+   — keep variant names aligned, or add a `VariantTierMap` entry. Without this,
+   a new paid checkout records the tenant as `free`.
+2. **Stripe (SECONDARY, optional).** If/when Stripe is enabled: create test-mode
+   products/prices and set `STRIPE_PRICE_MAP` with the same `tier:period` keys.
+   Stripe prices are immutable — new price + archive old, never mutate.
 3. **Add the `scale` backend binding.** 010's `config.ts` left `scale.billingTier`
-   null. Once the Scale Stripe price exists, set it.
+   null. Once the Scale variant exists, set it.
 4. **Retired-tier backfill.** Run a one-shot over existing tenants applying
    `MapRetiredTier` so no live subscription points at a removed price — AFTER the
    quota decision above is made.

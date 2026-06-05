@@ -49,6 +49,18 @@ func TestResolveTier(t *testing.T) {
 	t.Run("falls back to hardcoded mapping without variant map", func(t *testing.T) {
 		uc := NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubUC, suspendUC, nil)
 
+		// New 011 paid tiers resolve to themselves (critical: must NOT fall
+		// through to the free default, which would record a paying customer as free).
+		if tier := uc.resolveTier("Indie", 0); tier != "indie" {
+			t.Errorf("expected indie, got %s", tier)
+		}
+		if tier := uc.resolveTier("Studio", 0); tier != "studio" {
+			t.Errorf("expected studio, got %s", tier)
+		}
+		if tier := uc.resolveTier("Scale", 0); tier != "scale" {
+			t.Errorf("expected scale, got %s", tier)
+		}
+		// Retired variant names still resolve for in-flight subscriptions.
 		if tier := uc.resolveTier("Growth", 0); tier != "growth" {
 			t.Errorf("expected growth, got %s", tier)
 		}

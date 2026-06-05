@@ -36,7 +36,7 @@ func (m *mockLSClient) GetSubscription(_ context.Context, _ string) (*clients.Su
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *mockLSClient) LookupVariantID(_ string) (string, error) {
+func (m *mockLSClient) LookupVariantID(_, _ string) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 

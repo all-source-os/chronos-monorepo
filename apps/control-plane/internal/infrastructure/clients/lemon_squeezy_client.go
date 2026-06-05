@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -26,7 +27,9 @@ type LemonSqueezyClient interface {
 	ListSubscriptions(ctx context.Context, storeID string, page int) (*SubscriptionListResponse, error)
 	ListInvoices(ctx context.Context, storeID string, page int, status string) (*InvoiceListResponse, error)
 	RefundInvoice(ctx context.Context, orderID string, amount int) error
-	LookupVariantID(tier string) (string, error)
+	// LookupVariantID resolves a tier + billing period to a LemonSqueezy variant
+	// ID. period is "monthly" or "annual"; empty defaults to monthly.
+	LookupVariantID(tier, period string) (string, error)
 	GetStoreID() string
 }
 
@@ -141,7 +144,13 @@ type lemonSqueezyClient struct {
 // NewLemonSqueezyClient creates a LemonSqueezyClient from environment variables:
 //   - LEMON_SQUEEZY_API_KEY (required)
 //   - LEMON_SQUEEZY_STORE_ID (required)
-//   - LEMON_SQUEEZY_VARIANT_MAP (optional JSON: {"free":"var_1","pro":"var_2","team":"var_3"})
+//   - LEMON_SQUEEZY_VARIANT_MAP (optional JSON). Keys are "<tier>:<period>"
+//     where period is "monthly" or "annual"; a bare "<tier>" key is treated as
+//     the monthly variant. 011 tiers: indie, studio, scale. Example:
+//     {"indie:monthly":"var_a","indie:annual":"var_b",
+//      "studio:monthly":"var_c","studio:annual":"var_d",
+//      "scale:monthly":"var_e","scale:annual":"var_f"}
+//     See docs/runbooks/PRICING_BILLING_CUTOVER.md.
 func NewLemonSqueezyClient() (LemonSqueezyClient, error) {
 	apiKey := os.Getenv("LEMON_SQUEEZY_API_KEY")
 	if apiKey == "" {
@@ -358,16 +367,33 @@ func (c *lemonSqueezyClient) GetSubscription(ctx context.Context, subscriptionID
 	}, nil
 }
 
-// LookupVariantID resolves a plan tier name to a LemonSqueezy variant ID using the configured variant map.
-func (c *lemonSqueezyClient) LookupVariantID(tier string) (string, error) {
+// LookupVariantID resolves a plan tier + billing period to a LemonSqueezy
+// variant ID using the configured variant map. Resolution order (first hit
+// wins): "<tier>:<period>", "<tier>:monthly", "<tier>" (legacy bare key,
+// treated as monthly). This keeps old single-variant-per-tier maps working
+// while supporting the 011 monthly/annual split.
+func (c *lemonSqueezyClient) LookupVariantID(tier, period string) (string, error) {
 	if c.variantMap == nil {
 		return "", fmt.Errorf("variant map not configured")
 	}
-	id, ok := c.variantMap[tier]
-	if !ok {
-		return "", fmt.Errorf("unknown plan tier: %s", tier)
+	t := strings.ToLower(tier)
+	p := strings.ToLower(period)
+	if p == "" || (p != "monthly" && p != "annual" && p != "yearly") {
+		p = "monthly"
 	}
-	return id, nil
+	if p == "yearly" {
+		p = "annual"
+	}
+	if id, ok := c.variantMap[t+":"+p]; ok {
+		return id, nil
+	}
+	if id, ok := c.variantMap[t+":monthly"]; ok {
+		return id, nil
+	}
+	if id, ok := c.variantMap[t]; ok {
+		return id, nil
+	}
+	return "", fmt.Errorf("no LemonSqueezy variant configured for tier %q period %q", tier, period)
 }
 
 // GetStoreID returns the configured LemonSqueezy store ID.

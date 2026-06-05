@@ -40,6 +40,11 @@ type LemonSqueezySubscriptionAttrs struct {
 
 // Tier constants for subscription plans.
 const (
+	// Canonical 011 tiers.
+	tierIndie  = "indie"
+	tierStudio = "studio"
+	tierScale  = "scale"
+	// Retired tiers — kept so legacy variant names / stored metadata resolve.
 	tierGrowth     = "growth"
 	tierTeam       = "team"
 	tierEnterprise = "enterprise"
@@ -293,8 +298,15 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) resolveTier(variantName string, var
 		}
 	}
 
-	// Hardcoded fallback for backwards compatibility
+	// Hardcoded fallback for backwards compatibility. New 011 paid tiers first,
+	// then retired tiers so legacy variant names still resolve.
 	switch variantName {
+	case "Indie", tierIndie:
+		return tierIndie
+	case "Studio", tierStudio:
+		return tierStudio
+	case "Scale", tierScale:
+		return tierScale
 	case "Pro", "pro", "Growth", tierGrowth:
 		return tierGrowth
 	case "Team", tierTeam:

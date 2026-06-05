@@ -127,9 +127,18 @@ func (uc *CreateCheckoutUseCase) executeLemonSqueezy(ctx context.Context, req Ch
 		return nil, fmt.Errorf("lemonsqueezy payment provider is not configured")
 	}
 
-	variantID, err := uc.lsClient.LookupVariantID(req.Tier)
+	// Canonicalize retired tier ids so an old "pro"/"growth" request still maps
+	// to a live 011 variant during cutover, and resolve the right variant for
+	// the requested billing period (monthly vs annual).
+	canonicalTier := entities.MapRetiredTier(req.Tier)
+	variantID, err := uc.lsClient.LookupVariantID(canonicalTier, req.BillingPeriod)
 	if err != nil {
-		return nil, fmt.Errorf("unknown billing tier %q: %w", req.Tier, err)
+		return nil, fmt.Errorf("resolve variant for tier %q period %q: %w", req.Tier, req.BillingPeriod, err)
+	}
+
+	period := req.BillingPeriod
+	if period == "" {
+		period = "monthly"
 	}
 
 	checkoutReq := clients.CreateCheckoutRequest{
@@ -137,7 +146,9 @@ func (uc *CreateCheckoutUseCase) executeLemonSqueezy(ctx context.Context, req Ch
 		Email:     req.Email,
 		Name:      req.Name,
 		CustomData: map[string]string{
-			"tenant_id": req.TenantID,
+			"tenant_id":      req.TenantID,
+			"tier":           canonicalTier,
+			"billing_period": period,
 		},
 		RedirectURL: req.RedirectURL,
 	}
