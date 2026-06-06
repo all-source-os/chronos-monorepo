@@ -132,6 +132,14 @@ pub struct EventStore {
     /// the store so background tasks can read it without re-parsing
     /// the env.
     checkpoint_interval_secs: Option<u64>,
+
+    /// Read-only (replica) mode. Set when a second process attaches to a
+    /// data-dir already owned by a live writer (see Prime's data-dir lock).
+    /// A read-only store replays the WAL + Parquet into memory at boot so it
+    /// can serve reads, but it MUST NOT truncate the WAL (that would unlink
+    /// the inode the owner is still appending to — issue #201) and rejects
+    /// all writes with `AllSourceError::ReadOnly`.
+    read_only: bool,
 }
 
 /// A task queued for async webhook delivery
@@ -273,7 +281,15 @@ impl EventStore {
                 Arc::new(loader)
             },
             checkpoint_interval_secs: config.checkpoint_interval_secs,
+            read_only: config.read_only,
         };
+
+        if config.read_only {
+            tracing::info!(
+                "📖 EventStore opened READ-ONLY (replica): WAL will be replayed for reads but \
+                 not truncated; writes are rejected"
+            );
+        }
 
         // Boot is now O(1) regardless of dataset size (Step 2 of the
         // sustainable data strategy). Pre-Step-2 we scanned every
@@ -355,7 +371,16 @@ impl EventStore {
                         // batch and silently no-ops, the WAL gets
                         // truncated, and the events exist only in
                         // memory (lost on next restart).
-                        if let Some(ref storage) = store.storage {
+                        //
+                        // Skip entirely in read-only (replica) mode: a replica
+                        // does not own the WAL. `wal.truncate()` unlinks the WAL
+                        // file, which would delete the inode the owning writer is
+                        // still appending to and silently lose its in-flight
+                        // writes (issue #201). The replica keeps the recovered
+                        // events in memory for reads and leaves the file alone.
+                        if let Some(ref storage) = store.storage
+                            && !config.read_only
+                        {
                             tracing::info!(
                                 "📸 Checkpointing {} WAL events to Parquet storage...",
                                 wal_new
@@ -413,6 +438,26 @@ impl EventStore {
         store
     }
 
+    /// Whether this store was opened read-only (replica mode).
+    pub fn is_read_only(&self) -> bool {
+        self.read_only
+    }
+
+    /// Return `Err(AllSourceError::ReadOnly)` if the store is a read-only
+    /// replica. Called at the top of every write path so a replica never
+    /// appends to a WAL it does not own.
+    fn ensure_writable(&self) -> Result<()> {
+        if self.read_only {
+            return Err(crate::error::AllSourceError::ReadOnly(
+                "this AllSource instance is a read-only replica — the data directory is owned by \
+                 another running process. Stop the other process, or run a single shared writer \
+                 (e.g. Prime in --mode http) and point clients at it."
+                    .to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Ingest a new event with optional optimistic concurrency check.
     ///
     /// If `expected_version` is `Some(v)`, the write is rejected with
@@ -426,6 +471,9 @@ impl EventStore {
         event: &Event,
         expected_version: Option<u64>,
     ) -> Result<u64> {
+        // Reject writes in read-only (replica) mode before touching the WAL.
+        self.ensure_writable()?;
+
         // Validate event first (before any locking)
         self.validate_event(event)?;
 
@@ -557,6 +605,16 @@ impl EventStore {
         #[cfg(feature = "server")]
         let timer = self.metrics.ingestion_duration_seconds.start_timer();
 
+        // Reject writes in read-only (replica) mode before touching the WAL.
+        if let Err(e) = self.ensure_writable() {
+            #[cfg(feature = "server")]
+            {
+                self.metrics.ingestion_errors_total.inc();
+                timer.observe_duration();
+            }
+            return Err(e);
+        }
+
         // Validate event
         let validation_result = self.validate_event(event);
         if let Err(e) = validation_result {
@@ -685,6 +743,9 @@ impl EventStore {
         if batch.is_empty() {
             return Ok(());
         }
+
+        // Reject writes in read-only (replica) mode before touching the WAL.
+        self.ensure_writable()?;
 
         // Phase 1: Validate all events before acquiring any locks
         for event in &batch {
@@ -1083,6 +1144,9 @@ impl EventStore {
         token_event_type: &str,
         merged_event: Event,
     ) -> Result<bool> {
+        // Reject writes in read-only (replica) mode before touching the WAL.
+        self.ensure_writable()?;
+
         // Phase 1: Read-only check — do we have anything to compact?
         {
             let events = self.events.read();
@@ -2096,6 +2160,11 @@ pub struct EventStoreConfig {
     /// `ALLSOURCE_CHECKPOINT_INTERVAL_SECONDS` (default 60s) via
     /// `from_env_vars`.
     pub checkpoint_interval_secs: Option<u64>,
+
+    /// Open the store read-only (replica mode). See `EventStore::read_only`.
+    /// Defaults to `false` (read-write owner). Set by Prime when it fails to
+    /// acquire the exclusive data-dir lock because another process owns it.
+    pub read_only: bool,
 }
 
 impl EventStoreConfig {

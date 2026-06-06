@@ -5,7 +5,13 @@
 
 #[cfg(feature = "prime-vectors")]
 use std::sync::OnceLock;
-use std::{path::Path, sync::Arc};
+use std::{
+    fs::{File, OpenOptions},
+    path::Path,
+    sync::Arc,
+};
+
+use fs4::fs_std::FileExt;
 
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
@@ -19,6 +25,7 @@ use crate::{
 
 use super::{
     error::{PrimeError, PrimeResult},
+    event_store::EventStore,
     projections::{
         AdjacencyListProjection, Contradiction, ContradictionDetectionProjection,
         CrossDomainProjection, DomainIndexProjection, GraphStatsProjection, NodeStateProjection,
@@ -46,7 +53,10 @@ const PROJ_VECTOR_INDEX: &str = "prime.vector_index";
 /// High-level Prime engine wrapping [`EmbeddedCore`] with graph-aware
 /// merge strategies and projections.
 pub struct Prime {
-    core: EmbeddedCore,
+    /// Event I/O backend, held behind the [`EventStore`] trait so a remote
+    /// implementation can slot in without touching the facade. Backed by an
+    /// [`EmbeddedCore`] today.
+    core: Arc<dyn EventStore>,
     node_state: Arc<NodeStateProjection>,
     node_type_index: Arc<NodeTypeIndexProjection>,
     adjacency: Arc<AdjacencyListProjection>,
@@ -62,6 +72,74 @@ pub struct Prime {
     /// `embed_text` call so graph-only callers don't download the model.
     #[cfg(feature = "prime-vectors")]
     embedder: OnceLock<Arc<super::vectors::TextEmbedder>>,
+    /// Exclusive advisory lock on the data-dir, held for the process lifetime
+    /// when this instance is the writer. `None` for in-memory instances and for
+    /// read-only replicas (another process owns the lock). Dropping it releases
+    /// the lock; the OS also releases it automatically on process exit/crash.
+    _data_dir_lock: Option<DataDirLock>,
+}
+
+/// RAII guard holding an exclusive advisory lock on a Prime data-dir.
+///
+/// While held, no other process can become the writer for the same data-dir,
+/// which prevents the concurrent boot-time `wal.truncate()` that unlinked the
+/// active WAL inode and silently lost the running writer's data (issue #201).
+struct DataDirLock {
+    _file: File,
+}
+
+/// Result of trying to claim write ownership of a data-dir.
+enum DataDirAccess {
+    /// This process owns the data-dir and may write. Hold the lock for life.
+    Writer(DataDirLock),
+    /// Another live process owns the data-dir; open a read-only replica.
+    Replica,
+}
+
+/// Try to acquire the exclusive writer lock for `data_dir`.
+///
+/// Returns [`DataDirAccess::Writer`] (holding the lock) when this process is the
+/// sole owner, or [`DataDirAccess::Replica`] when another live process already
+/// holds it. On platforms/filesystems where advisory locking is unavailable we
+/// log and fall back to `Writer` so a lone process is never bricked — the lock
+/// is a safety improvement, not a hard requirement.
+fn acquire_data_dir_lock(data_dir: &Path) -> Result<DataDirAccess> {
+    std::fs::create_dir_all(data_dir).map_err(|e| {
+        crate::error::AllSourceError::StorageError(format!(
+            "failed to create Prime data dir {}: {e}",
+            data_dir.display()
+        ))
+    })?;
+
+    let lock_path = data_dir.join("prime.lock");
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|e| {
+            crate::error::AllSourceError::StorageError(format!(
+                "failed to open Prime lock file {}: {e}",
+                lock_path.display()
+            ))
+        })?;
+
+    match FileExt::try_lock_exclusive(&file) {
+        Ok(true) => Ok(DataDirAccess::Writer(DataDirLock { _file: file })),
+        Ok(false) => Ok(DataDirAccess::Replica),
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                path = %lock_path.display(),
+                "advisory file locking unavailable for Prime data dir — proceeding as writer \
+                 without a lock (do NOT run a second writer on this dir)"
+            );
+            // Synthesize a Writer without a real lock: better to keep a lone
+            // process fully functional than to brick it on an FS without flock.
+            Ok(DataDirAccess::Writer(DataDirLock { _file: file }))
+        }
+    }
 }
 
 impl Prime {
@@ -145,7 +223,7 @@ impl Prime {
     }
 
     /// Build a `Prime` instance from a configured `EmbeddedCore`.
-    fn from_core(core: EmbeddedCore) -> Self {
+    fn from_core(core: EmbeddedCore, data_dir_lock: Option<DataDirLock>) -> Self {
         let store = core.inner();
 
         // Prime's graph projections are its entire queryable surface; unlike
@@ -173,7 +251,7 @@ impl Prime {
         let vector_index = Self::register_vector_projection(&store);
 
         Self {
-            core,
+            core: Arc::new(core) as Arc<dyn EventStore>,
             node_state,
             node_type_index,
             adjacency,
@@ -187,21 +265,46 @@ impl Prime {
             vector_index,
             #[cfg(feature = "prime-vectors")]
             embedder: OnceLock::new(),
+            _data_dir_lock: data_dir_lock,
         }
     }
 
     /// Open a durable Prime instance at `path`.
+    ///
+    /// Acquires an exclusive advisory lock on the data dir. If another live
+    /// process already owns it, this instance opens as a **read-only replica**:
+    /// it replays the WAL + Parquet so it can serve reads of the shared memory,
+    /// but it never truncates the WAL (which would corrupt the owner's log —
+    /// issue #201) and rejects writes. To share a writable memory across
+    /// projects, run one Prime in `--mode http` (or use `--sync-to`) and point
+    /// clients at it rather than opening the same data dir N times.
     pub async fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let config = Self::config_builder().data_dir(path.as_ref()).build()?;
+        let path = path.as_ref();
+        let (lock, read_only) = match acquire_data_dir_lock(path)? {
+            DataDirAccess::Writer(lock) => (Some(lock), false),
+            DataDirAccess::Replica => {
+                tracing::warn!(
+                    path = %path.display(),
+                    "Prime data dir is owned by another running process — opening READ-ONLY \
+                     replica. This instance serves reads of the shared memory but rejects writes. \
+                     For a writable shared memory, run one Prime in --mode http and connect to it."
+                );
+                (None, true)
+            }
+        };
+        let config = Self::config_builder()
+            .data_dir(path)
+            .read_only(read_only)
+            .build()?;
         let core = EmbeddedCore::open(config).await?;
-        Ok(Self::from_core(core))
+        Ok(Self::from_core(core, lock))
     }
 
     /// Open an in-memory Prime instance (no persistence). Useful for testing.
     pub async fn open_in_memory() -> Result<Self> {
         let config = Self::config_builder().build()?;
         let core = EmbeddedCore::open(config).await?;
-        Ok(Self::from_core(core))
+        Ok(Self::from_core(core, None))
     }
 
     /// Shut down the Prime engine, flushing all pending writes.
@@ -214,9 +317,14 @@ impl Prime {
         self.graph_stats.stats()
     }
 
-    /// Access the underlying [`EmbeddedCore`] for direct event operations.
-    pub fn core(&self) -> &EmbeddedCore {
-        &self.core
+    /// Access the underlying event store for direct event operations.
+    ///
+    /// Returns the backend behind the [`EventStore`] trait — `ingest`,
+    /// `ingest_batch`, `query`, and `shutdown` are available. Callers that
+    /// previously reached for `EmbeddedCore`-specific methods do not exist
+    /// (the facade is the surface for everything else).
+    pub fn core(&self) -> &dyn EventStore {
+        &*self.core
     }
 
     /// Return shared projection dependencies for the Recall engine.
@@ -978,6 +1086,28 @@ impl Prime {
     ) -> PrimeResult<()> {
         let entity_id = super::vectors::vector_entity_id(id);
         let dimensions = vector.len();
+
+        // Dimension guard: every vector in a data-dir must share one dimension
+        // (the embedding model's output size). Switching embedders against a
+        // populated data-dir — e.g. fastembed's 384 dims vs OpenAI's 1536 — would
+        // silently mix incompatible vectors and corrupt similarity search (the
+        // HNSW index computes distances assuming equal length). Reject the
+        // mismatch with an actionable error instead. The index is hydrated from
+        // the event log on open, so `established` reflects persisted vectors too.
+        if let Some(established) = self.vector_index.dimension() {
+            if established != dimensions {
+                return Err(PrimeError::CoreError(anyhow::anyhow!(
+                    "embedding dimension mismatch for `{id}`: this data-dir already holds \
+                     {established}-dim vectors, but got a {dimensions}-dim vector. Mixing \
+                     dimensions corrupts similarity search.\n\
+                     To fix one of:\n\
+                     • Use the same embedder/model that produced the existing {established}-dim \
+                     vectors (check PRIME_EMBED_ENDPOINT / PRIME_EMBED_MODEL / the bundled model).\n\
+                     • Start a fresh --data-dir for the new model.\n\
+                     • Re-embed every node with the new model (clear and rebuild this data-dir).",
+                )));
+            }
+        }
 
         self.core
             .ingest(IngestEvent {

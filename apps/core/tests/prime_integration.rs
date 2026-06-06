@@ -441,6 +441,63 @@ async fn test_persistence_roundtrip() {
     }
 }
 
+// Reproduces issue #201: a second Prime instance opened on a data-dir that a
+// still-running first instance owns must replay the WAL and serve the same data
+// (as a read-only replica) instead of returning an empty graph — and it must
+// NOT truncate the owner's WAL out from under it.
+#[tokio::test]
+async fn test_concurrent_instances_share_data_dir() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // Instance A: the writer. Add data and KEEP IT OPEN (no shutdown), so it
+    // still holds the exclusive data-dir lock when B opens.
+    let prime_a = Prime::open(dir.path()).await.unwrap();
+    prime_a
+        .add_node("person", json!({"name": "Alice"}))
+        .await
+        .unwrap();
+    prime_a
+        .add_node("person", json!({"name": "Bob"}))
+        .await
+        .unwrap();
+    prime_a
+        .add_node("project", json!({"name": "Prime"}))
+        .await
+        .unwrap();
+    assert_eq!(
+        prime_a.stats().total_nodes,
+        3,
+        "writer should see its own writes"
+    );
+
+    // Instance B: opens the SAME data-dir while A is still alive → read-only
+    // replica. It must replay A's WAL and see all 3 nodes (issue #201).
+    let prime_b = Prime::open(dir.path()).await.unwrap();
+    assert_eq!(
+        prime_b.stats().total_nodes,
+        3,
+        "replica must replay the owner's WAL and see 3 nodes (issue #201)"
+    );
+
+    // The replica must reject writes rather than corrupt the owner's WAL.
+    assert!(
+        prime_b.add_node("person", json!({"name": "Carol"})).await.is_err(),
+        "replica must reject writes"
+    );
+
+    // The owner keeps working and its WAL was never truncated by B: a fresh
+    // reader opened after A shuts down still sees all 3 nodes.
+    prime_a.shutdown().await.unwrap();
+    drop(prime_b);
+    let prime_c = Prime::open(dir.path()).await.unwrap();
+    assert_eq!(
+        prime_c.stats().total_nodes,
+        3,
+        "data must survive: no boot orphaned the WAL inode (issue #201)"
+    );
+    prime_c.shutdown().await.unwrap();
+}
+
 // =============================================================================
 // Phase 8: Sync Convergence
 // =============================================================================
@@ -592,6 +649,32 @@ mod vector_tests {
         // Search again — doc-2 should not appear
         let results = prime.vector_search(&v1, 3);
         assert!(results.iter().all(|r| r.id != "doc-2"));
+
+        prime.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_embed_dimension_mismatch_rejected() {
+        let prime = test_prime().await;
+
+        // Establish the data-dir at 384 dims.
+        let v384: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+        prime.embed("doc-1", Some("first"), v384.clone()).await.unwrap();
+
+        // A mismatched dimension (e.g. switching to a 1536-dim model) must be
+        // rejected, not silently stored — mixing dims corrupts HNSW search.
+        let v1536: Vec<f32> = (0..1536).map(|i| i as f32 / 1536.0).collect();
+        let err = prime
+            .embed("doc-2", Some("wrong dims"), v1536)
+            .await
+            .expect_err("mismatched dimension must be rejected");
+        let msg = err.to_string();
+        assert!(msg.contains("dimension mismatch"), "unhelpful error: {msg}");
+        assert!(msg.contains("384") && msg.contains("1536"), "error omits dims: {msg}");
+
+        // The matching dimension still works.
+        let v384b: Vec<f32> = (0..384).map(|i| (i as f32 + 1.0) / 384.0).collect();
+        prime.embed("doc-3", Some("ok"), v384b).await.unwrap();
 
         prime.shutdown().await.unwrap();
     }

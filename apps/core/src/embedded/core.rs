@@ -943,15 +943,20 @@ impl EmbeddedCore {
                     time_threshold_seconds: config.parquet_flush_interval_secs() as i64,
                     ..SnapshotConfig::default()
                 };
-                EventStoreConfig::production(
+                let mut store_config = EventStoreConfig::production(
                     storage_dir,
                     wal_dir,
                     snapshot_config,
                     wal_config,
                     CompactionConfig::default(),
-                )
+                );
+                store_config.read_only = config.read_only();
+                store_config
             }
-            None => EventStoreConfig::default(),
+            None => EventStoreConfig {
+                read_only: config.read_only(),
+                ..EventStoreConfig::default()
+            },
         }
     }
 }

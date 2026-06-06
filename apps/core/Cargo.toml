@@ -80,7 +80,7 @@ prime-remote-embed = ["prime-vectors", "dep:reqwest", "tokio/rt-multi-thread"]
 # Bundle the embedding model in the binary (via the allsource-prime-models crate,
 # fetched at build time) so the embedder works fully offline with no runtime fetch.
 prime-bundled-model = ["prime-vectors", "dep:allsource-prime-models"]
-embedded = []
+embedded = ["dep:fs4"]
 embedded-phase2 = ["embedded"]
 embedded-sync = ["embedded", "dep:reqwest"]
 embedded-replicant = ["embedded"]

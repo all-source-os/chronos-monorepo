@@ -167,6 +167,7 @@ dependencies = [
  "dhat",
  "fastembed",
  "flate2",
+ "fs4",
  "futures",
  "hex",
  "hmac",

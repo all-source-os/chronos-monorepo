@@ -13,6 +13,7 @@ pub struct EmbeddedConfig {
     single_tenant: bool,
     node_id: Option<u32>,
     merge_strategies: Vec<(String, MergeStrategy)>,
+    read_only: bool,
 }
 
 impl EmbeddedConfig {
@@ -57,6 +58,13 @@ impl EmbeddedConfig {
     pub(crate) fn parquet_flush_interval_secs(&self) -> u64 {
         self.parquet_flush_interval_secs
     }
+
+    /// Whether the store is opened read-only (replica mode). A read-only core
+    /// replays the WAL + Parquet for reads but never truncates the WAL and
+    /// rejects writes. See [`ConfigBuilder::read_only`].
+    pub fn read_only(&self) -> bool {
+        self.read_only
+    }
 }
 
 /// Builder for [`EmbeddedConfig`](super::Config).
@@ -68,6 +76,7 @@ pub struct ConfigBuilder {
     single_tenant: bool,
     node_id: Option<u32>,
     merge_strategies: Vec<(String, MergeStrategy)>,
+    read_only: bool,
 }
 
 impl Default for ConfigBuilder {
@@ -80,6 +89,7 @@ impl Default for ConfigBuilder {
             single_tenant: true,
             node_id: None,
             merge_strategies: Vec::new(),
+            read_only: false,
         }
     }
 }
@@ -144,6 +154,18 @@ impl ConfigBuilder {
         self
     }
 
+    /// Open the store read-only (replica mode). Default: `false`.
+    ///
+    /// A read-only core replays the WAL + Parquet into memory at boot so it can
+    /// serve reads, but it never truncates the WAL (which would corrupt the
+    /// owning writer's log — issue #201) and rejects every write with
+    /// `AllSourceError::ReadOnly`. Set this when another process already owns
+    /// the data directory.
+    pub fn read_only(mut self, read_only: bool) -> Self {
+        self.read_only = read_only;
+        self
+    }
+
     /// Build the configuration. Returns `Result` for forward compatibility.
     pub fn build(self) -> crate::error::Result<EmbeddedConfig> {
         Ok(EmbeddedConfig {
@@ -154,6 +176,7 @@ impl ConfigBuilder {
             single_tenant: self.single_tenant,
             node_id: self.node_id,
             merge_strategies: self.merge_strategies,
+            read_only: self.read_only,
         })
     }
 }

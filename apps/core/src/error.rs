@@ -46,6 +46,12 @@ pub enum AllSourceError {
     #[error("Queue full: {0}")]
     QueueFull(String),
 
+    /// The store was opened read-only (e.g. a second process attached to a
+    /// data-dir already owned by a live writer). Writes are rejected so the
+    /// owner's WAL is never corrupted. See `EventStoreConfig::read_only`.
+    #[error("Store is read-only: {0}")]
+    ReadOnly(String),
+
     #[error("Internal error: {0}")]
     InternalError(String),
 
@@ -141,6 +147,7 @@ mod axum_impl {
                     (StatusCode::CONFLICT, self.to_string())
                 }
                 AllSourceError::QueueFull(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
+                AllSourceError::ReadOnly(_) => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
                 AllSourceError::StorageError(_)
                 | AllSourceError::ArrowError(_)
                 | AllSourceError::IndexError(_)
