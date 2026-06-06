@@ -161,6 +161,7 @@ tempfile.workspace = true
 testcontainers = "0.26"
 testcontainers-modules = { version = "0.14", features = ["postgres"] }
 tower = { version = "0.5", features = ["util"] }
+wiremock = "0.6"
 
 [lints]
 workspace = true
