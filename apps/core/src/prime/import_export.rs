@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    embedded::{EmbeddedCore, IngestEvent},
-    prime::types::event_types,
+    embedded::IngestEvent,
+    prime::{event_store::EventStore, types::event_types},
 };
 
 /// Statistics returned from an export operation.
@@ -45,7 +45,7 @@ struct ExportLine {
 ///
 /// Each line is a JSON object: `{"type": "node"|"edge"|"vector", "entity_id": "...", "data": {...}}`
 pub async fn export_json(
-    core: &EmbeddedCore,
+    core: &dyn EventStore,
     mut writer: impl Write,
 ) -> crate::error::Result<ExportStats> {
     use crate::embedded::Query;
@@ -107,7 +107,7 @@ pub async fn export_json(
 /// Import ingests proper `prime.*` events (maintains event sourcing). Idempotent
 /// via `FirstWriteWins` merge strategy on entity IDs.
 pub async fn import_json(
-    core: &EmbeddedCore,
+    core: &dyn EventStore,
     reader: impl BufRead,
 ) -> crate::error::Result<ImportStats> {
     let mut stats = ImportStats::default();

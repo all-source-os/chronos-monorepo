@@ -123,6 +123,16 @@ impl VectorIndexProjection {
         self.vectors.is_empty()
     }
 
+    /// Dimension of the vectors held by this index, if any.
+    ///
+    /// All live vectors in a given data-dir share one dimension (the embedding
+    /// model's output size). Returns `None` when the index is empty. Used to
+    /// reject a mismatched embedder before it corrupts similarity search — an
+    /// HNSW built over mixed-dimension points produces meaningless distances.
+    pub fn dimension(&self) -> Option<usize> {
+        self.vectors.iter().next().map(|e| e.value().vector.len())
+    }
+
     /// Search for the `top_k` nearest neighbors to `query`.
     pub fn search(&self, query: &[f32], top_k: usize) -> Vec<SearchHit> {
         self.ensure_index();
@@ -310,6 +320,16 @@ mod tests {
         }
 
         assert_eq!(proj.len(), 100);
+    }
+
+    #[test]
+    fn test_dimension_reports_stored_vector_size() {
+        let proj = VectorIndexProjection::new("vec_idx");
+        assert_eq!(proj.dimension(), None, "empty index has no dimension");
+
+        proj.process(&make_vector_event("vec:a", &[1.0, 2.0, 3.0, 4.0], Some("x")))
+            .unwrap();
+        assert_eq!(proj.dimension(), Some(4));
     }
 
     #[test]

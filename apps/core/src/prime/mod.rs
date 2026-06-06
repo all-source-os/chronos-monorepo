@@ -21,6 +21,7 @@
 //! ```
 
 pub mod error;
+pub mod event_store;
 pub mod facade;
 pub mod import_export;
 pub mod projections;
@@ -34,6 +35,7 @@ pub mod vectors;
 
 // Re-export commonly used types
 pub use error::{PrimeError, PrimeResult};
+pub use event_store::EventStore;
 pub use facade::{ConversationScope, Prime};
 pub use types::{
     Direction, Edge, EdgeId, EntityId, GraphDiff, HistoryEntry, Node, NodeId, PrimeStats, SubGraph,
