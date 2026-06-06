@@ -28,6 +28,8 @@ pub mod http_core;
 pub mod import_export;
 #[cfg(feature = "prime-recall")]
 pub mod projection_bundle;
+#[cfg(feature = "prime-recall")]
+pub mod tenant_cache;
 pub mod projections;
 #[cfg(feature = "prime-recall")]
 pub mod recall;
