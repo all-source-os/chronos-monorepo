@@ -26,6 +26,8 @@ pub mod facade;
 #[cfg(feature = "prime-recall")]
 pub mod http_core;
 pub mod import_export;
+#[cfg(feature = "prime-recall")]
+pub mod projection_bundle;
 pub mod projections;
 #[cfg(feature = "prime-recall")]
 pub mod recall;
