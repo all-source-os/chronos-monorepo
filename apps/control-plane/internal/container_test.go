@@ -137,3 +137,31 @@ func TestSplitTwo(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildVariantTierMap_StripsPeriodSuffix(t *testing.T) {
+	t.Setenv("LEMON_SQUEEZY_VARIANT_MAP", `{"studio:monthly":"111","studio:annual":"222","indie":"333"}`)
+	m := buildVariantTierMap()
+
+	// A variant ID must resolve to the BARE tier, not "studio:monthly".
+	if m["111"] != "studio" {
+		t.Errorf(`m["111"] = %q, want "studio"`, m["111"])
+	}
+	if m["222"] != "studio" {
+		t.Errorf(`m["222"] = %q, want "studio"`, m["222"])
+	}
+	// Legacy bare-key entries pass through unchanged.
+	if m["333"] != "indie" {
+		t.Errorf(`m["333"] = %q, want "indie"`, m["333"])
+	}
+	// Self-map for variant-name matching.
+	if m["studio"] != "studio" || m["indie"] != "indie" {
+		t.Errorf("self-map missing: %v", m)
+	}
+}
+
+func TestBuildVariantTierMap_Empty(t *testing.T) {
+	t.Setenv("LEMON_SQUEEZY_VARIANT_MAP", "")
+	if buildVariantTierMap() != nil {
+		t.Error("empty env should yield nil")
+	}
+}

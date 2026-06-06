@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 
 	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/application/usecases/billing"
@@ -16,8 +17,13 @@ import (
 
 // buildVariantTierMap reads LEMON_SQUEEZY_VARIANT_MAP and builds a reverse map
 // (variantID → tier name) for webhook tier resolution.
-// Input format: {"growth":"12345","enterprise":"67890"}
-// Output: {"12345":"growth","67890":"enterprise","Growth":"growth","Enterprise":"enterprise"}
+//
+// The forward map is keyed "<tier>:<period>" (011) — e.g.
+// {"studio:monthly":"12345","studio:annual":"67890"}. The webhook only cares
+// about the tier, so the ":<period>" suffix is stripped when reversing so a
+// variant ID resolves to the bare tier ("studio"), not "studio:monthly" (which
+// is not a valid tier and would fall through to the free quota). Bare "<tier>"
+// keys (legacy) pass through unchanged.
 func buildVariantTierMap() usecases.VariantTierMap {
 	raw := os.Getenv("LEMON_SQUEEZY_VARIANT_MAP")
 	if raw == "" {
@@ -30,8 +36,12 @@ func buildVariantTierMap() usecases.VariantTierMap {
 	}
 
 	reverseMap := make(usecases.VariantTierMap)
-	for tier, variantID := range forwardMap {
-		reverseMap[variantID] = tier // variant ID → tier
+	for key, variantID := range forwardMap {
+		tier := key
+		if i := strings.IndexByte(key, ':'); i >= 0 {
+			tier = key[:i] // "studio:monthly" → "studio"
+		}
+		reverseMap[variantID] = tier // variant ID → bare tier
 		reverseMap[tier] = tier      // tier name → tier (self-map for name matching)
 	}
 	return reverseMap
