@@ -327,8 +327,12 @@ mod tests {
         let proj = VectorIndexProjection::new("vec_idx");
         assert_eq!(proj.dimension(), None, "empty index has no dimension");
 
-        proj.process(&make_vector_event("vec:a", &[1.0, 2.0, 3.0, 4.0], Some("x")))
-            .unwrap();
+        proj.process(&make_vector_event(
+            "vec:a",
+            &[1.0, 2.0, 3.0, 4.0],
+            Some("x"),
+        ))
+        .unwrap();
         assert_eq!(proj.dimension(), Some(4));
     }
 

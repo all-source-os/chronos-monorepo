@@ -481,7 +481,10 @@ async fn test_concurrent_instances_share_data_dir() {
 
     // The replica must reject writes rather than corrupt the owner's WAL.
     assert!(
-        prime_b.add_node("person", json!({"name": "Carol"})).await.is_err(),
+        prime_b
+            .add_node("person", json!({"name": "Carol"}))
+            .await
+            .is_err(),
         "replica must reject writes"
     );
 
@@ -659,7 +662,10 @@ mod vector_tests {
 
         // Establish the data-dir at 384 dims.
         let v384: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
-        prime.embed("doc-1", Some("first"), v384.clone()).await.unwrap();
+        prime
+            .embed("doc-1", Some("first"), v384.clone())
+            .await
+            .unwrap();
 
         // A mismatched dimension (e.g. switching to a 1536-dim model) must be
         // rejected, not silently stored — mixing dims corrupts HNSW search.
@@ -670,7 +676,10 @@ mod vector_tests {
             .expect_err("mismatched dimension must be rejected");
         let msg = err.to_string();
         assert!(msg.contains("dimension mismatch"), "unhelpful error: {msg}");
-        assert!(msg.contains("384") && msg.contains("1536"), "error omits dims: {msg}");
+        assert!(
+            msg.contains("384") && msg.contains("1536"),
+            "error omits dims: {msg}"
+        );
 
         // The matching dimension still works.
         let v384b: Vec<f32> = (0..384).map(|i| (i as f32 + 1.0) / 384.0).collect();
@@ -702,7 +711,10 @@ mod vector_tests {
             .await
             .unwrap();
 
-        let entity_id = node_entity_id("paper", node_id.as_str());
+        // `remember` already returns the full wire entity_id (node:<type>:<uuid>).
+        // Re-wrapping it with node_entity_id would double-prefix it (node:paper:node:paper:…)
+        // and every lookup below would miss.
+        let entity_id = node_id.clone();
 
         // Verify node exists
         let node = prime.get_node(&entity_id).unwrap();
