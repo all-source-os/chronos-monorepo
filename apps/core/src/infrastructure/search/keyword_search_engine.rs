@@ -435,9 +435,16 @@ impl KeywordSearchEngine {
             .parse_query(&query_str)
             .map_err(|e| AllSourceError::InvalidInput(format!("Invalid query: {e}")))?;
 
-        // Execute search with BM25 scoring
+        // Execute search with BM25 scoring.
+        // tantivy 0.26 made `TopDocs` a builder: it no longer implements
+        // `Collector` directly. `.order_by_score()` yields the BM25-ranked
+        // collector with `Fruit = Vec<(Score, DocAddress)>` — the same shape the
+        // result loop below destructures as `(score, doc_address)`.
         let top_docs = searcher
-            .search(&parsed_query, &TopDocs::with_limit(query.limit))
+            .search(
+                &parsed_query,
+                &TopDocs::with_limit(query.limit).order_by_score(),
+            )
             .map_err(|e| AllSourceError::InternalError(format!("Search failed: {e}")))?;
 
         // Collect results
