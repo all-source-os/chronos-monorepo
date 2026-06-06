@@ -213,6 +213,55 @@ make it truly offline:
 honored by fastembed for the download path. A stale/partial download is fixed by
 deleting the cache dir and retrying.
 
+### Bundled model — offline with zero setup (`prime-bundled-model`)
+
+Build with the model baked into the binary, so the embedder works fully offline
+at runtime with no warm step, no `PRIME_EMBED_MODEL_DIR`, no first-use fetch:
+
+```bash
+cargo build --release --features prime-bundled-model
+# offline build: vendor the 5 files once and skip the build-time HF download
+ALLSOURCE_PRIME_MODELS_SRC=/path/to/vendored cargo build --release --features prime-bundled-model
+```
+
+The weights (~22 MB) are fetched once at **build** time by the
+[`allsource-prime-models`](../../crates/allsource-prime-models) crate and
+`include_bytes!`'d. Runtime never touches the network for the model.
+
+### Remote / pluggable embedder (`prime-remote-embed`)
+
+Route text→vector to an external embeddings endpoint instead of the in-process
+model — useful to share one embedder fleet-wide, or to sidestep the HF fetch
+entirely by pointing at a local Ollama.
+
+```bash
+cargo build --release --features prime-remote-embed
+```
+
+| Env | Meaning |
+|-----|---------|
+| `PRIME_EMBED_ENDPOINT` | Embeddings URL. When set, the remote backend is used. |
+| `PRIME_EMBED_PROTOCOL` | `openai` (default) or `ollama`. |
+| `PRIME_EMBED_MODEL` | Model name sent in the request (default `all-minilm`). |
+| `PRIME_EMBED_API_KEY` | Optional bearer token. |
+
+```bash
+# Local Ollama — no HuggingFace, no proxy headaches:
+export PRIME_EMBED_ENDPOINT=http://127.0.0.1:11434/api/embeddings
+export PRIME_EMBED_PROTOCOL=ollama
+export PRIME_EMBED_MODEL=all-minilm
+
+# OpenAI-compatible:
+export PRIME_EMBED_ENDPOINT=https://api.openai.com/v1/embeddings
+export PRIME_EMBED_API_KEY=sk-…
+export PRIME_EMBED_MODEL=text-embedding-3-small
+```
+
+The HTTP client honors `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY`.
+The endpoint is probed once at startup (fail-fast with an actionable error). Note
+that the embedding **dimension must stay consistent for a given `--data-dir`** —
+don't switch between a 384-dim model and a 1536-dim one against existing vectors.
+
 ## License
 
 Apache-2.0

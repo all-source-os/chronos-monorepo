@@ -12,6 +12,10 @@ exclude = [
     "apps/prime-mcp",
     "apps/registry",
     "crates/better-auth-allsource",
+    # Excluded so a plain `cargo build`/CI run never triggers its build-time
+    # model download. Only pulled when a consumer enables the optional
+    # `prime-bundled-model` feature on allsource-core.
+    "crates/allsource-prime-models",
     "tooling/allsource-inspect",
     "tooling/allsource-mcp",
     "tooling/recall-bench",
@@ -62,6 +66,8 @@ fastembed = { version = "5" }
 
 # Compression
 flate2 = "1.0"
+# Cross-platform advisory file locks (single-writer data-dir guard)
+fs4 = "0.13"
 futures = "0.3"
 http = "1.4"
 instant-distance = { version = "0.6" }

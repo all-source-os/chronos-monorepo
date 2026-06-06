@@ -1,8 +1,27 @@
 # Pluggable embedder for Prime
 
-**Status:** Proposed
+**Status:** Implemented (v1) behind the `prime-remote-embed` feature
 **Issue:** [#200](https://github.com/all-source-os/all-source/issues/200) (suggestions #4 and #6)
 **Scope:** `apps/core/src/prime/vectors/embedder.rs`, `apps/prime-mcp`
+
+## What shipped
+
+The remote backend (OpenAI- / Ollama-compatible) is implemented behind the
+`prime-remote-embed` cargo feature, selected by `PRIME_EMBED_ENDPOINT`. The
+sync-in-async blocker (below) was resolved with the `block_in_place` + `block_on`
+approach; proxy support (#6) comes via reqwest honoring `*_PROXY`. The companion
+`crates/allsource-prime-models` + `prime-bundled-model` feature bakes the model
+into the binary for zero-runtime-fetch offline.
+
+**Still open:** the dimension-mismatch guard (record embedder identity as a
+`prime.embedder.*` event and refuse a mismatched backend on a populated
+`--data-dir`) is documented but not yet enforced — today a switch is caught only
+at store time by the vector repo's dimension check. That hardening is the
+remaining follow-up.
+
+---
+
+## Original design (for reference)
 
 ## Why
 

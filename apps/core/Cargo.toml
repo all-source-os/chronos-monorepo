@@ -73,6 +73,13 @@ prime = ["embedded"]
 prime-vectors = ["prime", "vector-search"]
 prime-full = ["prime", "prime-vectors"]
 prime-recall = ["prime", "dep:reqwest"]
+# Remote/pluggable embedder: route text→vector to an OpenAI- or Ollama-compatible
+# HTTP endpoint (PRIME_EMBED_ENDPOINT) instead of the in-process fastembed model.
+# Honors *_PROXY env vars via reqwest. See docs/proposals/PLUGGABLE_EMBEDDER_DESIGN.md.
+prime-remote-embed = ["prime-vectors", "dep:reqwest", "tokio/rt-multi-thread"]
+# Bundle the embedding model in the binary (via the allsource-prime-models crate,
+# fetched at build time) so the embedder works fully offline with no runtime fetch.
+prime-bundled-model = ["prime-vectors", "dep:allsource-prime-models"]
 embedded = []
 embedded-phase2 = ["embedded"]
 embedded-sync = ["embedded", "dep:reqwest"]
@@ -88,6 +95,8 @@ dhat-heap = ["dep:dhat"]
 
 [dependencies]
 aes-gcm = { workspace = true, optional = true }
+# Vendored embedding model, baked in at build time (prime-bundled-model feature).
+allsource-prime-models = { version = "0.1", path = "../../crates/allsource-prime-models", optional = true }
 anyhow.workspace = true
 argon2 = { workspace = true, optional = true }
 # Note: arrow/parquet versions must be compatible with datafusion
@@ -108,6 +117,7 @@ dhat = { version = "0.3", optional = true }
 # Vector search dependencies (optional)
 fastembed = { workspace = true, optional = true }
 flate2.workspace = true
+fs4 = { workspace = true, optional = true }
 futures.workspace = true
 hex = "0.4"
 hmac = "0.12"

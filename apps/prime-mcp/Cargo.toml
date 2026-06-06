@@ -22,6 +22,12 @@ profiling = ["dep:pprof"]
 # Heap profiling; replaces the global allocator when active.
 # Mutually exclusive with the default jemallocator swap.
 dhat-heap = ["dep:dhat"]
+# Remote/pluggable embedder: PRIME_EMBED_ENDPOINT routes text→vector to an
+# OpenAI/Ollama-compatible HTTP endpoint. `cargo build --features prime-remote-embed`.
+prime-remote-embed = ["allsource-core/prime-remote-embed"]
+# Bundle the embedding model in the binary (fully offline at runtime, no fetch).
+# Needs network at build time, or set ALLSOURCE_PRIME_MODELS_SRC=<dir> to vendor.
+prime-bundled-model = ["allsource-core/prime-bundled-model"]
 
 [dependencies]
 allsource-core = { version = "0.21.6", path = "../../apps/core", default-features = false, features = ["prime-recall", "prime-vectors"] }

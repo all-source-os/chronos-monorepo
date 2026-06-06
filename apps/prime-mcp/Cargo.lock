@@ -84,6 +84,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 name = "allsource-core"
 version = "0.21.6"
 dependencies = [
+ "allsource-prime-models",
  "anyhow",
  "arrow",
  "async-trait",
@@ -144,6 +145,13 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "allsource-prime-models"
+version = "0.1.0"
+dependencies = [
+ "ureq 2.12.1",
 ]
 
 [[package]]
@@ -1142,9 +1150,9 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "6.1.0"
+version = "6.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
+checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",

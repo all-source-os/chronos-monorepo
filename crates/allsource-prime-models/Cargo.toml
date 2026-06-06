@@ -1,0 +1,19 @@
+[package]
+name = "allsource-prime-models"
+version = "0.1.0"
+edition = "2021"
+description = "Vendored all-MiniLM-L6-v2 ONNX weights for AllSource Prime — fetched once at build time, embedded in the binary so Prime's embedder works fully offline at runtime."
+license = "Apache-2.0"
+repository = "https://github.com/all-source-os/all-source"
+readme = "README.md"
+# The weights are pulled into OUT_DIR by build.rs and include_bytes!'d, so no
+# large blobs live in the package. Keep the published source tiny.
+exclude = ["*.onnx", "models/"]
+
+[lib]
+path = "src/lib.rs"
+
+[build-dependencies]
+# Synchronous HTTP for the one-time build-time fetch. ureq 2.x is already in the
+# wider dependency tree (via fastembed → hf-hub), so this adds no new major.
+ureq = "2"
