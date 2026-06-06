@@ -139,6 +139,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCreated(tenantID 
 			CustomerID:      fmt.Sprintf("%d", attrs.CustomerID),
 			Status:          attrs.Status,
 			Tier:            tier,
+			BillingPeriod:   customDataField(event, "billing_period"),
 			PaymentProvider: "lemonsqueezy",
 		},
 		// Quotas will be auto-applied by UpdateSubscriptionMetadataUseCase based on tier
@@ -158,6 +159,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionUpdated(tenantID 
 			CustomerID:      fmt.Sprintf("%d", attrs.CustomerID),
 			Status:          attrs.Status,
 			Tier:            tier,
+			BillingPeriod:   customDataField(event, "billing_period"),
 			PaymentProvider: "lemonsqueezy",
 		},
 	}
@@ -174,6 +176,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCanceled(ctx cont
 			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
 			Status:          "canceled",
 			Tier:            uc.resolveTier(event.Data.Attributes.VariantName, event.Data.Attributes.VariantID),
+			BillingPeriod:   customDataField(event, "billing_period"),
 			PaymentProvider: "lemonsqueezy",
 		},
 	}
@@ -197,6 +200,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionExpired(ctx conte
 			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
 			Status:          "expired",
 			Tier:            uc.resolveTier(event.Data.Attributes.VariantName, event.Data.Attributes.VariantID),
+			BillingPeriod:   customDataField(event, "billing_period"),
 			PaymentProvider: "lemonsqueezy",
 		},
 	}
@@ -220,6 +224,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handlePaymentFailed(tenantID string
 			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
 			Status:          "past_due",
 			Tier:            uc.resolveTier(event.Data.Attributes.VariantName, event.Data.Attributes.VariantID),
+			BillingPeriod:   customDataField(event, "billing_period"),
 			PaymentProvider: "lemonsqueezy",
 		},
 	}
@@ -263,8 +268,10 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) logAudit(eventType, action, tenantI
 	_ = uc.auditRepo.Log(auditEvent) //nolint:errcheck
 }
 
-// extractTenantIDFromWebhook pulls the tenant_id from the webhook's meta.custom_data.
-func extractTenantIDFromWebhook(event LemonSqueezyWebhookEvent) string {
+// customDataField pulls a string field from the webhook's meta.custom_data.
+// LemonSqueezy echoes the checkout's custom_data (tenant_id, tier,
+// billing_period) on subscription webhooks.
+func customDataField(event LemonSqueezyWebhookEvent, key string) string {
 	meta := event.Meta
 	if meta == nil {
 		return ""
@@ -275,13 +282,18 @@ func extractTenantIDFromWebhook(event LemonSqueezyWebhookEvent) string {
 	}
 	switch cd := customData.(type) {
 	case map[string]interface{}:
-		if tid, ok := cd["tenant_id"].(string); ok {
-			return tid
+		if v, ok := cd[key].(string); ok {
+			return v
 		}
 	case map[string]string:
-		return cd["tenant_id"]
+		return cd[key]
 	}
 	return ""
+}
+
+// extractTenantIDFromWebhook pulls the tenant_id from the webhook's meta.custom_data.
+func extractTenantIDFromWebhook(event LemonSqueezyWebhookEvent) string {
+	return customDataField(event, "tenant_id")
 }
 
 // resolveTier maps a LemonSqueezy variant name or ID to a tier using the variant map.

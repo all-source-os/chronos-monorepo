@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/allsource/control-plane/internal/application/dto"
+	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 )
@@ -132,6 +133,60 @@ func TestExtractTenantIDFromWebhook(t *testing.T) {
 			t.Errorf("expected empty, got %s", id)
 		}
 	})
+}
+
+func TestWebhookPropagatesBillingPeriodAndTier(t *testing.T) {
+	tenantRepo := persistence.NewMemoryTenantRepository()
+	auditRepo := persistence.NewMemoryAuditRepository()
+	createUC := NewCreateTenantUseCase(tenantRepo, auditRepo)
+	updateSubUC := NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
+	suspendUC := NewSuspendTenantUseCase(tenantRepo, auditRepo)
+	uc := NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubUC, suspendUC, nil)
+
+	if _, err := createUC.Execute(dto.CreateTenantRequest{ID: "t-bp", Name: "T"}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	// A new Studio subscription with an annual billing period; both must land in
+	// stored subscription metadata (tier no longer falls through to free, and
+	// billing_period is carried from checkout custom_data).
+	event := LemonSqueezyWebhookEvent{
+		EventName: "subscription_created",
+		Data: LemonSqueezyEventData{
+			ID:   "sub_bp",
+			Type: "subscriptions",
+			Attributes: LemonSqueezySubscriptionAttrs{
+				CustomerID:  7,
+				VariantName: "Studio",
+				Status:      "active",
+			},
+		},
+		Meta: map[string]interface{}{
+			"custom_data": map[string]interface{}{
+				"tenant_id":      "t-bp",
+				"tier":           "studio",
+				"billing_period": "annual",
+			},
+		},
+	}
+	if err := uc.Execute(context.Background(), event); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	tenant, err := tenantRepo.FindByID("t-bp")
+	if err != nil {
+		t.Fatalf("find tenant: %v", err)
+	}
+	sub, ok := tenant.Metadata["subscription"].(*entities.SubscriptionMetadata)
+	if !ok {
+		t.Fatalf("subscription metadata type: got %T", tenant.Metadata["subscription"])
+	}
+	if sub.Tier != "studio" {
+		t.Errorf("tier: want studio, got %q", sub.Tier)
+	}
+	if sub.BillingPeriod != "annual" {
+		t.Errorf("billing_period: want annual, got %q", sub.BillingPeriod)
+	}
 }
 
 func TestWebhookWritesBillingEventToCore(t *testing.T) {
