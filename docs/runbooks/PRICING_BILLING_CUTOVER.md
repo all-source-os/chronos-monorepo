@@ -90,35 +90,44 @@ allowance between reconciliations:
 > paths now canonicalize retired tiers (`MapRetiredTier`) and resolve a variant
 > per billing period.
 
-## What is NOT done — manual / human-gated steps
+## DONE — LemonSqueezy provisioning (2026-06-06, allsource-control-plane, TEST mode)
 
-1. **LemonSqueezy variants (PRIMARY).** In the LemonSqueezy dashboard create a
-   product variant per tier × period:
-   - Indie — $19/mo + annual (−20% ⇒ ~$182/yr)
-   - Studio — $79/mo + annual (~$758/yr)
-   - Scale — $299/mo + annual (~$2,870/yr)
-   Then set `LEMON_SQUEEZY_VARIANT_MAP` with **`<tier>:<period>` keys**:
-   ```json
-   {"indie:monthly":"<var>","indie:annual":"<var>",
-    "studio:monthly":"<var>","studio:annual":"<var>",
-    "scale:monthly":"<var>","scale:annual":"<var>"}
-   ```
-   A bare `"<tier>"` key still works as the monthly fallback. The webhook resolves
-   the tier from the variant **name** (`Indie`/`Studio`/`Scale`) via `resolveTier`
-   — keep variant names aligned, or add a `VariantTierMap` entry. Without this,
-   a new paid checkout records the tenant as `free`.
-2. **Stripe (SECONDARY, optional).** If/when Stripe is enabled: create test-mode
-   products/prices and set `STRIPE_PRICE_MAP` with the same `tier:period` keys.
-   Stripe prices are immutable — new price + archive old, never mutate.
-3. **Add the `scale` backend binding.** 010's `config.ts` left `scale.billingTier`
-   null. Once the Scale variant exists, set it.
-4. **Retired-tier backfill.** Run a one-shot over existing tenants applying
-   `MapRetiredTier` so no live subscription points at a removed price — AFTER the
-   quota decision above is made.
-5. **Grandfather the free cohort** (§6): set `GrandfatherUntil = cutover + 90d` on
+- [x] **Variants created** in store `282851` (All Source) — Indie/Studio/Scale ×
+      monthly/annual. Published variant IDs:
+      `indie:monthly 1755406`, `indie:annual 1755405`,
+      `studio:monthly 1755391`, `studio:annual 1755367`,
+      `scale:monthly 1755412`, `scale:annual 1755411`.
+      (Each product also has a `Default` variant in `pending` status — unused cruft.)
+- [x] **Fly secrets set + deployed** on `allsource-control-plane`:
+      `LEMON_SQUEEZY_STORE_ID`, `LEMON_SQUEEZY_VARIANT_MAP` (`<tier>:<period>` keys),
+      `LEMON_SQUEEZY_API_KEY` (test), `LEMON_SQUEEZY_WEBHOOK_SECRET`.
+- [x] **Webhook registered** (id `108007`) →
+      `POST https://allsource-control-plane.fly.dev/api/v1/webhooks/lemonsqueezy`,
+      events: subscription_created/updated/cancelled/expired/payment_failed.
+- [x] **Checkout proven** — LS API checkout for variant `1755406` returned a live
+      URL accepting our `custom_data` (tenant_id/tier/billing_period).
+
+## Still TODO — manual / human-gated steps
+
+1. **End-to-end purchase verification** — complete a real test checkout
+   (`4242 4242 4242 4242`) via `/pricing`; confirm webhook fires, signature
+   verifies, tenant metadata gets the right tier + `billing_period`.
+2. **Set up the `sales@all-source.xyz` inbox.** The `/pricing` Enterprise CTA (010)
+   points at `mailto:sales@…`; there is currently no inbox behind it, so Enterprise
+   leads are dropped. Provision the mailbox / alias before promoting the new pricing.
+3. **Swap TEST → LIVE LemonSqueezy.** Prod currently runs the TEST API key + test
+   variants (intentional, to verify in prod). Before real launch: create live
+   variants, set live `LEMON_SQUEEZY_API_KEY` + live `LEMON_SQUEEZY_VARIANT_MAP` +
+   a live webhook, and **rotate the test API key** (it was shared in chat).
+4. **Add the `scale` backend binding.** 010's `config.ts` left `scale.billingTier`
+   null. Bind it to the canonical `scale` tier.
+5. **Retired-tier backfill.** One-shot over existing tenants applying
+   `MapRetiredTier` so no live subscription points at a removed variant.
+6. **Grandfather the free cohort** (§6): set `GrandfatherUntil = cutover + 90d` on
    current free/hosted tenants; send the $9-Indie launch-discount email (ops).
-6. **Promote test → live** Stripe products only after a human verifies test-mode
-   checkout end-to-end.
+7. **Stripe (SECONDARY, optional).** If ever enabled: create products/prices and set
+   `STRIPE_PRICE_MAP` with the same `tier:period` keys. Stripe prices are immutable
+   — new price + archive old, never mutate.
 
 ## Verification (test mode)
 
