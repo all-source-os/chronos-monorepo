@@ -91,13 +91,11 @@ function HeroCTA() {
           whileTap={{ scale: 0.98 }}
           className="group relative"
         >
-          {/* Glow effect */}
-          <div className="absolute -inset-1 rounded-lg bg-gradient-to-r from-primary via-purple-500 to-primary opacity-0 blur-lg transition-opacity duration-500 group-hover:opacity-70" />
           <Link
             href="/pricing"
             className={cn(
               buttonVariants({ variant: "default" }),
-              "relative flex w-full gap-2 px-8 text-background transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/25 sm:w-auto"
+              "relative flex w-full gap-2 px-8 text-background sm:w-auto"
             )}
           >
             <Icons.logo className="h-5 w-5" />

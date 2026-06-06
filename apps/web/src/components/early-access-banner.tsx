@@ -1,17 +1,33 @@
 "use client";
 
 import { X } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "allsource-ea-dismissed";
 
+// Marketing-only banner. It lives in the root layout, so without this guard it
+// also renders on the auth screens (/login, /signup) and the dashboard, where a
+// "see pricing" promo is out of place.
+const HIDDEN_PREFIXES = [
+  "/login",
+  "/signup",
+  "/dashboard",
+  "/onboarding",
+  "/verify-email",
+  "/reset-password",
+  "/forgot-password",
+];
+
 export function EarlyAccessBanner() {
+  const pathname = usePathname();
   const [dismissed, setDismissed] = useState(true); // start hidden to avoid flash
 
   useEffect(() => {
     setDismissed(localStorage.getItem(STORAGE_KEY) === "1");
   }, []);
 
+  if (pathname && HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
   if (dismissed) return null;
 
   const handleDismiss = () => {
