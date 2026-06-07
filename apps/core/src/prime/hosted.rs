@@ -45,6 +45,11 @@ pub struct HostedPrime {
     base_url: String,
     api_key: Option<String>,
     cache: TenantProjectionCache,
+    /// Lazily-initialized in-process text embedder, shared across all tenants
+    /// (the model is stateless — only the per-tenant vectors are isolated).
+    /// Mirrors the embedded `Prime::embedder` OnceLock (facade.rs).
+    #[cfg(feature = "prime-vectors")]
+    embedder: std::sync::OnceLock<Arc<crate::prime::vectors::TextEmbedder>>,
 }
 
 impl HostedPrime {
@@ -63,6 +68,8 @@ impl HostedPrime {
             base_url,
             api_key,
             cache,
+            #[cfg(feature = "prime-vectors")]
+            embedder: std::sync::OnceLock::new(),
         }
     }
 
@@ -302,6 +309,165 @@ impl HostedPrime {
             .await
     }
 
+    // ── Vectors & Recall ─────────────────────────────────────────────────
+
+    /// Store a vector embedding for a graph node: ingest a `prime.vector.stored`
+    /// event (tenant-stamped) and apply it to the tenant's warm bundle so recall
+    /// reflects it without a re-query.
+    ///
+    /// `node_entity_id` is the graph entity id (e.g. `node:contact:abc`). The
+    /// vector is stored under `vec:{node_entity_id}` so [`recall`](Self::recall)
+    /// can strip the `vec:` prefix and hydrate the matched node from `node_state`.
+    /// Mirrors the embedded `Prime::embed_with_metadata` event shape exactly: the
+    /// vector lives in event metadata under `embedding`; text/dimensions/metadata
+    /// in the payload.
+    #[cfg(feature = "prime-vectors")]
+    pub async fn embed(
+        &self,
+        tenant: &str,
+        node_entity_id: &str,
+        vector: Vec<f32>,
+        metadata: Option<serde_json::Value>,
+    ) -> Result<()> {
+        use crate::prime::vectors::{event_types as vec_events, vector_entity_id};
+
+        let entity_id = vector_entity_id(node_entity_id);
+        let dimensions = vector.len();
+
+        // Dimension guard: a store holds one dimension. Reject a mismatch before
+        // it corrupts the HNSW index (mirrors facade's embed_with_metadata).
+        let graph = self.cache.get_or_hydrate(tenant).await?;
+        if let Some(established) = graph.vector_index.dimension()
+            && established != dimensions
+        {
+            return Err(crate::error::AllSourceError::ValidationError(format!(
+                "embedding dimension mismatch for `{node_entity_id}`: this tenant already \
+                 holds {established}-dim vectors, but got a {dimensions}-dim vector. \
+                 Mixing dimensions corrupts similarity search."
+            )));
+        }
+
+        let payload = json!({
+            "text": serde_json::Value::Null,
+            "dimensions": dimensions,
+            "metadata": metadata,
+        });
+
+        self.core_for(tenant)
+            .ingest(IngestEvent {
+                entity_id: &entity_id,
+                event_type: vec_events::VECTOR_STORED,
+                payload: payload.clone(),
+                metadata: Some(json!({ "embedding": vector })),
+                tenant_id: Some(tenant),
+            })
+            .await?;
+
+        // Fold into the warm bundle. The vector index reads the embedding from
+        // event metadata, so the synthesized view must carry it there too.
+        self.cache.apply(
+            tenant,
+            &self.synth_vector_view(tenant, &entity_id, payload, &vector),
+        );
+
+        Ok(())
+    }
+
+    /// Lazily-initialized in-process text embedder (mirrors facade `embedder()`).
+    /// First call downloads the model — never exercise this in tests.
+    #[cfg(feature = "prime-vectors")]
+    fn embedder(&self) -> Result<&Arc<crate::prime::vectors::TextEmbedder>> {
+        if let Some(e) = self.embedder.get() {
+            return Ok(e);
+        }
+        let new = Arc::new(
+            crate::prime::vectors::TextEmbedder::new()
+                .map_err(|e| crate::error::AllSourceError::InternalError(e.to_string()))?,
+        );
+        let _ = self.embedder.set(new);
+        Ok(self
+            .embedder
+            .get()
+            .expect("embedder was just set or already initialized"))
+    }
+
+    /// Embed `text` with the in-process model, then store the resulting vector
+    /// via [`embed`](Self::embed). Convenience for callers that only have text.
+    /// First use downloads the embedding model.
+    #[cfg(feature = "prime-vectors")]
+    pub async fn embed_text(
+        &self,
+        tenant: &str,
+        node_entity_id: &str,
+        text: &str,
+    ) -> Result<()> {
+        let vector = self
+            .embedder()?
+            .embed(text)
+            .map_err(|e| crate::error::AllSourceError::InternalError(e.to_string()))?;
+        self.embed(tenant, node_entity_id, vector, None).await
+    }
+
+    /// Semantic recall over the tenant's warm bundle: run a vector similarity
+    /// search and hydrate the matched graph nodes from `node_state`.
+    ///
+    /// Returns `(Node, similarity)` pairs ordered by descending similarity,
+    /// `similarity = 1.0 - cosine_distance` (matching facade's `vector_search`).
+    /// Implemented as direct `vector_index.search` + node hydration rather than
+    /// `RecallEngine::with_deps`: the embedded `Prime::recall` itself does not use
+    /// the engine — it composes `vector_search` + `get_node` + graph expansion
+    /// against its own projections — so the engine path would not mirror facade,
+    /// while this path replicates facade's vector→node hydration exactly.
+    #[cfg(feature = "prime-recall")]
+    #[cfg(feature = "prime-vectors")]
+    // Signature (owned `Vec<f32>` query) is fixed by the bead spec to mirror the
+    // facade's recall entry point; the index search borrows it.
+    #[allow(clippy::needless_pass_by_value)]
+    pub async fn recall(
+        &self,
+        tenant: &str,
+        query_vector: Vec<f32>,
+        top_k: usize,
+    ) -> Result<Vec<(Node, f64)>> {
+        let g = self.cache.get_or_hydrate(tenant).await?;
+
+        let hits = g.vector_index.search(&query_vector, top_k);
+        let mut out = Vec::with_capacity(hits.len());
+        for hit in hits {
+            // Vector entity_id is `vec:{graph_entity_id}` — strip the prefix to
+            // recover the node's entity id (mirrors facade recall).
+            let graph_id = hit.entity_id.strip_prefix("vec:").unwrap_or(&hit.entity_id);
+            if let Some(node) = g.node_state.get_node(graph_id).filter(|n| !n.deleted) {
+                let similarity = 1.0 - f64::from(hit.distance);
+                out.push((node, similarity));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Synthesize a local [`EventView`] for a vector-stored event, carrying the
+    /// embedding in metadata so the warm bundle's `VectorIndexProjection` folds
+    /// it (it reads the vector from `metadata.embedding`, not the payload).
+    #[cfg(feature = "prime-vectors")]
+    fn synth_vector_view(
+        &self,
+        tenant: &str,
+        entity_id: &str,
+        payload: serde_json::Value,
+        vector: &[f32],
+    ) -> EventView {
+        EventView {
+            id: uuid::Uuid::new_v4(),
+            event_type: crate::prime::vectors::event_types::VECTOR_STORED.to_string(),
+            entity_id: entity_id.to_string(),
+            tenant_id: tenant.to_string(),
+            payload,
+            metadata: Some(json!({ "embedding": vector })),
+            timestamp: chrono::Utc::now(),
+            version: 0,
+        }
+    }
+
     /// Synthesize a local [`EventView`] for cache application. The remote Core
     /// assigns the authoritative id/version/timestamp; the projections only key
     /// on entity_id/event_type/payload, so a local stand-in is sufficient until
@@ -500,6 +666,79 @@ mod tests {
         // though Core's query is mocked empty.
         let node = hosted.get_node("tenant-a", &entity_id).await.unwrap();
         assert!(node.is_none(), "node should be gone after delete_node");
+    }
+
+    #[cfg(feature = "prime-vectors")]
+    #[tokio::test]
+    async fn embed_then_recall_returns_the_embedded_node() {
+        let server = MockServer::start().await;
+        mount_empty_core(&server).await;
+
+        let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // A real graph node so recall can hydrate it from node_state.
+        let id = hosted
+            .add_node("tenant-a", "contact", serde_json::json!({"name": "Alice"}))
+            .await
+            .unwrap();
+        let entity_id = node_entity_id("contact", &id.0);
+
+        // Explicit 4-dim vector — never call TextEmbedder in tests.
+        hosted
+            .embed("tenant-a", &entity_id, vec![1.0, 0.0, 0.0, 0.0], None)
+            .await
+            .unwrap();
+
+        // A near-identical query vector should return Alice from the warm bundle
+        // (Core's query is mocked empty — proving the vector folded into the cache).
+        let results = hosted
+            .recall("tenant-a", vec![1.0, 0.0, 0.0, 0.0], 5)
+            .await
+            .unwrap();
+        assert_eq!(results.len(), 1, "the embedded node should be recalled");
+        assert_eq!(results[0].0.properties["name"], "Alice");
+        assert!(
+            results[0].1 > 0.99,
+            "identical vectors should score ~1.0, got {}",
+            results[0].1
+        );
+    }
+
+    #[cfg(feature = "prime-vectors")]
+    #[tokio::test]
+    async fn recall_is_isolated_per_tenant() {
+        let server = MockServer::start().await;
+        mount_empty_core(&server).await;
+
+        let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+
+        // tenant-a embeds a node…
+        let a_id = hosted
+            .add_node("tenant-a", "contact", serde_json::json!({"name": "Alice"}))
+            .await
+            .unwrap();
+        let a_eid = node_entity_id("contact", &a_id.0);
+        hosted
+            .embed("tenant-a", &a_eid, vec![1.0, 0.0, 0.0, 0.0], None)
+            .await
+            .unwrap();
+
+        // …and tenant-b recalls with the same vector but has no embeddings.
+        let b_results = hosted
+            .recall("tenant-b", vec![1.0, 0.0, 0.0, 0.0], 5)
+            .await
+            .unwrap();
+        assert!(
+            b_results.is_empty(),
+            "tenant-b must not see tenant-a's embedded vector"
+        );
+
+        // tenant-a still sees its own.
+        let a_results = hosted
+            .recall("tenant-a", vec![1.0, 0.0, 0.0, 0.0], 5)
+            .await
+            .unwrap();
+        assert_eq!(a_results.len(), 1);
+        assert_eq!(a_results[0].0.properties["name"], "Alice");
     }
 
     #[tokio::test]

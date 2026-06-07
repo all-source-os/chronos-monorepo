@@ -30,6 +30,9 @@ use crate::{
     prime::schema::SchemaProjection,
 };
 
+#[cfg(feature = "prime-vectors")]
+use crate::prime::vectors::VectorIndexProjection;
+
 // Projection identities. They mirror the embedded path's names for parity, but
 // since these projections are never registered with a store the names are only
 // cosmetic (used in logs / snapshots).
@@ -40,6 +43,8 @@ const PROJ_REVERSE_INDEX: &str = "prime.reverse_index";
 const PROJ_GRAPH_STATS: &str = "prime.graph_stats";
 const PROJ_SCHEMA: &str = "prime.schema";
 const PROJ_CONTRADICTION: &str = "prime.contradiction";
+#[cfg(feature = "prime-vectors")]
+const PROJ_VECTOR_INDEX: &str = "prime.vector_index";
 
 /// A Prime graph-projection set materialized from an event list.
 ///
@@ -57,6 +62,12 @@ pub struct GraphProjections {
     pub contradiction: Arc<ContradictionDetectionProjection>,
     pub cross_domain: Arc<CrossDomainProjection>,
     pub domain_index: Arc<DomainIndexProjection>,
+    /// HNSW vector index over the tenant's stored embeddings. Folds
+    /// `prime.vector.stored` / `prime.vector.deleted` events so the warm bundle
+    /// can serve semantic recall without re-embedding. Mirrors the embedded
+    /// `Prime::vector_index` (registered via `register_vector_projection`).
+    #[cfg(feature = "prime-vectors")]
+    pub vector_index: Arc<VectorIndexProjection>,
 }
 
 impl GraphProjections {
@@ -72,6 +83,8 @@ impl GraphProjections {
             contradiction: Arc::new(ContradictionDetectionProjection::new(PROJ_CONTRADICTION)),
             cross_domain: Arc::new(CrossDomainProjection::new()),
             domain_index: Arc::new(DomainIndexProjection::new()),
+            #[cfg(feature = "prime-vectors")]
+            vector_index: Arc::new(VectorIndexProjection::new(PROJ_VECTOR_INDEX)),
         }
     }
 
@@ -107,14 +120,22 @@ impl GraphProjections {
             self.domain_index.as_ref(),
         ];
         for proj in projections {
-            if let Err(e) = proj.process(event) {
-                tracing::warn!(
-                    projection = proj.name(),
-                    event_type = event.event_type_str(),
-                    error = %e,
-                    "prime projection failed to process event; skipping"
-                );
-            }
+            Self::process_one(proj, event);
+        }
+        // The vector index is folded separately: it's feature-gated, so adding it
+        // to the fixed-size array above would change the array length per-feature.
+        #[cfg(feature = "prime-vectors")]
+        Self::process_one(self.vector_index.as_ref(), event);
+    }
+
+    fn process_one(proj: &dyn Projection, event: &Event) {
+        if let Err(e) = proj.process(event) {
+            tracing::warn!(
+                projection = proj.name(),
+                event_type = event.event_type_str(),
+                error = %e,
+                "prime projection failed to process event; skipping"
+            );
         }
     }
 }
