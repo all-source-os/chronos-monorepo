@@ -145,9 +145,10 @@ type Container struct {
 	AgentPaymentHistoryUC *usecases.GetAgentPaymentHistoryUseCase
 
 	// Use Cases — Webhooks
-	ProcessLSWebhookUC     *usecases.ProcessLemonSqueezyWebhookUseCase
-	ProcessStripeWebhookUC *usecases.ProcessStripeWebhookUseCase
-	UpdateSubscriptionUC   *usecases.UpdateSubscriptionMetadataUseCase
+	ProcessLSWebhookUC      *usecases.ProcessLemonSqueezyWebhookUseCase
+	ProcessStripeWebhookUC  *usecases.ProcessStripeWebhookUseCase
+	UpdateSubscriptionUC    *usecases.UpdateSubscriptionMetadataUseCase
+	MigrateEarlyAdoptersUC  *usecases.MigrateEarlyAdoptersUseCase
 
 	// Scheduler
 	Scheduler *usecases.OperationScheduler
@@ -339,6 +340,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 
 	// Initialize use cases — Webhooks
 	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
+	migrateEarlyAdoptersUC := usecases.NewMigrateEarlyAdoptersUseCase(tenantRepo, updateSubscriptionUC)
 	// Build reverse variant map (tier→variantID becomes variantName→tier) for webhook tier resolution
 	var variantTierMap usecases.VariantTierMap
 	if cfg.LSClient != nil {
@@ -513,6 +515,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		ProcessLSWebhookUC:         processLSWebhookUC,
 		ProcessStripeWebhookUC:     processStripeWebhookUC,
 		UpdateSubscriptionUC:       updateSubscriptionUC,
+		MigrateEarlyAdoptersUC:     migrateEarlyAdoptersUC,
 	}
 }
 

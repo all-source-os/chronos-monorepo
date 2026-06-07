@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -230,6 +231,11 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		CDPClient:    cdpClient,
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
+
+	// One-shot early-adopter migration, gated by env so it only runs when asked.
+	// Idempotent (skips tenants already on a paid tier), so the env can be left
+	// set or removed afterwards. See docs/proposals/PRICING_PLAN_DETAILS.md.
+	runEarlyAdopterMigration(container)
 
 	// Initialize tracing
 	otelEndpoint := os.Getenv("OTEL_ENDPOINT")
@@ -962,4 +968,47 @@ func main() {
 	cp.Shutdown()
 
 	log.Println("Control Plane stopped")
+}
+
+// runEarlyAdopterMigration runs the one-shot early-adopter migration when
+// RUN_EARLY_ADOPTER_MIGRATION is set. Spec is "<tier>:<days>" (e.g.
+// "studio:365"), or "1"/"true" for the studio:365 default. The tenant comped to
+// Enterprise is identified by EARLY_ADOPTER_OWNER_TENANT_ID (optional).
+func runEarlyAdopterMigration(container *internal.Container) {
+	spec := os.Getenv("RUN_EARLY_ADOPTER_MIGRATION")
+	if spec == "" {
+		return
+	}
+	if container.MigrateEarlyAdoptersUC == nil {
+		log.Printf("EarlyAdopterMigration: requested but use case unavailable")
+		return
+	}
+
+	tier, days := "studio", 365
+	if spec != "1" && !strings.EqualFold(spec, "true") {
+		parts := strings.SplitN(spec, ":", 2)
+		if parts[0] != "" {
+			tier = strings.ToLower(parts[0])
+		}
+		if len(parts) == 2 {
+			if d, err := strconv.Atoi(parts[1]); err == nil && d > 0 {
+				days = d
+			}
+		}
+	}
+	ownerID := os.Getenv("EARLY_ADOPTER_OWNER_TENANT_ID")
+
+	log.Printf("EarlyAdopterMigration: starting (tier=%s days=%d owner=%q)", tier, days, ownerID)
+	results := container.MigrateEarlyAdoptersUC.Execute(tier, days, ownerID, time.Now())
+	migrated, skipped := 0, 0
+	for _, r := range results {
+		if r.Skipped {
+			skipped++
+		} else {
+			migrated++
+		}
+		log.Printf("EarlyAdopterMigration: tenant=%s name=%q %q->%q voucher_until=%s skipped=%v %s",
+			r.TenantID, r.Name, r.FromTier, r.ToTier, r.VoucherUntil, r.Skipped, r.Reason)
+	}
+	log.Printf("EarlyAdopterMigration: done — %d migrated, %d skipped, %d total", migrated, skipped, len(results))
 }
