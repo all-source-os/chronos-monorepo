@@ -303,7 +303,27 @@ async fn main() -> Result<()> {
             // tenant-stamped requests (X-Tenant-Id) through it instead of the
             // embedded single-store Prime. Absent → /mcp serves the embedded
             // store as before (local dev / single-tenant binary).
-            let hosted = match std::env::var("CORE_URL").ok().filter(|s| !s.is_empty()) {
+            // SECURITY: the hosted path trusts the gateway-stamped `X-Tenant-Id`
+            // header, which is only safe if the `/mcp` endpoint actually
+            // authenticates the caller. `mcp_authorized` enforces `PRIME_API_KEY`
+            // — but is OPEN when that key is unset. So refuse to enable hosted,
+            // tenant-scoped serving unless `PRIME_API_KEY` is configured;
+            // otherwise any caller could spoof `X-Tenant-Id` and read another
+            // tenant's memory. Without a key we fall back to the embedded,
+            // single-store path (local dev / single-tenant binary).
+            let api_key_set = std::env::var("PRIME_API_KEY")
+                .ok()
+                .is_some_and(|s| !s.is_empty());
+            let core_url_set = std::env::var("CORE_URL").ok().filter(|s| !s.is_empty());
+            if core_url_set.is_some() && !api_key_set {
+                tracing::error!(
+                    "CORE_URL is set but PRIME_API_KEY is not — hosted tenant-scoped Prime is \
+                     DISABLED. The /mcp endpoint would be unauthenticated, letting any caller \
+                     spoof X-Tenant-Id and read another tenant's memory. Set PRIME_API_KEY to \
+                     enable hosted mode."
+                );
+            }
+            let hosted = match core_url_set.filter(|_| api_key_set) {
                 Some(core_url) => {
                     let cap = std::env::var("PRIME_TENANT_CACHE_CAP")
                         .ok()

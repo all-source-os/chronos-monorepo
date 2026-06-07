@@ -111,10 +111,13 @@ fn mcp_authorized(headers: &HeaderMap) -> bool {
 /// — `HeaderMap` lookups are already case-insensitive). Returns `None` when the
 /// header is absent or empty.
 ///
-/// TRUST MODEL (this slice): the Control-Plane → prime hop is internal, so we
-/// trust the tenant id the gateway stamps in this header. A shared-secret gate
-/// — reusing the existing `PRIME_API_KEY` bearer via [`mcp_authorized`] so only
-/// the gateway can set the tenant — is the follow-up hardening, not done here.
+/// TRUST MODEL: hosted, tenant-scoped serving is only enabled at startup when
+/// `PRIME_API_KEY` is configured (see `main.rs`), so every `/mcp` request that
+/// reaches the hosted path has already passed [`mcp_authorized`]'s bearer check.
+/// That means only the gateway (which holds the key) can set `X-Tenant-Id` — a
+/// caller without the key gets 401 before this header is read, so the tenant id
+/// is trustworthy. If `PRIME_API_KEY` is unset, hosted mode is refused and this
+/// header is never consulted (the embedded single-store path serves instead).
 fn tenant_from_headers(headers: &HeaderMap) -> Option<String> {
     headers
         .get("x-tenant-id")
