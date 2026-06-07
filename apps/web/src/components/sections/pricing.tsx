@@ -7,14 +7,19 @@ import Link from "next/link";
 import { useState } from "react";
 import { FaStar } from "react-icons/fa";
 import { siteConfig } from "@/lib/config";
+import { type Catalog, indexByTier } from "@/lib/pricing-catalog";
 
 // Cards shown in the top row (everything except Enterprise, which renders as a
 // full-width strip below the cards per PRICING_EXPOSURE_PLAN.md §3).
 const cardTiers = siteConfig.pricing.filter((p) => !p.isEnterprise);
 const enterpriseTier = siteConfig.pricing.find((p) => p.isEnterprise);
 
-export default function PricingSection() {
+// `catalog` carries live LemonSqueezy prices (source of truth). When present,
+// its prices win over the static config prices; config is only a fallback for
+// when the catalog is unreachable.
+export default function PricingSection({ catalog }: { catalog?: Catalog | null }) {
   const [isMonthly, setIsMonthly] = useState(true);
+  const prices = indexByTier(catalog ?? null);
 
   return (
     <Section
@@ -54,7 +59,12 @@ export default function PricingSection() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cardTiers.map((plan, index) => {
-          const displayPrice = isMonthly ? plan.price : plan.yearlyPrice;
+          // LemonSqueezy price (source of truth) with config fallback.
+          const cat = prices[plan.tier];
+          const monthlyStr = cat?.monthly?.formatted ?? plan.price;
+          const yearlyStr = cat?.annual?.per_month ?? plan.yearlyPrice;
+          const annualTotal = cat?.annual?.formatted;
+          const displayPrice = isMonthly ? monthlyStr : yearlyStr;
           const isNumericPrice = displayPrice.startsWith("$");
 
           return (
@@ -103,7 +113,9 @@ export default function PricingSection() {
                     : isNumericPrice
                       ? isMonthly
                         ? "billed monthly"
-                        : "billed yearly"
+                        : annualTotal
+                          ? `billed annually (${annualTotal}/yr)`
+                          : "billed yearly"
                       : ""}
                 </p>
 

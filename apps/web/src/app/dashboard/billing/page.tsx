@@ -12,12 +12,13 @@ import {
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { Calendar, Check, CreditCard, ExternalLink, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PlanCards } from "@/components/billing/plan-cards";
 import { UsageChart } from "@/components/billing/usage-chart";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { apiClient } from "@/lib/api/client";
 import { siteConfig } from "@/lib/config";
+import { type Catalog, indexByTier } from "@/lib/pricing-catalog";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 function getPlanConfig(tier: string) {
@@ -30,6 +31,14 @@ export default function BillingPage() {
   const { stats } = useDashboardStats();
   const [isYearly, setIsYearly] = useState(false);
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
+  // Live LemonSqueezy prices (source of truth) fetched via the catalog proxy.
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  useEffect(() => {
+    fetch("/api/billing/catalog")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setCatalog)
+      .catch(() => {});
+  }, []);
 
   const currentTier = tenant?.subscription_tier || "free";
   const planConfig = getPlanConfig(currentTier);
@@ -40,8 +49,11 @@ export default function BillingPage() {
   const trialEndsAt = tenant?.trial_ends_at;
   const subscriptionEndsAt = tenant?.subscription_ends_at;
 
+  const currentCat = indexByTier(catalog)[planConfig.tier];
   const displayPrice =
-    tenant?.billing_period === "annual" ? planConfig.yearlyPrice : planConfig.price;
+    tenant?.billing_period === "annual"
+      ? (currentCat?.annual?.per_month ?? planConfig.yearlyPrice)
+      : (currentCat?.monthly?.formatted ?? planConfig.price);
 
   const handleManageSubscription = async () => {
     setIsLoadingPortal(true);
@@ -252,7 +264,12 @@ export default function BillingPage() {
             </div>
           </div>
 
-          <PlanCards currentPlan={currentTier} isYearly={isYearly} onUpgrade={handleUpgrade} />
+          <PlanCards
+            currentPlan={currentTier}
+            isYearly={isYearly}
+            catalog={catalog}
+            onUpgrade={handleUpgrade}
+          />
         </div>
       </BlurFade>
 

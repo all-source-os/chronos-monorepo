@@ -13,8 +13,17 @@ import QuantIntelligence from "@/components/sections/quant-intelligence";
 import SocialProof from "@/components/sections/social-proof";
 import Solution from "@/components/sections/solution";
 import StatStrip from "@/components/sections/stat-strip";
+import { indiePrice as defaultIndiePrice } from "@/lib/config";
+import { fetchCatalog, indexByTier } from "@/lib/pricing-catalog";
 
-export default function Home() {
+// Revalidate live LemonSqueezy prices hourly (ISR).
+export const revalidate = 3600;
+
+export default async function Home() {
+  // Live LemonSqueezy prices (source of truth) for the hero CTA + pricing cards.
+  const catalog = await fetchCatalog();
+  const indiePrice = indexByTier(catalog).indie?.monthly?.formatted ?? defaultIndiePrice;
+
   return (
     <main className="relative overflow-hidden">
       {/* Ripple background effect */}
@@ -28,7 +37,7 @@ export default function Home() {
       </div>
 
       <Header />
-      <Hero />
+      <Hero indiePrice={indiePrice} />
       {/* Stats demoted below the fold — final values painted, never "0K" flash */}
       <StatStrip />
       {/* Logos section hidden - needs real partner logos */}
@@ -41,7 +50,7 @@ export default function Home() {
       <Features />
       <SocialProof />
       <QuantIntelligence />
-      <Pricing />
+      <Pricing catalog={catalog} />
       <FAQ />
       <Blog />
       <CTA />

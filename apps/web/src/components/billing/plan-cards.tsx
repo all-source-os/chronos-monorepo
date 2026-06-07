@@ -4,6 +4,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui"
 import { cn } from "@allsource/ui/utils";
 import { ArrowDown, Check, Sparkles } from "lucide-react";
 import { siteConfig } from "@/lib/config";
+import { type Catalog, indexByTier } from "@/lib/pricing-catalog";
 
 // Ranked by the backend `subscription_tier` value (billingTier), not the public
 // marketing id. `scale` has no backend tier yet (011 owns it) so it ranks above growth.
@@ -18,14 +19,22 @@ const TIER_RANK: Record<string, number> = {
 interface PlanCardsProps {
   currentPlan?: string;
   isYearly?: boolean;
+  catalog?: Catalog | null;
   onUpgrade?: (planName: string, billingPeriod: "monthly" | "annual") => void;
 }
 
-export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }: PlanCardsProps) {
+export function PlanCards({
+  currentPlan = "free",
+  isYearly = false,
+  catalog,
+  onUpgrade,
+}: PlanCardsProps) {
   // Dashboard only offers checkout for tiers with a backend billing tier.
   // Self-Host has no checkout; surface it on /pricing instead.
   const plans = siteConfig.pricing.filter((p) => !p.isSelfHost);
   const currentRank = TIER_RANK[currentPlan] ?? 0;
+  // Live LemonSqueezy prices (source of truth) keyed by public tier id.
+  const prices = indexByTier(catalog ?? null);
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -37,7 +46,11 @@ export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }:
         const isAbove = planRank > currentRank;
         const isBelow = planRank < currentRank;
         const isPopular = plan.isPopular;
-        const displayPrice = isYearly ? plan.yearlyPrice : plan.price;
+        const cat = prices[plan.tier];
+        const displayPrice = isYearly
+          ? (cat?.annual?.per_month ?? plan.yearlyPrice)
+          : (cat?.monthly?.formatted ?? plan.price);
+        const annualTotal = cat?.annual?.formatted;
 
         return (
           <Card
@@ -76,7 +89,9 @@ export function PlanCards({ currentPlan = "free", isYearly = false, onUpgrade }:
               </div>
               {isYearly && plan.price !== "$0" && plan.price !== "Custom" && (
                 <p className="text-xs text-muted-foreground">
-                  billed annually ({plan.yearlyPrice}/mo &times; 12)
+                  {annualTotal
+                    ? `billed annually (${annualTotal}/yr)`
+                    : `billed annually (${plan.yearlyPrice}/mo × 12)`}
                 </p>
               )}
               <p className="text-sm text-muted-foreground">{plan.description}</p>

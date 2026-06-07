@@ -4,7 +4,7 @@ import { buttonVariants, cn, Icons } from "@allsource/ui";
 import { motion } from "motion/react";
 import Link from "next/link";
 import HeroDemo from "@/components/sections/hero-demo";
-import { indiePrice, siteConfig } from "@/lib/config";
+import { indiePrice as defaultIndiePrice, siteConfig } from "@/lib/config";
 
 // Animated gradient text component for magic effect
 function AnimatedGradientText({ children }: { children: React.ReactNode }) {
@@ -77,7 +77,7 @@ function HeroTitles() {
   );
 }
 
-function HeroCTA() {
+function HeroCTA({ indiePrice }: { indiePrice: string }) {
   return (
     <>
       <motion.div
@@ -127,7 +127,7 @@ function HeroCTA() {
   );
 }
 
-export default function Hero2() {
+export default function Hero2({ indiePrice = defaultIndiePrice }: { indiePrice?: string }) {
   return (
     <section id="hero">
       <div className="relative mx-auto flex w-full max-w-7xl flex-col items-center gap-12 px-4 pt-32 sm:px-6 sm:pt-24 md:pt-32 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-8">
@@ -135,7 +135,7 @@ export default function Hero2() {
         <div className="flex w-full flex-col items-center text-center lg:w-1/2 lg:items-start lg:text-left">
           <HeroPill />
           <HeroTitles />
-          <HeroCTA />
+          <HeroCTA indiePrice={indiePrice} />
         </div>
 
         {/* Right half — the product working (self-contained, never blocks LCP) */}

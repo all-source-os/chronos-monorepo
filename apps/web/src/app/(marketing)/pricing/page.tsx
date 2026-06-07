@@ -2,6 +2,10 @@ import { Section } from "@allsource/ui";
 import FAQ from "@/components/sections/faq";
 import PricingSection from "@/components/sections/pricing";
 import { siteConfig } from "@/lib/config";
+import { fetchCatalog, indexByTier } from "@/lib/pricing-catalog";
+
+// Revalidate the live LemonSqueezy prices hourly (ISR).
+export const revalidate = 3600;
 
 // Comparison matrix rows. Each row maps a label to a per-tier cell, keyed by the
 // stable public tier id from siteConfig.pricing — Self-Host included as a column.
@@ -58,13 +62,15 @@ const matrixRows: { label: string; cells: Record<string, string> }[] = [
   },
 ];
 
-export default function PricingPage() {
+export default async function PricingPage() {
   const tiers = siteConfig.pricing;
+  const catalog = await fetchCatalog();
+  const prices = indexByTier(catalog);
 
   return (
     <div className="mx-auto w-full max-w-screen-xl px-4 lg:px-8">
       {/* Above the fold: promise, toggle, cards, enterprise strip, x402 lines. */}
-      <PricingSection />
+      <PricingSection catalog={catalog} />
 
       {/* Below the fold: comparison matrix with Self-Host as a column. */}
       <Section title="Compare tiers" subtitle="Everything, side by side">
@@ -99,14 +105,16 @@ export default function PricingPage() {
               {/* Price row */}
               <tr>
                 <td className="px-4 py-3 text-left font-medium text-foreground">Price</td>
-                {tiers.map((tier) => (
-                  <td key={tier.tier} className={cellBodyClass(tier.isPopular)}>
-                    {tier.price}
-                    {tier.price.startsWith("$") && (
-                      <span className="text-muted-foreground">/mo</span>
-                    )}
-                  </td>
-                ))}
+                {tiers.map((tier) => {
+                  // Live LemonSqueezy monthly price with config fallback.
+                  const price = prices[tier.tier]?.monthly?.formatted ?? tier.price;
+                  return (
+                    <td key={tier.tier} className={cellBodyClass(tier.isPopular)}>
+                      {price}
+                      {price.startsWith("$") && <span className="text-muted-foreground">/mo</span>}
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>
