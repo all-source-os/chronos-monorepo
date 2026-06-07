@@ -61,6 +61,10 @@ pub struct UpdateTenantRequest {
     pub description: Option<String>,
     pub is_demo: Option<bool>,
     pub quotas: Option<TenantQuotas>,
+    /// Operational metadata (subscription tier, quotas, billing). Replaces the
+    /// tenant's metadata when present — callers send the full merged map. This
+    /// is how the Control Plane persists subscription/entitlement state.
+    pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -371,6 +375,9 @@ pub async fn update_tenant_handler(
     }
     if let Some(quotas) = req.quotas {
         tenant.update_quotas(quotas);
+    }
+    if let Some(metadata) = req.metadata {
+        tenant.update_metadata(metadata);
     }
 
     state

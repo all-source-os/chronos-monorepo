@@ -609,7 +609,7 @@ func (c *coreClient) UpdateTenantMetadata(ctx context.Context, tenantID string, 
 	resp, err := c.request(ctx).
 		SetBody(body).
 		SetResult(&result).
-		Patch("/api/v1/tenants/" + tenantID)
+		Put("/api/v1/tenants/" + tenantID)
 
 	if err := c.handleError(span, resp, err); err != nil {
 		return nil, err
