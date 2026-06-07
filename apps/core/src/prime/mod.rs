@@ -24,6 +24,8 @@ pub mod error;
 pub mod event_store;
 pub mod facade;
 #[cfg(feature = "prime-recall")]
+pub mod hosted;
+#[cfg(feature = "prime-recall")]
 pub mod http_core;
 pub mod import_export;
 #[cfg(feature = "prime-recall")]
