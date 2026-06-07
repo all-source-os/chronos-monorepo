@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -80,6 +81,7 @@ type BillingHandler struct {
 	getOverageSummaryUC   *usecases.GetOverageSummaryUseCase
 	setOverageEnabledUC   *usecases.SetOverageEnabledUseCase
 	getProjectedChargesUC *usecases.GetProjectedChargesUseCase
+	getCatalogUC          *usecases.GetCatalogUseCase
 }
 
 // NewBillingHandler creates a new BillingHandler.
@@ -89,6 +91,7 @@ func NewBillingHandler(
 	getOverageSummaryUC *usecases.GetOverageSummaryUseCase,
 	setOverageEnabledUC *usecases.SetOverageEnabledUseCase,
 	getProjectedChargesUC *usecases.GetProjectedChargesUseCase,
+	getCatalogUC *usecases.GetCatalogUseCase,
 ) *BillingHandler {
 	return &BillingHandler{
 		createCheckoutUC:      createCheckoutUC,
@@ -96,7 +99,25 @@ func NewBillingHandler(
 		getOverageSummaryUC:   getOverageSummaryUC,
 		setOverageEnabledUC:   setOverageEnabledUC,
 		getProjectedChargesUC: getProjectedChargesUC,
+		getCatalogUC:          getCatalogUC,
 	}
+}
+
+// GetCatalog handles GET /api/v1/billing/catalog — public pricing catalog read
+// live from LemonSqueezy (the source of truth for charged prices). No auth: it
+// only exposes public list prices. Returns an empty catalog if LS isn't
+// configured, so the frontend can fall back to static config prices.
+func (h *BillingHandler) GetCatalog(c *gin.Context) {
+	if h.getCatalogUC == nil {
+		c.JSON(http.StatusOK, usecases.Catalog{Currency: "USD", Tiers: nil})
+		return
+	}
+	cat, err := h.getCatalogUC.Execute(c.Request.Context(), time.Now())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, cat)
 }
 
 // CreateCheckout handles POST /api/v1/billing/checkout

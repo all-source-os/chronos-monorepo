@@ -324,6 +324,9 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	getOverageSummaryUC := usecases.NewGetOverageSummaryUseCase(tenantRepo)
 	setOverageEnabledUC := usecases.NewSetOverageEnabledUseCase(tenantRepo, auditRepo)
 	getProjectedChargesUC := usecases.NewGetProjectedChargesUseCase(tenantRepo)
+	// Public pricing catalog, read live from LemonSqueezy (source of truth for
+	// charged prices). nil LS client → empty catalog → frontend uses config.
+	getCatalogUC := usecases.NewGetCatalogUseCase(cfg.LSClient)
 
 	// Initialize use cases — Agent Registration
 	registerAgentUC := usecases.NewRegisterAgentUseCase(createTenantUC, auditRepo, cfg.CoreClient, cfg.KeySigner)
@@ -413,7 +416,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		createConfigUC, getConfigUC, listConfigsUC, updateConfigUC, deleteConfigUC,
 	)
 	billingHandler := httphandlers.NewBillingHandler(
-		createCheckoutUC, getPortalUC, getOverageSummaryUC, setOverageEnabledUC, getProjectedChargesUC,
+		createCheckoutUC, getPortalUC, getOverageSummaryUC, setOverageEnabledUC, getProjectedChargesUC, getCatalogUC,
 	)
 	ipRuleHandler := httphandlers.NewIPRuleHandler(createIPRuleUC, listIPRulesUC, deleteIPRuleUC)
 	adminBillingHandler := httphandlers.NewAdminBillingHandler(adminListInvoicesUC, adminRevenueUC, adminRefundUC, adminDunningUC)

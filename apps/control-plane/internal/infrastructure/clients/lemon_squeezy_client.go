@@ -30,7 +30,28 @@ type LemonSqueezyClient interface {
 	// LookupVariantID resolves a tier + billing period to a LemonSqueezy variant
 	// ID. period is "monthly" or "annual"; empty defaults to monthly.
 	LookupVariantID(tier, period string) (string, error)
+	// GetVariant fetches a single variant (price in cents, interval) from LS.
+	GetVariant(ctx context.Context, variantID string) (*VariantResponse, error)
+	// VariantMap returns the configured tier:period → variant-ID map (read-only
+	// copy) so callers can enumerate the catalog.
+	VariantMap() VariantMap
 	GetStoreID() string
+}
+
+// VariantResponse is a LemonSqueezy variant's pricing detail.
+type VariantResponse struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Price    int    `json:"price"`    // in cents
+	Interval string `json:"interval"` // "month" | "year" | "" (one-time)
+	Status   string `json:"status"`
+}
+
+type variantAttributes struct {
+	Name     string `json:"name"`
+	Price    int    `json:"price"`
+	Interval string `json:"interval"`
+	Status   string `json:"status"`
 }
 
 // VariantMap maps plan tier names to LemonSqueezy variant IDs.
@@ -399,6 +420,44 @@ func (c *lemonSqueezyClient) LookupVariantID(tier, period string) (string, error
 // GetStoreID returns the configured LemonSqueezy store ID.
 func (c *lemonSqueezyClient) GetStoreID() string {
 	return c.storeID
+}
+
+// GetVariant fetches a single variant's pricing detail from LemonSqueezy.
+func (c *lemonSqueezyClient) GetVariant(ctx context.Context, variantID string) (*VariantResponse, error) {
+	var respEnvelope jsonAPIEnvelope
+	resp, err := c.client.R().
+		SetContext(ctx).
+		SetResult(&respEnvelope).
+		Get("/v1/variants/" + variantID)
+
+	if err != nil {
+		return nil, fmt.Errorf("get variant request failed: %w", err)
+	}
+	if resp.StatusCode() >= 400 {
+		return nil, fmt.Errorf("get variant returned status %d: %s", resp.StatusCode(), resp.String())
+	}
+
+	var attrs variantAttributes
+	if err := json.Unmarshal(respEnvelope.Data.Attributes, &attrs); err != nil {
+		return nil, fmt.Errorf("unmarshal variant response: %w", err)
+	}
+
+	return &VariantResponse{
+		ID:       respEnvelope.Data.ID,
+		Name:     attrs.Name,
+		Price:    attrs.Price,
+		Interval: attrs.Interval,
+		Status:   attrs.Status,
+	}, nil
+}
+
+// VariantMap returns a read-only copy of the configured tier:period → variant-ID map.
+func (c *lemonSqueezyClient) VariantMap() VariantMap {
+	out := make(VariantMap, len(c.variantMap))
+	for k, v := range c.variantMap {
+		out[k] = v
+	}
+	return out
 }
 
 // --- Subscription list types ---

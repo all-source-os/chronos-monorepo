@@ -391,6 +391,12 @@ func (cp *ControlPlane) setupRoutes() {
 	// UI; CP just exposes the data.
 	cp.router.GET("/api/v1/status/services", cp.statusServicesHandler)
 
+	// Public pricing catalog — list prices read live from LemonSqueezy (source
+	// of truth for charged prices). Consumed by the marketing /pricing page and
+	// the dashboard billing page so displayed prices never drift from what the
+	// customer is actually charged. Auth skipped in AuthMiddleware (isPublicCatalog).
+	cp.router.GET("/api/v1/billing/catalog", cp.container.BillingHandler.GetCatalog)
+
 	// Authentication endpoints
 	auth := cp.router.Group("/api/v1/auth")
 	auth.POST("/login", cp.LoginHandler)

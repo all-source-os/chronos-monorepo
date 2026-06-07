@@ -40,6 +40,14 @@ func (m *mockLSClient) LookupVariantID(_, _ string) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
+func (m *mockLSClient) GetVariant(_ context.Context, _ string) (*clients.VariantResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockLSClient) VariantMap() clients.VariantMap {
+	return nil
+}
+
 func (m *mockLSClient) ListSubscriptions(_ context.Context, _ string, _ int) (*clients.SubscriptionListResponse, error) {
 	return nil, fmt.Errorf("not implemented")
 }
