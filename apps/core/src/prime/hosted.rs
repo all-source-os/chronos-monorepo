@@ -309,6 +309,107 @@ impl HostedPrime {
             .await
     }
 
+    /// Update a node's properties (deep-merged by the projection): ingest a
+    /// `prime.node.updated` event (tenant-stamped) and apply it to the warm
+    /// bundle. Mirrors the embedded `Prime::update_node` payload — the raw update
+    /// `{properties}` is emitted; node_state merges on `process`. (Schema
+    /// validation, which the embedded path does pre-ingest, is deferred here.)
+    pub async fn update_node(
+        &self,
+        tenant: &str,
+        entity_id: &str,
+        properties: serde_json::Value,
+    ) -> Result<()> {
+        let payload = json!({ "properties": properties });
+        self.core_for(tenant)
+            .ingest(IngestEvent {
+                entity_id,
+                event_type: event_types::NODE_UPDATED,
+                payload: payload.clone(),
+                metadata: None,
+                tenant_id: Some(tenant),
+            })
+            .await?;
+        self.cache.get_or_hydrate(tenant).await?;
+        self.cache
+            .apply(tenant, &self.synth_view_typed(tenant, event_types::NODE_UPDATED, entity_id, payload));
+        Ok(())
+    }
+
+    /// Delete an edge: ingest a `prime.edge.deleted` event (tenant-stamped) and
+    /// apply it so `neighbors` stops returning it without a re-query. Mirrors the
+    /// embedded `Prime::delete_edge` shape (`edge:{id}` entity, payload `{id}`).
+    pub async fn delete_edge(&self, tenant: &str, edge_id: &str) -> Result<()> {
+        let entity_id = edge_entity_id(edge_id);
+        let payload = json!({ "id": edge_id });
+        self.core_for(tenant)
+            .ingest(IngestEvent {
+                entity_id: &entity_id,
+                event_type: event_types::EDGE_DELETED,
+                payload: payload.clone(),
+                metadata: None,
+                tenant_id: Some(tenant),
+            })
+            .await?;
+        self.cache.get_or_hydrate(tenant).await?;
+        self.cache
+            .apply(tenant, &self.synth_view_typed(tenant, event_types::EDGE_DELETED, &entity_id, payload));
+        Ok(())
+    }
+
+    /// Shortest path between two nodes (BFS over outgoing edges, optional relation
+    /// filter). Mirrors the embedded `Prime::shortest_path`, but runs the BFS over
+    /// the tenant's warm bundle (resolved once) instead of the embedded store.
+    pub async fn shortest_path(
+        &self,
+        tenant: &str,
+        from: &str,
+        to: &str,
+        relation: Option<&str>,
+    ) -> Result<Option<Vec<Node>>> {
+        use std::collections::{HashMap, VecDeque};
+
+        let g = self.cache.get_or_hydrate(tenant).await?;
+        let get_node = |id: &str| g.node_state.get_node(id).filter(|n| !n.deleted);
+
+        if from == to {
+            return Ok(get_node(from).map(|n| vec![n]));
+        }
+
+        let mut visited: HashMap<String, String> = HashMap::new(); // child -> parent
+        let mut queue: VecDeque<String> = VecDeque::new();
+        visited.insert(from.to_string(), String::new());
+        queue.push_back(from.to_string());
+
+        while let Some(current) = queue.pop_front() {
+            for entry in g.adjacency.outgoing(&current) {
+                if relation.is_some() && relation != Some(entry.relation.as_str()) {
+                    continue;
+                }
+                let peer = entry.peer;
+                if visited.contains_key(&peer) {
+                    continue;
+                }
+                visited.insert(peer.clone(), current.clone());
+                if peer == to {
+                    let mut path_ids = vec![to.to_string()];
+                    let mut cursor = to.to_string();
+                    while let Some(parent) = visited.get(&cursor) {
+                        if parent.is_empty() {
+                            break;
+                        }
+                        path_ids.push(parent.clone());
+                        cursor = parent.clone();
+                    }
+                    path_ids.reverse();
+                    return Ok(Some(path_ids.iter().filter_map(|id| get_node(id)).collect()));
+                }
+                queue.push_back(peer);
+            }
+        }
+        Ok(None)
+    }
+
     // ── Vectors & Recall ─────────────────────────────────────────────────
 
     /// Store a vector embedding for a graph node: ingest a `prime.vector.stored`
@@ -756,5 +857,69 @@ mod tests {
             .await
             .unwrap();
         assert!(node.is_none());
+    }
+
+    /// A wiremock Core that has no prior events and accepts ingests — the
+    /// standard fixture proving warm-cache round-trips (Core query is empty, so
+    /// any read result came from the cache the write updated).
+    async fn empty_core() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/events/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"events": []})))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/events"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    #[tokio::test]
+    async fn update_node_merges_properties_in_warm_bundle() {
+        let server = empty_core().await;
+        let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        let id = hosted
+            .add_node("t", "contact", serde_json::json!({"name": "Alice"}))
+            .await
+            .unwrap();
+        let eid = node_entity_id("contact", &id.0);
+        hosted
+            .update_node("t", &eid, serde_json::json!({"role": "eng"}))
+            .await
+            .unwrap();
+        let node = hosted.get_node("t", &eid).await.unwrap().unwrap();
+        assert_eq!(node.properties["name"], "Alice"); // preserved (deep merge)
+        assert_eq!(node.properties["role"], "eng"); // added
+    }
+
+    #[tokio::test]
+    async fn delete_edge_removes_it_from_neighbors() {
+        let server = empty_core().await;
+        let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        let a = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
+        let b = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
+        let edge = hosted.add_edge("t", &a, &b, "knows", None).await.unwrap();
+        assert_eq!(hosted.neighbors("t", &a, None, Direction::Outgoing).await.unwrap().len(), 1);
+        hosted.delete_edge("t", &edge.0).await.unwrap();
+        assert!(hosted.neighbors("t", &a, None, Direction::Outgoing).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn shortest_path_finds_the_chain() {
+        let server = empty_core().await;
+        let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        let na = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
+        let nb = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
+        let nc = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
+        let (a, b, c) = (node_entity_id("n", &na), node_entity_id("n", &nb), node_entity_id("n", &nc));
+        hosted.add_edge("t", &a, &b, "to", None).await.unwrap();
+        hosted.add_edge("t", &b, &c, "to", None).await.unwrap();
+        let path = hosted.shortest_path("t", &a, &c, None).await.unwrap().unwrap();
+        // Node.id is the short id; assert the BFS returned the a→b→c chain in order.
+        let ids: Vec<&str> = path.iter().map(|n| n.id.as_str()).collect();
+        assert_eq!(ids, vec![na.as_str(), nb.as_str(), nc.as_str()]);
     }
 }
