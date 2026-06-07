@@ -514,18 +514,19 @@ func (c *coreClient) GetTenant(ctx context.Context, tenantID string) (*TenantRes
 }
 
 func (c *coreClient) ListTenants(ctx context.Context) (*ListTenantsResponse, error) {
-	var result ListTenantsResponse
+	// Core returns a bare JSON array of tenants, not a {tenants,total} object.
+	var arr []TenantResponse
 	ctx, span := c.startSpan(ctx, "ListTenants")
 	defer span.End()
 
 	resp, err := c.request(ctx).
-		SetResult(&result).
+		SetResult(&arr).
 		Get("/api/v1/tenants")
 
 	if err := c.handleError(span, resp, err); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return &ListTenantsResponse{Tenants: arr, Total: len(arr)}, nil
 }
 
 func (c *coreClient) ActivateTenant(ctx context.Context, tenantID string) (*TenantResponse, error) {
