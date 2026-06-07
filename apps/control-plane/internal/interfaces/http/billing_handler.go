@@ -127,6 +127,12 @@ func (h *BillingHandler) CreateCheckout(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	// Scope checkout to the authenticated tenant — never trust the client-supplied
+	// tenant_id. This is what makes the self-serve PermissionWrite gate safe: a
+	// user can only ever create a checkout for their own tenant.
+	if tid := c.GetString("auth_tenant_id"); tid != "" {
+		req.TenantID = tid
+	}
 
 	result, err := h.createCheckoutUC.Execute(c.Request.Context(), req)
 	if err != nil {
@@ -142,7 +148,11 @@ func (h *BillingHandler) CreateCheckout(c *gin.Context) {
 
 // GetPortal handles GET /api/v1/billing/portal
 func (h *BillingHandler) GetPortal(c *gin.Context) {
-	tenantID := c.Query("tenant_id")
+	// Prefer the authenticated tenant; fall back to the query param (admin tools).
+	tenantID := c.GetString("auth_tenant_id")
+	if tenantID == "" {
+		tenantID = c.Query("tenant_id")
+	}
 	if tenantID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_id query parameter is required"})
 		return

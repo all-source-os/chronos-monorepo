@@ -555,10 +555,14 @@ func (cp *ControlPlane) setupRoutes() {
 	schemas.GET("", RequirePermission(entities.PermissionRead), cp.container.SchemaHandler.List)
 	schemas.POST("/validate", RequirePermission(entities.PermissionRead), cp.container.SchemaHandler.Validate)
 
-	// Billing management (Clean Architecture handlers with per-route RBAC)
+	// Billing management (Clean Architecture handlers with per-route RBAC).
+	// Self-serve checkout + portal are scoped to the caller's OWN tenant (the
+	// handler overrides tenant_id from the auth context), so they only need
+	// PermissionWrite — a tenant owner (RoleDeveloper) manages their own
+	// subscription. ManageTenants is admin-only and would 403 every real user.
 	billing := api.Group("/billing")
-	billing.POST("/checkout", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.CreateCheckout)
-	billing.GET("/portal", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.GetPortal)
+	billing.POST("/checkout", RequirePermission(entities.PermissionWrite), cp.container.BillingHandler.CreateCheckout)
+	billing.GET("/portal", RequirePermission(entities.PermissionWrite), cp.container.BillingHandler.GetPortal)
 	billing.GET("/overage", RequirePermission(entities.PermissionRead), cp.container.BillingHandler.GetOverage)
 	billing.POST("/overage/enable", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.EnableOverage)
 	billing.POST("/overage/disable", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.DisableOverage)
