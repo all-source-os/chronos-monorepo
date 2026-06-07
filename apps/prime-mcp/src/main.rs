@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use tracing_subscriber::EnvFilter;
 
 mod dispatch;
+mod hosted_dispatch;
 mod http;
 mod profiling;
 mod projection_registry;
@@ -37,7 +38,7 @@ enum Mode {
     /// HTTP REST API server
     Http,
     /// Preflight the embedder model, then exit. Run once with network access to
-    /// populate the fastembed cache (or with PRIME_EMBED_MODEL_DIR set to verify
+    /// populate the fastembed cache (or with `PRIME_EMBED_MODEL_DIR` set to verify
     /// an offline vendored model). Exits non-zero if the embedder can't load —
     /// suitable as a CI canary against a fresh, cache-less container.
     Warm,
@@ -296,7 +297,44 @@ async fn main() -> Result<()> {
                  (open in a browser to see your memory as a bubble graph + detail list)",
                 cli.port
             );
-            let state = Arc::new(http::AppState { prime, recall });
+
+            // Hosted, tenant-scoped engine over a remote Core — constructed only
+            // when CORE_URL is set. When present, the /mcp endpoint routes
+            // tenant-stamped requests (X-Tenant-Id) through it instead of the
+            // embedded single-store Prime. Absent → /mcp serves the embedded
+            // store as before (local dev / single-tenant binary).
+            let hosted = match std::env::var("CORE_URL").ok().filter(|s| !s.is_empty()) {
+                Some(core_url) => {
+                    let cap = std::env::var("PRIME_TENANT_CACHE_CAP")
+                        .ok()
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap_or(64);
+                    let ttl_secs = std::env::var("PRIME_TENANT_CACHE_TTL_SECS")
+                        .ok()
+                        .and_then(|s| s.parse::<u64>().ok())
+                        .unwrap_or(300);
+                    tracing::info!(
+                        core_url = %core_url,
+                        cache_cap = cap,
+                        cache_ttl_secs = ttl_secs,
+                        "Hosted tenant-scoped Prime ENABLED — /mcp requests with X-Tenant-Id \
+                         route to the remote Core; others fall back to the embedded store."
+                    );
+                    Some(Arc::new(allsource_core::prime::hosted::HostedPrime::connect(
+                        core_url,
+                        std::env::var("CORE_API_KEY").ok(),
+                        cap,
+                        std::time::Duration::from_secs(ttl_secs),
+                    )))
+                }
+                None => None,
+            };
+
+            let state = Arc::new(http::AppState {
+                prime,
+                recall,
+                hosted,
+            });
             http::serve(state, cli.port).await?;
         }
         // Warm exits earlier, before sync/recall setup.

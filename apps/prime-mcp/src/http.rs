@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use allsource_core::prime::hosted::HostedPrime;
 use allsource_core::prime::{Direction, Prime, recall::RecallEngine};
 use axum::{
     Json, Router,
@@ -24,6 +25,11 @@ pub struct AppState {
     /// Recall engine — used by the `/recall` endpoint and kept for future index endpoints.
     #[allow(dead_code)]
     pub recall: RecallEngine,
+    /// Stateless, tenant-scoped engine over a remote Core. Present only in the
+    /// hosted deployment (constructed when `CORE_URL` is set). When `Some` and
+    /// the `/mcp` request carries a trusted `X-Tenant-Id`, the MCP dispatch is
+    /// routed through this instead of the embedded `prime` — see [`mcp_handler`].
+    pub hosted: Option<Arc<HostedPrime>>,
 }
 
 /// Start the HTTP server on the given port.
@@ -101,11 +107,35 @@ fn mcp_authorized(headers: &HeaderMap) -> bool {
     provided == Some(expected.as_str())
 }
 
+/// Extract the trusted tenant id from the `X-Tenant-Id` header (case-insensitive
+/// — `HeaderMap` lookups are already case-insensitive). Returns `None` when the
+/// header is absent or empty.
+///
+/// TRUST MODEL (this slice): the Control-Plane → prime hop is internal, so we
+/// trust the tenant id the gateway stamps in this header. A shared-secret gate
+/// — reusing the existing `PRIME_API_KEY` bearer via [`mcp_authorized`] so only
+/// the gateway can set the tenant — is the follow-up hardening, not done here.
+fn tenant_from_headers(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-tenant-id")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+}
+
 /// MCP Streamable-HTTP endpoint. Accepts a single JSON-RPC request and returns
 /// the JSON-RPC response as `application/json`, or `202 Accepted` for
-/// notifications (which have no reply). Dispatch is shared with the stdio
-/// transport via [`crate::dispatch::handle_request`], so both transports expose
-/// the exact same methods and tools.
+/// notifications (which have no reply).
+///
+/// Two dispatch paths share the exact same request/response shaping:
+/// - **Hosted, tenant-scoped:** when a [`HostedPrime`] engine is configured AND
+///   the request carries a trusted `X-Tenant-Id`, the call is routed through
+///   [`crate::hosted_dispatch::handle_request_hosted`] against the remote Core,
+///   isolated per tenant.
+/// - **Embedded (default/fallback):** otherwise, dispatch goes to the local
+///   single-store [`Prime`] via [`crate::dispatch::handle_request`] — identical
+///   to the stdio transport, so neither path can drift in methods/tools.
 async fn mcp_handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -127,6 +157,15 @@ async fn mcp_handler(
             return (StatusCode::OK, Json(resp)).into_response();
         }
     };
+
+    // Hosted, tenant-scoped path: only when both a HostedPrime engine and a
+    // trusted tenant id are present. Falls back to the embedded path otherwise.
+    if let (Some(hosted), Some(tenant)) = (state.hosted.as_ref(), tenant_from_headers(&headers)) {
+        return match crate::hosted_dispatch::handle_request_hosted(hosted, &tenant, &req).await {
+            Some(resp) => (StatusCode::OK, Json(resp)).into_response(),
+            None => StatusCode::ACCEPTED.into_response(),
+        };
+    }
 
     // HTTP transport runs without auto-inject (that's a stdio system-prompt
     // feature); pass the same defaults the stdio binary uses when disabled.
@@ -588,6 +627,7 @@ mod tests {
         Arc::new(AppState {
             prime: Arc::new(prime),
             recall,
+            hosted: None,
         })
     }
 
@@ -743,5 +783,139 @@ mod tests {
         let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         let body: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(body["error"]["code"], -32700);
+    }
+
+    // ─── Hosted, tenant-scoped /mcp dispatch ──────────────────────────────
+
+    use wiremock::matchers::{method as wm_method, path as wm_path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// Mount the standard empty-Core pair (GET query → `{events:[]}`, POST
+    /// ingest → 200) and return an `AppState` whose `hosted` engine points at it.
+    async fn hosted_state(server: &MockServer) -> Arc<AppState> {
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/api/v1/events/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "events": [] })))
+            .mount(server)
+            .await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path("/api/v1/events"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "ok": true })))
+            .mount(server)
+            .await;
+
+        let prime = Prime::open_in_memory().await.unwrap();
+        let recall = RecallEngine::with_deps(prime.recall_deps(), &IndexConfig::default());
+        let hosted = HostedPrime::connect(
+            server.uri(),
+            None,
+            8,
+            std::time::Duration::from_secs(60),
+        );
+        Arc::new(AppState {
+            prime: Arc::new(prime),
+            recall,
+            hosted: Some(Arc::new(hosted)),
+        })
+    }
+
+    async fn mcp_post_with_tenant(
+        app: &Router,
+        tenant: Option<&str>,
+        payload: Value,
+    ) -> (StatusCode, Value) {
+        let mut builder = Request::builder()
+            .method("POST")
+            .uri("/mcp")
+            .header("content-type", "application/json");
+        if let Some(t) = tenant {
+            builder = builder.header("x-tenant-id", t);
+        }
+        let resp = app
+            .clone()
+            .oneshot(builder.body(Body::from(payload.to_string())).unwrap())
+            .await
+            .unwrap();
+        let status = resp.status();
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = if bytes.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&bytes).unwrap()
+        };
+        (status, body)
+    }
+
+    /// With a `HostedPrime` engine and an `X-Tenant-Id`, a `prime_add_node` write
+    /// followed by a `prime_search` round-trips through the hosted path, proving
+    /// both the hosted dispatch and tenant threading end-to-end.
+    #[tokio::test]
+    async fn mcp_hosted_path_add_node_then_search() {
+        let server = MockServer::start().await;
+        let app = mcp_router(hosted_state(&server).await);
+
+        let (status, body) = mcp_post_with_tenant(
+            &app,
+            Some("tenant-a"),
+            json!({
+                "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": { "name": "prime_add_node", "arguments": { "type": "contact", "properties": { "name": "Alice" } } }
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_ne!(body["result"]["isError"], json!(true), "add_node should succeed on hosted path");
+
+        let (status, body) = mcp_post_with_tenant(
+            &app,
+            Some("tenant-a"),
+            json!({
+                "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                "params": { "name": "prime_search", "arguments": { "type": "contact" } }
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let text = body["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("Alice"), "hosted search should return the added node; got {text}");
+    }
+
+    /// A tool `HostedPrime` does not implement returns a clear tool-error (not a
+    /// crash) on the hosted path.
+    #[tokio::test]
+    async fn mcp_hosted_path_unsupported_tool_errors() {
+        let server = MockServer::start().await;
+        let app = mcp_router(hosted_state(&server).await);
+
+        let (status, body) = mcp_post_with_tenant(
+            &app,
+            Some("tenant-a"),
+            json!({
+                "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": { "name": "prime_index", "arguments": {} }
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["result"]["isError"], json!(true));
+        let text = body["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("not yet available on the hosted backend"));
+    }
+
+    /// Without `X-Tenant-Id`, the request falls back to the embedded dispatch
+    /// even when a `HostedPrime` engine is configured — initialize still works.
+    #[tokio::test]
+    async fn mcp_no_tenant_falls_back_to_embedded() {
+        let server = MockServer::start().await;
+        let app = mcp_router(hosted_state(&server).await);
+
+        let (status, body) = mcp_post_with_tenant(
+            &app,
+            None,
+            json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["result"]["serverInfo"]["name"], "allsource-prime");
     }
 }

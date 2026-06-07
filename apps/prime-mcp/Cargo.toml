@@ -52,6 +52,7 @@ divan = "0.1"
 iai-callgrind = "0.14"
 tempfile = "3"
 tower = { version = "0.5", features = ["util"] }
+wiremock = "0.6"
 
 [[bench]]
 name = "hot_path"
