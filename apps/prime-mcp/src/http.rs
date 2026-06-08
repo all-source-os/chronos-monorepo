@@ -20,15 +20,25 @@ use serde_json::{Value, json};
 use tower_http::trace::TraceLayer;
 
 /// Shared state for HTTP handlers.
+///
+/// In the hosted/stateless deployment (`CORE_URL` + `PRIME_API_KEY` set) `prime`
+/// and `recall` are `None` — the app owns no durable store and serves every
+/// request through the tenant-scoped [`HostedPrime`] over a remote Core. In
+/// local/dev http mode (no `CORE_URL`) `hosted` is `None` and the embedded
+/// single-store `prime`/`recall` serve instead. Exactly one of the two paths is
+/// populated for a given startup; see `main.rs`.
 pub struct AppState {
-    pub prime: Arc<Prime>,
-    /// Recall engine — used by the `/recall` endpoint and kept for future index endpoints.
+    /// Embedded single-store engine. `Some` only in local/dev http mode (no
+    /// remote Core). `None` in the hosted deployment, which is fully stateless.
+    pub prime: Option<Arc<Prime>>,
+    /// Recall engine — used by the embedded `/recall` endpoint. `Some` exactly
+    /// when `prime` is `Some` (both belong to the embedded path).
     #[allow(dead_code)]
-    pub recall: RecallEngine,
+    pub recall: Option<RecallEngine>,
     /// Stateless, tenant-scoped engine over a remote Core. Present only in the
-    /// hosted deployment (constructed when `CORE_URL` is set). When `Some` and
-    /// the `/mcp` request carries a trusted `X-Tenant-Id`, the MCP dispatch is
-    /// routed through this instead of the embedded `prime` — see [`mcp_handler`].
+    /// hosted deployment (constructed when `CORE_URL` + `PRIME_API_KEY` are set).
+    /// When `Some` and a request carries a trusted `X-Tenant-Id`, every REST and
+    /// MCP call is routed through this instead of the embedded `prime`.
     pub hosted: Option<Arc<HostedPrime>>,
 }
 
@@ -172,10 +182,31 @@ async fn mcp_handler(
 
     // HTTP transport runs without auto-inject (that's a stdio system-prompt
     // feature); pass the same defaults the stdio binary uses when disabled.
-    match crate::dispatch::handle_request(&state.prime, &state.recall, false, 1000, &req).await {
+    // In the hosted/stateless deployment there is no embedded `prime`, so a
+    // request that reaches here (hosted configured but no trusted tenant) has
+    // no backend to serve it — surface a clear error instead of dispatching
+    // against a store that does not exist.
+    let (Some(prime), Some(recall)) = (state.prime.as_ref(), state.recall.as_ref()) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "X-Tenant-Id required: this server is stateless (hosted mode) and has no embedded store" })),
+        )
+            .into_response();
+    };
+    match crate::dispatch::handle_request(prime, recall, false, 1000, &req).await {
         Some(resp) => (StatusCode::OK, Json(resp)).into_response(),
         None => StatusCode::ACCEPTED.into_response(),
     }
+}
+
+/// Standard 400 for the hosted deployment when a REST request arrives without a
+/// trusted `X-Tenant-Id`. The hosted engine is per-tenant, so there is no
+/// default tenant to fall back to and no embedded store to serve from.
+fn missing_tenant_response() -> (StatusCode, Json<Value>) {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(json!({ "error": "X-Tenant-Id required: this server is stateless (hosted mode)" })),
+    )
 }
 
 // =============================================================================
@@ -268,18 +299,49 @@ async fn graph_viewer() -> impl IntoResponse {
     Html(include_str!("../static/graph.html"))
 }
 
-async fn get_stats(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let stats = state.prime.stats();
-    Json(json!({
-        "total_nodes": stats.total_nodes,
-        "total_edges": stats.total_edges,
-        "deleted_nodes": stats.deleted_nodes,
-        "deleted_edges": stats.deleted_edges,
-        "event_count": stats.event_count,
-        "nodes_by_type": stats.nodes_by_type,
-        "edges_by_relation": stats.edges_by_relation,
-        "sync": crate::tools::sync_status_json(),
-    }))
+async fn get_stats(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.stats(&tenant).await {
+            Ok(stats) => (
+                StatusCode::OK,
+                Json(json!({
+                    "total_nodes": stats.total_nodes,
+                    "total_edges": stats.total_edges,
+                    "deleted_nodes": stats.deleted_nodes,
+                    "deleted_edges": stats.deleted_edges,
+                    "event_count": stats.event_count,
+                    "nodes_by_type": stats.nodes_by_type,
+                    "edges_by_relation": stats.edges_by_relation,
+                    "sync": crate::tools::sync_status_json(),
+                })),
+            ),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            ),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let stats = prime.stats();
+    (
+        StatusCode::OK,
+        Json(json!({
+            "total_nodes": stats.total_nodes,
+            "total_edges": stats.total_edges,
+            "deleted_nodes": stats.deleted_nodes,
+            "deleted_edges": stats.deleted_edges,
+            "event_count": stats.event_count,
+            "nodes_by_type": stats.nodes_by_type,
+            "edges_by_relation": stats.edges_by_relation,
+            "sync": crate::tools::sync_status_json(),
+        })),
+    )
 }
 
 /// `GET /api/v1/prime/graph` — full materialized knowledge graph from the
@@ -288,13 +350,26 @@ async fn get_stats(State(state): State<Arc<AppState>>) -> impl IntoResponse {
 /// prime-mcp is local + single-store, so there is no tenant boundary here.
 async fn get_full_graph(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Query(q): Query<GraphQuery>,
 ) -> impl IntoResponse {
-    let graph = state.prime.full_graph(
-        q.tenant_id.as_deref(),
-        q.node_type.as_deref(),
-        q.limit,
-    );
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.full_graph(&tenant, q.node_type.as_deref(), q.limit).await {
+            Ok(graph) => (
+                StatusCode::OK,
+                Json(serde_json::to_value(&graph).unwrap_or(Value::Null)),
+            ),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            ),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let graph = prime.full_graph(q.tenant_id.as_deref(), q.node_type.as_deref(), q.limit);
     (
         StatusCode::OK,
         Json(serde_json::to_value(&graph).unwrap_or(Value::Null)),
@@ -303,9 +378,27 @@ async fn get_full_graph(
 
 async fn create_node(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<CreateNodeRequest>,
 ) -> impl IntoResponse {
-    match state.prime.add_node(&req.node_type, req.properties).await {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.add_node(&tenant, &req.node_type, req.properties).await {
+            Ok(id) => {
+                let entity_id =
+                    allsource_core::prime::EntityId::node(&req.node_type, id.as_str()).to_wire();
+                (
+                    StatusCode::CREATED,
+                    Json(json!({"node_id": id.as_str(), "entity_id": entity_id})),
+                )
+            }
+            Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"error": e.to_string()}))),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    match prime.add_node(&req.node_type, req.properties).await {
         Ok(id) => {
             let entity_id =
                 allsource_core::prime::EntityId::node(&req.node_type, id.as_str()).to_wire();
@@ -321,21 +414,45 @@ async fn create_node(
     }
 }
 
-async fn get_node(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> impl IntoResponse {
+/// Shape a [`Node`] the same way both REST paths return it, so hosted and
+/// embedded `GET /nodes/{id}` are wire-identical.
+fn node_detail_json(node: &allsource_core::prime::Node) -> Value {
+    json!({
+        "id": node.id.as_str(),
+        "type": node.node_type,
+        "properties": node.properties,
+        "domain": node.domain,
+        "labels": node.labels,
+        "created_at": node.created_at.to_rfc3339(),
+        "updated_at": node.updated_at.to_rfc3339(),
+    })
+}
+
+async fn get_node(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.get_node(&tenant, &id).await {
+            Ok(Some(node)) => (StatusCode::OK, Json(node_detail_json(&node))),
+            Ok(None) => (
+                StatusCode::NOT_FOUND,
+                Json(json!({"error": format!("node not found: {id}")})),
+            ),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            ),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
     // Try both raw id and as entity_id
-    match state.prime.get_node(&id) {
-        Some(node) => (
-            StatusCode::OK,
-            Json(json!({
-                "id": node.id.as_str(),
-                "type": node.node_type,
-                "properties": node.properties,
-                "domain": node.domain,
-                "labels": node.labels,
-                "created_at": node.created_at.to_rfc3339(),
-                "updated_at": node.updated_at.to_rfc3339(),
-            })),
-        ),
+    match prime.get_node(&id) {
+        Some(node) => (StatusCode::OK, Json(node_detail_json(&node))),
         None => (
             StatusCode::NOT_FOUND,
             Json(json!({"error": format!("node not found: {id}")})),
@@ -345,10 +462,21 @@ async fn get_node(State(state): State<Arc<AppState>>, Path(id): Path<String>) ->
 
 async fn update_node(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(req): Json<UpdateNodeRequest>,
 ) -> impl IntoResponse {
-    match state.prime.update_node(&id, req.properties).await {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.update_node(&tenant, &id, req.properties).await {
+            Ok(()) => (StatusCode::OK, Json(json!({"updated": true}))),
+            Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    match prime.update_node(&id, req.properties).await {
         Ok(()) => (StatusCode::OK, Json(json!({"updated": true}))),
         Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
@@ -356,9 +484,20 @@ async fn update_node(
 
 async fn delete_node(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match state.prime.delete_node(&id).await {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.delete_node(&tenant, &id).await {
+            Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
+            Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    match prime.delete_node(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
         Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
@@ -366,21 +505,59 @@ async fn delete_node(
 
 async fn get_neighbors(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let nodes = state.prime.neighbors(&id, None, Direction::Both);
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.neighbors(&tenant, &id, None, Direction::Both).await {
+            Ok(nodes) => {
+                let nodes_json: Vec<Value> = nodes
+                    .iter()
+                    .map(|n| json!({"id": n.id.as_str(), "type": n.node_type, "properties": n.properties}))
+                    .collect();
+                (StatusCode::OK, Json(json!({"nodes": nodes_json})))
+            }
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            ),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let nodes = prime.neighbors(&id, None, Direction::Both);
     let nodes_json: Vec<Value> = nodes
         .iter()
         .map(|n| json!({"id": n.id.as_str(), "type": n.node_type, "properties": n.properties}))
         .collect();
-    Json(json!({"nodes": nodes_json}))
+    (StatusCode::OK, Json(json!({"nodes": nodes_json})))
 }
 
 async fn get_subgraph(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let sg = state.prime.subgraph(&id, 2);
+    // HostedPrime has no subgraph/ego-network traversal yet (only single-hop
+    // neighbors). Rather than fake a depth-2 expansion or silently return a
+    // 1-hop set under the subgraph contract, return 501 on the hosted path so
+    // callers know the capability is unavailable on the stateless backend.
+    if let Some(_hosted) = state.hosted.as_ref() {
+        let Some(_tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return (
+            StatusCode::NOT_IMPLEMENTED,
+            Json(json!({
+                "error": "subgraph traversal is not yet available on the hosted backend; \
+                          use /nodes/{id}/neighbors for single-hop neighbors"
+            })),
+        );
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let sg = prime.subgraph(&id, 2);
     let nodes_json: Vec<Value> = sg
         .nodes
         .iter()
@@ -391,14 +568,37 @@ async fn get_subgraph(
         .iter()
         .map(|e| json!({"id": e.id.as_str(), "source": e.source.as_str(), "target": e.target.as_str(), "relation": e.relation}))
         .collect();
-    Json(json!({"nodes": nodes_json, "edges": edges_json}))
+    (
+        StatusCode::OK,
+        Json(json!({"nodes": nodes_json, "edges": edges_json})),
+    )
 }
 
 async fn get_history(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match state.prime.history(&id).await {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.history(&tenant, &id).await {
+            Ok(entries) => {
+                let events: Vec<Value> = entries
+                    .iter()
+                    .map(|e| json!({"type": e.event_type, "timestamp": e.timestamp.to_rfc3339(), "payload": e.payload}))
+                    .collect();
+                (StatusCode::OK, Json(json!({"events": events})))
+            }
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            ),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    match prime.history(&id).await {
         Ok(entries) => {
             let events: Vec<Value> = entries
                 .iter()
@@ -415,16 +615,34 @@ async fn get_history(
 
 async fn create_edge(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<CreateEdgeRequest>,
 ) -> impl IntoResponse {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        let result = if let Some(w) = req.weight {
+            hosted
+                .add_edge_weighted(&tenant, &req.source, &req.target, &req.relation, w, req.properties)
+                .await
+        } else {
+            hosted
+                .add_edge(&tenant, &req.source, &req.target, &req.relation, req.properties)
+                .await
+        };
+        return match result {
+            Ok(id) => (StatusCode::CREATED, Json(json!({"edge_id": id.as_str()}))),
+            Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"error": e.to_string()}))),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
     let result = if let Some(w) = req.weight {
-        state
-            .prime
+        prime
             .add_edge_weighted(&req.source, &req.target, &req.relation, w, req.properties)
             .await
     } else {
-        state
-            .prime
+        prime
             .add_edge(&req.source, &req.target, &req.relation, req.properties)
             .await
     };
@@ -440,9 +658,20 @@ async fn create_edge(
 
 async fn delete_edge(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match state.prime.delete_edge(&id).await {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.delete_edge(&tenant, &id).await {
+            Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
+            Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    match prime.delete_edge(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
         Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
@@ -450,12 +679,33 @@ async fn delete_edge(
 
 async fn store_vector(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<StoreVectorRequest>,
 ) -> impl IntoResponse {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        // The hosted backend stores a precomputed embedding (in-process
+        // text→vector embedding downloads a model on first use and is never
+        // exercised on the hosted path). Reject text-only with a clear error,
+        // mirroring the hosted MCP dispatch.
+        let Some(vector) = req.vector else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": "missing 'vector' — the hosted backend requires a precomputed embedding vector"})),
+            );
+        };
+        return match hosted.embed(&tenant, &req.id, vector, req.metadata).await {
+            Ok(()) => (StatusCode::CREATED, Json(json!({"stored": true, "id": req.id}))),
+            Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"error": e.to_string()}))),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
     let vector = match req.vector {
         Some(v) => v,
         None => match req.text.as_deref() {
-            Some(t) => match state.prime.embed_text(t) {
+            Some(t) => match prime.embed_text(t) {
                 Ok(v) => v,
                 Err(e) => {
                     return (
@@ -473,8 +723,7 @@ async fn store_vector(
         },
     };
 
-    match state
-        .prime
+    match prime
         .embed_with_metadata(&req.id, req.text.as_deref(), vector, req.metadata)
         .await
     {
@@ -491,13 +740,30 @@ async fn store_vector(
 
 async fn search_vectors(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<VectorSearchRequest>,
 ) -> impl IntoResponse {
+    // HostedPrime exposes semantic recall (`/recall`, returning hydrated graph
+    // nodes) but no raw `{id, score, text}` vector_search. Rather than reshape
+    // recall into a different contract, return 501 on the hosted path and point
+    // callers at /recall.
+    if let Some(_hosted) = state.hosted.as_ref() {
+        let Some(_tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return (
+            StatusCode::NOT_IMPLEMENTED,
+            Json(json!({
+                "error": "raw vector search is not available on the hosted backend; use /api/v1/prime/recall"
+            })),
+        );
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
     let top_k = req.top_k.unwrap_or(10);
     let vector = match req.vector {
         Some(v) => v,
         None => match req.text.as_deref() {
-            Some(t) => match state.prime.embed_text(t) {
+            Some(t) => match prime.embed_text(t) {
                 Ok(v) => v,
                 Err(e) => {
                     return (
@@ -514,7 +780,7 @@ async fn search_vectors(
             }
         },
     };
-    let results = state.prime.vector_search(&vector, top_k);
+    let results = prime.vector_search(&vector, top_k);
     let results_json: Vec<Value> = results
         .iter()
         .map(|r| json!({"id": r.id, "score": r.score, "text": r.text}))
@@ -524,9 +790,20 @@ async fn search_vectors(
 
 async fn delete_vector(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match state.prime.delete_vector(&id).await {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.delete_vector(&tenant, &id).await {
+            Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
+            Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    match prime.delete_vector(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
         Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
     }
@@ -534,33 +811,102 @@ async fn delete_vector(
 
 async fn shortest_path(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<ShortestPathRequest>,
 ) -> impl IntoResponse {
-    match state
-        .prime
-        .shortest_path(&req.from, &req.to, req.relation.as_deref())
-    {
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted
+            .shortest_path(&tenant, &req.from, &req.to, req.relation.as_deref())
+            .await
+        {
+            Ok(Some(path)) => {
+                let nodes: Vec<Value> = path
+                    .iter()
+                    .map(|n| json!({"id": n.id.as_str(), "type": n.node_type, "properties": n.properties}))
+                    .collect();
+                (StatusCode::OK, Json(json!({"path": nodes})))
+            }
+            Ok(None) => (
+                StatusCode::OK,
+                Json(json!({"path": null, "message": "No path found"})),
+            ),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            ),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    match prime.shortest_path(&req.from, &req.to, req.relation.as_deref()) {
         Some(path) => {
             let nodes: Vec<Value> = path
                 .iter()
                 .map(|n| json!({"id": n.id.as_str(), "type": n.node_type, "properties": n.properties}))
                 .collect();
-            Json(json!({"path": nodes}))
+            (StatusCode::OK, Json(json!({"path": nodes})))
         }
-        None => Json(json!({"path": null, "message": "No path found"})),
+        None => (
+            StatusCode::OK,
+            Json(json!({"path": null, "message": "No path found"})),
+        ),
     }
 }
 
 async fn recall(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<RecallRequest>,
 ) -> impl IntoResponse {
     use allsource_core::prime::types::RecallQuery;
 
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        // The hosted backend takes a precomputed query vector (in-process
+        // text→vector embedding downloads a model on first use and is never
+        // exercised here). Reject text-only with a clear error, mirroring the
+        // hosted MCP dispatch.
+        let Some(vector) = req.vector else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": "missing 'vector' — the hosted backend requires a precomputed query embedding"})),
+            );
+        };
+        let top_k = req.top_k.unwrap_or(10);
+        return match hosted.recall(&tenant, vector, top_k).await {
+            Ok(results) => {
+                // Shape to match the embedded recall contract (`{nodes:[{id,
+                // type, score, depth}]}`). Hosted recall is pure vector
+                // similarity (no graph expansion), so `depth` is always 0.
+                let nodes: Vec<Value> = results
+                    .iter()
+                    .map(|(n, score)| {
+                        json!({
+                            "id": n.id.as_str(),
+                            "type": n.node_type,
+                            "score": score,
+                            "depth": 0,
+                        })
+                    })
+                    .collect();
+                (StatusCode::OK, Json(json!({"nodes": nodes})))
+            }
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            ),
+        };
+    }
+
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
     let vector = match req.vector {
         Some(v) => Some(v),
         None => match req.text.as_deref() {
-            Some(t) => match state.prime.embed_text(t) {
+            Some(t) => match prime.embed_text(t) {
                 Ok(v) => Some(v),
                 Err(e) => {
                     return (
@@ -582,7 +928,7 @@ async fn recall(
         ..RecallQuery::default()
     };
 
-    match state.prime.recall(query).await {
+    match prime.recall(query).await {
         Ok(result) => {
             let nodes: Vec<Value> = result
                 .nodes
@@ -605,14 +951,43 @@ async fn recall(
     }
 }
 
-async fn get_diff(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+async fn get_diff(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    // The embedded diff returns a stats summary (no from/to params). HostedPrime
+    // exposes the same stats via `stats`, so the hosted path serves the identical
+    // summary shape rather than 501.
+    if let Some(hosted) = state.hosted.as_ref() {
+        let Some(tenant) = tenant_from_headers(&headers) else {
+            return missing_tenant_response();
+        };
+        return match hosted.stats(&tenant).await {
+            Ok(stats) => (
+                StatusCode::OK,
+                Json(json!({
+                    "total_nodes": stats.total_nodes,
+                    "total_edges": stats.total_edges,
+                    "event_count": stats.event_count,
+                })),
+            ),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            ),
+        };
+    }
+    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
     // Without from/to params, return a summary of all events
-    let stats = state.prime.stats();
-    Json(json!({
-        "total_nodes": stats.total_nodes,
-        "total_edges": stats.total_edges,
-        "event_count": stats.event_count,
-    }))
+    let stats = prime.stats();
+    (
+        StatusCode::OK,
+        Json(json!({
+            "total_nodes": stats.total_nodes,
+            "total_edges": stats.total_edges,
+            "event_count": stats.event_count,
+        })),
+    )
 }
 
 #[cfg(test)]
@@ -628,8 +1003,8 @@ mod tests {
         let prime = Prime::open_in_memory().await.unwrap();
         let recall = RecallEngine::with_deps(prime.recall_deps(), &IndexConfig::default());
         Arc::new(AppState {
-            prime: Arc::new(prime),
-            recall,
+            prime: Some(Arc::new(prime)),
+            recall: Some(recall),
             hosted: None,
         })
     }
@@ -645,21 +1020,19 @@ mod tests {
     #[tokio::test]
     async fn graph_endpoint_returns_written_node_and_edge() {
         let state = test_state().await;
+        let prime = state.prime.as_ref().unwrap();
 
-        let org_id = state
-            .prime
+        let org_id = prime
             .add_node("organization", json!({ "name": "Acme" }))
             .await
             .unwrap();
         let org = EntityId::node("organization", org_id.as_str()).to_wire();
-        let contact_id = state
-            .prime
+        let contact_id = prime
             .add_node("contact", json!({ "name": "Alice" }))
             .await
             .unwrap();
         let contact = EntityId::node("contact", contact_id.as_str()).to_wire();
-        state
-            .prime
+        prime
             .add_edge(&contact, &org, "works_at", None)
             .await
             .unwrap();
@@ -807,8 +1180,8 @@ mod tests {
             .mount(server)
             .await;
 
-        let prime = Prime::open_in_memory().await.unwrap();
-        let recall = RecallEngine::with_deps(prime.recall_deps(), &IndexConfig::default());
+        // Stateless: no embedded prime/recall — exactly the production hosted
+        // shape. Every request is served through `hosted`.
         let hosted = HostedPrime::connect(
             server.uri(),
             None,
@@ -816,8 +1189,8 @@ mod tests {
             std::time::Duration::from_secs(60),
         );
         Arc::new(AppState {
-            prime: Arc::new(prime),
-            recall,
+            prime: None,
+            recall: None,
             hosted: Some(Arc::new(hosted)),
         })
     }
@@ -905,10 +1278,12 @@ mod tests {
         assert!(text.contains("not yet available on the hosted backend"));
     }
 
-    /// Without `X-Tenant-Id`, the request falls back to the embedded dispatch
-    /// even when a `HostedPrime` engine is configured — initialize still works.
+    /// In the stateless hosted deployment (no embedded `prime`), a `/mcp`
+    /// request without `X-Tenant-Id` has no backend to serve it — it returns a
+    /// 400 with a clear "X-Tenant-Id required" message rather than dispatching
+    /// against a store that does not exist.
     #[tokio::test]
-    async fn mcp_no_tenant_falls_back_to_embedded() {
+    async fn mcp_no_tenant_stateless_returns_400() {
         let server = MockServer::start().await;
         let app = mcp_router(hosted_state(&server).await);
 
@@ -918,7 +1293,187 @@ mod tests {
             json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" }),
         )
         .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(
+            body["error"].as_str().unwrap().contains("X-Tenant-Id"),
+            "expected an X-Tenant-Id error, got {body}"
+        );
+    }
+
+    // ─── Hosted, tenant-scoped REST handlers ──────────────────────────────
+
+    /// Build a router with the REST routes exercised below, sharing one state.
+    fn rest_router(state: Arc<AppState>) -> Router {
+        Router::new()
+            .route("/api/v1/prime/nodes", post(create_node))
+            .route("/api/v1/prime/nodes/{id}", get(get_node))
+            .route("/api/v1/prime/graph", get(get_full_graph))
+            .route("/api/v1/prime/recall", post(recall))
+            .with_state(state)
+    }
+
+    /// Issue a request with optional `X-Tenant-Id` and parse the JSON body.
+    async fn rest_request(
+        app: &Router,
+        method: &str,
+        uri: &str,
+        tenant: Option<&str>,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
+        let mut builder = Request::builder().method(method).uri(uri);
+        if let Some(t) = tenant {
+            builder = builder.header("x-tenant-id", t);
+        }
+        let req = if let Some(b) = body {
+            builder
+                .header("content-type", "application/json")
+                .body(Body::from(b.to_string()))
+                .unwrap()
+        } else {
+            builder.body(Body::empty()).unwrap()
+        };
+        let resp = app.clone().oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let val = if bytes.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&bytes).unwrap()
+        };
+        (status, val)
+    }
+
+    /// `POST /nodes` then `GET /nodes/{entity_id}` round-trips through the hosted
+    /// engine (warm cache over an empty Core), with the embedded response shape.
+    #[tokio::test]
+    async fn rest_hosted_create_then_get_node() {
+        let server = MockServer::start().await;
+        let app = rest_router(hosted_state(&server).await);
+
+        let (status, body) = rest_request(
+            &app,
+            "POST",
+            "/api/v1/prime/nodes",
+            Some("tenant-a"),
+            Some(json!({ "type": "contact", "properties": { "name": "Alice" } })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let entity_id = body["entity_id"].as_str().unwrap().to_string();
+        assert!(body["node_id"].is_string());
+
+        let (status, body) = rest_request(
+            &app,
+            "GET",
+            &format!("/api/v1/prime/nodes/{entity_id}"),
+            Some("tenant-a"),
+            None,
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["result"]["serverInfo"]["name"], "allsource-prime");
+        assert_eq!(body["type"], "contact");
+        assert_eq!(body["properties"]["name"], "Alice");
+        // Embedded detail shape: domain/labels/timestamps present.
+        assert!(body["created_at"].is_string());
+        assert!(body.get("labels").is_some());
+    }
+
+    /// `GET /graph` over the hosted engine returns the same FullGraph contract
+    /// (nodes/edges/stats/has_more) the embedded path serves.
+    #[tokio::test]
+    async fn rest_hosted_full_graph_shape() {
+        let server = MockServer::start().await;
+        let app = rest_router(hosted_state(&server).await);
+
+        // Seed two nodes so the graph is non-empty.
+        let (_, a) = rest_request(
+            &app,
+            "POST",
+            "/api/v1/prime/nodes",
+            Some("tenant-a"),
+            Some(json!({ "type": "contact", "properties": { "name": "Alice" } })),
+        )
+        .await;
+        let _ = a;
+        let (_, _b) = rest_request(
+            &app,
+            "POST",
+            "/api/v1/prime/nodes",
+            Some("tenant-a"),
+            Some(json!({ "type": "contact", "properties": { "name": "Bob" } })),
+        )
+        .await;
+
+        let (status, body) =
+            rest_request(&app, "GET", "/api/v1/prime/graph", Some("tenant-a"), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["stats"]["node_count"], 2);
+        assert!(body["nodes"].is_array());
+        assert_eq!(body["has_more"], false);
+    }
+
+    /// `POST /recall` with a precomputed query vector routes through the hosted
+    /// engine and returns the embedded recall shape (`{nodes:[…]}`). With an
+    /// empty Core and no embeddings, the result is an empty `nodes` array —
+    /// proving the hosted path + tenant threading + response shape end-to-end
+    /// without invoking the in-process embedder. (Vector→node hydration is
+    /// covered by `hosted.rs`'s `embed_then_recall_returns_the_embedded_node`.)
+    #[tokio::test]
+    async fn rest_hosted_recall_shape() {
+        let server = MockServer::start().await;
+        let app = rest_router(hosted_state(&server).await);
+
+        let (status, body) = rest_request(
+            &app,
+            "POST",
+            "/api/v1/prime/recall",
+            Some("tenant-a"),
+            Some(json!({ "vector": [1.0, 0.0, 0.0, 0.0], "top_k": 5 })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(body["nodes"].is_array(), "recall must return a nodes array");
+        assert_eq!(body["nodes"].as_array().unwrap().len(), 0);
+    }
+
+    /// `POST /recall` without a `vector` on the hosted path is a clear 400
+    /// (the hosted backend never runs the in-process embedder).
+    #[tokio::test]
+    async fn rest_hosted_recall_without_vector_is_400() {
+        let server = MockServer::start().await;
+        let app = rest_router(hosted_state(&server).await);
+
+        let (status, body) = rest_request(
+            &app,
+            "POST",
+            "/api/v1/prime/recall",
+            Some("tenant-a"),
+            Some(json!({ "top_k": 5 })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(body["error"].as_str().unwrap().contains("vector"));
+    }
+
+    /// A hosted REST request without `X-Tenant-Id` returns 400 with a clear
+    /// "X-Tenant-Id required" message — there is no default tenant.
+    #[tokio::test]
+    async fn rest_hosted_missing_tenant_returns_400() {
+        let server = MockServer::start().await;
+        let app = rest_router(hosted_state(&server).await);
+
+        let (status, body) = rest_request(
+            &app,
+            "POST",
+            "/api/v1/prime/nodes",
+            None,
+            Some(json!({ "type": "contact", "properties": {} })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(
+            body["error"].as_str().unwrap().contains("X-Tenant-Id"),
+            "expected an X-Tenant-Id error, got {body}"
+        );
     }
 }

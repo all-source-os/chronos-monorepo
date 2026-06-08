@@ -156,6 +156,65 @@ async fn main() -> Result<()> {
         );
     }
 
+    // ── Stateless hosted HTTP mode ────────────────────────────────────────
+    //
+    // When running as the hosted `allsource-prime` app (CORE_URL + PRIME_API_KEY
+    // set, http mode), the app owns NO durable store: every request is served
+    // tenant-scoped through `HostedPrime` over the remote Core. Detect that
+    // before opening any embedded Prime so the `/data` volume is never touched —
+    // this is what lets the Fly volume be dropped. The stdio (Mcp) and Warm
+    // paths, and local/dev http (no CORE_URL), still open the embedded store
+    // below, unchanged.
+    if matches!(cli.mode, Mode::Http) {
+        let api_key_set = std::env::var("PRIME_API_KEY")
+            .ok()
+            .is_some_and(|s| !s.is_empty());
+        let core_url_set = std::env::var("CORE_URL").ok().filter(|s| !s.is_empty());
+        if core_url_set.is_some() && !api_key_set {
+            tracing::error!(
+                "CORE_URL is set but PRIME_API_KEY is not — hosted tenant-scoped Prime is \
+                 DISABLED. The HTTP endpoints would be unauthenticated, letting any caller \
+                 spoof X-Tenant-Id and read another tenant's memory. Set PRIME_API_KEY to \
+                 enable hosted mode (falling back to the embedded store for now)."
+            );
+        }
+        if let Some(core_url) = core_url_set.filter(|_| api_key_set) {
+            let cap = std::env::var("PRIME_TENANT_CACHE_CAP")
+                .ok()
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(64);
+            let ttl_secs = std::env::var("PRIME_TENANT_CACHE_TTL_SECS")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(300);
+            tracing::info!(
+                core_url = %core_url,
+                cache_cap = cap,
+                cache_ttl_secs = ttl_secs,
+                "Hosted tenant-scoped Prime ENABLED — running STATELESS (no embedded store, no \
+                 /data volume). All requests with X-Tenant-Id route to the remote Core."
+            );
+            tools::set_sync_status(tools::SyncStatus {
+                enabled: false,
+                remote_url: None,
+            });
+            let hosted = Arc::new(allsource_core::prime::hosted::HostedPrime::connect(
+                core_url,
+                std::env::var("CORE_API_KEY").ok(),
+                cap,
+                std::time::Duration::from_secs(ttl_secs),
+            ));
+            let state = Arc::new(http::AppState {
+                prime: None,
+                recall: None,
+                hosted: Some(hosted),
+            });
+            tracing::info!("Starting HTTP server on port {}", cli.port);
+            http::serve(state, cli.port).await?;
+            return Ok(());
+        }
+    }
+
     tracing::info!("Opening Prime at {:?}", data_dir);
 
     let prime = Arc::new(allsource_core::prime::Prime::open(&data_dir).await?);
@@ -291,69 +350,21 @@ async fn main() -> Result<()> {
             transport.run().await?;
         }
         Mode::Http => {
-            tracing::info!("Starting HTTP server on port {}", cli.port);
+            // Reaching here means http mode WITHOUT a hosted backend (no
+            // CORE_URL, or CORE_URL set without PRIME_API_KEY → fall back to the
+            // embedded single store). The hosted, stateless path returns earlier
+            // in `main`, before any embedded Prime is opened.
+            tracing::info!("Starting HTTP server on port {} (embedded store)", cli.port);
             tracing::info!(
                 "Prime graph viewer: http://localhost:{}/api/v1/prime/graph.html \
                  (open in a browser to see your memory as a bubble graph + detail list)",
                 cli.port
             );
 
-            // Hosted, tenant-scoped engine over a remote Core — constructed only
-            // when CORE_URL is set. When present, the /mcp endpoint routes
-            // tenant-stamped requests (X-Tenant-Id) through it instead of the
-            // embedded single-store Prime. Absent → /mcp serves the embedded
-            // store as before (local dev / single-tenant binary).
-            // SECURITY: the hosted path trusts the gateway-stamped `X-Tenant-Id`
-            // header, which is only safe if the `/mcp` endpoint actually
-            // authenticates the caller. `mcp_authorized` enforces `PRIME_API_KEY`
-            // — but is OPEN when that key is unset. So refuse to enable hosted,
-            // tenant-scoped serving unless `PRIME_API_KEY` is configured;
-            // otherwise any caller could spoof `X-Tenant-Id` and read another
-            // tenant's memory. Without a key we fall back to the embedded,
-            // single-store path (local dev / single-tenant binary).
-            let api_key_set = std::env::var("PRIME_API_KEY")
-                .ok()
-                .is_some_and(|s| !s.is_empty());
-            let core_url_set = std::env::var("CORE_URL").ok().filter(|s| !s.is_empty());
-            if core_url_set.is_some() && !api_key_set {
-                tracing::error!(
-                    "CORE_URL is set but PRIME_API_KEY is not — hosted tenant-scoped Prime is \
-                     DISABLED. The /mcp endpoint would be unauthenticated, letting any caller \
-                     spoof X-Tenant-Id and read another tenant's memory. Set PRIME_API_KEY to \
-                     enable hosted mode."
-                );
-            }
-            let hosted = match core_url_set.filter(|_| api_key_set) {
-                Some(core_url) => {
-                    let cap = std::env::var("PRIME_TENANT_CACHE_CAP")
-                        .ok()
-                        .and_then(|s| s.parse::<usize>().ok())
-                        .unwrap_or(64);
-                    let ttl_secs = std::env::var("PRIME_TENANT_CACHE_TTL_SECS")
-                        .ok()
-                        .and_then(|s| s.parse::<u64>().ok())
-                        .unwrap_or(300);
-                    tracing::info!(
-                        core_url = %core_url,
-                        cache_cap = cap,
-                        cache_ttl_secs = ttl_secs,
-                        "Hosted tenant-scoped Prime ENABLED — /mcp requests with X-Tenant-Id \
-                         route to the remote Core; others fall back to the embedded store."
-                    );
-                    Some(Arc::new(allsource_core::prime::hosted::HostedPrime::connect(
-                        core_url,
-                        std::env::var("CORE_API_KEY").ok(),
-                        cap,
-                        std::time::Duration::from_secs(ttl_secs),
-                    )))
-                }
-                None => None,
-            };
-
             let state = Arc::new(http::AppState {
-                prime,
-                recall,
-                hosted,
+                prime: Some(prime),
+                recall: Some(recall),
+                hosted: None,
             });
             http::serve(state, cli.port).await?;
         }
