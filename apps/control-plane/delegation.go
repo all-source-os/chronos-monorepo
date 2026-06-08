@@ -16,6 +16,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -209,7 +210,7 @@ func injectTenantIntoBatch(body []byte, tenantID string) ([]byte, error) {
 // caller's identity), and copies the backend's response to the client. It
 // does NOT forward the inbound Authorization header — the backend trusts
 // the JWT we signed, not any ask_ key the client presented.
-func (d *delegationClient) forwardRequest(c *gin.Context, method string, backend *url.URL, path string, query url.Values, body []byte, bearerToken string) {
+func (d *delegationClient) forwardRequest(c *gin.Context, method string, backend *url.URL, path string, query url.Values, body []byte, bearerToken string, extraHeaders map[string]string) {
 	target := *backend
 	target.Path = strings.TrimRight(backend.Path, "/") + "/" + strings.TrimLeft(path, "/")
 	if query != nil {
@@ -227,6 +228,9 @@ func (d *delegationClient) forwardRequest(c *gin.Context, method string, backend
 		return
 	}
 	req.Header.Set("Authorization", "Bearer "+bearerToken)
+	for k, v := range extraHeaders {
+		req.Header.Set(k, v)
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -294,7 +298,7 @@ func (cp *ControlPlane) proxyIngest(
 	if !ok {
 		return
 	}
-	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.coreForTenant(tenantID), upstreamPath, nil, rewritten, bearer)
+	cp.delegation.forwardRequest(c, http.MethodPost, cp.delegation.coreForTenant(tenantID), upstreamPath, nil, rewritten, bearer, nil)
 }
 
 // ProxyIngestSingle forwards POST /api/v1/events to Core with tenant_id
@@ -339,11 +343,24 @@ func (cp *ControlPlane) ProxyPrime(c *gin.Context) {
 		}
 	}
 
-	bearer, ok := cp.mintBearer(c)
-	if !ok {
-		return
+	// The stateless allsource-prime app reads the tenant from the X-Tenant-Id
+	// HEADER (not a query param) and gates its hosted surface behind
+	// PRIME_API_KEY. When that shared secret is configured here, authenticate
+	// to the app with it and stamp the trusted tenant header. If it is NOT set
+	// (pre-migration / local), fall back to the user-scoped service JWT + the
+	// query param so nothing breaks before the app is switched to hosted mode.
+	extraHeaders := map[string]string{"X-Tenant-Id": tenantID}
+	var bearer string
+	if key := os.Getenv("PRIME_API_KEY"); key != "" {
+		bearer = key
+	} else {
+		var ok bool
+		bearer, ok = cp.mintBearer(c)
+		if !ok {
+			return
+		}
 	}
-	cp.delegation.forwardRequest(c, c.Request.Method, cp.delegation.prime, downstreamPath, q, body, bearer)
+	cp.delegation.forwardRequest(c, c.Request.Method, cp.delegation.prime, downstreamPath, q, body, bearer, extraHeaders)
 }
 
 // ProxyEventsQuery forwards GET /api/v1/events/query to Core with tenant_id
@@ -369,5 +386,5 @@ func (cp *ControlPlane) ProxyEventsQuery(c *gin.Context) {
 	// REGIONAL_INDEPENDENCE.md), this should switch to
 	// coreForRegion(localRegion) so reads stay in-region. For now
 	// "home region" resolves to a single Core for both directions.
-	cp.delegation.forwardRequest(c, http.MethodGet, cp.delegation.coreForTenant(tenantID), "/api/v1/events/query", q, nil, bearer)
+	cp.delegation.forwardRequest(c, http.MethodGet, cp.delegation.coreForTenant(tenantID), "/api/v1/events/query", q, nil, bearer, nil)
 }
