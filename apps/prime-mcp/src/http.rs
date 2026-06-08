@@ -10,9 +10,10 @@ use allsource_core::prime::{Direction, Prime, recall::RecallEngine};
 use axum::{
     Json, Router,
     body::Bytes,
-    extract::{Path, Query, State},
+    extract::{Path, Query, Request, State},
     http::{HeaderMap, StatusCode},
-    response::{Html, IntoResponse},
+    middleware::{Next, from_fn_with_state},
+    response::{Html, IntoResponse, Response},
     routing::{delete, get, patch, post},
 };
 use serde::Deserialize;
@@ -77,6 +78,13 @@ pub async fn serve(state: Arc<AppState>, port: u16) -> anyhow::Result<()> {
         .route("/mcp", post(mcp_handler))
         .route("/health", get(health))
         .merge(crate::profiling::routes())
+        // Gate the hosted REST surface behind the same bearer check as /mcp.
+        // When a HostedPrime engine is configured, `/api/v1/prime/*` serves
+        // tenant-scoped data and trusts the X-Tenant-Id header — so it MUST
+        // require PRIME_API_KEY, exactly like /mcp, or a public caller could
+        // spoof the tenant header on the app's exposed REST routes. (/mcp does
+        // its own check; this covers REST.)
+        .layer(from_fn_with_state(Arc::clone(&state), prime_rest_auth_gate))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
@@ -115,6 +123,28 @@ fn mcp_authorized(headers: &HeaderMap) -> bool {
         .map(|s| s.strip_prefix("Bearer ").unwrap_or(s))
         .or_else(|| headers.get("x-api-key").and_then(|v| v.to_str().ok()));
     provided == Some(expected.as_str())
+}
+
+/// Middleware: when a hosted engine is configured, require the `PRIME_API_KEY`
+/// bearer on the `/api/v1/prime/*` REST surface before any handler runs — those
+/// routes serve tenant-scoped data and trust the `X-Tenant-Id` header, so they
+/// must be gated exactly like `/mcp`. Transparent (no-op) when `hosted` is
+/// `None` (local/dev embedded mode) or `PRIME_API_KEY` is unset (open, matching
+/// `mcp_authorized`). `/mcp`, `/health`, and profiling routes are unaffected.
+async fn prime_rest_auth_gate(
+    State(state): State<Arc<AppState>>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let gated = state.hosted.is_some() && req.uri().path().starts_with("/api/v1/prime");
+    if gated && !mcp_authorized(req.headers()) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "invalid or missing API key" })),
+        )
+            .into_response();
+    }
+    next.run(req).await
 }
 
 /// Extract the trusted tenant id from the `X-Tenant-Id` header (case-insensitive
@@ -1378,8 +1408,8 @@ mod tests {
         assert!(body.get("labels").is_some());
     }
 
-    /// `GET /graph` over the hosted engine returns the same FullGraph contract
-    /// (nodes/edges/stats/has_more) the embedded path serves.
+    /// `GET /graph` over the hosted engine returns the same `FullGraph` contract
+    /// (`nodes`/`edges`/`stats`/`has_more`) the embedded path serves.
     #[tokio::test]
     async fn rest_hosted_full_graph_shape() {
         let server = MockServer::start().await;
