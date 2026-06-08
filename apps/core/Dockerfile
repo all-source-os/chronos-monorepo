@@ -72,6 +72,15 @@ ARG VERSION=dev
 ARG REVISION=unknown
 ARG BUILDTIME=unknown
 
+# Stub the optional allsource-prime-models path dep BEFORE cook: cargo-chef
+# reconstructs the workspace skeleton from recipe.json and needs this directory
+# to exist (the dep is feature-gated off in the analytics build, so a stub
+# suffices). Without it, cook panics "No such file or directory".
+RUN mkdir -p crates/allsource-prime-models/src && \
+    printf '[package]\nname = "allsource-prime-models"\nversion = "0.1.0"\nedition = "2021"\n\n[lib]\npath = "src/lib.rs"\n\n[dependencies]\n' \
+        > crates/allsource-prime-models/Cargo.toml && \
+    echo '' > crates/allsource-prime-models/src/lib.rs
+
 # Cook dependencies from recipe (cached layer — recipe is version-agnostic)
 # cargo-chef replaces version fields with placeholders, so version bumps in
 # Cargo.toml/Cargo.lock don't invalidate this expensive layer.
