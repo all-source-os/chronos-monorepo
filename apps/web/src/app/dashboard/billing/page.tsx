@@ -22,8 +22,13 @@ import { type Catalog, indexByTier } from "@/lib/pricing-catalog";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 function getPlanConfig(tier: string) {
-  // `tier` here is the backend `subscription_tier`; match it against billingTier.
-  return siteConfig.pricing.find((p) => p.billingTier === tier) ?? siteConfig.pricing[0]!;
+  // `tier` is the backend `subscription_tier`. It may be a canonical 011 tier
+  // (self-host/indie/studio/scale/enterprise) or a legacy billingTier
+  // (free/starter/growth/enterprise) — match either.
+  return (
+    siteConfig.pricing.find((p) => p.tier === tier || p.billingTier === tier) ??
+    siteConfig.pricing[0]!
+  );
 }
 
 export default function BillingPage() {

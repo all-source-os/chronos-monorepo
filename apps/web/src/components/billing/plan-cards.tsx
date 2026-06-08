@@ -8,9 +8,14 @@ import { type Catalog, indexByTier } from "@/lib/pricing-catalog";
 
 // Ranked by the backend `subscription_tier` value (billingTier), not the public
 // marketing id. `scale` has no backend tier yet (011 owns it) so it ranks above growth.
+// Ranks both the canonical 011 tiers AND the legacy billingTier aliases, since
+// a tenant's subscription_tier may be either.
 const TIER_RANK: Record<string, number> = {
+  "self-host": 0,
   free: 0,
+  indie: 1,
   starter: 1,
+  studio: 2,
   growth: 2,
   scale: 3,
   enterprise: 4,
@@ -39,10 +44,11 @@ export function PlanCards({
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
       {plans.map((plan) => {
-        // Match the live `subscription_tier` against the tier's backend equivalent.
+        // Match the live `subscription_tier` against either the canonical tier
+        // id or the legacy billingTier.
         const planBillingTier = plan.billingTier ?? plan.tier;
-        const planRank = TIER_RANK[planBillingTier] ?? 0;
-        const isCurrent = planBillingTier === currentPlan;
+        const planRank = TIER_RANK[plan.tier] ?? TIER_RANK[planBillingTier] ?? 0;
+        const isCurrent = plan.tier === currentPlan || planBillingTier === currentPlan;
         const isAbove = planRank > currentRank;
         const isBelow = planRank < currentRank;
         const isPopular = plan.isPopular;
