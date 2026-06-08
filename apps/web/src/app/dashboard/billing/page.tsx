@@ -36,6 +36,17 @@ export default function BillingPage() {
   const { stats } = useDashboardStats();
   const [isYearly, setIsYearly] = useState(false);
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
+  // The tier whose checkout is currently being created (button shows a spinner).
+  const [upgradingTier, setUpgradingTier] = useState<string | null>(null);
+  // Set when LemonSqueezy redirects back after a successful checkout.
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("checkout") === "success") {
+      setCheckoutSuccess(true);
+      // Clean the param so a refresh doesn't keep showing the banner.
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
   // Live LemonSqueezy prices (source of truth) fetched via the catalog proxy.
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   useEffect(() => {
@@ -82,16 +93,20 @@ export default function BillingPage() {
       window.open("mailto:sales@all-source.xyz?subject=Enterprise%20Plan%20Inquiry", "_blank");
       return;
     }
+    setUpgradingTier(planTier);
     try {
       const response = await apiClient.createCheckout(planTier, billingPeriod, {
         tenantId: tenant?.id,
         email: user?.email,
-        redirectUrl: `${window.location.origin}/dashboard/billing`,
+        redirectUrl: `${window.location.origin}/dashboard/billing?checkout=success`,
       });
       if (response.data?.checkout_url) {
         window.location.href = response.data.checkout_url;
+        return; // navigating away; keep the spinner until the redirect happens
       }
+      setUpgradingTier(null);
     } catch (error) {
+      setUpgradingTier(null);
       console.error("Failed to create checkout:", error);
     }
   };
@@ -107,6 +122,29 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-8">
+      {/* Post-checkout confirmation — the plan updates asynchronously once the
+          LemonSqueezy webhook lands, so set expectations explicitly. */}
+      {checkoutSuccess && (
+        <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/10 p-4">
+          <Check className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="text-sm">
+            <p className="font-semibold text-foreground">Payment received — thank you!</p>
+            <p className="mt-1 text-muted-foreground">
+              Your plan upgrades automatically within a few minutes once payment is confirmed. No
+              action needed — refresh this page to see the change.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCheckoutSuccess(false)}
+            className="ml-auto text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <span aria-hidden>×</span>
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <BlurFade delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -273,6 +311,7 @@ export default function BillingPage() {
             currentPlan={currentTier}
             isYearly={isYearly}
             catalog={catalog}
+            loadingTier={upgradingTier}
             onUpgrade={handleUpgrade}
           />
         </div>

@@ -2,7 +2,7 @@
 
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { ArrowDown, Check, Sparkles } from "lucide-react";
+import { ArrowDown, Check, Loader2, Sparkles } from "lucide-react";
 import { siteConfig } from "@/lib/config";
 import { type Catalog, indexByTier } from "@/lib/pricing-catalog";
 
@@ -25,6 +25,8 @@ interface PlanCardsProps {
   currentPlan?: string;
   isYearly?: boolean;
   catalog?: Catalog | null;
+  /** Tier whose checkout is being created — its button shows a spinner. */
+  loadingTier?: string | null;
   onUpgrade?: (planName: string, billingPeriod: "monthly" | "annual") => void;
 }
 
@@ -32,6 +34,7 @@ export function PlanCards({
   currentPlan = "free",
   isYearly = false,
   catalog,
+  loadingTier,
   onUpgrade,
 }: PlanCardsProps) {
   // Dashboard only offers checkout for tiers with a backend billing tier.
@@ -52,6 +55,7 @@ export function PlanCards({
         const isAbove = planRank > currentRank;
         const isBelow = planRank < currentRank;
         const isPopular = plan.isPopular;
+        const isUpgrading = !!loadingTier && loadingTier === planBillingTier;
         const cat = prices[plan.tier];
         const displayPrice = isYearly
           ? (cat?.annual?.per_month ?? plan.yearlyPrice)
@@ -129,21 +133,41 @@ export function PlanCards({
                 </Button>
               ) : isAbove ? (
                 <Button
-                  className="w-full"
+                  className="w-full transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-70"
                   variant={isPopular ? "default" : "outline"}
+                  disabled={isUpgrading}
                   onClick={() => onUpgrade?.(planBillingTier, isYearly ? "annual" : "monthly")}
                 >
-                  {isPopular && <Sparkles className="mr-2 h-4 w-4" />}
-                  Upgrade
+                  {isUpgrading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Redirecting…
+                    </>
+                  ) : (
+                    <>
+                      {isPopular && <Sparkles className="mr-2 h-4 w-4" />}
+                      Upgrade
+                    </>
+                  )}
                 </Button>
               ) : isBelow && planBillingTier !== "free" ? (
                 <Button
-                  className="w-full"
+                  className="w-full transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-70"
                   variant="ghost"
+                  disabled={isUpgrading}
                   onClick={() => onUpgrade?.(planBillingTier, isYearly ? "annual" : "monthly")}
                 >
-                  <ArrowDown className="mr-2 h-4 w-4" />
-                  Downgrade
+                  {isUpgrading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Redirecting…
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown className="mr-2 h-4 w-4" />
+                      Downgrade
+                    </>
+                  )}
                 </Button>
               ) : (
                 // Free plan when user is on a paid plan — no button, cancel via portal
