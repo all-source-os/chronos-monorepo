@@ -37,6 +37,10 @@ pub struct TenantResponse {
     pub active: bool,
     pub is_demo: bool,
     pub schema_enforcement: SchemaEnforcement,
+    /// Operational metadata (subscription tier, quotas, billing). Persisted via
+    /// PUT /tenants/{id}; the Control Plane reads subscription/entitlement state
+    /// from here. Must be serialized back out or the plan reads as "free".
+    pub metadata: serde_json::Value,
 }
 
 impl TenantResponse {
@@ -51,6 +55,7 @@ impl TenantResponse {
             active: tenant.is_active(),
             is_demo: tenant.is_demo(),
             schema_enforcement: tenant.schema_enforcement(),
+            metadata: tenant.metadata().clone(),
         }
     }
 }
