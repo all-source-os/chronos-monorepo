@@ -569,6 +569,147 @@ impl HostedPrime {
         }
     }
 
+    /// Delete a stored vector: ingest a `prime.vector.deleted` event
+    /// (tenant-stamped) and apply it so recall no longer returns it. Mirrors the
+    /// embedded `Prime::delete_vector` (`vec:{node_entity_id}` entity, `{}` payload).
+    #[cfg(feature = "prime-vectors")]
+    pub async fn delete_vector(&self, tenant: &str, node_entity_id: &str) -> Result<()> {
+        let entity_id = crate::prime::vectors::vector_entity_id(node_entity_id);
+        self.core_for(tenant)
+            .ingest(IngestEvent {
+                entity_id: &entity_id,
+                event_type: crate::prime::vectors::event_types::VECTOR_DELETED,
+                payload: json!({}),
+                metadata: None,
+                tenant_id: Some(tenant),
+            })
+            .await?;
+        self.cache.get_or_hydrate(tenant).await?;
+        self.cache.apply(
+            tenant,
+            &self.synth_view_typed(
+                tenant,
+                crate::prime::vectors::event_types::VECTOR_DELETED,
+                &entity_id,
+                json!({}),
+            ),
+        );
+        Ok(())
+    }
+
+    /// Materialize the tenant's complete graph (nodes + edges + stats), mirroring
+    /// the embedded `Prime::full_graph`. The bundle is already single-tenant
+    /// (events were queried tenant-scoped), so no per-node `tenant_id` filter is
+    /// needed here. `node_type` filters to one type; `limit` caps nodes and sets
+    /// `has_more`; edges are restricted to the returned node set.
+    pub async fn full_graph(
+        &self,
+        tenant: &str,
+        node_type: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<crate::prime::types::FullGraph> {
+        use crate::prime::types::{EntityId, FullGraph, GraphEdge, GraphNode, GraphStats};
+        use std::collections::{BTreeMap, HashSet};
+
+        let g = self.cache.get_or_hydrate(tenant).await?;
+
+        let mut live: Vec<Node> = g
+            .node_state
+            .all_nodes()
+            .into_iter()
+            .filter(|n| node_type.is_none_or(|nt| n.node_type == nt))
+            .collect();
+        live.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+
+        let mut nodes_by_type: BTreeMap<String, usize> = BTreeMap::new();
+        for n in &live {
+            *nodes_by_type.entry(n.node_type.clone()).or_default() += 1;
+        }
+        let has_more = limit.is_some_and(|l| live.len() > l);
+        if let Some(l) = limit {
+            live.truncate(l);
+        }
+
+        let included: HashSet<String> = live
+            .iter()
+            .map(|n| EntityId::node(&n.node_type, n.id.as_str()).to_wire())
+            .collect();
+
+        let mut vector_count = 0usize;
+        let nodes: Vec<GraphNode> = live
+            .iter()
+            .map(|n| {
+                let wire = EntityId::node(&n.node_type, n.id.as_str()).to_wire();
+                let (has_vector, vector_dim) = self.vector_presence(&g, &wire);
+                if has_vector {
+                    vector_count += 1;
+                }
+                GraphNode {
+                    id: wire,
+                    node_type: n.node_type.clone(),
+                    properties: n.properties.clone(),
+                    has_vector,
+                    vector_dim,
+                    created_at: n.created_at,
+                    updated_at: n.updated_at,
+                }
+            })
+            .collect();
+
+        let edges: Vec<GraphEdge> = g
+            .adjacency
+            .all_edges()
+            .into_iter()
+            .filter(|(source, adj)| included.contains(source) && included.contains(&adj.peer))
+            .map(|(source, adj)| GraphEdge {
+                source,
+                target: adj.peer,
+                relation: adj.relation,
+                properties: None,
+                weight: adj.weight,
+                created_at: chrono::Utc::now(),
+            })
+            .collect();
+
+        let stats = GraphStats {
+            node_count: nodes.len(),
+            edge_count: edges.len(),
+            vector_count,
+            nodes_by_type,
+        };
+        Ok(FullGraph {
+            nodes,
+            edges,
+            stats,
+            has_more,
+        })
+    }
+
+    /// `(has_vector, dimension)` for a node wire-id over the warm bundle's vector
+    /// index. Always `(false, None)` without the `prime-vectors` feature.
+    #[allow(unused_variables)]
+    fn vector_presence(&self, g: &GraphProjections, node_wire_id: &str) -> (bool, Option<usize>) {
+        #[cfg(feature = "prime-vectors")]
+        {
+            use crate::application::services::projection::Projection;
+            let vec_entity = crate::prime::vectors::vector_entity_id(node_wire_id);
+            if let Some(state) = g.vector_index.get_state(&vec_entity) {
+                let dim = state
+                    .get("vector")
+                    .and_then(serde_json::Value::as_array)
+                    .map(Vec::len)
+                    .or_else(|| {
+                        state
+                            .get("dimensions")
+                            .and_then(serde_json::Value::as_u64)
+                            .map(|d| d as usize)
+                    });
+                return (true, dim);
+            }
+        }
+        (false, None)
+    }
+
     /// Synthesize a local [`EventView`] for cache application. The remote Core
     /// assigns the authoritative id/version/timestamp; the projections only key
     /// on entity_id/event_type/payload, so a local stand-in is sufficient until
@@ -921,5 +1062,31 @@ mod tests {
         // Node.id is the short id; assert the BFS returned the a→b→c chain in order.
         let ids: Vec<&str> = path.iter().map(|n| n.id.as_str()).collect();
         assert_eq!(ids, vec![na.as_str(), nb.as_str(), nc.as_str()]);
+    }
+
+    #[tokio::test]
+    async fn full_graph_returns_tenant_nodes_and_edges() {
+        let server = empty_core().await;
+        let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        let a = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
+        let b = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
+        hosted.add_edge("t", &a, &b, "knows", None).await.unwrap();
+        let graph = hosted.full_graph("t", None, None).await.unwrap();
+        assert_eq!(graph.stats.node_count, 2);
+        assert_eq!(graph.stats.edge_count, 1);
+        assert!(!graph.has_more);
+    }
+
+    #[cfg(feature = "prime-vectors")]
+    #[tokio::test]
+    async fn delete_vector_removes_it_from_recall() {
+        let server = empty_core().await;
+        let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        let nid = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
+        let eid = node_entity_id("n", &nid);
+        hosted.embed("t", &eid, vec![1.0, 0.0, 0.0, 0.0], None).await.unwrap();
+        assert!(!hosted.recall("t", vec![1.0, 0.0, 0.0, 0.0], 5).await.unwrap().is_empty());
+        hosted.delete_vector("t", &eid).await.unwrap();
+        assert!(hosted.recall("t", vec![1.0, 0.0, 0.0, 0.0], 5).await.unwrap().is_empty());
     }
 }
