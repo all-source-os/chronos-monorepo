@@ -124,10 +124,12 @@ impl HostedPrime {
             })
             .await?;
 
-        // Ensure the tenant is warm, then apply the new event to the bundle.
-        // (get_or_hydrate may already include this event if Core served it;
-        // re-applying NODE_CREATED for the same entity is idempotent.)
-        self.cache.get_or_hydrate(tenant).await?;
+        // Update the tenant's warm bundle in place IF it is cached, so an
+        // in-process read reflects the write without a re-query. If the tenant
+        // is cold, cache.apply no-ops and the next read hydrates from Core
+        // (which now has this event). We deliberately do NOT hydrate-then-apply:
+        // that would fold the just-ingested event in twice, inflating
+        // count-based projections like graph_stats.
         self.cache.apply(
             tenant,
             &self.synth_view_typed(tenant, event_types::NODE_CREATED, &entity_id, payload),
@@ -200,7 +202,6 @@ impl HostedPrime {
             })
             .await?;
 
-        self.cache.get_or_hydrate(tenant).await?;
         self.cache.apply(
             tenant,
             &self.synth_view_typed(tenant, event_types::EDGE_CREATED, &entity_id, payload),
@@ -224,7 +225,6 @@ impl HostedPrime {
             })
             .await?;
 
-        self.cache.get_or_hydrate(tenant).await?;
         self.cache.apply(
             tenant,
             &self.synth_view_typed(tenant, event_types::NODE_DELETED, entity_id, json!({})),
@@ -584,7 +584,6 @@ impl HostedPrime {
                 tenant_id: Some(tenant),
             })
             .await?;
-        self.cache.get_or_hydrate(tenant).await?;
         self.cache.apply(
             tenant,
             &self.synth_view_typed(
@@ -757,6 +756,9 @@ mod tests {
             .await;
 
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("tenant-a").await.unwrap();
         let id = hosted
             .add_node("tenant-a", "contact", serde_json::json!({"name": "Alice"}))
             .await
@@ -794,6 +796,9 @@ mod tests {
         mount_empty_core(&server).await;
 
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("tenant-a").await.unwrap();
         let alice = hosted
             .add_node("tenant-a", "contact", serde_json::json!({"name": "Alice"}))
             .await
@@ -834,6 +839,9 @@ mod tests {
         mount_empty_core(&server).await;
 
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("tenant-a").await.unwrap();
         hosted
             .add_node("tenant-a", "contact", serde_json::json!({"name": "Alice"}))
             .await
@@ -864,6 +872,9 @@ mod tests {
         mount_empty_core(&server).await;
 
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("tenant-a").await.unwrap();
         let a = hosted
             .add_node("tenant-a", "contact", serde_json::json!({"name": "Alice"}))
             .await
@@ -894,6 +905,9 @@ mod tests {
         mount_empty_core(&server).await;
 
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("tenant-a").await.unwrap();
         let id = hosted
             .add_node("tenant-a", "contact", serde_json::json!({"name": "Alice"}))
             .await
@@ -917,6 +931,9 @@ mod tests {
         mount_empty_core(&server).await;
 
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("tenant-a").await.unwrap();
         // A real graph node so recall can hydrate it from node_state.
         let id = hosted
             .add_node("tenant-a", "contact", serde_json::json!({"name": "Alice"}))
@@ -952,6 +969,9 @@ mod tests {
         mount_empty_core(&server).await;
 
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("tenant-a").await.unwrap();
 
         // tenant-a embeds a node…
         let a_id = hosted
@@ -993,6 +1013,9 @@ mod tests {
             .await;
 
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("t").await.unwrap();
         let node = hosted
             .get_node("tenant-a", "node:contact:ghost")
             .await
@@ -1022,6 +1045,9 @@ mod tests {
     async fn update_node_merges_properties_in_warm_bundle() {
         let server = empty_core().await;
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("t").await.unwrap();
         let id = hosted
             .add_node("t", "contact", serde_json::json!({"name": "Alice"}))
             .await
@@ -1040,6 +1066,9 @@ mod tests {
     async fn delete_edge_removes_it_from_neighbors() {
         let server = empty_core().await;
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("t").await.unwrap();
         let a = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
         let b = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
         let edge = hosted.add_edge("t", &a, &b, "knows", None).await.unwrap();
@@ -1052,6 +1081,9 @@ mod tests {
     async fn shortest_path_finds_the_chain() {
         let server = empty_core().await;
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("t").await.unwrap();
         let na = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
         let nb = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
         let nc = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
@@ -1068,6 +1100,9 @@ mod tests {
     async fn full_graph_returns_tenant_nodes_and_edges() {
         let server = empty_core().await;
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("t").await.unwrap();
         let a = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
         let b = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
         hosted.add_edge("t", &a, &b, "knows", None).await.unwrap();
@@ -1082,6 +1117,9 @@ mod tests {
     async fn delete_vector_removes_it_from_recall() {
         let server = empty_core().await;
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        // Pre-warm the tenant so post-write apply() lands on a warm bundle
+        // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
+        hosted.tenant_graph("t").await.unwrap();
         let nid = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
         let eid = node_entity_id("n", &nid);
         hosted.embed("t", &eid, vec![1.0, 0.0, 0.0, 0.0], None).await.unwrap();
