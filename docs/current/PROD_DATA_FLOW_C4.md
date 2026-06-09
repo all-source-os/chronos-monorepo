@@ -1,7 +1,9 @@
 # AllSource — Production Data-Flow (C4-style)
 
-*Date: 2026-06-02*
-*Status: current-architecture trace, code-read (file:line) + verified against the LIVE deployment (read-only probes, no changes). Supersedes ad-hoc mental models; corrects several CLAUDE.md claims (flagged).*
+*Date: 2026-06-02 (Prime section superseded 2026-06-09 — see banner)*
+*Status: current-architecture trace, code-read (file:line) + verified against the LIVE deployment. Corrects several CLAUDE.md claims (flagged).*
+
+> **⚠️ UPDATE 2026-06-09 — the Prime topology below is OUT OF DATE.** Epic t-10f876 shipped: the `allsource-prime` app is now **stateless** — it holds no store and serves every request tenant-scoped through `HostedPrime` over Core's `prime.*` events. The Control Plane routes `/api/v1/prime/*` to it stamping `X-Tenant-Id` + `PRIME_API_KEY` (the app refuses tenant serving without the key). **Prod-verified:** tenant A write+read → 200, tenant B → 404 for A's node (cross-tenant isolation), no-key → 401. So the "four Prime stores", "single shared seeded graph", and "404ing gateway routes" findings below describe the PRE-migration state. The prime_data volume is mounted-but-unused (removal deferred, bead t-d843dd). Design: `docs/proposals/PRIME_STATELESS_OVER_CORE.md`. The non-Prime sections (CP edge, Core-owns-tenants/keys, request routing) remain accurate.
 
 ---
 
