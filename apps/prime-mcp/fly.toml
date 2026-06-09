@@ -8,10 +8,12 @@
 #
 # STATELESS in production: this app runs http+hosted mode (CORE_URL +
 # PRIME_API_KEY set as Fly secrets), so it owns no durable store — every request
-# is served tenant-scoped through HostedPrime over the remote Core. There is
-# therefore NO [mounts] / volume: the embedded Prime store is never opened in
-# this mode (see main.rs). PRIME_DATA_DIR below is only the default the embedded
-# local stdio binary would use; in hosted mode it is unused.
+# is served tenant-scoped through HostedPrime over the remote Core. The embedded
+# Prime store is never opened in this mode (see main.rs), so the volume below is
+# MOUNTED BUT UNUSED. It is retained only because removing a mount from a live
+# machine requires destroying + recreating it (prod downtime); dropping the
+# prime_data volume is a deferred follow-up. PRIME_DATA_DIR is the embedded
+# stdio binary's default; unused in hosted mode.
 
 app = "allsource-prime"
 primary_region = "iad"
@@ -49,3 +51,9 @@ primary_region = "iad"
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"
+
+# Mounted but UNUSED in hosted mode (see header). Retained so deploys don't have
+# to destroy+recreate the live machine; remove in a maintenance window.
+[mounts]
+  source = "prime_data"
+  destination = "/data"

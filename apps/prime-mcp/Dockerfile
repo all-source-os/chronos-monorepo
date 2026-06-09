@@ -28,6 +28,9 @@ COPY Cargo.toml Cargo.lock ./
 # Copy allsource-core (the main dependency)
 COPY apps/core/ apps/core/
 
+# Copy shared crates allsource-core depends on (e.g. allsource-prime-models).
+COPY crates/ crates/
+
 # Copy prime-mcp itself
 COPY apps/prime-mcp/ apps/prime-mcp/
 
