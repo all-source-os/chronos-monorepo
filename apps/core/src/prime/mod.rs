@@ -30,13 +30,13 @@ pub mod http_core;
 pub mod import_export;
 #[cfg(feature = "prime-recall")]
 pub mod projection_bundle;
-#[cfg(feature = "prime-recall")]
-pub mod tenant_cache;
 pub mod projections;
 #[cfg(feature = "prime-recall")]
 pub mod recall;
 pub mod schema;
 pub mod sync;
+#[cfg(feature = "prime-recall")]
+pub mod tenant_cache;
 pub mod types;
 #[cfg(feature = "prime-vectors")]
 pub mod vectors;
@@ -44,9 +44,9 @@ pub mod vectors;
 // Re-export commonly used types
 pub use error::{PrimeError, PrimeResult};
 pub use event_store::EventStore;
+pub use facade::{ConversationScope, Prime};
 #[cfg(feature = "prime-recall")]
 pub use http_core::HttpCore;
-pub use facade::{ConversationScope, Prime};
 pub use types::{
     Direction, Edge, EdgeId, EntityId, GraphDiff, HistoryEntry, Node, NodeId, PrimeStats, SubGraph,
     edge_entity_id, event_types, node_entity_id,

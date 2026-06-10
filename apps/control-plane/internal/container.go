@@ -145,10 +145,10 @@ type Container struct {
 	AgentPaymentHistoryUC *usecases.GetAgentPaymentHistoryUseCase
 
 	// Use Cases — Webhooks
-	ProcessLSWebhookUC      *usecases.ProcessLemonSqueezyWebhookUseCase
-	ProcessStripeWebhookUC  *usecases.ProcessStripeWebhookUseCase
-	UpdateSubscriptionUC    *usecases.UpdateSubscriptionMetadataUseCase
-	MigrateEarlyAdoptersUC  *usecases.MigrateEarlyAdoptersUseCase
+	ProcessLSWebhookUC     *usecases.ProcessLemonSqueezyWebhookUseCase
+	ProcessStripeWebhookUC *usecases.ProcessStripeWebhookUseCase
+	UpdateSubscriptionUC   *usecases.UpdateSubscriptionMetadataUseCase
+	MigrateEarlyAdoptersUC *usecases.MigrateEarlyAdoptersUseCase
 
 	// Scheduler
 	Scheduler *usecases.OperationScheduler

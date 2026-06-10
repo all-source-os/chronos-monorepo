@@ -22,12 +22,14 @@ use crate::{
     application::services::projection::Projection,
     domain::entities::Event,
     embedded::EventView,
-    prime::projections::{
-        AdjacencyListProjection, ContradictionDetectionProjection, CrossDomainProjection,
-        DomainIndexProjection, GraphStatsProjection, NodeStateProjection, NodeTypeIndexProjection,
-        ReverseIndexProjection,
+    prime::{
+        projections::{
+            AdjacencyListProjection, ContradictionDetectionProjection, CrossDomainProjection,
+            DomainIndexProjection, GraphStatsProjection, NodeStateProjection,
+            NodeTypeIndexProjection, ReverseIndexProjection,
+        },
+        schema::SchemaProjection,
     },
-    prime::schema::SchemaProjection,
 };
 
 #[cfg(feature = "prime-vectors")]

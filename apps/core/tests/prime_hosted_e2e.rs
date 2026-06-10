@@ -13,12 +13,12 @@
 
 #![cfg(all(feature = "prime-recall", feature = "server", feature = "multi-tenant"))]
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
-use allsource_core::embedded::{Config, EmbeddedCore, IngestEvent, Query};
-use allsource_core::prime::hosted::HostedPrime;
-use allsource_core::prime::types::EntityId;
+use allsource_core::{
+    embedded::{Config, EmbeddedCore, IngestEvent, Query},
+    prime::{hosted::HostedPrime, types::EntityId},
+};
 
 /// `node:{type}:{id}` wire id (node_entity_id is deprecated in favor of this).
 fn node_eid(node_type: &str, id: &str) -> String {
@@ -66,7 +66,10 @@ async fn ingest(State(core): State<Arc<EmbeddedCore>>, Json(b): Json<IngestBody>
     Json(json!({ "ok": true }))
 }
 
-async fn query(State(core): State<Arc<EmbeddedCore>>, AxQuery(p): AxQuery<QueryParams>) -> Json<Value> {
+async fn query(
+    State(core): State<Arc<EmbeddedCore>>,
+    AxQuery(p): AxQuery<QueryParams>,
+) -> Json<Value> {
     let mut q = Query::new();
     if let Some(v) = p.entity_id {
         q = q.entity_id(v);
@@ -135,11 +138,26 @@ async fn hosted_prime_round_trips_and_isolates_tenants_through_real_core() {
 
     // … and CANNOT see tenant B's node (Core's tenant-filtered query enforces it).
     let leak = reader.get_node("tenant-a", &bob_eid).await.unwrap();
-    assert!(leak.is_none(), "tenant-a must NOT see tenant-b's node — cross-tenant leak!");
+    assert!(
+        leak.is_none(),
+        "tenant-a must NOT see tenant-b's node — cross-tenant leak!"
+    );
 
     // Symmetric: tenant B sees Bob, not Alice.
-    assert!(reader.get_node("tenant-b", &bob_eid).await.unwrap().is_some());
-    assert!(reader.get_node("tenant-b", &alice_eid).await.unwrap().is_none());
+    assert!(
+        reader
+            .get_node("tenant-b", &bob_eid)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        reader
+            .get_node("tenant-b", &alice_eid)
+            .await
+            .unwrap()
+            .is_none()
+    );
 
     // search() is also tenant-scoped through Core.
     let a_contacts = reader.search("tenant-a", "contact").await.unwrap();

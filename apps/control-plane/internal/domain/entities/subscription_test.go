@@ -134,7 +134,7 @@ func TestHighestActiveTier(t *testing.T) {
 
 	t.Run("cancel top falls back to next active", func(t *testing.T) {
 		subs := map[string]SubscriptionRef{
-			"a": ref("studio", "cancelled"),
+			"a": ref("studio", "cancelled"), //nolint:misspell // mirrors LemonSqueezy status spelling
 			"c": ref("indie", "active"),
 		}
 		if tier, _ := HighestActiveTier(subs); tier != "indie" {
@@ -145,7 +145,7 @@ func TestHighestActiveTier(t *testing.T) {
 	t.Run("all inactive -> free", func(t *testing.T) {
 		subs := map[string]SubscriptionRef{
 			"a": ref("studio", "expired"),
-			"c": ref("indie", "cancelled"),
+			"c": ref("indie", "cancelled"), //nolint:misspell // mirrors LemonSqueezy status spelling
 		}
 		if tier, id := HighestActiveTier(subs); tier != "free" || id != "" {
 			t.Errorf("got (%q,%q), want (free,'')", tier, id)

@@ -14,6 +14,9 @@ import (
 const (
 	providerLemonSqueezy = "lemonsqueezy"
 	providerStripe       = "stripe"
+
+	// defaultBillingPeriod is used when a checkout request omits the period.
+	defaultBillingPeriod = "monthly"
 )
 
 // --- Billing DTOs (handler-facing) ---
@@ -159,7 +162,7 @@ func (uc *CreateCheckoutUseCase) executeLemonSqueezy(ctx context.Context, req Ch
 
 	period := req.BillingPeriod
 	if period == "" {
-		period = "monthly"
+		period = defaultBillingPeriod
 	}
 
 	checkoutReq := clients.CreateCheckoutRequest{
@@ -206,7 +209,7 @@ func (uc *CreateCheckoutUseCase) executeStripe(ctx context.Context, req Checkout
 
 	period := req.BillingPeriod
 	if period == "" {
-		period = "monthly"
+		period = defaultBillingPeriod
 	}
 
 	successURL := req.RedirectURL

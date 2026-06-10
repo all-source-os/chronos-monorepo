@@ -55,13 +55,10 @@ pub fn set_sync_status(status: SyncStatus) {
 }
 
 fn sync_status() -> SyncStatus {
-    SYNC_STATUS
-        .get()
-        .cloned()
-        .unwrap_or(SyncStatus {
-            enabled: false,
-            remote_url: None,
-        })
+    SYNC_STATUS.get().cloned().unwrap_or(SyncStatus {
+        enabled: false,
+        remote_url: None,
+    })
 }
 
 /// Build the `sync` object embedded in `prime_stats` output. Mirrors the
@@ -419,10 +416,10 @@ fn call_list_projections() -> Value {
                 .field_policies
                 .iter()
                 .map(|(field, policy)| {
-                    let policy_str =
-                        serde_json::to_value(policy).ok().and_then(|v| {
-                            v.as_str().map(String::from)
-                        }).unwrap_or_default();
+                    let policy_str = serde_json::to_value(policy)
+                        .ok()
+                        .and_then(|v| v.as_str().map(String::from))
+                        .unwrap_or_default();
                     (field.clone(), Value::String(policy_str))
                 })
                 .collect();
@@ -1106,11 +1103,17 @@ mod tests {
 
     #[test]
     fn entity_type_from_node_id_parses_canonical_format() {
-        assert_eq!(entity_type_from_node_id("node:contact:abc-123"), Some("contact"));
+        assert_eq!(
+            entity_type_from_node_id("node:contact:abc-123"),
+            Some("contact")
+        );
         assert_eq!(entity_type_from_node_id("node:person:xyz"), Some("person"));
         // Type segments can contain colons inside the id portion — splitn(3)
         // means everything past the second colon stays in the id.
-        assert_eq!(entity_type_from_node_id("node:task:id:with:colons"), Some("task"));
+        assert_eq!(
+            entity_type_from_node_id("node:task:id:with:colons"),
+            Some("task")
+        );
     }
 
     #[test]
@@ -1126,15 +1129,18 @@ mod tests {
         let _guard = crate::projection_registry::test_guard();
         crate::projection_registry::clear_for_test();
         let prime = Prime::open_in_memory().await.unwrap();
-        let result = call_define_projection(&prime, &json!({
-            "entity_type": "dispatch-test-1",
-            "field_policies": {
-                "status": "last_write",
-                "name": "highest_priority",
-                "role": "most_specific",
-                "tags": "merge_array",
-            }
-        }))
+        let result = call_define_projection(
+            &prime,
+            &json!({
+                "entity_type": "dispatch-test-1",
+                "field_policies": {
+                    "status": "last_write",
+                    "name": "highest_priority",
+                    "role": "most_specific",
+                    "tags": "merge_array",
+                }
+            }),
+        )
         .await;
         // Should be a success result, not an error
         assert_ne!(result.get("isError"), Some(&json!(true)));
@@ -1142,8 +1148,8 @@ mod tests {
         assert!(text.contains("\"entity_type\": \"dispatch-test-1\""));
         assert!(text.contains("\"replaced\": false"));
         // And it should actually be in the registry
-        let def = crate::projection_registry::get("dispatch-test-1")
-            .expect("def should be registered");
+        let def =
+            crate::projection_registry::get("dispatch-test-1").expect("def should be registered");
         assert_eq!(def.field_policies.len(), 4);
     }
 
@@ -1153,10 +1159,13 @@ mod tests {
         let _guard = crate::projection_registry::test_guard();
         crate::projection_registry::clear_for_test();
         let prime = Prime::open_in_memory().await.unwrap();
-        let result = call_define_projection(&prime, &json!({
-            "entity_type": "dispatch-test-2",
-            "field_policies": { "status": "not_a_real_policy" }
-        }))
+        let result = call_define_projection(
+            &prime,
+            &json!({
+                "entity_type": "dispatch-test-2",
+                "field_policies": { "status": "not_a_real_policy" }
+            }),
+        )
         .await;
         assert_eq!(result["isError"], json!(true));
         let text = result["content"][0]["text"].as_str().unwrap();
@@ -1170,16 +1179,22 @@ mod tests {
         crate::projection_registry::clear_for_test();
         let prime = Prime::open_in_memory().await.unwrap();
         // First definition: replaced=false
-        call_define_projection(&prime, &json!({
-            "entity_type": "dispatch-test-3",
-            "field_policies": { "status": "last_write" }
-        }))
+        call_define_projection(
+            &prime,
+            &json!({
+                "entity_type": "dispatch-test-3",
+                "field_policies": { "status": "last_write" }
+            }),
+        )
         .await;
         // Second definition for same type: replaced=true
-        let result = call_define_projection(&prime, &json!({
-            "entity_type": "dispatch-test-3",
-            "field_policies": { "name": "highest_priority" }
-        }))
+        let result = call_define_projection(
+            &prime,
+            &json!({
+                "entity_type": "dispatch-test-3",
+                "field_policies": { "name": "highest_priority" }
+            }),
+        )
         .await;
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("\"replaced\": true"));
@@ -1191,15 +1206,21 @@ mod tests {
         let _guard = crate::projection_registry::test_guard();
         crate::projection_registry::clear_for_test();
         let prime = Prime::open_in_memory().await.unwrap();
-        call_define_projection(&prime, &json!({
-            "entity_type": "dispatch-test-4a",
-            "field_policies": { "f": "last_write" }
-        }))
+        call_define_projection(
+            &prime,
+            &json!({
+                "entity_type": "dispatch-test-4a",
+                "field_policies": { "f": "last_write" }
+            }),
+        )
         .await;
-        call_define_projection(&prime, &json!({
-            "entity_type": "dispatch-test-4b",
-            "field_policies": { "f": "merge_array" }
-        }))
+        call_define_projection(
+            &prime,
+            &json!({
+                "entity_type": "dispatch-test-4b",
+                "field_policies": { "f": "merge_array" }
+            }),
+        )
         .await;
         let result = call_list_projections();
         let text = result["content"][0]["text"].as_str().unwrap();

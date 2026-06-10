@@ -15,8 +15,7 @@
 //! Templates are embedded at compile time via `include_str!` so the binary
 //! stays self-contained — no template files to ship alongside it.
 
-use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::{collections::HashMap, sync::OnceLock};
 
 use serde_json::Value;
 
@@ -39,7 +38,10 @@ fn templates() -> &'static HashMap<&'static str, Value> {
 const BUNDLED_TEMPLATES: &[(&str, &str)] = &[
     ("person", include_str!("../templates/person.json")),
     ("contact", include_str!("../templates/contact.json")),
-    ("organization", include_str!("../templates/organization.json")),
+    (
+        "organization",
+        include_str!("../templates/organization.json"),
+    ),
     ("task", include_str!("../templates/task.json")),
     ("decision", include_str!("../templates/decision.json")),
     ("transaction", include_str!("../templates/transaction.json")),

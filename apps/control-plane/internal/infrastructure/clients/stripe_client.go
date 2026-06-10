@@ -244,13 +244,7 @@ func (c *stripeClient) LookupPriceID(tier, period string) (string, error) {
 		return "", fmt.Errorf("price map not configured")
 	}
 	t := strings.ToLower(tier)
-	p := strings.ToLower(period)
-	if p == "" || (p != "monthly" && p != "annual" && p != "yearly") {
-		p = "monthly"
-	}
-	if p == "yearly" {
-		p = "annual"
-	}
+	p := normalizeBillingPeriod(period)
 
 	if id, ok := c.priceMap[t+":"+p]; ok {
 		return id, nil

@@ -12,8 +12,7 @@
 //! `tools/list` reuse the shared `protocol::server_info` + `tools::tool_definitions`
 //! so the advertised surface matches the embedded path exactly.
 
-use allsource_core::prime::Direction;
-use allsource_core::prime::hosted::HostedPrime;
+use allsource_core::prime::{Direction, hosted::HostedPrime};
 use serde_json::{Value, json};
 
 use crate::{
@@ -42,10 +41,7 @@ pub async fn handle_request_hosted(
 
         "tools/list" => {
             let defs = tools::tool_definitions();
-            Some(Response::success(
-                req.id.clone(),
-                json!({ "tools": defs }),
-            ))
+            Some(Response::success(req.id.clone(), json!({ "tools": defs })))
         }
 
         "tools/call" => {
@@ -98,9 +94,9 @@ async fn call_tool_hosted(hosted: &HostedPrime, tenant: &str, name: &str, args: 
         | "prime_define_projection"
         | "prime_list_projections"
         | "prime_project_node"
-        | "prime_node_provenance" => {
-            tool_error(&format!("tool {name} not yet available on the hosted backend"))
-        }
+        | "prime_node_provenance" => tool_error(&format!(
+            "tool {name} not yet available on the hosted backend"
+        )),
 
         _ => tool_error(&format!("Unknown tool: {name}")),
     }
@@ -137,7 +133,10 @@ fn node_json(n: &allsource_core::prime::Node) -> Value {
 // ── Tool implementations (mirroring tools.rs arg parsing + result shaping) ──
 
 async fn call_add_node(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value {
-    let node_type = args.get("type").and_then(Value::as_str).unwrap_or("unknown");
+    let node_type = args
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
     let properties = args.get("properties").cloned().unwrap_or_else(|| json!({}));
 
     match hosted.add_node(tenant, node_type, properties).await {
@@ -324,15 +323,15 @@ async fn call_history(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value
 mod tests {
     use super::*;
     use std::time::Duration;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
 
     async fn mount_empty_core(server: &MockServer) {
         Mock::given(method("GET"))
             .and(path("/api/v1/events/query"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(json!({ "events": [] })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "events": [] })))
             .mount(server)
             .await;
         Mock::given(method("POST"))
@@ -359,7 +358,9 @@ mod tests {
         let server = MockServer::start().await;
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
         let r = req(1, "initialize", json!({}));
-        let resp = handle_request_hosted(&hosted, "tenant-a", &r).await.unwrap();
+        let resp = handle_request_hosted(&hosted, "tenant-a", &r)
+            .await
+            .unwrap();
         let v = serde_json::to_value(&resp).unwrap();
         assert_eq!(v["result"]["serverInfo"]["name"], "allsource-prime");
     }
@@ -369,7 +370,11 @@ mod tests {
         let server = MockServer::start().await;
         let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
         let r = req(0, "notifications/initialized", json!({}));
-        assert!(handle_request_hosted(&hosted, "tenant-a", &r).await.is_none());
+        assert!(
+            handle_request_hosted(&hosted, "tenant-a", &r)
+                .await
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -383,19 +388,30 @@ mod tests {
             "tools/call",
             json!({ "name": "prime_add_node", "arguments": { "type": "contact", "properties": { "name": "Alice" } } }),
         );
-        let resp = handle_request_hosted(&hosted, "tenant-a", &add).await.unwrap();
+        let resp = handle_request_hosted(&hosted, "tenant-a", &add)
+            .await
+            .unwrap();
         let v = serde_json::to_value(&resp).unwrap();
-        assert_ne!(v["result"]["isError"], json!(true), "add_node should succeed");
+        assert_ne!(
+            v["result"]["isError"],
+            json!(true),
+            "add_node should succeed"
+        );
 
         let search = req(
             2,
             "tools/call",
             json!({ "name": "prime_search", "arguments": { "type": "contact" } }),
         );
-        let resp = handle_request_hosted(&hosted, "tenant-a", &search).await.unwrap();
+        let resp = handle_request_hosted(&hosted, "tenant-a", &search)
+            .await
+            .unwrap();
         let v = serde_json::to_value(&resp).unwrap();
         let text = v["result"]["content"][0]["text"].as_str().unwrap();
-        assert!(text.contains("Alice"), "search should return the added node; got {text}");
+        assert!(
+            text.contains("Alice"),
+            "search should return the added node; got {text}"
+        );
     }
 
     #[tokio::test]
@@ -407,7 +423,9 @@ mod tests {
             "tools/call",
             json!({ "name": "prime_index", "arguments": {} }),
         );
-        let resp = handle_request_hosted(&hosted, "tenant-a", &r).await.unwrap();
+        let resp = handle_request_hosted(&hosted, "tenant-a", &r)
+            .await
+            .unwrap();
         let v = serde_json::to_value(&resp).unwrap();
         assert_eq!(v["result"]["isError"], json!(true));
         let text = v["result"]["content"][0]["text"].as_str().unwrap();

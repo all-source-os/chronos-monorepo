@@ -5,8 +5,7 @@
 
 use std::sync::Arc;
 
-use allsource_core::prime::hosted::HostedPrime;
-use allsource_core::prime::{Direction, Prime, recall::RecallEngine};
+use allsource_core::prime::{Direction, Prime, hosted::HostedPrime, recall::RecallEngine};
 use axum::{
     Json, Router,
     body::Bytes,
@@ -329,10 +328,7 @@ async fn graph_viewer() -> impl IntoResponse {
     Html(include_str!("../static/graph.html"))
 }
 
-async fn get_stats(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
+async fn get_stats(State(state): State<Arc<AppState>>, headers: HeaderMap) -> impl IntoResponse {
     if let Some(hosted) = state.hosted.as_ref() {
         let Some(tenant) = tenant_from_headers(&headers) else {
             return missing_tenant_response();
@@ -357,7 +353,10 @@ async fn get_stats(
             ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     let stats = prime.stats();
     (
         StatusCode::OK,
@@ -387,7 +386,10 @@ async fn get_full_graph(
         let Some(tenant) = tenant_from_headers(&headers) else {
             return missing_tenant_response();
         };
-        return match hosted.full_graph(&tenant, q.node_type.as_deref(), q.limit).await {
+        return match hosted
+            .full_graph(&tenant, q.node_type.as_deref(), q.limit)
+            .await
+        {
             Ok(graph) => (
                 StatusCode::OK,
                 Json(serde_json::to_value(&graph).unwrap_or(Value::Null)),
@@ -398,7 +400,10 @@ async fn get_full_graph(
             ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     let graph = prime.full_graph(q.tenant_id.as_deref(), q.node_type.as_deref(), q.limit);
     (
         StatusCode::OK,
@@ -415,7 +420,10 @@ async fn create_node(
         let Some(tenant) = tenant_from_headers(&headers) else {
             return missing_tenant_response();
         };
-        return match hosted.add_node(&tenant, &req.node_type, req.properties).await {
+        return match hosted
+            .add_node(&tenant, &req.node_type, req.properties)
+            .await
+        {
             Ok(id) => {
                 let entity_id =
                     allsource_core::prime::EntityId::node(&req.node_type, id.as_str()).to_wire();
@@ -424,10 +432,16 @@ async fn create_node(
                     Json(json!({"node_id": id.as_str(), "entity_id": entity_id})),
                 )
             }
-            Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"error": e.to_string()}))),
+            Err(e) => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": e.to_string()})),
+            ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     match prime.add_node(&req.node_type, req.properties).await {
         Ok(id) => {
             let entity_id =
@@ -479,7 +493,10 @@ async fn get_node(
             ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     // Try both raw id and as entity_id
     match prime.get_node(&id) {
         Some(node) => (StatusCode::OK, Json(node_detail_json(&node))),
@@ -505,7 +522,10 @@ async fn update_node(
             Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     match prime.update_node(&id, req.properties).await {
         Ok(()) => (StatusCode::OK, Json(json!({"updated": true}))),
         Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
@@ -526,7 +546,10 @@ async fn delete_node(
             Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     match prime.delete_node(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
         Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
@@ -556,7 +579,10 @@ async fn get_neighbors(
             ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     let nodes = prime.neighbors(&id, None, Direction::Both);
     let nodes_json: Vec<Value> = nodes
         .iter()
@@ -586,7 +612,10 @@ async fn get_subgraph(
             })),
         );
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     let sg = prime.subgraph(&id, 2);
     let nodes_json: Vec<Value> = sg
         .nodes
@@ -627,7 +656,10 @@ async fn get_history(
             ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     match prime.history(&id).await {
         Ok(entries) => {
             let events: Vec<Value> = entries
@@ -654,19 +686,38 @@ async fn create_edge(
         };
         let result = if let Some(w) = req.weight {
             hosted
-                .add_edge_weighted(&tenant, &req.source, &req.target, &req.relation, w, req.properties)
+                .add_edge_weighted(
+                    &tenant,
+                    &req.source,
+                    &req.target,
+                    &req.relation,
+                    w,
+                    req.properties,
+                )
                 .await
         } else {
             hosted
-                .add_edge(&tenant, &req.source, &req.target, &req.relation, req.properties)
+                .add_edge(
+                    &tenant,
+                    &req.source,
+                    &req.target,
+                    &req.relation,
+                    req.properties,
+                )
                 .await
         };
         return match result {
             Ok(id) => (StatusCode::CREATED, Json(json!({"edge_id": id.as_str()}))),
-            Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"error": e.to_string()}))),
+            Err(e) => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": e.to_string()})),
+            ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     let result = if let Some(w) = req.weight {
         prime
             .add_edge_weighted(&req.source, &req.target, &req.relation, w, req.properties)
@@ -700,7 +751,10 @@ async fn delete_edge(
             Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     match prime.delete_edge(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
         Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
@@ -723,15 +777,26 @@ async fn store_vector(
         let Some(vector) = req.vector else {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({"error": "missing 'vector' — the hosted backend requires a precomputed embedding vector"})),
+                Json(
+                    json!({"error": "missing 'vector' — the hosted backend requires a precomputed embedding vector"}),
+                ),
             );
         };
         return match hosted.embed(&tenant, &req.id, vector, req.metadata).await {
-            Ok(()) => (StatusCode::CREATED, Json(json!({"stored": true, "id": req.id}))),
-            Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"error": e.to_string()}))),
+            Ok(()) => (
+                StatusCode::CREATED,
+                Json(json!({"stored": true, "id": req.id})),
+            ),
+            Err(e) => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": e.to_string()})),
+            ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     let vector = match req.vector {
         Some(v) => v,
         None => match req.text.as_deref() {
@@ -788,7 +853,10 @@ async fn search_vectors(
             })),
         );
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     let top_k = req.top_k.unwrap_or(10);
     let vector = match req.vector {
         Some(v) => v,
@@ -832,7 +900,10 @@ async fn delete_vector(
             Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     match prime.delete_vector(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"deleted": true}))),
         Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))),
@@ -869,7 +940,10 @@ async fn shortest_path(
             ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     match prime.shortest_path(&req.from, &req.to, req.relation.as_deref()) {
         Some(path) => {
             let nodes: Vec<Value> = path
@@ -903,7 +977,9 @@ async fn recall(
         let Some(vector) = req.vector else {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({"error": "missing 'vector' — the hosted backend requires a precomputed query embedding"})),
+                Json(
+                    json!({"error": "missing 'vector' — the hosted backend requires a precomputed query embedding"}),
+                ),
             );
         };
         let top_k = req.top_k.unwrap_or(10);
@@ -932,7 +1008,10 @@ async fn recall(
         };
     }
 
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     let vector = match req.vector {
         Some(v) => Some(v),
         None => match req.text.as_deref() {
@@ -981,10 +1060,7 @@ async fn recall(
     }
 }
 
-async fn get_diff(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
+async fn get_diff(State(state): State<Arc<AppState>>, headers: HeaderMap) -> impl IntoResponse {
     // The embedded diff returns a stats summary (no from/to params). HostedPrime
     // exposes the same stats via `stats`, so the hosted path serves the identical
     // summary shape rather than 501.
@@ -1007,7 +1083,10 @@ async fn get_diff(
             ),
         };
     }
-    let prime = state.prime.as_ref().expect("embedded prime present when hosted is None");
+    let prime = state
+        .prime
+        .as_ref()
+        .expect("embedded prime present when hosted is None");
     // Without from/to params, return a summary of all events
     let stats = prime.stats();
     (
@@ -1023,10 +1102,14 @@ async fn get_diff(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use allsource_core::prime::EntityId;
-    use allsource_core::prime::recall::{IndexConfig, RecallEngine};
-    use axum::body::{Body, to_bytes};
-    use axum::http::Request;
+    use allsource_core::prime::{
+        EntityId,
+        recall::{IndexConfig, RecallEngine},
+    };
+    use axum::{
+        body::{Body, to_bytes},
+        http::Request,
+    };
     use tower::ServiceExt; // for `oneshot`
 
     async fn test_state() -> Arc<AppState> {
@@ -1101,7 +1184,9 @@ mod tests {
     // ─── MCP-over-HTTP (Streamable HTTP transport) ────────────────────────
 
     fn mcp_router(state: Arc<AppState>) -> Router {
-        Router::new().route("/mcp", post(mcp_handler)).with_state(state)
+        Router::new()
+            .route("/mcp", post(mcp_handler))
+            .with_state(state)
     }
 
     async fn mcp_post(app: &Router, payload: Value) -> (StatusCode, Value) {
@@ -1133,14 +1218,20 @@ mod tests {
     async fn mcp_http_initialize_list_and_call() {
         let app = mcp_router(test_state().await);
 
-        let (status, body) =
-            mcp_post(&app, json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" })).await;
+        let (status, body) = mcp_post(
+            &app,
+            json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" }),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["result"]["serverInfo"]["name"], "allsource-prime");
         assert!(body["result"]["protocolVersion"].is_string());
 
-        let (status, body) =
-            mcp_post(&app, json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).await;
+        let (status, body) = mcp_post(
+            &app,
+            json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         let tools = body["result"]["tools"].as_array().unwrap();
         assert!(!tools.is_empty(), "tools/list must return the Prime tools");
@@ -1154,7 +1245,10 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::OK);
-        assert!(!body["result"].is_null(), "tools/call must return a result envelope");
+        assert!(
+            !body["result"].is_null(),
+            "tools/call must return a result envelope"
+        );
     }
 
     /// Notifications (no id, no reply) get 202 Accepted with an empty body.
@@ -1193,8 +1287,10 @@ mod tests {
 
     // ─── Hosted, tenant-scoped /mcp dispatch ──────────────────────────────
 
-    use wiremock::matchers::{method as wm_method, path as wm_path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method as wm_method, path as wm_path},
+    };
 
     /// Mount the standard empty-Core pair (GET query → `{events:[]}`, POST
     /// ingest → 200) and return an `AppState` whose `hosted` engine points at it.
@@ -1212,12 +1308,8 @@ mod tests {
 
         // Stateless: no embedded prime/recall — exactly the production hosted
         // shape. Every request is served through `hosted`.
-        let hosted = HostedPrime::connect(
-            server.uri(),
-            None,
-            8,
-            std::time::Duration::from_secs(60),
-        );
+        let hosted =
+            HostedPrime::connect(server.uri(), None, 8, std::time::Duration::from_secs(60));
         Arc::new(AppState {
             prime: None,
             recall: None,
@@ -1270,7 +1362,11 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::OK);
-        assert_ne!(body["result"]["isError"], json!(true), "add_node should succeed on hosted path");
+        assert_ne!(
+            body["result"]["isError"],
+            json!(true),
+            "add_node should succeed on hosted path"
+        );
 
         let (status, body) = mcp_post_with_tenant(
             &app,
@@ -1283,7 +1379,10 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::OK);
         let text = body["result"]["content"][0]["text"].as_str().unwrap();
-        assert!(text.contains("Alice"), "hosted search should return the added node; got {text}");
+        assert!(
+            text.contains("Alice"),
+            "hosted search should return the added node; got {text}"
+        );
     }
 
     /// A tool `HostedPrime` does not implement returns a clear tool-error (not a

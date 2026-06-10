@@ -115,12 +115,12 @@ config :phoenix, :json_library, Jason
 # :community.
 config :query_service_ex,
        :edition,
-       (System.get_env("ALLSOURCE_EDITION", "community")
-        |> String.downcase()
-        |> case do
-          "enterprise" -> :enterprise
-          _ -> :community
-        end)
+       System.get_env("ALLSOURCE_EDITION", "community")
+       |> String.downcase()
+       |> (case do
+             "enterprise" -> :enterprise
+             _ -> :community
+           end)
 
 # Configure rate limiting (requests per second)
 config :query_service_ex, QueryServiceEx.RateLimiter,

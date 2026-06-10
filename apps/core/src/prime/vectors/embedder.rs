@@ -64,7 +64,8 @@ const TOKENIZER_CONFIG_FILE: &str = "tokenizer_config.json";
 /// Backend that actually turns text into a vector.
 enum Backend {
     /// In-process fastembed model (mutex because it is `!Sync` during inference).
-    Local(Mutex<TextEmbedding>),
+    /// Boxed: `TextEmbedding` is far larger than the `Remote` variant.
+    Local(Box<Mutex<TextEmbedding>>),
     /// Remote HTTP embedding endpoint.
     #[cfg(feature = "prime-remote-embed")]
     Remote(remote::RemoteEmbedder),
@@ -97,7 +98,7 @@ impl TextEmbedder {
         // 2–4. Local fastembed model (vendored dir → bundled → network download).
         let model = Self::load_local()?;
         Ok(Self {
-            backend: Backend::Local(Mutex::new(model)),
+            backend: Backend::Local(Box::new(Mutex::new(model))),
             dimensions: DEFAULT_EMBEDDING_DIMENSIONS,
         })
     }
@@ -256,7 +257,6 @@ fn init_error(source: &InitSource, cause: &anyhow::Error) -> PrimeError {
              prime_embed {{ id, vector: [...] }} (compute it with any AllMiniLM-L6-v2 embedder).",
             env = MODEL_DIR_ENV,
             dir = dir.display(),
-            cause = cause,
             onnx = ONNX_FILE,
             tok = TOKENIZER_FILE,
             cfg = CONFIG_FILE,
@@ -268,10 +268,8 @@ fn init_error(source: &InitSource, cause: &anyhow::Error) -> PrimeError {
             "failed to initialize the bundled embedder model — {cause}\n\
              This model is baked into the binary at build time. A failure here means the \
              embedded bytes are corrupt or incompatible with this fastembed version.\n\
-             To fix: rebuild, or set {env}=<dir> to load a known-good vendored model, or \
+             To fix: rebuild, or set {MODEL_DIR_ENV}=<dir> to load a known-good vendored model, or \
              supply your own 384-dim vector via prime_embed {{ id, vector: [...] }}.",
-            cause = cause,
-            env = MODEL_DIR_ENV,
         ),
         #[cfg(not(feature = "prime-bundled-model"))]
         InitSource::Network => format!(
@@ -286,7 +284,6 @@ fn init_error(source: &InitSource, cause: &anyhow::Error) -> PrimeError {
              • Stale/partial cache: delete `{cache}` and retry.\n\
              • Don't want a network-fetched model at all: supply your own 384-dim vector via \
              prime_embed {{ id, vector: [...] }} (compute with any AllMiniLM-L6-v2 embedder).",
-            cause = cause,
             repo = MODEL_REPO,
             cache = cache_dir(),
             env = MODEL_DIR_ENV,
@@ -475,7 +472,6 @@ mod remote {
              • Or unset {endpoint_env} to use the in-process model.",
             endpoint = cfg.endpoint,
             model = cfg.model,
-            cause = cause,
             endpoint_env = ENDPOINT_ENV,
             model_env = MODEL_ENV,
             api_key_env = API_KEY_ENV,

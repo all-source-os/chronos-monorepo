@@ -20,9 +20,10 @@
 //!
 //! Feature-gated behind `prime-recall`.
 
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::{
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 
 use dashmap::DashMap;
 
@@ -164,8 +165,10 @@ mod tests {
     use super::*;
     use crate::prime::types::event_types;
     use serde_json::json;
-    use wiremock::matchers::{method, path, query_param};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path, query_param},
+    };
 
     fn node_event(entity_id: &str, tenant: &str, name: &str) -> serde_json::Value {
         json!({

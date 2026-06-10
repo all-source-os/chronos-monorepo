@@ -25,8 +25,10 @@
 //! is folded into a per-tenant Prime instance. Either works because the
 //! durable side is already tenant-scoped via Core's per-event tenant_id.
 
-use std::collections::HashMap;
-use std::sync::{OnceLock, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{OnceLock, RwLock},
+};
 
 use allsource_core::prime::projections::ProjectionDef;
 
@@ -94,7 +96,8 @@ pub fn clear_for_test() {
 #[cfg(test)]
 pub(crate) fn test_guard() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    LOCK.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 #[cfg(test)]

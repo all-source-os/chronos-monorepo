@@ -303,9 +303,9 @@ func TestLookupVariantID(t *testing.T) {
 	}{
 		{"indie", "monthly", "var_im", false},
 		{"indie", "annual", "var_ia", false},
-		{"indie", "yearly", "var_ia", false}, // yearly normalizes to annual
-		{"indie", "", "var_im", false},       // empty defaults to monthly
-		{"studio", "annual", "var_sm", false}, // no annual key → falls back to monthly
+		{"indie", "yearly", "var_ia", false},      // yearly normalizes to annual
+		{"indie", "", "var_im", false},            // empty defaults to monthly
+		{"studio", "annual", "var_sm", false},     // no annual key → falls back to monthly
 		{"scale", "monthly", "var_legacy", false}, // bare key fallback
 		{"scale", "annual", "var_legacy", false},  // bare key fallback for any period
 		{"unknown", "monthly", "", true},

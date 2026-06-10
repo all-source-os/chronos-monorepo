@@ -169,8 +169,8 @@ type lemonSqueezyClient struct {
 //     where period is "monthly" or "annual"; a bare "<tier>" key is treated as
 //     the monthly variant. 011 tiers: indie, studio, scale. Example:
 //     {"indie:monthly":"var_a","indie:annual":"var_b",
-//      "studio:monthly":"var_c","studio:annual":"var_d",
-//      "scale:monthly":"var_e","scale:annual":"var_f"}
+//     "studio:monthly":"var_c","studio:annual":"var_d",
+//     "scale:monthly":"var_e","scale:annual":"var_f"}
 //     See docs/runbooks/PRICING_BILLING_CUTOVER.md.
 func NewLemonSqueezyClient() (LemonSqueezyClient, error) {
 	apiKey := os.Getenv("LEMON_SQUEEZY_API_KEY")
@@ -398,13 +398,7 @@ func (c *lemonSqueezyClient) LookupVariantID(tier, period string) (string, error
 		return "", fmt.Errorf("variant map not configured")
 	}
 	t := strings.ToLower(tier)
-	p := strings.ToLower(period)
-	if p == "" || (p != "monthly" && p != "annual" && p != "yearly") {
-		p = "monthly"
-	}
-	if p == "yearly" {
-		p = "annual"
-	}
+	p := normalizeBillingPeriod(period)
 	if id, ok := c.variantMap[t+":"+p]; ok {
 		return id, nil
 	}

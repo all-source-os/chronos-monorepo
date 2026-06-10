@@ -10,7 +10,7 @@ import (
 )
 
 // catalogMockLS implements clients.LemonSqueezyClient for catalog tests.
-// Only LookupVariantID + GetVariant carry behaviour; the rest are stubs.
+// Only LookupVariantID + GetVariant carry behavior; the rest are stubs.
 type catalogMockLS struct {
 	variants map[string]*clients.VariantResponse // variantID → variant
 	getCalls int
@@ -80,8 +80,8 @@ func TestFormatCents(t *testing.T) {
 
 func TestGetCatalog_ReadsLemonSqueezyPrices(t *testing.T) {
 	ls := &catalogMockLS{variants: map[string]*clients.VariantResponse{
-		"indie:monthly": {Price: 1899, Interval: "month"},
-		"indie:annual":  {Price: 18199, Interval: "year"},
+		"indie:monthly":  {Price: 1899, Interval: "month"},
+		"indie:annual":   {Price: 18199, Interval: "year"},
 		"studio:monthly": {Price: 7899, Interval: "month"},
 		// studio:annual intentionally missing → tier still returned with only monthly
 	}}
@@ -139,18 +139,24 @@ func TestGetCatalog_CachesWithinTTL(t *testing.T) {
 	uc := NewGetCatalogUseCase(ls)
 	base := time.Unix(1_700_000_000, 0)
 
-	_, _ = uc.Execute(context.Background(), base)
+	if _, err := uc.Execute(context.Background(), base); err != nil {
+		t.Fatalf("first Execute: %v", err)
+	}
 	callsAfterFirst := ls.getCalls
 	if callsAfterFirst == 0 {
 		t.Fatal("expected LS GetVariant calls on first Execute")
 	}
 	// Within TTL → served from cache, no new LS calls.
-	_, _ = uc.Execute(context.Background(), base.Add(30*time.Minute))
+	if _, err := uc.Execute(context.Background(), base.Add(30*time.Minute)); err != nil {
+		t.Fatalf("cached Execute: %v", err)
+	}
 	if ls.getCalls != callsAfterFirst {
 		t.Errorf("expected cache hit (no new LS calls); got %d -> %d", callsAfterFirst, ls.getCalls)
 	}
 	// Past TTL → refetch.
-	_, _ = uc.Execute(context.Background(), base.Add(2*time.Hour))
+	if _, err := uc.Execute(context.Background(), base.Add(2*time.Hour)); err != nil {
+		t.Fatalf("refetch Execute: %v", err)
+	}
 	if ls.getCalls == callsAfterFirst {
 		t.Error("expected LS refetch after TTL expiry")
 	}

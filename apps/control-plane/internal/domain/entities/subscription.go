@@ -141,7 +141,7 @@ type TenantBillingMetadata struct {
 	// Subscriptions tracks every LemonSqueezy subscription seen for the tenant,
 	// keyed by subscription id. The tenant's effective tier is the highest-ranked
 	// tier among the active ones (HighestActiveTier) — so duplicate subscriptions
-	// "bubble up" to the most-paid plan, and cancelling the top one falls back to
+	// "bubble up" to the most-paid plan, and canceling the top one falls back to
 	// the next active. nil when there are no tracked subscriptions.
 	Subscriptions map[string]SubscriptionRef `json:"subscriptions,omitempty"`
 }
@@ -168,6 +168,8 @@ func SubscriptionIsActive(status string) bool {
 
 // tierRank orders tiers for "highest wins"; retired aliases map to successors first.
 func tierRank(tier string) int {
+	//nolint:exhaustive // retired tiers (pro/growth/team/starter) are normalized
+	// to their successors by MapRetiredTier before this switch; default covers the rest.
 	switch SubscriptionTier(MapRetiredTier(tier)) {
 	case TierEnterprise:
 		return 5
@@ -186,7 +188,7 @@ func tierRank(tier string) int {
 
 // HighestActiveTier returns the highest-ranked tier among active subscriptions
 // and the winning subscription id. Returns ("free", "") when none are active.
-func HighestActiveTier(subs map[string]SubscriptionRef) (string, string) {
+func HighestActiveTier(subs map[string]SubscriptionRef) (tier, subscriptionID string) {
 	bestTier, bestID, bestRank := "free", "", -1
 	for id, s := range subs {
 		if !SubscriptionIsActive(s.Status) {

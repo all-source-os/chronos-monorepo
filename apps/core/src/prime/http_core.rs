@@ -123,11 +123,9 @@ impl EventStore for HttpCore {
             .client
             .post(format!("{}/api/v1/events/batch", self.base_url))
             .json(&body);
-        let resp = self
-            .auth(req)
-            .send()
-            .await
-            .map_err(|e| AllSourceError::StorageError(format!("batch ingest to remote Core: {e}")))?;
+        let resp = self.auth(req).send().await.map_err(|e| {
+            AllSourceError::StorageError(format!("batch ingest to remote Core: {e}"))
+        })?;
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
@@ -212,8 +210,10 @@ impl EventStore for HttpCore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path, query_param};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path, query_param},
+    };
 
     fn event_json() -> serde_json::Value {
         serde_json::json!({
@@ -262,7 +262,11 @@ mod tests {
             .mount(&server)
             .await;
 
-        let core = HttpCore::new(server.uri(), Some("k".to_string()), Some("tenant-a".to_string()));
+        let core = HttpCore::new(
+            server.uri(),
+            Some("k".to_string()),
+            Some("tenant-a".to_string()),
+        );
         core.ingest(IngestEvent {
             entity_id: "node:contact:bob",
             event_type: "prime.node.created",

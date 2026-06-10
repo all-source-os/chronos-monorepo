@@ -131,7 +131,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) Execute(ctx context.Context, event 
 
 // applySubscriptionEvent upserts one subscription into the tenant's tracked set
 // and recomputes the effective tier as the highest-ranked ACTIVE subscription —
-// so duplicate subscriptions bubble up to the most-paid plan, and cancelling the
+// so duplicate subscriptions bubble up to the most-paid plan, and canceling the
 // top one falls back to the next active (or free). Returns the effective tier.
 func (uc *ProcessLemonSqueezyWebhookUseCase) applySubscriptionEvent(
 	tenantID, subID, tier, status, billingPeriod, customerID string,
@@ -188,7 +188,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionUpdated(tenantID 
 }
 
 func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCanceled(ctx context.Context, tenantID string, event LemonSqueezyWebhookEvent) error {
-	return uc.handleSubscriptionEnd(ctx, tenantID, event, "cancelled")
+	return uc.handleSubscriptionEnd(ctx, tenantID, event, "cancelled") //nolint:misspell // mirrors LemonSqueezy's "cancelled" status spelling
 }
 
 func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionExpired(ctx context.Context, tenantID string, event LemonSqueezyWebhookEvent) error {
@@ -208,7 +208,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionEnd(
 	if err != nil {
 		return fmt.Errorf("update subscription metadata: %w", err)
 	}
-	if effective == "free" {
+	if effective == defaultPlan {
 		if _, err := uc.suspendUC.Execute(ctx, tenantID, entities.RoleAdmin); err != nil {
 			return fmt.Errorf("suspend tenant: %w", err)
 		}

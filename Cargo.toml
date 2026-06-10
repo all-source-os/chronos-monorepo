@@ -11,11 +11,11 @@ exclude = [
     "apps/mcp-server-elixir/native/core_nif",
     "apps/prime-mcp",
     "apps/registry",
-    "crates/better-auth-allsource",
     # Excluded so a plain `cargo build`/CI run never triggers its build-time
     # model download. Only pulled when a consumer enables the optional
     # `prime-bundled-model` feature on allsource-core.
     "crates/allsource-prime-models",
+    "crates/better-auth-allsource",
     "tooling/allsource-inspect",
     "tooling/allsource-mcp",
     "tooling/recall-bench",

@@ -20,8 +20,7 @@
 //! Feature-gated behind `prime-recall`. See bead t-10f876 /
 //! `docs/proposals/PRIME_STATELESS_OVER_CORE.md`.
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use serde_json::json;
 
@@ -62,8 +61,7 @@ impl HostedPrime {
         ttl: Duration,
     ) -> Self {
         let base_url = base_url.into();
-        let cache =
-            TenantProjectionCache::new(base_url.clone(), api_key.clone(), capacity, ttl);
+        let cache = TenantProjectionCache::new(base_url.clone(), api_key.clone(), capacity, ttl);
         Self {
             base_url,
             api_key,
@@ -75,7 +73,11 @@ impl HostedPrime {
 
     /// An [`HttpCore`] scoped to `tenant`, for writes.
     fn core_for(&self, tenant: &str) -> HttpCore {
-        HttpCore::new(self.base_url.clone(), self.api_key.clone(), Some(tenant.to_string()))
+        HttpCore::new(
+            self.base_url.clone(),
+            self.api_key.clone(),
+            Some(tenant.to_string()),
+        )
     }
 
     // ── Reads ────────────────────────────────────────────────────────────
@@ -89,10 +91,7 @@ impl HostedPrime {
     /// soft-deleted.
     pub async fn get_node(&self, tenant: &str, entity_id: &str) -> Result<Option<Node>> {
         let graph = self.cache.get_or_hydrate(tenant).await?;
-        Ok(graph
-            .node_state
-            .get_node(entity_id)
-            .filter(|n| !n.deleted))
+        Ok(graph.node_state.get_node(entity_id).filter(|n| !n.deleted))
     }
 
     // ── Writes ───────────────────────────────────────────────────────────
@@ -331,8 +330,10 @@ impl HostedPrime {
             })
             .await?;
         self.cache.get_or_hydrate(tenant).await?;
-        self.cache
-            .apply(tenant, &self.synth_view_typed(tenant, event_types::NODE_UPDATED, entity_id, payload));
+        self.cache.apply(
+            tenant,
+            &self.synth_view_typed(tenant, event_types::NODE_UPDATED, entity_id, payload),
+        );
         Ok(())
     }
 
@@ -352,8 +353,10 @@ impl HostedPrime {
             })
             .await?;
         self.cache.get_or_hydrate(tenant).await?;
-        self.cache
-            .apply(tenant, &self.synth_view_typed(tenant, event_types::EDGE_DELETED, &entity_id, payload));
+        self.cache.apply(
+            tenant,
+            &self.synth_view_typed(tenant, event_types::EDGE_DELETED, &entity_id, payload),
+        );
         Ok(())
     }
 
@@ -402,7 +405,9 @@ impl HostedPrime {
                         cursor = parent.clone();
                     }
                     path_ids.reverse();
-                    return Ok(Some(path_ids.iter().filter_map(|id| get_node(id)).collect()));
+                    return Ok(Some(
+                        path_ids.iter().filter_map(|id| get_node(id)).collect(),
+                    ));
                 }
                 queue.push_back(peer);
             }
@@ -496,12 +501,7 @@ impl HostedPrime {
     /// via [`embed`](Self::embed). Convenience for callers that only have text.
     /// First use downloads the embedding model.
     #[cfg(feature = "prime-vectors")]
-    pub async fn embed_text(
-        &self,
-        tenant: &str,
-        node_entity_id: &str,
-        text: &str,
-    ) -> Result<()> {
+    pub async fn embed_text(&self, tenant: &str, node_entity_id: &str, text: &str) -> Result<()> {
         let vector = self
             .embedder()?
             .embed(text)
@@ -736,8 +736,10 @@ impl HostedPrime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
 
     #[tokio::test]
     async fn add_node_then_get_node_round_trips_through_warm_cache() {
@@ -745,7 +747,9 @@ mod tests {
         // Core has no prior events for this tenant…
         Mock::given(method("GET"))
             .and(path("/api/v1/events/query"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"events": []})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"events": []})),
+            )
             .mount(&server)
             .await;
         // …and accepts the ingest.
@@ -914,7 +918,13 @@ mod tests {
             .unwrap();
         let entity_id = node_entity_id("contact", &id.0);
 
-        assert!(hosted.get_node("tenant-a", &entity_id).await.unwrap().is_some());
+        assert!(
+            hosted
+                .get_node("tenant-a", &entity_id)
+                .await
+                .unwrap()
+                .is_some()
+        );
 
         hosted.delete_node("tenant-a", &entity_id).await.unwrap();
 
@@ -1008,7 +1018,9 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/v1/events/query"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"events": []})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"events": []})),
+            )
             .mount(&server)
             .await;
 
@@ -1030,7 +1042,9 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/v1/events/query"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"events": []})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"events": []})),
+            )
             .mount(&server)
             .await;
         Mock::given(method("POST"))
@@ -1069,12 +1083,39 @@ mod tests {
         // Pre-warm the tenant so post-write apply() lands on a warm bundle
         // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
         hosted.tenant_graph("t").await.unwrap();
-        let a = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
-        let b = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
+        let a = node_entity_id(
+            "contact",
+            &hosted
+                .add_node("t", "contact", serde_json::json!({}))
+                .await
+                .unwrap()
+                .0,
+        );
+        let b = node_entity_id(
+            "contact",
+            &hosted
+                .add_node("t", "contact", serde_json::json!({}))
+                .await
+                .unwrap()
+                .0,
+        );
         let edge = hosted.add_edge("t", &a, &b, "knows", None).await.unwrap();
-        assert_eq!(hosted.neighbors("t", &a, None, Direction::Outgoing).await.unwrap().len(), 1);
+        assert_eq!(
+            hosted
+                .neighbors("t", &a, None, Direction::Outgoing)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
         hosted.delete_edge("t", &edge.0).await.unwrap();
-        assert!(hosted.neighbors("t", &a, None, Direction::Outgoing).await.unwrap().is_empty());
+        assert!(
+            hosted
+                .neighbors("t", &a, None, Direction::Outgoing)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -1084,13 +1125,33 @@ mod tests {
         // Pre-warm the tenant so post-write apply() lands on a warm bundle
         // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
         hosted.tenant_graph("t").await.unwrap();
-        let na = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
-        let nb = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
-        let nc = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
-        let (a, b, c) = (node_entity_id("n", &na), node_entity_id("n", &nb), node_entity_id("n", &nc));
+        let na = hosted
+            .add_node("t", "n", serde_json::json!({}))
+            .await
+            .unwrap()
+            .0;
+        let nb = hosted
+            .add_node("t", "n", serde_json::json!({}))
+            .await
+            .unwrap()
+            .0;
+        let nc = hosted
+            .add_node("t", "n", serde_json::json!({}))
+            .await
+            .unwrap()
+            .0;
+        let (a, b, c) = (
+            node_entity_id("n", &na),
+            node_entity_id("n", &nb),
+            node_entity_id("n", &nc),
+        );
         hosted.add_edge("t", &a, &b, "to", None).await.unwrap();
         hosted.add_edge("t", &b, &c, "to", None).await.unwrap();
-        let path = hosted.shortest_path("t", &a, &c, None).await.unwrap().unwrap();
+        let path = hosted
+            .shortest_path("t", &a, &c, None)
+            .await
+            .unwrap()
+            .unwrap();
         // Node.id is the short id; assert the BFS returned the a→b→c chain in order.
         let ids: Vec<&str> = path.iter().map(|n| n.id.as_str()).collect();
         assert_eq!(ids, vec![na.as_str(), nb.as_str(), nc.as_str()]);
@@ -1103,8 +1164,22 @@ mod tests {
         // Pre-warm the tenant so post-write apply() lands on a warm bundle
         // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
         hosted.tenant_graph("t").await.unwrap();
-        let a = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
-        let b = node_entity_id("contact", &hosted.add_node("t", "contact", serde_json::json!({})).await.unwrap().0);
+        let a = node_entity_id(
+            "contact",
+            &hosted
+                .add_node("t", "contact", serde_json::json!({}))
+                .await
+                .unwrap()
+                .0,
+        );
+        let b = node_entity_id(
+            "contact",
+            &hosted
+                .add_node("t", "contact", serde_json::json!({}))
+                .await
+                .unwrap()
+                .0,
+        );
         hosted.add_edge("t", &a, &b, "knows", None).await.unwrap();
         let graph = hosted.full_graph("t", None, None).await.unwrap();
         assert_eq!(graph.stats.node_count, 2);
@@ -1120,11 +1195,30 @@ mod tests {
         // Pre-warm the tenant so post-write apply() lands on a warm bundle
         // (cold writes no-op apply; reads then hydrate from Core). See bug t-d90426.
         hosted.tenant_graph("t").await.unwrap();
-        let nid = hosted.add_node("t", "n", serde_json::json!({})).await.unwrap().0;
+        let nid = hosted
+            .add_node("t", "n", serde_json::json!({}))
+            .await
+            .unwrap()
+            .0;
         let eid = node_entity_id("n", &nid);
-        hosted.embed("t", &eid, vec![1.0, 0.0, 0.0, 0.0], None).await.unwrap();
-        assert!(!hosted.recall("t", vec![1.0, 0.0, 0.0, 0.0], 5).await.unwrap().is_empty());
+        hosted
+            .embed("t", &eid, vec![1.0, 0.0, 0.0, 0.0], None)
+            .await
+            .unwrap();
+        assert!(
+            !hosted
+                .recall("t", vec![1.0, 0.0, 0.0, 0.0], 5)
+                .await
+                .unwrap()
+                .is_empty()
+        );
         hosted.delete_vector("t", &eid).await.unwrap();
-        assert!(hosted.recall("t", vec![1.0, 0.0, 0.0, 0.0], 5).await.unwrap().is_empty());
+        assert!(
+            hosted
+                .recall("t", vec![1.0, 0.0, 0.0, 0.0], 5)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 }

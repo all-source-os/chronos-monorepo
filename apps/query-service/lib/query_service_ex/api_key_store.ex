@@ -149,45 +149,11 @@ defmodule QueryServiceEx.ApiKeyStore do
   # created -> prepend the key metadata; revoked -> flip its `active` to false.
   # Newest-first is fine; we fold oldest->newest so revokes land after creates.
   defp rebuild_from_core(tenant_id) do
-    query = %{entity_id: "#{@entity_prefix}#{tenant_id}", limit: 1000}
-
-    events =
-      case RustCoreClient.query_events(tenant_id, query) do
-        {:ok, list} when is_list(list) -> list
-        {:ok, %{"events" => list}} when is_list(list) -> list
-        {:error, reason} ->
-          Logger.warning(
-            "[ApiKeyStore] could not rebuild keys for tenant #{tenant_id}: #{inspect(reason)}"
-          )
-
-          []
-      end
-
     by_id =
-      events
+      tenant_id
+      |> fetch_events(%{entity_id: "#{@entity_prefix}#{tenant_id}", limit: 1000})
       |> Enum.sort_by(&(&1["timestamp"] || &1["version"]))
-      |> Enum.reduce(%{}, fn event, acc ->
-        payload = event["payload"] || %{}
-
-        case event["event_type"] do
-          "apikey.created" ->
-            case payload["key"] do
-              %{"id" => id} = key -> Map.put(acc, id, key)
-              _ -> acc
-            end
-
-          "apikey.revoked" ->
-            id = payload["key_id"]
-
-            case Map.get(acc, id) do
-              nil -> acc
-              key -> Map.put(acc, id, Map.put(key, "active", false))
-            end
-
-          _ ->
-            acc
-        end
-      end)
+      |> Enum.reduce(%{}, &apply_apikey_event/2)
 
     # Backfill: keys minted before this store was event-sourced exist only as
     # `audit.api_key.created` entries (entity `audit:{tenant}`). Reconstruct a
@@ -209,47 +175,95 @@ defmodule QueryServiceEx.ApiKeyStore do
   # Reconstruct key metadata from the durable audit log (api_key.created /
   # api_key.revoked) for keys that predate native apikey.* events.
   defp legacy_keys_from_audit(tenant_id) do
-    query = %{entity_id: "audit:#{tenant_id}", limit: 1000}
-
-    events =
-      case RustCoreClient.query_events(tenant_id, query) do
-        {:ok, list} when is_list(list) -> list
-        {:ok, %{"events" => list}} when is_list(list) -> list
-        _ -> []
-      end
-
-    events
+    tenant_id
+    |> fetch_events(%{entity_id: "audit:#{tenant_id}", limit: 1000})
     |> Enum.sort_by(&(&1["timestamp"] || &1["version"]))
-    |> Enum.reduce(%{}, fn event, acc ->
-      payload = event["payload"] || %{}
-      details = payload["details"] || %{}
-      id = details["key_id"]
-
-      case payload["action"] || event["event_type"] do
-        action when action in ["api_key.created", "audit.api_key.created"] and is_binary(id) ->
-          Map.put(acc, id, %{
-            "id" => id,
-            "name" => details["name"] || "API Key",
-            "description" => nil,
-            "key_prefix" => nil,
-            "scopes" => details["scopes"] || [],
-            "tenant_id" => tenant_id,
-            "created_at" => event["timestamp"] || payload["recorded_at"],
-            "expires_at" => nil,
-            "active" => true,
-            "last_used" => nil
-          })
-
-        action when action in ["api_key.revoked", "audit.api_key.revoked"] and is_binary(id) ->
-          case Map.get(acc, id) do
-            nil -> acc
-            key -> Map.put(acc, id, Map.put(key, "active", false))
-          end
-
-        _ ->
-          acc
-      end
-    end)
+    |> Enum.reduce(%{}, fn event, acc -> apply_audit_event(event, acc, tenant_id) end)
     |> Map.values()
+  end
+
+  # Query Core, unwrapping the list / `{"events" => list}` response shapes.
+  # Logs and returns [] on error so a Core blip degrades to an empty key list.
+  defp fetch_events(tenant_id, query) do
+    case RustCoreClient.query_events(tenant_id, query) do
+      {:ok, list} when is_list(list) ->
+        list
+
+      {:ok, %{"events" => list}} when is_list(list) ->
+        list
+
+      {:error, reason} ->
+        Logger.warning(
+          "[ApiKeyStore] could not rebuild keys for tenant #{tenant_id}: #{inspect(reason)}"
+        )
+
+        []
+
+      _ ->
+        []
+    end
+  end
+
+  # Fold a single apikey.* event into the id->key accumulator.
+  defp apply_apikey_event(event, acc) do
+    payload = event["payload"] || %{}
+
+    case event["event_type"] do
+      "apikey.created" ->
+        case payload["key"] do
+          %{"id" => id} = key -> Map.put(acc, id, key)
+          _ -> acc
+        end
+
+      "apikey.revoked" ->
+        deactivate_key(acc, payload["key_id"])
+
+      _ ->
+        acc
+    end
+  end
+
+  # Fold a single legacy audit.api_key.* event into the id->key accumulator.
+  defp apply_audit_event(event, acc, tenant_id) do
+    payload = event["payload"] || %{}
+    details = payload["details"] || %{}
+    id = details["key_id"]
+    action = payload["action"] || event["event_type"]
+
+    cond do
+      is_binary(id) and action in ["api_key.created", "audit.api_key.created"] ->
+        Map.put(acc, id, legacy_key_record(id, details, event, payload, tenant_id))
+
+      is_binary(id) and action in ["api_key.revoked", "audit.api_key.revoked"] ->
+        deactivate_key(acc, id)
+
+      true ->
+        acc
+    end
+  end
+
+  # Minimal key record reconstructed from a legacy audit.api_key.created event.
+  # Secret/prefix can't be recovered (never stored) — fine for listing + revoke.
+  defp legacy_key_record(id, details, event, payload, tenant_id) do
+    %{
+      "id" => id,
+      "name" => details["name"] || "API Key",
+      "description" => nil,
+      "key_prefix" => nil,
+      "scopes" => details["scopes"] || [],
+      "tenant_id" => tenant_id,
+      "created_at" => event["timestamp"] || payload["recorded_at"],
+      "expires_at" => nil,
+      "active" => true,
+      "last_used" => nil
+    }
+  end
+
+  # Flip a tracked key's `active` to false; no-op if it isn't in the accumulator.
+  defp deactivate_key(acc, id) do
+    case Map.get(acc, id) do
+      nil -> acc
+      key -> Map.put(acc, id, Map.put(key, "active", false))
+    end
   end
 end

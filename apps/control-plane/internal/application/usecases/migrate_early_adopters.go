@@ -43,7 +43,7 @@ func NewMigrateEarlyAdoptersUseCase(
 // legacy starter/growth/team/pro aliases) are left untouched.
 func hostedFreeTier(tier string) bool {
 	switch strings.ToLower(strings.TrimSpace(tier)) {
-	case "", "free", "self-host", "selfhost":
+	case "", defaultPlan, "self-host", "selfhost":
 		return true
 	default:
 		return false
@@ -83,8 +83,8 @@ func (uc *MigrateEarlyAdoptersUseCase) Execute(
 			PaymentProvider: "comp", // no real billing provider; comped/voucher
 		}
 		if isOwner {
-			newSub.Tier = "enterprise"
-			r.ToTier = "enterprise"
+			newSub.Tier = tierEnterprise
+			r.ToTier = tierEnterprise
 		} else {
 			newSub.Tier = voucherTier
 			until := now.AddDate(0, 0, voucherDays)

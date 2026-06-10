@@ -1094,19 +1094,19 @@ impl Prime {
         // HNSW index computes distances assuming equal length). Reject the
         // mismatch with an actionable error instead. The index is hydrated from
         // the event log on open, so `established` reflects persisted vectors too.
-        if let Some(established) = self.vector_index.dimension() {
-            if established != dimensions {
-                return Err(PrimeError::CoreError(anyhow::anyhow!(
-                    "embedding dimension mismatch for `{id}`: this data-dir already holds \
-                     {established}-dim vectors, but got a {dimensions}-dim vector. Mixing \
-                     dimensions corrupts similarity search.\n\
-                     To fix one of:\n\
-                     • Use the same embedder/model that produced the existing {established}-dim \
-                     vectors (check PRIME_EMBED_ENDPOINT / PRIME_EMBED_MODEL / the bundled model).\n\
-                     • Start a fresh --data-dir for the new model.\n\
-                     • Re-embed every node with the new model (clear and rebuild this data-dir).",
-                )));
-            }
+        if let Some(established) = self.vector_index.dimension()
+            && established != dimensions
+        {
+            return Err(PrimeError::CoreError(anyhow::anyhow!(
+                "embedding dimension mismatch for `{id}`: this data-dir already holds \
+                 {established}-dim vectors, but got a {dimensions}-dim vector. Mixing \
+                 dimensions corrupts similarity search.\n\
+                 To fix one of:\n\
+                 • Use the same embedder/model that produced the existing {established}-dim \
+                 vectors (check PRIME_EMBED_ENDPOINT / PRIME_EMBED_MODEL / the bundled model).\n\
+                 • Start a fresh --data-dir for the new model.\n\
+                 • Re-embed every node with the new model (clear and rebuild this data-dir).",
+            )));
         }
 
         self.core

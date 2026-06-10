@@ -81,7 +81,7 @@ func (uc *GetCatalogUseCase) Execute(ctx context.Context, now time.Time) (*Catal
 
 	for _, tier := range catalogTiers {
 		entry := CatalogTier{Tier: tier}
-		if p := uc.price(ctx, tier, "monthly", false); p != nil {
+		if p := uc.price(ctx, tier, defaultBillingPeriod, false); p != nil {
 			entry.Monthly = p
 		}
 		if p := uc.price(ctx, tier, "annual", true); p != nil {

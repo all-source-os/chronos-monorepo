@@ -34,7 +34,7 @@ var openAPIYAML []byte
 // Control plane configuration constants.
 const (
 	// Version is the current version of the control plane.
-	Version = "0.21.6"
+	Version = "0.22.0"
 	// DefaultPort is the default port the control plane listens on.
 	DefaultPort = "3901"
 	// CoreServiceURL is the URL of the core event store service.
@@ -998,6 +998,7 @@ func runEarlyAdopterMigration(container *internal.Container) {
 	}
 	ownerID := os.Getenv("EARLY_ADOPTER_OWNER_TENANT_ID")
 
+	//nolint:gosec // G706: tier/ownerID are operator-supplied CLI/env args, not untrusted input.
 	log.Printf("EarlyAdopterMigration: starting (tier=%s days=%d owner=%q)", tier, days, ownerID)
 	results := container.MigrateEarlyAdoptersUC.Execute(tier, days, ownerID, time.Now())
 	migrated, skipped := 0, 0
@@ -1010,5 +1011,6 @@ func runEarlyAdopterMigration(container *internal.Container) {
 		log.Printf("EarlyAdopterMigration: tenant=%s name=%q %q->%q voucher_until=%s skipped=%v %s",
 			r.TenantID, r.Name, r.FromTier, r.ToTier, r.VoucherUntil, r.Skipped, r.Reason)
 	}
+	//nolint:gosec // G706: counts are integers; no untrusted input in this log line.
 	log.Printf("EarlyAdopterMigration: done — %d migrated, %d skipped, %d total", migrated, skipped, len(results))
 }

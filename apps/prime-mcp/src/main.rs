@@ -268,9 +268,7 @@ async fn main() -> Result<()> {
             let count = defs.len();
             projection_registry::hydrate(defs);
             if count > 0 {
-                tracing::info!(
-                    "Hydrated {count} projection definition(s) from event log"
-                );
+                tracing::info!("Hydrated {count} projection definition(s) from event log");
             }
         }
         Err(e) => tracing::warn!(
@@ -288,8 +286,16 @@ async fn main() -> Result<()> {
     // who clears the sync URL in the extension settings hands us `--sync-to ""`
     // rather than omitting the flag. Without this guard that empty string would
     // be taken as a real remote and every push would fail against `/api/v1/events`.
-    let sync_to = cli.sync_to.as_deref().map(str::trim).filter(|s| !s.is_empty());
-    let api_key = cli.api_key.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let sync_to = cli
+        .sync_to
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let api_key = cli
+        .api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     match (sync_to, api_key) {
         (Some(url), Some(key)) => {
             tracing::info!(
@@ -396,6 +402,9 @@ mod tests {
             PathBuf::from("/Users/x/.prime/memory")
         );
         // A tilde that is not the path prefix must not be expanded.
-        assert_eq!(expand_home_path(Path::new("/a/~/b")), PathBuf::from("/a/~/b"));
+        assert_eq!(
+            expand_home_path(Path::new("/a/~/b")),
+            PathBuf::from("/a/~/b")
+        );
     }
 }
