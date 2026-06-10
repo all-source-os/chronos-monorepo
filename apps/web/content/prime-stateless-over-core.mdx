@@ -1,0 +1,110 @@
+---
+title: "Prime Stopped Being a Database"
+publishedAt: "2026-06-10"
+summary: "Our hosted agent-memory engine used to run its own store. We made it stateless — it now reads and writes Core over HTTP, isolated per tenant, with no durable storage of its own. Here's the architecture, the load-bearing trick, and the bug we caught in production."
+author: "all.source team"
+category: "engineering"
+image: "/assets/blog/prime-stateless-over-core.svg"
+---
+
+AllSource Prime is the agent-memory engine — graph, vectors, recall. In production it shipped as its own service, `allsource-prime`, with its own WAL + Parquet store on a Fly volume.
+
+Which meant we had **two databases.** Core (our event store) was one. The Prime app was a second, accidental one.
+
+We just deleted the second database without deleting Prime. This is how.
+
+## The one line that caused it
+
+Prime was hard-wired to a concrete, local store:
+
+```rust
+pub struct Prime {
+    core: EmbeddedCore,   // ← in-process WAL/Parquet/DashMap
+    // …projections…
+}
+```
+
+The hosted app did `Prime::open("/data")`. So the app *was* a Core: one shared graph, on a volume, behind a tenant-authenticated edge. We probed prod to confirm the damage:
+
+```
+POST https://allsource-prime.fly.dev/api/v1/prime/nodes   (no auth)
+→ 201 Created
+```
+
+An unauthenticated write, into a single store shared across every tenant. Not a leak waiting to happen — a leak that *had* happened, structurally.
+
+## The principle we were violating
+
+> Core IS the database. Everything else is a stateless service that talks to Core over the network.
+
+The Query Service already lives by this — it holds no event data; it calls Core over HTTP and scopes every request to a tenant. So does `chronis`. The hosted Prime app was the one service that owned a store. The fix was to make it behave like the Query Service.
+
+## The new flow
+
+<img src="/assets/blog/prime-stateless-flow.svg" alt="Request flow: client → Control Plane (stamps tenant + key) → stateless prime app → Core, with per-tenant fold" style={{ width: "100%", borderRadius: "12px", margin: "1rem 0" }} />
+
+Five pieces, smallest blast radius we could manage:
+
+1. **An `EventStore` trait.** Prime's `core` field became `Arc<dyn EventStore>` — `ingest` / `query` / `shutdown`. Two implementations: `EmbeddedCore` (local, for the stdio dev binary — untouched) and a new `HttpCore` that reads/writes a **remote** Core over HTTP, tenant-scoped.
+
+2. **Store-less projections.** A `GraphProjections` bundle builds Prime's full projection set from a plain list of events — `reconstruct → Projection::process` — with no backing store. This is the fold that used to require a local event log.
+
+3. **A per-tenant warm cache.** The load-bearing piece (more below).
+
+4. **`HostedPrime`** — a *new* type (so `facade::Prime` and the local-first path stay exactly as they were) that composes the above into a stateless engine with full graph + vector + recall parity. Every method takes an explicit `tenant`.
+
+5. **Routing + auth.** The Control Plane — the public edge — forwards `/api/v1/prime/*` to the app, stamping a trusted `X-Tenant-Id` header and a shared `PRIME_API_KEY` bearer. The app refuses to serve tenants unless that key is set (so the header can't be spoofed) and gates its REST surface behind it.
+
+Now tenant isolation isn't a feature we add — it's a property of *querying Core scoped to the caller's tenant*. Core already filters events by `tenant_id`. Each tenant gets its own in-memory projection bundle, folded from its own events. There is no shared store to leak.
+
+## The load-bearing trick: a per-tenant warm cache
+
+Statelessness has an obvious failure mode for a memory engine: if every request re-queries a tenant's entire event history from a *remote* Core and rebuilds an HNSW vector index, recall latency dies. We sell 12-microsecond reads. We can't pay 200ms to rebuild on every call.
+
+So `TenantProjectionCache` keeps each tenant's materialized projections **warm in memory**:
+
+- **Cache miss** → query Core for that tenant's `prime.*` events, fold them, cache the bundle.
+- **Cache hit** → serve the warm bundle.
+- **Write** → append the event to Core *and* update the warm bundle in place.
+- **Bound memory** → LRU eviction; stale entries re-hydrate.
+
+This is the exact shape of Core's own per-tenant warm-set (lazy hydration + LRU) — just over HTTP instead of Parquet. Restart? The cache rebuilds from Core on demand. Core is the durable truth; the app is a cache.
+
+## The bug we caught in production
+
+We deployed, then verified live. Most of it was clean — tenant A writes and reads its node (200), tenant B gets a 404 for A's node (isolation), no-key gets a 401 (the gate).
+
+Then `stats` lied. A fresh tenant that created 2 nodes + 1 edge reported **3 nodes / 4 events.**
+
+The cause was a write path that did `ingest → get_or_hydrate → apply`. On a *cold* tenant, `get_or_hydrate` pulled the just-ingested event back from Core (it's already persisted) **and then** `apply` folded the same event in again. Entity-keyed projections (node state, the graph view) were idempotent and stayed correct — so the graph looked fine and only the *counters* inflated, which is exactly the kind of bug that survives a green test suite.
+
+The fix is a deletion: drop the hydrate-before-apply. `cache.apply` already no-ops when the tenant is cold, so warm tenants apply once (correct) and cold tenants stay cold — the next read hydrates from Core, which has the event. One apply, never two.
+
+A real-Core end-to-end test (a live `EmbeddedCore` behind a thin HTTP shim, two `HostedPrime` instances, the reader cold) now guards it. Redeployed; prod stats are exact.
+
+## What shipped
+
+The app now owns no durable store. The flow, end to end:
+
+```
+client (tenant key)
+  → Control Plane            (authenticate, resolve tenant)
+  → +X-Tenant-Id +PRIME_API_KEY
+  → allsource-prime          (HostedPrime, per-tenant warm cache, no store)
+  → Core                     (tenant-stamped prime.* events — the only store)
+```
+
+Verified in production:
+
+| check | result |
+|---|---|
+| unauthenticated REST write | **401** (was 201) |
+| tenant A write + read | **200** |
+| tenant B reads A's node | **404** — isolated |
+| stats after 2 nodes + 1 edge | exact (2 / 3) |
+
+Prime is still Prime — same graph, vectors, recall, same microsecond reads off the warm cache. It just stopped pretending to be a database.
+
+---
+
+*Deep dive: [ADR-020](https://github.com/all-source-os) — Prime as a Stateless Engine over Core.*
