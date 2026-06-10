@@ -1,0 +1,103 @@
+---
+title: "Quantized Index vs Durable Memory: turbovec and AllSource Prime"
+publishedAt: "2026-06-10"
+summary: "turbovec compresses vectors 8–16× with no recall tax. AllSource Prime makes vector memory durable, graph-aware, and replayable. They aren't rivals — they own different layers of the same stack, and they compose. Here's the whole stack, drawn out, with the use cases for each and for both together."
+author: "all.source team"
+category: "engineering"
+image: "/assets/blog/turbovec-hero.svg"
+---
+
+![turbovec vs AllSource Prime](/assets/blog/turbovec-hero.svg)
+
+Every comparison of two vector tools starts as a fight and ends as a shrug, because the tools usually solve different problems. [turbovec](https://github.com/RyanCodrai/turbovec) and AllSource Prime are a clean example. One is a quantized index primitive. The other is a durable memory engine. Put side by side they look like competitors; stacked, they're complements.
+
+This post draws the full stack, shows where each tool wins, and lays out the use cases — including the ones where you'd run them **together**.
+
+## The four layers of a vector system
+
+A complete vector system has four layers. Most tools own one or two and lean on you (or another service) for the rest.
+
+![The four layers of a vector system](/assets/blog/turbovec-four-layers.svg)
+
+1. **Encoding / quantization** — how a float vector becomes bytes.
+2. **ANN index** — how you find nearest neighbours fast.
+3. **Durability** — what survives a crash, and where truth lives.
+4. **Retrieval semantics** — how raw kNN becomes a useful answer.
+
+turbovec owns layers 1–2. Prime owns layers 3–4 (and brings its own take on 2). The honest read: neither is "better" — they're betting on different layers.
+
+## Layer 1 — encoding: turbovec's home
+
+turbovec is built on Google Research's TurboQuant. The whole idea: separate a vector's magnitude from its direction, rotate it so coordinates follow a known distribution, then quantize the direction cheaply.
+
+![The TurboQuant encoding pipeline](/assets/blog/turbovec-encoding-pipeline.svg)
+
+The payoff is memory. A 10M-document corpus at 1536 dimensions is **31 GB as float32**. At 4-bit it's 4 GB. At 2-bit it's 2 GB.
+
+![Memory footprint by quantization](/assets/blog/turbovec-compression.svg)
+
+The usual fear with quantization is that smaller means worse results. With TurboQuant it doesn't — it edges out FAISS IndexPQ on recall at every bit width tested.
+
+![Compression without the recall tax](/assets/blog/turbovec-recall-vs-compression.svg)
+
+AllSource Prime, by contrast, stores **full float32** (`QuantizationMode::None`, 384-dim MiniLM ≈ 1.5 KB/vector). Highest fidelity, but it's also Prime's scaling ceiling — which is exactly the gap turbovec's encoding fills.
+
+## Layer 2 — index: scan vs graph
+
+This is the one layer where both tools have an opinion, and they disagree.
+
+- **turbovec**: a quantized, bit-packed **SIMD exhaustive scan**. Tiny RAM, online ingest, no rebuild — but cost grows with N.
+- **Prime**: an **HNSW graph** (`instant-distance`). Flat low latency at huge N — but high RAM and a rebuild on change.
+
+![Quantized scan vs HNSW graph](/assets/blog/turbovec-scan-vs-hnsw.svg)
+
+There's a crossover. Below it, the quantized scan's tiny footprint and zero-rebuild ingest win. Above it, HNSW's flat latency wins — if you can pay the RAM. AVX-512 pushes the crossover rightward (scan gets faster); a constant-ingest workload pushes it leftward (HNSW's rebuilds hurt).
+
+## Layer 3 — durability: Prime's home
+
+Here the tools diverge hardest. In Prime, **the index is a derived projection** — vectors are Core events (`prime.vector.stored`), and the HNSW index rebuilds from the log. In turbovec, the index *is* the artifact; you persist it to a flat `.tv` snapshot and reload it.
+
+![Durability: source of truth vs snapshot](/assets/blog/turbovec-durability.svg)
+
+Best practice, and Prime's whole bet: **treat the index as a projection, not the database.** Replay rebuilds it; you get time-travel and per-vector provenance for free. turbovec leaves durability to you — correct for a library, a gap for a memory system.
+
+## Layer 4 — retrieval: kNN is one signal
+
+Raw nearest-neighbour search is rarely the answer you want. Prime's `recall` over-fetches kNN candidates, then re-ranks with **graph proximity** (BFS from the seeds) and **temporal recency** (exponential decay). turbovec contributes the other half of good hybrid retrieval: an **allowlist filter that runs inside the SIMD kernel**, so you filter by SQL / BM25 / ACL results without over-fetching the whole corpus.
+
+![Hybrid recall](/assets/blog/turbovec-hybrid-recall.svg)
+
+Best practice: over-fetch cheap candidates, then re-rank with what kNN can't see — edges, time, access control.
+
+## Use cases — which one, and when
+
+![Which do you reach for?](/assets/blog/turbovec-decision-matrix.svg)
+
+**Reach for turbovec when:**
+
+- **On-device or air-gapped RAG.** A desktop copilot or an offline appliance where there's no service to call and RAM is tight. 4 GB for 10M docs is the difference between shipping and not.
+- **RAM is the binding constraint.** You're index-bound, not latency-bound, and quantization buys you 8–16× headroom.
+- **Constant ingest with no rebuild window.** Online ingest means new vectors are searchable immediately, no retraining.
+- **Drop-in for an existing pipeline.** LangChain / LlamaIndex / Haystack / Agno integrations, `pip install turbovec[framework]`, done.
+
+**Reach for AllSource Prime when:**
+
+- **Durable agent memory.** Agents that must remember across restarts, with provenance — every fact traces to an event you can replay.
+- **The answer needs structure, not just similarity.** Graph relationships and recency matter — "what's related to this *and* recent" beats "what's nearest."
+- **Multi-tenant, hosted, time-travelling.** Per-tenant isolation, audit, and "what did memory look like last Tuesday" are requirements, not nice-to-haves.
+
+## Use case — both together
+
+The interesting case is the overlap. Prime's full-f32 index caps how far it scales in RAM. turbovec's encoding is precisely what lifts that cap. So: keep Core as the source of truth, keep the graph + recall semantics, and **swap the f32 HNSW for a quantized backend underneath.**
+
+![The fused stack — best of both](/assets/blog/turbovec-fused-stack.svg)
+
+Concretely, the only layer that changes is the index. Vectors still arrive as events; the projection still rebuilds on a generation-counter bump — except now it re-encodes into a quantized index instead of an f32 graph. You get durable, graph-aware, time-travelling memory that fits 10M vectors in 4 GB.
+
+Run them together when you want **both** durable recall **and** a 4 GB footprint — an enterprise knowledge base, a large-scale agent fleet sharing memory, anything event-sourced that also has to fit on commodity hardware. turbovec gains durability and recall it never set out to own; Prime gains the scale ceiling it was missing.
+
+## The one-line version
+
+The index is a primitive you can swap. Durable, graph-aware recall is the system you keep. turbovec is one of the best primitives going — and the cleanest way to think about AllSource Prime is as the durability and retrieval layers that a primitive like it slots straight into.
+
+*Diagrams are conceptual where noted; compression and recall figures are from the turbovec benchmarks. Prime internals reference `apps/core/src/prime/vectors` and ADR-015 (vector index generation counter).*

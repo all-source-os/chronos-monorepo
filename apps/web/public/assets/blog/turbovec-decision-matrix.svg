@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <rect width="1000" height="520" fill="#0b0b10"/>
+  <text x="50" y="50" fill="#f4f4f5" font-size="26" font-weight="700">Which do you reach for?</text>
+  <text x="50" y="78" fill="#a1a1aa" font-size="15">Pick by your hardest constraint — they overlap less than they look.</text>
+
+  <!-- col 1: turbovec -->
+  <rect x="50" y="110" width="285" height="360" rx="14" fill="#1c1408" stroke="#92400e" stroke-width="1.5"/>
+  <text x="192" y="148" fill="#fbbf24" font-size="20" text-anchor="middle" font-weight="700">turbovec</text>
+  <text x="192" y="174" fill="#71717a" font-size="13" text-anchor="middle">embedded ANN library</text>
+  <line x1="74" y1="190" x2="311" y2="190" stroke="#3f1f06" stroke-width="1"/>
+  <g fill="#e4e4e7" font-size="14">
+    <text x="74" y="222">• Air-gapped / on-device search</text>
+    <text x="74" y="252">• RAM is the binding constraint</text>
+    <text x="74" y="282">• Constant ingest, no rebuild window</text>
+    <text x="74" y="312">• Plug into LangChain / LlamaIndex</text>
+    <text x="74" y="342">• You own durability elsewhere</text>
+  </g>
+  <text x="74" y="392" fill="#fcd34d" font-size="13.5" font-weight="600">Owns: encoding + index</text>
+  <text x="74" y="432" fill="#71717a" font-size="12.5">No graph. No event log. No recall —</text>
+  <text x="74" y="450" fill="#71717a" font-size="12.5">the index is the whole product.</text>
+
+  <!-- col 2: Prime -->
+  <rect x="357" y="110" width="285" height="360" rx="14" fill="#0f1714" stroke="#065f46" stroke-width="1.5"/>
+  <text x="499" y="148" fill="#34d399" font-size="20" text-anchor="middle" font-weight="700">AllSource Prime</text>
+  <text x="499" y="174" fill="#71717a" font-size="13" text-anchor="middle">durable memory engine</text>
+  <line x1="381" y1="190" x2="618" y2="190" stroke="#063b2c" stroke-width="1"/>
+  <g fill="#e4e4e7" font-size="14">
+    <text x="381" y="222">• Durable agent memory</text>
+    <text x="381" y="252">• Need provenance + time-travel</text>
+    <text x="381" y="282">• Graph + recency, not just kNN</text>
+    <text x="381" y="312">• Multi-tenant hosted service</text>
+    <text x="381" y="342">• Corpus fits RAM as f32 (today)</text>
+  </g>
+  <text x="381" y="392" fill="#6ee7b7" font-size="13.5" font-weight="600">Owns: durability + retrieval</text>
+  <text x="381" y="432" fill="#71717a" font-size="12.5">f32 index = scaling ceiling until</text>
+  <text x="381" y="450" fill="#71717a" font-size="12.5">a quantized backend lands.</text>
+
+  <!-- col 3: fused -->
+  <rect x="664" y="110" width="285" height="360" rx="14" fill="#10140c" stroke="#3f6212" stroke-width="1.5"/>
+  <text x="806" y="148" fill="#bef264" font-size="20" text-anchor="middle" font-weight="700">Fused</text>
+  <text x="806" y="174" fill="#71717a" font-size="13" text-anchor="middle">turbovec under Prime</text>
+  <line x1="688" y1="190" x2="925" y2="190" stroke="#1a2e05" stroke-width="1"/>
+  <g fill="#e4e4e7" font-size="14">
+    <text x="688" y="222">• 10M+ vectors, durably</text>
+    <text x="688" y="252">• Want recall AND 4 GB footprint</text>
+    <text x="688" y="282">• Event-sourced + quantized</text>
+    <text x="688" y="312">• Replay rebuilds quantized index</text>
+    <text x="688" y="342">• No second database</text>
+  </g>
+  <text x="688" y="392" fill="#bef264" font-size="13.5" font-weight="600">Owns: all four layers</text>
+  <text x="688" y="432" fill="#71717a" font-size="12.5">The roadmap target — encoding</text>
+  <text x="688" y="450" fill="#71717a" font-size="12.5">swap, everything else stays.</text>
+
+  <text x="50" y="502" fill="#52525b" font-size="14">all.source · the index is a primitive you can swap; durable recall is the system you keep.</text>
+</svg>

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <rect width="1000" height="560" fill="#0b0b10"/>
+  <text x="50" y="56" fill="#f4f4f5" font-size="28" font-weight="700">The four layers of a vector system</text>
+  <text x="50" y="86" fill="#a1a1aa" font-size="16">Most tools own one or two layers. The full stack needs all four.</text>
+
+  <!-- legend -->
+  <rect x="640" y="40" width="16" height="16" rx="3" fill="#1c1408" stroke="#92400e"/>
+  <text x="664" y="53" fill="#fcd34d" font-size="14">turbovec</text>
+  <rect x="760" y="40" width="16" height="16" rx="3" fill="#0f1714" stroke="#065f46"/>
+  <text x="784" y="53" fill="#6ee7b7" font-size="14">AllSource Prime</text>
+
+  <!-- Layer 4: Retrieval (top) -->
+  <rect x="50" y="120" width="620" height="86" rx="12" fill="#0f1714" stroke="#065f46" stroke-width="1.5"/>
+  <text x="74" y="152" fill="#6ee7b7" font-size="19" font-weight="700">4 · Retrieval semantics</text>
+  <text x="74" y="180" fill="#a1a1aa" font-size="15">hybrid recall: vector + graph proximity + temporal decay, re-rank</text>
+  <rect x="700" y="120" width="250" height="86" rx="12" fill="#0f1714" stroke="#065f46"/>
+  <text x="825" y="158" fill="#6ee7b7" font-size="15" text-anchor="middle" font-weight="600">Prime owns this</text>
+  <text x="825" y="182" fill="#52525b" font-size="13" text-anchor="middle">kNN alone is not enough</text>
+
+  <!-- Layer 3: Durability -->
+  <rect x="50" y="218" width="620" height="86" rx="12" fill="#0f1714" stroke="#065f46" stroke-width="1.5"/>
+  <text x="74" y="250" fill="#6ee7b7" font-size="19" font-weight="700">3 · Durability / persistence</text>
+  <text x="74" y="278" fill="#a1a1aa" font-size="15">index is a derived projection — events are the source of truth</text>
+  <rect x="700" y="218" width="250" height="86" rx="12" fill="#0f1714" stroke="#065f46"/>
+  <text x="825" y="256" fill="#6ee7b7" font-size="15" text-anchor="middle" font-weight="600">Prime owns this</text>
+  <text x="825" y="280" fill="#52525b" font-size="13" text-anchor="middle">turbovec: flat .tv snapshot</text>
+
+  <!-- Layer 2: Index -->
+  <rect x="50" y="316" width="620" height="86" rx="12" fill="#141414" stroke="#a16207" stroke-width="1.5"/>
+  <text x="74" y="348" fill="#fcd34d" font-size="19" font-weight="700">2 · ANN index</text>
+  <text x="74" y="376" fill="#a1a1aa" font-size="15">quantized SIMD scan (turbovec) vs HNSW graph (Prime)</text>
+  <rect x="700" y="316" width="250" height="86" rx="12" fill="#141414" stroke="#a16207"/>
+  <text x="825" y="354" fill="#fcd34d" font-size="15" text-anchor="middle" font-weight="600">both — different bet</text>
+  <text x="825" y="378" fill="#52525b" font-size="13" text-anchor="middle">scan vs graph</text>
+
+  <!-- Layer 1: Encoding (bottom) -->
+  <rect x="50" y="414" width="620" height="86" rx="12" fill="#1c1408" stroke="#92400e" stroke-width="1.5"/>
+  <text x="74" y="446" fill="#fcd34d" font-size="19" font-weight="700">1 · Encoding / quantization</text>
+  <text x="74" y="474" fill="#a1a1aa" font-size="15">TurboQuant: rotate → calibrate → quantize → renorm (turbovec)</text>
+  <rect x="700" y="414" width="250" height="86" rx="12" fill="#1c1408" stroke="#92400e"/>
+  <text x="825" y="452" fill="#fcd34d" font-size="15" text-anchor="middle" font-weight="600">turbovec owns this</text>
+  <text x="825" y="476" fill="#52525b" font-size="13" text-anchor="middle">Prime: f32, no quant</text>
+
+  <text x="50" y="538" fill="#52525b" font-size="14">The gap: Prime's full-f32 index is its scaling ceiling. turbovec's encoding is exactly what fills it.</text>
+</svg>

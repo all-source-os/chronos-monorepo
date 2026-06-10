@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <rect width="900" height="500" fill="#0b0b10"/>
+  <text x="50" y="50" fill="#f4f4f5" font-size="26" font-weight="700">Compression without the recall tax</text>
+  <text x="50" y="78" fill="#a1a1aa" font-size="15">The usual quantization fear — "smaller means worse results" — doesn't hold here.</text>
+
+  <!-- axes -->
+  <line x1="120" y1="120" x2="120" y2="400" stroke="#3f3f46" stroke-width="1.5"/>
+  <line x1="120" y1="400" x2="820" y2="400" stroke="#3f3f46" stroke-width="1.5"/>
+  <text x="108" y="130" fill="#71717a" font-size="13" text-anchor="end">R@1</text>
+  <text x="108" y="396" fill="#71717a" font-size="13" text-anchor="end">low</text>
+  <text x="470" y="430" fill="#71717a" font-size="14" text-anchor="middle">compression  →  smaller footprint</text>
+
+  <!-- gridlines -->
+  <line x1="120" y1="200" x2="820" y2="200" stroke="#1a1a22" stroke-width="1"/>
+  <line x1="120" y1="280" x2="820" y2="280" stroke="#1a1a22" stroke-width="1"/>
+
+  <!-- FAISS IndexPQ baseline (muted) -->
+  <circle cx="300" cy="300" r="9" fill="#3f3f46"/>
+  <text x="300" y="332" fill="#71717a" font-size="13" text-anchor="middle">FAISS IndexPQ</text>
+  <circle cx="520" cy="318" r="9" fill="#3f3f46"/>
+  <circle cx="700" cy="332" r="9" fill="#3f3f46"/>
+
+  <!-- TurboQuant (amber) — sits above baseline -->
+  <circle cx="300" cy="268" r="10" fill="#fbbf24"/>
+  <text x="300" y="252" fill="#fcd34d" font-size="13" text-anchor="middle">4-bit</text>
+  <circle cx="520" cy="282" r="10" fill="#fbbf24"/>
+  <text x="520" y="266" fill="#fcd34d" font-size="13" text-anchor="middle">2-bit</text>
+  <circle cx="700" cy="300" r="10" fill="#fbbf24"/>
+  <text x="700" y="284" fill="#fcd34d" font-size="13" text-anchor="middle">smaller still</text>
+
+  <!-- trend lines -->
+  <path d="M300 268 L520 282 L700 300" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5 4"/>
+  <path d="M300 300 L520 318 L700 332" fill="none" stroke="#52525b" stroke-width="2" stroke-dasharray="5 4"/>
+
+  <!-- delta annotation -->
+  <line x1="300" y1="268" x2="300" y2="300" stroke="#34d399" stroke-width="2"/>
+  <text x="316" y="288" fill="#34d399" font-size="13">+0.3–3.4 pts</text>
+
+  <!-- legend -->
+  <circle cx="560" cy="140" r="8" fill="#fbbf24"/>
+  <text x="576" y="145" fill="#fcd34d" font-size="14">TurboQuant (turbovec)</text>
+  <circle cx="560" cy="166" r="8" fill="#3f3f46"/>
+  <text x="576" y="171" fill="#71717a" font-size="14">FAISS IndexPQ (LUT256, nbits=8)</text>
+
+  <text x="50" y="468" fill="#52525b" font-size="14">TurboQuant edges ahead on recall at every bit width — the gap narrows at higher k. Source: turbovec benchmarks.</text>
+</svg>

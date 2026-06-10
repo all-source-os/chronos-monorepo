@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#34d399"/>
+    </marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#a16207"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="460" fill="#0b0b10"/>
+  <text x="50" y="50" fill="#f4f4f5" font-size="26" font-weight="700">Durability: source of truth vs snapshot</text>
+  <text x="50" y="78" fill="#a1a1aa" font-size="15">Where does the index get its data — and what survives a crash?</text>
+
+  <line x1="500" y1="110" x2="500" y2="420" stroke="#27272a" stroke-width="1.5" stroke-dasharray="4 6"/>
+
+  <!-- Prime side (green) -->
+  <text x="50" y="138" fill="#34d399" font-size="18" font-weight="700">AllSource Prime — index is derived</text>
+
+  <rect x="50" y="160" width="180" height="64" rx="10" fill="#0f1714" stroke="#065f46"/>
+  <text x="140" y="188" fill="#6ee7b7" font-size="15" text-anchor="middle" font-weight="600">Core event log</text>
+  <text x="140" y="210" fill="#71717a" font-size="12.5" text-anchor="middle">prime.vector.stored</text>
+
+  <rect x="50" y="252" width="180" height="64" rx="10" fill="#18181b" stroke="#3f3f46"/>
+  <text x="140" y="280" fill="#e4e4e7" font-size="15" text-anchor="middle">projection</text>
+  <text x="140" y="302" fill="#71717a" font-size="12.5" text-anchor="middle">DashMap fold</text>
+
+  <rect x="50" y="344" width="180" height="64" rx="10" fill="#18181b" stroke="#3f3f46"/>
+  <text x="140" y="372" fill="#e4e4e7" font-size="15" text-anchor="middle">HNSW index</text>
+  <text x="140" y="394" fill="#71717a" font-size="12.5" text-anchor="middle">lazy rebuild (gen ctr)</text>
+
+  <line x1="140" y1="224" x2="140" y2="250" stroke="#34d399" stroke-width="2" marker-end="url(#ag)"/>
+  <line x1="140" y1="316" x2="140" y2="342" stroke="#34d399" stroke-width="2" marker-end="url(#ag)"/>
+
+  <rect x="270" y="232" width="200" height="120" rx="10" fill="#0f1714" stroke="#065f46" stroke-dasharray="4 4"/>
+  <text x="370" y="262" fill="#6ee7b7" font-size="14" text-anchor="middle" font-weight="600">survives crash</text>
+  <text x="370" y="288" fill="#a1a1aa" font-size="12.5" text-anchor="middle">replay events →</text>
+  <text x="370" y="306" fill="#a1a1aa" font-size="12.5" text-anchor="middle">rebuild index</text>
+  <text x="370" y="330" fill="#a1a1aa" font-size="12.5" text-anchor="middle">time-travel · provenance</text>
+
+  <!-- turbovec side (amber) -->
+  <text x="540" y="138" fill="#fbbf24" font-size="18" font-weight="700">turbovec — index is the artifact</text>
+
+  <rect x="540" y="200" width="180" height="64" rx="10" fill="#1c1408" stroke="#92400e"/>
+  <text x="630" y="228" fill="#fcd34d" font-size="15" text-anchor="middle" font-weight="600">in-mem index</text>
+  <text x="630" y="250" fill="#71717a" font-size="12.5" text-anchor="middle">quantized vectors</text>
+
+  <rect x="540" y="312" width="180" height="64" rx="10" fill="#18181b" stroke="#3f3f46"/>
+  <text x="630" y="340" fill="#e4e4e7" font-size="15" text-anchor="middle">.tv / .tvim file</text>
+  <text x="630" y="362" fill="#71717a" font-size="12.5" text-anchor="middle">flat snapshot</text>
+
+  <line x1="630" y1="264" x2="630" y2="310" stroke="#a16207" stroke-width="2" marker-end="url(#aa)"/>
+  <text x="646" y="292" fill="#71717a" font-size="12">write()</text>
+
+  <rect x="760" y="252" width="200" height="92" rx="10" fill="#1c1408" stroke="#92400e" stroke-dasharray="4 4"/>
+  <text x="860" y="282" fill="#fcd34d" font-size="14" text-anchor="middle" font-weight="600">restore = reload file</text>
+  <text x="860" y="306" fill="#a1a1aa" font-size="12.5" text-anchor="middle">no event history</text>
+  <text x="860" y="324" fill="#a1a1aa" font-size="12.5" text-anchor="middle">no time-travel</text>
+
+  <text x="50" y="444" fill="#52525b" font-size="14">Best practice: treat the index as a projection, not the database. Prime does; turbovec leaves it to you.</text>
+</svg>

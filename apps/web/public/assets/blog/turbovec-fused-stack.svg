@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 560" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#8b8b96"/>
+    </marker>
+  </defs>
+  <rect width="920" height="560" fill="#0b0b10"/>
+  <text x="50" y="50" fill="#f4f4f5" font-size="26" font-weight="700">The fused stack — best of both</text>
+  <text x="50" y="78" fill="#a1a1aa" font-size="15">Keep the event log + graph + recall. Swap the f32 index for a quantized backend underneath.</text>
+
+  <!-- top: recall -->
+  <rect x="160" y="110" width="600" height="68" rx="12" fill="#0f1714" stroke="#065f46" stroke-width="1.5"/>
+  <text x="460" y="140" fill="#6ee7b7" font-size="17" text-anchor="middle" font-weight="700">Prime recall — graph + temporal + filters</text>
+  <text x="460" y="164" fill="#a1a1aa" font-size="13.5" text-anchor="middle">the retrieval semantics that kNN can't give you</text>
+
+  <!-- index (fused) -->
+  <rect x="160" y="206" width="600" height="68" rx="12" fill="#141414" stroke="#a16207" stroke-width="1.5"/>
+  <text x="460" y="236" fill="#fcd34d" font-size="17" text-anchor="middle" font-weight="700">TurboQuant quantized index</text>
+  <text x="460" y="260" fill="#a1a1aa" font-size="13.5" text-anchor="middle">8–16× smaller · online ingest · allowlist filter in-kernel</text>
+
+  <!-- durability -->
+  <rect x="160" y="302" width="600" height="68" rx="12" fill="#0f1714" stroke="#065f46" stroke-width="1.5"/>
+  <text x="460" y="332" fill="#6ee7b7" font-size="17" text-anchor="middle" font-weight="700">projection — index rebuilds from events</text>
+  <text x="460" y="356" fill="#a1a1aa" font-size="13.5" text-anchor="middle">generation counter triggers re-encode on change</text>
+
+  <!-- truth -->
+  <rect x="160" y="398" width="600" height="68" rx="12" fill="#0f1714" stroke="#065f46" stroke-width="1.5"/>
+  <text x="460" y="428" fill="#6ee7b7" font-size="17" text-anchor="middle" font-weight="700">Core event log — the only source of truth</text>
+  <text x="460" y="452" fill="#a1a1aa" font-size="13.5" text-anchor="middle">WAL + Parquet · replay · provenance · time-travel</text>
+
+  <!-- arrows up -->
+  <g stroke="#8b8b96" stroke-width="2">
+    <line x1="460" y1="398" x2="460" y2="372" marker-end="url(#a)"/>
+    <line x1="460" y1="302" x2="460" y2="276" marker-end="url(#a)"/>
+    <line x1="460" y1="206" x2="460" y2="180" marker-end="url(#a)"/>
+  </g>
+
+  <!-- ownership labels -->
+  <text x="100" y="148" fill="#34d399" font-size="13" text-anchor="end">Prime</text>
+  <text x="100" y="244" fill="#fbbf24" font-size="13" text-anchor="end">turbovec</text>
+  <text x="100" y="340" fill="#34d399" font-size="13" text-anchor="end">Prime</text>
+  <text x="100" y="436" fill="#34d399" font-size="13" text-anchor="end">Core</text>
+
+  <text x="50" y="508" fill="#e4e4e7" font-size="15" font-weight="600">Result: durable, time-travelling, graph-aware memory that fits 10M vectors in 4 GB.</text>
+  <text x="50" y="534" fill="#52525b" font-size="14">Prime's f32 ceiling lifts; turbovec gets durability + recall it never tried to own.</text>
+</svg>

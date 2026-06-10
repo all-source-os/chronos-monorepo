@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0a0f"/>
+      <stop offset="1" stop-color="#12121a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <text x="60" y="80" fill="#f4f4f5" font-size="42" font-weight="700">Quantized Index vs Durable Memory</text>
+  <text x="60" y="120" fill="#a1a1aa" font-size="22">turbovec and AllSource Prime own different layers of the vector stack. Here's the whole stack.</text>
+
+  <line x1="600" y1="170" x2="600" y2="540" stroke="#27272a" stroke-width="1.5" stroke-dasharray="4 6"/>
+
+  <!-- turbovec (amber) -->
+  <text x="60" y="210" fill="#fbbf24" font-size="24" font-weight="700">turbovec</text>
+  <text x="60" y="238" fill="#71717a" font-size="15">the encoding + index primitive</text>
+
+  <g>
+    <rect x="60" y="262" width="470" height="50" rx="9" fill="#1c1408" stroke="#92400e"/>
+    <text x="80" y="293" fill="#fcd34d" font-size="16">TurboQuant — 2/4-bit scalar quantization</text>
+
+    <rect x="60" y="322" width="470" height="50" rx="9" fill="#1c1408" stroke="#92400e"/>
+    <text x="80" y="353" fill="#fcd34d" font-size="16">SIMD exhaustive scan · bit-packed kernels</text>
+
+    <rect x="60" y="382" width="470" height="50" rx="9" fill="#18181b" stroke="#3f3f46"/>
+    <text x="80" y="413" fill="#d4d4d8" font-size="16">31 GB → 4 GB  ·  8–16× smaller, online ingest</text>
+
+    <rect x="60" y="442" width="470" height="50" rx="9" fill="#18181b" stroke="#3f3f46"/>
+    <text x="80" y="473" fill="#d4d4d8" font-size="16">pure local lib · air-gappable · .tv snapshot</text>
+  </g>
+
+  <!-- AllSource Prime (green) -->
+  <text x="640" y="210" fill="#34d399" font-size="24" font-weight="700">AllSource Prime</text>
+  <text x="640" y="238" fill="#71717a" font-size="15">the durable memory engine over Core</text>
+
+  <g>
+    <rect x="640" y="262" width="470" height="50" rx="9" fill="#0f1714" stroke="#065f46"/>
+    <text x="660" y="293" fill="#6ee7b7" font-size="16">HNSW (instant-distance) · full f32 · 384-dim</text>
+
+    <rect x="640" y="322" width="470" height="50" rx="9" fill="#0f1714" stroke="#065f46"/>
+    <text x="660" y="353" fill="#6ee7b7" font-size="16">vectors are events · WAL + Parquet · replayable</text>
+
+    <rect x="640" y="382" width="470" height="50" rx="9" fill="#18181b" stroke="#3f3f46"/>
+    <text x="660" y="413" fill="#d4d4d8" font-size="16">hybrid recall — vector + graph + recency</text>
+
+    <rect x="640" y="442" width="470" height="50" rx="9" fill="#18181b" stroke="#3f3f46"/>
+    <text x="660" y="473" fill="#d4d4d8" font-size="16">per-vector provenance · time-travel</text>
+  </g>
+
+  <text x="60" y="588" fill="#52525b" font-size="15">all.source · the index is a primitive; durable recall is the system — and they compose.</text>
+</svg>

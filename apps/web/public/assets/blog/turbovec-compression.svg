@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <rect width="900" height="480" fill="#0b0b10"/>
+  <text x="50" y="50" fill="#f4f4f5" font-size="26" font-weight="700">Memory: 10M vectors @ 1536-dim</text>
+  <text x="50" y="78" fill="#a1a1aa" font-size="15">Quantization is the difference between fits-in-RAM and does-not.</text>
+
+  <!-- baseline grid -->
+  <line x1="220" y1="120" x2="220" y2="400" stroke="#27272a" stroke-width="1.5"/>
+  <line x1="220" y1="400" x2="860" y2="400" stroke="#27272a" stroke-width="1.5"/>
+
+  <!-- bar: f32 -->
+  <rect x="240" y="130" width="560" height="56" rx="6" fill="#1c1117" stroke="#7f1d1d"/>
+  <text x="232" y="164" fill="#a1a1aa" font-size="15" text-anchor="end">f32</text>
+  <text x="262" y="166" fill="#fca5a5" font-size="17" font-weight="700">31 GB</text>
+  <text x="790" y="166" fill="#71717a" font-size="13" text-anchor="end">Prime today (no quant) · 1× </text>
+
+  <!-- bar: 4-bit -->
+  <rect x="240" y="220" width="72" height="56" rx="6" fill="#1c1408" stroke="#92400e"/>
+  <text x="232" y="254" fill="#a1a1aa" font-size="15" text-anchor="end">4-bit</text>
+  <text x="326" y="256" fill="#fcd34d" font-size="17" font-weight="700">4 GB</text>
+  <text x="430" y="256" fill="#71717a" font-size="13">8× smaller · 384 bytes/vec</text>
+
+  <!-- bar: 2-bit -->
+  <rect x="240" y="310" width="36" height="56" rx="6" fill="#1c1408" stroke="#92400e"/>
+  <text x="232" y="344" fill="#a1a1aa" font-size="15" text-anchor="end">2-bit</text>
+  <text x="290" y="346" fill="#fcd34d" font-size="17" font-weight="700">2 GB</text>
+  <text x="430" y="346" fill="#71717a" font-size="13">16× smaller · 192 bytes/vec</text>
+
+  <!-- RAM ceiling marker -->
+  <line x1="490" y1="120" x2="490" y2="400" stroke="#34d399" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <text x="498" y="416" fill="#34d399" font-size="13">typical commodity-box RAM ceiling</text>
+
+  <text x="50" y="452" fill="#52525b" font-size="14">Recall is not the trade: TurboQuant beats FAISS IndexPQ by 0.3–3.4 pts R@1 at these bit widths.</text>
+</svg>
