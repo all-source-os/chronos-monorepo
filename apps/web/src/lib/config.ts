@@ -35,10 +35,10 @@ export const siteConfig = {
   ],
   // Bare X/Twitter handle (no @) — single source for cards, JSON-LD, and the
   // blog author chip. `links.twitter` is the profile URL built from it.
-  twitterHandle: "allsourcedev",
+  twitterHandle: "ddonprogramming",
   links: {
     email: "hello@all-source.xyz",
-    twitter: "https://twitter.com/allsourcedev",
+    twitter: "https://x.com/ddonprogramming",
     discord: "https://github.com/all-source-os/all-source/discussions",
     github: "https://github.com/all-source-os/all-source",
     instagram: "https://instagram.com/allsourcedev",
@@ -367,7 +367,7 @@ export const siteConfig = {
           icon: "github" as const,
         },
         {
-          href: "https://twitter.com/allsourcedev",
+          href: "https://x.com/ddonprogramming",
           text: "Twitter",
           icon: "twitter" as const,
         },
