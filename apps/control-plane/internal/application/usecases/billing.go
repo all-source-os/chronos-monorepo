@@ -36,6 +36,10 @@ type CheckoutResult struct {
 	TenantID    string `json:"tenant_id"`
 	Tier        string `json:"tier"`
 	Provider    string `json:"provider"`
+	// IsPortal is true when CheckoutURL is the customer-portal "change plan" URL
+	// returned because the tenant already has an active subscription (prevents a
+	// duplicate subscription). The frontend redirects to it the same way.
+	IsPortal bool `json:"is_portal,omitempty"`
 }
 
 // PortalResult is the output of getting the customer portal URL.
@@ -102,9 +106,26 @@ func NewCreateCheckoutUseCase(
 // Execute creates a checkout URL for the given tenant and tier.
 func (uc *CreateCheckoutUseCase) Execute(ctx context.Context, req CheckoutRequest) (*CheckoutResult, error) {
 	// Verify tenant exists
-	_, err := uc.tenantRepo.FindByID(req.TenantID)
+	tenant, err := uc.tenantRepo.FindByID(req.TenantID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Prevent duplicate subscriptions: a tenant that already has an active
+	// subscription must CHANGE plan through the LemonSqueezy customer portal,
+	// not create a second checkout. Return the portal URL instead.
+	if uc.lsClient != nil {
+		if sub := extractSubscription(tenant.Metadata); entities.SubscriptionIsActive(sub.Status) && sub.SubscriptionID != "" {
+			if portalURL, perr := uc.lsClient.GetCustomerPortalURL(ctx, sub.SubscriptionID); perr == nil && portalURL != "" {
+				return &CheckoutResult{
+					TenantID:    req.TenantID,
+					Tier:        sub.Tier,
+					Provider:    providerLemonSqueezy,
+					CheckoutURL: portalURL,
+					IsPortal:    true,
+				}, nil
+			}
+		}
 	}
 
 	provider := req.Provider
@@ -453,6 +474,37 @@ func extractSubscription(metadata map[string]interface{}) entities.SubscriptionM
 		return subscriptionFromMap(v)
 	default:
 		return entities.SubscriptionMetadata{}
+	}
+}
+
+// extractSubscriptionsMap reads the tracked per-subscription set
+// (TenantBillingMetadata.Subscriptions) from tenant metadata, tolerating both
+// the typed value and the JSON-decoded map form.
+func extractSubscriptionsMap(metadata map[string]interface{}) map[string]entities.SubscriptionRef {
+	if metadata == nil {
+		return nil
+	}
+	switch v := metadata["subscriptions"].(type) {
+	case map[string]entities.SubscriptionRef:
+		return v
+	case map[string]interface{}:
+		out := make(map[string]entities.SubscriptionRef, len(v))
+		for id, item := range v {
+			m, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			out[id] = entities.SubscriptionRef{
+				Tier:            strVal(m, "tier"),
+				Status:          strVal(m, "status"),
+				CustomerID:      strVal(m, "customer_id"),
+				BillingPeriod:   strVal(m, "billing_period"),
+				PaymentProvider: strVal(m, "payment_provider"),
+			}
+		}
+		return out
+	default:
+		return nil
 	}
 }
 

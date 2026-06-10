@@ -1,6 +1,9 @@
 package entities
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // SubscriptionTier represents a billing tier.
 type SubscriptionTier string
@@ -135,6 +138,65 @@ type TenantBillingMetadata struct {
 	Subscription *SubscriptionMetadata `json:"subscription,omitempty"`
 	Quotas       *QuotaMetadata        `json:"quotas,omitempty"`
 	Overage      *OverageMetadata      `json:"overage,omitempty"`
+	// Subscriptions tracks every LemonSqueezy subscription seen for the tenant,
+	// keyed by subscription id. The tenant's effective tier is the highest-ranked
+	// tier among the active ones (HighestActiveTier) — so duplicate subscriptions
+	// "bubble up" to the most-paid plan, and cancelling the top one falls back to
+	// the next active. nil when there are no tracked subscriptions.
+	Subscriptions map[string]SubscriptionRef `json:"subscriptions,omitempty"`
+}
+
+// SubscriptionRef is the per-subscription record in TenantBillingMetadata.Subscriptions.
+type SubscriptionRef struct {
+	Tier            string `json:"tier"`
+	Status          string `json:"status"`
+	CustomerID      string `json:"customer_id,omitempty"`
+	BillingPeriod   string `json:"billing_period,omitempty"`
+	PaymentProvider string `json:"payment_provider,omitempty"`
+}
+
+// SubscriptionIsActive reports whether a status grants entitlements (incl.
+// past_due, which keeps access during the dunning grace window).
+func SubscriptionIsActive(status string) bool {
+	switch strings.ToLower(status) {
+	case "active", "on_trial", "trialing", "past_due":
+		return true
+	default:
+		return false
+	}
+}
+
+// tierRank orders tiers for "highest wins"; retired aliases map to successors first.
+func tierRank(tier string) int {
+	switch SubscriptionTier(MapRetiredTier(tier)) {
+	case TierEnterprise:
+		return 5
+	case TierScale:
+		return 4
+	case TierStudio:
+		return 3
+	case TierIndie:
+		return 2
+	case TierFree:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// HighestActiveTier returns the highest-ranked tier among active subscriptions
+// and the winning subscription id. Returns ("free", "") when none are active.
+func HighestActiveTier(subs map[string]SubscriptionRef) (string, string) {
+	bestTier, bestID, bestRank := "free", "", -1
+	for id, s := range subs {
+		if !SubscriptionIsActive(s.Status) {
+			continue
+		}
+		if r := tierRank(s.Tier); r > bestRank {
+			bestRank, bestTier, bestID = r, s.Tier, id
+		}
+	}
+	return bestTier, bestID
 }
 
 // TierQuotas defines the full entitlement set for a given tier. Beyond the
@@ -240,6 +302,9 @@ func (b *TenantBillingMetadata) ToMetadataMap() map[string]any {
 	}
 	if b.Overage != nil {
 		m["overage"] = b.Overage
+	}
+	if b.Subscriptions != nil {
+		m["subscriptions"] = b.Subscriptions
 	}
 	return m
 }

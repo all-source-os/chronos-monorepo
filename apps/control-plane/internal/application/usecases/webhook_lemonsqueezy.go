@@ -129,107 +129,99 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) Execute(ctx context.Context, event 
 	return nil
 }
 
-func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCreated(tenantID string, event LemonSqueezyWebhookEvent) error {
-	attrs := event.Data.Attributes
-	tier := uc.resolveTier(attrs.VariantName, attrs.VariantID)
-
-	billing := &entities.TenantBillingMetadata{
-		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID:  event.Data.ID,
-			CustomerID:      fmt.Sprintf("%d", attrs.CustomerID),
-			Status:          attrs.Status,
-			Tier:            tier,
-			BillingPeriod:   customDataField(event, "billing_period"),
-			PaymentProvider: "lemonsqueezy",
-		},
-		// Quotas will be auto-applied by UpdateSubscriptionMetadataUseCase based on tier
+// applySubscriptionEvent upserts one subscription into the tenant's tracked set
+// and recomputes the effective tier as the highest-ranked ACTIVE subscription —
+// so duplicate subscriptions bubble up to the most-paid plan, and cancelling the
+// top one falls back to the next active (or free). Returns the effective tier.
+func (uc *ProcessLemonSqueezyWebhookUseCase) applySubscriptionEvent(
+	tenantID, subID, tier, status, billingPeriod, customerID string,
+) (string, error) {
+	tenant, err := uc.tenantRepo.FindByID(tenantID)
+	if err != nil {
+		return "", err
+	}
+	subs := extractSubscriptionsMap(tenant.Metadata)
+	if subs == nil {
+		subs = map[string]entities.SubscriptionRef{}
+	}
+	subs[subID] = entities.SubscriptionRef{
+		Tier:            tier,
+		Status:          status,
+		CustomerID:      customerID,
+		BillingPeriod:   billingPeriod,
+		PaymentProvider: "lemonsqueezy",
 	}
 
-	_, err := uc.updateSubUC.Execute(tenantID, billing)
+	effective, primaryID := entities.HighestActiveTier(subs)
+	sub := &entities.SubscriptionMetadata{Tier: effective, PaymentProvider: "lemonsqueezy"}
+	if primaryID != "" {
+		p := subs[primaryID]
+		sub.SubscriptionID = primaryID
+		sub.CustomerID = p.CustomerID
+		sub.BillingPeriod = p.BillingPeriod
+		sub.Status = "active"
+	} else {
+		sub.Status = "canceled" // no active subscriptions remain
+	}
+
+	_, err = uc.updateSubUC.Execute(tenantID, &entities.TenantBillingMetadata{
+		Subscription:  sub,
+		Subscriptions: subs,
+	})
+	return effective, err
+}
+
+func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCreated(tenantID string, event LemonSqueezyWebhookEvent) error {
+	attrs := event.Data.Attributes
+	_, err := uc.applySubscriptionEvent(tenantID, event.Data.ID,
+		uc.resolveTier(attrs.VariantName, attrs.VariantID), attrs.Status,
+		customDataField(event, "billing_period"), fmt.Sprintf("%d", attrs.CustomerID))
 	return err
 }
 
 func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionUpdated(tenantID string, event LemonSqueezyWebhookEvent) error {
 	attrs := event.Data.Attributes
-	tier := uc.resolveTier(attrs.VariantName, attrs.VariantID)
-
-	billing := &entities.TenantBillingMetadata{
-		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID:  event.Data.ID,
-			CustomerID:      fmt.Sprintf("%d", attrs.CustomerID),
-			Status:          attrs.Status,
-			Tier:            tier,
-			BillingPeriod:   customDataField(event, "billing_period"),
-			PaymentProvider: "lemonsqueezy",
-		},
-	}
-
-	_, err := uc.updateSubUC.Execute(tenantID, billing)
+	_, err := uc.applySubscriptionEvent(tenantID, event.Data.ID,
+		uc.resolveTier(attrs.VariantName, attrs.VariantID), attrs.Status,
+		customDataField(event, "billing_period"), fmt.Sprintf("%d", attrs.CustomerID))
 	return err
 }
 
 func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionCanceled(ctx context.Context, tenantID string, event LemonSqueezyWebhookEvent) error {
-	// Update subscription status to canceled
-	billing := &entities.TenantBillingMetadata{
-		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID:  event.Data.ID,
-			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
-			Status:          "canceled",
-			Tier:            uc.resolveTier(event.Data.Attributes.VariantName, event.Data.Attributes.VariantID),
-			BillingPeriod:   customDataField(event, "billing_period"),
-			PaymentProvider: "lemonsqueezy",
-		},
-	}
-	if _, err := uc.updateSubUC.Execute(tenantID, billing); err != nil {
-		return fmt.Errorf("update subscription metadata: %w", err)
-	}
-
-	// Suspend the tenant
-	_, err := uc.suspendUC.Execute(ctx, tenantID, entities.RoleAdmin)
-	if err != nil {
-		return fmt.Errorf("suspend tenant: %w", err)
-	}
-	return nil
+	return uc.handleSubscriptionEnd(ctx, tenantID, event, "cancelled")
 }
 
 func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionExpired(ctx context.Context, tenantID string, event LemonSqueezyWebhookEvent) error {
-	// Update subscription status to expired
-	billing := &entities.TenantBillingMetadata{
-		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID:  event.Data.ID,
-			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
-			Status:          "expired",
-			Tier:            uc.resolveTier(event.Data.Attributes.VariantName, event.Data.Attributes.VariantID),
-			BillingPeriod:   customDataField(event, "billing_period"),
-			PaymentProvider: "lemonsqueezy",
-		},
-	}
-	if _, err := uc.updateSubUC.Execute(tenantID, billing); err != nil {
+	return uc.handleSubscriptionEnd(ctx, tenantID, event, "expired")
+}
+
+// handleSubscriptionEnd marks a subscription inactive, recomputes the effective
+// tier, and suspends the tenant ONLY when no active subscription remains (a
+// tenant with a second active sub keeps access at that tier).
+func (uc *ProcessLemonSqueezyWebhookUseCase) handleSubscriptionEnd(
+	ctx context.Context, tenantID string, event LemonSqueezyWebhookEvent, status string,
+) error {
+	attrs := event.Data.Attributes
+	effective, err := uc.applySubscriptionEvent(tenantID, event.Data.ID,
+		uc.resolveTier(attrs.VariantName, attrs.VariantID), status,
+		customDataField(event, "billing_period"), fmt.Sprintf("%d", attrs.CustomerID))
+	if err != nil {
 		return fmt.Errorf("update subscription metadata: %w", err)
 	}
-
-	// Suspend the tenant
-	_, err := uc.suspendUC.Execute(ctx, tenantID, entities.RoleAdmin)
-	if err != nil {
-		return fmt.Errorf("suspend tenant: %w", err)
+	if effective == "free" {
+		if _, err := uc.suspendUC.Execute(ctx, tenantID, entities.RoleAdmin); err != nil {
+			return fmt.Errorf("suspend tenant: %w", err)
+		}
 	}
 	return nil
 }
 
 func (uc *ProcessLemonSqueezyWebhookUseCase) handlePaymentFailed(tenantID string, event LemonSqueezyWebhookEvent) error {
-	// Update subscription status to past_due but don't suspend yet
-	billing := &entities.TenantBillingMetadata{
-		Subscription: &entities.SubscriptionMetadata{
-			SubscriptionID:  event.Data.ID,
-			CustomerID:      fmt.Sprintf("%d", event.Data.Attributes.CustomerID),
-			Status:          "past_due",
-			Tier:            uc.resolveTier(event.Data.Attributes.VariantName, event.Data.Attributes.VariantID),
-			BillingPeriod:   customDataField(event, "billing_period"),
-			PaymentProvider: "lemonsqueezy",
-		},
-	}
-
-	_, err := uc.updateSubUC.Execute(tenantID, billing)
+	// past_due keeps access during the dunning grace window (no suspend yet).
+	attrs := event.Data.Attributes
+	_, err := uc.applySubscriptionEvent(tenantID, event.Data.ID,
+		uc.resolveTier(attrs.VariantName, attrs.VariantID), "past_due",
+		customDataField(event, "billing_period"), fmt.Sprintf("%d", attrs.CustomerID))
 	return err
 }
 

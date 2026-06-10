@@ -111,3 +111,63 @@ func TestTenantBillingMetadata_ToMetadataMap(t *testing.T) {
 		}
 	})
 }
+
+func TestHighestActiveTier(t *testing.T) {
+	ref := func(tier, status string) SubscriptionRef {
+		return SubscriptionRef{Tier: tier, Status: status}
+	}
+
+	t.Run("duplicates bubble up to highest active", func(t *testing.T) {
+		subs := map[string]SubscriptionRef{
+			"a": ref("studio", "active"),
+			"b": ref("studio", "active"),
+			"c": ref("indie", "active"),
+		}
+		tier, id := HighestActiveTier(subs)
+		if tier != "studio" {
+			t.Errorf("tier = %q, want studio", tier)
+		}
+		if id != "a" && id != "b" {
+			t.Errorf("winning id = %q, want a or b (a studio)", id)
+		}
+	})
+
+	t.Run("cancel top falls back to next active", func(t *testing.T) {
+		subs := map[string]SubscriptionRef{
+			"a": ref("studio", "cancelled"),
+			"c": ref("indie", "active"),
+		}
+		if tier, _ := HighestActiveTier(subs); tier != "indie" {
+			t.Errorf("tier = %q, want indie", tier)
+		}
+	})
+
+	t.Run("all inactive -> free", func(t *testing.T) {
+		subs := map[string]SubscriptionRef{
+			"a": ref("studio", "expired"),
+			"c": ref("indie", "cancelled"),
+		}
+		if tier, id := HighestActiveTier(subs); tier != "free" || id != "" {
+			t.Errorf("got (%q,%q), want (free,'')", tier, id)
+		}
+	})
+
+	t.Run("past_due still active (grace)", func(t *testing.T) {
+		subs := map[string]SubscriptionRef{"a": ref("studio", "past_due")}
+		if tier, _ := HighestActiveTier(subs); tier != "studio" {
+			t.Errorf("tier = %q, want studio (past_due is active)", tier)
+		}
+	})
+
+	t.Run("rank order enterprise>scale>studio>indie", func(t *testing.T) {
+		subs := map[string]SubscriptionRef{
+			"i": ref("indie", "active"),
+			"s": ref("scale", "active"),
+			"e": ref("enterprise", "active"),
+			"t": ref("studio", "active"),
+		}
+		if tier, _ := HighestActiveTier(subs); tier != "enterprise" {
+			t.Errorf("tier = %q, want enterprise", tier)
+		}
+	})
+}
