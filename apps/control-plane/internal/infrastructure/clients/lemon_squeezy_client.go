@@ -24,6 +24,9 @@ type LemonSqueezyClient interface {
 	GetCustomerPortalURL(ctx context.Context, subscriptionID string) (string, error)
 	ReportUsage(ctx context.Context, req ReportUsageRequest) error
 	GetSubscription(ctx context.Context, subscriptionID string) (*SubscriptionResponse, error)
+	// UpdateSubscription changes the plan of an existing subscription by swapping
+	// its variant (LS prorates). Used for in-app up/downgrade across tiers.
+	UpdateSubscription(ctx context.Context, subscriptionID string, variantID int) (*SubscriptionResponse, error)
 	ListSubscriptions(ctx context.Context, storeID string, page int) (*SubscriptionListResponse, error)
 	ListInvoices(ctx context.Context, storeID string, page int, status string) (*InvoiceListResponse, error)
 	RefundInvoice(ctx context.Context, orderID string, amount int) error
@@ -385,6 +388,47 @@ func (c *lemonSqueezyClient) GetSubscription(ctx context.Context, subscriptionID
 		EndsAt:                 attrs.EndsAt,
 		CustomerPortalURL:      attrs.URLs.CustomerPortal,
 		UpdatePaymentMethodURL: attrs.URLs.UpdatePaymentMethod,
+	}, nil
+}
+
+// UpdateSubscription swaps a subscription's variant (plan change), letting LS
+// prorate. Works across products, so it powers in-app tier up/downgrade.
+func (c *lemonSqueezyClient) UpdateSubscription(ctx context.Context, subscriptionID string, variantID int) (*SubscriptionResponse, error) {
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "subscriptions",
+			"id":   subscriptionID,
+			"attributes": map[string]any{
+				"variant_id": variantID,
+			},
+		},
+	}
+	var respEnvelope jsonAPIEnvelope
+	resp, err := c.client.R().
+		SetContext(ctx).
+		SetBody(body).
+		SetResult(&respEnvelope).
+		Patch("/v1/subscriptions/" + subscriptionID)
+
+	if err != nil {
+		return nil, fmt.Errorf("update subscription request failed: %w", err)
+	}
+	if resp.StatusCode() >= 400 {
+		return nil, fmt.Errorf("update subscription returned status %d: %s", resp.StatusCode(), resp.String())
+	}
+
+	var attrs subscriptionAttributes
+	if err := json.Unmarshal(respEnvelope.Data.Attributes, &attrs); err != nil {
+		return nil, fmt.Errorf("unmarshal subscription response: %w", err)
+	}
+	return &SubscriptionResponse{
+		ID:         respEnvelope.Data.ID,
+		Status:     attrs.Status,
+		VariantID:  attrs.VariantID,
+		ProductID:  attrs.ProductID,
+		CustomerID: attrs.CustomerID,
+		RenewsAt:   attrs.RenewsAt,
+		EndsAt:     attrs.EndsAt,
 	}, nil
 }
 

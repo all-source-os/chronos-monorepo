@@ -41,6 +41,9 @@ func (m *catalogMockLS) GetVariant(_ context.Context, variantID string) (*client
 
 func (m *catalogMockLS) VariantMap() clients.VariantMap { return nil }
 func (m *catalogMockLS) GetStoreID() string             { return "store" }
+func (m *catalogMockLS) UpdateSubscription(_ context.Context, _ string, _ int) (*clients.SubscriptionResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
 func (m *catalogMockLS) CreateCheckout(_ context.Context, _ clients.CreateCheckoutRequest) (*clients.CheckoutResponse, error) {
 	return nil, fmt.Errorf("not implemented")
 }

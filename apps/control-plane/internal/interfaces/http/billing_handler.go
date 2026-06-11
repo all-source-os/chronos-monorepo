@@ -77,6 +77,7 @@ func projectedChargesLinks(tenantID string) map[string]Link {
 // BillingHandler handles billing-related HTTP requests.
 type BillingHandler struct {
 	createCheckoutUC      *usecases.CreateCheckoutUseCase
+	changePlanUC          *usecases.ChangePlanUseCase
 	getPortalUC           *usecases.GetPortalUseCase
 	getOverageSummaryUC   *usecases.GetOverageSummaryUseCase
 	setOverageEnabledUC   *usecases.SetOverageEnabledUseCase
@@ -87,6 +88,7 @@ type BillingHandler struct {
 // NewBillingHandler creates a new BillingHandler.
 func NewBillingHandler(
 	createCheckoutUC *usecases.CreateCheckoutUseCase,
+	changePlanUC *usecases.ChangePlanUseCase,
 	getPortalUC *usecases.GetPortalUseCase,
 	getOverageSummaryUC *usecases.GetOverageSummaryUseCase,
 	setOverageEnabledUC *usecases.SetOverageEnabledUseCase,
@@ -95,12 +97,36 @@ func NewBillingHandler(
 ) *BillingHandler {
 	return &BillingHandler{
 		createCheckoutUC:      createCheckoutUC,
+		changePlanUC:          changePlanUC,
 		getPortalUC:           getPortalUC,
 		getOverageSummaryUC:   getOverageSummaryUC,
 		setOverageEnabledUC:   setOverageEnabledUC,
 		getProjectedChargesUC: getProjectedChargesUC,
 		getCatalogUC:          getCatalogUC,
 	}
+}
+
+// ChangePlan handles POST /api/v1/billing/change-plan — in-place plan change for
+// an existing subscription (no new checkout). Scoped to the caller's tenant.
+func (h *BillingHandler) ChangePlan(c *gin.Context) {
+	if h.changePlanUC == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "plan changes unavailable"})
+		return
+	}
+	var req usecases.ChangePlanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if tid := c.GetString("auth_tenant_id"); tid != "" {
+		req.TenantID = tid
+	}
+	result, err := h.changePlanUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		h.handleBillingError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 // GetCatalog handles GET /api/v1/billing/catalog — public pricing catalog read

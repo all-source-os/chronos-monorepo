@@ -44,6 +44,10 @@ func (m *mockLSClient) GetVariant(_ context.Context, _ string) (*clients.Variant
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *mockLSClient) UpdateSubscription(_ context.Context, _ string, _ int) (*clients.SubscriptionResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *mockLSClient) VariantMap() clients.VariantMap {
 	return nil
 }

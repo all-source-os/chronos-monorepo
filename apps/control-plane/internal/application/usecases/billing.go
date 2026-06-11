@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
@@ -104,6 +105,104 @@ func NewCreateCheckoutUseCase(
 		stripeClient: stripeClient,
 		auditRepo:    auditRepo,
 	}
+}
+
+// ChangePlanUseCase changes the plan of an existing subscription in place (no
+// new checkout, no duplicate subscription). It swaps the LemonSqueezy variant
+// (prorated, works across products) and optimistically applies the new tier;
+// the subscription_updated webhook later confirms.
+type ChangePlanUseCase struct {
+	tenantRepo  repositories.TenantRepository
+	lsClient    clients.LemonSqueezyClient
+	updateSubUC *UpdateSubscriptionMetadataUseCase
+}
+
+// NewChangePlanUseCase constructs the change-plan use case.
+func NewChangePlanUseCase(
+	tenantRepo repositories.TenantRepository,
+	lsClient clients.LemonSqueezyClient,
+	updateSubUC *UpdateSubscriptionMetadataUseCase,
+) *ChangePlanUseCase {
+	return &ChangePlanUseCase{tenantRepo: tenantRepo, lsClient: lsClient, updateSubUC: updateSubUC}
+}
+
+// ChangePlanRequest is the input for an in-place plan change.
+type ChangePlanRequest struct {
+	TenantID      string `json:"tenant_id"`
+	Tier          string `json:"tier" binding:"required"`
+	BillingPeriod string `json:"billing_period,omitempty"` // "monthly" (default) or "annual"
+}
+
+// ChangePlanResult is the output of a plan change.
+type ChangePlanResult struct {
+	Tier           string `json:"tier"`
+	SubscriptionID string `json:"subscription_id"`
+}
+
+// Execute swaps the tenant's active subscription to the requested tier+period.
+func (uc *ChangePlanUseCase) Execute(ctx context.Context, req ChangePlanRequest) (*ChangePlanResult, error) {
+	if uc.lsClient == nil {
+		return nil, fmt.Errorf("lemonsqueezy payment provider is not configured")
+	}
+	tenant, err := uc.tenantRepo.FindByID(req.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	sub := extractSubscription(tenant.Metadata)
+	if !entities.SubscriptionIsActive(sub.Status) || sub.SubscriptionID == "" {
+		return nil, fmt.Errorf("no active subscription to change — start one via checkout")
+	}
+
+	canonical := entities.MapRetiredTier(req.Tier)
+	variantStr, err := uc.lsClient.LookupVariantID(canonical, req.BillingPeriod)
+	if err != nil {
+		return nil, fmt.Errorf("resolve variant for tier %q period %q: %w", req.Tier, req.BillingPeriod, err)
+	}
+	variantID, err := strconv.Atoi(variantStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid variant id %q: %w", variantStr, err)
+	}
+
+	lsSub, err := uc.lsClient.UpdateSubscription(ctx, sub.SubscriptionID, variantID)
+	if err != nil {
+		return nil, fmt.Errorf("update subscription: %w", err)
+	}
+
+	// Optimistically apply the new tier so the dashboard reflects it immediately.
+	period := req.BillingPeriod
+	switch period {
+	case "", "monthly":
+		period = "monthly"
+	case "yearly", "annual":
+		period = "annual"
+	}
+	subs := extractSubscriptionsMap(tenant.Metadata)
+	if subs == nil {
+		subs = map[string]entities.SubscriptionRef{}
+	}
+	subs[sub.SubscriptionID] = entities.SubscriptionRef{
+		Tier:            canonical,
+		Status:          "active",
+		CustomerID:      strconv.Itoa(lsSub.CustomerID),
+		BillingPeriod:   period,
+		PaymentProvider: providerLemonSqueezy,
+	}
+	effective, primaryID := entities.HighestActiveTier(subs)
+	newSub := &entities.SubscriptionMetadata{Tier: effective, Status: "active", PaymentProvider: providerLemonSqueezy}
+	if primaryID != "" {
+		p := subs[primaryID]
+		newSub.SubscriptionID = primaryID
+		newSub.CustomerID = p.CustomerID
+		newSub.BillingPeriod = p.BillingPeriod
+	}
+	if _, err := uc.updateSubUC.Execute(req.TenantID, &entities.TenantBillingMetadata{
+		Subscription:  newSub,
+		Subscriptions: subs,
+	}); err != nil {
+		return nil, err
+	}
+
+	return &ChangePlanResult{Tier: effective, SubscriptionID: sub.SubscriptionID}, nil
 }
 
 // Execute creates a checkout URL for the given tenant and tier.

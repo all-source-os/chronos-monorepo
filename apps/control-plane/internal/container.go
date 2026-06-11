@@ -341,6 +341,10 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	// Initialize use cases — Webhooks
 	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
 	migrateEarlyAdoptersUC := usecases.NewMigrateEarlyAdoptersUseCase(tenantRepo, updateSubscriptionUC)
+	var changePlanUC *usecases.ChangePlanUseCase
+	if cfg.LSClient != nil {
+		changePlanUC = usecases.NewChangePlanUseCase(tenantRepo, cfg.LSClient, updateSubscriptionUC)
+	}
 	// Build reverse variant map (tier→variantID becomes variantName→tier) for webhook tier resolution
 	var variantTierMap usecases.VariantTierMap
 	if cfg.LSClient != nil {
@@ -418,7 +422,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		createConfigUC, getConfigUC, listConfigsUC, updateConfigUC, deleteConfigUC,
 	)
 	billingHandler := httphandlers.NewBillingHandler(
-		createCheckoutUC, getPortalUC, getOverageSummaryUC, setOverageEnabledUC, getProjectedChargesUC, getCatalogUC,
+		createCheckoutUC, changePlanUC, getPortalUC, getOverageSummaryUC, setOverageEnabledUC, getProjectedChargesUC, getCatalogUC,
 	)
 	ipRuleHandler := httphandlers.NewIPRuleHandler(createIPRuleUC, listIPRulesUC, deleteIPRuleUC)
 	adminBillingHandler := httphandlers.NewAdminBillingHandler(adminListInvoicesUC, adminRevenueUC, adminRefundUC, adminDunningUC)

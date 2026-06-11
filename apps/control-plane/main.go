@@ -568,6 +568,7 @@ func (cp *ControlPlane) setupRoutes() {
 	// subscription. ManageTenants is admin-only and would 403 every real user.
 	billing := api.Group("/billing")
 	billing.POST("/checkout", RequirePermission(entities.PermissionWrite), cp.container.BillingHandler.CreateCheckout)
+	billing.POST("/change-plan", RequirePermission(entities.PermissionWrite), cp.container.BillingHandler.ChangePlan)
 	billing.GET("/portal", RequirePermission(entities.PermissionWrite), cp.container.BillingHandler.GetPortal)
 	billing.GET("/overage", RequirePermission(entities.PermissionRead), cp.container.BillingHandler.GetOverage)
 	billing.POST("/overage/enable", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.EnableOverage)
