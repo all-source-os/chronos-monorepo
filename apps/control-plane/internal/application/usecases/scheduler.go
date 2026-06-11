@@ -30,6 +30,7 @@ type OperationScheduler struct {
 	reportUsageUC      *billing.ReportUsageUseCase
 	checkUsageWarnings *billing.CheckUsageWarningsUseCase
 	syncX402UsageUC    *billing.SyncX402UsageUseCase
+	syncSubsUC         *SyncSubscriptionsUseCase
 	tasks              []ScheduledTask
 	cancel             context.CancelFunc
 	wg                 sync.WaitGroup
@@ -53,6 +54,10 @@ func NewOperationScheduler(
 			// included x402 allowance between ticks; the in-process counter in
 			// CoreQuotaChecker tightens it further within each instance.
 			{Name: "x402_usage_sync", Interval: 1 * time.Minute, Enabled: true},
+			// Self-heal subscription tier from LemonSqueezy in case a webhook was
+			// missed or signature-rejected. Webhooks are primary; this is the
+			// safety net so tiers don't go stale without manual replays.
+			{Name: "subscription_sync", Interval: 15 * time.Minute, Enabled: true},
 		},
 	}
 }
@@ -73,6 +78,12 @@ func (s *OperationScheduler) SetCheckUsageWarningsUseCase(uc *billing.CheckUsage
 // scheduler. Must be called before Start if x402_usage_sync is enabled.
 func (s *OperationScheduler) SetSyncX402UsageUseCase(uc *billing.SyncX402UsageUseCase) {
 	s.syncX402UsageUC = uc
+}
+
+// SetSyncSubscriptionsUseCase sets the subscription reconciliation use case.
+// Must be called before Start if subscription_sync is enabled.
+func (s *OperationScheduler) SetSyncSubscriptionsUseCase(uc *SyncSubscriptionsUseCase) {
+	s.syncSubsUC = uc
 }
 
 // Start begins running scheduled tasks in the background.
@@ -126,6 +137,8 @@ func (s *OperationScheduler) executeTask(ctx context.Context, task ScheduledTask
 		s.executeUsageWarnings(ctx)
 	case "x402_usage_sync":
 		s.executeX402UsageSync(ctx)
+	case "subscription_sync":
+		s.executeSubscriptionSync(ctx)
 	default:
 		log.Printf("Unknown scheduled task: %s", task.Name)
 	}
@@ -237,6 +250,39 @@ func (s *OperationScheduler) executeX402UsageSync(ctx context.Context) {
 	auditEvent, _ := entities.NewAuditEvent("billing.x402.scheduled_sync", "execute", "SCHEDULER", "/billing/x402") //nolint:errcheck
 	auditEvent.AddMetadata("synced", fmt.Sprintf("%d", synced))
 	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
+	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
+	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck
+}
+
+// executeSubscriptionSync reconciles each tenant's tracked subscriptions against
+// LemonSqueezy so a missed/rejected webhook can't leave a tier stale. No-op when
+// the use case is not wired (no LS client configured).
+func (s *OperationScheduler) executeSubscriptionSync(ctx context.Context) {
+	if s.syncSubsUC == nil {
+		return
+	}
+
+	results := s.syncSubsUC.ExecuteAll(ctx)
+
+	var updated, errored int
+	for _, r := range results {
+		if r.Error != nil {
+			errored++
+			log.Printf("Scheduler: subscription sync failed for tenant %s: %v", r.TenantID, r.Error)
+			continue
+		}
+		updated++
+		log.Printf("Scheduler: subscription sync corrected tenant %s → tier=%s", r.TenantID, r.Tier)
+	}
+
+	if updated == 0 && errored == 0 {
+		return // nothing drifted; stay quiet
+	}
+
+	log.Printf("Scheduler: subscription sync complete — updated=%d errors=%d", updated, errored)
+
+	auditEvent, _ := entities.NewAuditEvent("billing.subscription.scheduled_sync", "execute", "SCHEDULER", "/billing/subscriptions") //nolint:errcheck
+	auditEvent.AddMetadata("updated", fmt.Sprintf("%d", updated))
 	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
 	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck
 }

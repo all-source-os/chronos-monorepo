@@ -375,6 +375,13 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		syncX402UsageUC = billing.NewSyncX402UsageUseCase(tenantRepo, auditRepo, cfg.CoreClient)
 	}
 
+	// Initialize use cases — Billing (subscription reconciliation, t-f23d2a).
+	// Self-heals tier from LemonSqueezy when a webhook is missed/rejected.
+	var syncSubsUC *usecases.SyncSubscriptionsUseCase
+	if cfg.LSClient != nil {
+		syncSubsUC = usecases.NewSyncSubscriptionsUseCase(tenantRepo, cfg.LSClient, updateSubscriptionUC, variantTierMap)
+	}
+
 	// Initialize use cases — Admin Billing
 	var adminListInvoicesUC *billing.AdminListInvoicesUseCase
 	var adminRevenueUC *billing.AdminRevenueUseCase
@@ -396,6 +403,9 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	}
 	if syncX402UsageUC != nil {
 		scheduler.SetSyncX402UsageUseCase(syncX402UsageUC)
+	}
+	if syncSubsUC != nil {
+		scheduler.SetSyncSubscriptionsUseCase(syncSubsUC)
 	}
 
 	// Initialize HTTP handlers (Layer 4)
