@@ -38,11 +38,14 @@ export default function BillingPage() {
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   // The tier whose checkout is currently being created (button shows a spinner).
   const [upgradingTier, setUpgradingTier] = useState<string | null>(null);
-  // Set when LemonSqueezy redirects back after a successful checkout.
+  // Set after returning from checkout / an in-place plan change.
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  const [planChanged, setPlanChanged] = useState(false);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("checkout") === "success") {
-      setCheckoutSuccess(true);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") setCheckoutSuccess(true);
+    if (params.get("changed") === "success") setPlanChanged(true);
+    if (params.has("checkout") || params.has("changed")) {
       // Clean the param so a refresh doesn't keep showing the banner.
       window.history.replaceState(null, "", window.location.pathname);
     }
@@ -85,6 +88,11 @@ export default function BillingPage() {
     }
   };
 
+  // A tenant already on a paid hosted tier has a subscription — changing tier
+  // swaps it in place (no new checkout, no duplicate sub). Free (incl. Self-Host,
+  // whose backend tier is `free`) starts a fresh checkout.
+  const hasActiveSubscription = currentTier !== "free";
+
   const handleUpgrade = async (
     planTier: string,
     billingPeriod: "monthly" | "annual" = "monthly"
@@ -94,6 +102,25 @@ export default function BillingPage() {
       return;
     }
     setUpgradingTier(planTier);
+
+    // Existing subscriber → in-place plan change.
+    if (hasActiveSubscription) {
+      try {
+        const response = await apiClient.changePlan(planTier, billingPeriod);
+        if (response.data?.tier) {
+          // Tier applied server-side; reload so the dashboard reflects it.
+          window.location.href = "/dashboard/billing?changed=success";
+          return;
+        }
+        setUpgradingTier(null);
+      } catch (error) {
+        setUpgradingTier(null);
+        console.error("Failed to change plan:", error);
+      }
+      return;
+    }
+
+    // First-time → new checkout.
     try {
       const response = await apiClient.createCheckout(planTier, billingPeriod, {
         tenantId: tenant?.id,
@@ -137,6 +164,27 @@ export default function BillingPage() {
           <button
             type="button"
             onClick={() => setCheckoutSuccess(false)}
+            className="ml-auto text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <span aria-hidden>×</span>
+          </button>
+        </div>
+      )}
+
+      {planChanged && (
+        <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/10 p-4">
+          <Check className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="text-sm">
+            <p className="font-semibold text-foreground">Plan updated ✓</p>
+            <p className="mt-1 text-muted-foreground">
+              Your subscription was changed in place — the new plan is active now (prorated by your
+              billing provider).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPlanChanged(false)}
             className="ml-auto text-muted-foreground hover:text-foreground"
             aria-label="Dismiss"
           >

@@ -295,6 +295,17 @@ export class ApiClient {
     });
   }
 
+  // In-place plan change for an existing subscriber (no new checkout).
+  async changePlan(
+    tier: string,
+    billingPeriod: "monthly" | "annual" = "monthly"
+  ): Promise<ApiResponse<{ tier: string; subscription_id: string }>> {
+    return this.request<{ tier: string; subscription_id: string }>("/api/billing/change-plan", {
+      method: "POST",
+      body: JSON.stringify({ tier, billing_period: billingPeriod }),
+    });
+  }
+
   async getBillingPortal(tenantId?: string): Promise<ApiResponse<BillingPortalResponse>> {
     const qs = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : "";
     return this.request<BillingPortalResponse>(`/api/billing/portal${qs}`);
