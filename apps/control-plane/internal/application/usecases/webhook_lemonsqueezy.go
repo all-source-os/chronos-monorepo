@@ -136,37 +136,13 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) Execute(ctx context.Context, event 
 func (uc *ProcessLemonSqueezyWebhookUseCase) applySubscriptionEvent(
 	tenantID, subID, tier, status, billingPeriod, customerID string,
 ) (string, error) {
-	tenant, err := uc.tenantRepo.FindByID(tenantID)
-	if err != nil {
-		return "", err
-	}
-	subs := extractSubscriptionsMap(tenant.Metadata)
-	if subs == nil {
-		subs = map[string]entities.SubscriptionRef{}
-	}
-	subs[subID] = entities.SubscriptionRef{
+	// Atomic per-tenant upsert + bubble-up (race-safe; see UpsertSubscription).
+	effective, _, err := uc.updateSubUC.UpsertSubscription(tenantID, subID, entities.SubscriptionRef{
 		Tier:            tier,
 		Status:          status,
 		CustomerID:      customerID,
 		BillingPeriod:   billingPeriod,
 		PaymentProvider: "lemonsqueezy",
-	}
-
-	effective, primaryID := entities.HighestActiveTier(subs)
-	sub := &entities.SubscriptionMetadata{Tier: effective, PaymentProvider: "lemonsqueezy"}
-	if primaryID != "" {
-		p := subs[primaryID]
-		sub.SubscriptionID = primaryID
-		sub.CustomerID = p.CustomerID
-		sub.BillingPeriod = p.BillingPeriod
-		sub.Status = "active"
-	} else {
-		sub.Status = "canceled" // no active subscriptions remain
-	}
-
-	_, err = uc.updateSubUC.Execute(tenantID, &entities.TenantBillingMetadata{
-		Subscription:  sub,
-		Subscriptions: subs,
 	})
 	return effective, err
 }

@@ -176,29 +176,15 @@ func (uc *ChangePlanUseCase) Execute(ctx context.Context, req ChangePlanRequest)
 	case "yearly", "annual":
 		period = "annual"
 	}
-	subs := extractSubscriptionsMap(tenant.Metadata)
-	if subs == nil {
-		subs = map[string]entities.SubscriptionRef{}
-	}
-	subs[sub.SubscriptionID] = entities.SubscriptionRef{
+	// Atomic per-tenant upsert + bubble-up (race-safe; see UpsertSubscription).
+	effective, _, err := uc.updateSubUC.UpsertSubscription(req.TenantID, sub.SubscriptionID, entities.SubscriptionRef{
 		Tier:            canonical,
 		Status:          "active",
 		CustomerID:      strconv.Itoa(lsSub.CustomerID),
 		BillingPeriod:   period,
 		PaymentProvider: providerLemonSqueezy,
-	}
-	effective, primaryID := entities.HighestActiveTier(subs)
-	newSub := &entities.SubscriptionMetadata{Tier: effective, Status: "active", PaymentProvider: providerLemonSqueezy}
-	if primaryID != "" {
-		p := subs[primaryID]
-		newSub.SubscriptionID = primaryID
-		newSub.CustomerID = p.CustomerID
-		newSub.BillingPeriod = p.BillingPeriod
-	}
-	if _, err := uc.updateSubUC.Execute(req.TenantID, &entities.TenantBillingMetadata{
-		Subscription:  newSub,
-		Subscriptions: subs,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 

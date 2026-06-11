@@ -5,7 +5,6 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/domain/repositories"
 )
@@ -62,6 +61,7 @@ func (uc *SyncSubscriptionsUseCase) Execute(ctx context.Context, tenantID string
 	}
 
 	changed := false
+	effective := ""
 	for id, ref := range subs {
 		lsSub, err := uc.lsClient.GetSubscription(ctx, id)
 		if err != nil || lsSub == nil {
@@ -75,32 +75,22 @@ func (uc *SyncSubscriptionsUseCase) Execute(ctx context.Context, tenantID string
 				newTier = t
 			}
 		}
-		if newStatus != ref.Status || newTier != ref.Tier {
-			ref.Status = newStatus
-			ref.Tier = newTier
-			subs[id] = ref
-			changed = true
+		if newStatus == ref.Status && newTier == ref.Tier {
+			continue
 		}
+		ref.Status = newStatus
+		ref.Tier = newTier
+		// Atomic per-tenant upsert + bubble-up; re-reads the map under the lock
+		// so a concurrent webhook can't lose this correction (race-safe).
+		eff, _, err := uc.updateSubUC.UpsertSubscription(tenantID, id, ref)
+		if err != nil {
+			return &SubSyncResult{TenantID: tenantID, Changed: true, Error: err}, err
+		}
+		effective = eff
+		changed = true
 	}
 	if !changed {
 		return &SubSyncResult{TenantID: tenantID}, nil
-	}
-
-	effective, primaryID := entities.HighestActiveTier(subs)
-	sub := &entities.SubscriptionMetadata{Tier: effective, Status: "active", PaymentProvider: providerLemonSqueezy}
-	if primaryID != "" {
-		p := subs[primaryID]
-		sub.SubscriptionID = primaryID
-		sub.CustomerID = p.CustomerID
-		sub.BillingPeriod = p.BillingPeriod
-	} else {
-		sub.Status = "canceled"
-	}
-	if _, err := uc.updateSubUC.Execute(tenantID, &entities.TenantBillingMetadata{
-		Subscription:  sub,
-		Subscriptions: subs,
-	}); err != nil {
-		return &SubSyncResult{TenantID: tenantID, Changed: true, Error: err}, err
 	}
 	return &SubSyncResult{TenantID: tenantID, Tier: effective, Changed: true}, nil
 }

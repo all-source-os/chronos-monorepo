@@ -2,6 +2,8 @@ package usecases
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/allsource/control-plane/internal/domain/entities"
@@ -113,6 +115,42 @@ func TestSyncSubscriptions_StatusCanceled(t *testing.T) {
 	tenant, _ := repo.FindByID("tenant-3")
 	if got := extractSubscriptionsMap(tenant.Metadata)["sub-300"].Status; got != "cancelled" {
 		t.Errorf("expected stored status cancelled, got %q", got)
+	}
+}
+
+// TestUpsertSubscription_ConcurrentNoLostUpdate proves the t-6f0dc1 fix: N
+// goroutines upserting DISTINCT subscriptions on the same tenant must all land.
+// With a read-outside-lock + full-map replace, most would be lost-updated.
+func TestUpsertSubscription_ConcurrentNoLostUpdate(t *testing.T) {
+	repo := persistence.NewMemoryTenantRepository()
+	auditRepo := persistence.NewMemoryAuditRepository()
+	updateSubUC := NewUpdateSubscriptionMetadataUseCase(repo, auditRepo)
+
+	seedTenant(t, repo, "tenant-c", map[string]entities.SubscriptionRef{})
+
+	const n = 50
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			defer wg.Done()
+			subID := fmt.Sprintf("sub-%03d", i)
+			_, _, err := updateSubUC.UpsertSubscription("tenant-c", subID, entities.SubscriptionRef{
+				Tier:            "studio",
+				Status:          "active",
+				PaymentProvider: providerLemonSqueezy,
+			})
+			if err != nil {
+				t.Errorf("upsert %s: %v", subID, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	tenant, _ := repo.FindByID("tenant-c")
+	got := extractSubscriptionsMap(tenant.Metadata)
+	if len(got) != n {
+		t.Fatalf("expected %d subscriptions after concurrent upserts, got %d (lost updates)", n, len(got))
 	}
 }
 

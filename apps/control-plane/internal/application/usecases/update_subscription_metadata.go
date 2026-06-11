@@ -1,17 +1,43 @@
 package usecases
 
 import (
+	"sync"
+
 	"github.com/allsource/control-plane/internal/application/dto"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
 )
 
+// keyedMutex serializes work per string key (here: per tenant ID). Lazily
+// allocates one mutex per key; entries are never reclaimed, which is fine for a
+// bounded tenant set.
+type keyedMutex struct {
+	m sync.Map
+}
+
+func (k *keyedMutex) lock(key string) func() {
+	mu, _ := k.m.LoadOrStore(key, &sync.Mutex{})
+	mtx := mu.(*sync.Mutex)
+	mtx.Lock()
+	return mtx.Unlock
+}
+
 // UpdateSubscriptionMetadataUseCase writes billing/subscription metadata
 // to Core's tenant metadata. Called by the Control Plane when subscription
 // events arrive from LemonSqueezy webhooks.
+//
+// Tenant metadata lives in Core as a single JSON blob updated via
+// read-modify-write (FindByID -> mutate -> Update replaces the whole map).
+// Concurrent subscription events for the same tenant (e.g. two webhooks, or a
+// webhook racing a change-plan / reconciliation) would otherwise lost-update
+// each other's entry. The per-tenant lock serializes the full read-modify-write
+// so each caller observes the previous write. Single-instance correct (the
+// Control Plane runs one Fly machine today); horizontal scale-out would need a
+// Core-side compare-and-swap / ETag instead — see t-cad0f0.
 type UpdateSubscriptionMetadataUseCase struct {
 	tenantRepo repositories.TenantRepository
 	auditRepo  repositories.AuditRepository
+	locks      *keyedMutex
 }
 
 // NewUpdateSubscriptionMetadataUseCase creates a new UpdateSubscriptionMetadataUseCase.
@@ -22,18 +48,79 @@ func NewUpdateSubscriptionMetadataUseCase(
 	return &UpdateSubscriptionMetadataUseCase{
 		tenantRepo: tenantRepo,
 		auditRepo:  auditRepo,
+		locks:      &keyedMutex{},
 	}
+}
+
+// UpsertSubscription atomically upserts a single subscription into the tenant's
+// tracked set and recomputes the effective tier as the highest-ranked ACTIVE
+// subscription. The fresh read of the subscriptions map happens INSIDE the
+// per-tenant lock, so concurrent upserts can't lose each other's entry (the
+// bug a read-outside-lock + full-map-replace would cause). Returns the
+// effective tier and the primary (highest-active) subscription ID.
+//
+// This is the single apply path for the bubble-up logic shared by the webhook,
+// change-plan, and reconciliation use cases.
+func (uc *UpdateSubscriptionMetadataUseCase) UpsertSubscription(
+	tenantID, subID string, ref entities.SubscriptionRef,
+) (effectiveTier, primarySubID string, err error) {
+	unlock := uc.locks.lock(tenantID)
+	defer unlock()
+
+	tenant, err := uc.tenantRepo.FindByID(tenantID)
+	if err != nil {
+		return "", "", err
+	}
+	subs := extractSubscriptionsMap(tenant.Metadata)
+	if subs == nil {
+		subs = map[string]entities.SubscriptionRef{}
+	}
+	subs[subID] = ref
+
+	effective, primaryID := entities.HighestActiveTier(subs)
+	primary := &entities.SubscriptionMetadata{Tier: effective, Status: "active", PaymentProvider: providerLemonSqueezy}
+	if primaryID != "" {
+		p := subs[primaryID]
+		primary.SubscriptionID = primaryID
+		primary.CustomerID = p.CustomerID
+		primary.BillingPeriod = p.BillingPeriod
+		if p.PaymentProvider != "" {
+			primary.PaymentProvider = p.PaymentProvider
+		}
+	} else {
+		primary.Status = "canceled" // no active subscriptions remain
+	}
+
+	if _, err := uc.applyLocked(tenant, &entities.TenantBillingMetadata{
+		Subscription:  primary,
+		Subscriptions: subs,
+	}); err != nil {
+		return "", "", err
+	}
+	return effective, primaryID, nil
 }
 
 // Execute updates the subscription, quotas, and overage metadata for a tenant.
 // It merges billing fields into the existing metadata without overwriting
 // non-billing fields.
 func (uc *UpdateSubscriptionMetadataUseCase) Execute(tenantID string, billing *entities.TenantBillingMetadata) (*dto.TenantResponse, error) {
+	// Serialize the full read-modify-write per tenant (see type doc).
+	unlock := uc.locks.lock(tenantID)
+	defer unlock()
+
 	// Find existing tenant
 	tenant, err := uc.tenantRepo.FindByID(tenantID)
 	if err != nil {
 		return nil, err
 	}
+	return uc.applyLocked(tenant, billing)
+}
+
+// applyLocked merges billing metadata into an already-fetched tenant and
+// persists it. Caller MUST already hold the per-tenant lock and have fetched
+// `tenant` inside that lock.
+func (uc *UpdateSubscriptionMetadataUseCase) applyLocked(tenant *entities.Tenant, billing *entities.TenantBillingMetadata) (*dto.TenantResponse, error) {
+	tenantID := tenant.ID
 
 	// Initialize metadata map if nil
 	if tenant.Metadata == nil {
