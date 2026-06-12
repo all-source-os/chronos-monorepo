@@ -157,23 +157,24 @@ type Container struct {
 	CDPClient    clients.CDPClient
 
 	// HTTP Handlers
-	AlertHandler              *httphandlers.AlertHandler
-	SLOHandler                *httphandlers.SLOHandler
-	AdminTenantHandler        *httphandlers.AdminTenantHandler
-	TenantHandler             *httphandlers.TenantHandler
-	PolicyHandler             *httphandlers.PolicyHandler
-	OperationsHandler         *httphandlers.OperationsHandler
-	SchemaHandler             *httphandlers.SchemaHandler
-	AuditHandler              *httphandlers.AuditHandler
-	TokenAuditHandler         *httphandlers.TokenAuditHandler
-	SuspiciousActivityHandler *httphandlers.SuspiciousActivityHandler
-	ConfigHandler             *httphandlers.ConfigHandler
-	IPRuleHandler             *httphandlers.IPRuleHandler
-	BillingHandler            *httphandlers.BillingHandler
-	AdminBillingHandler       *httphandlers.AdminBillingHandler
-	BillingConfigHandler      *httphandlers.BillingConfigHandler
-	WebhookHandler            *httphandlers.WebhookHandler
-	AgentHandler              *httphandlers.AgentHandler
+	AlertHandler                 *httphandlers.AlertHandler
+	SLOHandler                   *httphandlers.SLOHandler
+	AdminTenantHandler           *httphandlers.AdminTenantHandler
+	TenantHandler                *httphandlers.TenantHandler
+	PolicyHandler                *httphandlers.PolicyHandler
+	OperationsHandler            *httphandlers.OperationsHandler
+	SchemaHandler                *httphandlers.SchemaHandler
+	AuditHandler                 *httphandlers.AuditHandler
+	TokenAuditHandler            *httphandlers.TokenAuditHandler
+	SuspiciousActivityHandler    *httphandlers.SuspiciousActivityHandler
+	ConfigHandler                *httphandlers.ConfigHandler
+	IPRuleHandler                *httphandlers.IPRuleHandler
+	BillingHandler               *httphandlers.BillingHandler
+	AdminBillingHandler          *httphandlers.AdminBillingHandler
+	BillingConfigHandler         *httphandlers.BillingConfigHandler
+	EarlyAdopterMigrationHandler *httphandlers.EarlyAdopterMigrationHandler
+	WebhookHandler               *httphandlers.WebhookHandler
+	AgentHandler                 *httphandlers.AgentHandler
 
 	// VerifyBillingConfigUC powers the boot-time billing config self-check.
 	VerifyBillingConfigUC *usecases.VerifyBillingConfigUseCase
@@ -343,7 +344,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 
 	// Initialize use cases — Webhooks
 	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
-	migrateEarlyAdoptersUC := usecases.NewMigrateEarlyAdoptersUseCase(tenantRepo, updateSubscriptionUC)
+	migrateEarlyAdoptersUC := usecases.NewMigrateEarlyAdoptersUseCase(tenantRepo, updateSubscriptionUC, auditRepo)
 	var changePlanUC *usecases.ChangePlanUseCase
 	if cfg.LSClient != nil {
 		changePlanUC = usecases.NewChangePlanUseCase(tenantRepo, cfg.LSClient, updateSubscriptionUC)
@@ -441,102 +442,104 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	adminBillingHandler := httphandlers.NewAdminBillingHandler(adminListInvoicesUC, adminRevenueUC, adminRefundUC, adminDunningUC)
 	verifyBillingConfigUC := usecases.NewVerifyBillingConfigUseCase(cfg.LSClient, os.Getenv("LEMON_SQUEEZY_WEBHOOK_SECRET"))
 	billingConfigHandler := httphandlers.NewBillingConfigHandler(verifyBillingConfigUC)
+	earlyAdopterMigrationHandler := httphandlers.NewEarlyAdopterMigrationHandler(migrateEarlyAdoptersUC)
 	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC, processStripeWebhookUC)
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 
 	return &Container{
-		TenantRepo:                 tenantRepo,
-		PolicyRepo:                 policyRepo,
-		AuditRepo:                  auditRepo,
-		OperationRepo:              operationRepo,
-		ConfigRepo:                 configRepo,
-		AlertRuleRepo:              alertRuleRepo,
-		SLORepo:                    sloRepo,
-		IPRuleRepo:                 ipRuleRepo,
-		CreateTenantUC:             createTenantUC,
-		GetTenantUC:                getTenantUC,
-		ListTenantsUC:              listTenantsUC,
-		UpdateTenantUC:             updateTenantUC,
-		UpdateTenantQuotasUC:       updateTenantQuotasUC,
-		SuspendTenantUC:            suspendTenantUC,
-		ActivateTenantUC:           activateTenantUC,
-		BulkTenantUC:               bulkTenantUC,
-		DeleteTenantUC:             deleteTenantUC,
-		EvaluatePolicyUC:           evaluatePolicyUC,
-		CreatePolicyUC:             createPolicyUC,
-		GetPolicyUC:                getPolicyUC,
-		ListPoliciesUC:             listPoliciesUC,
-		UpdatePolicyUC:             updatePolicyUC,
-		DeletePolicyUC:             deletePolicyUC,
-		CreateSnapshotUC:           createSnapshotUC,
-		TriggerCompactionUC:        triggerCompactionUC,
-		StartReplayUC:              startReplayUC,
-		GetReplayProgressUC:        getReplayProgressUC,
-		CancelReplayUC:             cancelReplayUC,
-		ListOperationsUC:           listOperationsUC,
-		GetClusterStatusUC:         getClusterStatusUC,
-		RegisterSchemaUC:           registerSchemaUC,
-		ListSchemasUC:              listSchemasUC,
-		ValidateEventUC:            validateEventUC,
-		QueryAuditUC:               queryAuditUC,
-		QueryTokenAuditUC:          queryTokenAuditUC,
-		DetectSuspiciousActivityUC: detectSuspiciousActivityUC,
-		CreateConfigUC:             createConfigUC,
-		GetConfigUC:                getConfigUC,
-		ListConfigsUC:              listConfigsUC,
-		UpdateConfigUC:             updateConfigUC,
-		DeleteConfigUC:             deleteConfigUC,
-		CreateAlertRuleUC:          createAlertRuleUC,
-		ListAlertRulesUC:           listAlertRulesUC,
-		UpdateAlertRuleUC:          updateAlertRuleUC,
-		DeleteAlertRuleUC:          deleteAlertRuleUC,
-		CreateIPRuleUC:             createIPRuleUC,
-		ListIPRulesUC:              listIPRulesUC,
-		DeleteIPRuleUC:             deleteIPRuleUC,
-		CreateSLOUC:                createSLOUC,
-		ListSLOsUC:                 listSLOsUC,
-		DeleteSLOUC:                deleteSLOUC,
-		CreateCheckoutUC:           createCheckoutUC,
-		GetPortalUC:                getPortalUC,
-		GetOverageSummaryUC:        getOverageSummaryUC,
-		SetOverageEnabledUC:        setOverageEnabledUC,
-		GetProjectedChargesUC:      getProjectedChargesUC,
-		CalculateOverageUC:         calculateOverageUC,
-		ReportUsageUC:              reportUsageUC,
-		CheckUsageWarningsUC:       checkUsageWarningsUC,
-		AdminListInvoicesUC:        adminListInvoicesUC,
-		AdminRevenueUC:             adminRevenueUC,
-		AdminRefundUC:              adminRefundUC,
-		AdminDunningUC:             adminDunningUC,
-		Scheduler:                  scheduler,
-		WalletLookup:               &CoreWalletLookup{coreClient: cfg.CoreClient},
-		CDPClient:                  cfg.CDPClient,
-		RegisterAgentUC:            registerAgentUC,
-		RegisterTrialAgentUC:       registerTrialAgentUC,
-		ClaimTrialAgentUC:          claimTrialAgentUC,
-		AgentPaymentHistoryUC:      agentPaymentHistoryUC,
-		AlertHandler:               alertHandler,
-		SLOHandler:                 sloHandler,
-		AdminTenantHandler:         adminTenantHandler,
-		TenantHandler:              tenantHandler,
-		PolicyHandler:              policyHandler,
-		OperationsHandler:          operationsHandler,
-		SchemaHandler:              schemaHandler,
-		AuditHandler:               auditHandler,
-		TokenAuditHandler:          tokenAuditHandler,
-		SuspiciousActivityHandler:  suspiciousActivityHandler,
-		ConfigHandler:              configHandler,
-		IPRuleHandler:              ipRuleHandler,
-		BillingHandler:             billingHandler,
-		AdminBillingHandler:        adminBillingHandler,
-		BillingConfigHandler:       billingConfigHandler,
-		WebhookHandler:             webhookHandler,
-		AgentHandler:               agentHandler,
-		VerifyBillingConfigUC:      verifyBillingConfigUC,
-		ProcessLSWebhookUC:         processLSWebhookUC,
-		ProcessStripeWebhookUC:     processStripeWebhookUC,
-		UpdateSubscriptionUC:       updateSubscriptionUC,
-		MigrateEarlyAdoptersUC:     migrateEarlyAdoptersUC,
+		TenantRepo:                   tenantRepo,
+		PolicyRepo:                   policyRepo,
+		AuditRepo:                    auditRepo,
+		OperationRepo:                operationRepo,
+		ConfigRepo:                   configRepo,
+		AlertRuleRepo:                alertRuleRepo,
+		SLORepo:                      sloRepo,
+		IPRuleRepo:                   ipRuleRepo,
+		CreateTenantUC:               createTenantUC,
+		GetTenantUC:                  getTenantUC,
+		ListTenantsUC:                listTenantsUC,
+		UpdateTenantUC:               updateTenantUC,
+		UpdateTenantQuotasUC:         updateTenantQuotasUC,
+		SuspendTenantUC:              suspendTenantUC,
+		ActivateTenantUC:             activateTenantUC,
+		BulkTenantUC:                 bulkTenantUC,
+		DeleteTenantUC:               deleteTenantUC,
+		EvaluatePolicyUC:             evaluatePolicyUC,
+		CreatePolicyUC:               createPolicyUC,
+		GetPolicyUC:                  getPolicyUC,
+		ListPoliciesUC:               listPoliciesUC,
+		UpdatePolicyUC:               updatePolicyUC,
+		DeletePolicyUC:               deletePolicyUC,
+		CreateSnapshotUC:             createSnapshotUC,
+		TriggerCompactionUC:          triggerCompactionUC,
+		StartReplayUC:                startReplayUC,
+		GetReplayProgressUC:          getReplayProgressUC,
+		CancelReplayUC:               cancelReplayUC,
+		ListOperationsUC:             listOperationsUC,
+		GetClusterStatusUC:           getClusterStatusUC,
+		RegisterSchemaUC:             registerSchemaUC,
+		ListSchemasUC:                listSchemasUC,
+		ValidateEventUC:              validateEventUC,
+		QueryAuditUC:                 queryAuditUC,
+		QueryTokenAuditUC:            queryTokenAuditUC,
+		DetectSuspiciousActivityUC:   detectSuspiciousActivityUC,
+		CreateConfigUC:               createConfigUC,
+		GetConfigUC:                  getConfigUC,
+		ListConfigsUC:                listConfigsUC,
+		UpdateConfigUC:               updateConfigUC,
+		DeleteConfigUC:               deleteConfigUC,
+		CreateAlertRuleUC:            createAlertRuleUC,
+		ListAlertRulesUC:             listAlertRulesUC,
+		UpdateAlertRuleUC:            updateAlertRuleUC,
+		DeleteAlertRuleUC:            deleteAlertRuleUC,
+		CreateIPRuleUC:               createIPRuleUC,
+		ListIPRulesUC:                listIPRulesUC,
+		DeleteIPRuleUC:               deleteIPRuleUC,
+		CreateSLOUC:                  createSLOUC,
+		ListSLOsUC:                   listSLOsUC,
+		DeleteSLOUC:                  deleteSLOUC,
+		CreateCheckoutUC:             createCheckoutUC,
+		GetPortalUC:                  getPortalUC,
+		GetOverageSummaryUC:          getOverageSummaryUC,
+		SetOverageEnabledUC:          setOverageEnabledUC,
+		GetProjectedChargesUC:        getProjectedChargesUC,
+		CalculateOverageUC:           calculateOverageUC,
+		ReportUsageUC:                reportUsageUC,
+		CheckUsageWarningsUC:         checkUsageWarningsUC,
+		AdminListInvoicesUC:          adminListInvoicesUC,
+		AdminRevenueUC:               adminRevenueUC,
+		AdminRefundUC:                adminRefundUC,
+		AdminDunningUC:               adminDunningUC,
+		Scheduler:                    scheduler,
+		WalletLookup:                 &CoreWalletLookup{coreClient: cfg.CoreClient},
+		CDPClient:                    cfg.CDPClient,
+		RegisterAgentUC:              registerAgentUC,
+		RegisterTrialAgentUC:         registerTrialAgentUC,
+		ClaimTrialAgentUC:            claimTrialAgentUC,
+		AgentPaymentHistoryUC:        agentPaymentHistoryUC,
+		AlertHandler:                 alertHandler,
+		SLOHandler:                   sloHandler,
+		AdminTenantHandler:           adminTenantHandler,
+		TenantHandler:                tenantHandler,
+		PolicyHandler:                policyHandler,
+		OperationsHandler:            operationsHandler,
+		SchemaHandler:                schemaHandler,
+		AuditHandler:                 auditHandler,
+		TokenAuditHandler:            tokenAuditHandler,
+		SuspiciousActivityHandler:    suspiciousActivityHandler,
+		ConfigHandler:                configHandler,
+		IPRuleHandler:                ipRuleHandler,
+		BillingHandler:               billingHandler,
+		AdminBillingHandler:          adminBillingHandler,
+		BillingConfigHandler:         billingConfigHandler,
+		EarlyAdopterMigrationHandler: earlyAdopterMigrationHandler,
+		WebhookHandler:               webhookHandler,
+		AgentHandler:                 agentHandler,
+		VerifyBillingConfigUC:        verifyBillingConfigUC,
+		ProcessLSWebhookUC:           processLSWebhookUC,
+		ProcessStripeWebhookUC:       processStripeWebhookUC,
+		UpdateSubscriptionUC:         updateSubscriptionUC,
+		MigrateEarlyAdoptersUC:       migrateEarlyAdoptersUC,
 	}
 }
 
