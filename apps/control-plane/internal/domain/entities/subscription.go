@@ -201,6 +201,30 @@ func HighestActiveTier(subs map[string]SubscriptionRef) (tier, subscriptionID st
 	return bestTier, bestID
 }
 
+// PrimarySubscriptionFor resolves the effective primary subscription for a
+// tenant from its tracked subscriptions map. The primary is the highest-ranked
+// ACTIVE subscription (bubble-up); when none are active it returns a canceled
+// primary at the "free" tier. This is the single source of truth for
+// effective-tier resolution shared by every apply path (webhook, change-plan,
+// reconciliation). defaultProvider fills PaymentProvider when the winning ref
+// doesn't carry one.
+func PrimarySubscriptionFor(subs map[string]SubscriptionRef, defaultProvider string) *SubscriptionMetadata {
+	effective, primaryID := HighestActiveTier(subs)
+	primary := &SubscriptionMetadata{Tier: effective, Status: "active", PaymentProvider: defaultProvider}
+	if primaryID != "" {
+		p := subs[primaryID]
+		primary.SubscriptionID = primaryID
+		primary.CustomerID = p.CustomerID
+		primary.BillingPeriod = p.BillingPeriod
+		if p.PaymentProvider != "" {
+			primary.PaymentProvider = p.PaymentProvider
+		}
+	} else {
+		primary.Status = "canceled" // no active subscriptions remain
+	}
+	return primary
+}
+
 // TierQuotas defines the full entitlement set for a given tier. Beyond the
 // original events/queries quotas it now (011) carries the x402 allowance,
 // retention window, stream cap, and hosted MCP scope so a single tier lookup

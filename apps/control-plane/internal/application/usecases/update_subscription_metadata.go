@@ -77,27 +77,15 @@ func (uc *UpdateSubscriptionMetadataUseCase) UpsertSubscription(
 	}
 	subs[subID] = ref
 
-	effective, primaryID := entities.HighestActiveTier(subs)
-	primary := &entities.SubscriptionMetadata{Tier: effective, Status: "active", PaymentProvider: providerLemonSqueezy}
-	if primaryID != "" {
-		p := subs[primaryID]
-		primary.SubscriptionID = primaryID
-		primary.CustomerID = p.CustomerID
-		primary.BillingPeriod = p.BillingPeriod
-		if p.PaymentProvider != "" {
-			primary.PaymentProvider = p.PaymentProvider
-		}
-	} else {
-		primary.Status = "canceled" // no active subscriptions remain
-	}
-
+	// Single source of truth for effective-tier / primary resolution (domain).
+	primary := entities.PrimarySubscriptionFor(subs, providerLemonSqueezy)
 	if _, err := uc.applyLocked(tenant, &entities.TenantBillingMetadata{
 		Subscription:  primary,
 		Subscriptions: subs,
 	}); err != nil {
 		return "", "", err
 	}
-	return effective, primaryID, nil
+	return primary.Tier, primary.SubscriptionID, nil
 }
 
 // Execute updates the subscription, quotas, and overage metadata for a tenant.

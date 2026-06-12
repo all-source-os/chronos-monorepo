@@ -171,3 +171,41 @@ func TestHighestActiveTier(t *testing.T) {
 		}
 	})
 }
+
+func TestPrimarySubscriptionFor(t *testing.T) {
+	t.Run("bubbles up to highest active and carries its fields", func(t *testing.T) {
+		subs := map[string]SubscriptionRef{
+			"sub-a": {Tier: "indie", Status: "active", CustomerID: "c1", BillingPeriod: "month"},
+			"sub-b": {Tier: "studio", Status: "active", CustomerID: "c2", BillingPeriod: "year"},
+		}
+		p := PrimarySubscriptionFor(subs, "lemonsqueezy")
+		if p.Tier != "studio" || p.SubscriptionID != "sub-b" {
+			t.Fatalf("got tier=%q id=%q, want studio/sub-b", p.Tier, p.SubscriptionID)
+		}
+		if p.Status != "active" || p.CustomerID != "c2" || p.BillingPeriod != "year" {
+			t.Errorf("primary fields = %+v", p)
+		}
+		if p.PaymentProvider != "lemonsqueezy" {
+			t.Errorf("provider = %q, want default lemonsqueezy", p.PaymentProvider)
+		}
+	})
+
+	t.Run("no active subscriptions yields canceled free primary", func(t *testing.T) {
+		subs := map[string]SubscriptionRef{
+			"sub-a": {Tier: "studio", Status: "cancelled"},
+		}
+		p := PrimarySubscriptionFor(subs, "lemonsqueezy")
+		if p.Tier != "free" || p.Status != "canceled" || p.SubscriptionID != "" {
+			t.Fatalf("got %+v, want free/canceled/empty", p)
+		}
+	})
+
+	t.Run("winning ref provider overrides default", func(t *testing.T) {
+		subs := map[string]SubscriptionRef{
+			"sub-a": {Tier: "scale", Status: "active", PaymentProvider: "stripe"},
+		}
+		if p := PrimarySubscriptionFor(subs, "lemonsqueezy"); p.PaymentProvider != "stripe" {
+			t.Errorf("provider = %q, want stripe", p.PaymentProvider)
+		}
+	})
+}
