@@ -144,3 +144,29 @@ allowance between reconciliations:
 - Archive (do not delete) any Stripe prices created; deletion is impossible once
   a subscription references them.
 - No schema migration ⇒ no DDL to reverse.
+
+## Scaling note — x402 allowance counter is per-instance (t-d7aabc)
+
+The included-allowance gate (`CoreQuotaChecker`, `apps/control-plane/internal/infrastructure/x402/quota_gate.go`)
+keeps an **in-process** counter of allowance calls served free between the
+1-minute Core reconciler ticks. Core is the durable source of truth (every free
+serve writes an `x402.allowance.consumed` event), but the fast-path tightening
+counter is not shared.
+
+- **Single instance (today):** EXACT at the allowance boundary. The Control Plane
+  runs one Fly machine, so there is no overshoot.
+- **Multiple instances:** the counter is per-instance, so residual overshoot at
+  the boundary is bounded by `(instances - 1) × calls-served-since-the-last-tick`
+  (≤ ~1 minute of the other instances' allowance traffic). Still far tighter than
+  a full reconciliation window, but non-zero.
+
+**If you scale the Control Plane out:**
+1. Set `CONTROL_PLANE_MULTI_INSTANCE=true` on every instance. Boot then logs a
+   loud `WARNING` so the bound is visible (it is otherwise silent).
+2. To make the gate exact again, move the counter to a **shared store**. Prefer a
+   **Core-side atomic counter** (a Core endpoint that atomically increments and
+   returns `x402_used`) over Redis — reconciliation already flows through Core,
+   so this avoids adding a second stateful dependency. Redis is the fallback if a
+   Core change isn't feasible.
+
+Until CP scales out, the accepted bound is **zero** and no action is required.

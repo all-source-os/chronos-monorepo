@@ -236,6 +236,11 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	// logs only, so a config warn can't take prod down.
 	logBillingConfigCheck(container)
 
+	// The x402 included-allowance counter is per-instance and exact only on a
+	// single CP machine. If the operator scales out, make the residual-overshoot
+	// bound LOUD instead of silent (t-d7aabc).
+	warnX402MultiInstance()
+
 	// Initialize tracing
 	otelEndpoint := os.Getenv("OTEL_ENDPOINT")
 	tracingEnabled := otelEndpoint != ""
@@ -970,6 +975,24 @@ func main() {
 	cp.Shutdown()
 
 	log.Println("Control Plane stopped")
+}
+
+// warnX402MultiInstance logs a loud warning at boot when the operator has
+// signalled that the Control Plane runs more than one instance. The x402
+// included-allowance counter is in-process (CoreQuotaChecker), so it is exact
+// only on a single machine; across N instances the boundary overshoot is
+// bounded by (N-1) × calls-since-the-last-1-minute reconciler tick. Set
+// CONTROL_PLANE_MULTI_INSTANCE=true when scaling out so this trade-off is
+// visible — and move the counter to a shared Core-side atomic counter to make
+// it exact again (see CoreQuotaChecker doc + docs/runbooks/PRICING_BILLING_CUTOVER.md).
+func warnX402MultiInstance() {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("CONTROL_PLANE_MULTI_INSTANCE")))
+	if v == "true" || v == "1" || v == "yes" {
+		log.Printf("WARNING: CONTROL_PLANE_MULTI_INSTANCE is set — the x402 included-allowance " +
+			"counter is per-instance and NOT shared. Residual boundary overshoot is bounded by " +
+			"(instances-1) × calls-since-last-reconciler-tick (~1 min). Move to a shared Core-side " +
+			"atomic counter for exactness across instances (t-d7aabc).")
+	}
 }
 
 // logBillingConfigCheck runs the billing config self-check at boot and logs any

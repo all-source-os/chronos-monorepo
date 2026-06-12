@@ -190,9 +190,23 @@ type CoreQuotaChecker struct {
 	// In-process x402 allowance tightening. The scheduler reconciles the durable
 	// x402_used counter in Core every minute; between ticks this instance tracks
 	// the allowance calls it served free so HasX402Allowance reflects them
-	// immediately. Per-instance: multi-instance residual overshoot is bounded by
-	// (instances × calls-since-last-tick), far tighter than a full reconciliation
-	// window of traffic. Core remains the source of truth.
+	// immediately. Core remains the source of truth (event-sourced).
+	//
+	// Bound (t-d7aabc): on a SINGLE control-plane instance this is EXACT at the
+	// allowance boundary — every free serve increments the local counter before
+	// the next check. With N instances the counter is NOT shared, so residual
+	// overshoot at the boundary is bounded by (N-1) × calls-served-since-the-last
+	// 1-minute reconciler tick across the other instances — far tighter than a
+	// full reconciliation window, but non-zero. The Control Plane runs ONE Fly
+	// machine today, so the bound is currently zero.
+	//
+	// Remediation if CP scales out: move this counter to a SHARED store. Prefer a
+	// Core-side atomic increment (reconciliation already flows through Core via
+	// x402.allowance.consumed events — a Core endpoint that atomically bumps and
+	// returns x402_used makes the check exact across instances) over Redis, to
+	// avoid adding a second stateful dependency. The operator opt-in env
+	// CONTROL_PLANE_MULTI_INSTANCE=true makes this bound LOUD at boot (see
+	// main.go) so scaling out can't silently widen it.
 	x402mu        sync.Mutex
 	x402LocalUsed map[string]int64 // tenantID → calls served free since baseline
 	x402Baseline  map[string]int64 // tenantID → Core x402_used at last reset
