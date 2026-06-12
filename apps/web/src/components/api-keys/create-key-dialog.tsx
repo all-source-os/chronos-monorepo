@@ -130,7 +130,13 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
               </CardDescription>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleClose} data-slot="card-action">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClose}
+            aria-label="Close"
+            className="absolute right-4 top-4"
+          >
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
