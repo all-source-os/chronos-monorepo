@@ -79,14 +79,21 @@ func TestResolveTier(t *testing.T) {
 		}
 	})
 
-	t.Run("variant map takes precedence over hardcoded", func(t *testing.T) {
+	t.Run("variant_id is authoritative over the variant name", func(t *testing.T) {
+		// Live LS names are Monthly/Annual/Default; the id is the only signal.
+		// Even a name that the legacy fallback would map elsewhere must lose to
+		// the env-configured variant_id.
 		variantMap := VariantTierMap{
-			"Pro": "custom-pro-tier",
+			"555": "custom-pro-tier",
 		}
 		uc := NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubUC, suspendUC, variantMap)
 
-		if tier := uc.resolveTier("Pro", 0); tier != "custom-pro-tier" {
-			t.Errorf("expected custom-pro-tier, got %s", tier)
+		if tier := uc.resolveTier("Pro", 555); tier != "custom-pro-tier" {
+			t.Errorf("expected custom-pro-tier from variant_id, got %s", tier)
+		}
+		// Unknown id falls to the replay-only name path.
+		if tier := uc.resolveTier("Studio", 999); tier != "studio" {
+			t.Errorf("expected studio from replay name fallback, got %s", tier)
 		}
 	})
 }

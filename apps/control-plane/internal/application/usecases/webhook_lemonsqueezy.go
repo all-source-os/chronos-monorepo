@@ -266,20 +266,38 @@ func extractTenantIDFromWebhook(event LemonSqueezyWebhookEvent) string {
 
 // resolveTier maps a LemonSqueezy variant name or ID to a tier using the variant map.
 // Falls back to hardcoded mapping if variant map is not configured, and "free" as last resort.
+// resolveTier maps a LemonSqueezy variant to an internal tier. variant_id is
+// the SOLE authority for live webhooks: LEMON_SQUEEZY_VARIANT_MAP (reversed to
+// variantID→tier in the container) is the single source of truth.
+//
+// Live LS variant *names* are "Monthly"/"Annual"/"Default" and carry no tier
+// signal, so the name path below is NOT used by real webhooks. It exists only
+// for (a) manual HMAC-signed replays, which inject a synthetic variant_name
+// like "Studio", and (b) retired tiers that predate the env map. When it fires
+// for what should be a live webhook, the variant is missing from
+// LEMON_SQUEEZY_VARIANT_MAP — a config gap we log so it gets noticed.
 func (uc *ProcessLemonSqueezyWebhookUseCase) resolveTier(variantName string, variantID int) string {
-	// Try variant map first (reverse lookup: check both variant name and ID)
-	if uc.variantTierMap != nil {
-		if tier, ok := uc.variantTierMap[variantName]; ok {
-			return tier
-		}
-		variantIDStr := fmt.Sprintf("%d", variantID)
-		if tier, ok := uc.variantTierMap[variantIDStr]; ok {
+	// Authoritative: variant_id via the env-configured map.
+	if uc.variantTierMap != nil && variantID != 0 {
+		if tier, ok := uc.variantTierMap[fmt.Sprintf("%d", variantID)]; ok {
 			return tier
 		}
 	}
 
-	// Hardcoded fallback for backwards compatibility. New 011 paid tiers first,
-	// then retired tiers so legacy variant names still resolve.
+	// Replay-only / legacy-name fallback. Never the path for a live webhook.
+	tier := resolveTierByName(variantName)
+	if tier != defaultPlan {
+		log.Printf("resolveTier: variant_id %d not in LEMON_SQUEEZY_VARIANT_MAP; "+
+			"resolved tier %q from variant_name %q (manual replay or config gap)",
+			variantID, tier, variantName)
+	}
+	return tier
+}
+
+// resolveTierByName resolves a tier from a variant NAME. Replay/legacy only —
+// live LS variant names ("Monthly"/"Annual"/"Default") never match here; see
+// resolveTier. Returns defaultPlan ("free") for anything unrecognized.
+func resolveTierByName(variantName string) string {
 	switch variantName {
 	case "Indie", tierIndie:
 		return tierIndie

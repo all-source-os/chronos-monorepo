@@ -16,14 +16,14 @@ import (
 )
 
 // buildVariantTierMap reads LEMON_SQUEEZY_VARIANT_MAP and builds a reverse map
-// (variantID → tier name) for webhook tier resolution.
+// (variantID → tier name). This is the SOLE authority for webhook tier
+// resolution (resolveTier) and reconciliation — keyed by variant ID only.
 //
 // The forward map is keyed "<tier>:<period>" (011) — e.g.
 // {"studio:monthly":"12345","studio:annual":"67890"}. The webhook only cares
 // about the tier, so the ":<period>" suffix is stripped when reversing so a
 // variant ID resolves to the bare tier ("studio"), not "studio:monthly" (which
-// is not a valid tier and would fall through to the free quota). Bare "<tier>"
-// keys (legacy) pass through unchanged.
+// is not a valid tier and would fall through to the free quota).
 func buildVariantTierMap() usecases.VariantTierMap {
 	raw := os.Getenv("LEMON_SQUEEZY_VARIANT_MAP")
 	if raw == "" {
@@ -41,8 +41,7 @@ func buildVariantTierMap() usecases.VariantTierMap {
 		if i := strings.IndexByte(key, ':'); i >= 0 {
 			tier = key[:i] // "studio:monthly" → "studio"
 		}
-		reverseMap[variantID] = tier // variant ID → bare tier
-		reverseMap[tier] = tier      // tier name → tier (self-map for name matching)
+		reverseMap[variantID] = tier // variant ID → bare tier (only authority)
 	}
 	return reverseMap
 }

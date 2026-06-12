@@ -153,9 +153,9 @@ func TestBuildVariantTierMap_StripsPeriodSuffix(t *testing.T) {
 	if m["333"] != "indie" {
 		t.Errorf(`m["333"] = %q, want "indie"`, m["333"])
 	}
-	// Self-map for variant-name matching.
-	if m["studio"] != "studio" || m["indie"] != "indie" {
-		t.Errorf("self-map missing: %v", m)
+	// variant_id is the sole authority — no tier-name self-map entries.
+	if _, ok := m["studio"]; ok {
+		t.Errorf("unexpected tier-name self-map entry: %v", m)
 	}
 }
 
