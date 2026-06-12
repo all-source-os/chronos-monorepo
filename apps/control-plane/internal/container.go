@@ -171,8 +171,12 @@ type Container struct {
 	IPRuleHandler             *httphandlers.IPRuleHandler
 	BillingHandler            *httphandlers.BillingHandler
 	AdminBillingHandler       *httphandlers.AdminBillingHandler
+	BillingConfigHandler      *httphandlers.BillingConfigHandler
 	WebhookHandler            *httphandlers.WebhookHandler
 	AgentHandler              *httphandlers.AgentHandler
+
+	// VerifyBillingConfigUC powers the boot-time billing config self-check.
+	VerifyBillingConfigUC *usecases.VerifyBillingConfigUseCase
 }
 
 // ContainerConfig holds configuration for dependency injection.
@@ -435,6 +439,8 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	)
 	ipRuleHandler := httphandlers.NewIPRuleHandler(createIPRuleUC, listIPRulesUC, deleteIPRuleUC)
 	adminBillingHandler := httphandlers.NewAdminBillingHandler(adminListInvoicesUC, adminRevenueUC, adminRefundUC, adminDunningUC)
+	verifyBillingConfigUC := usecases.NewVerifyBillingConfigUseCase(cfg.LSClient, os.Getenv("LEMON_SQUEEZY_WEBHOOK_SECRET"))
+	billingConfigHandler := httphandlers.NewBillingConfigHandler(verifyBillingConfigUC)
 	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC, processStripeWebhookUC)
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 
@@ -523,8 +529,10 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		IPRuleHandler:              ipRuleHandler,
 		BillingHandler:             billingHandler,
 		AdminBillingHandler:        adminBillingHandler,
+		BillingConfigHandler:       billingConfigHandler,
 		WebhookHandler:             webhookHandler,
 		AgentHandler:               agentHandler,
+		VerifyBillingConfigUC:      verifyBillingConfigUC,
 		ProcessLSWebhookUC:         processLSWebhookUC,
 		ProcessStripeWebhookUC:     processStripeWebhookUC,
 		UpdateSubscriptionUC:       updateSubscriptionUC,

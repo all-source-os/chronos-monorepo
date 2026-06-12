@@ -237,6 +237,11 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	// set or removed afterwards. See docs/proposals/PRICING_PLAN_DETAILS.md.
 	runEarlyAdopterMigration(container)
 
+	// Loud boot-time billing config self-check: turn silent misconfig (variant
+	// map gaps, bad webhook secret) into visible logs (t-3ca5d7). Never fatal —
+	// logs only, so a config warn can't take prod down.
+	logBillingConfigCheck(container)
+
 	// Initialize tracing
 	otelEndpoint := os.Getenv("OTEL_ENDPOINT")
 	tracingEnabled := otelEndpoint != ""
@@ -637,6 +642,7 @@ func (cp *ControlPlane) setupRoutes() {
 	adminBilling.GET("/revenue", cp.container.AdminBillingHandler.GetRevenue)
 	adminBilling.POST("/refund", cp.container.AdminBillingHandler.ProcessRefund)
 	adminBilling.GET("/dunning", cp.container.AdminBillingHandler.GetDunning)
+	adminBilling.GET("/config-check", cp.container.BillingConfigHandler.ConfigCheck)
 }
 
 // livezHandler is the liveness probe: did the CP process come up and is the
@@ -969,6 +975,29 @@ func main() {
 	cp.Shutdown()
 
 	log.Println("Control Plane stopped")
+}
+
+// logBillingConfigCheck runs the billing config self-check at boot and logs any
+// issues loudly. Never fatal — a config warning must not block startup.
+func logBillingConfigCheck(container *internal.Container) {
+	if container.VerifyBillingConfigUC == nil {
+		return
+	}
+	report := container.VerifyBillingConfigUC.Execute()
+	if report.Skipped {
+		log.Printf("BillingConfigCheck: skipped — LemonSqueezy billing not configured")
+		return
+	}
+	if report.OK && len(report.Issues) == 0 {
+		log.Printf("BillingConfigCheck: OK — %v", report.Facts)
+		return
+	}
+	for _, issue := range report.Issues {
+		log.Printf("BillingConfigCheck: [%s] %s: %s", issue.Severity, issue.Code, issue.Message)
+	}
+	if !report.OK {
+		log.Printf("BillingConfigCheck: FAILED — billing is misconfigured; checkout/webhooks may silently misbehave. See GET /api/v1/admin/billing/config-check")
+	}
 }
 
 // runEarlyAdopterMigration runs the one-shot early-adopter migration when
