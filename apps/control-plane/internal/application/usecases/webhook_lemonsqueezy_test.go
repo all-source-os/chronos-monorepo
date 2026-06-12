@@ -36,9 +36,10 @@ func TestResolveTier(t *testing.T) {
 		}
 		uc := NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubUC, suspendUC, variantMap)
 
-		// Match by variant ID
-		if tier := uc.resolveTier("SomeRandomName", 12345); tier != "growth" {
-			t.Errorf("expected growth, got %s", tier)
+		// Match by variant ID — resolveTier canonicalizes, so retired "growth"
+		// is stored as canonical "studio".
+		if tier := uc.resolveTier("SomeRandomName", 12345); tier != "studio" {
+			t.Errorf("expected studio (canonicalized), got %s", tier)
 		}
 
 		// Match by variant name in map
@@ -61,21 +62,36 @@ func TestResolveTier(t *testing.T) {
 		if tier := uc.resolveTier("Scale", 0); tier != "scale" {
 			t.Errorf("expected scale, got %s", tier)
 		}
-		// Retired variant names still resolve for in-flight subscriptions.
-		if tier := uc.resolveTier("Growth", 0); tier != "growth" {
-			t.Errorf("expected growth, got %s", tier)
+		// Retired variant names still resolve, but resolveTier canonicalizes
+		// them to the 011 tier before returning (Growth/Pro/Team → studio).
+		if tier := uc.resolveTier("Growth", 0); tier != "studio" {
+			t.Errorf("expected studio (canonicalized), got %s", tier)
 		}
-		if tier := uc.resolveTier("Pro", 0); tier != "growth" {
-			t.Errorf("expected growth, got %s", tier)
+		if tier := uc.resolveTier("Pro", 0); tier != "studio" {
+			t.Errorf("expected studio (canonicalized), got %s", tier)
 		}
-		if tier := uc.resolveTier("Team", 0); tier != "team" {
-			t.Errorf("expected team, got %s", tier)
+		if tier := uc.resolveTier("Team", 0); tier != "studio" {
+			t.Errorf("expected studio (canonicalized), got %s", tier)
 		}
 		if tier := uc.resolveTier("Enterprise", 0); tier != "enterprise" {
 			t.Errorf("expected enterprise, got %s", tier)
 		}
 		if tier := uc.resolveTier("Unknown", 0); tier != "free" {
 			t.Errorf("expected free, got %s", tier)
+		}
+	})
+
+	t.Run("resolveTierByName decodes legacy names without canonicalizing", func(t *testing.T) {
+		// The name decoder is the replay/legacy layer; canonicalization happens
+		// one level up in resolveTier. Keep its raw decoding asserted here.
+		if got := resolveTierByName("Growth"); got != tierGrowth {
+			t.Errorf("Growth → %q, want growth", got)
+		}
+		if got := resolveTierByName("Team"); got != tierTeam {
+			t.Errorf("Team → %q, want team", got)
+		}
+		if got := resolveTierByName("Indie"); got != tierIndie {
+			t.Errorf("Indie → %q, want indie", got)
 		}
 	})
 
@@ -251,8 +267,9 @@ func TestWebhookWritesBillingEventToCore(t *testing.T) {
 		if evt.EntityID != "tenant-billing-1" {
 			t.Errorf("expected entity_id tenant-billing-1, got %s", evt.EntityID)
 		}
-		if evt.Payload["tier"] != "growth" {
-			t.Errorf("expected tier growth, got %v", evt.Payload["tier"])
+		// Retired "Growth" variant is canonicalized at the ingest edge → studio.
+		if evt.Payload["tier"] != "studio" {
+			t.Errorf("expected tier studio (canonicalized), got %v", evt.Payload["tier"])
 		}
 		if evt.Payload["payment_provider"] != "lemonsqueezy" {
 			t.Errorf("expected payment_provider lemonsqueezy, got %v", evt.Payload["payment_provider"])

@@ -280,7 +280,9 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) resolveTier(variantName string, var
 	// Authoritative: variant_id via the env-configured map.
 	if uc.variantTierMap != nil && variantID != 0 {
 		if tier, ok := uc.variantTierMap[fmt.Sprintf("%d", variantID)]; ok {
-			return tier
+			// Canonicalize at this ingest edge so stored tiers are always the
+			// canonical id — the single retired→canonical map lives here.
+			return entities.MapRetiredTier(tier)
 		}
 	}
 
@@ -291,7 +293,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) resolveTier(variantName string, var
 			"resolved tier %q from variant_name %q (manual replay or config gap)",
 			variantID, tier, variantName)
 	}
-	return tier
+	return entities.MapRetiredTier(tier)
 }
 
 // resolveTierByName resolves a tier from a variant NAME. Replay/legacy only —

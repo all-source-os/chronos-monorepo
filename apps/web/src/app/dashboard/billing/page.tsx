@@ -20,15 +20,13 @@ import { apiClient } from "@/lib/api/client";
 import { siteConfig } from "@/lib/config";
 import { type Catalog, indexByTier } from "@/lib/pricing-catalog";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { canonicalTier } from "@/lib/tier";
 
 function getPlanConfig(tier: string) {
-  // `tier` is the backend `subscription_tier`. It may be a canonical 011 tier
-  // (self-host/indie/studio/scale/enterprise) or a legacy billingTier
-  // (free/starter/growth/enterprise) — match either.
-  return (
-    siteConfig.pricing.find((p) => p.tier === tier || p.billingTier === tier) ??
-    siteConfig.pricing[0]!
-  );
+  // Normalize the raw backend subscription_tier to a canonical id at this edge,
+  // then match purely on the canonical `tier` — no legacy billingTier matching.
+  const canon = canonicalTier(tier);
+  return siteConfig.pricing.find((p) => p.tier === canon) ?? siteConfig.pricing[0]!;
 }
 
 export default function BillingPage() {
@@ -59,7 +57,10 @@ export default function BillingPage() {
       .catch(() => {});
   }, []);
 
-  const currentTier = tenant?.subscription_tier || "free";
+  // Canonical tier id (self-host | indie | studio | scale | enterprise) — the
+  // raw backend value is normalized once here so all comparisons below are
+  // against canonical ids ("self-host" is the free tier).
+  const currentTier = canonicalTier(tenant?.subscription_tier);
   const planConfig = getPlanConfig(currentTier);
   const eventsUsed = stats.events.used || tenant?.events_used || 0;
   const eventsQuota = stats.events.quota || tenant?.events_quota || 10000;
@@ -91,7 +92,7 @@ export default function BillingPage() {
   // A tenant already on a paid hosted tier has a subscription — changing tier
   // swaps it in place (no new checkout, no duplicate sub). Free (incl. Self-Host,
   // whose backend tier is `free`) starts a fresh checkout.
-  const hasActiveSubscription = currentTier !== "free";
+  const hasActiveSubscription = currentTier !== "self-host";
 
   const handleUpgrade = async (
     planTier: string,
@@ -200,7 +201,7 @@ export default function BillingPage() {
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Billing & Usage</h1>
             <p className="mt-1 text-muted-foreground">Manage your subscription and monitor usage</p>
           </div>
-          {currentTier !== "free" && (
+          {currentTier !== "self-host" && (
             <Button variant="outline" onClick={handleManageSubscription} disabled={isLoadingPortal}>
               {isLoadingPortal ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -228,7 +229,7 @@ export default function BillingPage() {
                   </p>
                 </div>
               </div>
-              <Button size="sm" onClick={() => handleUpgrade("growth")}>
+              <Button size="sm" onClick={() => handleUpgrade("studio")}>
                 Upgrade Now
               </Button>
             </CardContent>
@@ -244,7 +245,10 @@ export default function BillingPage() {
               <CardTitle>Current Plan</CardTitle>
               <CardDescription>Your active subscription details</CardDescription>
             </div>
-            <Badge variant={currentTier === "free" ? "secondary" : "default"} className="text-sm">
+            <Badge
+              variant={currentTier === "self-host" ? "secondary" : "default"}
+              className="text-sm"
+            >
               {planConfig.name}
             </Badge>
           </CardHeader>
@@ -264,11 +268,11 @@ export default function BillingPage() {
                       </span>
                     )}
                   </p>
-                  {tenant?.billing_period === "annual" && currentTier !== "free" && (
+                  {tenant?.billing_period === "annual" && currentTier !== "self-host" && (
                     <p className="text-xs text-muted-foreground">billed annually</p>
                   )}
                 </div>
-                {tenant?.billing_period && currentTier !== "free" && (
+                {tenant?.billing_period && currentTier !== "self-host" && (
                   <div>
                     <p className="text-sm text-muted-foreground">Billing Period</p>
                     <p className="font-medium capitalize">{tenant.billing_period}</p>
@@ -280,8 +284,8 @@ export default function BillingPage() {
                     <p className="font-medium">{formatDate(subscriptionEndsAt)}</p>
                   </div>
                 )}
-                {currentTier === "free" && (
-                  <Button size="sm" onClick={() => handleUpgrade("growth")}>
+                {currentTier === "self-host" && (
+                  <Button size="sm" onClick={() => handleUpgrade("studio")}>
                     Upgrade
                   </Button>
                 )}

@@ -23,6 +23,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { canonicalTier } from "@/lib/tier";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -48,7 +49,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { tenant } = useAuthStore();
 
-  const isFreeTier = tenant?.subscription_tier === "free";
+  const isFreeTier = canonicalTier(tenant?.subscription_tier) === "self-host";
 
   return (
     <aside
@@ -88,7 +89,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <div className="flex-1 truncate">
               <p className="truncate text-sm font-medium">{tenant.name}</p>
               <p className="text-xs capitalize text-muted-foreground">
-                {tenant.subscription_tier} plan
+                {canonicalTier(tenant.subscription_tier)} plan
               </p>
             </div>
           </div>

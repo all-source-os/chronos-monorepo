@@ -530,7 +530,10 @@ export interface Tenant {
   name: string;
   slug: string;
   subscription_status: "active" | "trialing" | "past_due" | "cancelled" | "expired";
-  subscription_tier: "free" | "starter" | "growth" | "enterprise";
+  // Raw backend tier. Canonical ids are self-host|indie|studio|scale|enterprise,
+  // but historical rows may still carry legacy values (free|starter|growth|team|
+  // pro). Always normalize with canonicalTier() from "@/lib/tier" before use.
+  subscription_tier: string;
   billing_period: "monthly" | "annual" | null;
   trial_ends_at: string | null;
   subscription_ends_at: string | null;

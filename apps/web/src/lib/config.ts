@@ -150,13 +150,10 @@ export const siteConfig = {
   // dashboard billing page both map over this array.
   //
   // Field contract for downstream prompts:
-  //   tier         — stable PUBLIC id (self-host | indie | studio | scale | enterprise).
-  //                  Prompt 011 maps this to a Stripe price id. DO NOT rename casually.
-  //   billingTier  — legacy backend `subscription_tier` value this tier corresponds to
-  //                  (free | starter | growth | enterprise) so the dashboard "current plan"
-  //                  match keeps working until 011 reconciles the backend tiers. `null`
-  //                  means there is no checkout for this tier (Self-Host) or no backend
-  //                  tier exists yet (Scale — 011 owns adding it).
+  //   tier         — canonical tier id (self-host | indie | studio | scale | enterprise).
+  //                  This is the ONE naming scheme used end-to-end (matches the backend
+  //                  subscription_tier after canonicalTier() normalization). DO NOT rename
+  //                  casually; it also keys the LemonSqueezy catalog + checkout.
   //   mcp          — explicit MCP verbs so a buyer can price the upgrade at a glance.
   //   x402         — per-tier micropayment allowance, rendered as a single line.
   //                  `null` for tiers without metered x402 (Self-Host runs its own;
@@ -165,7 +162,6 @@ export const siteConfig = {
     {
       name: "Self-Host",
       tier: "self-host" as const,
-      billingTier: "free" as const,
       href: "https://github.com/all-source-os/all-source",
       price: "Free",
       period: "your infra",
@@ -189,7 +185,6 @@ export const siteConfig = {
     {
       name: "Indie",
       tier: "indie" as const,
-      billingTier: "starter" as const,
       href: "/signup",
       price: "$19",
       period: "month",
@@ -213,7 +208,6 @@ export const siteConfig = {
     {
       name: "Studio",
       tier: "studio" as const,
-      billingTier: "growth" as const,
       href: "/signup",
       price: "$79",
       period: "month",
@@ -236,8 +230,6 @@ export const siteConfig = {
     {
       name: "Scale",
       tier: "scale" as const,
-      // No legacy backend tier yet — 011 owns adding `scale` to subscription_tier.
-      billingTier: null,
       href: "/signup",
       price: "$299",
       period: "month",
@@ -260,7 +252,6 @@ export const siteConfig = {
     {
       name: "Enterprise",
       tier: "enterprise" as const,
-      billingTier: "enterprise" as const,
       href: "mailto:sales@all-source.xyz?subject=Enterprise%20Plan%20Inquiry",
       price: "Custom",
       period: "month",

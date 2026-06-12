@@ -18,11 +18,22 @@ const (
 	tierFree      = "free"
 )
 
-// TierPriceMap maps subscription tiers to their monthly price in cents.
+// TierPriceMap maps subscription tiers to their monthly price in cents. Keyed
+// by canonical 011 tiers (the values stored after ingest canonicalization) plus
+// retired aliases for historical rows that predate the cutover — otherwise a
+// tenant on a canonical tier (indie/studio/scale) was valued at $0.
 var TierPriceMap = map[string]int{
-	tierFree: 0,
-	"pro":    2900, // $29/mo
-	"team":   9900, // $99/mo
+	tierFree:     0,
+	"self-host":  0,
+	"indie":      1900,  // $19/mo (011)
+	"studio":     7900,  // $79/mo (011)
+	"scale":      29900, // $299/mo (011)
+	"enterprise": 0,     // negotiated; not derivable from a flat price
+	// Retired 010 tiers — kept for historical revenue rows.
+	"starter": 1900,
+	"pro":     2900, // $29/mo
+	"growth":  7900,
+	"team":    9900, // $99/mo
 }
 
 // AdminRevenueUseCase computes revenue metrics from subscription data.

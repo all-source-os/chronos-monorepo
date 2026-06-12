@@ -17,6 +17,7 @@ import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import type { ApiKeyWithSecret } from "@/lib/api/client";
 import { apiClient } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { canonicalTier } from "@/lib/tier";
 
 export default function DashboardPage() {
   const { user, tenant } = useAuthStore();
@@ -25,7 +26,7 @@ export default function DashboardPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
-  const currentPlan = tenant?.subscription_tier || "free";
+  const currentPlan = canonicalTier(tenant?.subscription_tier);
   const eventsUsed = stats.events.used || tenant?.events_used || 0;
   const eventsQuota = stats.events.quota || tenant?.events_quota || 10000;
   const queriesUsed = stats.queries.used || tenant?.queries_used || 0;
@@ -75,7 +76,7 @@ export default function DashboardPage() {
 
   const handleUpgrade = async () => {
     try {
-      const response = await apiClient.createCheckout("growth");
+      const response = await apiClient.createCheckout("studio");
       if (response.data?.checkout_url) {
         window.location.href = response.data.checkout_url;
         return;
@@ -115,18 +116,18 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-3">
               <Badge
-                variant={currentPlan === "free" ? "secondary" : "default"}
+                variant={currentPlan === "self-host" ? "secondary" : "default"}
                 className="text-sm capitalize"
               >
-                {currentPlan === "free" ? "Developer" : currentPlan}
+                {currentPlan === "self-host" ? "Developer" : currentPlan}
               </Badge>
-              {currentPlan === "free" && (
+              {currentPlan === "self-host" && (
                 <Button size="sm" onClick={handleUpgrade}>
                   <Sparkles className="mr-1.5 h-4 w-4" />
                   Upgrade Plan
                 </Button>
               )}
-              {currentPlan !== "free" && (
+              {currentPlan !== "self-host" && (
                 <Button variant="outline" size="sm" asChild>
                   <Link href="/dashboard/billing">
                     Manage Plan
@@ -260,7 +261,9 @@ export default function DashboardPage() {
             </div>
             <div className="flex flex-wrap gap-6 text-center">
               <div>
-                <p className="text-2xl font-bold text-primary">{stats.events.used.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-primary">
+                  {stats.events.used.toLocaleString()}
+                </p>
                 <p className="text-xs text-muted-foreground">total events</p>
               </div>
               <div>
