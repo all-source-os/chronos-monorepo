@@ -30,9 +30,17 @@ function controlPlaneUrl(): string {
   return process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3901";
 }
 
+// Last-known-good catalog, kept per server instance. When the control plane /
+// LS is briefly unreachable (e.g. during ISR revalidation) we serve the most
+// recent successful catalog instead of falling back to config prices, which
+// could diverge from what LS actually charges (t-3ff5f6).
+let lastGoodCatalog: Catalog | null = null;
+
 /**
  * Server-side fetch of the pricing catalog from the control plane.
- * Returns null on any failure so callers fall back to static config prices.
+ * On failure, returns the last-known-good catalog if we've ever fetched one,
+ * else null. Callers MUST NOT substitute config prices for a null paid-tier
+ * price — render a dash via {@link resolveMonthly}/{@link resolveYearlyPerMonth}.
  * Cached for an hour (prices change rarely; the control plane also caches).
  */
 export async function fetchCatalog(): Promise<Catalog | null> {
@@ -40,11 +48,48 @@ export async function fetchCatalog(): Promise<Catalog | null> {
     const res = await fetch(`${controlPlaneUrl()}/api/v1/billing/catalog`, {
       next: { revalidate: 3600 },
     });
-    if (!res.ok) return null;
-    return (await res.json()) as Catalog;
+    if (!res.ok) return lastGoodCatalog;
+    const catalog = (await res.json()) as Catalog;
+    if (catalog?.tiers?.length) lastGoodCatalog = catalog;
+    return catalog;
   } catch {
-    return null;
+    return lastGoodCatalog;
   }
+}
+
+// PriceUnavailable is shown when a paid tier's live price can't be resolved
+// (catalog + last-good cache both empty). Never fall back to a config number.
+export const PriceUnavailable = "—";
+
+/**
+ * isFixedConfigPrice reports whether a config price string is fixed metadata
+ * (not priced by LemonSqueezy) — $0 self-host and Custom enterprise. Those are
+ * authoritative from config and can't drift, so they're safe to display as-is.
+ */
+export function isFixedConfigPrice(price: string | undefined): boolean {
+  return price === "$0" || price === "Free" || price === "Custom";
+}
+
+/**
+ * resolveMonthly returns the monthly price string to display for a tier. Fixed
+ * tiers return their config price; paid tiers return the live/last-good catalog
+ * price, or {@link PriceUnavailable} — NEVER the config price (which could be
+ * stale relative to LS).
+ */
+export function resolveMonthly(cat: CatalogTier | undefined, configPrice: string): string {
+  if (isFixedConfigPrice(configPrice)) return configPrice;
+  return cat?.monthly?.formatted ?? PriceUnavailable;
+}
+
+/** resolveYearlyPerMonth is {@link resolveMonthly} for the per-month annual view. */
+export function resolveYearlyPerMonth(cat: CatalogTier | undefined, configPrice: string): string {
+  if (isFixedConfigPrice(configPrice)) return configPrice;
+  return cat?.annual?.per_month ?? PriceUnavailable;
+}
+
+/** resolveAnnualTotal returns the live annual total, or undefined (no config fallback). */
+export function resolveAnnualTotal(cat: CatalogTier | undefined): string | undefined {
+  return cat?.annual?.formatted;
 }
 
 /** Index a catalog by tier id for O(1) lookup; tolerant of null. */

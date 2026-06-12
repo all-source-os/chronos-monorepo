@@ -7,7 +7,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { FaStar } from "react-icons/fa";
 import { siteConfig } from "@/lib/config";
-import { type Catalog, indexByTier } from "@/lib/pricing-catalog";
+import {
+  type Catalog,
+  indexByTier,
+  resolveAnnualTotal,
+  resolveMonthly,
+  resolveYearlyPerMonth,
+} from "@/lib/pricing-catalog";
 
 // Cards shown in the top row (everything except Enterprise, which renders as a
 // full-width strip below the cards per PRICING_EXPOSURE_PLAN.md §3).
@@ -59,11 +65,12 @@ export default function PricingSection({ catalog }: { catalog?: Catalog | null }
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cardTiers.map((plan, index) => {
-          // LemonSqueezy price (source of truth) with config fallback.
+          // LemonSqueezy price (source of truth). Paid tiers with no live/
+          // cached price render a dash, never a possibly-stale config number.
           const cat = prices[plan.tier];
-          const monthlyStr = cat?.monthly?.formatted ?? plan.price;
-          const yearlyStr = cat?.annual?.per_month ?? plan.yearlyPrice;
-          const annualTotal = cat?.annual?.formatted;
+          const monthlyStr = resolveMonthly(cat, plan.price);
+          const yearlyStr = resolveYearlyPerMonth(cat, plan.price);
+          const annualTotal = resolveAnnualTotal(cat);
           const displayPrice = isMonthly ? monthlyStr : yearlyStr;
           const isNumericPrice = displayPrice.startsWith("$");
 

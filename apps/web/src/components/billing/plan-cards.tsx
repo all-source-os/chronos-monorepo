@@ -4,7 +4,13 @@ import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui"
 import { cn } from "@allsource/ui/utils";
 import { ArrowDown, Check, Loader2, Sparkles } from "lucide-react";
 import { siteConfig } from "@/lib/config";
-import { type Catalog, indexByTier } from "@/lib/pricing-catalog";
+import {
+  type Catalog,
+  indexByTier,
+  resolveAnnualTotal,
+  resolveMonthly,
+  resolveYearlyPerMonth,
+} from "@/lib/pricing-catalog";
 
 // Ranked by the backend `subscription_tier` value (billingTier), not the public
 // marketing id. `scale` has no backend tier yet (011 owns it) so it ranks above growth.
@@ -57,10 +63,11 @@ export function PlanCards({
         const isPopular = plan.isPopular;
         const isUpgrading = !!loadingTier && loadingTier === planBillingTier;
         const cat = prices[plan.tier];
+        // Paid tiers with no live/cached price render a dash, never a config number.
         const displayPrice = isYearly
-          ? (cat?.annual?.per_month ?? plan.yearlyPrice)
-          : (cat?.monthly?.formatted ?? plan.price);
-        const annualTotal = cat?.annual?.formatted;
+          ? resolveYearlyPerMonth(cat, plan.price)
+          : resolveMonthly(cat, plan.price);
+        const annualTotal = resolveAnnualTotal(cat);
 
         return (
           <Card
@@ -99,9 +106,7 @@ export function PlanCards({
               </div>
               {isYearly && plan.price !== "$0" && plan.price !== "Custom" && (
                 <p className="text-xs text-muted-foreground">
-                  {annualTotal
-                    ? `billed annually (${annualTotal}/yr)`
-                    : `billed annually (${plan.yearlyPrice}/mo × 12)`}
+                  {annualTotal ? `billed annually (${annualTotal}/yr)` : "billed annually"}
                 </p>
               )}
               <p className="text-sm text-muted-foreground">{plan.description}</p>

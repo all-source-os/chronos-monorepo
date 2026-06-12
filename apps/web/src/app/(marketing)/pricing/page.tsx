@@ -2,7 +2,7 @@ import { Section } from "@allsource/ui";
 import FAQ from "@/components/sections/faq";
 import PricingSection from "@/components/sections/pricing";
 import { siteConfig } from "@/lib/config";
-import { fetchCatalog, indexByTier } from "@/lib/pricing-catalog";
+import { fetchCatalog, indexByTier, resolveMonthly } from "@/lib/pricing-catalog";
 
 // Revalidate the live LemonSqueezy prices hourly (ISR).
 export const revalidate = 3600;
@@ -106,8 +106,9 @@ export default async function PricingPage() {
               <tr>
                 <td className="px-4 py-3 text-left font-medium text-foreground">Price</td>
                 {tiers.map((tier) => {
-                  // Live LemonSqueezy monthly price with config fallback.
-                  const price = prices[tier.tier]?.monthly?.formatted ?? tier.price;
+                  // Live LemonSqueezy monthly price; paid tiers show a dash
+                  // (not a config number) when no live/cached price.
+                  const price = resolveMonthly(prices[tier.tier], tier.price);
                   return (
                     <td key={tier.tier} className={cellBodyClass(tier.isPopular)}>
                       {price}
