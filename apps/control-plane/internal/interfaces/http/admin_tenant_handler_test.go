@@ -327,7 +327,7 @@ func TestAdminGetDetail_ExistingTenant(t *testing.T) {
 		{ID: "t-detail", Name: "Detail Corp", Description: "A detailed tenant", Status: entities.TenantStatusActive, CreatedAt: now, UpdatedAt: now, Metadata: map[string]interface{}{
 			"subscription": map[string]interface{}{
 				"tier":        "pro",
-				"provider":    "stripe",
+				"provider":    "comp",
 				"external_id": "sub_123",
 				"status":      "active",
 				"plan_name":   "Pro Monthly",
@@ -397,8 +397,8 @@ func TestAdminGetDetail_ExistingTenant(t *testing.T) {
 	if !ok {
 		t.Fatal("subscription not found in response")
 	}
-	if sub["provider"] != "stripe" {
-		t.Errorf("expected provider=stripe, got %v", sub["provider"])
+	if sub["provider"] != "comp" {
+		t.Errorf("expected provider=comp, got %v", sub["provider"])
 	}
 	if sub["external_id"] != "sub_123" {
 		t.Errorf("expected external_id=sub_123, got %v", sub["external_id"])

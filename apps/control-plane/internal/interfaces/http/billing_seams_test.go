@@ -62,7 +62,7 @@ func newBillingHandler(t *testing.T, repo *persistence.MemoryTenantRepository, l
 	auditRepo := persistence.NewMemoryAuditRepository()
 	updateSubUC := usecases.NewUpdateSubscriptionMetadataUseCase(repo, auditRepo)
 	return NewBillingHandler(
-		usecases.NewCreateCheckoutUseCase(repo, ls, nil, auditRepo),
+		usecases.NewCreateCheckoutUseCase(repo, ls, auditRepo),
 		usecases.NewChangePlanUseCase(repo, ls, updateSubUC),
 		nil, nil, nil, nil,
 		usecases.NewGetCatalogUseCase(ls),
@@ -247,7 +247,7 @@ func TestSeam_Webhook_SignatureToTierPersisted(t *testing.T) {
 	updateSubUC := usecases.NewUpdateSubscriptionMetadataUseCase(repo, auditRepo)
 	suspendUC := usecases.NewSuspendTenantUseCase(repo, auditRepo)
 	processUC := usecases.NewProcessLemonSqueezyWebhookUseCase(repo, auditRepo, updateSubUC, suspendUC, usecases.VariantTierMap{"555": "studio"})
-	handler := NewWebhookHandler(processUC, usecases.NewProcessStripeWebhookUseCase(repo, auditRepo, updateSubUC, suspendUC))
+	handler := NewWebhookHandler(processUC)
 
 	secret := "seam-secret"
 	t.Setenv("LEMON_SQUEEZY_WEBHOOK_SECRET", secret)

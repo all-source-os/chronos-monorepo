@@ -145,7 +145,6 @@ type Container struct {
 
 	// Use Cases — Webhooks
 	ProcessLSWebhookUC     *usecases.ProcessLemonSqueezyWebhookUseCase
-	ProcessStripeWebhookUC *usecases.ProcessStripeWebhookUseCase
 	UpdateSubscriptionUC   *usecases.UpdateSubscriptionMetadataUseCase
 	MigrateEarlyAdoptersUC *usecases.MigrateEarlyAdoptersUseCase
 
@@ -182,12 +181,11 @@ type Container struct {
 
 // ContainerConfig holds configuration for dependency injection.
 type ContainerConfig struct {
-	CoreClient   clients.CoreClient
-	LSClient     clients.LemonSqueezyClient
-	StripeClient clients.StripeClient
-	EmailClient  clients.EmailClient
-	KeySigner    usecases.KeySignerFunc
-	CDPClient    clients.CDPClient
+	CoreClient  clients.CoreClient
+	LSClient    clients.LemonSqueezyClient
+	EmailClient clients.EmailClient
+	KeySigner   usecases.KeySignerFunc
+	CDPClient   clients.CDPClient
 }
 
 // CoreWalletLookup implements x402.WalletLookup using Core's config store.
@@ -319,12 +317,12 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	deleteSLOUC := usecases.NewDeleteSLOUseCase(sloRepo, auditRepo)
 
 	// Initialize use cases — Billing (Layer 2)
-	// Checkout/portal require at least one payment provider (LS or Stripe)
+	// Checkout/portal require the LemonSqueezy payment provider.
 	var createCheckoutUC *usecases.CreateCheckoutUseCase
 	var getPortalUC *usecases.GetPortalUseCase
-	if cfg.LSClient != nil || cfg.StripeClient != nil {
-		createCheckoutUC = usecases.NewCreateCheckoutUseCase(tenantRepo, cfg.LSClient, cfg.StripeClient, auditRepo)
-		getPortalUC = usecases.NewGetPortalUseCase(tenantRepo, cfg.LSClient, cfg.StripeClient)
+	if cfg.LSClient != nil {
+		createCheckoutUC = usecases.NewCreateCheckoutUseCase(tenantRepo, cfg.LSClient, auditRepo)
+		getPortalUC = usecases.NewGetPortalUseCase(tenantRepo, cfg.LSClient)
 	}
 	getOverageSummaryUC := usecases.NewGetOverageSummaryUseCase(tenantRepo)
 	setOverageEnabledUC := usecases.NewSetOverageEnabledUseCase(tenantRepo, auditRepo)
@@ -356,7 +354,6 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		variantTierMap = buildVariantTierMap()
 	}
 	processLSWebhookUC := usecases.NewProcessLemonSqueezyWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC, variantTierMap, cfg.CoreClient)
-	processStripeWebhookUC := usecases.NewProcessStripeWebhookUseCase(tenantRepo, auditRepo, updateSubscriptionUC, suspendTenantUC)
 
 	// Initialize use cases — Billing (overage reporting)
 	calculateOverageUC := billing.NewCalculateOverageUseCase(tenantRepo)
@@ -443,7 +440,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	verifyBillingConfigUC := usecases.NewVerifyBillingConfigUseCase(cfg.LSClient, os.Getenv("LEMON_SQUEEZY_WEBHOOK_SECRET"))
 	billingConfigHandler := httphandlers.NewBillingConfigHandler(verifyBillingConfigUC)
 	earlyAdopterMigrationHandler := httphandlers.NewEarlyAdopterMigrationHandler(migrateEarlyAdoptersUC)
-	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC, processStripeWebhookUC)
+	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC)
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 
 	return &Container{
@@ -537,7 +534,6 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AgentHandler:                 agentHandler,
 		VerifyBillingConfigUC:        verifyBillingConfigUC,
 		ProcessLSWebhookUC:           processLSWebhookUC,
-		ProcessStripeWebhookUC:       processStripeWebhookUC,
 		UpdateSubscriptionUC:         updateSubscriptionUC,
 		MigrateEarlyAdoptersUC:       migrateEarlyAdoptersUC,
 	}

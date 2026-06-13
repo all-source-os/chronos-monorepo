@@ -73,7 +73,7 @@ type SubscriptionMetadata struct {
 	Status             string     `json:"status,omitempty"`               // active, past_due, canceled, trialing, expired
 	Tier               string     `json:"tier"`
 	BillingPeriod      string     `json:"billing_period,omitempty"`   // "monthly" or "annual" — set by 011 checkout
-	PaymentProvider    string     `json:"payment_provider,omitempty"` // "lemonsqueezy" or "stripe"
+	PaymentProvider    string     `json:"payment_provider,omitempty"` // "lemonsqueezy" (or "comp" for vouchers)
 	TrialEndsAt        *time.Time `json:"trial_ends_at,omitempty"`
 	SubscriptionEndsAt *time.Time `json:"subscription_ends_at,omitempty"`
 	// GrandfatherUntil, when set, marks a tenant whose access is preserved past

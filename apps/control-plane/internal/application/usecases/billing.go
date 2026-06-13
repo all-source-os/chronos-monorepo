@@ -14,7 +14,6 @@ import (
 // Payment provider constants.
 const (
 	providerLemonSqueezy = "lemonsqueezy"
-	providerStripe       = "stripe"
 
 	// defaultBillingPeriod is used when a checkout request omits the period.
 	defaultBillingPeriod = "monthly"
@@ -27,7 +26,7 @@ type CheckoutRequest struct {
 	TenantID      string `json:"tenant_id" binding:"required"`
 	Tier          string `json:"tier" binding:"required"`
 	BillingPeriod string `json:"billing_period,omitempty"` // "monthly" (default) or "annual"/"yearly"
-	Provider      string `json:"provider,omitempty"`       // "lemonsqueezy" (default) or "stripe"
+	Provider      string `json:"provider,omitempty"`       // "lemonsqueezy" (the only supported provider)
 	Email         string `json:"email,omitempty"`
 	Name          string `json:"name,omitempty"`
 	RedirectURL   string `json:"redirect_url,omitempty"`
@@ -84,26 +83,23 @@ type ProjectedCharges struct {
 
 // --- Use Cases ---
 
-// CreateCheckoutUseCase creates a checkout for a tenant using the requested payment provider.
+// CreateCheckoutUseCase creates a checkout for a tenant via LemonSqueezy.
 type CreateCheckoutUseCase struct {
-	tenantRepo   repositories.TenantRepository
-	lsClient     clients.LemonSqueezyClient
-	stripeClient clients.StripeClient
-	auditRepo    repositories.AuditRepository
+	tenantRepo repositories.TenantRepository
+	lsClient   clients.LemonSqueezyClient
+	auditRepo  repositories.AuditRepository
 }
 
 // NewCreateCheckoutUseCase creates a new CreateCheckoutUseCase.
 func NewCreateCheckoutUseCase(
 	tenantRepo repositories.TenantRepository,
 	lsClient clients.LemonSqueezyClient,
-	stripeClient clients.StripeClient,
 	auditRepo repositories.AuditRepository,
 ) *CreateCheckoutUseCase {
 	return &CreateCheckoutUseCase{
-		tenantRepo:   tenantRepo,
-		lsClient:     lsClient,
-		stripeClient: stripeClient,
-		auditRepo:    auditRepo,
+		tenantRepo: tenantRepo,
+		lsClient:   lsClient,
+		auditRepo:  auditRepo,
 	}
 }
 
@@ -221,14 +217,10 @@ func (uc *CreateCheckoutUseCase) Execute(ctx context.Context, req CheckoutReques
 		provider = providerLemonSqueezy
 	}
 
-	switch provider {
-	case "stripe":
-		return uc.executeStripe(ctx, req)
-	case providerLemonSqueezy:
-		return uc.executeLemonSqueezy(ctx, req)
-	default:
+	if provider != providerLemonSqueezy {
 		return nil, fmt.Errorf("unsupported payment provider: %s", provider)
 	}
+	return uc.executeLemonSqueezy(ctx, req)
 }
 
 func (uc *CreateCheckoutUseCase) executeLemonSqueezy(ctx context.Context, req CheckoutRequest) (*CheckoutResult, error) {
@@ -278,58 +270,6 @@ func (uc *CreateCheckoutUseCase) executeLemonSqueezy(ctx context.Context, req Ch
 	}, nil
 }
 
-func (uc *CreateCheckoutUseCase) executeStripe(ctx context.Context, req CheckoutRequest) (*CheckoutResult, error) {
-	if uc.stripeClient == nil {
-		return nil, fmt.Errorf("stripe payment provider is not configured")
-	}
-
-	// Resolve tier + billing period to the right Stripe price (monthly vs annual).
-	// Canonicalize retired tier ids so an old "pro"/"growth" request still maps
-	// to a live 011 price during cutover.
-	canonicalTier := entities.MapRetiredTier(req.Tier)
-	priceID, err := uc.stripeClient.LookupPriceID(canonicalTier, req.BillingPeriod)
-	if err != nil {
-		return nil, fmt.Errorf("resolve price for tier %q period %q: %w", req.Tier, req.BillingPeriod, err)
-	}
-
-	period := req.BillingPeriod
-	if period == "" {
-		period = defaultBillingPeriod
-	}
-
-	successURL := req.RedirectURL
-	if successURL == "" {
-		successURL = "https://all-source.xyz/billing/success"
-	}
-
-	checkoutReq := clients.StripeCheckoutRequest{
-		PriceID:       priceID,
-		CustomerEmail: req.Email,
-		Metadata: map[string]string{
-			"tenant_id":      req.TenantID,
-			"tier":           canonicalTier,
-			"billing_period": period,
-		},
-		SuccessURL: successURL,
-		CancelURL:  successURL,
-	}
-
-	session, err := uc.stripeClient.CreateCheckoutSession(ctx, checkoutReq)
-	if err != nil {
-		return nil, fmt.Errorf("create stripe checkout: %w", err)
-	}
-
-	uc.logCheckoutAudit(req.TenantID, "stripe")
-
-	return &CheckoutResult{
-		CheckoutID:  session.ID,
-		CheckoutURL: session.URL,
-		TenantID:    req.TenantID,
-		Tier:        req.Tier,
-		Provider:    "stripe",
-	}, nil
-}
-
 func (uc *CreateCheckoutUseCase) logCheckoutAudit(tenantID, provider string) {
 	auditEvent, _ := entities.NewAuditEvent("billing.checkout.created", "create", "POST", "/billing/checkout") //nolint:errcheck
 	auditEvent.WithResource("tenant", tenantID).WithTenant(tenantID)
@@ -339,21 +279,18 @@ func (uc *CreateCheckoutUseCase) logCheckoutAudit(tenantID, provider string) {
 
 // GetPortalUseCase retrieves the customer portal URL for a tenant.
 type GetPortalUseCase struct {
-	tenantRepo   repositories.TenantRepository
-	lsClient     clients.LemonSqueezyClient
-	stripeClient clients.StripeClient
+	tenantRepo repositories.TenantRepository
+	lsClient   clients.LemonSqueezyClient
 }
 
 // NewGetPortalUseCase creates a new GetPortalUseCase.
 func NewGetPortalUseCase(
 	tenantRepo repositories.TenantRepository,
 	lsClient clients.LemonSqueezyClient,
-	stripeClient clients.StripeClient,
 ) *GetPortalUseCase {
 	return &GetPortalUseCase{
-		tenantRepo:   tenantRepo,
-		lsClient:     lsClient,
-		stripeClient: stripeClient,
+		tenantRepo: tenantRepo,
+		lsClient:   lsClient,
 	}
 }
 
@@ -369,20 +306,10 @@ func (uc *GetPortalUseCase) Execute(ctx context.Context, tenantID string) (*Port
 		return nil, fmt.Errorf("tenant %s has no active subscription", tenantID)
 	}
 
-	var portalURL string
-	switch sub.PaymentProvider {
-	case "stripe":
-		if uc.stripeClient == nil {
-			return nil, fmt.Errorf("stripe provider not configured")
-		}
-		portalURL, err = uc.stripeClient.GetCustomerPortalURL(ctx, sub.CustomerID, "")
-	default:
-		// LemonSqueezy (or unset provider for backwards compat)
-		if uc.lsClient == nil {
-			return nil, fmt.Errorf("lemonsqueezy provider not configured")
-		}
-		portalURL, err = uc.lsClient.GetCustomerPortalURL(ctx, sub.SubscriptionID)
+	if uc.lsClient == nil {
+		return nil, fmt.Errorf("lemonsqueezy provider not configured")
 	}
+	portalURL, err := uc.lsClient.GetCustomerPortalURL(ctx, sub.SubscriptionID)
 	if err != nil {
 		return nil, fmt.Errorf("get portal URL: %w", err)
 	}
@@ -568,6 +495,15 @@ func extractSubscription(metadata map[string]interface{}) entities.SubscriptionM
 // extractSubscriptionsMap reads the tracked per-subscription set
 // (TenantBillingMetadata.Subscriptions) from tenant metadata, tolerating both
 // the typed value and the JSON-decoded map form.
+// strVal reads a string value from a metadata map, returning "" when absent or
+// not a string.
+func strVal(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
 func extractSubscriptionsMap(metadata map[string]interface{}) map[string]entities.SubscriptionRef {
 	if metadata == nil {
 		return nil

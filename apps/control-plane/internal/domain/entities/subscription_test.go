@@ -202,10 +202,10 @@ func TestPrimarySubscriptionFor(t *testing.T) {
 
 	t.Run("winning ref provider overrides default", func(t *testing.T) {
 		subs := map[string]SubscriptionRef{
-			"sub-a": {Tier: "scale", Status: "active", PaymentProvider: "stripe"},
+			"sub-a": {Tier: "scale", Status: "active", PaymentProvider: "comp"},
 		}
-		if p := PrimarySubscriptionFor(subs, "lemonsqueezy"); p.PaymentProvider != "stripe" {
-			t.Errorf("provider = %q, want stripe", p.PaymentProvider)
+		if p := PrimarySubscriptionFor(subs, "lemonsqueezy"); p.PaymentProvider != "comp" {
+			t.Errorf("provider = %q, want comp", p.PaymentProvider)
 		}
 	})
 }

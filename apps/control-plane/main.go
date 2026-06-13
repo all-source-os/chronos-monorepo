@@ -190,16 +190,6 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		}
 	}
 
-	// Initialize Stripe client (optional — Stripe billing features require it)
-	var stripeClient clients.StripeClient
-	if os.Getenv("STRIPE_SECRET_KEY") != "" {
-		var stripeErr error
-		stripeClient, stripeErr = clients.NewStripeClient()
-		if stripeErr != nil {
-			log.Printf("Stripe client initialization failed: %v (Stripe billing endpoints will be unavailable)", stripeErr)
-		}
-	}
-
 	// Initialize email client (optional — usage warning emails require it)
 	var emailClient clients.EmailClient
 	if os.Getenv("SMTP_HOST") != "" {
@@ -222,12 +212,11 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 
 	// Initialize Clean Architecture container (Core-backed repos, no PostgreSQL)
 	containerCfg := internal.ContainerConfig{
-		CoreClient:   coreClient,
-		LSClient:     lsClient,
-		StripeClient: stripeClient,
-		EmailClient:  emailClient,
-		KeySigner:    authClient.SignAPIKey,
-		CDPClient:    cdpClient,
+		CoreClient:  coreClient,
+		LSClient:    lsClient,
+		EmailClient: emailClient,
+		KeySigner:   authClient.SignAPIKey,
+		CDPClient:   cdpClient,
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
 
@@ -581,7 +570,6 @@ func (cp *ControlPlane) setupRoutes() {
 
 	// Webhooks (public — no JWT auth, signature verification instead)
 	api.POST("/webhooks/lemonsqueezy", cp.container.WebhookHandler.LemonSqueezy)
-	api.POST("/webhooks/stripe", cp.container.WebhookHandler.Stripe)
 
 	// Audit trail (Clean Architecture handlers)
 	api.GET("/audit", RequirePermission(entities.PermissionRead), cp.container.AuditHandler.Query)
@@ -1017,4 +1005,3 @@ func logBillingConfigCheck(container *internal.Container) {
 		log.Printf("BillingConfigCheck: FAILED — billing is misconfigured; checkout/webhooks may silently misbehave. See GET /api/v1/admin/billing/config-check")
 	}
 }
-

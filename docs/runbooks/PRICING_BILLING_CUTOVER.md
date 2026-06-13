@@ -80,15 +80,14 @@ allowance between reconciliations:
   reconciles `x402_used` from `x402.allowance.consumed` + `x402.payment.settled`
   events; `x402.AllowanceChecker` / `quota_gate.go` enforce the allowance bucket
   before falling through to the pay-per-call x402 middleware.
-- Stripe client/webhook plumbing alongside the existing LemonSqueezy provider
-  (`PaymentProvider` is `"lemonsqueezy" | "stripe"`; `BillingPeriod` recorded).
-- Tests updated to the new contract: `go test ./internal/...` green (391 pass).
+- LemonSqueezy is the sole payment provider; `BillingPeriod` recorded.
+- Tests updated to the new contract: `go test ./internal/...` green.
 
-> **Provider: LemonSqueezy.** This deployment bills on LemonSqueezy
-> (`payment_provider` defaults to `lemonsqueezy`). The Stripe path exists in code
-> but is secondary — do the LemonSqueezy steps below for the live cutover. Both
-> paths now canonicalize retired tiers (`MapRetiredTier`) and resolve a variant
-> per billing period.
+> **Provider: LemonSqueezy (sole).** This deployment bills on LemonSqueezy
+> (`payment_provider` is `lemonsqueezy`; `comp` for vouchers). The Stripe path
+> was removed (t-12cb36) — LemonSqueezy is the only provider. Checkout/webhook
+> canonicalize retired tiers (`MapRetiredTier`) and resolve a variant per billing
+> period. (Git history has the Stripe code if it's ever needed again.)
 
 ## DONE — LemonSqueezy provisioning (2026-06-06, allsource-control-plane, TEST mode)
 
@@ -125,9 +124,6 @@ allowance between reconciliations:
    `MapRetiredTier` so no live subscription points at a removed variant.
 6. **Grandfather the free cohort** (§6): set `GrandfatherUntil = cutover + 90d` on
    current free/hosted tenants; send the $9-Indie launch-discount email (ops).
-7. **Stripe (SECONDARY, optional).** If ever enabled: create products/prices and set
-   `STRIPE_PRICE_MAP` with the same `tier:period` keys. Stripe prices are immutable
-   — new price + archive old, never mutate.
 
 ## Verification (test mode)
 
@@ -135,14 +131,12 @@ allowance between reconciliations:
       tenant metadata shows correct tier + full entitlement set.
 - [ ] Indie tenant capped at 500K events + 50K x402; overage path bills per call.
 - [ ] A grandfathered free tenant still serves requests inside the window.
-- [ ] No Stripe/x402 secret in any `NEXT_PUBLIC_` value or the web bundle.
+- [ ] No billing/x402 secret in any `NEXT_PUBLIC_` value or the web bundle.
 
 ## Rollback
 
 - Entitlement/tier changes are JSON metadata — revert by re-applying the prior
   tenant metadata (or `git revert` the 011 commit and re-sync).
-- Archive (do not delete) any Stripe prices created; deletion is impossible once
-  a subscription references them.
 - No schema migration ⇒ no DDL to reverse.
 
 ## Scaling note — x402 allowance counter is per-instance (t-d7aabc)
