@@ -2,26 +2,53 @@
 
 TypeScript/JavaScript client for the [AllSource](https://all-source.xyz) event store API.
 
+Talks to the AllSource **Query Service** (the public gateway), not Core directly.
+Ships compiled ESM + CJS with `.d.ts` types. Runs on Node 18+ and Bun. Zero
+runtime dependencies (uses the global `fetch`).
+
 ## Installation
 
 ```bash
 npm install @allsource/client
 # or
 bun add @allsource/client
+# or
+pnpm add @allsource/client
 ```
+
+> **Installing before the package is published / from the monorepo.**
+> `@allsource/client` lives in the `chronos-monorepo` repo under
+> `sdks/typescript`. Git installers (`bun add github:…#path:…`,
+> `npm i user/repo`) **cannot** install a sub-directory of a monorepo — that's
+> why `#workspace=@allsource/client` and `#path:sdks/typescript` 404. Until the
+> npm release is live, install the packed tarball from a GitHub Release:
+>
+> ```bash
+> bun add https://github.com/all-source-os/chronos-monorepo/releases/download/sdk-ts-v0.23.0/allsource-client-0.23.0.tgz
+> ```
+>
+> (or `npm install <same-url>`). The tarball ships prebuilt `dist/`, so no build
+> step is required on the consumer side.
 
 ## Authentication
 
-AllSource uses API keys. Get one from your dashboard at [all-source.xyz](https://all-source.xyz) (Settings → API Keys) or mint one via `POST /api/v1/auth/api-keys` if you have an admin token. Keys are sent in the `X-API-Key` header; the SDK handles this for you when you pass `apiKey` to the constructor.
+AllSource uses API keys (signed JWTs). Get one from your dashboard at
+[all-source.xyz](https://all-source.xyz) → **Settings → API Keys**. The key is
+sent in the `X-API-Key` header; the SDK does this for you when you pass `apiKey`
+to the constructor.
 
-Store the key in an env var rather than hard-coding:
+Store the key in an env var rather than hard-coding it:
 
 ```typescript
+import { AllSourceClient } from "@allsource/client";
+
 const client = new AllSourceClient({
-  baseUrl: "https://api.all-source.xyz",
+  baseUrl: "https://allsource-query.fly.dev", // your Query Service URL
   apiKey: process.env.ALLSOURCE_API_KEY!,
 });
 ```
+
+The tenant is taken from the key — there is no separate tenant argument.
 
 ## Quick Start
 
@@ -29,11 +56,11 @@ const client = new AllSourceClient({
 import { AllSourceClient } from "@allsource/client";
 
 const client = new AllSourceClient({
-  baseUrl: "https://api.all-source.xyz",
-  apiKey: "your-api-key",
+  baseUrl: "https://allsource-query.fly.dev",
+  apiKey: process.env.ALLSOURCE_API_KEY!,
 });
 
-// Ingest an event
+// Ingest an event — returns the stored event
 const event = await client.ingestEvent({
   event_type: "user.signup",
   entity_id: "user-abc-123",
@@ -42,14 +69,14 @@ const event = await client.ingestEvent({
 });
 console.log("Ingested:", event.id);
 
-// Query events
+// Query events back
 const { events, count } = await client.queryEvents({
   entity_id: "user-abc-123",
   limit: 50,
 });
 console.log(`Found ${count} events`);
 
-// Health check
+// Health check (unauthenticated)
 const health = await client.getHealth();
 console.log("Status:", health.status);
 ```
@@ -58,53 +85,82 @@ console.log("Status:", health.status);
 
 ### `new AllSourceClient(config)`
 
-| Option    | Type     | Required | Default | Description                      |
-|-----------|----------|----------|---------|----------------------------------|
-| `baseUrl` | `string` | Yes      | —       | AllSource Query Service URL      |
-| `apiKey`  | `string` | Yes      | —       | API key (sent as `X-API-Key`)    |
-| `timeout` | `number` | No       | `30000` | Request timeout in milliseconds  |
+| Option           | Type       | Required | Default | Description                          |
+|------------------|------------|----------|---------|--------------------------------------|
+| `baseUrl`        | `string`   | Yes      | —       | AllSource Query Service URL          |
+| `apiKey`         | `string`   | Yes      | —       | API key (sent as `X-API-Key`)        |
+| `timeout`        | `number`   | No       | `30000` | Request timeout in milliseconds      |
+| `retry`          | `object`   | No       | —       | Retry/backoff overrides              |
+| `circuitBreaker` | `object`   | No       | —       | Circuit-breaker overrides            |
+| `fetch`          | `function` | No       | global  | Custom `fetch` implementation        |
 
-### `client.ingestEvent(event)`
+### `client.ingestEvent(event)` → `Event`
 
-Ingest a single event.
+Ingest a single event and return the stored event (`id`, `timestamp`, …).
 
 ```typescript
-await client.ingestEvent({
+const stored = await client.ingestEvent({
   event_type: "order.placed",
   entity_id: "order-456",
   payload: { total: 99.99, currency: "USD" },
+  metadata: { source: "checkout" }, // optional, preserved
 });
 ```
 
-### `client.queryEvents(params?)`
+### `client.ingestBatch(events)` → `{ count, events }`
 
-Query events with optional filters. Returns `{ events, count }`.
+Ingest many events in one request.
 
-| Param        | Type     | Description                |
-|--------------|----------|----------------------------|
-| `entity_id`  | `string` | Filter by entity ID        |
-| `event_type` | `string` | Filter by event type       |
-| `limit`      | `number` | Max events to return       |
-| `offset`     | `number` | Number of events to skip   |
-| `start_time` | `string` | Start time (ISO 8601)      |
-| `end_time`   | `string` | End time (ISO 8601)        |
+### `client.queryEvents(params?)` → `{ events, count }`
 
-### `client.getHealth()`
+Query events with optional filters.
 
-Returns the service health status.
+| Param        | Type     | Description                       |
+|--------------|----------|-----------------------------------|
+| `entity_id`  | `string` | Filter by entity ID               |
+| `event_type` | `string` | Filter by event type              |
+| `limit`      | `number` | Max events to return              |
+| `offset`     | `number` | Number of events to skip          |
+| `since`      | `string` | Start time, inclusive (ISO 8601)  |
+| `until`      | `string` | End time, inclusive (ISO 8601)    |
 
-### Error Handling
+### `client.queryAndFold(params, folder)` → `S | undefined`
 
-All API errors throw `AllSourceError` with `status` and `body` properties:
+Query events and fold them into a derived state with an `EventFolder<S>`.
+
+### `client.listProjections()` → `{ projections, total }`
+
+List projections from Core.
+
+### Prime projections
+
+`definePrimeProjection(entityType, fieldPolicies)`,
+`projectNode(nodeId)`, `listPrimeProjections()`,
+`nodeFieldProvenance(nodeId, field)` — declarative projections with per-field
+merge policies and provenance.
+
+### `client.getHealth()` → `HealthResponse`
+
+Service health. Unauthenticated.
+
+### Reliability
+
+Every request goes through exponential-backoff retries (on 408/429/5xx and
+network errors) and a circuit breaker. Both are configurable via the constructor.
+
+### Error handling
+
+API errors throw `AllSourceError` with `status` and `body`:
 
 ```typescript
 import { AllSourceClient, AllSourceError } from "@allsource/client";
 
 try {
-  await client.ingestEvent({ ... });
+  await client.ingestEvent({ /* … */ });
 } catch (err) {
   if (err instanceof AllSourceError) {
     console.error(`API error ${err.status}:`, err.body);
+    if (err.isUnauthorized()) console.error("Check your API key.");
   }
 }
 ```

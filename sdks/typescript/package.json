@@ -1,16 +1,16 @@
 {
   "name": "@allsource/client",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "JavaScript/TypeScript client for the AllSource event store API",
   "license": "MIT",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     }
   },
   "files": [
@@ -18,10 +18,11 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target node && bun run build:types",
+    "build": "bun build src/index.ts --outfile dist/index.mjs --target node --format esm && bun build src/index.ts --outfile dist/index.cjs --target node --format cjs && bun run build:types",
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "type-check": "tsc --noEmit",
     "test": "bun test",
+    "smoke": "bun run scripts/smoke.ts",
     "clean": "rm -rf dist .turbo",
     "prepublishOnly": "bun run build"
   },

@@ -428,6 +428,17 @@ defmodule QueryServiceExWeb.Router do
     get("/event-types", EventController, :event_types)
   end
 
+  # Event write endpoints (v1). The TypeScript SDK (@allsource/client) posts to
+  # /api/v1/events and /api/v1/events/batch; without these aliases the SDK 404s
+  # on every write. Mirrors the unversioned /api/events write routes, same
+  # quota + rate-limit pipeline.
+  scope "/api/v1", QueryServiceExWeb do
+    pipe_through([:tenant_scoped, :rate_limited, :events_quota])
+
+    post("/events", EventController, :create)
+    post("/events/batch", EventController, :create_batch)
+  end
+
   # Snapshot endpoints (tenant-scoped)
   scope "/api/v1", QueryServiceExWeb do
     pipe_through([:tenant_scoped, :rate_limited])

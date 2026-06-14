@@ -25,6 +25,8 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   alias QueryServiceEx.Domain.Entities.Query
   alias QueryServiceEx.Infrastructure.Adapters.CoreHealthChecker
 
+  require Logger
+
   @default_base_url "http://localhost:3900"
   @default_timeout 30_000
   @read_counter_name :core_read_round_robin
@@ -808,69 +810,96 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   ## API Key Verification
 
   @doc """
-  Verify an API key by calling Core's `/api/v1/auth/me` with the key as Authorization header.
+  Verify a customer API key.
 
-  Core validates the key (hash lookup, expiry, revocation) and returns the authenticated
-  user/claims. We extract the tenant_id from the response and fetch the tenant from Core.
+  API keys are self-contained JWTs signed with the shared `JWT_SECRET` (the same
+  secret Core and the Control Plane hold). We validate them **locally** — HS256
+  signature plus expiry — exactly like the `Authorization: Bearer` path in
+  `AuthPipeline`/`JwtAuth`, then resolve the tenant from Core for the
+  subscription gate.
+
+  This deliberately does NOT round-trip to Core's `/api/v1/auth/me`. That handler
+  decodes into Core's `Claims` struct, which has a required `iss` field and
+  enforces `set_issuer("allsource")`. Keys minted by the Query Service
+  (`ApiKeyController.sign_api_key/3`) omitted `iss`, so every such key failed
+  Core's validation and the gateway returned 401 "invalid API key" on every data
+  endpoint — even though the key was valid and correctly signed. Local validation
+  also removes a network hop from the hot auth path and loses nothing: Core's
+  `/auth/me` validated the JWT statelessly anyway (it has no record of
+  gateway-minted keys), so there was no revocation check to preserve.
 
   Returns `{:ok, {tenant_map, api_key_info}}` or `{:error, reason}`.
   """
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def verify_api_key(raw_key) when is_binary(raw_key) do
-    # Build a one-off client with the API key as Authorization header
-    base_url =
-      Application.get_env(:query_service_ex, :core_write_url) ||
-        Application.get_env(:query_service_ex, :core_url, @default_base_url)
+    case decode_api_key_jwt(raw_key) do
+      {:ok, claims} ->
+        tenant_id = claims["tenant_id"]
 
-    client =
-      Tesla.client(
-        [
-          {Tesla.Middleware.BaseUrl, base_url},
-          Tesla.Middleware.JSON,
-          {Tesla.Middleware.Timeout, timeout: @default_timeout},
-          {Tesla.Middleware.Headers, [{"authorization", raw_key}]}
-        ],
-        {Tesla.Adapter.Hackney, [connect_options: [:inet6]]}
-      )
+        case get_tenant(tenant_id) do
+          {:ok, tenant} ->
+            api_key_info = %{
+              "id" => claims["sub"],
+              "name" => claims["name"],
+              "tenant_id" => tenant_id,
+              "role" => claims["role"] || "serviceaccount",
+              "scopes" => claims["scopes"] || []
+            }
 
-    case Tesla.get(client, "/api/v1/auth/me") do
-      {:ok, %Tesla.Env{status: 200, body: body}} ->
-        tenant_id = body["tenant_id"]
+            {:ok, {tenant, api_key_info}}
 
-        if tenant_id do
-          case get_tenant(tenant_id) do
-            {:ok, tenant} ->
-              api_key_info = %{
-                "id" => body["id"],
-                "name" => body["name"] || body["username"],
-                "tenant_id" => tenant_id,
-                "role" => body["role"],
-                "scopes" => body["scopes"] || []
-              }
+          {:error, :not_found} ->
+            {:error, :invalid_key}
 
-              {:ok, {tenant, api_key_info}}
-
-            {:error, :not_found} ->
-              {:error, :invalid_key}
-
-            {:error, _reason} ->
-              {:error, :invalid_key}
-          end
-        else
-          {:error, :invalid_key}
+          {:error, _reason} ->
+            {:error, :invalid_key}
         end
 
-      {:ok, %Tesla.Env{status: 401}} ->
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # Locally validate an API-key JWT: HS256 signature against JWT_SECRET, then
+  # presence/expiry of the standard claims. Mirrors `JwtAuth.verify_and_decode/1`
+  # but returns the API-key error atoms the caller already handles.
+  #
+  # Public only so the auth contract can be unit-tested directly (no Core round
+  # trip). Not part of the supported API — call `verify_api_key/1`.
+  @doc false
+  def decode_api_key_jwt(raw_key) do
+    case System.get_env("JWT_SECRET") do
+      nil ->
+        Logger.error("[RustCoreClient] JWT_SECRET not configured; cannot verify API keys")
         {:error, :invalid_key}
 
-      {:ok, %Tesla.Env{status: 403}} ->
-        {:error, :key_revoked}
+      secret ->
+        jwk = JOSE.JWK.from_oct(secret)
 
-      {:ok, %Tesla.Env{status: _status}} ->
-        {:error, :invalid_key}
+        case JOSE.JWT.verify_strict(jwk, ["HS256"], raw_key) do
+          {true, %JOSE.JWT{fields: claims}, _jws} ->
+            validate_api_key_claims(claims)
 
-      {:error, _reason} ->
-        {:error, :invalid_key}
+          {false, _jwt, _jws} ->
+            {:error, :invalid_key}
+
+          {:error, _reason} ->
+            {:error, :invalid_key}
+        end
+    end
+  rescue
+    # JOSE raises on structurally invalid tokens (e.g. not three base64 segments).
+    _ -> {:error, :invalid_key}
+  end
+
+  defp validate_api_key_claims(claims) do
+    now = System.system_time(:second)
+
+    cond do
+      not is_integer(claims["exp"]) -> {:error, :invalid_key}
+      claims["exp"] <= now -> {:error, :key_expired}
+      not is_binary(claims["tenant_id"]) -> {:error, :invalid_key}
+      not is_binary(claims["sub"]) -> {:error, :invalid_key}
+      true -> {:ok, claims}
     end
   end
 

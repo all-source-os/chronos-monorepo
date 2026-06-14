@@ -192,6 +192,12 @@ defmodule QueryServiceExWeb.ApiKeyController do
           # so every minted key silently 403s on read AND write.
           "role" => "serviceaccount",
           "is_api_key" => true,
+          # Core's JWT validator (auth.rs) decodes into a Claims struct with a
+          # required `iss` field and enforces `set_issuer("allsource")`. Without
+          # this, Core's /api/v1/auth/me rejects the key. The gateway now
+          # validates keys locally, but emitting `iss` keeps keys valid anywhere
+          # in the fleet (Core, Control Plane), not just at this gateway.
+          "iss" => "allsource",
           "iat" => now,
           "exp" => exp
         }

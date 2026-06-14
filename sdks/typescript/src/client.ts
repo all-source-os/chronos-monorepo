@@ -54,22 +54,35 @@ export class AllSourceClient {
     this.fetch = config.fetch ?? globalThis.fetch;
   }
 
-  /** Ingest a single event into AllSource Core. */
-  async ingestEvent(
-    event: IngestEventInput,
-  ): Promise<{ event_id: string; timestamp: string }> {
-    return this.request("POST", "/api/v1/events", event);
+  /**
+   * Ingest a single event into AllSource Core.
+   *
+   * Returns the stored event (with its generated `id` and `timestamp`). The
+   * gateway wraps the event in a `{ data }` envelope; this unwraps it.
+   */
+  async ingestEvent(event: IngestEventInput): Promise<Event> {
+    const res = await this.request<{ data: Event }>(
+      "POST",
+      "/api/v1/events",
+      event,
+    );
+    return res.data;
   }
 
-  /** Ingest a batch of events into AllSource Core. */
+  /**
+   * Ingest a batch of events into AllSource Core.
+   *
+   * Returns the stored events and how many were ingested.
+   */
   async ingestBatch(
     events: IngestEventInput[],
-  ): Promise<{
-    total: number;
-    ingested: number;
-    events: Array<{ event_id: string; timestamp: string }>;
-  }> {
-    return this.request("POST", "/api/v1/events/batch", { events });
+  ): Promise<{ count: number; events: Event[] }> {
+    const res = await this.request<{ data: Event[]; count: number }>(
+      "POST",
+      "/api/v1/events/batch",
+      { events },
+    );
+    return { count: res.count, events: res.data };
   }
 
   /** Query events with optional filters. */

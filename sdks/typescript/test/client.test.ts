@@ -85,16 +85,27 @@ describe("ingestEvent", () => {
       payload: { email: "test@example.com" },
       metadata: { source: "sdk-test" },
     };
-    const responseEvent = { event_id: "evt-1", timestamp: "2026-02-16T00:00:00Z" };
+    // The gateway wraps the stored event in a `{ data }` envelope (EventResponse).
+    const storedEvent = {
+      id: "evt-1",
+      event_type: "user.signup",
+      entity_id: "user-123",
+      payload: { email: "test@example.com" },
+      metadata: { source: "sdk-test" },
+      timestamp: "2026-02-16T00:00:00Z",
+    };
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify(responseEvent), { status: 200 })),
+      Promise.resolve(
+        new Response(JSON.stringify({ data: storedEvent }), { status: 201 }),
+      ),
     );
 
     const result = await client.ingestEvent(event);
 
-    expect(result.event_id).toBe("evt-1");
+    expect(result.id).toBe("evt-1");
     expect(result.timestamp).toBe("2026-02-16T00:00:00Z");
+    expect(result.entity_id).toBe("user-123");
 
     const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`${MOCK_BASE_URL}/api/v1/events`);

@@ -182,11 +182,13 @@ defmodule QueryServiceExWeb.EventController do
   def create(conn, params) do
     tenant_id = get_tenant_id!(conn)
 
-    event = %{
-      entity_id: params["entity_id"],
-      event_type: params["event_type"],
-      payload: params["payload"] || %{}
-    }
+    event =
+      %{
+        entity_id: params["entity_id"],
+        event_type: params["event_type"],
+        payload: params["payload"] || %{}
+      }
+      |> maybe_put_metadata(params["metadata"])
 
     case RustCoreClient.create_event(tenant_id, event) do
       {:ok, created_event} ->
@@ -526,6 +528,15 @@ defmodule QueryServiceExWeb.EventController do
 
   defp maybe_merge_link(links, nil, _fun), do: links
   defp maybe_merge_link(links, value, fun), do: HAL.merge(links, fun.(value))
+
+  # Preserve client-supplied event metadata on single create. The batch path
+  # already forwards metadata verbatim; single create previously rebuilt the
+  # event map with only entity_id/event_type/payload, silently dropping it.
+  defp maybe_put_metadata(event, nil), do: event
+  defp maybe_put_metadata(event, metadata) when is_map(metadata),
+    do: Map.put(event, :metadata, metadata)
+
+  defp maybe_put_metadata(event, _other), do: event
 
   defp wrap_stream(stream) when is_binary(stream) do
     links =
