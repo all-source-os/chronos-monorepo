@@ -24,7 +24,7 @@ pnpm add @allsource/client
 > npm release is live, install the packed tarball from a GitHub Release:
 >
 > ```bash
-> bun add https://github.com/all-source-os/chronos-monorepo/releases/download/sdk-ts-v0.23.0/allsource-client-0.23.0.tgz
+> bun add https://github.com/all-source-os/all-source/releases/download/sdk-ts-v0.23.0/allsource-client-0.23.0.tgz
 > ```
 >
 > (or `npm install <same-url>`). The tarball ships prebuilt `dist/`, so no build
