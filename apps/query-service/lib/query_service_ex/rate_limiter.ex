@@ -222,10 +222,21 @@ defmodule QueryServiceEx.RateLimiter do
 
   defp default_tier_limits do
     %{
+      # Canonical 011 tiers (control-plane entities/subscription.go):
+      # free → indie → studio → scale → enterprise.
       free: %{rate: 10, burst: 20},
-      pro: %{rate: 200, burst: 400},
-      growth: %{rate: 500, burst: 1000},
-      enterprise: %{rate: 1000, burst: 2000}
+      indie: %{rate: 100, burst: 200},
+      studio: %{rate: 300, burst: 600},
+      scale: %{rate: 1000, burst: 2000},
+      enterprise: %{rate: 1000, burst: 2000},
+      # Retired tier ids, normalized to canonical ids upstream. Kept here so a
+      # not-yet-migrated tenant lands in a sensible bucket (and so these remain
+      # existing atoms). Limits mirror their canonical successors.
+      pro: %{rate: 300, burst: 600},
+      growth: %{rate: 300, burst: 600},
+      starter: %{rate: 100, burst: 200},
+      developer: %{rate: 100, burst: 200},
+      team: %{rate: 300, burst: 600}
     }
   end
 end

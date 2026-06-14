@@ -74,11 +74,25 @@ defmodule QueryServiceExWeb.Plugs.RateLimiting do
     case get_in(tenant, ["metadata", "subscription", "tier"]) do
       nil -> :free
       tier when is_atom(tier) -> tier
-      tier when is_binary(tier) -> String.to_existing_atom(tier)
+      tier when is_binary(tier) -> parse_tier(tier)
     end
   end
 
   defp get_subscription_tier(_), do: :free
+
+  # Convert a tier string to an atom without crashing on unrecognised tiers.
+  # `String.to_existing_atom/1` raised ArgumentError on post-relaunch tier ids
+  # (e.g. "studio") that no code referenced as an atom — every authenticated
+  # data request then 500'd. RateLimiter.get_tier_limits/1 already falls back to
+  # the default bucket for any atom it doesn't know, so degrading an unknown
+  # tier to :free here is safe and non-fatal.
+  defp parse_tier(tier) when is_binary(tier) do
+    String.to_existing_atom(tier)
+  rescue
+    ArgumentError ->
+      Logger.warning("[RateLimiting] Unknown subscription tier #{inspect(tier)}; using :free limits")
+      :free
+  end
 
   defp get_tenant_id(%{id: id}), do: id
   defp get_tenant_id(%{"id" => id}), do: id

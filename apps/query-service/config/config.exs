@@ -128,10 +128,20 @@ config :query_service_ex, QueryServiceEx.RateLimiter,
   default_burst: 200,
   cleanup_interval: 60_000,
   tier_limits: %{
+    # Canonical 011 tiers (control-plane entities/subscription.go):
+    # free → indie → studio → scale → enterprise.
     free: %{rate: 10, burst: 20},
-    pro: %{rate: 200, burst: 400},
-    growth: %{rate: 500, burst: 1000},
-    enterprise: %{rate: 1000, burst: 2000}
+    indie: %{rate: 100, burst: 200},
+    studio: %{rate: 300, burst: 600},
+    scale: %{rate: 1000, burst: 2000},
+    enterprise: %{rate: 1000, burst: 2000},
+    # Retired ids, normalized upstream; kept so not-yet-migrated tenants get a
+    # sensible bucket and remain existing atoms.
+    pro: %{rate: 300, burst: 600},
+    growth: %{rate: 300, burst: 600},
+    starter: %{rate: 100, burst: 200},
+    developer: %{rate: 100, burst: 200},
+    team: %{rate: 300, burst: 600}
   }
 
 # Import environment specific config
