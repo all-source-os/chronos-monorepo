@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://all-source.xyz/contracts/email-events/email.replied.schema.json",
+  "title": "email.replied",
+  "description": "The original message marked as replied. entity_id = the ORIGINAL provider message id; payload links the sent reply.",
+  "type": "object",
+  "required": ["event_type", "entity_id", "tenant_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "event_type": { "const": "email.replied" },
+    "entity_id": { "type": "string", "minLength": 1, "description": "provider message id of the message that was replied to" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "expected_version": { "type": "integer", "minimum": 0 },
+    "payload": {
+      "type": "object",
+      "required": ["reply_message_id", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "reply_message_id": { "type": "string", "minLength": 1, "description": "provider message id of the reply (== an email.sent entity_id)" },
+        "thread_id": { "type": "string" },
+        "by": { "type": "string", "enum": ["claude", "human"] },
+        "replied_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

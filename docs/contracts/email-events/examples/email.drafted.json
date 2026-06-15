@@ -1,0 +1,20 @@
+{
+  "event_type": "email.drafted",
+  "entity_id": "draft_b81f2a9c",
+  "tenant_id": "tnt_founder",
+  "payload": {
+    "thread_id": "thr_92ab17",
+    "in_reply_to": "msg_0af31c8e",
+    "subject": "Re: Q3 renewal",
+    "to": [{ "name": "Dana Lee", "email": "dana@acme.com" }],
+    "body": "Happy to extend the renewal — proposed Q3 numbers attached. Let's lock them Thursday.\n\nBest,\nFounder",
+    "intent": "accept renewal, propose locking numbers Thursday",
+    "by": "claude",
+    "drafted_at": "2026-06-14T09:38:00Z"
+  },
+  "metadata": {
+    "draft_id": "draft_b81f2a9c",
+    "provider": "nylas",
+    "grant_id": "grant_founder_gmail"
+  }
+}

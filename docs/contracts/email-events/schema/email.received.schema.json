@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://all-source.xyz/contracts/email-events/email.received.schema.json",
+  "title": "email.received",
+  "description": "Inbound email message ingested as a durable Core event. entity_id = provider message id.",
+  "type": "object",
+  "required": ["event_type", "entity_id", "tenant_id", "payload", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "event_type": { "const": "email.received" },
+    "entity_id": { "type": "string", "minLength": 1, "description": "provider message id; shared by all lifecycle events for this message" },
+    "tenant_id": { "type": "string", "minLength": 1, "description": "injected by the Control Plane; never client-trusted" },
+    "expected_version": { "type": "integer", "minimum": 0, "description": "optimistic-concurrency dedupe; 0 on first ingest (§4.6)" },
+    "payload": {
+      "type": "object",
+      "required": ["thread_id", "subject", "from", "to", "snippet", "body", "received_at", "folder"],
+      "additionalProperties": false,
+      "properties": {
+        "thread_id": { "type": "string", "minLength": 1, "description": "provider thread id; == conversation_id on the Prime interaction node" },
+        "subject": { "type": "string" },
+        "from": { "$ref": "#/$defs/emailAddress" },
+        "to": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/emailAddress" } },
+        "cc": { "type": "array", "items": { "$ref": "#/$defs/emailAddress" }, "default": [] },
+        "bcc": { "type": "array", "items": { "$ref": "#/$defs/emailAddress" } },
+        "snippet": { "type": "string", "description": "short preview; embedded with subject (body is NOT embedded)" },
+        "body": { "type": "string", "description": "full message body, inline (Core has no blob store)" },
+        "received_at": { "type": "string", "format": "date-time" },
+        "folder": { "type": "string" },
+        "labels": { "type": "array", "items": { "type": "string" }, "default": [] }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["provider", "grant_id", "idempotency_key"],
+      "additionalProperties": true,
+      "properties": {
+        "provider": { "type": "string", "description": "free string; \"nylas\" first" },
+        "grant_id": { "type": "string", "minLength": 1 },
+        "idempotency_key": { "type": "string", "minLength": 1, "description": "provider delivery/message id; connector-side dedupe key" }
+      }
+    }
+  },
+  "$defs": {
+    "emailAddress": {
+      "type": "object",
+      "required": ["email"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" }
+      }
+    }
+  }
+}

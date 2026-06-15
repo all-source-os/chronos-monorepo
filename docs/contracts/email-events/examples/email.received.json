@@ -1,0 +1,23 @@
+{
+  "event_type": "email.received",
+  "entity_id": "msg_0af31c8e",
+  "tenant_id": "tnt_founder",
+  "expected_version": 0,
+  "payload": {
+    "thread_id": "thr_92ab17",
+    "subject": "Re: Q3 renewal",
+    "from": { "name": "Dana Lee", "email": "dana@acme.com" },
+    "to": [{ "name": "Founder", "email": "founder@all-source.xyz" }],
+    "cc": [],
+    "snippet": "Following up on the renewal terms…",
+    "body": "Hi — following up on the renewal terms we discussed. Can we lock the Q3 numbers this week?\n\nThanks,\nDana",
+    "received_at": "2026-06-14T09:12:00Z",
+    "folder": "inbox",
+    "labels": ["important"]
+  },
+  "metadata": {
+    "provider": "nylas",
+    "grant_id": "grant_founder_gmail",
+    "idempotency_key": "nylas_delivery_7f3a"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://all-source.xyz/contracts/email-events/email.drafted.schema.json",
+  "title": "email.drafted",
+  "description": "A reply draft composed by inbox_draft (pre-send, confirm-gated). entity_id = draft id; email.sent links back via metadata.draft_id.",
+  "type": "object",
+  "required": ["event_type", "entity_id", "tenant_id", "payload", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "event_type": { "const": "email.drafted" },
+    "entity_id": { "type": "string", "minLength": 1, "description": "draft id (a draft has no provider message id until sent)" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "expected_version": { "type": "integer", "minimum": 0 },
+    "payload": {
+      "type": "object",
+      "required": ["thread_id", "body", "intent", "by", "drafted_at"],
+      "additionalProperties": false,
+      "properties": {
+        "thread_id": { "type": "string", "minLength": 1 },
+        "in_reply_to": { "type": ["string", "null"] },
+        "subject": { "type": "string" },
+        "to": { "type": "array", "items": { "$ref": "#/$defs/emailAddress" } },
+        "body": { "type": "string", "description": "the drafted reply text" },
+        "intent": { "type": "string", "description": "the instruction that produced the draft" },
+        "by": { "type": "string", "enum": ["claude", "human"] },
+        "drafted_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["draft_id"],
+      "additionalProperties": true,
+      "properties": {
+        "draft_id": { "type": "string", "minLength": 1, "description": "== entity_id; carried in metadata for the email.sent linkage" },
+        "provider": { "type": "string" },
+        "grant_id": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "emailAddress": {
+      "type": "object",
+      "required": ["email"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" }
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://all-source.xyz/contracts/email-events/email.triaged.schema.json",
+  "title": "email.triaged",
+  "description": "A message classified/labelled by the agent or a human. entity_id = provider message id (shared with email.received).",
+  "type": "object",
+  "required": ["event_type", "entity_id", "tenant_id", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "event_type": { "const": "email.triaged" },
+    "entity_id": { "type": "string", "minLength": 1, "description": "provider message id of the triaged message" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "expected_version": { "type": "integer", "minimum": 0 },
+    "payload": {
+      "type": "object",
+      "required": ["label", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "thread_id": { "type": "string", "description": "optional convenience copy of the message's thread" },
+        "label": { "type": "string", "enum": ["needs-reply", "fyi", "spam", "archive"], "description": "matches inbox_triage labels" },
+        "reason": { "type": "string" },
+        "by": { "type": "string", "enum": ["claude", "human"] },
+        "triaged_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

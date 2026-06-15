@@ -1,0 +1,11 @@
+{
+  "event_type": "email.archived",
+  "entity_id": "msg_0af31c8e",
+  "tenant_id": "tnt_founder",
+  "payload": {
+    "by": "claude",
+    "reason": "thread closed after reply",
+    "archived_at": "2026-06-14T10:05:00Z"
+  },
+  "metadata": {}
+}

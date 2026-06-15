@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://all-source.xyz/contracts/email-events/email.sent.schema.json",
+  "title": "email.sent",
+  "description": "Outbound email sent through the user's own mailbox. entity_id = provider message id of the sent message.",
+  "type": "object",
+  "required": ["event_type", "entity_id", "tenant_id", "payload", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "event_type": { "const": "email.sent" },
+    "entity_id": { "type": "string", "minLength": 1, "description": "provider message id of the sent message" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "expected_version": { "type": "integer", "minimum": 0 },
+    "payload": {
+      "type": "object",
+      "required": ["thread_id", "subject", "to", "snippet", "sent_at", "direction"],
+      "additionalProperties": false,
+      "properties": {
+        "thread_id": { "type": "string", "minLength": 1 },
+        "in_reply_to": { "type": ["string", "null"], "description": "message id being replied to; null for a new thread" },
+        "subject": { "type": "string" },
+        "to": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/emailAddress" } },
+        "cc": { "type": "array", "items": { "$ref": "#/$defs/emailAddress" } },
+        "bcc": { "type": "array", "items": { "$ref": "#/$defs/emailAddress" } },
+        "snippet": { "type": "string" },
+        "body": { "type": "string", "description": "full sent body, inline; optional in the event" },
+        "sent_at": { "type": "string", "format": "date-time" },
+        "direction": { "const": "outbound" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["provider", "grant_id", "draft_id"],
+      "additionalProperties": true,
+      "properties": {
+        "provider": { "type": "string" },
+        "grant_id": { "type": "string", "minLength": 1 },
+        "draft_id": { "type": "string", "minLength": 1, "description": "links back to the email.drafted entity_id" }
+      }
+    }
+  },
+  "$defs": {
+    "emailAddress": {
+      "type": "object",
+      "required": ["email"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" }
+      }
+    }
+  }
+}
