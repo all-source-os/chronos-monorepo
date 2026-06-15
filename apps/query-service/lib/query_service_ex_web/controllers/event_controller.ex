@@ -240,8 +240,10 @@ defmodule QueryServiceExWeb.EventController do
     tenant_id = get_tenant_id!(conn)
 
     case RustCoreClient.create_event_batch(tenant_id, events) do
-      {:ok, created_events} ->
-        # Record usage for all events in the batch
+      {:ok, result} ->
+        # Core returns %{"events" => [...], "ingested" => n, "total" => n}; extract
+        # the list before counting/wrapping (was: length/2 on the map → 500).
+        created_events = extract_created_events(result)
         event_count = length(created_events)
 
         record_event_usage(conn, event_count, %{
@@ -537,6 +539,12 @@ defmodule QueryServiceExWeb.EventController do
     do: Map.put(event, :metadata, metadata)
 
   defp maybe_put_metadata(event, _other), do: event
+
+  # Core's batch create returns %{"events" => [...], "ingested" => n, "total" => n}.
+  # Older/raw shapes may return a bare list. Normalize to the list of created events.
+  defp extract_created_events(%{"events" => events}) when is_list(events), do: events
+  defp extract_created_events(events) when is_list(events), do: events
+  defp extract_created_events(_), do: []
 
   defp wrap_stream(stream) when is_binary(stream) do
     links =

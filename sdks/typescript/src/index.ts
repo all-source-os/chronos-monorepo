@@ -8,6 +8,7 @@ export {
   CircuitOpenError,
   type AllSourceConfig,
   type CircuitBreakerConfig,
+  type CreatedEvent,
   type Event,
   type HealthResponse,
   type IngestEventInput,

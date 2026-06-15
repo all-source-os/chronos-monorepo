@@ -3,6 +3,7 @@ import { type EventFolder, foldEvents } from "./fold";
 import {
   type AllSourceConfig,
   AllSourceError,
+  type CreatedEvent,
   type Event,
   type HealthResponse,
   type IngestEventInput,
@@ -26,6 +27,22 @@ const DEFAULT_RETRY: RetryConfig = {
 };
 
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
+
+/** Raw create-ack as returned by the gateway (id keyed as `event_id`). */
+interface RawCreatedEvent {
+  event_id?: string;
+  id?: string;
+  timestamp: string;
+  version?: number;
+}
+
+function normalizeCreated(raw: RawCreatedEvent): CreatedEvent {
+  return {
+    id: raw.event_id ?? raw.id ?? "",
+    timestamp: raw.timestamp,
+    version: raw.version,
+  };
+}
 
 export class AllSourceClient {
   private readonly baseUrl: string;
@@ -57,32 +74,34 @@ export class AllSourceClient {
   /**
    * Ingest a single event into AllSource Core.
    *
-   * Returns the stored event (with its generated `id` and `timestamp`). The
-   * gateway wraps the event in a `{ data }` envelope; this unwraps it.
+   * Returns the created event's `id`, `timestamp` and `version`. The gateway
+   * wraps the ack in a `{ data }` envelope and keys the id as `event_id`; this
+   * unwraps and normalizes it to `id`.
    */
-  async ingestEvent(event: IngestEventInput): Promise<Event> {
-    const res = await this.request<{ data: Event }>(
+  async ingestEvent(event: IngestEventInput): Promise<CreatedEvent> {
+    const res = await this.request<{ data: RawCreatedEvent }>(
       "POST",
       "/api/v1/events",
       event,
     );
-    return res.data;
+    return normalizeCreated(res.data);
   }
 
   /**
    * Ingest a batch of events into AllSource Core.
    *
-   * Returns the stored events and how many were ingested.
+   * Returns how many were ingested and the created events
+   * (`id` / `timestamp` / `version`).
    */
   async ingestBatch(
     events: IngestEventInput[],
-  ): Promise<{ count: number; events: Event[] }> {
-    const res = await this.request<{ data: Event[]; count: number }>(
+  ): Promise<{ count: number; events: CreatedEvent[] }> {
+    const res = await this.request<{ data: RawCreatedEvent[]; count: number }>(
       "POST",
       "/api/v1/events/batch",
       { events },
     );
-    return { count: res.count, events: res.data };
+    return { count: res.count, events: (res.data ?? []).map(normalizeCreated) };
   }
 
   /** Query events with optional filters. */

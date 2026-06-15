@@ -85,19 +85,17 @@ describe("ingestEvent", () => {
       payload: { email: "test@example.com" },
       metadata: { source: "sdk-test" },
     };
-    // The gateway wraps the stored event in a `{ data }` envelope (EventResponse).
-    const storedEvent = {
-      id: "evt-1",
-      event_type: "user.signup",
-      entity_id: "user-123",
-      payload: { email: "test@example.com" },
-      metadata: { source: "sdk-test" },
+    // The gateway wraps the create ack in `{ data }` and keys the id as
+    // `event_id` (EventResponse); the SDK normalizes it to `id`.
+    const ack = {
+      event_id: "evt-1",
       timestamp: "2026-02-16T00:00:00Z",
+      version: 1,
     };
 
     mockFetch.mockImplementation(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ data: storedEvent }), { status: 201 }),
+        new Response(JSON.stringify({ data: ack }), { status: 201 }),
       ),
     );
 
@@ -105,13 +103,45 @@ describe("ingestEvent", () => {
 
     expect(result.id).toBe("evt-1");
     expect(result.timestamp).toBe("2026-02-16T00:00:00Z");
-    expect(result.entity_id).toBe("user-123");
+    expect(result.version).toBe(1);
 
     const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`${MOCK_BASE_URL}/api/v1/events`);
     expect(options.method).toBe("POST");
     expect((options.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
     expect(JSON.parse(options.body as string)).toEqual(event);
+  });
+});
+
+describe("ingestBatch", () => {
+  test("posts to /api/v1/events/batch and normalizes the created events", async () => {
+    const client = createClient();
+    const events = [
+      { event_type: "a", entity_id: "e1", payload: {} },
+      { event_type: "b", entity_id: "e2", payload: {} },
+    ];
+    // Gateway batch response: { data: [...acks], count }, acks keyed as event_id.
+    const body = {
+      data: [
+        { event_id: "evt-1", timestamp: "2026-02-16T00:00:00Z", version: 1 },
+        { event_id: "evt-2", timestamp: "2026-02-16T00:00:01Z", version: 2 },
+      ],
+      count: 2,
+    };
+
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(body), { status: 201 })),
+    );
+
+    const result = await client.ingestBatch(events);
+
+    expect(result.count).toBe(2);
+    expect(result.events.map((e) => e.id)).toEqual(["evt-1", "evt-2"]);
+
+    const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${MOCK_BASE_URL}/api/v1/events/batch`);
+    expect(options.method).toBe("POST");
+    expect(JSON.parse(options.body as string)).toEqual({ events });
   });
 });
 

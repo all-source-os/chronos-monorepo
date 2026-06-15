@@ -59,6 +59,20 @@ export interface Event {
   tenant_id?: string;
 }
 
+/**
+ * Acknowledgement for a created event, returned by `ingestEvent` and (per item)
+ * `ingestBatch`. The gateway keys the id as `event_id`; the SDK normalizes it
+ * to `id` for parity with queried events.
+ */
+export interface CreatedEvent {
+  /** The stored event's id. */
+  id: string;
+  /** Server-assigned timestamp (ISO 8601). */
+  timestamp: string;
+  /** Monotonic version assigned by Core, when provided. */
+  version?: number;
+}
+
 /** Query parameters for filtering events. */
 export interface QueryEventsParams {
   /** Filter by entity ID. */
