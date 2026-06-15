@@ -39,7 +39,7 @@ const INSTALL_COMMANDS: Record<SDK, { cmd: string; registry?: string }> = {
     cmd: "go get github.com/all-source-os/allsource-go@latest",
   },
   typescript: {
-    cmd: "bun add @allsource/client\n# or\nnpm install @allsource/client",
+    cmd: "bun add @allsourcedev/client\n# or\nnpm install @allsourcedev/client",
   },
   python: {
     cmd: "pip install allsource-client",
@@ -92,7 +92,7 @@ func main() {
     }
     fmt.Printf("Created event: %s\\n", resp.EventID)
 }`,
-  typescript: `import { AllSourceClient } from "@allsource/client";
+  typescript: `import { AllSourceClient } from "@allsourcedev/client";
 
 const client = new AllSourceClient({
   baseUrl: "http://localhost:3900",

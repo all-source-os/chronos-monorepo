@@ -21,9 +21,9 @@
 //     "Hosted" = the same binary + `--sync-to https://api.all-source.xyz
 //     --api-key <key>`. There is no hosted MCP transport URL.
 //   • crates.io publishes the Rust crates: allsource-prime (the MCP binary),
-//     allsource (Rust SDK), chronis (the `cn` CLI binary). TS / Python / Go
-//     SDKs are GitHub-registry ONLY — never print a fake `npm install
-//     @allsource/client` or `pip install`. Show the real GitHub channel.
+//     allsource (Rust SDK), chronis (the `cn` CLI binary). The TS SDK is on
+//     npm as `@allsourcedev/client`; Python / Go SDKs are GitHub-registry only
+//     — never print a fake `pip install`/`go get` from a registry.
 //   • The DXT for Claude Desktop ships via GitHub releases:
 //     github.com/all-source-os/all-source/releases/latest/download/allsource-prime.dxt
 //   • prime_* tool names are the REAL tool names from apps/prime-mcp/src.
@@ -238,8 +238,8 @@ const appNodes: EcosystemNode[] = [
       "Ingest + query from JS/TS, Python, or Go agents. Honest channel: install straight from the GitHub monorepo, not a public npm/PyPI package.",
     snippets: [
       {
-        label: "TypeScript (GitHub registry, via bun)",
-        code: "bun add github:all-source-os/all-source#main --filter @allsource/client",
+        label: "TypeScript (npm)",
+        code: "bun add @allsourcedev/client",
         lang: "bash",
       },
       {

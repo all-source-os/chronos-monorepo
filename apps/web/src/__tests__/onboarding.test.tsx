@@ -71,8 +71,8 @@ describe("Install commands match actual SDK packages", () => {
     ["rust", "cargo add allsource"],
     ["rust", 'allsource = "0.14"'],
     ["go", "go get github.com/all-source-os/allsource-go@latest"],
-    ["typescript", "bun add @allsource/client"],
-    ["typescript", "npm install @allsource/client"],
+    ["typescript", "bun add @allsourcedev/client"],
+    ["typescript", "npm install @allsourcedev/client"],
     ["python", "pip install allsource-client"],
   ])("%s install contains: %s", (sdk, expected) => {
     setSearchParams({ sdk, step: "2" });
@@ -114,7 +114,7 @@ describe("Send event snippets use correct SDK API", () => {
     setSearchParams({ sdk: "typescript", step: "3" });
     render(<OnboardingWizardPage />);
     const code = screen.getByTestId("send-event-snippet").textContent!;
-    expect(code).toContain('import { AllSourceClient } from "@allsource/client"');
+    expect(code).toContain('import { AllSourceClient } from "@allsourcedev/client"');
     expect(code).toContain("client.ingestEvent");
     expect(code).toContain("event_type:");
     expect(code).toContain("entity_id:");

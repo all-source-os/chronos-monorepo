@@ -58,7 +58,7 @@ For live dashboards, subscribe to the event stream via Phoenix Channels:
 
 ```javascript
 // Connect to the AllSource WebSocket
-const socket = new Phoenix.Socket("wss://allsource-query.fly.dev/socket");
+const socket = new Phoenix.Socket("wss://api.all-source.xyz/socket");
 socket.connect();
 
 const channel = socket.channel("events:all", {});

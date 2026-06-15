@@ -12,12 +12,16 @@ interface ApiKeyUsageProps {
 /**
  * "Using your key" block shown after an API key is generated. Surfaces the
  * API URL for non-SDK users and an SDK support matrix with install commands
- * for each language. Rust is marked stable; others are experimental and
- * distributed through the GitHub registry (not npm / PyPI / pkg.go.dev) per
- * the monorepo's publishing rules.
+ * for each language. Rust (crates.io) and TypeScript (npm `@allsourcedev/client`)
+ * are published to public registries; Go and Python remain experimental and are
+ * installed from GitHub.
  */
 export function ApiKeyUsage({ apiKey }: ApiKeyUsageProps) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.all-source.xyz";
+  // The branded public front door for external callers. Intentionally NOT
+  // NEXT_PUBLIC_API_URL — that may point at a raw/internal host (e.g. the
+  // allsource-query.fly.dev origin) for the dashboard's own fetches, which is
+  // not what users should copy into their SDKs/HTTP clients.
+  const apiUrl = "https://api.all-source.xyz";
   const keyPreview = apiKey.length > 28 ? `${apiKey.slice(0, 24)}...` : apiKey;
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
@@ -42,8 +46,9 @@ go get github.com/all-source-os/all-source/sdks/go`;
   const pythonSnippet = `# Python SDK is experimental — install from GitHub:
 pip install git+https://github.com/all-source-os/all-source.git#subdirectory=sdks/python-client`;
 
-  const tsSnippet = `# TypeScript SDK is experimental — install from GitHub:
-bun add github:all-source-os/all-source#workspace=@allsource/client`;
+  const tsSnippet = `# TypeScript SDK — install from npm:
+bun add @allsourcedev/client
+# or: npm install @allsourcedev/client`;
 
   return (
     <div className="space-y-4">
@@ -137,7 +142,20 @@ bun add github:all-source-os/all-source#workspace=@allsource/client`;
               code={tsSnippet}
               onCopy={() => copy(tsSnippet, "typescript")}
               copied={copiedField === "typescript"}
-              footer={<>API surface may change before 1.0. Pin to a specific commit or tag.</>}
+              footer={
+                <>
+                  Published on{" "}
+                  <a
+                    className="underline hover:text-foreground"
+                    href="https://www.npmjs.com/package/@allsourcedev/client"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    npm
+                  </a>
+                  . API surface may change before 1.0 — pin a version.
+                </>
+              }
             />
           </TabsContent>
 

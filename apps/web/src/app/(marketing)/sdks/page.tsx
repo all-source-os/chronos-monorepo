@@ -24,14 +24,14 @@ const sdks = [
   },
   {
     lang: "TypeScript",
-    crate: "@allsource/client",
-    version: "0.20.1",
-    install: "bun add github:all-source-os/all-source#main --filter @allsource/client",
-    badge: "GitHub",
-    badgeHref: "https://github.com/all-source-os/all-source/tree/main/sdks/typescript",
+    crate: "@allsourcedev/client",
+    version: "0.23.1",
+    install: "bun add @allsourcedev/client",
+    badge: "npm",
+    badgeHref: "https://www.npmjs.com/package/@allsourcedev/client",
     repoHref: "https://github.com/all-source-os/all-source/tree/main/sdks/typescript",
     blurb:
-      "Type-safe client for the public gateway. WebSocket streaming, projection subscriptions, and full TypeScript types for every event in your tenant. Distributed via the GitHub registry — install directly from the monorepo.",
+      "Type-safe client for the public gateway. WebSocket streaming, projection subscriptions, and full TypeScript types for every event in your tenant. Published on npm; ships compiled ESM + CJS with .d.ts types.",
   },
   {
     lang: "Python",
