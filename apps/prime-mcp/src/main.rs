@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use tracing_subscriber::EnvFilter;
 
 mod dispatch;
+mod email_ingester;
 mod hosted_dispatch;
 mod http;
 mod profiling;
@@ -315,6 +316,21 @@ async fn main() -> Result<()> {
             let sync_prime = Arc::clone(&prime);
             let sync_data_dir = data_dir.clone();
             tokio::spawn(sync::run_sync_loop(sync_prime, sync_config, sync_data_dir));
+
+            // Also pull email.* events from the same remote Core and fold them
+            // into the local graph as interaction nodes (P0 AI inbox).
+            let email_config = email_ingester::EmailIngestConfig {
+                remote_url: url.to_string(),
+                api_key: key.to_string(),
+                interval: std::time::Duration::from_millis(cli.sync_interval_ms),
+            };
+            let email_prime = Arc::clone(&prime);
+            let email_data_dir = data_dir.clone();
+            tokio::spawn(email_ingester::run_email_ingest_loop(
+                email_prime,
+                email_config,
+                email_data_dir,
+            ));
         }
         (Some(_), None) | (None, Some(_)) => {
             anyhow::bail!(
