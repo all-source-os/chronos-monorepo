@@ -177,6 +177,7 @@ type Container struct {
 	EarlyAdopterMigrationHandler *httphandlers.EarlyAdopterMigrationHandler
 	WebhookHandler               *httphandlers.WebhookHandler
 	EmailWebhookHandler          *httphandlers.EmailWebhookHandler
+	InboxConnectHandler          *httphandlers.InboxConnectHandler
 	AgentHandler                 *httphandlers.AgentHandler
 
 	// VerifyBillingConfigUC powers the boot-time billing config self-check.
@@ -448,9 +449,11 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	// Email inbox connector (P0): enabled only when both Core and a provider are
 	// configured. nil provider -> the handler returns 503. See emailprovider/nylas.
 	var emailProvider emailprovider.Provider
+	var nylasProvider *nylas.Provider
 	if cfg.CoreClient != nil {
 		if np, err := nylas.NewFromEnv(); err == nil {
 			emailProvider = np
+			nylasProvider = np
 		}
 	}
 	// Sealer decrypts per-grant records in Core config (P3a). nil when
@@ -460,6 +463,14 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		emailSealer = nil
 	}
 	emailWebhookHandler := httphandlers.NewEmailWebhookHandler(emailProvider, cfg.CoreClient, emailSealer)
+	// Inbox onboarding (P3b): hosted-OAuth connect flow. Enabled only with a
+	// hosted-auth-capable provider (NYLAS_CLIENT_ID set); otherwise 503.
+	var inboxConnectHandler *httphandlers.InboxConnectHandler
+	if nylasProvider != nil && nylasProvider.HasHostedAuth() {
+		inboxConnectHandler = httphandlers.NewInboxConnectHandler(nylasProvider, cfg.CoreClient, emailSealer, os.Getenv("NYLAS_REDIRECT_URI"))
+	} else {
+		inboxConnectHandler = httphandlers.NewInboxConnectHandler(nil, cfg.CoreClient, emailSealer, os.Getenv("NYLAS_REDIRECT_URI"))
+	}
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 
 	return &Container{
@@ -551,6 +562,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		EarlyAdopterMigrationHandler: earlyAdopterMigrationHandler,
 		WebhookHandler:               webhookHandler,
 		EmailWebhookHandler:          emailWebhookHandler,
+		InboxConnectHandler:          inboxConnectHandler,
 		AgentHandler:                 agentHandler,
 		VerifyBillingConfigUC:        verifyBillingConfigUC,
 		ProcessLSWebhookUC:           processLSWebhookUC,

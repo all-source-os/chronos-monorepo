@@ -69,6 +69,14 @@ type WebhookRegistration struct {
 	Secret      string
 }
 
+// Grant is a connected mailbox returned by the hosted-OAuth code exchange. ID is
+// the provider grant id; the OAuth tokens themselves stay with the provider.
+type Grant struct {
+	ID       string
+	Email    string
+	Provider string
+}
+
 // Provider is the provider-agnostic connector interface. Nylas is the first
 // implementation; a DIY Gmail/Graph path or a second bidirectional-sync vendor
 // are drop-ins behind the same interface.

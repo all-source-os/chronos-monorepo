@@ -572,6 +572,10 @@ func (cp *ControlPlane) setupRoutes() {
 	api.POST("/webhooks/lemonsqueezy", cp.container.WebhookHandler.LemonSqueezy)
 	api.POST("/webhooks/email", cp.container.EmailWebhookHandler.Email)
 	api.GET("/webhooks/email", cp.container.EmailWebhookHandler.EmailChallenge)
+	// Inbox onboarding (P3b): public OAuth redirect, authenticated by the sealed state.
+	api.GET("/webhooks/inbox/connect/callback", cp.container.InboxConnectHandler.Callback)
+	// Admin: start the hosted-OAuth mailbox connect flow (mints the sealed state).
+	api.GET("/admin/inbox/connect", RequirePermission(entities.PermissionManageTenants), cp.container.InboxConnectHandler.Start)
 
 	// Audit trail (Clean Architecture handlers)
 	api.GET("/audit", RequirePermission(entities.PermissionRead), cp.container.AuditHandler.Query)

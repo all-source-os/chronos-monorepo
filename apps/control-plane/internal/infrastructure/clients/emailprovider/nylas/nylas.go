@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -23,15 +24,19 @@ const defaultBaseURL = "https://api.us.nylas.com"
 
 // Config configures a Nylas Provider.
 type Config struct {
-	APIKey        string // Nylas application API key (Bearer)
+	APIKey        string // Nylas application API key (Bearer + hosted-auth client_secret)
 	BaseURL       string // region base, e.g. https://api.us.nylas.com or https://api.eu.nylas.com
 	WebhookSecret string // application webhook signing secret (HMAC-SHA256)
+	ClientID      string // Nylas application client id (hosted OAuth)
 }
 
 // Provider is a Nylas v3 implementation of emailprovider.Provider.
 type Provider struct {
 	client        *resty.Client
+	baseURL       string
+	apiKey        string
 	webhookSecret string
+	clientID      string
 }
 
 var _ emailprovider.Provider = (*Provider)(nil)
@@ -42,17 +47,24 @@ func New(cfg Config) *Provider {
 	if base == "" {
 		base = defaultBaseURL
 	}
+	base = strings.TrimRight(base, "/")
 	client := resty.New().
-		SetBaseURL(strings.TrimRight(base, "/")).
+		SetBaseURL(base).
 		SetAuthToken(cfg.APIKey).
 		SetHeader("Accept", "application/json").
 		SetHeader("Content-Type", "application/json").
 		SetTimeout(30 * time.Second)
-	return &Provider{client: client, webhookSecret: cfg.WebhookSecret}
+	return &Provider{
+		client:        client,
+		baseURL:       base,
+		apiKey:        cfg.APIKey,
+		webhookSecret: cfg.WebhookSecret,
+		clientID:      cfg.ClientID,
+	}
 }
 
-// NewFromEnv builds a Nylas Provider from NYLAS_API_KEY, NYLAS_API_URI and
-// NYLAS_WEBHOOK_SECRET.
+// NewFromEnv builds a Nylas Provider from NYLAS_API_KEY, NYLAS_API_URI,
+// NYLAS_WEBHOOK_SECRET and NYLAS_CLIENT_ID.
 func NewFromEnv() (*Provider, error) {
 	key := os.Getenv("NYLAS_API_KEY")
 	if key == "" {
@@ -62,8 +74,12 @@ func NewFromEnv() (*Provider, error) {
 		APIKey:        key,
 		BaseURL:       os.Getenv("NYLAS_API_URI"),
 		WebhookSecret: os.Getenv("NYLAS_WEBHOOK_SECRET"),
+		ClientID:      os.Getenv("NYLAS_CLIENT_ID"),
 	}), nil
 }
+
+// HasHostedAuth reports whether hosted OAuth is configured (client id present).
+func (p *Provider) HasHostedAuth() bool { return p.clientID != "" }
 
 // Name implements emailprovider.Provider.
 func (p *Provider) Name() string { return "nylas" }
@@ -284,4 +300,61 @@ func (p *Provider) VerifySignature(body []byte, signature string) bool {
 	mac.Write(body)
 	expected := hex.EncodeToString(mac.Sum(nil))
 	return hmac.Equal([]byte(expected), []byte(strings.TrimSpace(signature)))
+}
+
+// --- Hosted OAuth (grant onboarding, P3b) ---
+
+// AuthURL builds the Nylas v3 hosted-auth URL the user visits to connect a
+// mailbox. state is an opaque (sealed) token echoed back to the callback;
+// loginHint pre-fills the email and may be empty.
+func (p *Provider) AuthURL(redirectURI, state, loginHint string) (string, error) {
+	if p.clientID == "" {
+		return "", fmt.Errorf("nylas: NYLAS_CLIENT_ID not set; hosted auth unavailable")
+	}
+	q := url.Values{}
+	q.Set("client_id", p.clientID)
+	q.Set("redirect_uri", redirectURI)
+	q.Set("response_type", "code")
+	q.Set("access_type", "offline")
+	q.Set("state", state)
+	if loginHint != "" {
+		q.Set("login_hint", loginHint)
+	}
+	return fmt.Sprintf("%s/v3/connect/auth?%s", p.baseURL, q.Encode()), nil
+}
+
+type nylasTokenResp struct {
+	GrantID  string `json:"grant_id"`
+	Email    string `json:"email"`
+	Provider string `json:"provider"`
+}
+
+// ExchangeCode swaps an authorization code for a grant (the connected mailbox).
+// The API key is the client_secret in the v3 token exchange.
+func (p *Provider) ExchangeCode(ctx context.Context, code, redirectURI string) (*emailprovider.Grant, error) {
+	if p.clientID == "" {
+		return nil, fmt.Errorf("nylas: NYLAS_CLIENT_ID not set; hosted auth unavailable")
+	}
+	var out nylasTokenResp
+	resp, err := p.client.R().
+		SetContext(ctx).
+		SetBody(map[string]any{
+			"client_id":     p.clientID,
+			"client_secret": p.apiKey,
+			"grant_type":    "authorization_code",
+			"code":          code,
+			"redirect_uri":  redirectURI,
+		}).
+		SetResult(&out).
+		Post("/v3/connect/token")
+	if err != nil {
+		return nil, fmt.Errorf("nylas: exchange code: %w", err)
+	}
+	if resp.IsError() {
+		return nil, fmt.Errorf("nylas: exchange code: status %d", resp.StatusCode())
+	}
+	if out.GrantID == "" {
+		return nil, fmt.Errorf("nylas: exchange code: no grant_id in response")
+	}
+	return &emailprovider.Grant{ID: out.GrantID, Email: out.Email, Provider: out.Provider}, nil
 }
