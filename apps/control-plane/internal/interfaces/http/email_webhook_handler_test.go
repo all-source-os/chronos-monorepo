@@ -12,6 +12,7 @@ import (
 
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider"
+	"github.com/allsource/control-plane/internal/infrastructure/secrets"
 )
 
 type fakeProvider struct {
@@ -90,7 +91,7 @@ func sampleMessage() *emailprovider.Message {
 }
 
 func TestEmail_NotConfigured(t *testing.T) {
-	h := NewEmailWebhookHandler(nil, &fakeCore{})
+	h := NewEmailWebhookHandler(nil, &fakeCore{}, nil)
 	w := serve(h, http.MethodPost, "/api/v1/webhooks/email", createNote("g1", "msg1"), "sig")
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("want 503, got %d", w.Code)
@@ -98,7 +99,7 @@ func TestEmail_NotConfigured(t *testing.T) {
 }
 
 func TestEmail_InvalidSignature(t *testing.T) {
-	h := NewEmailWebhookHandler(&fakeProvider{verify: false}, &fakeCore{tenant: "tnt1"})
+	h := NewEmailWebhookHandler(&fakeProvider{verify: false}, &fakeCore{tenant: "tnt1"}, nil)
 	w := serve(h, http.MethodPost, "/api/v1/webhooks/email", createNote("g1", "msg1"), "bad")
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", w.Code)
@@ -106,7 +107,7 @@ func TestEmail_InvalidSignature(t *testing.T) {
 }
 
 func TestEmail_Challenge(t *testing.T) {
-	h := NewEmailWebhookHandler(&fakeProvider{verify: true}, &fakeCore{})
+	h := NewEmailWebhookHandler(&fakeProvider{verify: true}, &fakeCore{}, nil)
 	w := serve(h, http.MethodGet, "/api/v1/webhooks/email?challenge=abc123", nil, "")
 	if w.Code != http.StatusOK || w.Body.String() != "abc123" {
 		t.Fatalf("want 200/abc123, got %d/%q", w.Code, w.Body.String())
@@ -115,7 +116,7 @@ func TestEmail_Challenge(t *testing.T) {
 
 func TestEmail_IgnoresNonCreated(t *testing.T) {
 	core := &fakeCore{tenant: "tnt1"}
-	h := NewEmailWebhookHandler(&fakeProvider{verify: true}, core)
+	h := NewEmailWebhookHandler(&fakeProvider{verify: true}, core, nil)
 	body := []byte(`{"type":"message.updated","data":{"object":{"id":"x","grant_id":"g1"}}}`)
 	w := serve(h, http.MethodPost, "/api/v1/webhooks/email", body, "sig")
 	if w.Code != http.StatusOK {
@@ -128,7 +129,7 @@ func TestEmail_IgnoresNonCreated(t *testing.T) {
 
 func TestEmail_UnknownGrant(t *testing.T) {
 	core := &fakeCore{tenant: ""} // no config -> unknown grant
-	h := NewEmailWebhookHandler(&fakeProvider{verify: true, msg: sampleMessage()}, core)
+	h := NewEmailWebhookHandler(&fakeProvider{verify: true, msg: sampleMessage()}, core, nil)
 	w := serve(h, http.MethodPost, "/api/v1/webhooks/email", createNote("g1", "msg1"), "sig")
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", w.Code)
@@ -140,7 +141,7 @@ func TestEmail_UnknownGrant(t *testing.T) {
 
 func TestEmail_HappyPath(t *testing.T) {
 	core := &fakeCore{tenant: "tnt1"}
-	h := NewEmailWebhookHandler(&fakeProvider{verify: true, msg: sampleMessage()}, core)
+	h := NewEmailWebhookHandler(&fakeProvider{verify: true, msg: sampleMessage()}, core, nil)
 	w := serve(h, http.MethodPost, "/api/v1/webhooks/email", createNote("g1", "msg1"), "sig")
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
@@ -165,12 +166,37 @@ func TestEmail_HappyPath(t *testing.T) {
 
 func TestEmail_DuplicateIsIdempotent(t *testing.T) {
 	core := &fakeCore{tenant: "tnt1", ingestErr: clients.ErrVersionConflict}
-	h := NewEmailWebhookHandler(&fakeProvider{verify: true, msg: sampleMessage()}, core)
+	h := NewEmailWebhookHandler(&fakeProvider{verify: true, msg: sampleMessage()}, core, nil)
 	w := serve(h, http.MethodPost, "/api/v1/webhooks/email", createNote("g1", "msg1"), "sig")
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200 on duplicate, got %d", w.Code)
 	}
 	if !bytes.Contains(w.Body.Bytes(), []byte("duplicate")) {
 		t.Errorf("want duplicate status, got %s", w.Body.String())
+	}
+}
+
+// TestEmail_SealedGrantResolves proves the P3a path: a sealed per-grant record
+// in Core config is decrypted to the tenant before ingest.
+func TestEmail_SealedGrantResolves(t *testing.T) {
+	sealer, err := secrets.NewSealer(make([]byte, 32))
+	if err != nil {
+		t.Fatalf("NewSealer: %v", err)
+	}
+	token, err := sealer.Seal([]byte(`{"tenant_id":"tnt-sealed","grant_id":"g1"}`))
+	if err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
+	core := &fakeCore{tenant: token} // GetConfig returns the sealed token as the value
+	h := NewEmailWebhookHandler(&fakeProvider{verify: true, msg: sampleMessage()}, core, sealer)
+	w := serve(h, http.MethodPost, "/api/v1/webhooks/email", createNote("g1", "msg1"), "sig")
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if !core.ingested {
+		t.Fatal("expected ingest after sealed grant resolved")
+	}
+	if core.ingest.TenantID != "tnt-sealed" {
+		t.Errorf("tenant not decrypted from sealed record: got %q", core.ingest.TenantID)
 	}
 }

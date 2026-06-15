@@ -11,6 +11,7 @@ import (
 
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider"
+	"github.com/allsource/control-plane/internal/infrastructure/secrets"
 )
 
 // coreGateway is the narrow slice of the Core client the email webhook needs.
@@ -26,12 +27,16 @@ type coreGateway interface {
 type EmailWebhookHandler struct {
 	provider emailprovider.Provider
 	core     coreGateway
+	// sealer decrypts the per-grant record stored in Core config. nil keeps the
+	// legacy plaintext path working during migration (P3a).
+	sealer *secrets.Sealer
 }
 
 // NewEmailWebhookHandler builds the handler. provider may be nil when the email
 // connector is not configured (no NYLAS_API_KEY); the handler then returns 503.
-func NewEmailWebhookHandler(provider emailprovider.Provider, core coreGateway) *EmailWebhookHandler {
-	return &EmailWebhookHandler{provider: provider, core: core}
+// sealer may be nil when CONNECTOR_SECRET_KEY is unset (legacy plaintext only).
+func NewEmailWebhookHandler(provider emailprovider.Provider, core coreGateway, sealer *secrets.Sealer) *EmailWebhookHandler {
+	return &EmailWebhookHandler{provider: provider, core: core, sealer: sealer}
 }
 
 // grantConfigKey maps a provider grant id to the Core config key holding its
@@ -147,8 +152,11 @@ func (h *EmailWebhookHandler) Email(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ingested"})
 }
 
-// resolveTenant reads the tenant id Core config keyed by the grant. Returns ""
-// when the grant is unknown or unreadable.
+// resolveTenant reads the tenant id from the per-grant record in Core config.
+// The record is a sealed JSON blob ({tenant_id, grant_id, ...}); when a sealer
+// is configured it is decrypted first. A non-sealed (legacy plaintext) value is
+// accepted during migration. Returns "" when the grant is unknown or the sealed
+// value cannot be opened (fail closed).
 func (h *EmailWebhookHandler) resolveTenant(ctx context.Context, grantID string) string {
 	cfg, err := h.core.GetConfig(ctx, grantConfigKey(grantID))
 	if err != nil || cfg == nil {
@@ -156,6 +164,23 @@ func (h *EmailWebhookHandler) resolveTenant(ctx context.Context, grantID string)
 	}
 	switch v := cfg.Value.(type) {
 	case string:
+		if h.sealer != nil {
+			plain, err := h.sealer.Open(v)
+			switch {
+			case err == nil:
+				var rec struct {
+					TenantID string `json:"tenant_id"`
+				}
+				if json.Unmarshal(plain, &rec) == nil {
+					return rec.TenantID
+				}
+				return ""
+			case errors.Is(err, secrets.ErrNotSealed):
+				// legacy plaintext tenant id — fall through
+			default:
+				return "" // sealed but undecryptable: fail closed
+			}
+		}
 		return v
 	case map[string]any:
 		if t, ok := v["tenant_id"].(string); ok {

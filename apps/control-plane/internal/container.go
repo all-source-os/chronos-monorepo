@@ -14,6 +14,7 @@ import (
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider/nylas"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
+	"github.com/allsource/control-plane/internal/infrastructure/secrets"
 	httphandlers "github.com/allsource/control-plane/internal/interfaces/http"
 )
 
@@ -452,7 +453,13 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 			emailProvider = np
 		}
 	}
-	emailWebhookHandler := httphandlers.NewEmailWebhookHandler(emailProvider, cfg.CoreClient)
+	// Sealer decrypts per-grant records in Core config (P3a). nil when
+	// CONNECTOR_SECRET_KEY is unset (legacy plaintext path during migration).
+	emailSealer, err := secrets.NewSealerFromEnv()
+	if err != nil {
+		emailSealer = nil
+	}
+	emailWebhookHandler := httphandlers.NewEmailWebhookHandler(emailProvider, cfg.CoreClient, emailSealer)
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 
 	return &Container{
