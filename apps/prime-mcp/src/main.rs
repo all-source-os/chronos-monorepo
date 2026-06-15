@@ -17,6 +17,7 @@ use clap::Parser;
 use std::path::{Path, PathBuf};
 use tracing_subscriber::EnvFilter;
 
+mod core_writer;
 mod dispatch;
 mod email_ingester;
 mod hosted_dispatch;
@@ -308,6 +309,8 @@ async fn main() -> Result<()> {
                 enabled: true,
                 remote_url: Some(url.to_string()),
             });
+            // Give tool handlers (inbox_draft) a writer to the remote Core.
+            core_writer::set_core_writer(url, key);
             let sync_config = sync::SyncConfig {
                 remote_url: url.to_string(),
                 api_key: key.to_string(),

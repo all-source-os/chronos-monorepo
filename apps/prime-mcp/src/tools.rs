@@ -315,6 +315,35 @@ pub fn tool_definitions() -> Value {
                 },
                 "required": ["name"]
             }
+        },
+        // ─── AI Inbox ──────────────────────────────────────────────────
+        {
+            "name": "inbox_recall_thread",
+            "description": "Ground a reply in real history: return an email thread's interaction nodes (in/outbound messages) plus each one's graph neighbors (the people it involves). Pass the conversation_id (== an interaction node's conversation_id / a thread node's conversation_id). Read-only.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "conversation_id": { "type": "string", "description": "Thread / conversation id shared by the email's interaction nodes." }
+                },
+                "required": ["conversation_id"]
+            }
+        },
+        {
+            "name": "inbox_draft",
+            "description": "Persist a reviewed reply draft as a durable email.drafted event in Core (never auto-sends). Compose the body yourself — ground it first with inbox_recall_thread. Returns a draft_id for a later send. Requires sync enabled (--sync-to/--api-key).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": { "type": "string", "description": "Conversation id the draft replies into." },
+                    "body": { "type": "string", "description": "The drafted reply text." },
+                    "intent": { "type": "string", "description": "Short description of what the reply is meant to do." },
+                    "in_reply_to": { "type": "string", "description": "Optional provider message id being replied to." },
+                    "subject": { "type": "string", "description": "Optional subject (inherits the thread otherwise)." },
+                    "to": { "type": "array", "description": "Optional recipients [{name?, email}]." },
+                    "by": { "type": "string", "enum": ["claude", "human"], "description": "Who composed it (default claude)." }
+                },
+                "required": ["thread_id", "body", "intent"]
+            }
         }
     ])
 }
@@ -341,6 +370,8 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
         "prime_list_projections" => call_list_projections(),
         "prime_project_node" => call_project_node(prime, args).await,
         "prime_node_provenance" => call_node_provenance(prime, args).await,
+        "inbox_recall_thread" => call_inbox_recall_thread(prime, args),
+        "inbox_draft" => call_inbox_draft(args).await,
         _ => tool_error(&format!("Unknown tool: {name}")),
     }
 }
@@ -553,6 +584,122 @@ fn tool_error(msg: &str) -> Value {
             "text": msg
         }]
     })
+}
+
+// ─── AI Inbox tools ────────────────────────────────────────────────────
+
+/// `node:{type}:{id}` entity id for a graph node.
+fn node_eid(node_type: &str, id: &str) -> String {
+    allsource_core::prime::EntityId::node(node_type, id).to_string()
+}
+
+/// inbox_recall_thread: a thread's interaction nodes + each one's neighbors.
+fn call_inbox_recall_thread(prime: &Prime, args: &Value) -> Value {
+    let Some(conversation_id) = args.get("conversation_id").and_then(Value::as_str) else {
+        return tool_error("missing 'conversation_id'");
+    };
+
+    let thread = prime.nodes_by_type("thread").into_iter().find(|n| {
+        n.properties.get("conversation_id").and_then(Value::as_str) == Some(conversation_id)
+    });
+
+    let mut interactions = Vec::new();
+    for n in prime.nodes_by_type("interaction") {
+        if n.properties.get("conversation_id").and_then(Value::as_str) != Some(conversation_id) {
+            continue;
+        }
+        let eid = node_eid(&n.node_type, n.id.as_str());
+        let neighbors: Vec<Value> = prime
+            .neighbors(&eid, None, allsource_core::prime::Direction::Both)
+            .iter()
+            .map(|nb| {
+                json!({
+                    "id": node_eid(&nb.node_type, nb.id.as_str()),
+                    "type": nb.node_type,
+                    "properties": nb.properties,
+                })
+            })
+            .collect();
+        interactions.push(json!({
+            "id": eid,
+            "message_id": n.properties.get("message_id"),
+            "direction": n.properties.get("direction"),
+            "subject": n.properties.get("subject"),
+            "snippet": n.properties.get("snippet"),
+            "from": n.properties.get("from"),
+            "to": n.properties.get("to"),
+            "at": n.properties.get("at"),
+            "neighbors": neighbors,
+        }));
+    }
+
+    let thread_json = thread.map(
+        |t| json!({ "id": node_eid(&t.node_type, t.id.as_str()), "properties": t.properties }),
+    );
+
+    tool_result(json!({
+        "conversation_id": conversation_id,
+        "thread": thread_json,
+        "count": interactions.len(),
+        "interactions": interactions,
+    }))
+}
+
+/// Build an `email.drafted` (entity_id = draft_id, payload, metadata) from tool
+/// args. Pure + testable; the remote write is separate. Requires thread_id,
+/// body, intent (see docs/contracts/email-events/schema/email.drafted.schema.json).
+fn build_drafted_event(args: &Value) -> Result<(String, Value, Value), String> {
+    let thread_id = args
+        .get("thread_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "missing 'thread_id'".to_string())?;
+    let body = args
+        .get("body")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "missing 'body'".to_string())?;
+    let intent = args
+        .get("intent")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "missing 'intent'".to_string())?;
+    let by = match args.get("by").and_then(Value::as_str) {
+        Some("human") => "human",
+        _ => "claude",
+    };
+
+    let draft_id = format!("draft_{}", uuid::Uuid::new_v4());
+    let mut payload = json!({
+        "thread_id": thread_id,
+        "body": body,
+        "intent": intent,
+        "by": by,
+        "drafted_at": chrono::Utc::now().to_rfc3339(),
+    });
+    for key in ["in_reply_to", "subject", "to"] {
+        if let Some(v) = args.get(key) {
+            payload[key] = v.clone();
+        }
+    }
+    let metadata = json!({ "draft_id": draft_id });
+    Ok((draft_id, payload, metadata))
+}
+
+/// inbox_draft: persist a reviewed reply as a durable email.drafted Core event.
+async fn call_inbox_draft(args: &Value) -> Value {
+    let (draft_id, payload, metadata) = match build_drafted_event(args) {
+        Ok(t) => t,
+        Err(e) => return tool_error(&e),
+    };
+    if !crate::core_writer::is_configured() {
+        return tool_error(
+            "inbox_draft needs remote sync: start the server with --sync-to and --api-key",
+        );
+    }
+    match crate::core_writer::ingest_event("email.drafted", &draft_id, &payload, &metadata).await {
+        Ok(event_id) => {
+            tool_result(json!({ "draft_id": draft_id, "event_id": event_id, "status": "drafted" }))
+        }
+        Err(e) => tool_error(&format!("failed to write draft: {e}")),
+    }
 }
 
 async fn call_add_node(prime: &Prime, args: &Value) -> Value {
@@ -1170,6 +1317,88 @@ mod tests {
         assert_eq!(result["isError"], json!(true));
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("unknown policy"));
+    }
+
+    #[tokio::test]
+    async fn inbox_recall_thread_returns_interactions_and_neighbors() {
+        let prime = Prime::open_in_memory().await.unwrap();
+        let payload = json!({
+            "thread_id": "th1", "subject": "Re: Q3", "snippet": "hi",
+            "from": { "name": "Dana", "email": "dana@acme.com" },
+            "to": [{ "email": "me@all-source.xyz" }],
+            "received_at": "2026-06-14T09:12:00Z"
+        });
+        crate::email_ingester::ingest_email_event(
+            &prime,
+            "email.received",
+            "m1",
+            "tnt1",
+            &payload,
+            crate::email_ingester::IngestOpts { embed: false },
+        )
+        .await
+        .unwrap();
+
+        let result = call_inbox_recall_thread(&prime, &json!({ "conversation_id": "th1" }));
+        assert_ne!(result.get("isError"), Some(&json!(true)));
+        let parsed: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(parsed["count"], json!(1));
+        assert_eq!(parsed["interactions"][0]["message_id"], json!("m1"));
+        assert_eq!(
+            parsed["thread"]["properties"]["conversation_id"],
+            json!("th1")
+        );
+        // neighbors include the thread + the people (from + to)
+        assert!(
+            parsed["interactions"][0]["neighbors"]
+                .as_array()
+                .unwrap()
+                .len()
+                >= 2
+        );
+    }
+
+    #[tokio::test]
+    async fn inbox_recall_thread_missing_arg_errors() {
+        let prime = Prime::open_in_memory().await.unwrap();
+        let result = call_inbox_recall_thread(&prime, &json!({}));
+        assert_eq!(result["isError"], json!(true));
+    }
+
+    #[test]
+    fn build_drafted_event_builds_contract_payload() {
+        let (draft_id, payload, metadata) = build_drafted_event(
+            &json!({ "thread_id": "th1", "body": "thanks", "intent": "accept renewal" }),
+        )
+        .unwrap();
+        assert!(draft_id.starts_with("draft_"));
+        assert_eq!(payload["thread_id"], json!("th1"));
+        assert_eq!(payload["body"], json!("thanks"));
+        assert_eq!(payload["intent"], json!("accept renewal"));
+        assert_eq!(payload["by"], json!("claude"));
+        assert!(payload["drafted_at"].is_string());
+        assert_eq!(metadata["draft_id"], json!(draft_id));
+    }
+
+    #[test]
+    fn build_drafted_event_requires_body() {
+        let err = build_drafted_event(&json!({ "thread_id": "t", "intent": "x" })).unwrap_err();
+        assert!(err.contains("body"));
+    }
+
+    #[tokio::test]
+    async fn inbox_draft_without_sync_errors() {
+        // No core_writer configured in tests -> the guard returns an error.
+        let result =
+            call_inbox_draft(&json!({ "thread_id": "t", "body": "b", "intent": "i" })).await;
+        assert_eq!(result["isError"], json!(true));
+        assert!(
+            result["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("sync")
+        );
     }
 
     #[tokio::test]
