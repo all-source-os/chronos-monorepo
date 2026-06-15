@@ -109,3 +109,6 @@ tasks
 /mix.lock
 .claude/skills/
 .gstack/
+
+# npm auth tokens — never commit
+.npmrc
