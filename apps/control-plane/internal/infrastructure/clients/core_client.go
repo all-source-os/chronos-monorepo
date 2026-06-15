@@ -3,6 +3,7 @@ package clients
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,6 +14,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// ErrVersionConflict is returned by IngestEvent when Core rejects a write with
+// 409 because the entity's current version does not match ExpectedVersion. The
+// email inbox connector treats it as an idempotent duplicate (first-ingest
+// dedupe, see docs/contracts/email-events §Dedupe).
+var ErrVersionConflict = errors.New("core: version conflict")
 
 // CoreClient defines typed methods for communicating with the Core service (Rust, port 3900).
 type CoreClient interface {
@@ -116,6 +123,11 @@ type IngestEventRequest struct {
 	EntityID  string         `json:"entity_id"`
 	Payload   map[string]any `json:"payload,omitempty"`
 	TenantID  string         `json:"tenant_id,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+	// ExpectedVersion enables optimistic-concurrency dedupe: when set, Core
+	// rejects the write with 409 unless the entity's current version matches
+	// (a replayed first event -> ErrVersionConflict). Pointer so 0 is sendable.
+	ExpectedVersion *uint64 `json:"expected_version,omitempty"`
 }
 
 // IngestEventResponse is the response from ingesting an event.
@@ -768,6 +780,10 @@ func (c *coreClient) IngestEvent(ctx context.Context, req IngestEventRequest) (*
 		SetResult(&result).
 		Post("/api/v1/events")
 
+	if err == nil && resp != nil && resp.StatusCode() == http.StatusConflict {
+		span.SetAttributes(attribute.Int("http.status_code", resp.StatusCode()))
+		return nil, ErrVersionConflict
+	}
 	if err := c.handleError(span, resp, err); err != nil {
 		return nil, err
 	}

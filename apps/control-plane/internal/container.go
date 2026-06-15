@@ -11,6 +11,8 @@ import (
 	"github.com/allsource/control-plane/internal/application/usecases/billing"
 	"github.com/allsource/control-plane/internal/domain/repositories"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
+	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider"
+	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider/nylas"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 	httphandlers "github.com/allsource/control-plane/internal/interfaces/http"
 )
@@ -173,6 +175,7 @@ type Container struct {
 	BillingConfigHandler         *httphandlers.BillingConfigHandler
 	EarlyAdopterMigrationHandler *httphandlers.EarlyAdopterMigrationHandler
 	WebhookHandler               *httphandlers.WebhookHandler
+	EmailWebhookHandler          *httphandlers.EmailWebhookHandler
 	AgentHandler                 *httphandlers.AgentHandler
 
 	// VerifyBillingConfigUC powers the boot-time billing config self-check.
@@ -441,6 +444,15 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	billingConfigHandler := httphandlers.NewBillingConfigHandler(verifyBillingConfigUC)
 	earlyAdopterMigrationHandler := httphandlers.NewEarlyAdopterMigrationHandler(migrateEarlyAdoptersUC)
 	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC)
+	// Email inbox connector (P0): enabled only when both Core and a provider are
+	// configured. nil provider -> the handler returns 503. See emailprovider/nylas.
+	var emailProvider emailprovider.Provider
+	if cfg.CoreClient != nil {
+		if np, err := nylas.NewFromEnv(); err == nil {
+			emailProvider = np
+		}
+	}
+	emailWebhookHandler := httphandlers.NewEmailWebhookHandler(emailProvider, cfg.CoreClient)
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 
 	return &Container{
@@ -531,6 +543,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		BillingConfigHandler:         billingConfigHandler,
 		EarlyAdopterMigrationHandler: earlyAdopterMigrationHandler,
 		WebhookHandler:               webhookHandler,
+		EmailWebhookHandler:          emailWebhookHandler,
 		AgentHandler:                 agentHandler,
 		VerifyBillingConfigUC:        verifyBillingConfigUC,
 		ProcessLSWebhookUC:           processLSWebhookUC,

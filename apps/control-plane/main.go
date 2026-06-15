@@ -570,6 +570,8 @@ func (cp *ControlPlane) setupRoutes() {
 
 	// Webhooks (public — no JWT auth, signature verification instead)
 	api.POST("/webhooks/lemonsqueezy", cp.container.WebhookHandler.LemonSqueezy)
+	api.POST("/webhooks/email", cp.container.EmailWebhookHandler.Email)
+	api.GET("/webhooks/email", cp.container.EmailWebhookHandler.EmailChallenge)
 
 	// Audit trail (Clean Architecture handlers)
 	api.GET("/audit", RequirePermission(entities.PermissionRead), cp.container.AuditHandler.Query)
