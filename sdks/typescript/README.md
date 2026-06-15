@@ -1,4 +1,4 @@
-# @allsource/client
+# @allsourcedev/client
 
 TypeScript/JavaScript client for the [AllSource](https://all-source.xyz) event store API.
 
@@ -9,26 +9,17 @@ runtime dependencies (uses the global `fetch`).
 ## Installation
 
 ```bash
-npm install @allsource/client
+npm install @allsourcedev/client
 # or
-bun add @allsource/client
+bun add @allsourcedev/client
 # or
-pnpm add @allsource/client
+pnpm add @allsourcedev/client
 ```
 
-> **Installing before the package is published / from the monorepo.**
-> `@allsource/client` lives in the `chronos-monorepo` repo under
-> `sdks/typescript`. Git installers (`bun add github:…#path:…`,
-> `npm i user/repo`) **cannot** install a sub-directory of a monorepo — that's
-> why `#workspace=@allsource/client` and `#path:sdks/typescript` 404. Until the
-> npm release is live, install the packed tarball from a GitHub Release:
->
-> ```bash
-> bun add https://github.com/all-source-os/all-source/releases/download/sdk-ts-v0.23.0/allsource-client-0.23.0.tgz
-> ```
->
-> (or `npm install <same-url>`). The tarball ships prebuilt `dist/`, so no build
-> step is required on the consumer side.
+> **Why not a git install?** `@allsourcedev/client` lives in the `all-source`
+> monorepo under `sdks/typescript`. Git installers can't pull a sub-directory of
+> a monorepo — that's why `bun add github:…#workspace=@allsourcedev/client` and
+> `#path:sdks/typescript` return 404. Install from the npm registry (above).
 
 ## Authentication
 
@@ -40,7 +31,7 @@ to the constructor.
 Store the key in an env var rather than hard-coding it:
 
 ```typescript
-import { AllSourceClient } from "@allsource/client";
+import { AllSourceClient } from "@allsourcedev/client";
 
 const client = new AllSourceClient({
   baseUrl: "https://allsource-query.fly.dev", // your Query Service URL
@@ -53,7 +44,7 @@ The tenant is taken from the key — there is no separate tenant argument.
 ## Quick Start
 
 ```typescript
-import { AllSourceClient } from "@allsource/client";
+import { AllSourceClient } from "@allsourcedev/client";
 
 const client = new AllSourceClient({
   baseUrl: "https://allsource-query.fly.dev",
@@ -153,7 +144,7 @@ network errors) and a circuit breaker. Both are configurable via the constructor
 API errors throw `AllSourceError` with `status` and `body`:
 
 ```typescript
-import { AllSourceClient, AllSourceError } from "@allsource/client";
+import { AllSourceClient, AllSourceError } from "@allsourcedev/client";
 
 try {
   await client.ingestEvent({ /* … */ });
