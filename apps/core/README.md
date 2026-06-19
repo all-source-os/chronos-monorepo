@@ -96,7 +96,7 @@ tooling/
 
 The database. Source of truth for all event data.
 
-- 469K events/sec ingestion, 11.9us query latency
+- 469K events/sec ingestion, 11.9µs query latency — reproduce with `cargo run --release -p allsource-performance` (494K on M2 Max)
 - WAL (CRC32, fsync) + Parquet (Snappy) + DashMap for durability and speed
 - **v0.10.4+**: persistence wiring fix — env vars now correctly configure WAL+Parquet on startup
 - Leader-follower replication via WAL shipping ([design](docs/proposals/CORE_REPLICATION_DESIGN.md))

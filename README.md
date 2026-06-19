@@ -87,6 +87,38 @@ tooling/
 
 ---
 
+## Benchmarks
+
+The performance numbers are reproducible — don't take the figure on faith, run the harness:
+
+```bash
+cargo run --release -p allsource-performance
+```
+
+It drives the hot paths of Core's ingestion pipeline (SIMD JSON parsing, lock-free
+queues, the sharded batch processor, arena allocation, SIMD filtering) plus a
+concurrent end-to-end pipeline, and asserts minimum throughput targets so
+regressions fail loudly. Representative output on an **Apple M2 Max (12 cores),
+`--release`**:
+
+| Stage | Throughput |
+|---|---|
+| **Event ingestion** (batch processor) | **494K events/sec** |
+| End-to-end pipeline (4 threads, concurrent) | 948K events/sec |
+| Sustained ingestion (2 s wall) | 381K events/sec |
+| SIMD JSON parsing | 1.09M docs/sec · 149 MB/s |
+| Lock-free queue (push) | 72M events/sec |
+| SIMD event filtering | 9.1M events/sec |
+| Arena allocation | 28.8M allocs/sec |
+
+The headline **469K events/sec** is the batch-processor ingestion path; this run
+measured **494K** on M2 Max. Numbers are hardware-dependent and `--release` is
+mandatory — debug builds run 10–20× slower. Harness:
+[`tooling/performance/src/main.rs`](tooling/performance/src/main.rs). Query latency
+(11.9 µs reads via DashMap) and methodology: [PERFORMANCE.md](docs/current/PERFORMANCE.md).
+
+---
+
 ## Agent Memory (Prime)
 
 AllSource Prime is a unified agent memory engine — knowledge graph + vector search + compressed index in one binary.
@@ -153,7 +185,7 @@ See [zer0dex comparison](docs/articles/zer0dex-comparison.md) for how Prime's au
 
 The database. Source of truth for all event data.
 
-- 469K events/sec ingestion, 11.9us query latency
+- 469K events/sec ingestion, 11.9µs query latency — [reproduce →](#benchmarks)
 - WAL (CRC32, fsync) + Parquet (Snappy) + DashMap for durability and speed
 - **v0.10.4+**: persistence wiring fix — env vars now correctly configure WAL+Parquet on startup
 - Leader-follower replication via WAL shipping *(enterprise)* ([design](docs/proposals/CORE_REPLICATION_DESIGN.md))

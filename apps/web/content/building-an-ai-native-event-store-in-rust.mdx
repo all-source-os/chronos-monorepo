@@ -1,0 +1,73 @@
+---
+title: "Building an AI-native event store in Rust"
+publishedAt: "2026-06-19"
+summary: Why we built AllSource — a durable event store in Rust with a native MCP interface and a built-in agent-memory engine — how the WAL + Parquet + DashMap design works, and a benchmark harness you can run yourself.
+author: "all.source team"
+category: "engineering"
+---
+
+Most "AI infrastructure" is a thin wrapper around a vector database and a prompt. We wanted the opposite: a real database — durable, append-only, queryable through time — that happens to speak the language agents already use. So we built [AllSource](https://github.com/all-source-os/all-source), an event store written in Rust, and made the agent interface a first-class citizen instead of an afterthought.
+
+This post is the honest version: what it is, how it's built, what it measures on real hardware, and where the edges are.
+
+## Why an event store, and why Rust
+
+An event store keeps the *facts* — an append-only log of everything that happened — and derives current state by folding those facts. You get an audit trail for free, time-travel queries ("what did this entity look like last Tuesday?"), and the ability to rebuild any projection by replaying history. For systems where *how you got here* matters — finance, agent memory, anything you'll later have to explain — that's not a nice-to-have.
+
+The reason to write it in Rust isn't a benchmark flex. It's that an event store is exactly the kind of system where you want no GC pauses on the write path, predictable tail latency, and a memory model you can reason about under concurrency. Rust lets the ingestion pipeline be lock-free and zero-copy where it counts without giving up safety.
+
+## The architecture: Core *is* the database
+
+A recurring mistake we wanted to avoid: bolting an event store onto Postgres and inheriting its write amplification. In AllSource, **Core is the database**. There is no relational store in the event path. Three layers do the work:
+
+- **WAL (write-ahead log)** — every event is appended with a CRC32 checksum and an `fsync` policy you control (default 100 ms). This is the durability boundary: once it's in the WAL, a crash can't lose it. Recovery replays the log on boot.
+- **Parquet** — events flush to columnar Parquet with Snappy compression for compact, analytics-friendly cold storage. This is what makes "scan 50M events and aggregate" cheap.
+- **DashMap** — a concurrent in-memory map serves reads. Hot lookups don't touch disk, which is where the ~12 µs read latency comes from.
+
+Writes go WAL → in-memory → periodic Parquet flush. Reads hit DashMap. No external dependencies, no PostgreSQL, no Redis. The whole thing is a single Rust binary you can embed (`allsource-core` on crates.io) or run as a service.
+
+## Prove the number: a benchmark you can run
+
+The headline is **469K events/sec** ingestion. You shouldn't believe that because we wrote it on a slide — so the harness ships in the repo:
+
+```bash
+cargo run --release -p allsource-performance
+```
+
+It drives the real hot paths — SIMD JSON parsing, the lock-free queue, the sharded batch processor, arena allocation, SIMD filtering — and a concurrent end-to-end pipeline, asserting minimum throughput targets so a regression fails CI instead of silently rotting. Here's an actual run on an Apple M2 Max (12 cores), release build:
+
+| Stage | Throughput |
+|---|---|
+| **Event ingestion** (batch processor) | **494K events/sec** |
+| End-to-end pipeline (4 threads, concurrent) | 948K events/sec |
+| Sustained ingestion (2 s wall) | 381K events/sec |
+| SIMD JSON parsing | 1.09M docs/sec (149 MB/s) |
+| Lock-free queue (push) | 72M events/sec |
+| SIMD event filtering | 9.1M events/sec |
+
+The batch-ingestion path measured 494K — the 469K figure is honest and, if anything, conservative on this machine. Numbers are hardware-dependent and `--release` is mandatory (debug builds run 10–20× slower; the harness warns you if you forget). Run it on your own box and you'll get your own number — which is the whole point.
+
+## The AI-native part
+
+"AI-native" gets thrown around, so here's what it concretely means for AllSource:
+
+**It speaks MCP.** Agents don't need a bespoke SDK to use it — there's a first-party [Model Context Protocol](https://modelcontextprotocol.io) server exposing 40+ tools. A Claude or any MCP client can ingest events, run time-travel queries, manage projections, and traverse memory directly. The event store is a *tool the model can call*, not an API a human has to wire up first.
+
+**It has a memory engine, not just storage.** AllSource Prime layers a unified agent-memory model on top of the log: a knowledge graph (entities + typed edges), vector search (semantic recall), and a compressed cross-domain index — in one binary, backed by the same durable event log. Agent memory built this way is *crash-safe by construction*: it's written to the WAL before it's acted on, so an agent that dies mid-thought doesn't lose what it learned. That's a property you can't get by stapling a vector DB to a chat loop.
+
+Because both live on the same event store, an agent's memory *is* an auditable event stream. You can replay how a belief formed, diff memory across time, and attribute every recalled fact to the event that produced it.
+
+## What it isn't
+
+- It's not a drop-in Postgres replacement. It's an event store; if you want ad-hoc relational joins as your primary access pattern, use a relational database.
+- The hosted gateway terminates auth and billing; Core itself is internal-only by design (trust-the-caller on a private network). Don't expose Core on public DNS.
+- The non-Rust SDKs (Go, Python) are younger than the Rust one. The [TypeScript SDK](https://www.npmjs.com/package/@allsourcedev/client) and Rust SDK are the most exercised.
+
+## Try it
+
+- **Source (Apache 2.0):** [github.com/all-source-os/all-source](https://github.com/all-source-os/all-source)
+- **Embed the engine:** `cargo add allsource-core`
+- **Rust client:** `cargo add allsource` · **TypeScript:** `bun add @allsourcedev/client`
+- **Run the benchmark:** `cargo run --release -p allsource-performance`
+
+If you build something on it — or break it — we want to hear about it. Issues and discussions are open.
