@@ -4,6 +4,7 @@ publishedAt: "2026-06-19"
 summary: Why we built AllSource — a durable event store in Rust with a native MCP interface and a built-in agent-memory engine — how the WAL + Parquet + DashMap design works, and a benchmark harness you can run yourself.
 author: "all.source team"
 category: "engineering"
+image: "/assets/blog/building-an-ai-native-event-store-in-rust.webp"
 ---
 
 Most "AI infrastructure" is a thin wrapper around a vector database and a prompt. We wanted the opposite: a real database — durable, append-only, queryable through time — that happens to speak the language agents already use. So we built [AllSource](https://github.com/all-source-os/all-source), an event store written in Rust, and made the agent interface a first-class citizen instead of an afterthought.

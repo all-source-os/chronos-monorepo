@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/check-blog-images.mjs && next build",
     "start": "next start",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
