@@ -9,7 +9,7 @@ version: "0.22.0"
 
 # AllSource Event Store
 
-**High-performance event sourcing platform with distributed architecture and AI-native tooling.**
+**The AI-native event store** — durable event sourcing in Rust at **469K events/sec** ([reproducible](#benchmarks)), 11.9 µs reads, time-travel queries, a native MCP interface, and a built-in agent-memory engine. No Postgres in the event path.
 
 [![CI](https://github.com/all-source-os/all-source/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/ci.yml)
 [![Container CI](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml)
@@ -18,11 +18,11 @@ version: "0.22.0"
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![License: BSL 1.1](https://img.shields.io/badge/Enterprise-BSL_1.1-orange.svg)](LICENSE-BSL)
 
-[![Core](https://img.shields.io/badge/Core-v0.17.3-orange?logo=rust&logoColor=white)](apps/core/)
-[![Control Plane](https://img.shields.io/badge/Control_Plane-v0.17.3-00ADD8?logo=go&logoColor=white)](apps/control-plane/)
-[![Query Service](https://img.shields.io/badge/Query_Service-v0.17.3-4B275F?logo=elixir&logoColor=white)](apps/query-service/)
-[![Web](https://img.shields.io/badge/Web-v0.17.3-000000?logo=next.js&logoColor=white)](apps/web/)
-[![MCP Server](https://img.shields.io/badge/MCP_Server-61_tools-8A2BE2)](apps/mcp-server-elixir/)
+[![crates.io](https://img.shields.io/crates/v/allsource-core?logo=rust&logoColor=white&label=allsource-core)](https://crates.io/crates/allsource-core)
+[![crates.io downloads](https://img.shields.io/crates/d/allsource-core?label=downloads&color=2ea44f)](https://crates.io/crates/allsource-core)
+[![npm](https://img.shields.io/npm/v/%40allsourcedev%2Fclient?logo=npm&label=%40allsourcedev%2Fclient)](https://www.npmjs.com/package/@allsourcedev/client)
+[![MCP Server](https://img.shields.io/badge/MCP-61_tools-8A2BE2?logo=anthropic)](apps/mcp-server-elixir/)
+[![Polyglot](https://img.shields.io/badge/stack-Rust_·_Go_·_Elixir_·_TS-informational)](#architecture)
 
 [![Core (Community)](https://img.shields.io/badge/ghcr.io-allsource--core--community-2ea44f?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-core-community)
 [![Query Service (Community)](https://img.shields.io/badge/ghcr.io-allsource--query--service--community-2ea44f?logo=docker&logoColor=white)](https://ghcr.io/all-source-os/allsource-query-service-community)
@@ -31,6 +31,24 @@ version: "0.22.0"
 > **Pulling for OSS / CI?** Use the `*-community` images above (Apache 2.0, public, no auth). The unsuffixed `allsource-core` / `allsource-control-plane` / `allsource-query-service` images are BSL 1.1 enterprise builds and require GHCR authentication. See [Docker Images](#docker-images).
 
 </div>
+
+---
+
+## Try it
+
+```bash
+# Embed the event store engine (Rust)
+cargo add allsource-core
+
+# …or talk to a gateway with a client SDK
+cargo add allsource              # Rust
+bun add @allsourcedev/client     # TypeScript
+
+# Prove the 469K events/sec for yourself
+cargo run --release -p allsource-performance
+```
+
+**[Self-Hosting Guide](docs/self-hosting/README.md)** · [Quick Start](docs/QUICK_START.md) · [Benchmarks](#benchmarks) · [crates.io](https://crates.io/crates/allsource-core) · [npm](https://www.npmjs.com/package/@allsourcedev/client)
 
 ---
 
@@ -114,8 +132,10 @@ regressions fail loudly. Representative output on an **Apple M2 Max (12 cores),
 The headline **469K events/sec** is the batch-processor ingestion path; this run
 measured **494K** on M2 Max. Numbers are hardware-dependent and `--release` is
 mandatory — debug builds run 10–20× slower. Harness:
-[`tooling/performance/src/main.rs`](tooling/performance/src/main.rs). Query latency
-(11.9 µs reads via DashMap) and methodology: [PERFORMANCE.md](docs/current/PERFORMANCE.md).
+[`tooling/performance/src/main.rs`](tooling/performance/src/main.rs) · step-by-step
+walkthrough: [How to reproduce the benchmark](https://www.all-source.xyz/blog/reproduce-the-469k-events-benchmark).
+Query latency (11.9 µs reads via DashMap) and methodology:
+[PERFORMANCE.md](docs/current/PERFORMANCE.md).
 
 ---
 
