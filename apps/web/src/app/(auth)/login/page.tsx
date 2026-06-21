@@ -13,7 +13,7 @@ import {
   Input,
   Label,
 } from "@allsource/ui";
-import { AlertCircle, Eye, EyeOff, FlaskConical, Loader2, Mail } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useId, useState } from "react";
@@ -93,57 +93,8 @@ function LoginContent() {
     }
   };
 
-  const [isDemoLoading, setIsDemoLoading] = useState(false);
-
-  const handleTryDemo = async () => {
-    setIsDemoLoading(true);
-    setError(null);
-    try {
-      // Step 1: Create demo credentials via Control Plane
-      const response = await fetch("/api/v1/demo/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to create demo account");
-      }
-
-      // Step 2: Fill the login form with demo credentials and submit
-      // This goes through the exact same handleEmailLogin path as a real user
-      setEmail(data.email);
-      setPassword(data.password);
-      setShowEmailForm(true);
-
-      // Step 3: Log in with the demo credentials through the normal flow
-      const loginResponse = await fetch("/api/v1/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: data.email, password: data.password }),
-      });
-
-      const loginData = await loginResponse.json();
-      if (!loginResponse.ok) {
-        throw new Error(loginData.message || "Demo login failed");
-      }
-
-      if (loginData.token) {
-        const isNewUser = loginData.new_user === true;
-        const next = searchParams.get("next");
-        const nextParam = next ? `&next=${encodeURIComponent(next)}` : "";
-        window.location.href = `/api/auth/callback?token=${encodeURIComponent(loginData.token)}&new_user=${isNewUser}${nextParam}`;
-      } else {
-        router.push(searchParams.get("next") ?? "/dashboard");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start demo. Please try again.");
-    } finally {
-      setIsDemoLoading(false);
-    }
-  };
-
   const isFormValid = email.trim() && password.trim();
-  const isDisabled = loadingProvider !== null || isSubmitting || isDemoLoading;
+  const isDisabled = loadingProvider !== null || isSubmitting;
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
@@ -337,32 +288,6 @@ function LoginContent() {
                 </Link>
               </p>
 
-              {/* Try Demo divider and button */}
-              <div className="relative mt-5">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Or</span>
-                </div>
-              </div>
-
-              <Button
-                type="button"
-                variant="ghost"
-                className="mt-4 h-10 w-full text-muted-foreground hover:text-foreground"
-                onClick={handleTryDemo}
-                disabled={isDisabled}
-              >
-                {isDemoLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <FlaskConical className="mr-2 h-4 w-4" />
-                    Try Demo — no account needed
-                  </>
-                )}
-              </Button>
             </CardContent>
           </Card>
         </BlurFade>
