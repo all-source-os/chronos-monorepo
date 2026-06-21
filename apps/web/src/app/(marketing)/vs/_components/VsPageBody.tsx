@@ -44,20 +44,35 @@ export function VsPageBody({ competitor }: { competitor: Competitor }) {
                 Start Indie — $19 <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link href="/pricing" className={cn(buttonVariants({ variant: "outline" }))}>
-                Self-host (free, MIT)
+                {competitor.selfHostLabel ?? "Self-host (free, MIT)"}
               </Link>
             </div>
           </motion.div>
         </Section>
 
+        {/* Optional "different category" framing — only rendered when the data
+            map supplies it (stoolap). Absent for mem0/letta/zep. */}
+        {competitor.category && (
+          <Section className="pb-4">
+            <div className="mx-auto max-w-3xl rounded-xl border border-border bg-muted/20 p-6">
+              <h2 className="mb-2 text-lg font-semibold">{competitor.category.heading}</h2>
+              <p className="text-sm text-muted-foreground">{competitor.category.body}</p>
+            </div>
+          </Section>
+        )}
+
         {/* Comparison table */}
         <Section className="pb-4">
           <ComparisonTable competitorName={competitor.name} rows={competitor.rows} />
           <p className="mx-auto mt-4 max-w-2xl text-center text-xs text-muted-foreground">
-            AllSource figures are from our own benchmarks and documentation. Cells marked
-            &ldquo;unknown&rdquo; or &ldquo;varies&rdquo; are values we do not publish for{" "}
-            {competitor.name} rather than estimate. Based on public documentation; corrections
-            welcome.
+            {competitor.tableNote ?? (
+              <>
+                AllSource figures are from our own benchmarks and documentation. Cells marked
+                &ldquo;unknown&rdquo; or &ldquo;varies&rdquo; are values we do not publish for{" "}
+                {competitor.name} rather than estimate. Based on public documentation; corrections
+                welcome.
+              </>
+            )}
           </p>
         </Section>
 
@@ -122,12 +137,21 @@ export function VsPageBody({ competitor }: { competitor: Competitor }) {
               <Link href="/pricing" className={cn(buttonVariants({ variant: "default" }))}>
                 See pricing <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
-              <Link
-                href="/event-sourcing-for-ai-agents"
-                className={cn(buttonVariants({ variant: "outline" }))}
-              >
-                Event sourcing for AI agents
-              </Link>
+              {competitor.articleSlug ? (
+                <Link
+                  href={`/blog/${competitor.articleSlug}`}
+                  className={cn(buttonVariants({ variant: "outline" }))}
+                >
+                  Read the full {competitor.name} comparison
+                </Link>
+              ) : (
+                <Link
+                  href="/event-sourcing-for-ai-agents"
+                  className={cn(buttonVariants({ variant: "outline" }))}
+                >
+                  Event sourcing for AI agents
+                </Link>
+              )}
             </div>
           </div>
         </Section>

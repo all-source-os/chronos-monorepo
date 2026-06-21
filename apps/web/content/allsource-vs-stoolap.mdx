@@ -1,0 +1,146 @@
+---
+title: "AllSource vs stoolap: An Embedded SQL Database Meets an Event Store"
+publishedAt: "2026-06-22"
+summary: "stoolap is an embedded relational SQL database in pure Rust; AllSource is an immutable event store and agent-memory service. They overlap on AI features but solve different problems. The honest, reproducible comparison — including a benchmark you can run yourself."
+author: "all.source team"
+category: "engineering"
+image: "/assets/blog/allsource-vs-stoolap.webp"
+---
+
+![Embedded SQL vs an event store: stoolap and AllSource](/assets/blog/allsource-vs-stoolap.webp)
+
+Most "X vs Y database" posts open as a cage match and quietly end as a shrug, because the two tools were never in the same weight class. [stoolap](https://github.com/stoolap/stoolap) and AllSource are exactly that case — and the honest thing to do is say so on line one.
+
+**stoolap is an embedded relational SQL database.** You `cargo add stoolap`, write `CREATE TABLE` / `INSERT` / `SELECT`, and it runs *inside your process*. Mutable rows, MVCC, a cost-based optimizer, full SQL with JOINs and window functions. It is a library, like SQLite or DuckDB — there is no server mode.
+
+**AllSource is an append-only event store** plus an agent-memory engine (Prime) and a hosted multi-tenant SaaS. Data is an immutable WAL + Parquet log; "current state" is a *projection* you fold from events. Core runs as a Rust server on the network (and can be embedded as a library too).
+
+They share an AI-era pitch — both ship vector search, built-in embeddings, time-travel, and an MCP server — but they are answering different questions. This post lays out where they overlap, where they genuinely diverge, and a like-for-like benchmark we actually ran on one laptop. Where stoolap is the better tool, we say so plainly: a comparison with no honest concessions is just marketing, and you'd be right to ignore it.
+
+## What stoolap is
+
+stoolap calls itself ["A Modern Embedded SQL Database in Pure Rust."](https://github.com/stoolap/stoolap) The Database-of-Databases encyclopedia classifies it as relational, shared-everything, MVCC; an [independent Better Stack review](https://betterstack.com/community/guides/ai/stoolap-vs-sqlite/) calls it "an embedded OLAP database." All of those are fair.
+
+Concretely, it gives you:
+
+- **Full SQL** — JOINs, subqueries, CTEs, window functions, 101+ built-in functions — over **mutable tables** you `UPDATE` and `DELETE`.
+- **ACID with MVCC and snapshot isolation**, a cost-based optimizer, and parallel query execution (Rayon).
+- **Multiple index types**: B-tree, Hash, Bitmap, multi-column, and **HNSW for vectors**.
+- **Native `VECTOR(N)` columns and a built-in `EMBED()`** function — semantic search in SQL, with no external embedding API.
+- **`AS OF` time-travel** (`AS OF TIMESTAMP` / `AS OF TRANSACTION`) backed by MVCC.
+- A **storage engine** with an in-memory MVCC hot buffer + WAL for active writes, and immutable columnar cold files (zone maps, bloom filters, dictionary encoding, LZ4) — an Iceberg/Delta-flavoured design.
+- **Broad language reach** from one engine: Rust, Node.js, Python, Go, Java, C#, PHP, Ruby, Swift, a C FFI, WASM — and a first-party **MCP server** (`@stoolap/mcp`).
+
+It is Apache-2.0, ~1.2k stars, and at **v0.4.0** (released 2026-04-01) — a young project with a single primary maintainer. The same independent review notes it is "still in its early days, as evidenced by the NPM installation bug." Worth knowing: some older pages describe stoolap as "pure Go" — that's historical. It began as a Go prototype and migrated to Rust; the current crate is 99.8% Rust.
+
+> **stoolap has an MCP server, and that matters for honesty.** Against agent-memory tools like mem0, Letta, or Zep, "ships an MCP server" is an AllSource differentiator. Against stoolap it is **not** — stoolap's MCP server exposes "30 tools, 2 resources, and 1 prompt" for Claude Desktop, Claude Code, Cursor, Windsurf, and Cline. The difference is *what the tools do*: stoolap's 30 are a SQL surface (query, execute, transactions, schema, vacuum); AllSource's are event-store and agent-memory verbs (ingest events, recall, projections, anomaly detection).
+
+## What AllSource is
+
+AllSource Core is a **durable event store** — not "in-memory only." Writes go through a WAL (CRC32 checksums, configurable fsync) and land in columnar Parquet (Snappy), with a DashMap-backed in-memory layer for fast concurrent reads. Event data survives restarts.
+
+The model is the inverse of stoolap's. Instead of mutable tables, every change is an **immutable, timestamped event**. The "current state" of any entity is a **projection** you fold from its event history, and any *past* state is reconstructable by replaying the log (`as_of`). That immutable history is a first-class audit ledger — full provenance, by design.
+
+Around Core sit the pieces that make it a service rather than a library:
+
+- A **Rust server** on `:3900` that a fleet of clients and agents can share over the network, with leader-follower replication for availability.
+- **Prime**, a purpose-built agent-memory engine: knowledge graph + vector (fastembed + HNSW) + recall, with its own MCP tools.
+- A **Control Plane** with multi-tenancy, RBAC, billing, and **x402 per-call agent payments** — so autonomous agents can pay per call instead of per seat.
+
+AllSource community is **Apache-2.0**; the enterprise features are **BSL 1.1** (converting to Apache-2.0 in 2029). Both stoolap and AllSource-community are permissive open source you can self-host for free.
+
+## The honest side-by-side
+
+Two tools, two abstractions. Here is where they actually line up and where they don't.
+
+| | AllSource | stoolap |
+|---|---|---|
+| **Category** | Event store + agent-memory service | Embedded relational SQL DBMS |
+| **Core data model** | Immutable event log; state via projections | Mutable SQL tables (UPDATE / DELETE in place) |
+| **Query language** | HTTP/MCP + EventQL (DataFusion SQL analytics) | Full SQL — JOINs, CTEs, window functions |
+| **Deployment** | Server (`:3900`) + embedded + hosted SaaS | Embedded library only — no server/daemon |
+| **Written in** | Rust (Core) + Go/Elixir services | Pure Rust (99.8%) |
+| **Embeddable in-process** | Yes (`allsource-core`) | Yes — its only mode |
+| **Durable (survives restart)** | WAL (CRC32, fsync) + Parquet | WAL + immutable cold columnar files |
+| **Vector / HNSW search** | Yes (fastembed + HNSW) | Yes (`VECTOR(N)`, HNSW) |
+| **Built-in embeddings, no external API** | Yes (local fastembed) | Yes (built-in `EMBED()`) |
+| **Time-travel** | `as_of` projections (replay the log) | `AS OF TIMESTAMP` / `AS OF TRANSACTION` (MVCC) |
+| **Full event provenance / replay** | Yes — first-class, permanent | No — MVCC versions are garbage-collected |
+| **MCP server** | Yes — 43 event/memory tools | Yes — 30 SQL tools |
+| **Agent-memory product** | Prime (graph + vector + recall) | None — you assemble it yourself |
+| **Multi-tenancy / RBAC / billing** | Yes (Control Plane, x402) | No — it's a library |
+| **Replication / HA** | Leader-follower WAL shipping (enterprise) | Single-process; none |
+| **License (OSS core)** | Apache-2.0 (enterprise BSL 1.1) | Apache-2.0 (no commercial strings) |
+| **Maturity** | v0.22, org-maintained | v0.4.0, ~1.2k★, single author |
+
+The single row that drives every other decision is **data model**: do you want to run SQL and update rows in place (stoolap), or keep an append-only, replayable history and project state from it (AllSource)? The second is **deployment**: a zero-ops library that lives in one process, or a shared network service with multi-tenancy and per-call billing. Almost everything else follows from those two.
+
+Notice what is *not* a differentiator here: vectors, embeddings, time-travel, and an MCP server. stoolap has all four. The difference is in kind — stoolap's time-travel reads retained MVCC versions (a concurrency mechanism, garbage-collected); AllSource's replays a permanent immutable log you can audit. Both are legitimate; they're just not the same guarantee.
+
+## The benchmark — fair, like-for-like, run on one laptop
+
+A SQL JOIN benchmark would flatter stoolap. An event-replay benchmark would flatter AllSource. Both would be dishonest. The one axis where a *fair* head-to-head exists is the workload both tools are actually good at: **append-heavy ingestion plus fast point reads**. So that's what we measured — **insert 100,000 single rows/events, then 100,000 point reads by primary key**, single-thread, `--release`, on the same machine.
+
+**Hardware (identical for both):** Apple M2 Max, 12 cores, 64 GB RAM, macOS (Darwin 25.2.0), rustc/cargo 1.92.0-nightly. AllSource from this repo (v0.22.0); stoolap 0.4.0 from crates.io, compiled from source.
+
+Reproduce the AllSource side yourself, from the repo root:
+
+```bash
+cargo run --release -p allsource-performance
+```
+
+We also ran stoolap in **both** modes — `memory://` (in-memory) and `file://…?sync_mode=normal` (durable, fsync on the WAL) — because AllSource Core is a durable store and the fair durable comparison matters.
+
+### Like-for-like results
+
+Single-thread, 100k ops, M2 Max, release. AllSource ingestion is the batch-processor path (its headline unit); stoolap ingestion is single-row prepared `INSERT`s. Run-to-run variance is real — both numbers below are *ranges*, because background load (the two builds running at once) visibly depressed the second readings.
+
+| Metric | AllSource | stoolap (in-memory) | stoolap (durable, fsync) |
+|---|---|---|---|
+| Ingestion throughput | ~200K–506K events/sec | ~291K–448K rows/sec | ~79K–97K rows/sec |
+| Point-read latency (in-mem) | 11.9µs p99 *(published)* | ~0.5–0.9µs avg *(measured)* | ~0.5–1.0µs avg *(measured)* |
+| Point-read throughput | n/a (recall is a latency figure) | ~1.1M–1.6M reads/sec | ~0.97M–2.1M reads/sec |
+
+### How to read this honestly
+
+- **In-memory ingestion is a wash.** Both land in the low-hundreds-of-thousands per second on this laptop. AllSource's batch path edges ahead on a clean machine (~506K vs stoolap's ~291–448K), but the ranges overlap and depend on background load. **Nobody is 10× faster here.**
+- **The point-read row mixes two different metrics.** stoolap's sub-microsecond figure is an *average* of a prepared SQL point-select; AllSource's 11.9µs is a *p99* recall figure from our docs that we did **not** re-measure with the same harness. Do **not** read this as stoolap winning 20× — the metrics (avg vs p99), datasets, and code paths differ. The honest statement: *both do point reads in the single-digit-microsecond-or-better range in memory.*
+- **Durability has a real, visible cost for stoolap.** With `sync_mode=normal`, single-row insert throughput drops to ~79–97K rows/sec (fsync per the WAL config). And to be even-handed: AllSource's 469K is its in-memory batch pipeline — we did **not** isolate AllSource's synchronous-durable per-event rate either. **Neither side's headline ingestion number is a pure synchronous-durable single-row rate.** The only durable single-row figure here is stoolap's.
+
+And about those eye-popping multipliers: stoolap's own benchmarks claim it beats DuckDB by "191×" on batch insert and "1213×" on SELECT-by-ID. Treat those as vendor-reported and partly inflated. The [independent Better Stack test](https://betterstack.com/community/guides/ai/stoolap-vs-sqlite/) found stoolap's *real* OLAP advantage over SQLite to be **~4.12× at 100k rows, ~6.47× at 1M rows**, and said outright that "the dramatic numbers from its marketing materials should be taken with a grain of salt." That's still a genuinely fast embedded analytics engine — just not three orders of magnitude fast. (For the full reasoning behind our own harness and how to reproduce the 469K figure, see [Reproduce the 469K events benchmark](/blog/reproduce-the-469k-events-benchmark).)
+
+The takeaway isn't a winner. It's that **raw in-memory speed shouldn't decide this** — they're too close. Decide on data model and deployment.
+
+## Where each genuinely wins
+
+### Choose stoolap when…
+
+- You want **real SQL** — JOINs, CTEs, window functions, a cost-based optimizer — over **mutable tables**. AllSource makes you fold projections; stoolap just runs the query.
+- You want a database **embedded in one app with zero ops** — no server, no Docker, no network hop. `cargo add stoolap` (or npm/pip/etc.) and ship.
+- You need **fast local OLAP** — `GROUP BY`, `DISTINCT`, aggregations — without standing up DuckDB. Even discounted to the independent ~4–6×, it's quick.
+- You want **vector search + built-in embeddings inside SQL** (`VECTOR(N)`, HNSW, `EMBED()`) with no Python and no external embedding API.
+- Your AI use case is literally **"let Claude query my SQL database"** — the `@stoolap/mcp` server (30 tools) does exactly that, in-process.
+- You value **broad language reach from one engine** and **fully-permissive Apache-2.0** with no commercial/BSL strings on any feature.
+
+### Choose AllSource when…
+
+- You need an **immutable, replayable store of record** — full event provenance and the ability to reconstruct any past state by replay, as an audit ledger, not a garbage-collected MVCC version.
+- You need the store to be a **shared network service** — many clients and agents, a Rust server on `:3900`, leader-follower replication — not a library trapped in one process.
+- You want a **hosted, multi-tenant SaaS** with RBAC, billing, and **x402 per-call agent payments** out of the box.
+- You want a **purpose-built agent-memory engine (Prime)** — knowledge graph + vector + recall with its own MCP tools — rather than assembling memory yourself over SQL.
+- Your workload is **event sourcing / CQRS / time-travel as the primary model** — append-only ingestion at scale with `as_of` projections as a first-class query.
+- You want a **proven-reproducible throughput claim** you can run yourself (`cargo run --release -p allsource-performance`).
+
+## The verdict
+
+If you want **SQL over mutable data in one app**, use stoolap — it's simpler, and there's nothing to operate. If you want a **replayable event store and agent-memory backbone you can serve to a fleet of agents or host as SaaS**, use AllSource. On raw in-memory speed they're close enough that it shouldn't be the deciding factor — choose by **data model and deployment**, not by a benchmark.
+
+They can even coexist: stoolap as the fast embedded SQL store inside one service, AllSource as the durable, replayable system of record and shared memory across many. Different layers, different jobs.
+
+---
+
+**Try AllSource:** the Rust core is on [crates.io as `allsource-core`](https://crates.io/crates/allsource-core), the TypeScript client is on npm as [`@allsourcedev/client`](https://www.npmjs.com/package/@allsourcedev/client), and the whole project lives on [GitHub](https://github.com/all-source-os/all-source). Want the structured, decision-table version of this post? See [AllSource vs stoolap](/vs/stoolap).
+
+**Try stoolap:** it's on [GitHub](https://github.com/stoolap/stoolap), with [installation docs](https://stoolap.io/docs/getting-started/installation/) for every language binding.
+
+*Every AllSource number here traces to this repo (`apps/core/README.md`, `docs/current/PERFORMANCE.md`, `siteConfig`); every stoolap claim traces to its repo, docs, or a benchmark we ran on one M2 Max laptop. Figures marked "published" or "vendor-reported" were not re-measured with a matching harness. Corrections welcome.*

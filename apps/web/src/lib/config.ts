@@ -337,6 +337,7 @@ export const siteConfig = {
         { href: "/vs/mem0", text: "vs mem0", icon: null },
         { href: "/vs/letta", text: "vs Letta", icon: null },
         { href: "/vs/zep", text: "vs Zep", icon: null },
+        { href: "/vs/stoolap", text: "vs stoolap", icon: null },
       ],
     },
     {

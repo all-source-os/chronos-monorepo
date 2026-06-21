@@ -30,7 +30,7 @@ export type ComparisonRow = {
 export type FaqEntry = { question: string; answer: string };
 
 export type Competitor = {
-  slug: "mem0" | "letta" | "zep";
+  slug: "mem0" | "letta" | "zep" | "stoolap";
   /** Display name used in H1, table header, metadata. */
   name: string;
   /** One-line, defensible verdict shown under the H1. */
@@ -43,6 +43,30 @@ export type Competitor = {
   pickCompetitor: string[];
   rows: ComparisonRow[];
   faqs: FaqEntry[];
+  /**
+   * OPTIONAL honest framing block, rendered above the table when present.
+   * Used when the competitor is a *different category* of product (e.g.
+   * stoolap, an embedded SQL DBMS) rather than another agent-memory tool in
+   * AllSource's lane. Absent for mem0/letta/zep, so their pages are unchanged.
+   */
+  category?: { heading: string; body: string };
+  /**
+   * OPTIONAL override for the "self-host" CTA button label. Defaults to the
+   * MIT wording used by the original three pages; stoolap overrides it because
+   * AllSource community is Apache 2.0 (enterprise BSL 1.1), not MIT.
+   */
+  selfHostLabel?: string;
+  /**
+   * OPTIONAL footnote shown under the comparison table, replacing the default
+   * "figures from our benchmarks" boilerplate. Lets a different-category page
+   * state its honest caveats (e.g. "both are Apache-2.0; numbers are a wash").
+   */
+  tableNote?: string;
+  /**
+   * OPTIONAL slug of a long-form companion article under `content/`. When set,
+   * the page links to `/blog/<articleSlug>` so the page ↔ article cross-link.
+   */
+  articleSlug?: string;
 };
 
 // Rows shared by every competitor — the durable differentiators. Per-competitor
@@ -106,7 +130,7 @@ function baseRows(competitorCells: Record<string, Cell>): ComparisonRow[] {
   ];
 }
 
-export type CompetitorSlug = "mem0" | "letta" | "zep";
+export type CompetitorSlug = "mem0" | "letta" | "zep" | "stoolap";
 
 // Keyed by the literal slug union (not `Record<string, …>`) so lookups like
 // `competitors.mem0` are non-optional under noUncheckedIndexedAccess.
@@ -255,6 +279,190 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
         question: "Can I self-host AllSource instead of using a hosted memory service?",
         answer:
           "Yes. AllSource is MIT licensed, runs embedded in-process or as a server, and has hosted tiers if you prefer managed. You are never locked into a single hosted memory API.",
+      },
+    ],
+  },
+
+  // stoolap is a DIFFERENT CATEGORY from the three above: it is an embedded,
+  // in-process relational SQL database (mutable tables, JOINs, optimizer), not
+  // an agent-memory layer. Unlike mem0/letta/zep it HAS an MCP server, native
+  // vector/HNSW + built-in embeddings, and time-travel — so we must NOT claim
+  // any of those as AllSource-exclusive wins. Rows below are authored directly
+  // (not via baseRows) and grounded in docs/research/stoolap-vs-allsource.md.
+  stoolap: {
+    slug: "stoolap",
+    name: "stoolap",
+    verdict:
+      "stoolap is an embedded relational SQL database in pure Rust — mutable tables, JOINs, an optimizer, all in your process. AllSource is an immutable, replayable event store and agent-memory service you run over the network or host. They overlap on AI features (vectors, embeddings, time-travel, an MCP server) but solve different problems — pick by data model and deployment, not by a benchmark.",
+    metaDescription:
+      "AllSource vs stoolap: an honest, sourced comparison of an immutable event store + agent-memory service against an embedded SQL database. Both are Rust, Apache-2.0, with vectors, embeddings, time-travel, and an MCP server — the real difference is mutable SQL tables vs an immutable event log, and embedded library vs network service. In-memory speed is a near-wash; reproduce it yourself.",
+    category: {
+      heading: "First, the honest part: these are different categories",
+      body: "stoolap is an embedded relational SQL DBMS (SQLite/DuckDB-class) you compile into one app: CREATE TABLE, INSERT, SELECT, mutable rows, JOINs, a cost-based optimizer — with no server mode. AllSource is an append-only event store plus an agent-memory engine (Prime) and a hosted multi-tenant SaaS, served over the network or self-hosted. Both are pure Rust, Apache-2.0, and both ship vectors + HNSW, built-in embeddings, time-travel, and an MCP server — so this is not a feature-checkbox contest. The decision is the data model (mutable SQL tables vs an immutable, replayable log) and the deployment (a zero-ops embedded library vs a shared network service with multi-tenancy and per-call billing).",
+    },
+    selfHostLabel: "Self-host (free, Apache-2.0)",
+    tableNote:
+      "Both are Rust and Apache-2.0 (AllSource's enterprise tier is BSL 1.1). stoolap genuinely ships an MCP server (30 SQL tools), native VECTOR/HNSW search, a built-in EMBED() with no external API, and AS OF time-travel — none of those are AllSource-exclusive here. On the only fair head-to-head (single-row in-memory ingest + point reads) the two land in the same order of magnitude; reproduce it with `cargo run --release -p allsource-performance`. stoolap multipliers like 191×/1213× are vendor-reported; an independent Better Stack test measured stoolap's real OLAP edge over SQLite at ~4–6×.",
+    articleSlug: "allsource-vs-stoolap",
+    pickAllsource: [
+      "You need an immutable, replayable store of record — full event provenance and any past state by replay, as an audit ledger (not a garbage-collected MVCC version)",
+      "The store must be a shared network service for many clients/agents — a Rust server on :3900 with leader-follower replication — not a library trapped in one process",
+      "You want a hosted, multi-tenant SaaS with RBAC, billing, and x402 per-call agent payments out of the box",
+      "You want a purpose-built agent-memory engine (Prime: knowledge graph + vector + recall) rather than assembling memory yourself over SQL",
+    ],
+    pickCompetitor: [
+      "You want real SQL — JOINs, CTEs, window functions, a cost-based optimizer — over mutable tables, with no projections to fold",
+      "You want a database embedded in one app with zero ops: no server, no Docker, no network hop — `cargo add stoolap` (or npm/pip) and ship",
+      "You want fast local OLAP (GROUP BY, DISTINCT, aggregations) without standing up DuckDB",
+      "You want vector search + built-in embeddings inside SQL (VECTOR(N), HNSW, EMBED()), broad language reach, and fully-permissive Apache-2.0 with no BSL strings on any feature",
+    ],
+    rows: [
+      {
+        feature: "Category",
+        allsource: "Event store + agent memory",
+        competitor: "Embedded SQL DBMS",
+        note: "AllSource is an append-only event store, the Prime memory engine, and a hosted SaaS. stoolap is a SQLite/DuckDB-class relational database you compile into one app.",
+      },
+      {
+        feature: "Core data model",
+        allsource: "Immutable event log",
+        competitor: "Mutable SQL tables",
+        note: "The decision that drives everything else: keep an append-only, replayable history and project state from it (AllSource), or run SQL and UPDATE/DELETE rows in place (stoolap).",
+      },
+      {
+        feature: "Query language",
+        allsource: "HTTP/MCP + EventQL (SQL analytics)",
+        competitor: "Full SQL (JOINs, CTEs, windows)",
+        note: "stoolap is a SQL DBMS front-and-center with a cost-based optimizer. If you want SQL ergonomics over your data, stoolap wins outright.",
+      },
+      {
+        feature: "Written in Rust",
+        allsource: "yes",
+        competitor: "yes",
+        note: "Both are pure Rust. stoolap is 99.8% Rust (it migrated from an early Go prototype); AllSource Core is Rust with Go/Elixir services around it.",
+      },
+      {
+        feature: "Embeddable in-process",
+        allsource: "yes",
+        competitor: "yes (its only mode)",
+        note: "AllSource can embed via `allsource-core` but is built to run as a server. stoolap is embedded-only — there is no standalone server or daemon.",
+      },
+      {
+        feature: "Network service / shared backbone",
+        allsource: "yes (Rust server :3900)",
+        competitor: "no",
+        note: "You cannot point a fleet of clients at a stoolap instance over the network; it lives in one process. AllSource is designed to be a shared service.",
+      },
+      {
+        feature: "Durable (survives restart)",
+        allsource: "WAL + Parquet",
+        competitor: "WAL + columnar files",
+        note: "Both are durable. stoolap pairs an in-memory MVCC hot buffer + WAL with immutable cold columnar files; AllSource is WAL (CRC32, fsync) + Parquet (Snappy).",
+      },
+      {
+        feature: "In-memory ingestion (single-thread, 100k)",
+        allsource: "~200K–506K events/sec",
+        competitor: "~291K–448K rows/sec",
+        note: "Measured on the same M2 Max laptop, --release. A near-wash — same order of magnitude, ranges overlap with background load. Nobody is 10× faster. (events/sec ≠ rows/sec, but comparable per-record cost.)",
+      },
+      {
+        feature: "In-memory point reads",
+        allsource: "11.9μs p99 (published)",
+        competitor: "~0.5–0.9μs avg (measured)",
+        note: "Different metrics (p99 vs avg) on different harnesses — do NOT read this as a 20× win. Honest statement: both do point reads in the single-digit-microsecond-or-better range in memory.",
+      },
+      {
+        feature: "Durable single-row ingest (fsync)",
+        allsource: "not isolated here",
+        competitor: "~79K–97K rows/sec",
+        note: "Neither headline number is a pure synchronous-durable single-row rate. The only durable single-row figure measured is stoolap's, with fsync on the WAL.",
+      },
+      {
+        feature: "Vector / HNSW search",
+        allsource: "yes (fastembed + HNSW)",
+        competitor: "yes (VECTOR(N), HNSW)",
+        note: "Both ship native vector search with an HNSW index. This is NOT an AllSource-exclusive axis against stoolap.",
+      },
+      {
+        feature: "Built-in embeddings (no external API)",
+        allsource: "yes (local fastembed)",
+        competitor: "yes (built-in EMBED())",
+        note: "Both compute embeddings locally with no Python and no external embedding service.",
+      },
+      {
+        feature: "Temporal / time-travel",
+        allsource: "as_of projections (replay log)",
+        competitor: "AS OF TIMESTAMP/TRANSACTION (MVCC)",
+        note: "Both offer time-travel. The difference is what it reads: AllSource replays a permanent immutable log; stoolap reads retained MVCC versions (a concurrency mechanism, garbage-collected — not a permanent audit ledger).",
+      },
+      {
+        feature: "Full event provenance / replay",
+        allsource: "yes (first-class)",
+        competitor: "no",
+        note: "AllSource keeps the full immutable history by design; every change is a replayable event. stoolap's MVCC versions are not an audit trail.",
+      },
+      {
+        feature: "MCP server for AI agents",
+        allsource: "43 event/memory tools",
+        competitor: "30 SQL tools",
+        note: "Both ship a first-party MCP server. stoolap's 30 tools are a SQL surface (query, execute, transactions, schema, vacuum); AllSource's are event-store/agent-memory verbs (ingest, recall, projections, anomaly detection).",
+      },
+      {
+        feature: "Agent-memory product",
+        allsource: "Prime (graph + vector + recall)",
+        competitor: "no",
+        note: "AllSource ships a dedicated memory engine with its own MCP tools. stoolap gives you a SQL + vector store; assembling agent memory on top is your job.",
+      },
+      {
+        feature: "Multi-tenancy / RBAC / billing",
+        allsource: "yes (Control Plane)",
+        competitor: "no",
+        note: "Tenants, RBAC, LemonSqueezy billing, and x402 are built in for AllSource. For a library like stoolap, tenancy and billing are your app's job.",
+      },
+      {
+        feature: "x402 per-call agent payments",
+        allsource: "yes",
+        competitor: "no",
+        note: "AllSource ships native x402 micropayments so agents pay per call. stoolap has nothing to price — there is no hosted offering.",
+      },
+      {
+        feature: "License (OSS core)",
+        allsource: "Apache-2.0 (enterprise BSL 1.1)",
+        competitor: "Apache-2.0",
+        note: "Both are permissive OSS you can self-host for free. stoolap is fully Apache-2.0 with no commercial strings; AllSource's enterprise features are BSL 1.1 (converting to Apache-2.0 in 2029).",
+      },
+      {
+        feature: "Maturity",
+        allsource: "v0.22, org-maintained",
+        competitor: "v0.4.0, ~1.2k★, 1 author",
+        note: "stoolap is a young single-author project (latest v0.4.0); an independent review notes it is 'still in its early days.' Both are pre-1.0.",
+      },
+    ],
+    faqs: [
+      {
+        question: "Is stoolap better than AllSource?",
+        answer:
+          "They are different categories, so 'better' depends on the job. stoolap is an embedded relational SQL database — mutable tables, JOINs, a cost-based optimizer, fast local OLAP, all in your process with zero ops. AllSource is an immutable, replayable event store plus an agent-memory engine (Prime) and a hosted multi-tenant SaaS served over the network. If you want SQL over mutable data in one app, stoolap is simpler and there is nothing to operate. If you want a replayable store of record with full provenance, served to a fleet of agents with per-call billing, that is AllSource's shape. On raw in-memory speed they are close.",
+      },
+      {
+        question: "Does stoolap have an MCP server, vector search, and time-travel like AllSource?",
+        answer:
+          "Yes — all three. Unlike a typical agent-memory tool, stoolap ships a first-party MCP server (30 SQL tools for Claude Desktop, Claude Code, Cursor, etc.), native VECTOR(N) columns with HNSW indexing and a built-in EMBED() function (no external embedding API), and AS OF time-travel via MVCC. So none of those are AllSource-exclusive in this comparison. The difference is what they do: stoolap's MCP exposes SQL; AllSource's exposes event-store and agent-memory verbs, and AllSource's time-travel replays a permanent immutable log rather than retained MVCC versions.",
+      },
+      {
+        question: "Is AllSource faster than stoolap?",
+        answer:
+          "On the only fair head-to-head — single-row in-memory ingestion plus point reads, single-thread, same M2 Max laptop, release builds — it is a near-wash. AllSource's batch path edges ahead on a clean machine (~506K vs stoolap's ~291–448K rows/sec), but the ranges overlap and depend on background load; nobody is 10× faster. stoolap's published multipliers (191× vs DuckDB, 1213× vs DuckDB on SELECT) are vendor-reported and partly inflated — an independent Better Stack test found stoolap's real OLAP advantage over SQLite to be ~4–6×. Reproduce AllSource's number yourself with `cargo run --release -p allsource-performance`.",
+      },
+      {
+        question: "Can I self-host both stoolap and AllSource?",
+        answer:
+          "Yes. stoolap is Apache-2.0 and embedded by design — `cargo add stoolap` (or its Node/Python/Go/Java/C#/PHP/Ruby/Swift/WASM bindings) and it runs in your process. AllSource community is Apache-2.0 too and runs embedded or as a server you self-host for free; its enterprise features are BSL 1.1, and it also offers hosted tiers. Both are permissive open source, so 'self-hostable' is true of both.",
+      },
+      {
+        question: "Should I use stoolap or AllSource for agent memory?",
+        answer:
+          "If you want a turnkey agent-memory layer — durable recall, a knowledge graph, vector + recency re-ranking, and dedicated MCP tools — AllSource's Prime is purpose-built for it. stoolap gives you the raw materials (SQL, vectors, embeddings, time-travel) in one embedded engine, but you assemble the memory semantics yourself. Choose stoolap if you want full control inside one app and are happy to build the recall logic; choose AllSource/Prime if you want the memory engine and a shared, replayable backbone for a fleet of agents.",
       },
     ],
   },
