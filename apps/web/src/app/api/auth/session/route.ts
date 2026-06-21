@@ -1,7 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+// Session validation must hit the Query Service, which serves /api/auth/me.
+// NEXT_PUBLIC_API_URL is the branded gateway (api.all-source.xyz) and does NOT
+// route /api/auth/* — fetching /api/auth/me there 404s, which this route treats
+// as an invalid token and DELETES the auth_token cookie, silently logging the
+// user out on every dashboard load. Hit the QS directly.
 function getApiUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
+  return (
+    process.env.QUERY_SERVICE_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "https://allsource-query.fly.dev"
+      : "http://localhost:3902")
+  );
 }
 
 /**
@@ -41,12 +51,17 @@ export async function GET(request: NextRequest) {
     });
 
     if (!meResponse.ok) {
-      // Token is invalid, clear cookie
       const response = NextResponse.json(
         { error: { code: "invalid_session", message: "Session expired" } },
         { status: 401 }
       );
-      response.cookies.delete("auth_token");
+      // Only clear the cookie when the backend genuinely rejects the token
+      // (401/403). A 404 (misrouted endpoint) or 5xx/network blip must NOT log
+      // the user out — treating those as "invalid token" is what silently
+      // booted everyone on dashboard load.
+      if (meResponse.status === 401 || meResponse.status === 403) {
+        response.cookies.delete("auth_token");
+      }
       return response;
     }
 
