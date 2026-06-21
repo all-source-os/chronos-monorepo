@@ -1,5 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerApiUrl } from "@/lib/api/client";
+
+// Session tokens are minted by the Control Plane and validated by the Query
+// Service's /api/v1/auth/me. NEXT_PUBLIC_API_URL points at the branded gateway
+// (api.all-source.xyz), which routes /api/v1/events etc. to the QS but NOT
+// /api/auth/* or /api/v1/auth/* — so token validation 404'd there and every
+// login (Google/GitHub/email/demo) showed "Session expired". Resolve the QS
+// directly; override with QUERY_SERVICE_URL.
+function getQueryServiceUrl(): string {
+  return (
+    process.env.QUERY_SERVICE_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "https://allsource-query.fly.dev"
+      : "http://localhost:3902")
+  );
+}
 
 // Only allow same-origin paths to defend against open-redirect via ?next=.
 // Reject absolute URLs (//evil.com, https://...) and API/auth routes.
@@ -33,10 +47,7 @@ export async function GET(request: NextRequest) {
 
   // Verify token by fetching user info
   try {
-    // Validate via /api/v1/auth/me — the branded gateway (NEXT_PUBLIC_API_URL =
-    // api.all-source.xyz) only routes /api/v1/*, so /api/auth/me 404s there and
-    // every login looked like an expired session.
-    const meResponse = await fetch(`${getServerApiUrl()}/api/v1/auth/me`, {
+    const meResponse = await fetch(`${getQueryServiceUrl()}/api/v1/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
