@@ -55,6 +55,10 @@ const SERVICE_METADATA: Record<string, { label: string; description: string }> =
     label: "Auth Service",
     description: "Better-auth adapter over AllSource",
   },
+  login: {
+    label: "Login (end-to-end)",
+    description: "Session-token validation — the exact path the dashboard login uses",
+  },
   registry: {
     label: "Registry",
     description: "Package and SDK registry",
