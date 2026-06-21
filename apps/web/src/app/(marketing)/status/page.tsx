@@ -31,6 +31,27 @@ interface ServiceHeartbeat {
   probed_url?: string;
 }
 
+interface Incident {
+  service: string;
+  started_at: string;
+  resolved_at: string | null;
+  // Limited IP info: a redacted network prefix only (e.g. 203.0.113.0/24).
+  observed_ip_prefix?: string | null;
+}
+
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
+
+function formatDuration(startIso: string, endIso: string | null): string {
+  const start = new Date(startIso).getTime();
+  const end = endIso ? new Date(endIso).getTime() : Date.now();
+  const mins = Math.max(0, Math.round((end - start) / 60000));
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
 // Friendly labels + descriptions for the canonical service set. Services
 // returned by CP that aren't in this map are still rendered, with the raw
 // name as the label.
@@ -106,15 +127,21 @@ function formatAge(ageSeconds: number): string {
 
 export default function StatusPage() {
   const [services, setServices] = useState<ServiceHeartbeat[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/status/services", { cache: "no-store" });
-      const data = (await res.json()) as { services?: ServiceHeartbeat[]; error?: string };
+      const [svcRes, incRes] = await Promise.all([
+        fetch("/api/status/services", { cache: "no-store" }),
+        fetch("/api/status/incidents", { cache: "no-store" }),
+      ]);
+      const data = (await svcRes.json()) as { services?: ServiceHeartbeat[]; error?: string };
       setServices(data.services ?? []);
       setFetchError(data.error ?? null);
+      const incData = (await incRes.json()) as { incidents?: Incident[] };
+      setIncidents(incData.incidents ?? []);
       setLastFetch(new Date());
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : String(err));
@@ -198,10 +225,37 @@ export default function StatusPage() {
             <CardDescription>Last 30 days</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              No incidents reported. History view will surface heartbeat events from Core in a
-              future release.
-            </p>
+            {incidents.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No incidents in the last 30 days.</p>
+            ) : (
+              <div className="space-y-4">
+                {incidents.map((inc) => {
+                  const meta = SERVICE_METADATA[inc.service];
+                  const ongoing = !inc.resolved_at;
+                  return (
+                    <div
+                      key={`${inc.service}-${inc.started_at}`}
+                      className="flex items-start justify-between rounded-lg border p-4"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">
+                          {meta?.label ?? inc.service} {ongoing ? "outage (ongoing)" : "outage"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatTimestamp(inc.started_at)} · {formatDuration(inc.started_at, inc.resolved_at)}
+                          {inc.observed_ip_prefix ? ` · observed from ${inc.observed_ip_prefix}` : ""}
+                        </p>
+                      </div>
+                      {ongoing ? (
+                        <Badge className="bg-red-500/10 text-red-500 border-red-500/20">Ongoing</Badge>
+                      ) : (
+                        <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Resolved</Badge>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </BlurFade>

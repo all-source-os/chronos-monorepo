@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { recordCheck, redactIp } from "@/lib/incidents";
 
 // Proxy to Control Plane's event-sourced status feed. The page in
 // /status calls this so there's no client-side CORS concern and we get
@@ -138,40 +139,45 @@ async function probeLoginAuth(cpUrl: string): Promise<ServiceHeartbeat> {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const cpUrl = getControlPlaneUrl();
+  // Limited IP info: only a redacted network prefix (/24 or /48) is ever stored.
+  const ipPrefix = redactIp(request.headers.get("x-forwarded-for"));
 
   // Run the synthetic login check in parallel with the CP feed so the auth
   // status is always present even if the CP feed is slow/down.
-  const loginCheckPromise = probeLoginAuth(cpUrl);
+  const loginCheck = await probeLoginAuth(cpUrl);
+
+  let services: ServiceHeartbeat[] = [loginCheck];
+  let rest: Record<string, unknown> = {};
+  let topError: string | undefined;
 
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5_000);
-
     const response = await fetch(`${cpUrl}/api/v1/status/services`, {
       signal: controller.signal,
       cache: "no-store",
     });
     clearTimeout(timeout);
 
-    const loginCheck = await loginCheckPromise;
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { services: [loginCheck], error: `upstream ${response.status}` },
-        { status: 200 }
-      );
+    if (response.ok) {
+      const data = (await response.json()) as { services?: ServiceHeartbeat[] };
+      const { services: upstream, ...other } = data;
+      services = [...(Array.isArray(upstream) ? upstream : []), loginCheck];
+      rest = other;
+    } else {
+      topError = `upstream ${response.status}`;
     }
-
-    const data = await response.json();
-    const upstream: ServiceHeartbeat[] = Array.isArray(data?.services) ? data.services : [];
-    return NextResponse.json({ ...data, services: [...upstream, loginCheck] });
   } catch (err) {
-    const loginCheck = await loginCheckPromise;
-    return NextResponse.json(
-      { services: [loginCheck], error: err instanceof Error ? err.message : String(err) },
-      { status: 200 }
-    );
+    topError = err instanceof Error ? err.message : String(err);
   }
+
+  // Append/resolve incidents on status transitions, durably in the event log.
+  // Best-effort and a no-op unless INCIDENT_API_KEY is configured.
+  await Promise.allSettled(
+    services.map((s) => recordCheck(s.service, s.status === "healthy", ipPrefix))
+  );
+
+  return NextResponse.json({ ...rest, services, ...(topError ? { error: topError } : {}) });
 }
