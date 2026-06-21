@@ -154,6 +154,18 @@ defmodule QueryServiceExWeb.Router do
     post("/logout", AuthController, :logout)
   end
 
+  # v1 aliases for the session endpoints. The branded gateway (api.all-source.xyz)
+  # routes /api/v1/* to the Query Service but NOT /api/auth/*. The web login
+  # callback validates the session token via ${NEXT_PUBLIC_API_URL}/api/v1/auth/me;
+  # without this it 404'd on api.all-source.xyz and every login showed
+  # "Session expired". Same handlers as /api/auth above.
+  scope "/api/v1/auth", QueryServiceExWeb do
+    pipe_through(:authenticated)
+
+    get("/me", AuthController, :me)
+    post("/logout", AuthController, :logout)
+  end
+
   # -------------------------------------------------------------------
   # Tenant-Scoped Routes (requires active subscription)
   # -------------------------------------------------------------------

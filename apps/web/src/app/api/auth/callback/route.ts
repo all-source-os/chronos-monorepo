@@ -33,7 +33,10 @@ export async function GET(request: NextRequest) {
 
   // Verify token by fetching user info
   try {
-    const meResponse = await fetch(`${getServerApiUrl()}/api/auth/me`, {
+    // Validate via /api/v1/auth/me — the branded gateway (NEXT_PUBLIC_API_URL =
+    // api.all-source.xyz) only routes /api/v1/*, so /api/auth/me 404s there and
+    // every login looked like an expired session.
+    const meResponse = await fetch(`${getServerApiUrl()}/api/v1/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
