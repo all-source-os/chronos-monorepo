@@ -133,6 +133,7 @@ type Container struct {
 	CalculateOverageUC   *billing.CalculateOverageUseCase
 	ReportUsageUC        *billing.ReportUsageUseCase
 	CheckUsageWarningsUC *billing.CheckUsageWarningsUseCase
+	BackfillEventsUsedUC *billing.BackfillEventsUsedUseCase
 
 	// Use Cases — Admin Billing
 	AdminListInvoicesUC *billing.AdminListInvoicesUseCase
@@ -179,6 +180,7 @@ type Container struct {
 	AdminBillingHandler          *httphandlers.AdminBillingHandler
 	BillingConfigHandler         *httphandlers.BillingConfigHandler
 	EarlyAdopterMigrationHandler *httphandlers.EarlyAdopterMigrationHandler
+	BackfillUsageHandler         *httphandlers.BackfillUsageHandler
 	WebhookHandler               *httphandlers.WebhookHandler
 	EmailWebhookHandler          *httphandlers.EmailWebhookHandler
 	InboxConnectHandler          *httphandlers.InboxConnectHandler
@@ -394,6 +396,14 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		syncX402UsageUC = billing.NewSyncX402UsageUseCase(tenantRepo, auditRepo, cfg.CoreClient)
 	}
 
+	// Initialize use cases — Billing (events_used backfill, t-dece).
+	// Reconciles the metered events_used counter from the real event count in
+	// Core for tenants whose data was ingested outside the metered QS path.
+	var backfillEventsUsedUC *billing.BackfillEventsUsedUseCase
+	if cfg.CoreClient != nil {
+		backfillEventsUsedUC = billing.NewBackfillEventsUsedUseCase(tenantRepo, auditRepo, cfg.CoreClient)
+	}
+
 	// Initialize use cases — Billing (subscription reconciliation, t-f23d2a).
 	// Self-heals tier from LemonSqueezy when a webhook is missed/rejected.
 	var syncSubsUC *usecases.SyncSubscriptionsUseCase
@@ -476,6 +486,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	verifyBillingConfigUC := usecases.NewVerifyBillingConfigUseCase(cfg.LSClient, os.Getenv("LEMON_SQUEEZY_WEBHOOK_SECRET"))
 	billingConfigHandler := httphandlers.NewBillingConfigHandler(verifyBillingConfigUC)
 	earlyAdopterMigrationHandler := httphandlers.NewEarlyAdopterMigrationHandler(migrateEarlyAdoptersUC)
+	backfillUsageHandler := httphandlers.NewBackfillUsageHandler(backfillEventsUsedUC)
 	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC)
 	// Email inbox connector (P0): enabled only when both Core and a provider are
 	// configured. nil provider -> the handler returns 503. See emailprovider/nylas.
@@ -566,6 +577,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		CalculateOverageUC:           calculateOverageUC,
 		ReportUsageUC:                reportUsageUC,
 		CheckUsageWarningsUC:         checkUsageWarningsUC,
+		BackfillEventsUsedUC:         backfillEventsUsedUC,
 		AdminListInvoicesUC:          adminListInvoicesUC,
 		AdminRevenueUC:               adminRevenueUC,
 		AdminRefundUC:                adminRefundUC,
@@ -595,6 +607,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AdminBillingHandler:          adminBillingHandler,
 		BillingConfigHandler:         billingConfigHandler,
 		EarlyAdopterMigrationHandler: earlyAdopterMigrationHandler,
+		BackfillUsageHandler:         backfillUsageHandler,
 		WebhookHandler:               webhookHandler,
 		EmailWebhookHandler:          emailWebhookHandler,
 		InboxConnectHandler:          inboxConnectHandler,

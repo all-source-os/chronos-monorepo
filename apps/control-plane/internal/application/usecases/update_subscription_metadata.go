@@ -127,8 +127,16 @@ func (uc *UpdateSubscriptionMetadataUseCase) applyLocked(tenant *entities.Tenant
 	// events/queries quota, x402 allowance, retention, streams, MCP scope — so
 	// downstream enforcement (quota gate, x402 allowance checker) has everything
 	// it needs from a single tenant read.
+	//
+	// CRITICAL: preserve the existing USAGE counters (events_used / queries_used /
+	// x402_used / reset_date). These are the metered "used this period" numbers the
+	// dashboard reads; rebuilding the quotas map from tier limits alone silently
+	// zeroed them on every webhook / change-plan / scheduler tick, which is why a
+	// backfilled events_used would not survive. Quota LIMITS come from the tier;
+	// USAGE carries forward from whatever was already stored.
 	if billing.Subscription != nil && billing.Subscription.Tier != "" && billing.Quotas == nil {
 		tierQuotas := entities.QuotasForTier(billing.Subscription.Tier)
+		prev := extractQuotas(tenant.Metadata)
 		tenant.Metadata["quotas"] = &entities.QuotaMetadata{
 			EventsQuota:   tierQuotas.EventsQuota,
 			QueriesQuota:  tierQuotas.QueriesQuota,
@@ -136,6 +144,11 @@ func (uc *UpdateSubscriptionMetadataUseCase) applyLocked(tenant *entities.Tenant
 			RetentionDays: tierQuotas.RetentionDays,
 			MaxStreams:    tierQuotas.MaxStreams,
 			MCPScope:      tierQuotas.MCPScope,
+			// Carry usage forward — do not reset on a tier apply.
+			EventsUsed:  prev.EventsUsed,
+			QueriesUsed: prev.QueriesUsed,
+			X402Used:    prev.X402Used,
+			ResetDate:   prev.ResetDate,
 		}
 	}
 

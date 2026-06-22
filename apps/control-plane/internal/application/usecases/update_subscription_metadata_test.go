@@ -127,4 +127,66 @@ func TestUpdateSubscriptionMetadataUseCase_Execute(t *testing.T) {
 			t.Error("expected error for nonexistent tenant")
 		}
 	})
+
+	t.Run("preserves usage counters across a tier apply", func(t *testing.T) {
+		// Regression: a tier apply used to rebuild the quotas map from tier limits
+		// alone, silently zeroing events_used / queries_used / x402_used on every
+		// webhook / change-plan / scheduler tick — which erased any backfilled
+		// usage. The metered "used" numbers must carry forward.
+		repo := persistence.NewMemoryTenantRepository()
+		audit := persistence.NewMemoryAuditRepository()
+		ctUC := NewCreateTenantUseCase(repo, audit)
+		subUC := NewUpdateSubscriptionMetadataUseCase(repo, audit)
+
+		if _, err := ctUC.Execute(dto.CreateTenantRequest{ID: "tenant-usage", Name: "Usage Tenant"}); err != nil {
+			t.Fatalf("setup: create tenant: %v", err)
+		}
+
+		// Seed real usage on the tenant's quotas.
+		seed, err := repo.FindByID("tenant-usage")
+		if err != nil {
+			t.Fatalf("find tenant: %v", err)
+		}
+		seed.Metadata["quotas"] = &entities.QuotaMetadata{
+			EventsQuota:  5_000_000,
+			QueriesQuota: 500_000,
+			EventsUsed:   870_000,
+			QueriesUsed:  1_234,
+			X402Used:     7,
+			ResetDate:    "2026-07-01",
+		}
+		if err := repo.Update(seed); err != nil {
+			t.Fatalf("seed usage: %v", err)
+		}
+
+		// Apply a tier (no explicit quotas → tier auto-quotas path, the clobber site).
+		resp, err := subUC.Execute("tenant-usage", &entities.TenantBillingMetadata{
+			Subscription: &entities.SubscriptionMetadata{Tier: "studio", Status: "active"},
+		})
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		quotas, ok := resp.Metadata["quotas"].(*entities.QuotaMetadata)
+		if !ok {
+			t.Fatalf("quotas should be *QuotaMetadata, got %T", resp.Metadata["quotas"])
+		}
+		// Limits refreshed from the tier...
+		if quotas.EventsQuota != 5_000_000 {
+			t.Errorf("EventsQuota = %d, want 5000000", quotas.EventsQuota)
+		}
+		// ...usage carried forward (the regression).
+		if quotas.EventsUsed != 870_000 {
+			t.Errorf("EventsUsed = %d, want 870000 (must survive tier apply)", quotas.EventsUsed)
+		}
+		if quotas.QueriesUsed != 1_234 {
+			t.Errorf("QueriesUsed = %d, want 1234 (must survive tier apply)", quotas.QueriesUsed)
+		}
+		if quotas.X402Used != 7 {
+			t.Errorf("X402Used = %d, want 7 (must survive tier apply)", quotas.X402Used)
+		}
+		if quotas.ResetDate != "2026-07-01" {
+			t.Errorf("ResetDate = %q, want 2026-07-01 (must survive tier apply)", quotas.ResetDate)
+		}
+	})
 }

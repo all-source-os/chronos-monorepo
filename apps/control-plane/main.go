@@ -674,6 +674,10 @@ func (cp *ControlPlane) setupRoutes() {
 	adminBilling.GET("/dunning", cp.container.AdminBillingHandler.GetDunning)
 	adminBilling.GET("/config-check", cp.container.BillingConfigHandler.ConfigCheck)
 	adminBilling.POST("/migrate-early-adopters", cp.container.EarlyAdopterMigrationHandler.Run)
+	// Reconcile a tenant's metered events_used from the real event count in Core
+	// (for data ingested outside the metered QS write path). Body:
+	// {"tenant_id":"...","dry_run":true|false}. Empty tenant_id = all active tenants.
+	adminBilling.POST("/backfill-usage", cp.container.BackfillUsageHandler.Run)
 }
 
 // livezHandler is the liveness probe: did the CP process come up and is the

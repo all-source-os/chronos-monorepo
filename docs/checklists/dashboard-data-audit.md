@@ -97,5 +97,42 @@ correct source for "used this billing period").
 (`EventController.create` → `UsageReporter.record` → `POST /api/v1/tenants/{id}/usage/increment`) **but
 Core has no `…/usage/increment` route** (`apps/core/.../api_v1.rs:201-219`) → the increment 404s and is
 dropped. So even QS-path writes don't move the meter today. Verified live: writing a probe event through
-the QS left `events_used` at 0 after the flush window. Phase B backfills this tenant's counter from the
-real store count and documents the forward-metering gap.
+the QS left `events_used` at 0 after the flush window.
+
+## Phase B — what shipped (Control Plane)
+
+1. **Stop zeroing usage on every tier apply.** `UpdateSubscriptionMetadataUseCase.applyLocked`
+   (`apps/control-plane/internal/application/usecases/update_subscription_metadata.go`) used to rebuild
+   the `quotas` map from tier limits alone, silently resetting `events_used`/`queries_used`/`x402_used`/
+   `reset_date` to 0 on every webhook, change-plan, and 15-min scheduler tick. It now **carries the usage
+   counters forward** when refreshing the tier limits. Regression test:
+   `update_subscription_metadata_test.go` → "preserves usage counters across a tier apply".
+
+2. **Backfill `events_used` from the real store.** New `BackfillEventsUsedUseCase`
+   (`apps/control-plane/internal/application/usecases/billing/backfill_events_used.go`) counts a tenant's
+   real events in Core (tenant-scoped `QueryEvents`, paged) and writes the count into
+   `metadata.quotas.events_used` — the field the dashboard reads. Idempotent, `dry_run` supported, page-
+   capped with an honest `Capped`/lower-bound flag, audit-logged (`billing.events_used.backfilled`).
+   Exposed at **`POST /api/v1/admin/billing/backfill-usage`** (admin-scoped;
+   `apps/control-plane/internal/interfaces/http/backfill_usage_handler.go`,
+   `apps/control-plane/main.go`). Tests in `backfill_events_used_test.go`.
+
+**Run after deploy** (single tenant, dry-run first):
+
+```
+curl -X POST https://api.all-source.xyz/api/v1/admin/billing/backfill-usage \
+  -H "Authorization: Bearer <ADMIN_JWT>" -H 'Content-Type: application/json' \
+  -d '{"tenant_id":"decebal-dobrica-at-gmail-com","dry_run":true}'
+# then re-run with "dry_run":false
+```
+
+### Remaining limitation (honest, surfaced)
+
+True **forward** metering still needs a Core change: the QS `UsageReporter` already POSTs to
+`POST /api/v1/tenants/{id}/usage/increment`, but **Core does not register that route** (`api_v1.rs`), so
+those increments 404 and drop. Until Core adds the increment handler (a separate, Core-side change), the
+honest stance is: the dashboard's **Total Events / Streams / Event Types / 30-day ingestion** read the
+**real event store** (Phase A — always truthful, never the meter); the **quota bars** read
+`events_used`, which is now (a) backfillable to the real count and (b) no longer zeroed on tier changes,
+but is not yet auto-incrementing on new ingest. The Overview no longer shows 0 where the store is full,
+and never invents a number.
