@@ -26,11 +26,17 @@ function entityId(userId: string): string {
 
 async function fetchPreferences(userId: string): Promise<NotificationPreferences> {
   const response = await apiClient.getEventsByEntity(entityId(userId));
-  if (response.data?.data && response.data.data.length > 0) {
+  // apiClient.request() already unwrapped the `{ data: [...] }` envelope, so
+  // response.data is the events array — `response.data.data` was undefined and
+  // preferences silently fell back to defaults forever.
+  const raw = response.data as unknown;
+  const events = (
+    Array.isArray(raw) ? raw : ((raw as { data?: unknown[] })?.data ?? [])
+  ) as Array<{ payload?: { notifications?: Partial<NotificationPreferences> } }>;
+  if (events.length > 0) {
     // Events are returned newest-first; take the latest
-    const latest = response.data.data[0]!;
-    const payload = latest.payload as { notifications?: Partial<NotificationPreferences> };
-    if (payload.notifications) {
+    const payload = events[0]?.payload;
+    if (payload?.notifications) {
       return { ...DEFAULT_PREFERENCES, ...payload.notifications };
     }
   }

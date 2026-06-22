@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { apiClient, type EventTypeInfo } from "@/lib/api/client";
+import { apiClient, type EventTypeInfo, type EventTypesListResponse } from "@/lib/api/client";
 
 interface EventTypesParams {
   limit?: number;
@@ -40,9 +40,15 @@ export function useEventTypes(params?: EventTypesParams) {
     }
   );
 
+  // apiClient.request() already unwrapped the `{ data: [...] }` envelope, so
+  // `data` is the EventTypeInfo[] array, not the wrapper — `data.data` was
+  // undefined, rendering the event-types list empty despite rows.
+  const raw = data as EventTypeInfo[] | EventTypesListResponse | undefined;
+  const list: EventTypeInfo[] = Array.isArray(raw) ? raw : ((raw?.data ?? []) as EventTypeInfo[]);
+
   return {
-    eventTypes: (data?.data || []) as EventTypeInfo[],
-    total: data?.total || 0,
+    eventTypes: list,
+    total: Array.isArray(raw) ? raw.length : (raw?.total ?? list.length),
     isLoading,
     isValidating,
     error: error?.message,

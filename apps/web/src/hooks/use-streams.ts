@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { apiClient, type StreamInfo } from "@/lib/api/client";
+import { apiClient, type StreamInfo, type StreamsListResponse } from "@/lib/api/client";
 
 interface StreamsParams {
   limit?: number;
@@ -40,9 +40,15 @@ export function useStreams(params?: StreamsParams) {
     }
   );
 
+  // apiClient.request() already unwrapped the `{ data: [...] }` envelope, so
+  // `data` is the StreamInfo[] array, not the StreamsListResponse wrapper —
+  // `data.data` was undefined, rendering the Streams view empty despite rows.
+  const raw = data as StreamInfo[] | StreamsListResponse | undefined;
+  const list: StreamInfo[] = Array.isArray(raw) ? raw : ((raw?.data ?? []) as StreamInfo[]);
+
   return {
-    streams: (data?.data || []) as StreamInfo[],
-    total: data?.total || 0,
+    streams: list,
+    total: Array.isArray(raw) ? raw.length : (raw?.total ?? list.length),
     isLoading,
     isValidating,
     error: error?.message,

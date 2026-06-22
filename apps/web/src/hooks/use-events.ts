@@ -115,9 +115,15 @@ export function useEventsByEntity(entityId: string) {
     }
   );
 
+  // Same unwrap caveat as useEvents: apiClient.request() already stripped the
+  // `{ data: ... }` envelope, so `data` is the Event[] array — `data.data` is
+  // undefined and silently rendered the entity view empty. Handle both shapes.
+  const raw = data as Event[] | EventListResponse | undefined;
+  const list: Event[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
+
   return {
-    events: data?.data || [],
-    total: data?.count || 0,
+    events: list,
+    total: Array.isArray(raw) ? raw.length : (raw?.count ?? list.length),
     isLoading,
     isHistorical,
     error: error?.message,

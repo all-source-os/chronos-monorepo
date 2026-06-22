@@ -32,9 +32,17 @@ export function useReplays() {
     await mutate();
   };
 
+  // apiClient.request() already unwrapped the `{ data: [...] }` envelope, so
+  // `data` is the ReplayProgress[] array, not the wrapper — `data.data` was
+  // undefined, rendering the replay list empty despite rows.
+  const raw: unknown = data;
+  const list: ReplayProgress[] = (
+    Array.isArray(raw) ? raw : ((raw as { data?: ReplayProgress[] })?.data ?? [])
+  ) as ReplayProgress[];
+
   return {
-    replays: data?.data ?? [],
-    total: data?.total ?? 0,
+    replays: list,
+    total: Array.isArray(raw) ? raw.length : ((raw as { total?: number })?.total ?? list.length),
     isLoading,
     error: error?.message,
     startReplay,
