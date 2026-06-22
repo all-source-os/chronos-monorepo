@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{SchemaEnforcement, TenantQuotas},
+        entities::{SchemaEnforcement, TenantQuotas, UsageMeter},
         value_objects::TenantId,
     },
     infrastructure::security::middleware::{Admin, Authenticated},
@@ -81,6 +81,34 @@ pub struct UpdateQuotasRequest {
 pub struct UpdateSchemaEnforcementRequest {
     /// One of `permissive`, `warn`, `strict`.
     pub schema_enforcement: SchemaEnforcement,
+}
+
+/// Body for `POST /api/v1/tenants/{id}/usage/increment`.
+///
+/// `type` is the [`UsageMeter`] discriminator and DEFAULTS to `events` when
+/// absent — that keeps the original untyped `{"count": N}` body the Query
+/// Service sent before this field existed valid during a rolling deploy.
+#[derive(Debug, Deserialize)]
+pub struct IncrementUsageRequest {
+    /// How much to add to the counter. Must be > 0. A `u64` field also makes
+    /// serde reject negative numbers with a 400 before the handler runs.
+    pub count: u64,
+    /// Which meter to bump: `events` → `events_used`, `queries` →
+    /// `queries_used`. Defaults to `events`.
+    #[serde(default, rename = "type")]
+    pub meter: UsageMeter,
+}
+
+/// Returned by the usage-increment endpoint: the meter that was bumped and its
+/// new value, so the caller (and tests) can confirm the write landed.
+#[derive(Debug, Serialize)]
+pub struct IncrementUsageResponse {
+    pub tenant_id: String,
+    /// `events` or `queries`.
+    #[serde(rename = "type")]
+    pub meter: UsageMeter,
+    /// The post-increment counter value (`metadata.quotas.<field>`).
+    pub used: u64,
 }
 
 // ============================================================================
@@ -259,6 +287,58 @@ pub async fn update_quotas_handler(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Increment a tenant's forward usage counter (admin only).
+/// POST /api/v1/tenants/:id/usage/increment
+///
+/// Write half of forward usage-metering. The Query Service POSTs one increment
+/// per metered activity — events ingested (`type: "events"`) or queries run
+/// (`type: "queries"`) — and Core atomically bumps the matching
+/// `metadata.quotas.{events_used,queries_used}` counter the dashboard reads.
+///
+/// Body: `{ "count": <u64>, "type": "events" | "queries" }`. `type` defaults
+/// to `"events"` so the pre-typing `{count}` body keeps working during a
+/// rolling deploy. Returns the post-increment value. `404` if the tenant is
+/// unknown; `400` (via serde) for a missing/negative `count`; `400` for an
+/// explicit `count: 0` (a no-op increment is a client bug, not a write).
+///
+/// Atomicity is the repository's job — see
+/// [`TenantRepository::increment_usage`]; concurrent batched increments for
+/// the same tenant are serialized so no counts are lost.
+pub async fn increment_usage_handler(
+    State(state): State<AppState>,
+    Admin(_): Admin,
+    axum::extract::Path(tenant_id): axum::extract::Path<String>,
+    Json(req): Json<IncrementUsageRequest>,
+) -> Result<Json<IncrementUsageResponse>, (StatusCode, String)> {
+    if req.count == 0 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "count must be greater than zero".to_string(),
+        ));
+    }
+
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let new_value = state
+        .tenant_repo
+        .increment_usage(&tid, req.meter, req.count)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                format!("Tenant not found: {tenant_id}"),
+            )
+        })?;
+
+    Ok(Json(IncrementUsageResponse {
+        tenant_id,
+        meter: req.meter,
+        used: new_value,
+    }))
 }
 
 /// Set a tenant's schema-enforcement mode (admin only).
@@ -474,4 +554,53 @@ fn build_tenant_stats(tenant: &crate::domain::entities::Tenant) -> serde_json::V
         "created_at": tenant.created_at(),
         "updated_at": tenant.updated_at()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn increment_request_defaults_meter_to_events() {
+        // Backward compat: the pre-typing Query Service sent just `{count}`.
+        // That body must still parse and target the events meter, so an old
+        // QS hitting a new Core during a rolling deploy keeps metering events.
+        let req: IncrementUsageRequest = serde_json::from_str(r#"{"count": 7}"#).unwrap();
+        assert_eq!(req.count, 7);
+        assert_eq!(req.meter, UsageMeter::Events);
+        assert_eq!(req.meter.quota_field(), "events_used");
+    }
+
+    #[test]
+    fn increment_request_parses_typed_events_and_queries() {
+        let ev: IncrementUsageRequest =
+            serde_json::from_str(r#"{"count": 3, "type": "events"}"#).unwrap();
+        assert_eq!(ev.meter, UsageMeter::Events);
+
+        let qs: IncrementUsageRequest =
+            serde_json::from_str(r#"{"count": 9, "type": "queries"}"#).unwrap();
+        assert_eq!(qs.meter, UsageMeter::Queries);
+        assert_eq!(qs.meter.quota_field(), "queries_used");
+    }
+
+    #[test]
+    fn increment_request_rejects_negative_count() {
+        // `count: u64` makes serde reject negatives before the handler runs,
+        // which axum surfaces as a 400 — no separate validation needed.
+        let err = serde_json::from_str::<IncrementUsageRequest>(r#"{"count": -1}"#);
+        assert!(err.is_err(), "negative count must fail to deserialize");
+    }
+
+    #[test]
+    fn increment_response_serializes_type_and_used() {
+        let resp = IncrementUsageResponse {
+            tenant_id: "acme".to_string(),
+            meter: UsageMeter::Queries,
+            used: 42,
+        };
+        let v = serde_json::to_value(&resp).unwrap();
+        assert_eq!(v["tenant_id"], "acme");
+        assert_eq!(v["type"], "queries");
+        assert_eq!(v["used"], 42);
+    }
 }

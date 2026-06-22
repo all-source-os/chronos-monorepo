@@ -10,7 +10,7 @@
 
 use crate::{
     domain::{
-        entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage},
+        entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage, UsageMeter},
         value_objects::TenantId,
     },
     error::Result,
@@ -211,6 +211,41 @@ pub trait TenantRepository: Send + Sync {
     /// # Errors
     /// - `StorageError` - If the operation fails
     async fn update_usage(&self, id: &TenantId, usage: TenantUsage) -> Result<bool>;
+
+    /// Atomically increment a tenant's forward usage counter in
+    /// `metadata.quotas` and return the new counter value.
+    ///
+    /// This is the write half of forward usage-metering: the Query Service
+    /// POSTs one increment per metered activity (events ingested / queries
+    /// run) and `meter` selects which `metadata.quotas` field is bumped
+    /// (`events_used` for [`UsageMeter::Events`], `queries_used` for
+    /// [`UsageMeter::Queries`]) — the exact fields the dashboard reads back.
+    ///
+    /// # Atomicity
+    ///
+    /// Implementations MUST make the read-modify-write atomic *per tenant*.
+    /// Increments arrive batched and concurrently; a naive
+    /// read-then-write would lose updates under load (two callers read the
+    /// same base, both add, one write wins), silently under-billing. The
+    /// counter after N concurrent `+k` increments must equal `start + N*k`.
+    ///
+    /// # Arguments
+    /// * `id` - The tenant ID
+    /// * `meter` - Which counter to bump (events vs queries)
+    /// * `count` - Amount to add (callers reject 0 / negative upstream)
+    ///
+    /// # Returns
+    /// `Some(new_value)` with the post-increment counter, or `None` if the
+    /// tenant does not exist.
+    ///
+    /// # Errors
+    /// - `StorageError` - If the durable write fails
+    async fn increment_usage(
+        &self,
+        id: &TenantId,
+        meter: UsageMeter,
+        count: u64,
+    ) -> Result<Option<u64>>;
 
     /// Activate a tenant
     ///

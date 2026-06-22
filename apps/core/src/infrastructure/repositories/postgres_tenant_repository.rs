@@ -22,7 +22,7 @@ use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 
 #[cfg(feature = "postgres")]
-use crate::domain::entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage};
+use crate::domain::entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage, UsageMeter};
 #[cfg(feature = "postgres")]
 use crate::domain::repositories::TenantRepository;
 #[cfg(feature = "postgres")]
@@ -495,6 +495,45 @@ impl TenantRepository for PostgresTenantRepository {
         .map_err(|e| AllSourceError::StorageError(format!("Failed to update usage: {e}")))?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn increment_usage(
+        &self,
+        id: &TenantId,
+        meter: UsageMeter,
+        count: u64,
+    ) -> Result<Option<u64>> {
+        // Atomic at the row level: a single jsonb_set bumps
+        // metadata.quotas.<field> in place (no read-modify-write race), and
+        // RETURNING hands back the new value. The field path is the same one
+        // the dashboard reads. `meter.quota_field()` is a fixed identifier
+        // (events_used / queries_used), not user input, so interpolating it
+        // into the JSON path literal is safe.
+        let field = meter.quota_field();
+        let sql = format!(
+            r"
+            UPDATE tenants SET
+                metadata = jsonb_set(
+                    COALESCE(metadata, '{{}}'::jsonb),
+                    '{{quotas,{field}}}',
+                    to_jsonb(
+                        COALESCE((metadata #>> '{{quotas,{field}}}')::bigint, 0) + $2::bigint
+                    ),
+                    true
+                ),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING (metadata #>> '{{quotas,{field}}}')::bigint AS new_value
+            "
+        );
+        let row = sqlx::query(&sql)
+            .bind(id.as_str())
+            .bind(count as i64)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AllSourceError::StorageError(format!("Failed to increment usage: {e}")))?;
+
+        Ok(row.map(|r| r.get::<i64, _>("new_value").max(0) as u64))
     }
 
     async fn activate(&self, id: &TenantId) -> Result<bool> {

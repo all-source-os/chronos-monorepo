@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage},
+        entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage, UsageMeter},
         repositories::TenantRepository,
         value_objects::TenantId,
     },
@@ -9,6 +9,7 @@ use crate::{
 use async_trait::async_trait;
 use chrono::Utc;
 use dashmap::DashMap;
+use serde_json::json;
 use std::sync::Arc;
 
 /// In-memory implementation of TenantRepository
@@ -228,6 +229,60 @@ impl TenantRepository for InMemoryTenantRepository {
             Ok(true)
         } else {
             Ok(false)
+        }
+    }
+
+    async fn increment_usage(
+        &self,
+        id: &TenantId,
+        meter: UsageMeter,
+        count: u64,
+    ) -> Result<Option<u64>> {
+        let key = id.as_str().to_string();
+
+        // Concurrency: `DashMap::get_mut` holds the shard's write lock for the
+        // lifetime of `entry`, so the read-modify-write below is atomic per
+        // tenant — concurrent increments to the same tenant serialize and the
+        // counter sums exactly. The critical section is fully synchronous (no
+        // .await), so holding the guard is safe.
+        if let Some(mut entry) = self.tenants.get_mut(&key) {
+            let mut metadata = entry.value().metadata().clone();
+            let field = meter.quota_field();
+
+            let obj = metadata.as_object_mut().ok_or_else(|| {
+                AllSourceError::InternalError("tenant metadata is not an object".into())
+            })?;
+            let quotas = obj
+                .entry("quotas")
+                .or_insert_with(|| json!({}))
+                .as_object_mut()
+                .ok_or_else(|| {
+                    AllSourceError::InternalError("tenant metadata.quotas is not an object".into())
+                })?;
+            let prev = quotas
+                .get(field)
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0);
+            let next = prev.saturating_add(count);
+            quotas.insert(field.to_string(), json!(next));
+
+            let tenant = entry.value().clone();
+            let updated = Tenant::reconstruct(
+                tenant.id().clone(),
+                tenant.name().to_string(),
+                tenant.description().map(std::string::ToString::to_string),
+                tenant.quotas().clone(),
+                tenant.usage().clone(),
+                tenant.created_at(),
+                Utc::now(),
+                tenant.is_active(),
+                tenant.is_demo(),
+                metadata,
+            );
+            *entry = updated;
+            Ok(Some(next))
+        } else {
+            Ok(None)
         }
     }
 
@@ -521,6 +576,75 @@ mod tests {
 
         let tenant = repo.find_by_id(&tenant_id).await.unwrap().unwrap();
         assert_eq!(tenant.usage().events_today(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_increment_usage_typed_and_unknown() {
+        let repo = InMemoryTenantRepository::new();
+        let id = test_tenant_id("1");
+        repo.create(id.clone(), "T".to_string(), TenantQuotas::standard())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            repo.increment_usage(&id, UsageMeter::Events, 5)
+                .await
+                .unwrap(),
+            Some(5)
+        );
+        assert_eq!(
+            repo.increment_usage(&id, UsageMeter::Queries, 2)
+                .await
+                .unwrap(),
+            Some(2)
+        );
+        assert_eq!(
+            repo.increment_usage(&id, UsageMeter::Events, 1)
+                .await
+                .unwrap(),
+            Some(6)
+        );
+
+        let md = repo.find_by_id(&id).await.unwrap().unwrap();
+        assert_eq!(md.metadata()["quotas"]["events_used"], 6);
+        assert_eq!(md.metadata()["quotas"]["queries_used"], 2);
+
+        // Unknown tenant → None (handler 404s).
+        assert_eq!(
+            repo.increment_usage(&test_tenant_id("ghost"), UsageMeter::Events, 1)
+                .await
+                .unwrap(),
+            None
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_increment_usage_concurrency_no_lost_updates() {
+        // DashMap's get_mut write-lock serializes the per-tenant RMW; N
+        // concurrent +1 increments must sum to exactly N.
+        let repo = Arc::new(InMemoryTenantRepository::new());
+        let id = test_tenant_id("1");
+        repo.create(id.clone(), "T".to_string(), TenantQuotas::standard())
+            .await
+            .unwrap();
+
+        const N: u64 = 500;
+        let mut handles = Vec::with_capacity(N as usize);
+        for _ in 0..N {
+            let repo = Arc::clone(&repo);
+            let id = id.clone();
+            handles.push(tokio::spawn(async move {
+                repo.increment_usage(&id, UsageMeter::Events, 1)
+                    .await
+                    .unwrap()
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        let md = repo.find_by_id(&id).await.unwrap().unwrap();
+        assert_eq!(md.metadata()["quotas"]["events_used"], N);
     }
 
     #[tokio::test]

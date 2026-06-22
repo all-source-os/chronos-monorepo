@@ -170,6 +170,39 @@ pub enum QuotaResource {
     Pipelines,
 }
 
+/// Which billing meter a forward usage increment targets.
+///
+/// The dashboard shows Events and Queries as two distinct quota bars, both
+/// read from `metadata.quotas.*` (`events_used` / `queries_used`). The Query
+/// Service POSTs one increment per metered activity to
+/// `POST /api/v1/tenants/{id}/usage/increment` and tags it with this kind so
+/// the two meters never get conflated. The wire form is snake_case
+/// (`"events"` / `"queries"`); `Events` is the default when the discriminator
+/// is absent, preserving the original untyped `{count}` contract during a
+/// rolling deploy where the QS may still send the old body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageMeter {
+    /// Bumps `metadata.quotas.events_used`.
+    #[default]
+    Events,
+    /// Bumps `metadata.quotas.queries_used`.
+    Queries,
+}
+
+impl UsageMeter {
+    /// The `metadata.quotas` field this meter increments. This MUST stay in
+    /// lock-step with the read side (QS `tenant_controller`, Control-Plane
+    /// `get_tenant_usage`, `usage_enforcement` plug) which all read these exact
+    /// keys.
+    pub fn quota_field(self) -> &'static str {
+        match self {
+            UsageMeter::Events => "events_used",
+            UsageMeter::Queries => "queries_used",
+        }
+    }
+}
+
 /// Tenant usage statistics
 ///
 /// Tracks current resource usage for quota enforcement.

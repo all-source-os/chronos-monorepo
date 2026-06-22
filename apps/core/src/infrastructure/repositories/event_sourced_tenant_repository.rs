@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage},
+        entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage, UsageMeter},
         repositories::TenantRepository,
         value_objects::{
             TenantId,
@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use serde_json::json;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Event-sourced TenantRepository backed by SystemMetadataStore.
 ///
@@ -43,6 +44,15 @@ pub struct EventSourcedTenantRepository {
 
     /// In-memory cache of materialized tenant state
     cache: Arc<DashMap<String, Tenant>>,
+
+    /// Per-tenant async locks serializing the read-modify-write of forward
+    /// usage increments. Usage is money-adjacent (quota / overage), so a
+    /// lost-update race would silently under-bill. Each tenant gets its own
+    /// `Mutex` (created lazily) so increments for different tenants stay fully
+    /// concurrent while increments for the *same* tenant are serialized — the
+    /// counter after N concurrent increments equals the exact sum. See
+    /// `increment_usage`.
+    usage_locks: Arc<DashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl EventSourcedTenantRepository {
@@ -55,9 +65,23 @@ impl EventSourcedTenantRepository {
         let repo = Self {
             system_store,
             cache,
+            usage_locks: Arc::new(DashMap::new()),
         };
         repo.rebuild_cache();
         repo
+    }
+
+    /// Fetch (or lazily create) the per-tenant usage lock.
+    ///
+    /// Returns an owned `Arc<Mutex<()>>` so the caller can `.lock().await`
+    /// without holding a `DashMap` guard across the await point (holding a
+    /// shard guard across `.await` would risk deadlock).
+    fn usage_lock_for(&self, tenant_id: &str) -> Arc<Mutex<()>> {
+        self.usage_locks
+            .entry(tenant_id.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .value()
+            .clone()
     }
 
     /// Rebuild the in-memory cache from all tenant events in the system store.
@@ -380,6 +404,83 @@ impl TenantRepository for EventSourcedTenantRepository {
             }
         }
         Ok(true)
+    }
+
+    async fn increment_usage(
+        &self,
+        id: &TenantId,
+        meter: UsageMeter,
+        count: u64,
+    ) -> Result<Option<u64>> {
+        let id_str = id.as_str();
+
+        // Concurrency: serialize the whole read-modify-write per tenant. Two
+        // batched increments racing on a bare cache read would both observe
+        // the same base value and one write would clobber the other (lost
+        // update → under-billing). Holding this tenant's lock across the
+        // read, the in-place metadata bump, and the durable `emit_event`
+        // guarantees the next increment sees our committed value, so N
+        // concurrent `+k` increments sum exactly. Different tenants use
+        // different locks and never block each other.
+        let lock = self.usage_lock_for(id_str);
+        let _guard = lock.lock().await;
+
+        // Read current metadata from the cache (under the lock).
+        let Some(mut metadata) = self
+            .cache
+            .get(id_str)
+            .map(|entry| entry.value().metadata().clone())
+        else {
+            return Ok(None);
+        };
+
+        let field = meter.quota_field();
+
+        // Bump metadata.quotas.<field>, creating the objects/fields as needed
+        // and preserving every sibling key (subscription, *_quota, the other
+        // meter, …). Counters are non-negative; we read the prior value as u64
+        // (JSON numbers come back as f64/u64 depending on source) and saturate
+        // on overflow rather than panic.
+        let obj = metadata
+            .as_object_mut()
+            .ok_or_else(|| AllSourceError::InternalError("tenant metadata is not an object".into()))?;
+        let quotas = obj
+            .entry("quotas")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or_else(|| {
+                AllSourceError::InternalError("tenant metadata.quotas is not an object".into())
+            })?;
+
+        let prev = quotas.get(field).and_then(serde_json::Value::as_u64).unwrap_or(0);
+        let next = prev.saturating_add(count);
+        quotas.insert(field.to_string(), json!(next));
+
+        // Persist durably. The UPDATED event carries the full metadata and is
+        // replayed on restart (unlike USAGE_UPDATED), so the dashboard counter
+        // survives a reboot. We mirror save()'s UPDATED payload shape so
+        // replay doesn't drop name/description/is_demo.
+        let (name, description, is_demo) = self
+            .cache
+            .get(id_str)
+            .map(|e| {
+                (
+                    e.name().to_string(),
+                    e.description().map(std::string::ToString::to_string),
+                    e.is_demo(),
+                )
+            })
+            .ok_or_else(|| AllSourceError::TenantNotFound(id_str.to_string()))?;
+
+        let payload = json!({
+            "name": name,
+            "description": description,
+            "is_demo": is_demo,
+            "metadata": metadata,
+        });
+        self.emit_event(tenant_events::UPDATED, id_str, payload)?;
+
+        Ok(Some(next))
     }
 
     async fn activate(&self, id: &TenantId) -> Result<bool> {
@@ -759,5 +860,221 @@ mod tests {
         let found = repo.find_by_id(&id).await.unwrap();
         assert!(found.is_some());
         assert_eq!(found.unwrap().name(), "New Tenant");
+    }
+
+    // ---- forward usage-metering (increment_usage) ----
+
+    /// Read `metadata.quotas.<field>` from the cached tenant, defaulting to 0.
+    /// This is the exact path the dashboard / Control-Plane read.
+    async fn quota_counter(
+        repo: &EventSourcedTenantRepository,
+        id: &TenantId,
+        field: &str,
+    ) -> u64 {
+        repo.find_by_id(id)
+            .await
+            .unwrap()
+            .unwrap()
+            .metadata()
+            .get("quotas")
+            .and_then(|q| q.get(field))
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+    }
+
+    #[tokio::test]
+    async fn increment_usage_bumps_events_used() {
+        let (repo, _dir) = create_test_repo();
+        let id = TenantId::new("acme".to_string()).unwrap();
+        repo.create(id.clone(), "ACME".to_string(), TenantQuotas::standard())
+            .await
+            .unwrap();
+
+        // Starts from nothing (no quotas object at all).
+        assert_eq!(quota_counter(&repo, &id, "events_used").await, 0);
+
+        let v = repo
+            .increment_usage(&id, UsageMeter::Events, 5)
+            .await
+            .unwrap();
+        assert_eq!(v, Some(5));
+        assert_eq!(quota_counter(&repo, &id, "events_used").await, 5);
+
+        let v = repo
+            .increment_usage(&id, UsageMeter::Events, 3)
+            .await
+            .unwrap();
+        assert_eq!(v, Some(8));
+        assert_eq!(quota_counter(&repo, &id, "events_used").await, 8);
+    }
+
+    #[tokio::test]
+    async fn increment_usage_separates_events_and_queries() {
+        // The whole point of the typed contract: the two meters must not
+        // conflate. Bump each independently and assert they don't bleed.
+        let (repo, _dir) = create_test_repo();
+        let id = TenantId::new("acme".to_string()).unwrap();
+        repo.create(id.clone(), "ACME".to_string(), TenantQuotas::standard())
+            .await
+            .unwrap();
+
+        repo.increment_usage(&id, UsageMeter::Events, 10)
+            .await
+            .unwrap();
+        repo.increment_usage(&id, UsageMeter::Queries, 4)
+            .await
+            .unwrap();
+
+        assert_eq!(quota_counter(&repo, &id, "events_used").await, 10);
+        assert_eq!(quota_counter(&repo, &id, "queries_used").await, 4);
+    }
+
+    #[tokio::test]
+    async fn increment_usage_preserves_sibling_metadata() {
+        // Increments must not clobber subscription / *_quota that the backfill
+        // and tier-apply wrote into metadata.quotas alongside the counters.
+        let (repo, _dir) = create_test_repo();
+        let id = TenantId::new("acme".to_string()).unwrap();
+        repo.create(id.clone(), "ACME".to_string(), TenantQuotas::standard())
+            .await
+            .unwrap();
+
+        // Seed realistic metadata via save() (the same path the CP uses).
+        let mut tenant = repo.find_by_id(&id).await.unwrap().unwrap();
+        tenant.update_metadata(json!({
+            "subscription": { "tier": "professional", "status": "active" },
+            "quotas": { "events_quota": 5_000_000, "queries_quota": 1_000_000, "events_used": 100 },
+        }));
+        repo.save(&tenant).await.unwrap();
+
+        repo.increment_usage(&id, UsageMeter::Events, 50)
+            .await
+            .unwrap();
+
+        let md = repo.find_by_id(&id).await.unwrap().unwrap();
+        let md = md.metadata();
+        assert_eq!(md["subscription"]["tier"], "professional");
+        assert_eq!(md["quotas"]["events_quota"], 5_000_000);
+        assert_eq!(md["quotas"]["queries_quota"], 1_000_000);
+        assert_eq!(md["quotas"]["events_used"], 150);
+    }
+
+    #[tokio::test]
+    async fn increment_usage_unknown_tenant_returns_none() {
+        let (repo, _dir) = create_test_repo();
+        let ghost = TenantId::new("ghost".to_string()).unwrap();
+        let v = repo
+            .increment_usage(&ghost, UsageMeter::Events, 1)
+            .await
+            .unwrap();
+        assert_eq!(v, None, "unknown tenant must report None → handler 404s");
+    }
+
+    #[tokio::test]
+    async fn increment_usage_survives_restart() {
+        // The dashboard counter must be durable: increments go out as UPDATED
+        // events (which carry metadata and ARE replayed), unlike the volatile
+        // USAGE_UPDATED events. Rebuild from WAL and confirm the count holds.
+        let temp_dir = TempDir::new().unwrap();
+        let system_dir = temp_dir.path().join("__system");
+        let id = TenantId::new("acme".to_string()).unwrap();
+
+        {
+            let system_store = Arc::new(SystemMetadataStore::new(&system_dir).unwrap());
+            let repo = EventSourcedTenantRepository::new(system_store);
+            repo.create(id.clone(), "ACME".to_string(), TenantQuotas::standard())
+                .await
+                .unwrap();
+            repo.increment_usage(&id, UsageMeter::Events, 42)
+                .await
+                .unwrap();
+            repo.increment_usage(&id, UsageMeter::Queries, 7)
+                .await
+                .unwrap();
+        }
+
+        {
+            let system_store = Arc::new(SystemMetadataStore::new(&system_dir).unwrap());
+            let repo = EventSourcedTenantRepository::new(system_store);
+            assert_eq!(
+                quota_counter(&repo, &id, "events_used").await,
+                42,
+                "events_used must survive a restart"
+            );
+            assert_eq!(
+                quota_counter(&repo, &id, "queries_used").await,
+                7,
+                "queries_used must survive a restart"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn increment_usage_is_concurrency_safe_no_lost_updates() {
+        // The load-bearing test: fire N concurrent +1 increments at one tenant
+        // and assert the counter equals exactly N. A naive read-modify-write
+        // would lose updates (final < N). The per-tenant lock serializes the
+        // read-bump-emit so every increment is observed.
+        let (repo, _dir) = create_test_repo();
+        let repo = Arc::new(repo);
+        let id = TenantId::new("acme".to_string()).unwrap();
+        repo.create(id.clone(), "ACME".to_string(), TenantQuotas::standard())
+            .await
+            .unwrap();
+
+        const N: u64 = 500;
+        let mut handles = Vec::with_capacity(N as usize);
+        for _ in 0..N {
+            let repo = Arc::clone(&repo);
+            let id = id.clone();
+            handles.push(tokio::spawn(async move {
+                repo.increment_usage(&id, UsageMeter::Events, 1)
+                    .await
+                    .unwrap()
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        assert_eq!(
+            quota_counter(&repo, &id, "events_used").await,
+            N,
+            "concurrent increments must not lose updates"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn increment_usage_concurrent_mixed_meters_sum_independently() {
+        // Concurrency across both meters at once: events and queries race
+        // together; each counter must still equal its own exact sum.
+        let (repo, _dir) = create_test_repo();
+        let repo = Arc::new(repo);
+        let id = TenantId::new("acme".to_string()).unwrap();
+        repo.create(id.clone(), "ACME".to_string(), TenantQuotas::standard())
+            .await
+            .unwrap();
+
+        const N: u64 = 300;
+        let mut handles = Vec::new();
+        for i in 0..N {
+            let repo = Arc::clone(&repo);
+            let id = id.clone();
+            let meter = if i % 2 == 0 {
+                UsageMeter::Events
+            } else {
+                UsageMeter::Queries
+            };
+            handles.push(tokio::spawn(async move {
+                repo.increment_usage(&id, meter, 2).await.unwrap()
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // 150 events * 2 = 300 ; 150 queries * 2 = 300
+        assert_eq!(quota_counter(&repo, &id, "events_used").await, 300);
+        assert_eq!(quota_counter(&repo, &id, "queries_used").await, 300);
     }
 }

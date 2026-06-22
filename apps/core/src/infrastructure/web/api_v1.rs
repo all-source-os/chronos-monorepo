@@ -205,6 +205,10 @@ pub async fn serve_v1(
         .route("/api/v1/tenants/{id}/stats", get(get_tenant_stats_handler))
         .route("/api/v1/tenants/{id}/quotas", put(update_quotas_handler))
         .route(
+            "/api/v1/tenants/{id}/usage/increment",
+            post(increment_usage_handler),
+        )
+        .route(
             "/api/v1/tenants/{id}/schema-enforcement",
             put(update_schema_enforcement_handler),
         )

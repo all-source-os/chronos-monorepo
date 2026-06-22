@@ -22,7 +22,7 @@ pub use projection::{
     Projection, ProjectionConfig, ProjectionStats, ProjectionStatus, ProjectionType,
 };
 pub use schema::{CompatibilityMode, Schema};
-pub use tenant::{QuotaResource, SchemaEnforcement, Tenant, TenantQuotas, TenantUsage};
+pub use tenant::{QuotaResource, SchemaEnforcement, Tenant, TenantQuotas, TenantUsage, UsageMeter};
 
 // Paywall re-exports
 pub use access_token::{AccessMethod, AccessToken, AccessTokenId};
