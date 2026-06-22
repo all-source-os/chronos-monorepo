@@ -1,7 +1,7 @@
 # Control Plane — Fleet-Wide Tenant Health & Recovery
 
-**Status:** Design proposal (not yet built). Converts cleanly into a phased set of build prompts once approved.
-**Author:** design pass, 2026-06-22.
+**Status:** P0–P3 **shipped to `main`** (not yet deployed) — Control Plane API `a02667e`, admin UI `e233bee`, MCP tools `b6e3c88`. **P4 (docs + small polish) in progress.**
+**Author:** design pass, 2026-06-22; build pass, 2026-06-22.
 **Scope:** one unified, fleet-wide "is every tenant healthy, and if not, fix it" capability for the single system owner, surfaced through (a) the Go Control Plane admin API, (b) the standalone Next.js admin app, and (c) the Elixir MCP server.
 
 ---
@@ -294,9 +294,11 @@ The platform is owned by a single operator. Authorization is established by a JW
 
 ### 6.2 The ADMIN_EMAILS reconciliation (a real-code note)
 
-`MEMORY.md` (`project_auth_architecture`) states the Control Plane uses an **`ADMIN_EMAILS` allowlist** to grant the admin role, and that "Control Plane owns auth, not the Rust auth service." The middleware I read enforces the **role claim** (`role == "admin"`), not the email directly — i.e. the allowlist is applied **upstream at login/token-mint** (where the JWT's `role` is set), and the middleware is the **downstream enforcement** of the resulting claim. The build phase should confirm the exact mint site, but the design is sound either way: the fleet/recovery surface trusts the same `role == "admin"` claim the rest of `/api/v1/admin` already trusts, so whoever the allowlist admits is exactly who gets fleet recovery — no separate allowlist to maintain.
+`MEMORY.md` (`project_auth_architecture`) states the Control Plane uses an **`ADMIN_EMAILS` allowlist** to grant the admin role, and that "Control Plane owns auth, not the Rust auth service." The middleware enforces the **role claim** (`role == "admin"`), not the email directly — i.e. the allowlist is applied **upstream at login/token-mint** (where the JWT's `role` is set), and the middleware is the **downstream enforcement** of the resulting claim.
 
-> *Contradiction-with-critical_context note:* the critical_context asked to "reconcile with any ADMIN_EMAILS allowlist you found." I did **not** find an `ADMIN_EMAILS` read in `admin_middleware.go` — the gate there is purely the role claim. The allowlist is asserted in `MEMORY.md` and is applied at token-mint, not in the admin middleware. This is consistent, not conflicting, but the build prompt should grep the login/OAuth handlers (`main.go:401-405`, `LoginHandler`/`OAuthCallback`) to pin the exact `ADMIN_EMAILS` → `role` mapping before relying on it.
+**CONFIRMED (build pass):** the mint site is **`apps/control-plane/auth.go` `roleForEmail()`** — it reads `ADMIN_EMAILS` (comma-separated, matched **case-insensitively**) and maps a matching email to **`RoleAdmin`** at token-mint; every non-matching email mints as a non-admin role. The admin middleware (`admin_middleware.go:69`) then enforces **only** the resulting `role == "admin"` claim — it never re-reads `ADMIN_EMAILS`. So there is exactly one allowlist, applied once at mint: whoever `ADMIN_EMAILS` admits is precisely who passes the `/api/v1/admin` gate (and therefore who can run fleet/recovery), with **no separate allowlist to maintain** on the fleet surface.
+
+> *Contradiction-with-critical_context note (resolved):* the critical_context asked to "reconcile with any ADMIN_EMAILS allowlist you found." There is **no** `ADMIN_EMAILS` read in `admin_middleware.go` — the gate there is purely the role claim — and that is correct by design: the allowlist lives upstream at `auth.go roleForEmail()` (the mint site, now confirmed), not in the middleware. This is consistent, not conflicting: one allowlist, applied at mint, enforced as a claim downstream.
 
 ### 6.3 Cross-cutting safety rules (apply to all three surfaces)
 
@@ -331,9 +333,10 @@ Ordered by dependency: the Control Plane API is the spine; UI and MCP paralleliz
 - **Files:** `lib/mcp_server_elixir/protocol/mcp_tools.ex` (tool fns + handler map + gate + handlers at the insertion points in §5.3), `lib/mcp_server_elixir/infrastructure/control_plane_client.ex` (new `fleet_*`/`recovery_*` fns + admin-JWT attach), `lib/mcp_server_elixir/server.ex` (read `ALLSOURCE_SYSTEM_ADMIN`, thread `system_admin` into the `tools/list` config).
 - **Acceptance:** with `ALLSOURCE_CONTROL_URL` set but `ALLSOURCE_SYSTEM_ADMIN` unset, `tools/list` shows the two read tools and **omits** every `recovery_*`; calling a `recovery_*` tool returns the "system-admin not enabled" isError; with `ALLSOURCE_SYSTEM_ADMIN=true`, `recovery_reprovision` without `confirm_tenant_id` returns the dry-run preview and does not mutate; the tools are **defined in mcp-server-elixir and absent from prime-mcp** (grep proves it).
 
-### P4 — Polish & runbook closure
+### P4 — Polish & runbook closure (in progress)
 - **Scope:** wire the `fleet/health` summary into the existing admin auto-refresh cadence; add a `data-testid` surface for proofshot; cross-link the two runbooks to the new endpoints/tools; document the `ADMIN_EMAILS` → `role` mint site once confirmed.
 - **Acceptance:** `DIAGNOSING_PIPELINE_DATA_VISIBILITY.md` §5/§7/§8 incidents each map to a named tool/endpoint; `PRICING_BILLING_CUTOVER.md` "retired-tier backfill" maps to `recovery_batch`+`reconcile_subscription`.
+- **Status:** auto-refresh landed in P2 (30s cadence, `monitoring/page.tsx` pattern verbatim — verified, not re-added); `data-testid` surface present on the fleet pages + recovery dialog; both runbooks cross-linked (§5/§7/§8 + retired-tier); the mint site is **confirmed** (§6.2 — `auth.go roleForEmail()`); operator surface catalog at [`docs/runbooks/FLEET_HEALTH_RECOVERY.md`](../runbooks/FLEET_HEALTH_RECOVERY.md). **Remaining:** deploy control-plane + MCP (Fly) + the admin app, then remove the fixture fallback once the endpoints answer live.
 
 ---
 

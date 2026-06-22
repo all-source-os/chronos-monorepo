@@ -125,6 +125,40 @@ allowance between reconciliations:
 6. **Grandfather the free cohort** (§6): set `GrandfatherUntil = cutover + 90d` on
    current free/hosted tenants; send the $9-Indie launch-discount email (ops).
 
+> ### 🛠 Resolve with — Control Plane fleet recovery (catalog: [`FLEET_HEALTH_RECOVERY.md`](./FLEET_HEALTH_RECOVERY.md))
+> The **retired-tier backfill (item #5)** and any **dunning drift** that follows the
+> cutover now have named recovery surfaces in the admin Control Plane (commits
+> a02667e / e233bee / b6e3c88 — **shipped to `main`, not yet deployed**; these
+> complement, don't replace, the steps above). All write audit events into Core;
+> none touches Postgres.
+>
+> - **Retired-tier backfill across the cohort → `recovery_batch`.** `POST
+>   /api/v1/admin/recovery/batch` (MCP: `recovery_batch`) with `action:
+>   "reconcile-subscription"` and a `filter` scoped to the retired-tier cohort
+>   (e.g. `pro` / `growth` / `team`) re-applies `QuotasForTier` — picking up the
+>   §"no-downgrade floor" + the successor tier's new 011 dimensions — across many
+>   tenants in one bounded pass. **Guard (server-enforced + rendered in the UI):
+>   dry-run is mandatory and on by default; it returns the full affected-tenant
+>   list + per-tenant preview + a `confirm_token`; to apply you must echo back the
+>   token AND type the exact affected count.** Hard `max_tenants` cap (default 25,
+>   ceiling 100). Destructive sub-actions (reprovision/restore/rotate) are
+>   forbidden in batch.
+> - **One tenant's quota/tier drift → `reconcile_subscription`.** `POST
+>   /api/v1/admin/recovery/:id/reconcile-subscription` (MCP:
+>   `recovery_reconcile_subscription`) — the single-tenant form of the same fix
+>   (Guarded; dry-run shows the computed entitlements before apply). Use this when
+>   one live subscription still points at a removed variant after the bulk pass.
+> - **Past-due / dunning drift → `resolve_dunning`.** `POST
+>   /api/v1/admin/recovery/:id/resolve-dunning` (MCP: `recovery_resolve_dunning`)
+>   re-issues checkout / marks for manual review / extends grace for a
+>   `past_due`/`unpaid`/`expired` tenant in the dunning list (Guarded; preview the
+>   action taken before apply). LemonSqueezy remains the source of truth for
+>   retry/lockout timing; this only nudges the tenant out of drift.
+>
+> **Always dry-run first and confirm the count** before any batch apply — an
+> unbounded "reconcile everything" is the single most dangerous surface, which is
+> exactly why the count-echo + `max_tenants` cap exist.
+
 ## Verification (test mode)
 
 - [ ] Checkout for indie/studio/scale (monthly + annual) completes; webhook fires;

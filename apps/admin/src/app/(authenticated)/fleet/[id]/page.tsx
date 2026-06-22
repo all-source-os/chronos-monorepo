@@ -330,7 +330,11 @@ export default function FleetTenantPage() {
           data-testid="fleet-tenant-fixture-banner"
         >
           <Stethoscope className="h-4 w-4 shrink-0" />
-          <span>Showing sample data — the tenant-health endpoint is not reachable yet.</span>
+          <span>
+            <strong>FIXTURE — endpoint unreachable.</strong> This is sample data, NOT live tenant
+            health. The Control Plane tenant-health endpoint did not answer; signals below are
+            placeholders.
+          </span>
         </div>
       )}
 

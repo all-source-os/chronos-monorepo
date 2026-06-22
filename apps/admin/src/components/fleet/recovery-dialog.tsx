@@ -193,7 +193,7 @@ export function RecoveryDialog({
           )}
 
           {/* Step 1 — dry-run preview */}
-          <div className="space-y-2">
+          <div className="space-y-2" data-testid="recovery-preview-pane">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">1. Dry-run preview</span>
               <Button

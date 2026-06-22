@@ -180,7 +180,10 @@ export default function FleetPage() {
           data-testid="fleet-fixture-banner"
         >
           <AlertTriangle className="h-4 w-4 shrink-0" />
-          <span>Showing sample data — the fleet-health endpoint is not reachable yet.</span>
+          <span>
+            <strong>FIXTURE — endpoint unreachable.</strong> This is sample data, NOT live fleet
+            health. The Control Plane fleet endpoint did not answer; numbers below are placeholders.
+          </span>
         </div>
       )}
 
