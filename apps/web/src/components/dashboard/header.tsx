@@ -24,10 +24,20 @@ export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: 
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/session", { method: "DELETE" });
-      logout();
-      router.push("/");
     } catch (error) {
       console.error("Logout failed:", error);
+    } finally {
+      // Clear in-memory + persisted auth state, then HARD-navigate. A soft
+      // router.push left the zustand "auth-storage" localStorage entry
+      // (isAuthenticated:true) in place, so navigating back to /dashboard
+      // re-hydrated the old session and "Log out" appeared to do nothing.
+      logout();
+      try {
+        localStorage.removeItem("auth-storage");
+      } catch {
+        // ignore (privacy mode / SSR)
+      }
+      window.location.href = "/login";
     }
   };
 

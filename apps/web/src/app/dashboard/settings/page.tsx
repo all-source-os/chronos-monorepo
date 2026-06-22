@@ -158,7 +158,7 @@ export default function SettingsPage() {
                     <Label>Tenant ID</Label>
                     <div className="mt-1.5 flex items-center gap-2">
                       <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm">
-                        {tenant?.id || "—"}
+                        {tenant?.id || user?.tenant_id || "—"}
                       </code>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">

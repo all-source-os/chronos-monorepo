@@ -117,8 +117,19 @@ export async function DELETE(request: NextRequest) {
     }
   }
 
-  // Clear the auth cookie
+  // Clear the auth cookie. Write an explicit expired Set-Cookie with the SAME
+  // attributes the callback used to set it (path:"/", sameSite:lax, secure in
+  // prod). `cookies.delete(name)` alone can emit an attribute-mismatched
+  // Set-Cookie that some browsers refuse to apply, leaving the user logged in
+  // after "Log out".
   const response = NextResponse.json({ data: { success: true } });
-  response.cookies.delete("auth_token");
+  response.cookies.set("auth_token", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+    expires: new Date(0),
+  });
   return response;
 }
