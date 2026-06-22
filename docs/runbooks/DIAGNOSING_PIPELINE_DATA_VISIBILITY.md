@@ -152,3 +152,39 @@ Same "no data anywhere" report, three compounding causes — none was data loss 
 1. **Wrong-tenant session.** The user's browser was pinned to an empty auto-provisioned tenant, not their data tenant. Proof that beat all guessing: `/api/tenant` returned a full record (`id`, tier, quota) for `decebal-dobrica-at-gmail-com` but `tenant?.id` rendered `—` in Settings → the session was elsewhere. `AuthPipeline` copies `tenant_id` **verbatim from the JWT claim** (`auth_pipeline.ex:108`); `TenantContext` then **silently auto-provisions an empty tenant + returns 200** when that id is unknown (`tenant_context.ex:141`) — a mismatch masquerades as "no data, no error." Ground truth came from prod logs: `fly logs -a allsource-query | grep UserSocket` printed `user_id` + `tenant_id` for the live session. Re-login with the Google account whose `TenantSlug(email)` equals the data tenant resolved it; no data was moved.
 2. **Logout was a no-op**, so the user couldn't escape the wrong session. `auth-store.logout()` only cleared localStorage; the `auth_token` cookie survived → next `/api/auth/session` re-hydrated. Fixed: explicit expired Set-Cookie matching the callback's attributes (`session/route.ts` DELETE) + hard `window.location` reload + `localStorage.removeItem("auth-storage")` in the header.
 3. **The double-unwrap from §5 #6 was only patched in `useEvents`.** Five more consumers still did `data?.data` on the already-unwrapped array and rendered empty **even on the correct tenant**: `useEventsByEntity`, `useStreams`, `useEventTypes`, `useReplays`, and `use-notification-preferences`. Hooks that did a single `response.data` (`pipelines/page.tsx`, `use-dashboard-stats`) were always fine. **Lesson: when you find a response-shape bug, grep the whole client for every consumer of that shape — `rg "data\?\.data"` — and fix them as a set, not the one that was reported.** Settings Tenant ID now falls back to `user?.tenant_id` (the JWT claim) so the user can always read their live tenant even when `/api/tenant` is empty.
+
+---
+
+## 8. 2026-06-22 (round 2) — still blank after §7 shipped: the Next data proxy pointed at the wrong backend (404, not blank)
+
+§7's three fixes were real and **confirmed live** (see "how the build was verified" below) — yet the dashboard was *still* empty. The remaining cause was a layer nobody had probed: the **Next.js catch-all data proxy targeted the Control Plane, which does not serve the read API**, so every data call 404'd before any component or hook ran. The hook fixes couldn't matter — the data never arrived.
+
+**Root cause.** `apps/web/src/app/api/[...path]/route.ts` (the same-origin proxy for `/api/events`, `/api/streams`, `/api/event-types`, `/api/tenant`, `/api/auth/me`, `/api/billing/*`, …) resolved its backend from `NEXT_PUBLIC_API_URL`, which in Vercel prod = `https://api.all-source.xyz` — the **branded gateway / Control Plane**. The CP routes only a narrow slice of `/api/v1/*` (e.g. `/api/v1/events/query`, `/api/v1/prime/graph`) and serves **none** of the non-v1 dashboard surface. So the browser's `/api/events` etc. all returned a plain-text **`404 page not found`** (Go's default — a CP fingerprint; the Query Service's Phoenix 404 is a JSON `{"error":{"code":"not_found",…,"correlation_id":…}}`). The proxy faithfully relayed the 404 → SWR `error` → `events=[]` → "No events yet" / "No memory is reaching this tenant" on every view.
+
+This was already a *known* hazard for auth: `api/auth/session/route.ts` and `api/auth/callback/route.ts` had been special-cased months earlier (their header comments spell it out: *"NEXT_PUBLIC_API_URL points at the branded gateway … which routes /api/v1/events to the QS but NOT /api/auth/*"*) to resolve `QUERY_SERVICE_URL || allsource-query.fly.dev` directly. The **data** proxies (`api/[...path]` and `api/v1/[...path]`) were never given the same treatment.
+
+**How confirmed (the decisive probes).** Send the user's exact session — recover the Debug service-account JWT (tenant `decebal-dobrica-at-gmail-com`) and replay the browser's own transport:
+```bash
+# the dashboard's EXACT proxied path — same-origin, auth_token cookie
+curl -s --cookie "auth_token=$JWT" 'https://www.all-source.xyz/api/events?limit=3'   # → 404 page not found
+curl -s --cookie "auth_token=$JWT" 'https://www.all-source.xyz/api/streams?limit=3'  # → 404 page not found
+# now hit each backend DIRECTLY with the same JWT to localize the 404:
+curl -s -H "Authorization: Bearer $JWT" 'https://api.all-source.xyz/api/events?limit=3'        # → 404 page not found (CP)
+curl -s -H "Authorization: Bearer $JWT" 'https://allsource-query.fly.dev/api/events?limit=3'   # → 200, count=3, rows (QS)
+curl -s -H "Authorization: Bearer $JWT" 'https://allsource-query.fly.dev/api/streams?limit=3'  # → 200, total=7731 (QS)
+```
+The proxy's 404 body was **byte-identical to the Control Plane's** and different from the QS's — proving the proxy forwarded to `api.all-source.xyz`. The QS, hit directly, returned the real data (streams total **7,731**, event-types total **144**). `total=7731 vs 7725` because data kept growing — the data was there the whole time.
+
+**Verifying the §7 build actually shipped, with Vercel API access blocked** (CLI authed to a personal scope, not the team that owns the prod project). Detect freshness client-side instead: the `/dashboard` route 307-redirects to `/login` server-side (`src/proxy.ts` middleware, cookie-gated only), so fetch it **with the JWT as the `auth_token` cookie** to get the real, authenticated HTML + its content-hashed chunk list, then grep the live JS for the post-fix fingerprints:
+```bash
+curl -s --cookie "auth_token=$JWT" 'https://www.all-source.xyz/dashboard/settings' -o s.html   # 200, age:0
+# download every /_next/static/chunks/*.js it references, then:
+grep -l 'removeItem("auth-storage")' chunks/*.js   # FIX 1 (header logout) present
+grep -o 'A?.id||e?.tenant_id||"—"' chunks/*.js      # FIX 2 (settings tenant fallback) present
+grep -o 'Array.isArray(h)?h:h?.data??\[\]' chunks/*.js  # FIX 3 (useEvents unwrap) present
+```
+All three were in the deployed bundle → §7 shipped; the blocker was elsewhere. **Trap avoided:** "still blank after a fix" is *not* automatically "the deploy failed" — prove freshness by fingerprinting the live chunk, not by assuming.
+
+**Fix.** Point the non-v1 data proxy at the Query Service the same way the auth routes do — `QUERY_SERVICE_URL || (NODE_ENV==="production" ? "https://allsource-query.fly.dev" : "http://localhost:3902")` — in `api/[...path]/route.ts`. This is durable (no dependency on a Vercel env var aiming at the right host) and ships through git, no Vercel access needed. **Left `api/v1/[...path]` on the branded gateway on purpose**: the CP correctly serves the only two `/api/v1/*` calls the client makes (`/api/v1/prime/graph`, `/api/v1/agents/claim` trial flow); repointing it would break the trial/agent path. Verified the CP serves **zero** non-v1 routes (including billing), so moving all of non-v1 to the QS loses nothing and fixes everything.
+
+**Lesson (add to §3):** before blaming the component layer for "rows but blank," confirm the proxy is even reaching a backend that *serves the route*. A same-origin `/api/*` proxy can 404 silently because it forwards to the wrong service — the network tab shows `404`, not rows, and that single status distinguishes "wrong backend" (this round) from "right backend, component drops the rows" (§7 #3). Two gateways in this stack (`api.all-source.xyz` = Control Plane, `allsource-query.fly.dev` = Query Service) have **disjoint** path surfaces; the dashboard read API lives **only** on the Query Service.

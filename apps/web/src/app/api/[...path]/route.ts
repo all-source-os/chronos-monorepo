@@ -7,12 +7,25 @@ import { type NextRequest, NextResponse } from "next/server";
  * /api/v1/*, /api/auth/*, /api/status/*) to the Query Service backend.
  *
  * This eliminates CORS issues by keeping all browser requests same-origin.
- * The NEXT_PUBLIC_API_URL env var is read at request time (not build time),
- * so it works correctly on Vercel and other platforms.
+ *
+ * Target the Query Service DIRECTLY, not NEXT_PUBLIC_API_URL. The latter points
+ * at the branded gateway (api.all-source.xyz / Control Plane), which serves a
+ * narrow slice of /api/v1/* (e.g. /api/v1/events/query, /api/v1/prime/graph)
+ * but routes NONE of the non-v1 dashboard read API: /api/events, /api/streams,
+ * /api/event-types, /api/tenant, /api/auth/me, /api/billing/* all return
+ * "404 page not found" there, blanking every data view. The Query Service
+ * serves the full non-v1 read API. Resolve it the same way /api/auth/session
+ * does; override with QUERY_SERVICE_URL. Read at request time (not build time)
+ * so it works on Vercel.
  */
 
 function getQueryServiceUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
+  return (
+    process.env.QUERY_SERVICE_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "https://allsource-query.fly.dev"
+      : "http://localhost:3902")
+  );
 }
 
 async function buildProxyResponse(response: Response): Promise<NextResponse> {
