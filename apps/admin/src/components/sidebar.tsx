@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  HeartPulse,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -23,6 +24,7 @@ interface SidebarProps {
 
 const navigation = [
   { name: "Tenants", href: "/tenants", icon: Users },
+  { name: "Fleet", href: "/fleet", icon: HeartPulse },
   { name: "Monitoring", href: "/monitoring", icon: Activity },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Security", href: "/security", icon: ShieldCheck },
