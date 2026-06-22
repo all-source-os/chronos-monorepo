@@ -27,10 +27,16 @@ export default function DashboardPage() {
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
   const currentPlan = canonicalTier(tenant?.subscription_tier);
+  // Period usage (billing meter) → quota bars only.
   const eventsUsed = stats.events.used || tenant?.events_used || 0;
   const eventsQuota = stats.events.quota || tenant?.events_quota || 10000;
   const queriesUsed = stats.queries.used || tenant?.queries_used || 0;
   const queriesQuota = stats.queries.quota || tenant?.queries_quota || 10000;
+  // Real tenant-scoped event total (event-store count, not the meter).
+  const totalEvents = stats.events.total || eventsUsed;
+  // Real daily ingestion series for the 30-day chart.
+  const ingestionHistory = stats.ingestion.map((p) => p.count);
+  const ingestionTotal = stats.ingestion.reduce((sum, p) => sum + p.count, 0);
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -196,8 +202,23 @@ export default function DashboardPage() {
       {/* Usage Charts - Daily Event Ingestion (30 days) */}
       <BlurFade delay={0.3} inView>
         <div className="grid gap-6 md:grid-cols-2">
-          <UsageChart title="Event Ingestion (30 days)" used={eventsUsed} quota={eventsQuota} />
-          <UsageChart title="Query Usage (30 days)" used={queriesUsed} quota={queriesQuota} />
+          {/* Real daily ingestion series from /api/tenants/me/analytics. The "used"
+              figure here is the real 30-day event total, not the billing meter. */}
+          <UsageChart
+            title="Event Ingestion (30 days)"
+            used={ingestionTotal}
+            quota={eventsQuota}
+            history={ingestionHistory}
+            emptyLabel="No events ingested in the last 30 days"
+          />
+          {/* No per-query time-series exists yet — show an honest "metering starts"
+              empty state rather than a flat 0 bar. */}
+          <UsageChart
+            title="Query Usage (30 days)"
+            used={queriesUsed}
+            quota={queriesQuota}
+            emptyLabel="Query metering starts soon"
+          />
         </div>
       </BlurFade>
 
@@ -262,7 +283,7 @@ export default function DashboardPage() {
             <div className="flex flex-wrap gap-6 text-center">
               <div>
                 <p className="text-2xl font-bold text-primary">
-                  {stats.events.used.toLocaleString()}
+                  {totalEvents.toLocaleString()}
                 </p>
                 <p className="text-xs text-muted-foreground">total events</p>
               </div>

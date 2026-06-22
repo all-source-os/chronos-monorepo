@@ -9,9 +9,18 @@ interface UsageChartProps {
   quota: number;
   unit?: string;
   history?: number[];
+  /** Honest message shown when there is no time-series data (never "demo"). */
+  emptyLabel?: string;
 }
 
-export function UsageChart({ title, used, quota, unit = "", history = [] }: UsageChartProps) {
+export function UsageChart({
+  title,
+  used,
+  quota,
+  unit = "",
+  history = [],
+  emptyLabel = "No data for this period",
+}: UsageChartProps) {
   const percentage = quota > 0 ? (used / quota) * 100 : 0;
   const isWarning = percentage >= 80;
   const isCritical = percentage >= 95;
@@ -69,7 +78,7 @@ export function UsageChart({ title, used, quota, unit = "", history = [] }: Usag
         <div className="h-24 w-full">
           {!hasChartData ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No usage data available
+              {emptyLabel}
             </div>
           ) : (
             <svg

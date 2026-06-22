@@ -33,7 +33,7 @@ export function EarlyAccessBanner() {
       <span className="text-muted-foreground">
         <span className="font-medium text-foreground">Early Access</span>
         {" — "}
-        You&apos;re exploring AllSource before public launch. Some features use demo data.
+        You&apos;re exploring AllSource before public launch.
       </span>
       <a
         href="https://github.com/all-source-os/allsource-monorepo/issues"

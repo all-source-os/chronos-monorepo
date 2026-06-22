@@ -96,17 +96,12 @@ export function StatsCards() {
 
   const statCards = [
     {
+      // REAL tenant-scoped total from the event store (summed per-type counts),
+      // not the billing meter — which reads 0 for out-of-band ingestion.
       title: "Total Events",
-      value: stats.events.used,
+      value: stats.events.total,
       icon: Activity,
-      description: `of ${stats.events.quota.toLocaleString()} quota (${stats.events.percentage}%)`,
-      animate: true,
-    },
-    {
-      title: "Queries Executed",
-      value: stats.queries.used,
-      icon: Database,
-      description: `of ${stats.queries.quota.toLocaleString()} quota (${stats.queries.percentage}%)`,
+      description: `${stats.store.streams.toLocaleString()} streams · ${stats.store.eventTypes.toLocaleString()} event types`,
       animate: true,
     },
     {
@@ -117,10 +112,18 @@ export function StatsCards() {
       animate: true,
     },
     {
+      title: "Event Streams",
+      value: stats.store.streams,
+      icon: Database,
+      description: "Distinct entities in your store",
+      animate: true,
+    },
+    {
+      // No real latency percentile is exposed yet → honest "—", never a fake number.
       title: "p99 Latency",
       value: stats.latency.formatted,
       icon: Zap,
-      description: "Query response time",
+      description: stats.latency.formatted === "—" ? "Not yet instrumented" : "Query response time",
     },
   ];
 
