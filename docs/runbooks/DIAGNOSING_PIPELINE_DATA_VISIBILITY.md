@@ -142,3 +142,13 @@ The fast path would have reached the truth in: Step 1 (data exists under `acme-a
 - The stored `tenant_id` on that probe matches the tenant the user is logged into.
 - A **new** release/version is confirmed live (not assumed), and the symptom is re-tested against it.
 - The fix is stated at the layer it actually lives (config/edition vs code), not the first plausible code path.
+
+---
+
+## 7. 2026-06-22 recurrence — the double-unwrap was never fully killed, plus a tenant/logout trap
+
+Same "no data anywhere" report, three compounding causes — none was data loss (Core held **7,725 streams + 141 event-types + 500+ events** under `decebal-dobrica-at-gmail-com`, tier `studio`, the whole time):
+
+1. **Wrong-tenant session.** The user's browser was pinned to an empty auto-provisioned tenant, not their data tenant. Proof that beat all guessing: `/api/tenant` returned a full record (`id`, tier, quota) for `decebal-dobrica-at-gmail-com` but `tenant?.id` rendered `—` in Settings → the session was elsewhere. `AuthPipeline` copies `tenant_id` **verbatim from the JWT claim** (`auth_pipeline.ex:108`); `TenantContext` then **silently auto-provisions an empty tenant + returns 200** when that id is unknown (`tenant_context.ex:141`) — a mismatch masquerades as "no data, no error." Ground truth came from prod logs: `fly logs -a allsource-query | grep UserSocket` printed `user_id` + `tenant_id` for the live session. Re-login with the Google account whose `TenantSlug(email)` equals the data tenant resolved it; no data was moved.
+2. **Logout was a no-op**, so the user couldn't escape the wrong session. `auth-store.logout()` only cleared localStorage; the `auth_token` cookie survived → next `/api/auth/session` re-hydrated. Fixed: explicit expired Set-Cookie matching the callback's attributes (`session/route.ts` DELETE) + hard `window.location` reload + `localStorage.removeItem("auth-storage")` in the header.
+3. **The double-unwrap from §5 #6 was only patched in `useEvents`.** Five more consumers still did `data?.data` on the already-unwrapped array and rendered empty **even on the correct tenant**: `useEventsByEntity`, `useStreams`, `useEventTypes`, `useReplays`, and `use-notification-preferences`. Hooks that did a single `response.data` (`pipelines/page.tsx`, `use-dashboard-stats`) were always fine. **Lesson: when you find a response-shape bug, grep the whole client for every consumer of that shape — `rg "data\?\.data"` — and fix them as a set, not the one that was reported.** Settings Tenant ID now falls back to `user?.tenant_id` (the JWT claim) so the user can always read their live tenant even when `/api/tenant` is empty.
