@@ -6,6 +6,9 @@ node_modules
 # Bun
 bun.lockb
 
+# Vercel
+.vercel
+
 # Build outputs
 dist
 build
