@@ -145,6 +145,12 @@ type QueryEventsRequest struct {
 	Until     string `json:"until,omitempty"`      // RFC3339
 	Limit     int    `json:"limit,omitempty"`
 	Offset    int    `json:"offset,omitempty"`
+	// Order controls result ordering by (timestamp, version). Empty / "asc" =
+	// oldest first (Core default); "desc" = newest first. The fleet-health
+	// recency probe uses "desc" with Limit=1 to fetch a tenant's most-recent
+	// event timestamp without a precomputed last_event_at column (CLAUDE.md
+	// "Core API"; the per-day-metrics gap noted in get_tenant_usage.go).
+	Order string `json:"order,omitempty"`
 }
 
 // QueryEventsResponse is the response from querying events.
@@ -816,6 +822,9 @@ func (c *coreClient) QueryEvents(ctx context.Context, req QueryEventsRequest) (*
 	}
 	if req.Offset > 0 {
 		r.SetQueryParam("offset", fmt.Sprintf("%d", req.Offset))
+	}
+	if req.Order != "" {
+		r.SetQueryParam("order", req.Order)
 	}
 
 	resp, err := r.Get("/api/v1/events/query")

@@ -210,13 +210,28 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		}
 	}
 
+	// Query Service /health URL for the fleet-recovery edition-trap detector.
+	// The edition lives on QS, not CP (edition.ex); we HTTP-probe it. Honor the
+	// same QUERY_HEALTH_URL override the heartbeat probes use, else derive from
+	// QUERY_SERVICE_URL, else the Fly internal default.
+	queryHealthURL := os.Getenv("QUERY_HEALTH_URL")
+	if queryHealthURL == "" {
+		base := os.Getenv("QUERY_SERVICE_URL")
+		if base == "" {
+			base = "http://allsource-query.internal:3902"
+		}
+		queryHealthURL = strings.TrimRight(base, "/") + "/health"
+	}
+
 	// Initialize Clean Architecture container (Core-backed repos, no PostgreSQL)
 	containerCfg := internal.ContainerConfig{
-		CoreClient:  coreClient,
-		LSClient:    lsClient,
-		EmailClient: emailClient,
-		KeySigner:   authClient.SignAPIKey,
-		CDPClient:   cdpClient,
+		CoreClient:     coreClient,
+		LSClient:       lsClient,
+		EmailClient:    emailClient,
+		KeySigner:      authClient.SignAPIKey,
+		CDPClient:      cdpClient,
+		JWTSecret:      jwtSecret,
+		QueryHealthURL: queryHealthURL,
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
 
@@ -605,6 +620,28 @@ func (cp *ControlPlane) setupRoutes() {
 	admin.PUT("/tenants/:id/quotas", cp.container.AdminTenantHandler.UpdateQuotas)
 	admin.POST("/tenants/:id/suspend", cp.container.AdminTenantHandler.SuspendTenant)
 	admin.POST("/tenants/:id/unsuspend", cp.container.AdminTenantHandler.UnsuspendTenant)
+
+	// Fleet health (read) — the cross-tenant rollup + per-tenant assessment.
+	// The health model lives once here; the admin UI (P2) and Elixir MCP (P3)
+	// are thin consumers (CONTROL_PLANE_TENANT_HEALTH_RECOVERY.md §5).
+	admin.GET("/fleet/health", cp.container.FleetHealthHandler.GetFleetHealth)
+	admin.GET("/fleet/health/:id", cp.container.FleetHealthHandler.GetTenantHealth)
+
+	// Recovery — diagnose (Safe, read-only) + guarded/destructive actions.
+	// reactivate/suspend/edit_quotas are NOT re-implemented — they keep using the
+	// existing /tenants/:id/{suspend,unsuspend,quotas} routes above. Only the new
+	// capabilities get new endpoints. Every mutating route supports ?dry_run=true
+	// and enforces its guards in the use-case layer.
+	recovery := admin.Group("/recovery")
+	recovery.GET("/diagnose/edition", cp.container.FleetHealthHandler.DiagnoseEdition)
+	recovery.GET("/:id/diagnose-identity", cp.container.FleetHealthHandler.DiagnoseIdentity)
+	recovery.POST("/:id/resync", cp.container.RecoveryHandler.Resync)
+	recovery.POST("/:id/reconcile-subscription", cp.container.RecoveryHandler.ReconcileSubscription)
+	recovery.POST("/:id/resolve-dunning", cp.container.RecoveryHandler.ResolveDunning)
+	recovery.POST("/:id/rotate-keys", cp.container.RecoveryHandler.RotateKeys)
+	recovery.POST("/:id/reprovision", cp.container.RecoveryHandler.Reprovision)
+	recovery.POST("/:id/restore", cp.container.RecoveryHandler.Restore)
+	recovery.POST("/batch", cp.container.RecoveryHandler.Batch)
 
 	// Alert rules management
 	admin.POST("/alerts", cp.container.AlertHandler.Create)

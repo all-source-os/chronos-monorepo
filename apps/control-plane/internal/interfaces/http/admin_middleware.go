@@ -32,6 +32,7 @@ type AdminClaims struct {
 type AdminAuthContext struct {
 	UserID   string
 	Username string
+	Email    string
 	TenantID string
 	Role     entities.Role
 }
@@ -79,6 +80,7 @@ func AdminAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 		adminCtx := &AdminAuthContext{
 			UserID:   claims.UserID,
 			Username: claims.Username,
+			Email:    claims.Email,
 			TenantID: claims.TenantID,
 			Role:     claims.Role,
 		}

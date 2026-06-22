@@ -140,6 +140,10 @@ type Container struct {
 	AdminRefundUC       *billing.AdminRefundUseCase
 	AdminDunningUC      *billing.AdminDunningUseCase
 
+	// Use Cases — Fleet Health & Recovery (CONTROL_PLANE_TENANT_HEALTH_RECOVERY.md)
+	FleetHealthUC *usecases.FleetHealthUseCase
+	RecoveryUC    *usecases.RecoveryUseCase
+
 	// Use Cases — Agent Registration
 	RegisterAgentUC       *usecases.RegisterAgentUseCase
 	RegisterTrialAgentUC  *usecases.RegisterTrialAgentUseCase
@@ -179,6 +183,8 @@ type Container struct {
 	EmailWebhookHandler          *httphandlers.EmailWebhookHandler
 	InboxConnectHandler          *httphandlers.InboxConnectHandler
 	AgentHandler                 *httphandlers.AgentHandler
+	FleetHealthHandler           *httphandlers.FleetHealthHandler
+	RecoveryHandler              *httphandlers.RecoveryHandler
 
 	// VerifyBillingConfigUC powers the boot-time billing config self-check.
 	VerifyBillingConfigUC *usecases.VerifyBillingConfigUseCase
@@ -191,6 +197,13 @@ type ContainerConfig struct {
 	EmailClient clients.EmailClient
 	KeySigner   usecases.KeySignerFunc
 	CDPClient   clients.CDPClient
+	// JWTSecret is the shared HMAC secret. The fleet-recovery guard reuses it to
+	// mint/verify dry-run confirm tokens (no new secret, no DB).
+	JWTSecret string
+	// QueryHealthURL is the Query Service /health endpoint the edition-trap
+	// detector probes (the edition lives on QS, not CP). Empty disables the QS
+	// probe half of the heuristic.
+	QueryHealthURL string
 }
 
 // CoreWalletLookup implements x402.WalletLookup using Core's config store.
@@ -399,6 +412,24 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		adminRefundUC = billing.NewAdminRefundUseCase(auditRepo, cfg.LSClient)
 	}
 
+	// Initialize use cases — Fleet Health & Recovery (P0/P1).
+	// The health model and recovery guards live ONCE here; the admin UI and the
+	// Elixir MCP are thin consumers (CONTROL_PLANE_TENANT_HEALTH_RECOVERY.md §5).
+	fleetHealthUC := usecases.NewFleetHealthUseCase(usecases.FleetHealthConfig{
+		TenantRepo:     tenantRepo,
+		CoreClient:     cfg.CoreClient,
+		QueryHealthURL: cfg.QueryHealthURL,
+	})
+	recoveryAuditor := usecases.NewRecoveryAuditor(cfg.CoreClient)
+	recoveryUC := usecases.NewRecoveryUseCase(usecases.RecoveryDeps{
+		TenantRepo:   tenantRepo,
+		CoreClient:   cfg.CoreClient,
+		UpdateSubsUC: updateSubscriptionUC,
+		StartReplay:  startReplayUC,
+		Auditor:      recoveryAuditor,
+		JWTSecret:    cfg.JWTSecret,
+	})
+
 	// Initialize scheduler
 	scheduler := usecases.NewOperationScheduler(operationRepo, auditRepo, cfg.CoreClient)
 	if reportUsageUC != nil {
@@ -472,6 +503,8 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		inboxConnectHandler = httphandlers.NewInboxConnectHandler(nil, cfg.CoreClient, emailSealer, os.Getenv("NYLAS_REDIRECT_URI"))
 	}
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
+	fleetHealthHandler := httphandlers.NewFleetHealthHandler(fleetHealthUC)
+	recoveryHandler := httphandlers.NewRecoveryHandler(recoveryUC)
 
 	return &Container{
 		TenantRepo:                   tenantRepo,
@@ -537,6 +570,8 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AdminRevenueUC:               adminRevenueUC,
 		AdminRefundUC:                adminRefundUC,
 		AdminDunningUC:               adminDunningUC,
+		FleetHealthUC:                fleetHealthUC,
+		RecoveryUC:                   recoveryUC,
 		Scheduler:                    scheduler,
 		WalletLookup:                 &CoreWalletLookup{coreClient: cfg.CoreClient},
 		CDPClient:                    cfg.CDPClient,
@@ -564,6 +599,8 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		EmailWebhookHandler:          emailWebhookHandler,
 		InboxConnectHandler:          inboxConnectHandler,
 		AgentHandler:                 agentHandler,
+		FleetHealthHandler:           fleetHealthHandler,
+		RecoveryHandler:              recoveryHandler,
 		VerifyBillingConfigUC:        verifyBillingConfigUC,
 		ProcessLSWebhookUC:           processLSWebhookUC,
 		UpdateSubscriptionUC:         updateSubscriptionUC,
