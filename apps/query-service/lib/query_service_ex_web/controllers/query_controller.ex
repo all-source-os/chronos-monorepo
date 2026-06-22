@@ -225,7 +225,7 @@ defmodule QueryServiceExWeb.QueryController do
   defp record_query_usage(conn, _metadata) do
     case conn.assigns[:tenant_id] do
       nil -> :ok
-      tenant_id -> QueryServiceEx.UsageReporter.record(tenant_id, 1)
+      tenant_id -> QueryServiceEx.UsageReporter.record(tenant_id, 1, :queries)
     end
   end
 end

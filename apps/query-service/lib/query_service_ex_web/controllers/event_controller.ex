@@ -620,7 +620,7 @@ defmodule QueryServiceExWeb.EventController do
   defp record_event_usage(conn, count, _metadata) do
     case conn.assigns[:tenant_id] do
       nil -> :ok
-      tenant_id -> QueryServiceEx.UsageReporter.record(tenant_id, count)
+      tenant_id -> QueryServiceEx.UsageReporter.record(tenant_id, count, :events)
     end
   end
 end

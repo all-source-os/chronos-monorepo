@@ -13,7 +13,7 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
 
   When overage billing is enabled for a tenant, allows the request through
   but adds headers indicating the tenant is in overage. Calls
-  `UsageReporter.record/2` to increment usage asynchronously.
+  `UsageReporter.record/3` to increment the matching meter asynchronously.
   """
 
   import Plug.Conn
@@ -138,11 +138,15 @@ defmodule QueryServiceExWeb.Plugs.UsageEnforcement do
 
   # Usage increment — async via UsageReporter
 
-  defp increment_usage(tenant, _type) do
+  defp increment_usage(tenant, type) do
     tid = tenant_id(tenant)
 
+    # Meter into the counter for this route's type (events vs queries). `type`
+    # is already validated to :events | :queries in init/1, so it maps 1:1 to
+    # the Core meter — passing it keeps the two dashboard quota bars distinct
+    # instead of conflating every increment into events_used.
     if tid do
-      UsageReporter.record(tid)
+      UsageReporter.record(tid, 1, type)
     end
   end
 

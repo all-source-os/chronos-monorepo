@@ -1,11 +1,18 @@
 defmodule QueryServiceEx.UsageReporter do
   @moduledoc """
-  Async usage increment reporter that buffers usage counts per tenant
-  and flushes them to Core periodically.
+  Async usage increment reporter that buffers usage counts per
+  `{tenant, meter}` and flushes them to Core periodically.
 
-  Flushes occur every 5 seconds or when any tenant accumulates 100+ increments,
-  whichever comes first. On persistent failure (3 retries with exponential backoff),
-  the failed increments are logged and dropped.
+  Each increment is tagged with a meter — `:events` (events ingested) or
+  `:queries` (queries run) — which Core maps to the distinct
+  `metadata.quotas.events_used` / `queries_used` counters the dashboard reads
+  as separate quota bars. Buffering is keyed by `{tenant_id, meter}` so the two
+  meters never conflate.
+
+  Flushes occur every 5 seconds or when any `{tenant, meter}` accumulates 100+
+  increments, whichever comes first. On persistent failure (3 retries with
+  exponential backoff), the failed increments are logged and dropped — metering
+  is best-effort and never blocks the ingest/query path.
 
   Supervised in the application tree with graceful shutdown that flushes pending
   increments before stopping.
@@ -29,12 +36,21 @@ defmodule QueryServiceEx.UsageReporter do
     GenServer.start_link(__MODULE__, opts, name: name)
   end
 
+  @typedoc "Which billing meter an increment targets."
+  @type meter :: :events | :queries
+
   @doc """
-  Record a usage increment for a tenant. Buffered and flushed asynchronously.
+  Record a usage increment for a tenant against a specific meter.
+
+  `meter` is `:events` (default, for events ingested) or `:queries` (for a
+  query). Buffered per `{tenant_id, meter}` and flushed asynchronously. The
+  default keeps the original two-arg `record/2` call sites working.
   """
-  def record(tenant_id, count \\ 1)
-      when is_binary(tenant_id) and is_integer(count) and count > 0 do
-    GenServer.cast(__MODULE__, {:record, tenant_id, count})
+  @spec record(String.t(), pos_integer(), meter()) :: :ok
+  def record(tenant_id, count \\ 1, meter \\ :events)
+      when is_binary(tenant_id) and is_integer(count) and count > 0 and
+             meter in [:events, :queries] do
+    GenServer.cast(__MODULE__, {:record, tenant_id, count, meter})
   end
 
   @doc """
@@ -57,7 +73,7 @@ defmodule QueryServiceEx.UsageReporter do
   def init(opts) do
     flush_interval = Keyword.get(opts, :flush_interval, @flush_interval)
     flush_threshold = Keyword.get(opts, :flush_threshold, @flush_threshold)
-    sender_fn = Keyword.get(opts, :sender_fn, &default_sender/2)
+    sender_fn = Keyword.get(opts, :sender_fn, &default_sender/3)
     base_delay = Keyword.get(opts, :base_delay, @base_delay)
 
     Process.flag(:trap_exit, true)
@@ -74,11 +90,12 @@ defmodule QueryServiceEx.UsageReporter do
   end
 
   @impl true
-  def handle_cast({:record, tenant_id, count}, state) do
-    new_buffer = Map.update(state.buffer, tenant_id, count, &(&1 + count))
+  def handle_cast({:record, tenant_id, count, meter}, state) do
+    key = {tenant_id, meter}
+    new_buffer = Map.update(state.buffer, key, count, &(&1 + count))
     new_state = %{state | buffer: new_buffer}
 
-    if Map.get(new_buffer, tenant_id, 0) >= state.flush_threshold do
+    if Map.get(new_buffer, key, 0) >= state.flush_threshold do
       {flushed_state, _} = do_flush(new_state)
       {:noreply, flushed_state}
     else
@@ -130,28 +147,29 @@ defmodule QueryServiceEx.UsageReporter do
 
   defp do_flush(%{buffer: buffer} = state) do
     results =
-      Enum.map(buffer, fn {tenant_id, count} ->
-        result = send_with_retry(tenant_id, count, 0, state.sender_fn, state.base_delay)
+      Enum.map(buffer, fn {{tenant_id, meter}, count} ->
+        result =
+          send_with_retry(tenant_id, meter, count, 0, state.sender_fn, state.base_delay)
 
         case result do
           :ok ->
             :telemetry.execute(
               [:query_service_ex, :usage_reporter, :flushed],
               %{count: count},
-              %{tenant_id: tenant_id}
+              %{tenant_id: tenant_id, meter: meter}
             )
 
             :ok
 
           {:error, reason} ->
             Logger.error(
-              "[UsageReporter] Dropped #{count} increments for tenant #{tenant_id}: #{inspect(reason)}"
+              "[UsageReporter] Dropped #{count} #{meter} increments for tenant #{tenant_id}: #{inspect(reason)}"
             )
 
             :telemetry.execute(
               [:query_service_ex, :usage_reporter, :dropped],
               %{count: count},
-              %{tenant_id: tenant_id}
+              %{tenant_id: tenant_id, meter: meter}
             )
 
             {:error, reason}
@@ -161,9 +179,9 @@ defmodule QueryServiceEx.UsageReporter do
     {%{state | buffer: %{}}, results}
   end
 
-  defp send_with_retry(tenant_id, count, attempt, sender_fn, base_delay)
+  defp send_with_retry(tenant_id, meter, count, attempt, sender_fn, base_delay)
        when attempt < @max_retries do
-    case sender_fn.(tenant_id, count) do
+    case sender_fn.(tenant_id, count, meter) do
       :ok ->
         :ok
 
@@ -172,23 +190,23 @@ defmodule QueryServiceEx.UsageReporter do
 
         Logger.warning(
           "[UsageReporter] Retry #{attempt + 1}/#{@max_retries} for tenant #{tenant_id} " <>
-            "(#{count} increments) in #{delay}ms: #{inspect(reason)}"
+            "(#{count} #{meter} increments) in #{delay}ms: #{inspect(reason)}"
         )
 
         Process.sleep(delay)
-        send_with_retry(tenant_id, count, attempt + 1, sender_fn, base_delay)
+        send_with_retry(tenant_id, meter, count, attempt + 1, sender_fn, base_delay)
     end
   end
 
-  defp send_with_retry(_tenant_id, _count, _attempt, _sender_fn, _base_delay) do
+  defp send_with_retry(_tenant_id, _meter, _count, _attempt, _sender_fn, _base_delay) do
     {:error, :max_retries_exceeded}
   end
 
-  defp default_sender(tenant_id, count) do
+  defp default_sender(tenant_id, count, meter) do
     case Tesla.post(
            RustCoreClient.write_client(),
            "/api/v1/tenants/#{tenant_id}/usage/increment",
-           %{count: count}
+           %{count: count, type: meter}
          ) do
       {:ok, %Tesla.Env{status: status}} when status in 200..299 ->
         :ok
