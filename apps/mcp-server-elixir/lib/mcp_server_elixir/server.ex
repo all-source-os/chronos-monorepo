@@ -43,6 +43,10 @@ defmodule McpServerElixir.Server do
 
     read_only = Application.get_env(:mcp_server_elixir, :read_only, false)
     control_plane_enabled = System.get_env("ALLSOURCE_CONTROL_URL") != nil
+    # System-admin mode gates the mutating fleet recovery tools. OFF by default:
+    # a connected MCP client can READ fleet health but cannot run a Destructive
+    # recovery unless the operator explicitly enables it on this server instance.
+    system_admin = System.get_env("ALLSOURCE_SYSTEM_ADMIN") == "true"
 
     if read_only, do: Logger.info("🔒 Read-only mode enabled")
 
@@ -50,6 +54,12 @@ defmodule McpServerElixir.Server do
       do:
         Logger.info(
           "ℹ️  Control plane not configured (set ALLSOURCE_CONTROL_URL to enable tenant tools)"
+        )
+
+    if system_admin,
+      do:
+        Logger.info(
+          "🛡️  System-admin mode enabled — fleet recovery tools available (ALLSOURCE_SYSTEM_ADMIN=true)"
         )
 
     backend =
@@ -64,7 +74,8 @@ defmodule McpServerElixir.Server do
        backend: backend,
        control_client: ControlPlaneClient.new(),
        read_only: read_only,
-       control_plane_enabled: control_plane_enabled
+       control_plane_enabled: control_plane_enabled,
+       system_admin: system_admin
      }}
   end
 
@@ -134,7 +145,8 @@ defmodule McpServerElixir.Server do
   defp process_request(%{method: "tools/list", id: id}, state) do
     config = %{
       read_only: Map.get(state, :read_only, false),
-      control_plane_enabled: Map.get(state, :control_plane_enabled, false)
+      control_plane_enabled: Map.get(state, :control_plane_enabled, false),
+      system_admin: Map.get(state, :system_admin, false)
     }
 
     tools = McpTools.list_tools(config)

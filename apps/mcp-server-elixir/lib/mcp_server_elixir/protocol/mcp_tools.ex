@@ -114,6 +114,42 @@ defmodule McpServerElixir.Protocol.McpTools do
         []
       end
 
+    # Phase 8b: Fleet health & recovery — thin consumers of the Control Plane
+    # /api/v1/admin/* fleet+recovery API (built in CP commit a02667e). These
+    # live HERE in mcp-server-elixir, NEVER in prime-mcp: prime-mcp is
+    # single-tenant by design (projection_registry.rs:22; http.rs:294,379), so a
+    # fleet/cross-tenant tool there crosses a tenant boundary it does not have.
+    #
+    # Gating is two-tier:
+    #   - the two READ tools require control_plane_enabled (ALLSOURCE_CONTROL_URL);
+    #   - the eight mutating recovery_* tools ALSO require a NEW system_admin
+    #     distinction (ALLSOURCE_SYSTEM_ADMIN, off by default) — so a merely
+    #     connected client can read health but cannot run a Destructive recovery.
+    # No scoring or guards are computed here: the health model + dry-run /
+    # confirmation guards live entirely in the Control Plane.
+    fleet_tools =
+      if config[:control_plane_enabled] do
+        base = [tool_fleet_health_summary(), tool_tenant_health_assessment()]
+
+        if config[:system_admin] do
+          base ++
+            [
+              tool_recovery_resync(),
+              tool_recovery_reconcile_subscription(),
+              tool_recovery_resolve_dunning(),
+              tool_recovery_rotate_keys(),
+              tool_recovery_reprovision(),
+              tool_recovery_restore(),
+              tool_recovery_batch(),
+              tool_recovery_diagnose_edition()
+            ]
+        else
+          base
+        end
+      else
+        []
+      end
+
     # Phase 9: Schema & validation
     schema_tools = [
       tool_register_schema(),
@@ -152,6 +188,7 @@ defmodule McpServerElixir.Protocol.McpTools do
       ops_mutate_tools ++
       ops_read_tools ++
       tenant_tools ++
+      fleet_tools ++
       schema_tools ++
       analytics_tools ++
       developer_tools
@@ -230,6 +267,22 @@ defmodule McpServerElixir.Protocol.McpTools do
     "tenant_export" => :handle_tenant_export
   }
 
+  # Fleet health & recovery tools (P3) - thin consumers of the Control Plane
+  # /api/v1/admin/* fleet+recovery API. Read tools are control_plane gated;
+  # the recovery_* tools are additionally system_admin gated (see call_tool/3).
+  @fleet_tool_handlers %{
+    "fleet_health_summary" => :handle_fleet_health_summary,
+    "tenant_health_assessment" => :handle_tenant_health_assessment,
+    "recovery_resync" => :handle_recovery_resync,
+    "recovery_reconcile_subscription" => :handle_recovery_reconcile_subscription,
+    "recovery_resolve_dunning" => :handle_recovery_resolve_dunning,
+    "recovery_rotate_keys" => :handle_recovery_rotate_keys,
+    "recovery_reprovision" => :handle_recovery_reprovision,
+    "recovery_restore" => :handle_recovery_restore,
+    "recovery_batch" => :handle_recovery_batch,
+    "recovery_diagnose_edition" => :handle_recovery_diagnose_edition
+  }
+
   # Schema & validation tools (v2.0) - event type governance
   @schema_tool_handlers %{
     "register_schema" => :handle_register_schema,
@@ -282,15 +335,36 @@ defmodule McpServerElixir.Protocol.McpTools do
                            "backup_restore"
                          ])
 
-  # Tools gated by control_plane_enabled
+  # Tools gated by control_plane_enabled. Includes the tenant management tools
+  # AND the two read-only fleet-health tools (these only READ the CP admin
+  # fleet/health endpoints, so control_plane_enabled is the right bar).
   @control_plane_gated_tools MapSet.new([
                                "tenant_create",
                                "tenant_update",
                                "tenant_usage",
                                "tenant_quotas",
                                "tenant_suspend",
-                               "tenant_export"
+                               "tenant_export",
+                               "fleet_health_summary",
+                               "tenant_health_assessment"
                              ])
+
+  # Tools gated by system_admin (ALLSOURCE_SYSTEM_ADMIN). The mutating fleet
+  # recovery tools. OFF by default — these are hidden from tools/list and
+  # hard-rejected at call time unless the operator explicitly enabled
+  # system-admin mode on this server instance. The Control Plane still enforces
+  # its own dry-run / typed-confirmation / blast-radius guards server-side; this
+  # gate is only the local "should this server even expose mutating recovery".
+  @system_admin_gated_tools MapSet.new([
+                              "recovery_resync",
+                              "recovery_reconcile_subscription",
+                              "recovery_resolve_dunning",
+                              "recovery_rotate_keys",
+                              "recovery_reprovision",
+                              "recovery_restore",
+                              "recovery_batch",
+                              "recovery_diagnose_edition"
+                            ])
 
   def call_tool(tool_name, args, state) do
     format = Map.get(args, "format", nil)
@@ -325,6 +399,21 @@ defmodule McpServerElixir.Protocol.McpTools do
            isError: true
          }}
 
+      MapSet.member?(@system_admin_gated_tools, tool_name) and
+          not Map.get(state, :system_admin, false) ->
+        {:ok,
+         %{
+           content: [
+             %{
+               type: "text",
+               text:
+                 "Tool disabled: system-admin not enabled. Fleet recovery actions are Destructive and " <>
+                   "are off by default. Set ALLSOURCE_SYSTEM_ADMIN=true on this MCP server to enable them."
+             }
+           ],
+           isError: true
+         }}
+
       true ->
         dispatch_tool(tool_name, args_without_format, state, format)
     end
@@ -354,6 +443,9 @@ defmodule McpServerElixir.Protocol.McpTools do
         apply(__MODULE__, handler, [args, state, format])
 
       handler = Map.get(@tenant_tool_handlers, tool_name) ->
+        apply(__MODULE__, handler, [args, state, format])
+
+      handler = Map.get(@fleet_tool_handlers, tool_name) ->
         apply(__MODULE__, handler, [args, state, format])
 
       handler = Map.get(@schema_tool_handlers, tool_name) ->
@@ -6290,6 +6382,747 @@ defmodule McpServerElixir.Protocol.McpTools do
 
       {:error, reason} ->
         {:error, "Failed to export tenant data: #{inspect(reason)}"}
+    end
+  end
+
+  # ============================================================================
+  # Fleet Health & Recovery Tool Definitions (P3)
+  # ============================================================================
+  #
+  # These tools live in mcp-server-elixir, NOT prime-mcp. prime-mcp is
+  # single-tenant by design (apps/prime-mcp/src/projection_registry.rs:22;
+  # apps/prime-mcp/src/http.rs:294,379) — a fleet/cross-tenant tool there would
+  # cross a tenant boundary it explicitly does not have. The Elixir server
+  # already composes from state.control_client (a ControlPlaneClient) and gates
+  # tenant tools behind control_plane_enabled, so it is the correct home.
+  #
+  # They are THIN CONSUMERS of the Control Plane /api/v1/admin/* fleet+recovery
+  # API. No tier scoring and no guard logic is reimplemented here: the health
+  # model and the dry-run / typed-confirmation / blast-radius guards live
+  # entirely in the Control Plane. Each tool forwards dry_run + confirmation
+  # params straight through and surfaces the server's `would` preview +
+  # confirm_token. The only local logic is the system_admin gate (call_tool/3)
+  # that hides the mutating recovery_* tools by default.
+  # ============================================================================
+
+  defp tool_fleet_health_summary do
+    %{
+      name: "fleet_health_summary",
+      description: """
+      Fleet-wide tenant health rollup — the single answer to "is every tenant \
+      healthy right now, and if not, which ones aren't and why?". Read-only.
+
+      **ADMIN ONLY** — Reaches the Control Plane /api/v1/admin/fleet/health \
+      endpoint, which requires an admin JWT.
+
+      **When to use this tool:**
+      - Daily fleet sweep: how many tenants are Healthy / Degraded / At-Risk / Critical
+      - Triage after an incident — see the worst-N tenants and their contributing signals
+      - Before a billing or edition change, to confirm nothing is already on fire
+
+      **What it returns:**
+      - Per-tier counts (total / healthy / degraded / at_risk / critical)
+      - The worst-N tenants (Critical→Degraded) each with its `reasons` list \
+        (signal name + observed value + the tier it triggered)
+
+      **Common patterns:**
+      - Whole fleet: (no args)
+      - Only the broken ones: `tier: "critical"` or `tier: "at_risk"`
+      - Cap the worst list: `limit: 10`
+
+      **Note:** This tool computes nothing — tiers and signals are scored by the \
+      Control Plane. Drill into a single tenant with tenant_health_assessment.
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tier" => %{
+            type: "string",
+            enum: ["critical", "at_risk", "degraded", "healthy"],
+            description: "Optional filter: only return tenants at this health tier"
+          },
+          "limit" => %{
+            type: "integer",
+            description: "Worst-N tenants to include (default 25)"
+          }
+        },
+        required: []
+      }
+    }
+  end
+
+  defp tool_tenant_health_assessment do
+    %{
+      name: "tenant_health_assessment",
+      description: """
+      Per-tenant health assessment — every signal with its observed value, the \
+      tier it triggered, and the source backend it was read from. Read-only.
+
+      **ADMIN ONLY** — Reaches the Control Plane /api/v1/admin/fleet/health/:id \
+      endpoint, which requires an admin JWT.
+
+      **When to use this tool:**
+      - A tenant shows up non-green in fleet_health_summary and you need the why
+      - Diagnosing the data-visibility class of incident (edition trap, \
+        wrong-tenant, quota over-run, dunning, replication lag)
+      - Confirming a tenant is healthy before/after a recovery action
+
+      **What it returns:**
+      - The tenant's overall tier
+      - The full signal list (e.g. last_event_age, subscription_state, \
+        events_quota_pct, durability, replication_lag) with values + source
+      - The subscription snapshot
+
+      **Important — read the runbook framing:** a tenant reporting empty data is \
+      classified as a read-path / identity symptom, NEVER as data loss. Core is \
+      the durable store; "no rows" points at edition/JWT/tenant resolution.
+
+      **Common patterns:**
+      - Assess: `tenant_id: "t-123"`
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "ID of the tenant to assess"
+          }
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  defp tool_recovery_resync do
+    %{
+      name: "recovery_resync",
+      description: """
+      Re-trigger ingestion / reconcile drifted counters for a tenant (Guarded \
+      recovery). Remediates a stale last_sync_age or x402 counter drift.
+
+      **ADMIN ONLY** — Requires admin role; gated behind system-admin mode \
+      (ALLSOURCE_SYSTEM_ADMIN) on this server.
+
+      **SAFETY WARNING:**
+      - This mutates a live tenant. Dry-run runs by default; you must pass \
+        confirmation (`dry_run: false`) to actually mutate.
+      - On dry-run the Control Plane returns a `would` preview (what would be \
+        re-pulled — count + range). Review it before applying.
+      - The Control Plane enforces all guards server-side; this tool only \
+        forwards your dry_run flag and reason.
+
+      **When to use this tool:**
+      - A tenant's last_sync_age is stale (sync source fell behind)
+      - x402 allowance counters drifted from actual consumption
+
+      **Common patterns:**
+      - Preview: `tenant_id: "t-123"` (dry-run is the default)
+      - Apply: `tenant_id: "t-123", dry_run: false, reason: "sync stalled 6h"`
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{type: "string", description: "ID of the tenant to resync"},
+          "dry_run" => %{
+            type: "boolean",
+            description: "preview only; default true. Pass false to mutate."
+          },
+          "reason" => %{type: "string", description: "Reason (recorded in the Core audit event)"}
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  defp tool_recovery_reconcile_subscription do
+    %{
+      name: "recovery_reconcile_subscription",
+      description: """
+      Re-apply a tenant's tier entitlements (Guarded recovery). Remediates quota \
+      drift and retired-tier aliases that didn't map to current entitlements.
+
+      **ADMIN ONLY** — Requires admin role; gated behind system-admin mode \
+      (ALLSOURCE_SYSTEM_ADMIN) on this server.
+
+      **SAFETY WARNING:**
+      - Mutates a live tenant's stored quotas. Dry-run runs by default; you must \
+        pass `dry_run: false` to mutate.
+      - On dry-run the Control Plane returns the computed entitlements it would \
+        write. Review before applying.
+      - All guards are enforced server-side by the Control Plane.
+
+      **When to use this tool:**
+      - A tenant's stored quota drifted from its tier's entitlement
+      - A retired-tier tenant needs its quotas re-derived (runbook "retired-tier backfill")
+
+      **Common patterns:**
+      - Preview: `tenant_id: "t-123"`
+      - Apply: `tenant_id: "t-123", dry_run: false, reason: "quota drift"`
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{type: "string", description: "ID of the tenant to reconcile"},
+          "dry_run" => %{
+            type: "boolean",
+            description: "preview only; default true. Pass false to mutate."
+          },
+          "reason" => %{type: "string", description: "Reason (recorded in the Core audit event)"}
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  defp tool_recovery_resolve_dunning do
+    %{
+      name: "recovery_resolve_dunning",
+      description: """
+      Resolve dunning / past-due drift for a tenant (Guarded recovery). \
+      Re-issues checkout, marks for manual review, or extends grace.
+
+      **ADMIN ONLY** — Requires admin role; gated behind system-admin mode \
+      (ALLSOURCE_SYSTEM_ADMIN) on this server.
+
+      **SAFETY WARNING:**
+      - Mutates a live tenant's billing state. Dry-run runs by default; you must \
+        pass `dry_run: false` to mutate.
+      - On dry-run the Control Plane returns the action it would take. Review first.
+      - All guards are enforced server-side by the Control Plane.
+
+      **When to use this tool:**
+      - A tenant is stuck in past_due / unpaid / expired drift
+      - LemonSqueezy retry state needs a manual nudge
+
+      **Common patterns:**
+      - Preview: `tenant_id: "t-123"`
+      - Apply: `tenant_id: "t-123", dry_run: false, reason: "card updated, clear dunning"`
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{type: "string", description: "ID of the tenant in dunning"},
+          "dry_run" => %{
+            type: "boolean",
+            description: "preview only; default true. Pass false to mutate."
+          },
+          "reason" => %{type: "string", description: "Reason (recorded in the Core audit event)"}
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  defp tool_recovery_rotate_keys do
+    %{
+      name: "recovery_rotate_keys",
+      description: """
+      Rotate a tenant's API keys and re-mint with the canonical `serviceaccount` \
+      role (Destructive recovery). Remediates role-string drift \
+      (`service_account` vs `serviceaccount`) and suspected key compromise.
+
+      **ADMIN ONLY** — Requires admin role; gated behind system-admin mode \
+      (ALLSOURCE_SYSTEM_ADMIN) on this server.
+
+      **SAFETY WARNING — DESTRUCTIVE:**
+      - Rotation INVALIDATES the tenant's current keys — existing integrations \
+        break until they pick up the new key.
+      - Dry-run runs by default; you must pass confirmation to mutate. The \
+        dry-run returns a `confirm_token` plus a "these N keys will stop working" \
+        warning; echo that token back as `confirm_token` to apply.
+      - The Control Plane enforces the confirm_token guard server-side — a raw \
+        curl is bound by the same guard this tool surfaces.
+
+      **When to use this tool:**
+      - API-key role-string drift detected (keys silently 403)
+      - Suspected key compromise
+
+      **Common patterns:**
+      - Preview (get confirm_token): `tenant_id: "t-123"`
+      - Apply: `tenant_id: "t-123", dry_run: false, confirm_token: "<token-from-dry-run>", reason: "role drift"`
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{type: "string", description: "ID of the tenant whose keys to rotate"},
+          "dry_run" => %{
+            type: "boolean",
+            description: "preview only; default true. Pass false (with confirm_token) to mutate."
+          },
+          "confirm_token" => %{
+            type: "string",
+            description: "echo the token returned by the preceding dry-run to execute"
+          },
+          "reason" => %{type: "string", description: "Reason (recorded in the Core audit event)"}
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  defp tool_recovery_reprovision do
+    %{
+      name: "recovery_reprovision",
+      description: """
+      Re-provision a tenant's metadata (Destructive recovery). Remediates \
+      corrupt/incomplete tenant metadata or a failed onboarding.
+
+      **ADMIN ONLY** — Requires admin role; gated behind system-admin mode \
+      (ALLSOURCE_SYSTEM_ADMIN) on this server.
+
+      **SAFETY WARNING — DESTRUCTIVE:**
+      - Re-provisioning REWRITES tenant metadata. A wrong id would clobber a \
+        healthy paying tenant.
+      - Dry-run runs by default; you must pass confirmation to mutate. To \
+        execute you MUST type the exact tenant id into `confirm_tenant_id` \
+        (it must equal `tenant_id`). The dry-run returns the metadata diff.
+      - The Control Plane HARD-REJECTS reprovision on a tenant that is `active` \
+        and has ingested in the last 24h (use recovery_resync instead). Max \
+        blast radius is one tenant.
+      - All guards are enforced server-side by the Control Plane.
+
+      **When to use this tool:**
+      - A tenant's metadata is corrupt/incomplete and recovery_resync won't fix it
+      - A failed onboarding left the tenant in a half-provisioned state
+
+      **Common patterns:**
+      - Preview (see the diff): `tenant_id: "t-123", reason: "broken onboarding"`
+      - Apply: `tenant_id: "t-123", dry_run: false, confirm_tenant_id: "t-123", reason: "broken onboarding"`
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{type: "string", description: "ID of the tenant to re-provision"},
+          "dry_run" => %{
+            type: "boolean",
+            description: "preview only; default true. Pass false (with confirm_tenant_id) to mutate."
+          },
+          "confirm_tenant_id" => %{
+            type: "string",
+            description: "must exactly equal tenant_id to execute (omit for dry-run)"
+          },
+          "reason" => %{type: "string", description: "Reason (recorded in the Core audit event)"}
+        },
+        required: ["tenant_id", "reason"]
+      }
+    }
+  end
+
+  defp tool_recovery_restore do
+    %{
+      name: "recovery_restore",
+      description: """
+      Restore a tenant from a snapshot / replay (Destructive recovery). \
+      Remediates data corruption or a bad projection. Wraps the existing Core \
+      ops (replay + backup) in a tenant-scoped guarded action.
+
+      **ADMIN ONLY** — Requires admin role; gated behind system-admin mode \
+      (ALLSOURCE_SYSTEM_ADMIN) on this server.
+
+      **SAFETY WARNING — DESTRUCTIVE:**
+      - A replay/restore can OVERWRITE newer events. You must see exactly which \
+        snapshot and how far back before applying.
+      - Dry-run runs by default; you must pass confirmation to mutate. The \
+        dry-run returns the snapshot id, age, and event count to be replayed. To \
+        execute, type the exact tenant id into `confirm_tenant_id` and name the \
+        `snapshot_id`.
+      - All guards are enforced server-side by the Control Plane.
+
+      **When to use this tool:**
+      - Confirmed data corruption or a bad projection for a single tenant
+      - Targeted restore from a known-good snapshot
+
+      **Common patterns:**
+      - Preview: `tenant_id: "t-123", snapshot_id: "snap-9", reason: "bad projection"`
+      - Apply: `tenant_id: "t-123", dry_run: false, confirm_tenant_id: "t-123", snapshot_id: "snap-9", reason: "bad projection"`
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{type: "string", description: "ID of the tenant to restore"},
+          "snapshot_id" => %{
+            type: "string",
+            description: "Snapshot/backup id to restore from (required to apply)"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "preview only; default true. Pass false (with confirm_tenant_id) to mutate."
+          },
+          "confirm_tenant_id" => %{
+            type: "string",
+            description: "must exactly equal tenant_id to execute (omit for dry-run)"
+          },
+          "reason" => %{type: "string", description: "Reason (recorded in the Core audit event)"}
+        },
+        required: ["tenant_id", "reason"]
+      }
+    }
+  end
+
+  defp tool_recovery_batch do
+    %{
+      name: "recovery_batch",
+      description: """
+      Apply ONE Guarded recovery action across many tenants \
+      (Destructive-bounded). E.g. reconcile_subscription across all retired-tier \
+      tenants (the runbook "retired-tier backfill").
+
+      **ADMIN ONLY** — Requires admin role; gated behind system-admin mode \
+      (ALLSOURCE_SYSTEM_ADMIN) on this server.
+
+      **SAFETY WARNING — DESTRUCTIVE (widest blast radius):**
+      - A batch is the single most dangerous surface — an unbounded "recover \
+        everything" could mutate the whole customer base.
+      - Only Guarded actions are allowed in batch: `resync`, \
+        `reconcile_subscription`, `resolve_dunning`. The Destructive \
+        single-tenant actions (reprovision / restore / rotate_keys) are \
+        FORBIDDEN here.
+      - Hard `max_tenants` cap (default 25, absolute ceiling 100), enforced \
+        server-side by the Control Plane.
+      - Dry-run runs by default; you must pass confirmation to mutate. The \
+        dry-run returns the full affected-tenant list + per-tenant preview + a \
+        `confirm_token` that echoes the exact count. To apply, echo that token \
+        as `confirm_token`.
+      - All guards are enforced server-side by the Control Plane.
+
+      **Common patterns:**
+      - Preview a backfill: `filter: {tier: "free"}, action: "reconcile_subscription"`
+      - Apply: `filter: {tier: "free"}, action: "reconcile_subscription", dry_run: false, confirm_token: "<token>", max_tenants: 50`
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "filter" => %{
+            type: "object",
+            description: "status/tier/health-tier selector for the affected tenants"
+          },
+          "action" => %{
+            type: "string",
+            enum: ["resync", "reconcile_subscription", "resolve_dunning"],
+            description: "the Guarded action to apply (Destructive actions forbidden in batch)"
+          },
+          "max_tenants" => %{
+            type: "integer",
+            description: "hard cap ≤ 100, default 25"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description: "preview only; default true. Pass false (with confirm_token) to mutate."
+          },
+          "confirm_token" => %{
+            type: "string",
+            description: "echo the token from the dry-run (it encodes the exact tenant count) to execute"
+          },
+          "reason" => %{type: "string", description: "Reason (recorded in the Core audit event)"}
+        },
+        required: ["filter", "action"]
+      }
+    }
+  end
+
+  defp tool_recovery_diagnose_edition do
+    %{
+      name: "recovery_diagnose_edition",
+      description: """
+      Detect the edition=community trap (Safe — read/diagnose-only). The \
+      ALLSOURCE_EDITION=community setting on the Query Service pins EVERY \
+      request to the `community` tenant → dashboards look empty despite synced \
+      data (runbook §5 #5).
+
+      **ADMIN ONLY** — Reaches the Control Plane \
+      /api/v1/admin/recovery/diagnose/edition endpoint, which requires an admin JWT.
+
+      **This tool does NOT mutate anything.** The edition is a single fleet-wide \
+      switch that re-routes every request's tenant, so flipping it is \
+      operator-executed, not done blindly by the API. The tool DETECTS the trap \
+      (QS edition `community` + ≥2 non-`community` tenants with data) and returns \
+      the exact remediation: a copy-paste `ALLSOURCE_EDITION=enterprise` command \
+      for `allsource-query` plus a post-change verification probe. It also \
+      reminds you that a `fly deploy` creating no new release is a no-op.
+
+      **When to use this tool:**
+      - "No data anywhere" symptom across the fleet despite confirmed sync
+      - Before assuming data loss — the runbook's first edition check
+
+      **Common patterns:**
+      - Diagnose: (no args)
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{},
+        required: []
+      }
+    }
+  end
+
+  # ============================================================================
+  # Fleet Health & Recovery Tool Handlers (P3)
+  #
+  # Thin pass-throughs: compose the new ControlPlaneClient fns and format via
+  # ToonEncoder.format_response/2. They do NOT recompute tiers or decide
+  # confirmations — guards are enforced by the Control Plane. Mutating handlers
+  # forward dry_run + confirmation params and surface the `would` preview +
+  # any confirm_token the Control Plane returns.
+  # ============================================================================
+
+  @doc false
+  def handle_fleet_health_summary(args, state, format) do
+    params =
+      %{}
+      |> maybe_put("tier", Map.get(args, "tier"))
+      |> maybe_put("limit", Map.get(args, "limit"))
+
+    case ControlPlaneClient.fleet_health(state.control_client, params) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        🩺 Fleet Health Summary
+        (tiers + worst-N scored by the Control Plane; this tool computes nothing)
+
+        #{formatted_data}
+
+        💡 Drill into a tenant with tenant_health_assessment
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to get fleet health: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_tenant_health_assessment(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    case ControlPlaneClient.fleet_tenant_health(state.control_client, tenant_id) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        🩺 Tenant Health Assessment
+        🆔 Tenant ID: #{tenant_id}
+        (signals + tier scored by the Control Plane; empty-data is a read-path/identity symptom, not data loss)
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to assess tenant health: #{inspect(reason)}"}
+    end
+  end
+
+  @doc false
+  def handle_recovery_resync(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    params =
+      %{}
+      |> maybe_put("dry_run", recovery_dry_run(args))
+      |> maybe_put("reason", Map.get(args, "reason"))
+
+    run_recovery(
+      "force_resync",
+      tenant_id,
+      params,
+      fn -> ControlPlaneClient.recovery_resync(state.control_client, tenant_id, params) end,
+      format
+    )
+  end
+
+  @doc false
+  def handle_recovery_reconcile_subscription(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    params =
+      %{}
+      |> maybe_put("dry_run", recovery_dry_run(args))
+      |> maybe_put("reason", Map.get(args, "reason"))
+
+    run_recovery(
+      "reconcile_subscription",
+      tenant_id,
+      params,
+      fn ->
+        ControlPlaneClient.recovery_reconcile_subscription(state.control_client, tenant_id, params)
+      end,
+      format
+    )
+  end
+
+  @doc false
+  def handle_recovery_resolve_dunning(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    params =
+      %{}
+      |> maybe_put("dry_run", recovery_dry_run(args))
+      |> maybe_put("reason", Map.get(args, "reason"))
+
+    run_recovery(
+      "resolve_dunning",
+      tenant_id,
+      params,
+      fn ->
+        ControlPlaneClient.recovery_resolve_dunning(state.control_client, tenant_id, params)
+      end,
+      format
+    )
+  end
+
+  @doc false
+  def handle_recovery_rotate_keys(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    params =
+      %{}
+      |> maybe_put("dry_run", recovery_dry_run(args))
+      |> maybe_put("confirm_token", Map.get(args, "confirm_token"))
+      |> maybe_put("reason", Map.get(args, "reason"))
+
+    run_recovery(
+      "rotate_keys",
+      tenant_id,
+      params,
+      fn -> ControlPlaneClient.recovery_rotate_keys(state.control_client, tenant_id, params) end,
+      format
+    )
+  end
+
+  @doc false
+  def handle_recovery_reprovision(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+    params = reprovision_recovery_params(args)
+
+    run_recovery(
+      "reprovision",
+      tenant_id,
+      params,
+      fn -> ControlPlaneClient.recovery_reprovision(state.control_client, tenant_id, params) end,
+      format
+    )
+  end
+
+  @doc false
+  def handle_recovery_restore(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+
+    params =
+      %{}
+      |> maybe_put("dry_run", recovery_dry_run(args))
+      |> maybe_put("confirm_tenant_id", Map.get(args, "confirm_tenant_id"))
+      |> maybe_put("snapshot_id", Map.get(args, "snapshot_id"))
+      |> maybe_put("reason", Map.get(args, "reason"))
+
+    run_recovery(
+      "restore",
+      tenant_id,
+      params,
+      fn -> ControlPlaneClient.recovery_restore(state.control_client, tenant_id, params) end,
+      format
+    )
+  end
+
+  @doc false
+  def handle_recovery_batch(args, state, format) do
+    params =
+      %{}
+      |> maybe_put("filter", Map.fetch!(args, "filter"))
+      |> maybe_put("action", Map.fetch!(args, "action"))
+      |> maybe_put("max_tenants", Map.get(args, "max_tenants"))
+      |> maybe_put("dry_run", recovery_dry_run(args))
+      |> maybe_put("confirm_token", Map.get(args, "confirm_token"))
+      |> maybe_put("reason", Map.get(args, "reason"))
+
+    run_recovery(
+      "batch",
+      "(fleet batch)",
+      params,
+      fn -> ControlPlaneClient.recovery_batch(state.control_client, params) end,
+      format
+    )
+  end
+
+  @doc false
+  def handle_recovery_diagnose_edition(_args, state, format) do
+    case ControlPlaneClient.recovery_diagnose_edition(state.control_client) do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+
+        text = """
+        🔎 Edition Trap Diagnosis (read-only — no mutation)
+
+        #{formatted_data}
+
+        ⚠️  Flipping ALLSOURCE_EDITION is operator-executed: run the command above on
+            allsource-query and confirm a NEW Fly release (a deploy that creates no
+            release is a no-op).
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to diagnose edition trap: #{inspect(reason)}"}
+    end
+  end
+
+  # Default-safe dry_run: Destructive recovery tools default dry_run ON. If the
+  # caller omits dry_run we send true; we never mutate implicitly. This is the
+  # only local default — the Control Plane still enforces every guard server-side.
+  @doc false
+  def recovery_dry_run(args), do: Map.get(args, "dry_run", true)
+
+  @doc false
+  # Builds the exact param map forwarded to the Control Plane for a reprovision.
+  # Public so the dry-run pass-through can be asserted without a live CP:
+  # - omit dry_run → "dry_run" => true (default-safe; no implicit mutation)
+  # - omit confirm_tenant_id → key absent (no confirmation supplied = no mutate)
+  # No tier scoring or guard decisions happen here — the CP enforces those.
+  def reprovision_recovery_params(args) do
+    %{}
+    |> maybe_put("dry_run", recovery_dry_run(args))
+    |> maybe_put("confirm_tenant_id", Map.get(args, "confirm_tenant_id"))
+    |> maybe_put("reason", Map.get(args, "reason"))
+  end
+
+  # Shared formatter for the mutating recovery handlers. Surfaces whether the
+  # call was a dry-run, the Control Plane's `would` preview, and any confirm_token
+  # it returned. Recomputes/decides nothing.
+  defp run_recovery(action, target, params, fun, format) do
+    dry_run? = Map.get(params, "dry_run", true)
+
+    case fun.() do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+        confirm_token = if is_map(data), do: Map.get(data, "confirm_token"), else: nil
+
+        mode_line =
+          if dry_run? do
+            "🧪 DRY-RUN — no changes were made. Review the `would` preview below, then re-run with dry_run: false + confirmation to apply."
+          else
+            "✅ APPLIED — the Control Plane executed this action (and wrote a Core audit event)."
+          end
+
+        token_line =
+          if confirm_token,
+            do: "\n🔑 confirm_token: #{confirm_token}\n   Echo this token back to apply the change.",
+            else: ""
+
+        text = """
+        🛠️  Recovery: #{action}
+        🎯 Target: #{target}
+        #{mode_line}#{token_line}
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Recovery #{action} failed: #{inspect(reason)}"}
     end
   end
 

@@ -26,9 +26,9 @@ defmodule McpServerElixir.Protocol.McpToolsOperationalTest do
       assert "audit_log" in tool_names
     end
 
-    test "returns 61 tools total" do
+    test "returns 63 tools total" do
       tools = McpTools.list_tools(%{control_plane_enabled: true})
-      assert length(tools) == 61
+      assert length(tools) == 63
     end
   end
 
