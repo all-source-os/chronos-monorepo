@@ -105,6 +105,28 @@ impl AllsourceAuthAdapter {
             client: AllsourceClient::new(core_url, query_url, api_key),
         }
     }
+
+    /// Resolve a user from CURRENT folded state, not stale `auth.user.created`
+    /// payloads (issue #214). `query_all("auth.user.", …)` groups by entity and
+    /// takes the latest event per user (folding `auth.user.updated`, tombstone-
+    /// aware), so a current email/username set via an update is visible. When
+    /// duplicates exist, the OLDEST (canonical) match wins — converging callers
+    /// instead of drifting to the newest duplicate.
+    async fn find_current_user<F>(&self, pred: F) -> AuthResult<Option<User>>
+    where
+        F: Fn(&User) -> bool,
+    {
+        let users: Vec<UserRecord> = self
+            .client
+            .query_all("auth.user.", 10_000)
+            .await
+            .map_err(AuthError::from)?;
+        Ok(users
+            .into_iter()
+            .map(UserRecord::into_user)
+            .filter(|u| pred(u))
+            .min_by_key(|u| u.created_at))
+    }
 }
 
 // Entity ID helpers
@@ -153,26 +175,17 @@ impl UserOps for AllsourceAuthAdapter {
             .clone()
             .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        // Check email uniqueness
+        // Check email uniqueness against CURRENT folded state (issue #214) so a
+        // user whose email arrived via auth.user.updated still blocks a duplicate.
         if let Some(email) = &input.email {
-            if let Some(_existing) = self
-                .client
-                .find_by_field::<UserRecord>("auth.user.created", "email", email)
-                .await
-                .map_err(AuthError::from)?
-            {
+            if self.get_user_by_email(email).await?.is_some() {
                 return Err(AuthError::config("Email already exists"));
             }
         }
 
-        // Check username uniqueness
+        // Check username uniqueness (same folded-state lookup).
         if let Some(username) = &input.username {
-            if let Some(_existing) = self
-                .client
-                .find_by_field::<UserRecord>("auth.user.created", "username", username)
-                .await
-                .map_err(AuthError::from)?
-            {
+            if self.get_user_by_username(username).await?.is_some() {
                 return Err(AuthError::conflict(
                     "A user with this username already exists",
                 ));
@@ -223,21 +236,21 @@ impl UserOps for AllsourceAuthAdapter {
     }
 
     async fn get_user_by_email(&self, email: &str) -> AuthResult<Option<User>> {
-        let record: Option<UserRecord> = self
-            .client
-            .find_by_field("auth.user.created", "email", email)
-            .await
-            .map_err(AuthError::from)?;
-        Ok(record.map(UserRecord::into_user))
+        // Case-insensitive email match over current folded state (issue #214).
+        let target = email.to_lowercase();
+        self.find_current_user(|u| {
+            u.email
+                .as_deref()
+                .map(|e| e.to_lowercase() == target)
+                .unwrap_or(false)
+        })
+        .await
     }
 
     async fn get_user_by_username(&self, username: &str) -> AuthResult<Option<User>> {
-        let record: Option<UserRecord> = self
-            .client
-            .find_by_field("auth.user.created", "username", username)
+        // Exact username match over current folded state (issue #214).
+        self.find_current_user(|u| u.username.as_deref() == Some(username))
             .await
-            .map_err(AuthError::from)?;
-        Ok(record.map(UserRecord::into_user))
     }
 
     async fn update_user(&self, id: &str, update: UpdateUser) -> AuthResult<User> {
@@ -1489,5 +1502,158 @@ mod metadata_tests {
         validate_metadata(Some(&serde_json::json!("just a string"))).unwrap();
         validate_metadata(Some(&serde_json::json!(42))).unwrap();
         validate_metadata(Some(&serde_json::json!(["a", "b"]))).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod email_lookup_tests {
+    //! Issue #214: email/username lookups must read CURRENT folded state, not
+    //! stale `auth.user.created` payloads, and converge on the OLDEST duplicate.
+    use super::*;
+    use better_auth_core::adapters::traits::UserOps;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::TcpListener;
+
+    /// Minimal mock of the Query Service `/api/v1/events/query` endpoint that
+    /// returns the same canned body for `conns` sequential requests.
+    async fn mock_query_server(body: String, conns: usize) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            for _ in 0..conns {
+                let (stream, _) = listener.accept().await.unwrap();
+                let (read_half, mut write_half) = stream.into_split();
+                let mut reader = BufReader::new(read_half);
+                let mut line = String::new();
+                reader.read_line(&mut line).await.unwrap();
+                loop {
+                    let mut b = String::new();
+                    reader.read_line(&mut b).await.unwrap();
+                    if b == "\r\n" || b.is_empty() {
+                        break;
+                    }
+                }
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                write_half.write_all(resp.as_bytes()).await.unwrap();
+                write_half.shutdown().await.ok();
+            }
+        });
+        format!("http://{addr}")
+    }
+
+    fn mk_user(id: &str, email: Option<&str>, created: &str) -> User {
+        User {
+            id: id.to_string(),
+            name: None,
+            email: email.map(str::to_string),
+            email_verified: false,
+            image: None,
+            created_at: DateTime::parse_from_rfc3339(created)
+                .unwrap()
+                .with_timezone(&Utc),
+            updated_at: Utc::now(),
+            username: None,
+            display_username: None,
+            two_factor_enabled: false,
+            role: None,
+            banned: false,
+            ban_reason: None,
+            ban_expires: None,
+            metadata: serde_json::Value::Null,
+        }
+    }
+
+    /// Build a `{"events":[…]}` body. `users` are in the order Core would return
+    /// them with `order=desc` (newest event first); `query_all` keeps the first
+    /// event seen per entity id.
+    fn events_body(users_newest_first: &[User]) -> String {
+        let events: Vec<_> = users_newest_first
+            .iter()
+            .map(|u| {
+                serde_json::json!({ "payload": serde_json::to_value(UserRecord(u.clone())).unwrap() })
+            })
+            .collect();
+        serde_json::json!({ "events": events }).to_string()
+    }
+
+    #[tokio::test]
+    async fn email_set_via_update_is_found() {
+        // u1 created without an email, then updated to a@b.com.
+        let created = mk_user("u1", None, "2026-01-01T00:00:00Z");
+        let mut updated = created.clone();
+        updated.email = Some("a@b.com".to_string());
+        let url = mock_query_server(events_body(&[updated, created]), 1).await;
+        let adapter = AllsourceAuthAdapter::new(&url, &url, "k");
+
+        let got = adapter.get_user_by_email("a@b.com").await.unwrap();
+        assert_eq!(
+            got.and_then(|u| u.email).as_deref(),
+            Some("a@b.com"),
+            "email set via auth.user.updated must be findable"
+        );
+    }
+
+    #[tokio::test]
+    async fn duplicate_email_returns_oldest() {
+        let u_old = mk_user("u1", Some("a@b.com"), "2026-01-01T00:00:00Z");
+        let u_new = mk_user("u2", Some("a@b.com"), "2026-03-01T00:00:00Z");
+        let url = mock_query_server(events_body(&[u_new, u_old]), 1).await;
+        let adapter = AllsourceAuthAdapter::new(&url, &url, "k");
+
+        let got = adapter.get_user_by_email("a@b.com").await.unwrap().unwrap();
+        assert_eq!(got.id, "u1", "must converge on the oldest (canonical) user");
+    }
+
+    #[tokio::test]
+    async fn email_change_found_by_new_not_old() {
+        let created = mk_user("u1", Some("a@x.com"), "2026-01-01T00:00:00Z");
+        let mut updated = created.clone();
+        updated.email = Some("b@x.com".to_string());
+        // Two lookups → two requests.
+        let url = mock_query_server(events_body(&[updated, created]), 2).await;
+        let adapter = AllsourceAuthAdapter::new(&url, &url, "k");
+
+        assert!(
+            adapter.get_user_by_email("b@x.com").await.unwrap().is_some(),
+            "new (current) email must resolve"
+        );
+        assert!(
+            adapter.get_user_by_email("a@x.com").await.unwrap().is_none(),
+            "old (replaced) email must NOT resolve"
+        );
+    }
+
+    #[tokio::test]
+    async fn email_match_is_case_insensitive() {
+        let u = mk_user("u1", Some("Alice@B.com"), "2026-01-01T00:00:00Z");
+        let url = mock_query_server(events_body(&[u]), 1).await;
+        let adapter = AllsourceAuthAdapter::new(&url, &url, "k");
+
+        assert!(
+            adapter.get_user_by_email("alice@b.com").await.unwrap().is_some(),
+            "email match must be case-insensitive"
+        );
+    }
+
+    #[tokio::test]
+    async fn tombstoned_user_not_found() {
+        let mut u = mk_user("u1", Some("gone@x.com"), "2026-01-01T00:00:00Z");
+        u.email = Some("gone@x.com".to_string());
+        // Simulate a delete tombstone as the newest event for the entity.
+        let payload = serde_json::json!({ "_deleted": true, "id": "u1" });
+        let body =
+            serde_json::json!({ "events": [ { "payload": payload } ] }).to_string();
+        let url = mock_query_server(body, 1).await;
+        let adapter = AllsourceAuthAdapter::new(&url, &url, "k");
+
+        assert!(
+            adapter.get_user_by_email("gone@x.com").await.unwrap().is_none(),
+            "tombstoned user must not resolve"
+        );
+        let _ = u; // keep the builder exercised
     }
 }
