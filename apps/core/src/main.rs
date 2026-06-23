@@ -131,6 +131,14 @@ async fn main() -> Result<()> {
 
     let store = Arc::new(store);
 
+    // Populate the on-disk storage-size gauges once at boot so the dashboard's
+    // "storage" card reflects reality immediately, rather than reading 0 until the
+    // first checkpoint tick (or staying 0 forever if checkpointing is disabled).
+    {
+        let store_for_metrics = Arc::clone(&store);
+        tokio::task::spawn_blocking(move || store_for_metrics.refresh_storage_metrics_now());
+    }
+
     // Step 6: spawn the background checkpoint loop if a cadence is
     // configured. Each tick flushes pending Parquet batches and, on
     // success, truncates the WAL — bounding dirty-restart replay to

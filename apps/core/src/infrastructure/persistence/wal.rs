@@ -480,6 +480,29 @@ impl WriteAheadLog {
         (*self.stats.read()).clone()
     }
 
+    /// Sum the on-disk size of all WAL segment files and count them.
+    ///
+    /// Walks the WAL directory and `fs::metadata`s each `wal-*.log` segment.
+    /// Returns `(total_bytes, segment_count)`. Unlike `WALStats.total_bytes_written`
+    /// (a monotonic write counter that ignores rotation/cleanup), this reflects the
+    /// *current* on-disk footprint — what we want to report as storage size and as
+    /// `allsource_wal_segments_total`.
+    ///
+    /// Cheap (one `statx` per segment; `max_wal_files` caps the count, default 10),
+    /// so it's safe to call on the checkpoint cadence. Errors reading the directory
+    /// surface as `Err`; a per-file metadata error skips that file rather than
+    /// aborting the whole tally.
+    pub fn on_disk_stats(&self) -> Result<(u64, usize)> {
+        let wal_files = self.list_wal_files()?;
+        let mut total_bytes = 0u64;
+        for path in &wal_files {
+            if let Ok(metadata) = fs::metadata(path) {
+                total_bytes += metadata.len();
+            }
+        }
+        Ok((total_bytes, wal_files.len()))
+    }
+
     /// Get current sequence number
     pub fn current_sequence(&self) -> u64 {
         *self.sequence.read()
@@ -571,6 +594,27 @@ mod tests {
 
         let stats = wal.stats();
         assert_eq!(stats.total_entries, 1);
+    }
+
+    #[test]
+    fn test_wal_on_disk_stats() {
+        let temp_dir = TempDir::new().unwrap();
+        let wal = WriteAheadLog::new(temp_dir.path(), WALConfig::default()).unwrap();
+
+        // Empty WAL dir (the active segment is created lazily on first append):
+        // zero or one segment, zero bytes.
+        let (bytes0, segs0) = wal.on_disk_stats().unwrap();
+        assert_eq!(bytes0, 0);
+        assert!(segs0 <= 1);
+
+        for _ in 0..5 {
+            wal.append(create_test_event()).unwrap();
+        }
+        wal.flush().unwrap();
+
+        let (bytes, segs) = wal.on_disk_stats().unwrap();
+        assert!(segs >= 1, "expected at least one WAL segment, got {segs}");
+        assert!(bytes > 0, "expected non-zero WAL bytes after appends, got {bytes}");
     }
 
     #[test]

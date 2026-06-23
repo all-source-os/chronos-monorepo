@@ -1270,6 +1270,10 @@ impl EventStore {
     /// No-op when no WAL is configured (in-memory-only mode).
     pub fn checkpoint(&self) -> Result<()> {
         let Some(ref wal) = self.wal else {
+            // No WAL (in-memory-only mode). Still refresh storage-size metrics in
+            // case Parquet-only persistence is configured.
+            #[cfg(feature = "server")]
+            self.refresh_storage_metrics();
             return Ok(());
         };
 
@@ -1280,7 +1284,81 @@ impl EventStore {
         self.flush_storage()?;
         wal.truncate()?;
         tracing::debug!("✅ Checkpoint complete: Parquet flushed, WAL truncated");
+
+        // Recompute on-disk storage size now that Parquet is flushed and the WAL
+        // is truncated — the gauge reflects the post-checkpoint footprint.
+        #[cfg(feature = "server")]
+        self.refresh_storage_metrics();
+
         Ok(())
+    }
+
+    /// Public entrypoint to populate the on-disk storage gauges once, e.g. at boot
+    /// so the dashboard's "storage" card is correct before the first checkpoint
+    /// tick (and even when the checkpoint loop is disabled). Delegates to the
+    /// internal refresh. No-op without persistent storage.
+    #[cfg(feature = "server")]
+    pub fn refresh_storage_metrics_now(&self) {
+        self.refresh_storage_metrics();
+    }
+
+    /// Recompute the on-disk storage gauges from the real Parquet + WAL files and
+    /// publish them to Prometheus: `allsource_storage_size_bytes` (Parquet bytes +
+    /// WAL segment bytes), `allsource_parquet_files_total`, and
+    /// `allsource_wal_segments_total`.
+    ///
+    /// These gauges were registered but never set, so they read a constant 0 — the
+    /// dashboard's "storage" card therefore showed `—`. This is the population.
+    ///
+    /// HONESTY: this is a **platform/process-wide** figure — the size of the whole
+    /// data directory across all tenants, not any single tenant's storage. It is
+    /// surfaced as a platform metric and must not be presented as a tenant number.
+    ///
+    /// Called from the checkpoint loop (default every 60s), not the ingest hot
+    /// path: it does one `statx` per Parquet file + per WAL segment. Best-effort —
+    /// a stat error logs and leaves the previous gauge value in place rather than
+    /// resetting it to a misleading 0.
+    #[cfg(feature = "server")]
+    fn refresh_storage_metrics(&self) {
+        let Some(ref storage) = self.storage else {
+            return;
+        };
+
+        let parquet_stats = match storage.read().stats() {
+            Ok(stats) => stats,
+            Err(e) => {
+                tracing::warn!("storage-size metric refresh: failed to stat Parquet: {e}");
+                return;
+            }
+        };
+
+        let (wal_bytes, wal_segments) = match self.wal.as_ref() {
+            Some(wal) => match wal.on_disk_stats() {
+                Ok(stats) => stats,
+                Err(e) => {
+                    tracing::warn!("storage-size metric refresh: failed to stat WAL: {e}");
+                    (0, 0)
+                }
+            },
+            None => (0, 0),
+        };
+
+        let total_bytes = parquet_stats.total_size_bytes + wal_bytes;
+
+        self.metrics
+            .storage_size_bytes
+            .set(total_bytes.min(i64::MAX as u64) as i64);
+        self.metrics
+            .parquet_files_total
+            .set(parquet_stats.total_files as i64);
+        self.metrics.wal_segments_total.set(wal_segments as i64);
+
+        tracing::debug!(
+            "storage-size metrics refreshed: {} bytes total ({} Parquet files, {} WAL segments)",
+            total_bytes,
+            parquet_stats.total_files,
+            wal_segments
+        );
     }
 
     /// Get the configured checkpoint cadence (used by background tasks).
@@ -2940,6 +3018,75 @@ mod tests {
         let after_bob = store.metrics.cache_bytes.get();
         assert!(after_bob > 0);
         assert!(after_bob <= after_alice, "gauge dropped after eviction");
+    }
+
+    #[test]
+    #[cfg(feature = "server")]
+    fn test_storage_size_gauge_populated_from_on_disk_bytes() {
+        // The allsource_storage_size_bytes / _parquet_files_total / _wal_segments_total
+        // gauges used to be registered but never set (constant 0), so the dashboard's
+        // "storage" card showed "—". refresh_storage_metrics must populate them from
+        // the real on-disk footprint (Parquet bytes + WAL segment bytes).
+        let temp_dir = TempDir::new().unwrap();
+        // Configure BOTH Parquet persistence and a WAL so the gauge exercises the
+        // full `parquet_bytes + wal_bytes` summation (production runs with both).
+        let config = EventStoreConfig {
+            storage_dir: Some(temp_dir.path().join("parquet")),
+            wal_dir: Some(temp_dir.path().join("wal")),
+            ..EventStoreConfig::default()
+        };
+        let store = EventStore::with_config(config);
+
+        // Gauge starts at 0 before anything is written/refreshed.
+        assert_eq!(store.metrics.storage_size_bytes.get(), 0);
+
+        let payload = serde_json::json!({ "data": "x".repeat(2000) });
+        for i in 0..10 {
+            store
+                .ingest(
+                    &Event::from_strings(
+                        "test.event".to_string(),
+                        format!("entity-{i}"),
+                        "tenant-a".to_string(),
+                        payload.clone(),
+                        None,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+        }
+        store.flush_storage().unwrap();
+
+        // Populate the gauges from disk (what the boot hook + checkpoint loop call).
+        store.refresh_storage_metrics_now();
+
+        let size = store.metrics.storage_size_bytes.get();
+        assert!(
+            size > 0,
+            "storage_size_bytes must reflect real on-disk bytes, got {size}"
+        );
+        assert!(
+            store.metrics.parquet_files_total.get() >= 1,
+            "at least one Parquet file should exist after a flush"
+        );
+
+        // WAL segment count is surfaced too: with a WAL configured and writes done,
+        // there is at least one segment on disk.
+        assert!(
+            store.metrics.wal_segments_total.get() >= 1,
+            "at least one WAL segment should exist after writes"
+        );
+
+        // Sanity: the reported size is the Parquet bytes plus the WAL bytes — i.e.
+        // it's the real on-disk footprint, not a stale/placeholder value.
+        let parquet_stats = store.storage.as_ref().unwrap().read().stats().unwrap();
+        let (wal_bytes, _) = store.wal.as_ref().unwrap().on_disk_stats().unwrap();
+        assert_eq!(
+            size as u64,
+            parquet_stats.total_size_bytes + wal_bytes,
+            "gauge should equal Parquet bytes ({}) + WAL bytes ({wal_bytes})",
+            parquet_stats.total_size_bytes
+        );
     }
 
     #[test]
