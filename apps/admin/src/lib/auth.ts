@@ -58,10 +58,6 @@ export function isAdminRole(payload: JwtPayload): boolean {
   return payload.role === "admin";
 }
 
-function getApiUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
-}
-
 export function getControlPlaneUrl(): string {
   return process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3901";
 }
@@ -73,12 +69,19 @@ export function getControlPlaneUrl(): string {
 export async function validateAdminToken(
   token: string
 ): Promise<{ valid: true; user: AdminUser } | { valid: false; error: string }> {
+  // Server-side call → use the runtime Control Plane URL (CONTROL_PLANE_INTERNAL_URL),
+  // NOT the build-inlined NEXT_PUBLIC_API_URL which can resolve to the localhost
+  // fallback inside a Vercel server function and make this fetch throw (→ auth_failed).
+  const meUrl = `${getControlPlaneUrl()}/api/auth/me`;
   try {
-    const meResponse = await fetch(`${getApiUrl()}/api/auth/me`, {
+    const meResponse = await fetch(meUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!meResponse.ok) {
+      console.error(
+        `[admin-auth] /api/auth/me -> ${meResponse.status} (url: ${meUrl})`
+      );
       return { valid: false, error: "invalid_token" };
     }
 
@@ -86,12 +89,16 @@ export async function validateAdminToken(
     const user = data.data?.user || data.data;
 
     if (!user) {
+      console.error("[admin-auth] /api/auth/me ok but no user in payload");
       return { valid: false, error: "no_user_data" };
     }
 
     // Check admin role from JWT claims
     const payload = decodeJwt(token);
     if (!payload || !isAdminRole(payload)) {
+      console.error(
+        `[admin-auth] role check failed (role: ${payload?.role ?? "none"})`
+      );
       return { valid: false, error: "not_admin" };
     }
 
@@ -105,7 +112,11 @@ export async function validateAdminToken(
         avatar_url: user.avatar_url,
       },
     };
-  } catch {
+  } catch (err) {
+    console.error(
+      `[admin-auth] validateAdminToken threw (url: ${meUrl}):`,
+      err instanceof Error ? err.message : err
+    );
     return { valid: false, error: "auth_failed" };
   }
 }
