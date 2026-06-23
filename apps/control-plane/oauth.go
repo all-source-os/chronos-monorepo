@@ -134,6 +134,21 @@ func isSecureContext() bool {
 	return strings.HasPrefix(getFrontendURL(), "https://")
 }
 
+// oauthCookieDomain returns the Domain attribute for the short-lived OAuth
+// transient cookies (state, redirect_to, invite). The OAuth flow can be started
+// from one subdomain (e.g. the admin app proxies the start from
+// admin.all-source.xyz) while the provider callback lands on another
+// (getOAuthCallbackBaseURL = FRONTEND_URL, e.g. www.all-source.xyz). Host-only
+// cookies are then lost across that hop, so CSRF-state validation fails and the
+// per-app redirect_to is dropped (the user lands on FRONTEND_URL instead of the
+// app that started the flow). Setting the registrable parent domain via
+// OAUTH_COOKIE_DOMAIN (e.g. ".all-source.xyz") shares them across every
+// *.all-source.xyz subdomain so both survive. Empty (the default) keeps host-only
+// cookies — correct for localhost and single-domain deployments.
+func oauthCookieDomain() string {
+	return os.Getenv("OAUTH_COOKIE_DOMAIN")
+}
+
 // getOAuthCallbackBaseURL returns the public base URL for OAuth callbacks.
 // OAuth requests are proxied through the frontend (Next.js), so the callback
 // URL must use FRONTEND_URL — that's the domain registered with Google/GitHub.
@@ -188,17 +203,17 @@ func (cp *ControlPlane) OAuthAuthorize(c *gin.Context) {
 	// Store state in a short-lived, httpOnly, SameSite=Lax cookie
 	secure := isSecureContext()
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(oauthStateCookieName, state, 600, "/api/v1/auth/oauth/", "", secure, true)
+	c.SetCookie(oauthStateCookieName, state, 600, "/api/v1/auth/oauth/", oauthCookieDomain(), secure, true)
 
 	// Store redirect_to in a cookie so the callback knows which app to redirect to.
 	// If not provided or not in the allowlist, the callback falls back to FRONTEND_URL.
 	if redirectTo := c.Query("redirect_to"); redirectTo != "" && isAllowedRedirectURL(redirectTo) {
-		c.SetCookie(oauthRedirectCookieName, redirectTo, 600, "/api/v1/auth/oauth/", "", secure, true)
+		c.SetCookie(oauthRedirectCookieName, redirectTo, 600, "/api/v1/auth/oauth/", oauthCookieDomain(), secure, true)
 	}
 
 	// Store invite_token so the callback can assign the user to the invited tenant.
 	if inviteToken := c.Query("invite_token"); inviteToken != "" {
-		c.SetCookie(oauthInviteTokenCookie, inviteToken, 600, "/api/v1/auth/oauth/", "", secure, true)
+		c.SetCookie(oauthInviteTokenCookie, inviteToken, 600, "/api/v1/auth/oauth/", oauthCookieDomain(), secure, true)
 	}
 
 	callbackURL := fmt.Sprintf("%s/api/v1/auth/oauth/%s/callback", getOAuthCallbackBaseURL(), provider)
@@ -272,7 +287,7 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 
 	// Clear the state cookie
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(oauthStateCookieName, "", -1, "/api/v1/auth/oauth/", "", isSecureContext(), true)
+	c.SetCookie(oauthStateCookieName, "", -1, "/api/v1/auth/oauth/", oauthCookieDomain(), isSecureContext(), true)
 
 	// Read and clear the redirect_to cookie — determines which frontend app to redirect to
 	redirectTarget := frontendURL
@@ -281,14 +296,14 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 			redirectTarget = strings.TrimRight(redirectTo, "/")
 		}
 	}
-	c.SetCookie(oauthRedirectCookieName, "", -1, "/api/v1/auth/oauth/", "", isSecureContext(), true)
+	c.SetCookie(oauthRedirectCookieName, "", -1, "/api/v1/auth/oauth/", oauthCookieDomain(), isSecureContext(), true)
 
 	// Read and clear the invite_token cookie (empty string means no invite).
 	inviteToken, err := c.Cookie(oauthInviteTokenCookie)
 	if err != nil {
 		inviteToken = ""
 	}
-	c.SetCookie(oauthInviteTokenCookie, "", -1, "/api/v1/auth/oauth/", "", isSecureContext(), true)
+	c.SetCookie(oauthInviteTokenCookie, "", -1, "/api/v1/auth/oauth/", oauthCookieDomain(), isSecureContext(), true)
 
 	cfg := getOAuthConfig(provider)
 	if cfg == nil {

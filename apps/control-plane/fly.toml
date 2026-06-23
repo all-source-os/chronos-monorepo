@@ -20,6 +20,11 @@ primary_region = "iad"
   # requests and to be OAuth redirect targets: the apex domain and the admin
   # panel. Comma-separated, no trailing slash. See docs/runbooks/CONTROL_PLANE_CORS.md.
   ALLOWED_FRONTEND_URLS = "https://all-source.xyz,https://admin.all-source.xyz"
+  # Parent domain for short-lived OAuth transient cookies (state, redirect_to) so
+  # they survive a flow started on one subdomain (admin.all-source.xyz) and
+  # completed on another (www.all-source.xyz callback). See oauthCookieDomain()
+  # and docs/runbooks/CONTROL_PLANE_CORS.md §4.
+  OAUTH_COOKIE_DOMAIN = ".all-source.xyz"
 
 # Required secrets (set via flyctl secrets set):
 # - JWT_SECRET: openssl rand -base64 32
