@@ -287,7 +287,7 @@ impl EmbeddedCore {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
-                payload_filter: None,
+                exclude_event_type_prefix: None,                payload_filter: None,
             })?;
 
             if all_events.is_empty() {
@@ -384,6 +384,7 @@ impl EmbeddedCore {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
         })
@@ -459,6 +460,7 @@ impl EmbeddedCore {
             until: query.until,
             limit: query.limit,
             event_type_prefix: query.event_type_prefix,
+            exclude_event_type_prefix: query.exclude_event_type_prefix,
             payload_filter: None,
         };
 
@@ -711,6 +713,7 @@ impl EmbeddedCore {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
         })

@@ -103,6 +103,7 @@ impl EventCoordinator {
             until: None,
             limit: Some(limit),
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         })
         .await

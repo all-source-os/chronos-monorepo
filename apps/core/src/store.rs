@@ -1603,6 +1603,7 @@ impl EventStore {
             until: None,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         })?;
 
@@ -1881,6 +1882,21 @@ impl EventStore {
             return false;
         }
 
+        // Exclusion: drop events whose type starts with any excluded prefix
+        // (comma-separated). Applied here, before sort+limit, so excluded events
+        // never consume the result window.
+        if let Some(ref excludes) = request.exclude_event_type_prefix {
+            let et = event.event_type_str();
+            if excludes
+                .split(',')
+                .map(str::trim)
+                .filter(|p| !p.is_empty())
+                .any(|p| et.starts_with(p))
+            {
+                return false;
+            }
+        }
+
         // Additional type filter if entity was primary
         if request.entity_id.is_some()
             && let Some(ref event_type) = request.event_type
@@ -1963,6 +1979,7 @@ impl EventStore {
             until: None,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         })?;
 
@@ -2606,6 +2623,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -2671,6 +2689,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -2811,6 +2830,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -2829,6 +2849,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -2848,6 +2869,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -2984,6 +3006,7 @@ mod tests {
                     until: None,
                     limit: None,
                     event_type_prefix: None,
+                    exclude_event_type_prefix: None,
                     payload_filter: None,
                 })
                 .unwrap();
@@ -3139,6 +3162,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -3166,6 +3190,7 @@ mod tests {
             until: None,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         });
         assert!(result.is_err(), "unsafe tenant_id must surface as error");
@@ -3219,6 +3244,7 @@ mod tests {
                     until: None,
                     limit: None,
                     event_type_prefix: None,
+                    exclude_event_type_prefix: None,
                     payload_filter: None,
                 })
             }));
@@ -3292,6 +3318,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -3311,6 +3338,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -3418,6 +3446,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -3440,6 +3469,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -3505,6 +3535,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -3536,6 +3567,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -3562,6 +3594,7 @@ mod tests {
                 until: None,
                 limit: Some(5),
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -3583,6 +3616,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -4084,6 +4118,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -4124,6 +4159,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: Some("index.".to_string()),
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -4158,6 +4194,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: Some(String::new()),
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -4183,6 +4220,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: Some("nonexistent.".to_string()),
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -4215,6 +4253,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: Some("index.".to_string()),
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -4243,6 +4282,7 @@ mod tests {
                 until: None,
                 limit: Some(3),
                 event_type_prefix: Some("index.".to_string()),
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -4278,6 +4318,7 @@ mod tests {
                 until: None,
                 limit: Some(2),
                 event_type_prefix: Some("index.".to_string()),
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -4321,6 +4362,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: Some(r#"{"user_id":"alice"}"#.to_string()),
             })
             .unwrap();
@@ -4351,6 +4393,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: Some(r#"{"nonexistent":"value"}"#.to_string()),
             })
             .unwrap();
@@ -4395,6 +4438,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: Some("index.".to_string()),
+                exclude_event_type_prefix: None,
                 payload_filter: Some(r#"{"status":"active"}"#.to_string()),
             })
             .unwrap();

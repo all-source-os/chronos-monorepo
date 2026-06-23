@@ -18,6 +18,8 @@ const fetcher = async (key: string) => {
   if (searchParams.get("event_type")) params.event_type = searchParams.get("event_type")!;
   if (searchParams.get("event_type_prefix"))
     params.event_type_prefix = searchParams.get("event_type_prefix")!;
+  if (searchParams.get("exclude_event_type_prefix"))
+    params.exclude_event_type_prefix = searchParams.get("exclude_event_type_prefix")!;
   if (searchParams.get("limit")) params.limit = parseInt(searchParams.get("limit")!, 10);
   if (searchParams.get("offset")) params.offset = parseInt(searchParams.get("offset")!, 10);
   if (searchParams.get("as_of")) params.as_of = searchParams.get("as_of")!;

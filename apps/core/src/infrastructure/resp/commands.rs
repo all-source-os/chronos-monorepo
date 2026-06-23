@@ -227,6 +227,7 @@ fn handle_xrange(
         until: None,
         limit,
         event_type_prefix: None,
+        exclude_event_type_prefix: None,
         payload_filter: None,
     };
 
@@ -311,6 +312,7 @@ fn handle_xlen(
         until: None,
         limit: None,
         event_type_prefix: None,
+        exclude_event_type_prefix: None,
         payload_filter: None,
     };
     if let Some(rest) = stream_key.strip_prefix("entity:") {

@@ -233,6 +233,7 @@ mod tests {
             until: None,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         };
 
@@ -258,6 +259,7 @@ mod tests {
             until: None,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         };
 
@@ -283,6 +285,7 @@ mod tests {
             until: None,
             limit: Some(1),
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         };
 
@@ -308,6 +311,7 @@ mod tests {
             until: None,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         };
 

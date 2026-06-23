@@ -591,6 +591,12 @@ export interface ListEventsParams {
   event_type?: string;
   /** Server-side prefix filter, e.g. "prime." to fetch only Prime memory events. */
   event_type_prefix?: string;
+  /**
+   * Server-side EXCLUDE filter — comma-separated prefixes dropped before the
+   * limit, e.g. "audit.,service.,_system." to hide operational namespaces from
+   * a recent-activity feed so they can't bury domain events.
+   */
+  exclude_event_type_prefix?: string;
   limit?: number;
   offset?: number;
   as_of?: string;

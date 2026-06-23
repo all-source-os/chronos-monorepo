@@ -185,6 +185,79 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn query_excludes_event_type_prefixes() {
+        let core = open_in_memory_core().await;
+
+        for (entity, et) in [
+            ("e1", "order.placed"),
+            ("e2", "audit.api_key.created"),
+            ("e3", "service.heartbeat"),
+            ("e4", "user.created"),
+        ] {
+            core.ingest(IngestEvent {
+                entity_id: entity,
+                event_type: et,
+                payload: json!({}),
+                metadata: None,
+                tenant_id: None,
+            })
+            .await
+            .unwrap();
+        }
+
+        // Drop operational namespaces; only domain events remain.
+        let events = core
+            .query(Query::new().exclude_event_type_prefix("audit.,service."))
+            .await
+            .unwrap();
+        let types: Vec<&str> = events.iter().map(|e| e.event_type.as_str()).collect();
+        assert_eq!(events.len(), 2, "got {types:?}");
+        assert!(types.contains(&"order.placed"));
+        assert!(types.contains(&"user.created"));
+        assert!(
+            !types
+                .iter()
+                .any(|t| t.starts_with("audit.") || t.starts_with("service."))
+        );
+    }
+
+    #[tokio::test]
+    async fn exclude_applies_before_limit() {
+        let core = open_in_memory_core().await;
+
+        // 20 heartbeats then one real event — newest. With limit=1 and the
+        // heartbeats excluded, the real event must survive (exclusion happens
+        // before the limit, so noise can't consume the window).
+        for i in 0..20 {
+            core.ingest(IngestEvent {
+                entity_id: "sys",
+                event_type: "service.heartbeat",
+                payload: json!({ "n": i }),
+                metadata: None,
+                tenant_id: None,
+            })
+            .await
+            .unwrap();
+        }
+        core.ingest(IngestEvent {
+            entity_id: "order-9",
+            event_type: "order.placed",
+            payload: json!({}),
+            metadata: None,
+            tenant_id: None,
+        })
+        .await
+        .unwrap();
+
+        let events = core
+            .query(Query::new().exclude_event_type_prefix("service.").limit(1))
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event_type, "order.placed");
+    }
+
+    #[tokio::test]
     async fn query_with_limit() {
         let core = open_in_memory_core().await;
 

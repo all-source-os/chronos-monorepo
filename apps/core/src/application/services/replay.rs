@@ -154,6 +154,7 @@ impl ReplayManager {
             until: request.to_timestamp,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         };
 

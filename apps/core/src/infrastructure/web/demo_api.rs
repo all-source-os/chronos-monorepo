@@ -29,6 +29,7 @@ pub async fn demo_seed_handler(State(state): State<AppState>) -> Result<Json<ser
         until: None,
         limit: Some(1),
         event_type_prefix: None,
+        exclude_event_type_prefix: None,
         payload_filter: None,
     })?;
 

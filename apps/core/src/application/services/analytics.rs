@@ -226,6 +226,7 @@ impl AnalyticsEngine {
             until: Some(until),
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         })?;
 
@@ -330,6 +331,7 @@ impl AnalyticsEngine {
             until: request.until,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         })?;
 
@@ -421,6 +423,7 @@ impl AnalyticsEngine {
             until: request.until,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         })?;
 
@@ -433,6 +436,7 @@ impl AnalyticsEngine {
             until: request.until,
             limit: None,
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         })?;
 

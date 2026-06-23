@@ -589,6 +589,7 @@ pub async fn query_events(
         until: req.until,
         limit: None,
         event_type_prefix: req.event_type_prefix,
+        exclude_event_type_prefix: req.exclude_event_type_prefix,
         payload_filter: req.payload_filter,
     };
     let mut all_events = store.query(&unlimited_req)?;
@@ -643,6 +644,7 @@ pub async fn list_entities(
         until: None,
         limit: None,
         event_type_prefix: req.event_type_prefix,
+        exclude_event_type_prefix: None,
         payload_filter: req.payload_filter,
     };
     let events = store.query(&query_req)?;
@@ -737,6 +739,7 @@ pub async fn detect_duplicates(
         until: None,
         limit: None,
         event_type_prefix: Some(req.event_type_prefix),
+        exclude_event_type_prefix: None,
         payload_filter: None,
     };
     let events = store.query(&query_req)?;
@@ -2028,6 +2031,7 @@ pub async fn graphql_query(
                     since: None,
                     until: None,
                     event_type_prefix: None,
+                    exclude_event_type_prefix: None,
                     payload_filter: None,
                 };
                 match store.query(&request) {
@@ -2229,6 +2233,7 @@ pub async fn sync_pull_handler(
         until: None,
         limit: None,
         event_type_prefix: None,
+        exclude_event_type_prefix: None,
         payload_filter: None,
     })?;
 
@@ -2448,6 +2453,7 @@ mod tests {
             until: None,
             limit: Some(10),
             event_type_prefix: None,
+            exclude_event_type_prefix: None,
             payload_filter: None,
         };
 
@@ -2463,6 +2469,7 @@ mod tests {
                 until: req.until,
                 limit: None,
                 event_type_prefix: req.event_type_prefix,
+                exclude_event_type_prefix: None,
                 payload_filter: req.payload_filter,
             }
         };
@@ -2503,6 +2510,7 @@ mod tests {
                 until: None,
                 limit: None,
                 event_type_prefix: None,
+                exclude_event_type_prefix: None,
                 payload_filter: None,
             })
             .unwrap();
@@ -2599,6 +2607,7 @@ mod tests {
             until: None,
             limit: None,
             event_type_prefix: req.event_type_prefix,
+            exclude_event_type_prefix: None,
             payload_filter: req.payload_filter,
         };
         let events = store.query(&query_req).unwrap();
@@ -2768,6 +2777,7 @@ mod tests {
             until: None,
             limit: None,
             event_type_prefix: Some("index.".to_string()),
+            exclude_event_type_prefix: None,
             payload_filter: None,
         };
         let events = store.query(&query_req).unwrap();
@@ -2844,6 +2854,7 @@ mod tests {
             until: None,
             limit: None,
             event_type_prefix: Some("index.".to_string()),
+            exclude_event_type_prefix: None,
             payload_filter: None,
         };
         let events = store.query(&query_req).unwrap();
@@ -2910,6 +2921,7 @@ mod tests {
             until: None,
             limit: None,
             event_type_prefix: Some("index.".to_string()),
+            exclude_event_type_prefix: None,
             payload_filter: None,
         };
         let events = store.query(&query_req).unwrap();

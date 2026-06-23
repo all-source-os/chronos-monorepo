@@ -26,6 +26,7 @@ pub struct Query {
     pub(crate) entity_id: Option<String>,
     pub(crate) event_type: Option<String>,
     pub(crate) event_type_prefix: Option<String>,
+    pub(crate) exclude_event_type_prefix: Option<String>,
     pub(crate) tenant_id: Option<String>,
     pub(crate) limit: Option<usize>,
     pub(crate) since: Option<DateTime<Utc>>,
@@ -49,6 +50,13 @@ impl Query {
 
     pub fn event_type_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.event_type_prefix = Some(prefix.into());
+        self
+    }
+
+    /// Exclude events whose type starts with any of these comma-separated
+    /// prefixes (e.g. `"audit.,service."`). Applied before the limit.
+    pub fn exclude_event_type_prefix(mut self, prefixes: impl Into<String>) -> Self {
+        self.exclude_event_type_prefix = Some(prefixes.into());
         self
     }
 

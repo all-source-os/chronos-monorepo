@@ -63,6 +63,12 @@ pub struct QueryEventsRequest {
     /// Filter by event type prefix (e.g., "index." matches "index.created", "index.updated")
     pub event_type_prefix: Option<String>,
 
+    /// Exclude events whose type starts with ANY of these prefixes
+    /// (comma-separated, e.g. `"audit.,service.,_system."`). Applied before the
+    /// limit so excluded events don't consume the result window — lets callers
+    /// drop high-frequency/operational namespaces from a recent-activity feed.
+    pub exclude_event_type_prefix: Option<String>,
+
     /// Filter by payload fields (JSON string, e.g., `{"user_id":"abc-123"}`).
     /// Matches events where payload contains ALL specified key-value pairs.
     pub payload_filter: Option<String>,
