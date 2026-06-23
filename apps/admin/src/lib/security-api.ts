@@ -10,7 +10,9 @@
 
 function getApiUrl(): string {
   if (typeof window !== "undefined") {
-    return process.env.NEXT_PUBLIC_API_URL || "";
+    // Client-side: hit the same-origin BFF proxy (src/app/api/v1/[...path]/route.ts),
+    // which attaches the admin_token Bearer and forwards to the Control Plane.
+    return "";
   }
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
 }
