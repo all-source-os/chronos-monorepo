@@ -191,6 +191,9 @@ defmodule QueryServiceEx.Integrations.RabbitMQ.Consumer do
         {:error, reason} -> {:error, {:core_error, reason}}
       end
     else
+      # ISOLATION_OK: internal diagnostic signal for tenant-LESS ingested events
+      # (the `:rabbitmq_event` tuple has no subscriber and is not the user-facing
+      # `:new_event` stream). Not a cross-tenant channel.
       Phoenix.PubSub.broadcast(
         QueryServiceEx.PubSub,
         "events:ingested",

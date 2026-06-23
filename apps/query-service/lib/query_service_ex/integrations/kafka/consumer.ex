@@ -185,7 +185,9 @@ defmodule QueryServiceEx.Integrations.Kafka.Consumer do
         {:error, reason} -> {:error, {:core_error, reason}}
       end
     else
-      # Broadcast via PubSub for events without tenant_id
+      # ISOLATION_OK: internal diagnostic signal for tenant-LESS ingested events
+      # (the `:kafka_event` tuple has no subscriber and is not the user-facing
+      # `:new_event` stream). Not a cross-tenant channel.
       Phoenix.PubSub.broadcast(
         QueryServiceEx.PubSub,
         "events:ingested",

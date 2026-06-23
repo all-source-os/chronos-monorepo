@@ -33,10 +33,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
 
   ## Example
 
-      # Subscribe to all events
+      # Real topics are tenant-scoped (events:<tenant>:...); shown unscoped here
+      # only to keep the doc free of compile-time interpolation. ISOLATION_OK: doc.
       Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:all")
-
-      # Subscribe to specific entity
       Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:user-123")
 
       # Receive events

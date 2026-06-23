@@ -1,0 +1,16 @@
+# Standalone crate — kept out of the root Cargo workspace (repo convention for
+# tooling/, mirrors chronis/registry/prime-mcp).
+[workspace]
+
+[package]
+name = "tenant-isolation-check"
+version = "0.1.0"
+edition = "2021"
+description = "CI gate: forbids non-tenant-scoped event/projection PubSub topics in the Query Service, preventing cross-tenant data spill regressions."
+publish = false
+
+[[bin]]
+name = "tenant-isolation-check"
+path = "src/main.rs"
+
+[dependencies]

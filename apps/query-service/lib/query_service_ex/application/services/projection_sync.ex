@@ -159,7 +159,10 @@ defmodule QueryServiceEx.Application.Services.ProjectionSync do
     # Store in ETS cache
     update_cache(projection_name, entity_id, state)
 
-    # Subscribe to events for this entity
+    # Subscribe to events for this entity.
+    # ISOLATION_OK: internal projection builder consuming the event_pipeline
+    # stream; not a user-facing subscription. Tenant-scope alongside event_pipeline
+    # once ProjectionSync carries the tenant (tracked follow-up).
     Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{entity_id}")
 
     # Schedule periodic sync

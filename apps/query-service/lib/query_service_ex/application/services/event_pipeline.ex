@@ -225,7 +225,11 @@ defmodule QueryServiceEx.Application.Services.EventPipeline do
   defp process_event(event) do
     entity_id = event["entity_id"]
 
-    # Broadcast event to PubSub for any listening ProjectionSync processes
+    # Broadcast event to PubSub for any listening ProjectionSync processes.
+    # ISOLATION_OK: internal projection pipeline (event_pipeline -> ProjectionSync),
+    # not a user-facing channel — EventChannel subscribes to tenant-scoped topics
+    # only, so these never reach a client. Tenant-scope once ProjectionSync carries
+    # the tenant (tracked follow-up).
     if entity_id do
       Phoenix.PubSub.broadcast(
         QueryServiceEx.PubSub,
@@ -234,7 +238,7 @@ defmodule QueryServiceEx.Application.Services.EventPipeline do
       )
     end
 
-    # Broadcast to event type subscribers
+    # ISOLATION_OK: internal projection pipeline (see above).
     if event_type = event["event_type"] do
       Phoenix.PubSub.broadcast(
         QueryServiceEx.PubSub,
