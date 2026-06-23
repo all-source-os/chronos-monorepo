@@ -579,6 +579,22 @@ pub async fn query_events(
         .clone()
         .or_else(|| auth.as_ref().map(|a| a.tenant_id().to_string()));
 
+    // FAIL CLOSED (tenant isolation): the public events query must NEVER return
+    // cross-tenant results. The gateway always injects an auth-derived tenant_id
+    // (and overwrites any client-supplied one); if neither a request tenant nor
+    // an auth tenant is present we return an empty result rather than scanning
+    // across tenants. A genuine cross-tenant/admin scan is a separate, explicit
+    // internal path — it does not ride this endpoint.
+    if enforced_tenant.as_deref().unwrap_or("").is_empty() {
+        return Ok(Json(QueryEventsResponse {
+            events: Vec::new(),
+            count: 0,
+            total_count: 0,
+            has_more: false,
+            entity_version: None,
+        }));
+    }
+
     // Query without limit to get total count
     let unlimited_req = QueryEventsRequest {
         entity_id: req.entity_id,
@@ -2486,6 +2502,50 @@ mod tests {
         assert_eq!(count, 10);
         assert_eq!(total_count, 50);
         assert!(has_more);
+    }
+
+    // Tenant-isolation gate: the public events query must fail CLOSED — a request
+    // with no auth context and no tenant_id returns nothing, never a cross-tenant
+    // scan. Calls the real handler so the boundary check is exercised.
+    #[tokio::test]
+    async fn query_events_fails_closed_without_tenant() {
+        use axum::extract::{Query, State};
+
+        let store = create_test_store();
+        for i in 0..5 {
+            store
+                .ingest(&create_test_event(&format!("e-{i}"), "user.created"))
+                .unwrap();
+        }
+
+        let resp = query_events(
+            OptionalAuth(None),
+            Query(QueryEventsRequest::default()),
+            Query(EventOrderParam { order: None }),
+            State(store.clone()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            resp.0.total_count, 0,
+            "a no-tenant query must NOT return cross-tenant events"
+        );
+        assert_eq!(resp.0.count, 0);
+
+        // The same query scoped to the events' tenant returns them.
+        // (create_test_event stamps tenant "test-stream" — the 3rd from_strings arg.)
+        let scoped = query_events(
+            OptionalAuth(None),
+            Query(QueryEventsRequest {
+                tenant_id: Some("test-stream".to_string()),
+                ..QueryEventsRequest::default()
+            }),
+            Query(EventOrderParam { order: None }),
+            State(store),
+        )
+        .await
+        .unwrap();
+        assert_eq!(scoped.0.total_count, 5, "tenant-scoped query returns its events");
     }
 
     #[tokio::test]
