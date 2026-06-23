@@ -62,22 +62,27 @@ defmodule QueryServiceExWeb.ProjectionChannel do
 
   @impl true
   def join("projections:" <> projection_name, _payload, socket) do
-    send(self(), :after_join)
+    # Subscribe to the TENANT-SCOPED projection topic so a client only receives
+    # its own tenant's projection updates. Fail closed: no tenant → reject.
+    case socket.assigns[:tenant_id] do
+      tenant when is_binary(tenant) and tenant != "" ->
+        send(self(), :after_join)
+        PubSub.subscribe(@pubsub, "projections:#{tenant}:#{projection_name}")
 
-    # Subscribe to projection-specific updates
-    topic = "projections:#{projection_name}"
-    PubSub.subscribe(@pubsub, topic)
+        Logger.info("[ProjectionChannel] User joined projections:#{projection_name}",
+          user_id: socket.assigns.user_id,
+          tenant_id: tenant,
+          projection_name: projection_name
+        )
 
-    Logger.info("[ProjectionChannel] User joined #{topic}",
-      user_id: socket.assigns.user_id,
-      tenant_id: socket.assigns.tenant_id,
-      projection_name: projection_name
-    )
+        emit_channel_joined("projections")
+        socket = assign(socket, :projection_name, projection_name)
 
-    emit_channel_joined("projections")
-    socket = assign(socket, :projection_name, projection_name)
+        {:ok, %{status: "subscribed", projection: projection_name}, socket}
 
-    {:ok, %{status: "subscribed", projection: projection_name}, socket}
+      _ ->
+        {:error, %{reason: "unauthorized: no tenant on socket"}}
+    end
   end
 
   @impl true

@@ -342,17 +342,33 @@ defmodule QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient do
     min(backoff, max_ms)
   end
 
+  # Broadcast to TENANT-SCOPED topics only — `events:<tenant>:...`. EventChannel
+  # subscribes a socket to its own tenant's topics, so an event never reaches
+  # another tenant. An event without a tenant_id (should not happen for real
+  # Core events) is dropped rather than broadcast globally — fail closed.
   defp broadcast_event(event) do
-    Phoenix.PubSub.broadcast(@pubsub, "events:all", {:new_event, event})
+    case event["tenant_id"] || event[:tenant_id] do
+      nil ->
+        Logger.warning(
+          "[CoreWebSocketClient] event without tenant_id NOT broadcast: #{event["id"] || "unknown"}"
+        )
 
-    if entity_id = event["entity_id"] do
-      Phoenix.PubSub.broadcast(@pubsub, "events:#{entity_id}", {:new_event, event})
+      tenant ->
+        Phoenix.PubSub.broadcast(@pubsub, "events:#{tenant}:all", {:new_event, event})
+
+        if entity_id = event["entity_id"] do
+          Phoenix.PubSub.broadcast(@pubsub, "events:#{tenant}:#{entity_id}", {:new_event, event})
+        end
+
+        if event_type = event["event_type"] do
+          Phoenix.PubSub.broadcast(
+            @pubsub,
+            "events:#{tenant}:type:#{event_type}",
+            {:new_event, event}
+          )
+        end
+
+        Logger.debug("[CoreWebSocketClient] Broadcast event: #{event["id"] || "unknown"}")
     end
-
-    if event_type = event["event_type"] do
-      Phoenix.PubSub.broadcast(@pubsub, "events:type:#{event_type}", {:new_event, event})
-    end
-
-    Logger.debug("[CoreWebSocketClient] Broadcast event: #{event["id"] || "unknown"}")
   end
 end

@@ -3,8 +3,10 @@ defmodule QueryServiceExWeb.ProjectionChannelTest do
 
   alias QueryServiceExWeb.ProjectionChannel
 
+  @tenant "tenant-test-1"
+
   setup do
-    {:ok, socket, user, _token} = create_authenticated_socket()
+    {:ok, socket, user, _token} = create_authenticated_socket(tenant_id: @tenant)
     {:ok, socket: socket, user: user}
   end
 
@@ -39,7 +41,7 @@ defmodule QueryServiceExWeb.ProjectionChannelTest do
 
       state = %{"event_count" => 42, "last_updated" => "2026-02-02T12:00:00Z"}
 
-      broadcast_projection_update("user_stats", "user-123", state, version: 5)
+      broadcast_projection_update(@tenant, "user_stats", "user-123", state, version: 5)
 
       assert_push("state_updated", update)
       assert update.entity_id == "user-123"
@@ -52,7 +54,7 @@ defmodule QueryServiceExWeb.ProjectionChannelTest do
         subscribe_and_join(socket, ProjectionChannel, "projections:user_stats")
 
       # Broadcast to different projection
-      broadcast_projection_update("order_totals", "order-123", %{"total" => 500})
+      broadcast_projection_update(@tenant, "order_totals", "order-123", %{"total" => 500})
 
       refute_push("state_updated", _)
     end
@@ -63,7 +65,7 @@ defmodule QueryServiceExWeb.ProjectionChannelTest do
       {:ok, _reply, _socket} =
         subscribe_and_join(socket, ProjectionChannel, "projections:user_stats")
 
-      broadcast_projection_error("user_stats", "user-456", "Failed to process event",
+      broadcast_projection_error(@tenant, "user_stats", "user-456", "Failed to process event",
         event_id: "evt-789"
       )
 

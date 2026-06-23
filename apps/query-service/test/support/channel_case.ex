@@ -56,26 +56,37 @@ defmodule QueryServiceExWeb.ChannelCase do
     :ok
   end
 
-  # Broadcast helpers for simulating Core WebSocket events in tests
+  # Broadcast helpers for simulating Core WebSocket events in tests. Topics are
+  # tenant-scoped (events:<tenant>:...) — the event must carry a tenant_id.
   def broadcast_event(event) do
-    Phoenix.PubSub.broadcast(QueryServiceEx.PubSub, "events:all", {:new_event, event})
+    case event["tenant_id"] || event[:tenant_id] do
+      nil ->
+        :ok
 
-    if entity_id = event["entity_id"] do
-      Phoenix.PubSub.broadcast(QueryServiceEx.PubSub, "events:#{entity_id}", {:new_event, event})
+      tenant ->
+        Phoenix.PubSub.broadcast(QueryServiceEx.PubSub, "events:#{tenant}:all", {:new_event, event})
+
+        if entity_id = event["entity_id"] || event[:entity_id] do
+          Phoenix.PubSub.broadcast(
+            QueryServiceEx.PubSub,
+            "events:#{tenant}:#{entity_id}",
+            {:new_event, event}
+          )
+        end
+
+        if event_type = event["event_type"] || event[:event_type] do
+          Phoenix.PubSub.broadcast(
+            QueryServiceEx.PubSub,
+            "events:#{tenant}:type:#{event_type}",
+            {:new_event, event}
+          )
+        end
+
+        :ok
     end
-
-    if event_type = event["event_type"] do
-      Phoenix.PubSub.broadcast(
-        QueryServiceEx.PubSub,
-        "events:type:#{event_type}",
-        {:new_event, event}
-      )
-    end
-
-    :ok
   end
 
-  def broadcast_projection_update(projection_name, entity_id, state, opts \\ []) do
+  def broadcast_projection_update(tenant_id, projection_name, entity_id, state, opts \\ []) do
     update = %{
       entity_id: entity_id,
       state: state,
@@ -85,14 +96,14 @@ defmodule QueryServiceExWeb.ChannelCase do
 
     Phoenix.PubSub.broadcast(
       QueryServiceEx.PubSub,
-      "projections:#{projection_name}",
+      "projections:#{tenant_id}:#{projection_name}",
       {:state_updated, update}
     )
 
     :ok
   end
 
-  def broadcast_projection_error(projection_name, entity_id, error, opts \\ []) do
+  def broadcast_projection_error(tenant_id, projection_name, entity_id, error, opts \\ []) do
     error_msg = %{
       entity_id: entity_id,
       error: error,
@@ -102,7 +113,7 @@ defmodule QueryServiceExWeb.ChannelCase do
 
     Phoenix.PubSub.broadcast(
       QueryServiceEx.PubSub,
-      "projections:#{projection_name}",
+      "projections:#{tenant_id}:#{projection_name}",
       {:projection_error, error_msg}
     )
 

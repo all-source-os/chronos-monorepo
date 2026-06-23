@@ -22,6 +22,9 @@ defmodule QueryServiceEx.Integration.WebSocketIntegrationTest do
   @moduletag :websocket
 
   # Core service configuration
+  # Tenant the (unauthenticated) test POST is stamped with by Core. Broadcasts
+  # are now tenant-scoped (events:<tenant>:...), so subscriptions must match it.
+  @tenant System.get_env("TEST_TENANT_ID", "default")
   @core_http_url System.get_env("CORE_HTTP_URL", "http://localhost:3900")
   @core_ws_url System.get_env("CORE_WS_URL", "ws://localhost:3900")
 
@@ -161,7 +164,7 @@ defmodule QueryServiceEx.Integration.WebSocketIntegrationTest do
 
     test "receives event via WebSocket after publishing to Core", %{ws_pid: _pid} do
       # Subscribe to all events topic
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:all")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:all")
 
       # Generate unique identifiers for this test
       entity_id = "test-entity-#{System.unique_integer([:positive])}"
@@ -190,7 +193,7 @@ defmodule QueryServiceEx.Integration.WebSocketIntegrationTest do
       entity_id = "specific-entity-#{System.unique_integer([:positive])}"
 
       # Subscribe to entity-specific topic
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{entity_id}")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:#{entity_id}")
 
       # Publish event
       event_payload = %{
@@ -211,7 +214,7 @@ defmodule QueryServiceEx.Integration.WebSocketIntegrationTest do
       event_type = "type.specific.test.#{System.unique_integer([:positive])}"
 
       # Subscribe to event-type topic
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:type:#{event_type}")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:type:#{event_type}")
 
       # Publish event
       event_payload = %{

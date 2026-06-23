@@ -3,8 +3,11 @@ defmodule QueryServiceExWeb.EventChannelTest do
 
   alias QueryServiceExWeb.EventChannel
 
+  @tenant "tenant-test-1"
+  @other "tenant-test-2"
+
   setup do
-    {:ok, socket, user, _token} = create_authenticated_socket()
+    {:ok, socket, user, _token} = create_authenticated_socket(tenant_id: @tenant)
     {:ok, socket: socket, user: user}
   end
 
@@ -21,6 +24,7 @@ defmodule QueryServiceExWeb.EventChannelTest do
 
       event = %{
         "id" => "event-#{:rand.uniform(100_000)}",
+        "tenant_id" => @tenant,
         "entity_id" => "user-123",
         "event_type" => "user.created",
         "payload" => %{"name" => "John"},
@@ -39,6 +43,31 @@ defmodule QueryServiceExWeb.EventChannelTest do
 
       assert_push("presence_state", _state)
     end
+
+    test "rejects join when the socket has no tenant" do
+      {:ok, socket, _user, _token} = create_authenticated_socket(tenant_id: nil)
+
+      assert {:error, %{reason: reason}} =
+               subscribe_and_join(socket, EventChannel, "events:all")
+
+      assert reason =~ "no tenant"
+    end
+
+    # --- tenant-isolation gate ---
+    test "does NOT receive another tenant's event", %{socket: socket} do
+      {:ok, _reply, _socket} = subscribe_and_join(socket, EventChannel, "events:all")
+
+      foreign_event = %{
+        "id" => "event-foreign",
+        "tenant_id" => @other,
+        "entity_id" => "user-123",
+        "event_type" => "user.created",
+        "payload" => %{}
+      }
+
+      broadcast_event(foreign_event)
+      refute_push("new_event", _, 50)
+    end
   end
 
   describe "join events:{entity_id}" do
@@ -53,22 +82,20 @@ defmodule QueryServiceExWeb.EventChannelTest do
     test "receives only events for subscribed entity", %{socket: socket} do
       {:ok, _reply, _socket} = subscribe_and_join(socket, EventChannel, "events:user-456")
 
-      # First broadcast event for different entity (should not be received)
       non_matching_event = %{
         "id" => "event-2",
+        "tenant_id" => @tenant,
         "entity_id" => "user-789",
         "event_type" => "user.updated",
         "payload" => %{}
       }
 
       broadcast_event(non_matching_event)
-
-      # Should not receive event for different entity
       refute_push("new_event", _, 50)
 
-      # Now broadcast event for subscribed entity
       matching_event = %{
         "id" => "event-1",
+        "tenant_id" => @tenant,
         "entity_id" => "user-456",
         "event_type" => "user.updated",
         "payload" => %{}
@@ -94,22 +121,20 @@ defmodule QueryServiceExWeb.EventChannelTest do
       {:ok, _reply, _socket} =
         subscribe_and_join(socket, EventChannel, "events:type:order.placed")
 
-      # First broadcast non-matching event (should not be received)
       non_matching_event = %{
         "id" => "event-2",
+        "tenant_id" => @tenant,
         "entity_id" => "order-456",
         "event_type" => "order.shipped",
         "payload" => %{}
       }
 
       broadcast_event(non_matching_event)
-
-      # Should not receive event with different type
       refute_push("new_event", _, 50)
 
-      # Now broadcast matching event
       matching_event = %{
         "id" => "event-1",
+        "tenant_id" => @tenant,
         "entity_id" => "order-123",
         "event_type" => "order.placed",
         "payload" => %{"total" => 100}
@@ -127,9 +152,9 @@ defmodule QueryServiceExWeb.EventChannelTest do
       {:ok, _, socket} = subscribe_and_join(socket, EventChannel, "events:all")
       {:ok, _, _socket} = subscribe_and_join(socket, EventChannel, "events:user-123")
 
-      # Both channels should work
       event = %{
         "id" => "event-1",
+        "tenant_id" => @tenant,
         "entity_id" => "user-123",
         "event_type" => "user.created",
         "payload" => %{}
@@ -137,11 +162,7 @@ defmodule QueryServiceExWeb.EventChannelTest do
 
       broadcast_event(event)
 
-      # Should receive from events:all
       assert_push("new_event", _)
-
-      # The entity-specific subscription happens on a different process,
-      # so we test that the join was successful
     end
   end
 
@@ -149,7 +170,6 @@ defmodule QueryServiceExWeb.EventChannelTest do
     test "tracks user presence on join", %{socket: socket, user: user} do
       {:ok, _reply, _socket} = subscribe_and_join(socket, EventChannel, "events:all")
 
-      # Wait for presence to be tracked
       assert_push("presence_state", state)
 
       assert Map.has_key?(state, to_string(user.id))

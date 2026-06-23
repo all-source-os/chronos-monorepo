@@ -5,16 +5,21 @@ defmodule QueryServiceExWeb.ChannelBroadcaster do
   This module provides functions to broadcast events from internal components
   (like ProjectionSync, Broadway pipelines, etc.) to connected WebSocket clients.
 
+  All topics are TENANT-SCOPED (`events:<tenant>:...`, `projections:<tenant>:...`)
+  so a broadcast can only reach subscribers of the same tenant. The event/caller
+  must carry the tenant; an event without one is dropped rather than broadcast
+  globally (fail closed).
+
   ## Usage
 
-      # Broadcast an event to all subscribers
+      # Broadcast an event to all subscribers (tenant taken from event["tenant_id"])
       ChannelBroadcaster.broadcast_event(event)
 
       # Broadcast a projection state update
-      ChannelBroadcaster.broadcast_projection_update("user_stats", "user-123", new_state)
+      ChannelBroadcaster.broadcast_projection_update(tenant_id, "user_stats", "user-123", new_state)
 
       # Broadcast a projection error
-      ChannelBroadcaster.broadcast_projection_error("user_stats", "user-123", "Failed to process")
+      ChannelBroadcaster.broadcast_projection_error(tenant_id, "user_stats", "user-123", "Failed")
   """
 
   alias Phoenix.PubSub
@@ -22,33 +27,32 @@ defmodule QueryServiceExWeb.ChannelBroadcaster do
   @pubsub QueryServiceEx.PubSub
 
   @doc """
-  Broadcasts an event to all relevant topics.
+  Broadcasts an event to its tenant's topics, derived from `event["tenant_id"]`:
+  - `events:<tenant>:all`
+  - `events:<tenant>:<entity_id>`
+  - `events:<tenant>:type:<event_type>`
 
-  The event is broadcast to:
-  - `events:all` - All event subscribers
-  - `events:{entity_id}` - Entity-specific subscribers
-  - `events:type:{event_type}` - Event type subscribers
+  An event without a tenant_id is dropped (fail closed).
   """
   @spec broadcast_event(map()) :: :ok
   def broadcast_event(event) when is_map(event) do
-    # Broadcast to all events topic
-    PubSub.broadcast(@pubsub, "events:all", {:new_event, event})
+    case event["tenant_id"] || event[:tenant_id] do
+      nil ->
+        :ok
 
-    # Broadcast to entity-specific topic
-    entity_id = event["entity_id"] || event[:entity_id]
+      tenant ->
+        PubSub.broadcast(@pubsub, "events:#{tenant}:all", {:new_event, event})
 
-    if entity_id do
-      PubSub.broadcast(@pubsub, "events:#{entity_id}", {:new_event, event})
+        if entity_id = event["entity_id"] || event[:entity_id] do
+          PubSub.broadcast(@pubsub, "events:#{tenant}:#{entity_id}", {:new_event, event})
+        end
+
+        if event_type = event["event_type"] || event[:event_type] do
+          PubSub.broadcast(@pubsub, "events:#{tenant}:type:#{event_type}", {:new_event, event})
+        end
+
+        :ok
     end
-
-    # Broadcast to event-type topic
-    event_type = event["event_type"] || event[:event_type]
-
-    if event_type do
-      PubSub.broadcast(@pubsub, "events:type:#{event_type}", {:new_event, event})
-    end
-
-    :ok
   end
 
   @doc """
@@ -63,8 +67,8 @@ defmodule QueryServiceExWeb.ChannelBroadcaster do
     - `:version` - State version number
     - `:updated_at` - Timestamp of update
   """
-  @spec broadcast_projection_update(String.t(), String.t(), map(), keyword()) :: :ok
-  def broadcast_projection_update(projection_name, entity_id, state, opts \\ []) do
+  @spec broadcast_projection_update(String.t(), String.t(), String.t(), map(), keyword()) :: :ok
+  def broadcast_projection_update(tenant_id, projection_name, entity_id, state, opts \\ []) do
     update = %{
       entity_id: entity_id,
       state: state,
@@ -72,7 +76,11 @@ defmodule QueryServiceExWeb.ChannelBroadcaster do
       updated_at: opts[:updated_at] || DateTime.utc_now() |> DateTime.to_iso8601()
     }
 
-    PubSub.broadcast(@pubsub, "projections:#{projection_name}", {:state_updated, update})
+    PubSub.broadcast(
+      @pubsub,
+      "projections:#{tenant_id}:#{projection_name}",
+      {:state_updated, update}
+    )
   end
 
   @doc """
@@ -86,8 +94,9 @@ defmodule QueryServiceExWeb.ChannelBroadcaster do
   - `opts` - Optional metadata:
     - `:event_id` - ID of the event that caused the error
   """
-  @spec broadcast_projection_error(String.t(), String.t(), String.t(), keyword()) :: :ok
-  def broadcast_projection_error(projection_name, entity_id, error, opts \\ []) do
+  @spec broadcast_projection_error(String.t(), String.t(), String.t(), String.t(), keyword()) ::
+          :ok
+  def broadcast_projection_error(tenant_id, projection_name, entity_id, error, opts \\ []) do
     error_msg = %{
       entity_id: entity_id,
       error: error,
@@ -95,7 +104,11 @@ defmodule QueryServiceExWeb.ChannelBroadcaster do
       occurred_at: DateTime.utc_now() |> DateTime.to_iso8601()
     }
 
-    PubSub.broadcast(@pubsub, "projections:#{projection_name}", {:projection_error, error_msg})
+    PubSub.broadcast(
+      @pubsub,
+      "projections:#{tenant_id}:#{projection_name}",
+      {:projection_error, error_msg}
+    )
   end
 
   @doc """

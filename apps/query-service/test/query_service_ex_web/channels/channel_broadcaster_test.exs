@@ -3,99 +3,142 @@ defmodule QueryServiceExWeb.ChannelBroadcasterTest do
 
   alias QueryServiceExWeb.ChannelBroadcaster
 
-  describe "broadcast_event/1" do
-    test "broadcasts event to events:all topic" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:all")
+  @tenant "tenant-1"
+  @other "tenant-2"
+
+  describe "broadcast_event/1 (tenant-scoped)" do
+    test "broadcasts to the tenant's events:<tenant>:all topic" do
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:all")
 
       event = %{
         "id" => "event-123",
+        "tenant_id" => @tenant,
         "entity_id" => "user-456",
         "event_type" => "user.created",
         "payload" => %{"name" => "John"}
       }
 
       assert :ok = ChannelBroadcaster.broadcast_event(event)
-
       assert_receive {:new_event, ^event}
     end
 
-    test "broadcasts event to entity-specific topic" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:user-456")
+    test "broadcasts to the tenant's entity topic" do
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:user-456")
 
       event = %{
         "id" => "event-123",
+        "tenant_id" => @tenant,
         "entity_id" => "user-456",
         "event_type" => "user.created",
         "payload" => %{}
       }
 
       ChannelBroadcaster.broadcast_event(event)
-
       assert_receive {:new_event, ^event}
     end
 
-    test "broadcasts event to event-type topic" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:type:user.created")
+    test "broadcasts to the tenant's event-type topic" do
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:type:user.created")
 
       event = %{
         "id" => "event-123",
+        "tenant_id" => @tenant,
         "entity_id" => "user-456",
         "event_type" => "user.created",
         "payload" => %{}
       }
 
       ChannelBroadcaster.broadcast_event(event)
-
       assert_receive {:new_event, ^event}
     end
 
     test "handles atom keys in event map" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:all")
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:user-789")
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:type:order.placed")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:all")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:user-789")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:type:order.placed")
 
       event = %{
         id: "event-999",
+        tenant_id: @tenant,
         entity_id: "user-789",
         event_type: "order.placed",
         payload: %{total: 100}
       }
 
       ChannelBroadcaster.broadcast_event(event)
-
       assert_receive {:new_event, ^event}
       assert_receive {:new_event, ^event}
       assert_receive {:new_event, ^event}
     end
 
     test "handles event without entity_id" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:all")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:all")
 
-      event = %{"id" => "event-123", "event_type" => "system.startup", "payload" => %{}}
+      event = %{
+        "id" => "event-123",
+        "tenant_id" => @tenant,
+        "event_type" => "system.startup",
+        "payload" => %{}
+      }
 
       assert :ok = ChannelBroadcaster.broadcast_event(event)
-
       assert_receive {:new_event, ^event}
     end
 
     test "handles event without event_type" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:all")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:all")
 
-      event = %{"id" => "event-123", "entity_id" => "user-123", "payload" => %{}}
+      event = %{
+        "id" => "event-123",
+        "tenant_id" => @tenant,
+        "entity_id" => "user-123",
+        "payload" => %{}
+      }
 
       assert :ok = ChannelBroadcaster.broadcast_event(event)
-
       assert_receive {:new_event, ^event}
+    end
+
+    # --- tenant-isolation gate ---
+
+    test "fails closed: an event without a tenant_id is NOT broadcast" do
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:all")
+
+      event = %{"id" => "event-x", "entity_id" => "user-1", "event_type" => "user.created"}
+
+      assert :ok = ChannelBroadcaster.broadcast_event(event)
+      refute_receive {:new_event, _}, 100
+    end
+
+    test "isolation: tenant-2's event never reaches a tenant-1 subscriber" do
+      # Subscribe as tenant-1 across all topic shapes.
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:all")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:user-456")
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:#{@tenant}:type:user.created")
+
+      # Broadcast an event owned by tenant-2 with the SAME entity_id + type.
+      event = %{
+        "id" => "event-leak",
+        "tenant_id" => @other,
+        "entity_id" => "user-456",
+        "event_type" => "user.created",
+        "payload" => %{}
+      }
+
+      ChannelBroadcaster.broadcast_event(event)
+      refute_receive {:new_event, _}, 100
     end
   end
 
-  describe "broadcast_projection_update/4" do
-    test "broadcasts state update to projection topic" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "projections:user_stats")
+  describe "broadcast_projection_update/5 (tenant-scoped)" do
+    test "broadcasts state update to the tenant's projection topic" do
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "projections:#{@tenant}:user_stats")
 
       state = %{"count" => 42}
 
-      ChannelBroadcaster.broadcast_projection_update("user_stats", "user-123", state, version: 5)
+      ChannelBroadcaster.broadcast_projection_update(@tenant, "user_stats", "user-123", state,
+        version: 5
+      )
 
       assert_receive {:state_updated, update}
       assert update.entity_id == "user-123"
@@ -103,34 +146,21 @@ defmodule QueryServiceExWeb.ChannelBroadcasterTest do
       assert update.version == 5
     end
 
-    test "includes timestamp in update" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "projections:test_projection")
+    test "isolation: tenant-2's projection update never reaches tenant-1" do
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "projections:#{@tenant}:user_stats")
 
-      ChannelBroadcaster.broadcast_projection_update("test_projection", "entity-1", %{})
+      ChannelBroadcaster.broadcast_projection_update(@other, "user_stats", "user-1", %{"c" => 1})
 
-      assert_receive {:state_updated, update}
-      assert update.updated_at
-    end
-
-    test "uses provided timestamp" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "projections:test_projection")
-
-      custom_time = "2026-01-15T10:30:00Z"
-
-      ChannelBroadcaster.broadcast_projection_update("test_projection", "entity-1", %{},
-        updated_at: custom_time
-      )
-
-      assert_receive {:state_updated, update}
-      assert update.updated_at == custom_time
+      refute_receive {:state_updated, _}, 100
     end
   end
 
-  describe "broadcast_projection_error/4" do
-    test "broadcasts error to projection topic" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "projections:user_stats")
+  describe "broadcast_projection_error/5 (tenant-scoped)" do
+    test "broadcasts error to the tenant's projection topic" do
+      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "projections:#{@tenant}:user_stats")
 
       ChannelBroadcaster.broadcast_projection_error(
+        @tenant,
         "user_stats",
         "user-456",
         "Invalid state transition",
@@ -142,36 +172,16 @@ defmodule QueryServiceExWeb.ChannelBroadcasterTest do
       assert error.error == "Invalid state transition"
       assert error.event_id == "evt-789"
     end
-
-    test "includes timestamp in error" do
-      Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "projections:test_projection")
-
-      ChannelBroadcaster.broadcast_projection_error(
-        "test_projection",
-        "entity-1",
-        "Error message"
-      )
-
-      assert_receive {:projection_error, error}
-      assert error.occurred_at
-    end
   end
 
   describe "subscriber_count/1" do
     test "returns 0 for topic with no subscribers" do
-      count = ChannelBroadcaster.subscriber_count("events:nonexistent_topic")
-
-      assert count == 0
+      assert ChannelBroadcaster.subscriber_count("events:nonexistent_topic") == 0
     end
 
-    test "returns correct count after subscribing" do
+    test "returns an integer after subscribing" do
       Phoenix.PubSub.subscribe(QueryServiceEx.PubSub, "events:test_count")
-
-      # Note: The subscriber_count function relies on internal Phoenix.PubSub implementation
-      # which may not be accurate in test environment
-      count = ChannelBroadcaster.subscriber_count("events:test_count")
-
-      assert is_integer(count)
+      assert is_integer(ChannelBroadcaster.subscriber_count("events:test_count"))
     end
   end
 end

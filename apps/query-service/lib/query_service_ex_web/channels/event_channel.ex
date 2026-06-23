@@ -49,48 +49,71 @@ defmodule QueryServiceExWeb.EventChannel do
 
   @pubsub QueryServiceEx.PubSub
 
+  # All joins subscribe to a TENANT-SCOPED internal PubSub topic derived from the
+  # authenticated socket's tenant. The client-facing topic name is unchanged
+  # (`events:all`, `events:<entity>`, `events:type:<type>`), but a subscriber
+  # only ever receives its own tenant's events — there is no global topic a user
+  # can join to see another tenant's data. Fail closed: no tenant on the socket
+  # → join rejected.
   @impl true
   def join("events:all", _payload, socket) do
-    send(self(), :after_join)
-    PubSub.subscribe(@pubsub, "events:all")
+    with {:ok, tenant} <- tenant_scope(socket) do
+      send(self(), :after_join)
+      PubSub.subscribe(@pubsub, "events:#{tenant}:all")
 
-    Logger.info("[EventChannel] User joined events:all",
-      user_id: socket.assigns.user_id,
-      tenant_id: socket.assigns.tenant_id
-    )
+      Logger.info("[EventChannel] User joined events:all",
+        user_id: socket.assigns.user_id,
+        tenant_id: tenant
+      )
 
-    emit_channel_joined("events:all")
-    {:ok, %{status: "subscribed", topic: "events:all"}, socket}
+      emit_channel_joined("events:all")
+      {:ok, %{status: "subscribed", topic: "events:all"}, socket}
+    end
   end
 
   def join("events:type:" <> event_type, _payload, socket) do
-    send(self(), :after_join)
-    topic = "events:type:#{event_type}"
-    PubSub.subscribe(@pubsub, topic)
+    with {:ok, tenant} <- tenant_scope(socket) do
+      send(self(), :after_join)
+      PubSub.subscribe(@pubsub, "events:#{tenant}:type:#{event_type}")
 
-    Logger.info("[EventChannel] User joined #{topic}",
-      user_id: socket.assigns.user_id,
-      tenant_id: socket.assigns.tenant_id,
-      event_type: event_type
-    )
+      Logger.info("[EventChannel] User joined events:type:#{event_type}",
+        user_id: socket.assigns.user_id,
+        tenant_id: tenant,
+        event_type: event_type
+      )
 
-    emit_channel_joined(topic)
-    {:ok, %{status: "subscribed", topic: topic, event_type: event_type}, socket}
+      emit_channel_joined("events:type:#{event_type}")
+
+      {:ok, %{status: "subscribed", topic: "events:type:#{event_type}", event_type: event_type},
+       socket}
+    end
   end
 
   def join("events:" <> entity_id, _payload, socket) do
-    send(self(), :after_join)
-    topic = "events:#{entity_id}"
-    PubSub.subscribe(@pubsub, topic)
+    with {:ok, tenant} <- tenant_scope(socket) do
+      send(self(), :after_join)
+      PubSub.subscribe(@pubsub, "events:#{tenant}:#{entity_id}")
 
-    Logger.info("[EventChannel] User joined #{topic}",
-      user_id: socket.assigns.user_id,
-      tenant_id: socket.assigns.tenant_id,
-      entity_id: entity_id
-    )
+      Logger.info("[EventChannel] User joined events:#{entity_id}",
+        user_id: socket.assigns.user_id,
+        tenant_id: tenant,
+        entity_id: entity_id
+      )
 
-    emit_channel_joined(topic)
-    {:ok, %{status: "subscribed", topic: topic, entity_id: entity_id}, socket}
+      emit_channel_joined("events:#{entity_id}")
+      {:ok, %{status: "subscribed", topic: "events:#{entity_id}", entity_id: entity_id}, socket}
+    end
+  end
+
+  # Resolve the socket's tenant, rejecting the join when absent (fail closed).
+  # Requires a non-empty BINARY — a JWT with a null tenant decodes to the atom
+  # `:null`, which must NOT be accepted (it would build an `events::null:...`
+  # topic). Anything that isn't a real tenant string is rejected.
+  defp tenant_scope(socket) do
+    case socket.assigns[:tenant_id] do
+      tenant when is_binary(tenant) and tenant != "" -> {:ok, tenant}
+      _ -> {:error, %{reason: "unauthorized: no tenant on socket"}}
+    end
   end
 
   @impl true
@@ -106,11 +129,19 @@ defmodule QueryServiceExWeb.EventChannel do
     {:noreply, socket}
   end
 
-  # Handle PubSub events from CoreWebSocketClient
+  # Handle PubSub events from CoreWebSocketClient. The subscription is already
+  # tenant-scoped; this strict tenant-match is defense in depth — an event is
+  # pushed ONLY when its tenant equals the socket's tenant, so a broadcast bug
+  # can never spill another tenant's (or the `system` tenant's) events.
   def handle_info({:new_event, event}, socket) do
-    push(socket, "new_event", event)
+    if event_tenant(event) == socket.assigns[:tenant_id] do
+      push(socket, "new_event", event)
+    end
+
     {:noreply, socket}
   end
+
+  defp event_tenant(event), do: event["tenant_id"] || event[:tenant_id]
 
   # Handle presence_diff broadcasts from Presence tracker
   @impl true
