@@ -1,0 +1,46 @@
+# AllSource ops tasks. Requires go-task (`brew install go-task`) + fly, openssl, jq, curl.
+#   task --list            # show tasks
+#   task backfill-usage    # dry-run (default)
+# Tasks here are operator glue (shell orchestration of fly/openssl/curl), run by the
+# fleet owner — not application code.
+version: '3'
+
+vars:
+  TENANT: '{{.TENANT | default "decebal-dobrica-at-gmail-com"}}'
+  DRY: '{{.DRY | default "true"}}'
+  EMAIL: '{{.EMAIL | default "decebal.dobrica@gmail.com"}}'
+  QS_APP: '{{.QS_APP | default "allsource-query"}}'
+  CP_URL: '{{.CP_URL | default "https://api.all-source.xyz"}}'
+
+tasks:
+  backfill-usage:
+    desc: >-
+      Backfill a tenant's events_used via the Control Plane admin endpoint. Mints a 1h
+      admin JWT from the fleet JWT_SECRET (read-only from the QS container) since admin
+      is allowlist-gated. Vars: TENANT, DRY=true|false, EMAIL, QS_APP, CP_URL.
+    silent: true
+    cmds:
+      - |
+        set -eu
+        echo ">> pulling JWT_SECRET from {{.QS_APP}} (marker-fenced to drop the fly-ssh banner)..."
+        RAW=$(fly ssh console -a "{{.QS_APP}}" -C 'sh -c "printf __S__; printenv JWT_SECRET; printf __E__"' 2>/dev/null || true)
+        SECRET="${RAW##*__S__}"; SECRET="${SECRET%%__E__*}"
+        # printenv appends a newline INSIDE the markers; strip CR/LF so the HMAC key is exactly the secret.
+        SECRET=$(printf '%s' "$SECRET" | tr -d '\r\n')
+        if [ -z "$SECRET" ] || [ "$SECRET" = "$RAW" ]; then
+          echo "!! could not read JWT_SECRET from {{.QS_APP}} (fly ssh failed or markers missing). First lines of raw output:"
+          printf '%s\n' "$RAW" | head -3
+          exit 1
+        fi
+        echo ">> JWT_SECRET ok (${#SECRET} chars). minting 1h admin token for {{.EMAIL}}..."
+        now=$(date +%s); exp=$((now + 3600))
+        b64() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+        hdr=$(printf '%s' '{"alg":"HS256","typ":"JWT"}' | b64)
+        pl=$(printf '%s' "{\"sub\":\"owner-backfill\",\"email\":\"{{.EMAIL}}\",\"role\":\"admin\",\"iss\":\"allsource\",\"iat\":${now},\"exp\":${exp}}" | b64)
+        sig=$(printf '%s' "${hdr}.${pl}" | openssl dgst -sha256 -hmac "$SECRET" -binary | b64)
+        TOKEN="${hdr}.${pl}.${sig}"
+        echo ">> POST {{.CP_URL}}/api/v1/admin/billing/backfill-usage  (tenant={{.TENANT}} dry_run={{.DRY}})"
+        curl -sS -X POST "{{.CP_URL}}/api/v1/admin/billing/backfill-usage" \
+          -H "Authorization: Bearer ${TOKEN}" \
+          -H 'Content-Type: application/json' \
+          -d "{\"tenant_id\":\"{{.TENANT}}\",\"dry_run\":{{.DRY}}}" | jq .
