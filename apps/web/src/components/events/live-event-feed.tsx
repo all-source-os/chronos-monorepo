@@ -2,10 +2,11 @@
 
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Pause, Play, Radio, Trash2, Wifi, WifiOff } from "lucide-react";
+import { Eye, EyeOff, Pause, Play, Radio, Trash2, Wifi, WifiOff } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { usePhoenixChannel } from "@/hooks/use-phoenix-channel";
 import type { Event } from "@/lib/api/client";
+import { isPlatformNoise } from "@/lib/event-namespaces";
 
 interface LiveEventFeedProps {
   onEventClick?: (event: Event) => void;
@@ -14,6 +15,11 @@ interface LiveEventFeedProps {
 export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
   const [events, setEvents] = useState<Event[]>([]);
   const [isPaused, setIsPaused] = useState(false);
+  // The `events:all` channel streams platform-noise too (e.g. service.heartbeat
+  // from the system tenant). Drop it at ingest by default so the feed shows
+  // domain activity — and so a flood of heartbeats can't push real events out
+  // of the 50-item window. Toggle on to inspect system activity.
+  const [showSystem, setShowSystem] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Handle incoming Phoenix Channel events
@@ -21,11 +27,11 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
     (data: unknown) => {
       if (isPaused) return;
       const event = data as Event;
-      if (event?.id) {
-        setEvents((prev) => [event, ...prev].slice(0, 50));
-      }
+      if (!event?.id) return;
+      if (!showSystem && isPlatformNoise(event.event_type)) return;
+      setEvents((prev) => [event, ...prev].slice(0, 50));
     },
-    [isPaused]
+    [isPaused, showSystem]
   );
 
   const { isConnected, status, connect } = usePhoenixChannel("events:all", {
@@ -102,6 +108,15 @@ export function LiveEventFeed({ onEventClick }: LiveEventFeedProps) {
               Connect
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setShowSystem((s) => !s)}
+            title={showSystem ? "Hide system events (heartbeats, audit)" : "Show system events"}
+          >
+            {showSystem ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+          </Button>
           <Button
             variant="ghost"
             size="icon"

@@ -1,7 +1,18 @@
 "use client";
 
 import { BlurFade, Button, Card, CardContent, DatePicker, Input } from "@allsource/ui";
-import { BookOpen, Download, Filter, Inbox, Plus, RefreshCw, Search, X } from "lucide-react";
+import {
+  BookOpen,
+  Download,
+  Eye,
+  EyeOff,
+  Filter,
+  Inbox,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { EventDetailDrawer } from "@/components/events/event-detail-drawer";
@@ -10,6 +21,7 @@ import { EventTimeline } from "@/components/events/event-timeline";
 import { LiveEventFeed } from "@/components/events/live-event-feed";
 import { useEvents } from "@/hooks/use-events";
 import type { Event } from "@/lib/api/client";
+import { PLATFORM_NOISE_PREFIX_PARAM } from "@/lib/event-namespaces";
 
 export default function EventsPage() {
   const router = useRouter();
@@ -19,12 +31,17 @@ export default function EventsPage() {
   const [entityFilter, setEntityFilter] = useState(searchParams.get("entity") || "");
   const [typeFilter, setTypeFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [showSystem, setShowSystem] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
 
   const { events, total, isLoading, error, refresh } = useEvents({
     entity_id: entityFilter || undefined,
     event_type: typeFilter || undefined,
+    // Hide platform-noise namespaces (heartbeats/audit/_system) by default so
+    // operational chatter doesn't bury domain events. Skip the exclusion when
+    // the user is explicitly filtering by a type, or toggled "show system".
+    exclude_event_type_prefix: showSystem || typeFilter ? undefined : PLATFORM_NOISE_PREFIX_PARAM,
     limit: 50,
   });
 
@@ -102,10 +119,13 @@ export default function EventsPage() {
             <Inbox className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
             <h3 className="text-lg font-medium">No events yet</h3>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Start sending events to your store to see them here. Use the API or any of our SDKs to ingest your first event.
+              Start sending events to your store to see them here. Use the API or any of our SDKs to
+              ingest your first event.
             </p>
             <div className="mx-auto mt-6 max-w-lg rounded-lg bg-muted p-4 text-left">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Quick start with curl:</p>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                Quick start with curl:
+              </p>
               <pre className="overflow-x-auto text-xs">
                 <code>{`curl -X POST $ALLSOURCE_URL/api/events \\
   -H "Authorization: Bearer $API_KEY" \\
@@ -144,6 +164,21 @@ export default function EventsPage() {
                   className="pl-9"
                 />
               </div>
+
+              {/* Show/hide platform-noise namespaces (heartbeats, audit, system) */}
+              <Button
+                variant="outline"
+                onClick={() => setShowSystem((s) => !s)}
+                className={showSystem ? "bg-muted" : ""}
+                title={showSystem ? "Hide system events" : "Show system events (heartbeats, audit)"}
+              >
+                {showSystem ? (
+                  <Eye className="mr-1.5 h-4 w-4" />
+                ) : (
+                  <EyeOff className="mr-1.5 h-4 w-4" />
+                )}
+                System
+              </Button>
 
               {/* Filter toggle */}
               <Button

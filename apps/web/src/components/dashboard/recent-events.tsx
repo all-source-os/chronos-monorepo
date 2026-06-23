@@ -5,17 +5,14 @@ import { cn } from "@allsource/ui/utils";
 import { Activity, ArrowRight, Clock } from "lucide-react";
 import Link from "next/link";
 import { useEvents } from "@/hooks/use-events";
-
-// Operational namespaces hidden from the recent-activity feed by default —
-// liveness probes, internal system events, and audit chatter would otherwise
-// bury real domain activity once a tenant has thousands of events. Excluded
-// server-side (before the limit) so the 5 shown are always domain events.
-const PLATFORM_NOISE_PREFIXES = "service.,_system.,audit.";
+import { PLATFORM_NOISE_PREFIX_PARAM } from "@/lib/event-namespaces";
 
 export function RecentEvents() {
+  // Hide platform-noise namespaces server-side (before the limit) so the 5
+  // shown are always domain events.
   const { events, isLoading } = useEvents({
     limit: 5,
-    exclude_event_type_prefix: PLATFORM_NOISE_PREFIXES,
+    exclude_event_type_prefix: PLATFORM_NOISE_PREFIX_PARAM,
   });
 
   const formatTimestamp = (timestamp: string) => {
