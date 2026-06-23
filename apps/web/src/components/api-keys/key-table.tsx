@@ -3,6 +3,7 @@
 import { Badge, Button } from "@allsource/ui";
 import { Check, Clock, Copy, Key, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
 import { type MouseEvent, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ApiKey } from "@/lib/api/client";
 
 interface KeyTableProps {
@@ -34,9 +35,13 @@ function KeyRow({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Position the menu with fixed coords from the trigger so it escapes the
-  // table wrapper's `overflow-hidden` (which clips an absolutely-positioned
-  // dropdown regardless of z-index).
+  // Position the menu with fixed coords from the trigger AND portal it to
+  // <body>. Fixed coords alone aren't enough: an animating ancestor (motion /
+  // BlurFade) sets `transform`, which makes a `position: fixed` child resolve
+  // against THAT ancestor instead of the viewport — so the table wrapper's
+  // `overflow-hidden` clips it again (worse with a short 3-row table whose menu
+  // overflows the card bottom). Portaling to <body> escapes the transformed +
+  // overflow-clipped subtree entirely.
   const toggleMenu = (e: MouseEvent<HTMLButtonElement>) => {
     if (showMenu) {
       setShowMenu(false);
@@ -119,36 +124,46 @@ function KeyRow({
             <MoreHorizontal className="h-4 w-4" />
           </Button>
 
-          {showMenu && menuPos && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-              <div
-                className="fixed z-50 w-40 rounded-lg border border-border bg-popover p-1 shadow-lg"
-                style={{ top: menuPos.top, right: menuPos.right }}
-              >
+          {showMenu &&
+            menuPos &&
+            createPortal(
+              <>
                 <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    onRotate();
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted"
+                  type="button"
+                  aria-label="Close menu"
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={() => setShowMenu(false)}
+                />
+                <div
+                  className="fixed z-50 w-40 rounded-lg border border-border bg-popover p-1 shadow-lg"
+                  style={{ top: menuPos.top, right: menuPos.right }}
                 >
-                  <RefreshCw className="h-4 w-4" />
-                  Rotate Key
-                </button>
-                <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    onRevoke();
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Revoke Key
-                </button>
-              </div>
-            </>
-          )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onRotate();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Rotate Key
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onRevoke();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Revoke Key
+                  </button>
+                </div>
+              </>,
+              document.body
+            )}
         </div>
       </td>
     </tr>
