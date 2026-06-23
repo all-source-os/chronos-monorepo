@@ -9,8 +9,12 @@ and the incident narratives live in
 [`PRICING_BILLING_CUTOVER.md`](./PRICING_BILLING_CUTOVER.md).
 
 **Status:** P0–P3 **shipped to `main`** (Control Plane API `a02667e`, admin UI `e233bee`,
-MCP tools `b6e3c88`) but **NOT yet deployed**. Until the deploy lands, the admin pages
-fall back to a clearly-marked **fixture** and the runbook manual steps remain ground truth.
+MCP tools `b6e3c88`). **Control Plane DEPLOYED** — Fly `allsource-control-plane` **v68**;
+`/api/v1/admin/fleet/*` + `/api/v1/admin/recovery/*` are live and admin-gated. **Admin UI
+DEPLOYED** — Vercel project `allsource-admin` — but **login is not wired cross-origin yet**
+(needs the admin custom domain + CORS + OAuth; see the checklist below and
+[`CONTROL_PLANE_CORS.md`](./CONTROL_PLANE_CORS.md)). Until that lands the admin pages fall
+back to a clearly-marked **fixture**.
 
 **Central invariant (do not undercut it):** "a tenant reports empty data" is a
 **read-path / identity symptom, never data loss** — Core IS the durable database
@@ -75,14 +79,25 @@ The admin fleet pages currently render a **fixture** (a banner reading
 That is intentional pre-deploy scaffolding so the layout can be verified. **Do these in
 order, then remove the fixture:**
 
-1. **Deploy the Control Plane** (`apps/control-plane`) on Fly so `/api/v1/admin/fleet/*` +
-   `/api/v1/admin/recovery/*` answer live. Confirm a **new** Fly release (a `fly deploy`
-   that creates no release is a no-op — see data-visibility trap #4).
-2. **Deploy the MCP server** (`apps/mcp-server-elixir`) on Fly. Set `ALLSOURCE_CONTROL_URL`
-   so the read tools light up; set `ALLSOURCE_SYSTEM_ADMIN=true` **only** on the instance(s)
-   that should be allowed to run `recovery_*` mutations (off by default).
-3. **Deploy the admin app** (`apps/admin` — its **own** standalone app, NOT the Vercel web
-   frontend). Point it at the deployed Control Plane (`NEXT_PUBLIC_API_URL`).
+1. **Control Plane** (`apps/control-plane`) — ✅ **DONE.** Deployed to Fly `allsource-control-plane`
+   **v68** (`fly deploy apps/control-plane --app allsource-control-plane`). `/api/v1/admin/fleet/*`
+   + `/api/v1/admin/recovery/*` answer live (401 unauthenticated = wired + gated). Confirm a
+   **new** Fly release on each redeploy (a `fly deploy` that creates no release is a no-op —
+   data-visibility trap #4).
+2. **MCP server** (`apps/mcp-server-elixir`) — **NOT a Fly deploy.** It is a **stdio MCP server**
+   (no `fly.toml`), consumed by an MCP client, not a hosted HTTP service. To use it: set
+   `ALLSOURCE_CONTROL_URL` + `ALLSOURCE_ADMIN_JWT` (so it reaches `/api/v1/admin/*`) and register
+   it in your MCP client config. Set `ALLSOURCE_SYSTEM_ADMIN=true` **only** where `recovery_*`
+   mutations should be allowed (off by default).
+3. **Admin app** (`apps/admin`) — ✅ **deployed** to its **own** Vercel project `allsource-admin`
+   (prebuilt-deploy; NOT the public web frontend), `NEXT_PUBLIC_API_URL=https://api.all-source.xyz`.
+   **Cross-origin login still needs three things** (the app loads but login won't complete until all hold):
+   (a) add custom domain **`admin.all-source.xyz`** to the Vercel project (shares the `.all-source.xyz`
+   parent with `api.all-source.xyz` for the `admin_token` cookie); (b) **CORS** — `admin.all-source.xyz`
+   is in the Control Plane `ALLOWED_FRONTEND_URLS` (shipped in `fly.toml`; redeploy to apply — see
+   [`CONTROL_PLANE_CORS.md`](./CONTROL_PLANE_CORS.md)); (c) **OAuth** — add the admin domain to the
+   Google/GitHub authorized redirect URIs (external console). Vercel **Deployment Protection** is also
+   ON for the project (extra login wall) — keep or disable in project settings.
 4. **Verify live**, then **remove the fixture fallback** from `fleet/page.tsx` and
    `fleet/[id]/page.tsx` (the `FIXTURE_FLEET` / `fixtureTenantHealth` blocks + the
    `usingFixture` banners). Once the endpoints answer, the fixture is dead weight and must

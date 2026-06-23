@@ -16,6 +16,10 @@ primary_region = "iad"
   # /api/v1/auth/oauth/* to this service, this must be the frontend URL.
   CONTROL_PLANE_URL = "https://www.all-source.xyz"
   FRONTEND_URL = "https://www.all-source.xyz"
+  # Browser origins BESIDES FRONTEND_URL allowed to make CREDENTIALED CORS
+  # requests and to be OAuth redirect targets: the apex domain and the admin
+  # panel. Comma-separated, no trailing slash. See docs/runbooks/CONTROL_PLANE_CORS.md.
+  ALLOWED_FRONTEND_URLS = "https://all-source.xyz,https://admin.all-source.xyz"
 
 # Required secrets (set via flyctl secrets set):
 # - JWT_SECRET: openssl rand -base64 32

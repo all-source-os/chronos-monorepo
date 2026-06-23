@@ -88,6 +88,24 @@ func getAllowedFrontendURLs() []string {
 	return allowed
 }
 
+// allowedCORSOrigins returns the set of browser origins permitted to make
+// CREDENTIALED cross-origin requests. It is derived from the same frontend
+// allowlist used for OAuth redirect validation (getAllowedFrontendURLs), so the
+// admin panel and the web app are added in exactly one place: the FRONTEND_URL /
+// ALLOWED_FRONTEND_URLS env. Each entry is reduced to scheme://host for an exact
+// origin match. Credentialed CORS must never reflect an arbitrary Origin — doing
+// so would let any website make authenticated requests on a logged-in user's
+// behalf — which is why this allowlist exists instead of echoing every Origin.
+func allowedCORSOrigins() map[string]struct{} {
+	set := make(map[string]struct{})
+	for _, raw := range getAllowedFrontendURLs() {
+		if p, err := url.Parse(raw); err == nil && p.Scheme != "" && p.Host != "" {
+			set[p.Scheme+"://"+p.Host] = struct{}{}
+		}
+	}
+	return set
+}
+
 // isAllowedRedirectURL checks if a redirect URL is in the allowlist.
 // Prevents open redirect attacks by only allowing known frontend origins.
 func isAllowedRedirectURL(redirectTo string) bool {

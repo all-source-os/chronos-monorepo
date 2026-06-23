@@ -355,14 +355,23 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 	return cp, nil
 }
 
-func (cp *ControlPlane) setupMiddleware() {
-	// CORS middleware — echo the request origin so browsers allow credentials
-	cp.router.Use(func(c *gin.Context) {
+// corsMiddleware applies CORS headers. For an Origin in the allowlist it echoes
+// that Origin and grants credentials (so cookies / Authorization work cross-site
+// for the web app and the admin panel); every other request gets a
+// non-credentialed wildcard grant, so truly public endpoints still work from any
+// site but NO site can make a credentialed request unless it is explicitly
+// allowlisted. This is the security boundary: a credentialed CORS grant must
+// never reflect an arbitrary Origin. Vary: Origin keeps shared caches correct.
+func corsMiddleware(allowed map[string]struct{}) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-		if origin != "" {
+		if _, ok := allowed[origin]; ok && origin != "" {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			c.Writer.Header().Add("Vary", "Origin")
 		} else {
+			// Public, non-credentialed access only. A browser cannot send cookies
+			// or read a credentialed response under an "*" grant.
 			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -374,7 +383,14 @@ func (cp *ControlPlane) setupMiddleware() {
 		}
 
 		c.Next()
-	})
+	}
+}
+
+func (cp *ControlPlane) setupMiddleware() {
+	// CORS — credentialed only for allowlisted frontend origins (web + admin),
+	// derived from the FRONTEND_URL / ALLOWED_FRONTEND_URLS allowlist. See
+	// corsMiddleware and docs/runbooks/CONTROL_PLANE_CORS.md.
+	cp.router.Use(corsMiddleware(allowedCORSOrigins()))
 
 	// Prometheus metrics middleware
 	cp.router.Use(PrometheusMiddleware(cp.metrics))
