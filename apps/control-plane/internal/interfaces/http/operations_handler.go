@@ -169,6 +169,14 @@ func (h *OperationsHandler) ListOperations(c *gin.Context) {
 	status := c.Query("status")
 	tenantID := c.Query("tenant_id")
 
+	// Tenant isolation: never trust a client-supplied tenant_id. A non-admin may
+	// only list their OWN tenant's operations — force the authenticated tenant.
+	// Admins keep the ability to scope to any/all tenants (the param is theirs).
+	role, _ := c.Get("auth_role")
+	if r, ok := role.(entities.Role); !ok || r != entities.RoleAdmin {
+		tenantID = c.GetString("auth_tenant_id")
+	}
+
 	ops, err := h.listOperationsUC.Execute(usecases.ListOperationsRequest{
 		Type:     entities.OperationType(opType),
 		Status:   entities.OperationStatus(status),
