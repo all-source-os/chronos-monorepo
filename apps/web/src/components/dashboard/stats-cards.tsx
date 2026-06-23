@@ -119,11 +119,14 @@ export function StatsCards() {
       animate: true,
     },
     {
-      // No real latency percentile is exposed yet → honest "—", never a fake number.
+      // Platform/system p99 across all query types, derived from Core's
+      // query-duration histogram (global, all tenants) — labelled as a platform
+      // metric, not "your" latency. Honest "—" when no queries observed yet.
       title: "p99 Latency",
       value: stats.latency.formatted,
       icon: Zap,
-      description: stats.latency.formatted === "—" ? "Not yet instrumented" : "Query response time",
+      description:
+        stats.latency.formatted === "—" ? "Awaiting query samples" : "Platform query latency",
     },
   ];
 

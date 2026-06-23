@@ -973,6 +973,12 @@ export interface UsageAnalyticsResponse {
   event_type_distribution: EventTypeDistribution[];
   top_entity_ids: TopEntity[];
   ingestion_rate: IngestionDataPoint[];
+  /**
+   * Per-tenant daily query series (same shape as `ingestion_rate`). Empty until
+   * reads are event-sourced in Core — the dashboard renders an honest empty
+   * state in that case, never a fabricated series.
+   */
+  query_rate: IngestionDataPoint[];
 }
 
 // Prime knowledge-graph types — mirror GET /api/v1/prime/graph.

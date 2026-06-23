@@ -168,6 +168,74 @@ defmodule QueryServiceEx.PrometheusParserTest do
     end
   end
 
+  # A real Core query-duration histogram, partitioned by query_type (this is how
+  # Core actually exposes it). The overall p99 must AGGREGATE buckets across every
+  # query_type — sum cumulative counts per `le` — then interpolate.
+  @histogram_output """
+  # HELP allsource_query_duration_seconds Query duration in seconds
+  # TYPE allsource_query_duration_seconds histogram
+  allsource_query_duration_seconds_bucket{query_type="entity",le="0.005"} 90
+  allsource_query_duration_seconds_bucket{query_type="entity",le="0.01"} 100
+  allsource_query_duration_seconds_bucket{query_type="entity",le="0.025"} 100
+  allsource_query_duration_seconds_bucket{query_type="entity",le="0.05"} 100
+  allsource_query_duration_seconds_bucket{query_type="entity",le="+Inf"} 100
+  allsource_query_duration_seconds_bucket{query_type="full_scan",le="0.005"} 0
+  allsource_query_duration_seconds_bucket{query_type="full_scan",le="0.01"} 0
+  allsource_query_duration_seconds_bucket{query_type="full_scan",le="0.025"} 100
+  allsource_query_duration_seconds_bucket{query_type="full_scan",le="0.05"} 100
+  allsource_query_duration_seconds_bucket{query_type="full_scan",le="+Inf"} 100
+  """
+
+  describe "histogram_quantile/4" do
+    test "aggregates buckets across labels and interpolates the quantile" do
+      parsed = PrometheusParser.parse(@histogram_output)
+
+      # Aggregated cumulative buckets (entity + full_scan):
+      #   le=0.005 -> 90,  le=0.01 -> 100,  le=0.025 -> 200,
+      #   le=0.05 -> 200,  +Inf -> 200.  total = 200.
+      # p99 target rank = 0.99 * 200 = 198, which falls in the (0.01, 0.025] band
+      # over counts (100, 200]: 0.01 + (0.025-0.01)*((198-100)/(200-100))
+      #   = 0.01 + 0.015 * 0.98 = 0.0247 s.
+      p99 = PrometheusParser.histogram_quantile(parsed, "allsource_query_duration_seconds", 0.99)
+      assert_in_delta p99, 0.0247, 0.0001
+
+      # p50 target rank = 100, satisfied exactly at le=0.01 (count first reaches
+      # 100 there); interpolation within (0.005, 0.01] over (90, 100].
+      p50 = PrometheusParser.histogram_quantile(parsed, "allsource_query_duration_seconds", 0.5)
+      assert_in_delta p50, 0.01, 0.0006
+    end
+
+    test "lowest bucket interpolates from zero" do
+      input = """
+      m_bucket{le="0.01"} 100
+      m_bucket{le="+Inf"} 100
+      """
+
+      parsed = PrometheusParser.parse(input)
+      # All mass in the first finite bucket; p50 target = 50 over (0, 0.01] / (0,100].
+      assert_in_delta PrometheusParser.histogram_quantile(parsed, "m", 0.5), 0.005, 0.0001
+    end
+
+    test "returns largest finite bound when the quantile lands in the +Inf bucket" do
+      input = """
+      m_bucket{le="0.01"} 50
+      m_bucket{le="+Inf"} 100
+      """
+
+      parsed = PrometheusParser.parse(input)
+      # p99 target = 99 > 50, only covered by +Inf → fall back to 0.01 (not infinity).
+      assert PrometheusParser.histogram_quantile(parsed, "m", 0.99) == 0.01
+    end
+
+    test "returns default for an absent or empty histogram" do
+      assert PrometheusParser.histogram_quantile(%{}, "missing", 0.99) == 0.0
+      assert PrometheusParser.histogram_quantile(%{}, "missing", 0.99, nil) == nil
+
+      zero = PrometheusParser.parse("m_bucket{le=\"+Inf\"} 0\n")
+      assert PrometheusParser.histogram_quantile(zero, "m", 0.99, nil) == nil
+    end
+  end
+
   describe "full pipeline: parse -> summary" do
     test "parses sample output into a complete admin summary" do
       parsed = PrometheusParser.parse(@sample_prometheus_output)

@@ -18,6 +18,15 @@ defmodule QueryServiceExWeb.UsageAnalyticsController do
 
   @valid_ranges ~w(24h 7d 30d 90d)
 
+  # Event-type prefixes that mark a *query/read* recorded as an event in Core.
+  # The `queries` daily series buckets only these (mirroring how `ingestion_rate`
+  # buckets all events). Today Core does not event-source reads — a query just
+  # bumps the monotonic `metadata.quotas.queries_used` counter (no timestamp), so
+  # there is no honest per-tenant query *time-series* source and this series is
+  # legitimately empty. It is wired end-to-end so it fills in automatically if/when
+  # query events are recorded under one of these namespaces — never fabricated.
+  @query_event_prefixes ~w(query. audit.query read.)
+
   @doc """
   Returns usage analytics breakdown for the authenticated tenant.
 
@@ -34,10 +43,11 @@ defmodule QueryServiceExWeb.UsageAnalyticsController do
       tasks = [
         Task.async(fn -> fetch_event_type_distribution(tenant_id, since) end),
         Task.async(fn -> fetch_top_entities(tenant_id, since) end),
-        Task.async(fn -> fetch_ingestion_rate(tenant_id, since, range) end)
+        Task.async(fn -> fetch_ingestion_rate(tenant_id, since, range) end),
+        Task.async(fn -> fetch_query_rate(tenant_id, since, range) end)
       ]
 
-      [type_dist, top_entities, ingestion_rate] =
+      [type_dist, top_entities, ingestion_rate, query_rate] =
         Task.await_many(tasks, 15_000)
 
       conn
@@ -48,7 +58,10 @@ defmodule QueryServiceExWeb.UsageAnalyticsController do
           since: DateTime.to_iso8601(since),
           event_type_distribution: type_dist,
           top_entity_ids: top_entities,
-          ingestion_rate: ingestion_rate
+          ingestion_rate: ingestion_rate,
+          # Per-tenant daily query series (same bucket shape as ingestion_rate).
+          # Empty until reads are event-sourced — see @query_event_prefixes.
+          query_rate: query_rate
         }
       })
     end
@@ -154,6 +167,37 @@ defmodule QueryServiceExWeb.UsageAnalyticsController do
     end
   rescue
     _ -> []
+  end
+
+  # Per-tenant daily query series. Buckets only events whose type marks a query
+  # (see @query_event_prefixes) using the same windowing as ingestion. Reads are
+  # not event-sourced today, so this returns [] — an honest empty series, not a
+  # fabricated one — and starts reporting the moment query events appear.
+  defp fetch_query_rate(tenant_id, since, range) do
+    window = ingestion_window(range)
+
+    query = %{
+      tenant_id: tenant_id,
+      since: DateTime.to_iso8601(since),
+      limit: 10_000
+    }
+
+    case RustCoreClient.query_events(tenant_id, query) do
+      {:ok, events} when is_list(events) ->
+        events
+        |> Enum.filter(&query_event?/1)
+        |> bucket_events(window)
+
+      _ ->
+        []
+    end
+  rescue
+    _ -> []
+  end
+
+  defp query_event?(event) do
+    type = event["event_type"] || ""
+    Enum.any?(@query_event_prefixes, &String.starts_with?(type, &1))
   end
 
   defp ingestion_window("24h"), do: :hour

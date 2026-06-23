@@ -47,6 +47,12 @@ interface DashboardStats {
   };
   /** Real daily event-ingestion series for the 30-day Overview chart. */
   ingestion: IngestionPoint[];
+  /**
+   * Real daily query series for the 30-day Overview chart. Per-tenant and
+   * honest: empty until reads are event-sourced (see the QS analytics
+   * `query_rate`); never a fabricated trend.
+   */
+  queries_series: IngestionPoint[];
   isHistorical?: boolean;
   asOf?: string | null;
 }
@@ -72,6 +78,7 @@ const DEFAULT_STATS: DashboardStats = {
   latency: { p99_us: 0, formatted: "—" },
   storage: { bytes: 0, formatted: "—" },
   ingestion: [],
+  queries_series: [],
 };
 
 // Many list endpoints are unwrapped by apiClient.request() (`{data:X}` → X), so a
@@ -115,6 +122,7 @@ async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardSta
     latency: { ...DEFAULT_STATS.latency },
     storage: { ...DEFAULT_STATS.storage },
     ingestion: [],
+    queries_series: [],
   };
 
   // Usage meter (period usage → quota bars)
@@ -151,6 +159,15 @@ async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardSta
     }));
   }
 
+  // Real daily query series for the 30-day chart. Per-tenant; honest-empty
+  // until reads are event-sourced (the QS returns [] in that case).
+  if (analyticsResponse.data?.query_rate) {
+    stats.queries_series = analyticsResponse.data.query_rate.map((p) => ({
+      timestamp: p.timestamp,
+      count: p.count,
+    }));
+  }
+
   // Projections count (already real)
   if (projectionsResponse.data) {
     const projections = projectionsResponse.data;
@@ -160,10 +177,16 @@ async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardSta
     };
   }
 
-  // Extract real metrics from backend response. NOTE: the QS `/api/metrics`
-  // `backend` field is a Prometheus TEXT blob, not parsed JSON, and carries no
-  // latency percentile — so p99 has no honest source and renders "—" (never a
-  // fabricated number). storage likewise renders "—" when unavailable.
+  // Real PLATFORM/SYSTEM metrics from the backend. The QS `/api/metrics`
+  // controller now parses Core's Prometheus exposition into a typed `backend`
+  // summary (see QueryServiceEx.CoreBackendMetrics), so these reads resolve:
+  //   - p99_latency_us: the 0.99 quantile of Core's query-duration histogram,
+  //     across ALL query types and ALL tenants. A platform latency property —
+  //     honest to show, labelled as system/platform (NOT "your" latency).
+  //   - storage_bytes: Core's on-disk data-dir size (every tenant's Parquet+WAL).
+  //     Platform-wide; reads 0 until the Core gauge-population change ships, in
+  //     which case we render an honest "—" rather than a fake number.
+  // Both fall back to an honest "—" when null/0/absent — never fabricated.
   if (metricsResponse.data) {
     const backend = (metricsResponse.data as unknown as Record<string, unknown>).backend as
       | Record<string, unknown>

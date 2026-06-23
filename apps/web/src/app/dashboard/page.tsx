@@ -37,6 +37,10 @@ export default function DashboardPage() {
   // Real daily ingestion series for the 30-day chart.
   const ingestionHistory = stats.ingestion.map((p) => p.count);
   const ingestionTotal = stats.ingestion.reduce((sum, p) => sum + p.count, 0);
+  // Real daily query series for the 30-day chart (per-tenant). Empty until reads
+  // are event-sourced — the chart shows an honest empty state in that case.
+  const queryHistory = stats.queries_series.map((p) => p.count);
+  const queryTotal = stats.queries_series.reduce((sum, p) => sum + p.count, 0);
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -211,13 +215,17 @@ export default function DashboardPage() {
             history={ingestionHistory}
             emptyLabel="No events ingested in the last 30 days"
           />
-          {/* No per-query time-series exists yet — show an honest "metering starts"
-              empty state rather than a flat 0 bar. */}
+          {/* Real per-tenant daily query series from /api/tenants/me/analytics
+              (query_rate). Reads aren't event-sourced yet, so the series is
+              honestly empty for now and the chart shows the empty state instead
+              of a fake trend; it fills in automatically once query events flow.
+              When data exists, "used" reflects the real 30-day query total. */}
           <UsageChart
             title="Query Usage (30 days)"
-            used={queriesUsed}
+            used={queryHistory.length > 0 ? queryTotal : queriesUsed}
             quota={queriesQuota}
-            emptyLabel="Query metering starts soon"
+            history={queryHistory}
+            emptyLabel="No query activity recorded in the last 30 days"
           />
         </div>
       </BlurFade>
@@ -289,7 +297,9 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-primary">{stats.latency.formatted}</p>
-                <p className="text-xs text-muted-foreground">p99 latency</p>
+                {/* Core's query-duration p99 is a process-global, all-tenant
+                    figure — label it platform, not this tenant's. */}
+                <p className="text-xs text-muted-foreground">p99 latency (platform)</p>
               </div>
               <div>
                 <p className="text-2xl font-bold text-primary">{stats.projections.active}</p>
@@ -297,7 +307,9 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-primary">{stats.storage.formatted}</p>
-                <p className="text-xs text-muted-foreground">storage used</p>
+                {/* allsource_storage_size_bytes is the whole data-dir on disk
+                    (all tenants) — platform storage, not this tenant's. */}
+                <p className="text-xs text-muted-foreground">storage on disk (platform)</p>
               </div>
             </div>
           </div>

@@ -18,6 +18,7 @@ defmodule QueryServiceExWeb.MetricsController do
   use Phoenix.Controller, formats: [:json]
   use OpenApiSpex.ControllerSpecs
 
+  alias QueryServiceEx.CoreBackendMetrics
   alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
   alias QueryServiceEx.PrometheusMetrics
   alias QueryServiceExWeb.Schemas.Metrics
@@ -83,11 +84,7 @@ defmodule QueryServiceExWeb.MetricsController do
 
   # Returns JSON-formatted metrics
   defp json_metrics(conn) do
-    backend_metrics =
-      case RustCoreClient.get_metrics() do
-        {:ok, metrics} -> metrics
-        {:error, _} -> %{error: "Backend unavailable"}
-      end
+    backend_metrics = backend_metrics()
 
     elixir_metrics = %{
       processes: Process.list() |> length(),
@@ -104,6 +101,27 @@ defmodule QueryServiceExWeb.MetricsController do
     }
 
     json(conn, response)
+  end
+
+  # Fetches Core's raw Prometheus `/metrics` text and parses it into the small
+  # typed summary the dashboard reads (`p99_latency_us`, `storage_bytes`, …).
+  #
+  # We use `get_metrics_raw/0` (no JSON middleware) so the body stays the raw
+  # Prometheus exposition string; `get_metrics/0` runs it through Tesla's JSON
+  # decoder and mangles it, which is why `backend` used to be an unparseable blob
+  # and the p99/storage cards rendered "—". The raw text is preserved under
+  # `backend.raw` for any consumer that still wants it.
+  #
+  # NOTE: every field here is platform-wide (all tenants, reset on restart) — see
+  # `CoreBackendMetrics`. Per-tenant magnitudes come from tenant-scoped endpoints.
+  defp backend_metrics do
+    case RustCoreClient.get_metrics_raw() do
+      {:ok, text} when is_binary(text) ->
+        CoreBackendMetrics.from_prometheus_text(text)
+
+      _ ->
+        %{error: "Backend unavailable"}
+    end
   end
 
   defp format_memory(memory_list) do

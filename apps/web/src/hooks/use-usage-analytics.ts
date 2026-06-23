@@ -20,6 +20,8 @@ export function useUsageAnalytics(range?: string) {
     eventTypeDistribution: data?.event_type_distribution ?? [],
     topEntityIds: data?.top_entity_ids ?? [],
     ingestionRate: data?.ingestion_rate ?? [],
+    // Per-tenant daily query series; empty until reads are event-sourced.
+    queryRate: data?.query_rate ?? [],
     range: data?.range ?? range ?? "7d",
     isLoading,
     error: error?.message,
