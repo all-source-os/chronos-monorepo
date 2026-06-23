@@ -59,8 +59,11 @@ The admin app (`apps/admin`, Vercel project `allsource-admin`) calls the Control
 1. **Custom domain** `admin.all-source.xyz` on the `allsource-admin` Vercel project — so it shares the `.all-source.xyz` parent with `api.all-source.xyz` and the auth cookie is sendable. (A `*.vercel.app` host cannot share cookies with the Fly API.)
 2. **CORS** — `admin.all-source.xyz` in `ALLOWED_FRONTEND_URLS` (this runbook, §3). ✅ shipped in `fly.toml`.
 3. **OAuth** — the Google/GitHub OAuth apps must list the admin domain in their authorized redirect URIs / origins (external console; owner action).
+4. **Admin `NEXT_PUBLIC_APP_URL`** — set `NEXT_PUBLIC_APP_URL=https://admin.all-source.xyz` in the `allsource-admin` Vercel **production** env, then redeploy. The admin OAuth proxy (`apps/admin/src/app/api/v1/auth/oauth/[...path]/route.ts` → `getPublicUrl()`) sends the Control Plane a `redirect_to` built from this var; if it is unset it falls through to the `*.vercel.app` URL, which is **not** in `ALLOWED_FRONTEND_URLS`, so the Control Plane callback falls back to `FRONTEND_URL` and the user lands on `https://www.all-source.xyz/dashboard` after login instead of the admin app. The Control Plane already honors a per-app `redirect_to` (`OAuthAuthorize`/`OAuthCallback` in `oauth.go`, validated by `isAllowedRedirectURL`) — it just needs the admin app to send the allowlisted value.
 
-Until (1) and (3) land, the admin app loads but **login will not complete**. See [FLEET_HEALTH_RECOVERY.md](./FLEET_HEALTH_RECOVERY.md) for the surrounding feature.
+> **Post-login lands on `www/dashboard`?** That is symptom (4): `redirect_to` was not the allowlisted admin origin. Fix = set `NEXT_PUBLIC_APP_URL` (above) and redeploy the admin app. Separately, if login bounces to `/login?error=not_admin`, the logged-in email is not in the Control Plane `ADMIN_EMAILS` allowlist (see `auth.go roleForEmail()`).
+
+Until (1)–(4) land, the admin app loads but **login will not complete** (or completes on the wrong domain). See [FLEET_HEALTH_RECOVERY.md](./FLEET_HEALTH_RECOVERY.md) for the surrounding feature.
 
 ---
 
