@@ -40,6 +40,10 @@ type fleetMockCore struct {
 	keysByTenant map[string][]clients.CoreAPIKeyInfo
 	revoked      []string
 	created      []clients.CreateCoreAPIKeyRequest
+	// tenants returned by ListTenants (for reap-demo); deletedTenants records
+	// the ids passed to DeleteTenant.
+	tenants        []clients.TenantResponse
+	deletedTenants []string
 }
 
 func newFleetMockCore() *fleetMockCore {
@@ -94,6 +98,15 @@ func (m *fleetMockCore) CreateCoreAPIKey(_ context.Context, req clients.CreateCo
 
 func (m *fleetMockCore) RevokeAPIKey(_ context.Context, keyID string) error {
 	m.revoked = append(m.revoked, keyID)
+	return nil
+}
+
+func (m *fleetMockCore) ListTenants(_ context.Context) (*clients.ListTenantsResponse, error) {
+	return &clients.ListTenantsResponse{Tenants: m.tenants, Total: len(m.tenants)}, nil
+}
+
+func (m *fleetMockCore) DeleteTenant(_ context.Context, tenantID string) error {
+	m.deletedTenants = append(m.deletedTenants, tenantID)
 	return nil
 }
 
@@ -160,6 +173,7 @@ func (e *fleetTestEnv) router() *gin.Engine {
 	r := gin.New()
 	admin := r.Group("/api/v1/admin")
 	admin.Use(AdminAuthMiddleware(fleetTestJWTSecret))
+	admin.POST("/tenants/reap-demo", e.recH.ReapDemo)
 	admin.GET("/fleet/health", e.fleetH.GetFleetHealth)
 	admin.GET("/fleet/health/:id", e.fleetH.GetTenantHealth)
 	rec := admin.Group("/recovery")
@@ -620,6 +634,151 @@ func TestDiagnoseIdentity_Divergence(t *testing.T) {
 	}
 	if !resp.Diagnosis.StoreHasData {
 		t.Errorf("expected store_has_data=true for data-tenant")
+	}
+}
+
+// ============================================================================
+// reap-demo (gap #1 cleanup): cohort delete of Core is_demo tenants, guarded by
+// the SAME recovery machinery (dry-run preview + echoed confirm_token + one
+// admin.recovery.reap_demo audit event). Source of is_demo = Core's tenant list.
+// ============================================================================
+
+// Without an admin JWT the reaper is 403 (inherits AdminAuthMiddleware) — a raw
+// probe can never delete tenants.
+func TestReapDemo_RequiresAdmin(t *testing.T) {
+	env := newFleetTestEnv(t, "")
+	env.core.tenants = []clients.TenantResponse{{ID: "demo-1", Name: "Demo User", IsDemo: true}}
+	r := env.router()
+
+	// no token
+	w := doAdmin(t, r, http.MethodPost, "/api/v1/admin/tenants/reap-demo?dry_run=true", "", nil)
+	if w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
+		t.Fatalf("no-token reap: expected 401/403, got %d (%s)", w.Code, w.Body.String())
+	}
+	// non-admin (developer) token
+	devTok := adminToken(t, entities.RoleDeveloper)
+	w = doAdmin(t, r, http.MethodPost, "/api/v1/admin/tenants/reap-demo?dry_run=true", devTok, nil)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("developer reap: expected 403, got %d (%s)", w.Code, w.Body.String())
+	}
+	if len(env.core.deletedTenants) != 0 {
+		t.Fatalf("unauthorized reap must delete nothing, deleted %v", env.core.deletedTenants)
+	}
+}
+
+// Dry-run lists exactly the is_demo tenants + count, returns a confirm_token, and
+// mutates nothing. Non-demo tenants are excluded from the match.
+func TestReapDemo_DryRunListsAndMutatesNothing(t *testing.T) {
+	env := newFleetTestEnv(t, "")
+	env.core.tenants = []clients.TenantResponse{
+		{ID: "demo-1", Name: "Demo User", IsDemo: true},
+		{ID: "demo-2", Name: "Demo User", IsDemo: true},
+		{ID: "real-co", Name: "Real Co", IsDemo: false}, // must NOT match
+	}
+	r := env.router()
+	tok := adminToken(t, entities.RoleAdmin)
+
+	w := doAdmin(t, r, http.MethodPost, "/api/v1/admin/tenants/reap-demo?dry_run=true", tok, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("dry-run: expected 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	var dr usecases.ReapDemoResult
+	if err := json.Unmarshal(w.Body.Bytes(), &dr); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if dr.MatchedTotal != 2 {
+		t.Errorf("matched_total = %d, want 2", dr.MatchedTotal)
+	}
+	if len(dr.Candidates) != 2 {
+		t.Errorf("candidates = %d, want 2", len(dr.Candidates))
+	}
+	for _, cnd := range dr.Candidates {
+		if cnd.ID == "real-co" {
+			t.Errorf("non-demo tenant real-co must not be a reap candidate")
+		}
+	}
+	if dr.ConfirmToken == "" {
+		t.Errorf("dry-run must return a confirm_token")
+	}
+	if dr.Applied {
+		t.Errorf("dry-run must not report applied")
+	}
+	if len(env.core.deletedTenants) != 0 {
+		t.Errorf("dry-run must delete nothing, deleted %v", env.core.deletedTenants)
+	}
+}
+
+// End-to-end: dry-run → apply without token (400) → apply with echoed token
+// deletes exactly the demo tenants and writes exactly one admin.recovery.reap_demo
+// audit event.
+func TestReapDemo_TokenGatedApplyDeletesAndAudits(t *testing.T) {
+	env := newFleetTestEnv(t, "")
+	env.core.tenants = []clients.TenantResponse{
+		{ID: "demo-1", Name: "Demo User", IsDemo: true},
+		{ID: "demo-2", Name: "Demo User", IsDemo: true},
+		{ID: "real-co", Name: "Real Co", IsDemo: false},
+	}
+	r := env.router()
+	tok := adminToken(t, entities.RoleAdmin)
+
+	// 1. dry-run → confirm_token, no audit-apply yet
+	beforeAudits := len(env.core.recoveryAudits())
+	w := doAdmin(t, r, http.MethodPost, "/api/v1/admin/tenants/reap-demo?dry_run=true", tok, map[string]any{"reason": "litter"})
+	var dr usecases.ReapDemoResult
+	_ = json.Unmarshal(w.Body.Bytes(), &dr)
+	if dr.ConfirmToken == "" {
+		t.Fatalf("no confirm_token from dry-run")
+	}
+
+	// 2. apply WITHOUT the token → 400, still nothing deleted
+	w = doAdmin(t, r, http.MethodPost, "/api/v1/admin/tenants/reap-demo", tok, map[string]any{"reason": "litter"})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("apply without token: expected 400, got %d (%s)", w.Code, w.Body.String())
+	}
+	if len(env.core.deletedTenants) != 0 {
+		t.Fatalf("apply without token must delete nothing, deleted %v", env.core.deletedTenants)
+	}
+
+	// 3. apply WITH the echoed token → 200, deletes exactly the 2 demo tenants
+	auditsAfterDryRun := len(env.core.recoveryAudits())
+	w = doAdmin(t, r, http.MethodPost, "/api/v1/admin/tenants/reap-demo", tok, map[string]any{"reason": "litter", "confirm_token": dr.ConfirmToken})
+	if w.Code != http.StatusOK {
+		t.Fatalf("apply with token: expected 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	var ap usecases.ReapDemoResult
+	if err := json.Unmarshal(w.Body.Bytes(), &ap); err != nil {
+		t.Fatalf("unmarshal apply: %v", err)
+	}
+	if !ap.Applied {
+		t.Errorf("apply must report applied=true")
+	}
+	if ap.Deleted != 2 {
+		t.Errorf("deleted = %d, want 2", ap.Deleted)
+	}
+	if len(env.core.deletedTenants) != 2 {
+		t.Fatalf("expected 2 deletes, got %v", env.core.deletedTenants)
+	}
+	for _, id := range env.core.deletedTenants {
+		if id == "real-co" {
+			t.Errorf("real-co (not is_demo) must never be deleted")
+		}
+	}
+
+	// EXACTLY ONE admin.recovery.reap_demo apply audit event was written.
+	applyAudits := 0
+	for _, e := range env.core.recoveryAudits() {
+		if e.EventType == "admin.recovery.reap_demo" {
+			// apply audit has outcome "applied"
+			if details, ok := e.Payload["outcome"].(string); ok && details == "applied" {
+				applyAudits++
+				if e.EntityID != "recovery:"+usecases.RecoveryAuditTenant {
+					t.Errorf("reap_demo audit entity_id = %s, want recovery:%s", e.EntityID, usecases.RecoveryAuditTenant)
+				}
+			}
+		}
+	}
+	if applyAudits != 1 {
+		t.Fatalf("expected exactly 1 admin.recovery.reap_demo apply audit, got %d (before=%d afterDryRun=%d)", applyAudits, beforeAudits, auditsAfterDryRun)
 	}
 }
 

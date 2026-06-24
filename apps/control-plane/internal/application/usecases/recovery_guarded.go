@@ -328,11 +328,12 @@ func normalizeDunningStatus(s string) string {
 }
 
 // isTokenGated reports whether an action's apply requires an echoed confirm_token
-// minted by a prior dry-run (rotate_keys, batch). reprovision/restore use
-// typed-name confirm_tenant_id instead, so they are NOT token-gated here.
+// minted by a prior dry-run (rotate_keys, batch, reap_demo — the cohort/destructive
+// actions). reprovision/restore use typed-name confirm_tenant_id instead, so they
+// are NOT token-gated here.
 func isTokenGated(action string) bool {
 	switch action {
-	case "rotate_keys", "batch":
+	case "rotate_keys", "batch", "reap_demo":
 		return true
 	default:
 		return false

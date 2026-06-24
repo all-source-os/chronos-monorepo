@@ -178,6 +178,46 @@ func (h *RecoveryHandler) Batch(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+// ReapDemo handles POST /api/v1/admin/tenants/reap-demo (cohort, token-gated).
+// It finds the tenants Core flagged is_demo and deletes them, applying the same
+// recovery guard discipline as Batch: ?dry_run=true (or "dry_run":true in the
+// body) lists the matched demo tenants + count and mutates nothing, returning a
+// confirm_token; apply requires that echoed token. This is the cleanup half of
+// the demo-litter gap (the prevention half is the DEMO_ENABLED gate on
+// DemoStartHandler). Lives under /api/v1/admin so it inherits AdminAuthMiddleware.
+func (h *RecoveryHandler) ReapDemo(c *gin.Context) {
+	var body struct {
+		DryRun       bool   `json:"dry_run"`
+		Reason       string `json:"reason"`
+		ConfirmToken string `json:"confirm_token"`
+	}
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	// ?dry_run=true on the query string forces a dry-run even with an empty body
+	// (matches the recovery convention so a raw curl previews before deleting).
+	if c.Query("dry_run") == "true" {
+		body.DryRun = true
+	}
+
+	req := usecases.RecoveryRequest{
+		DryRun:       body.DryRun,
+		Reason:       body.Reason,
+		ConfirmToken: body.ConfirmToken,
+		Actor:        adminActor(c),
+	}
+
+	res, err := h.recoveryUC.ReapDemo(c.Request.Context(), req)
+	if err != nil {
+		h.handleRecoveryError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
 // handleRecoveryError maps guard / domain errors to HTTP status codes.
 func (h *RecoveryHandler) handleRecoveryError(c *gin.Context, err error) {
 	switch {

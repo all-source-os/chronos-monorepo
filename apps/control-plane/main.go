@@ -636,6 +636,12 @@ func (cp *ControlPlane) setupRoutes() {
 	admin.PUT("/tenants/:id/quotas", cp.container.AdminTenantHandler.UpdateQuotas)
 	admin.POST("/tenants/:id/suspend", cp.container.AdminTenantHandler.SuspendTenant)
 	admin.POST("/tenants/:id/unsuspend", cp.container.AdminTenantHandler.UnsuspendTenant)
+	// Reap demo-litter: delete the tenants Core flagged is_demo (the side-effect
+	// of the old status probe). Cohort, token-gated — ?dry_run=true previews the
+	// matched list + count + a confirm_token; apply requires the echoed token.
+	// Reuses the recovery guard + audit machinery (admin.recovery.reap_demo). The
+	// prevention half is the DEMO_ENABLED gate on DemoStartHandler.
+	admin.POST("/tenants/reap-demo", cp.container.RecoveryHandler.ReapDemo)
 
 	// Fleet health (read) — the cross-tenant rollup + per-tenant assessment.
 	// The health model lives once here; the admin UI (P2) and Elixir MCP (P3)

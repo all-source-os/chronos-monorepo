@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -15,6 +16,25 @@ import (
 	"github.com/allsource/control-plane/internal/domain"
 	"github.com/allsource/control-plane/internal/domain/entities"
 )
+
+// demoEnabled reports whether demo-account provisioning is turned on. It gates
+// DemoStartHandler, which CREATES A TENANT on every call. Default OFF: with
+// DEMO_ENABLED unset/false the endpoint mints nothing and returns 403, so a
+// stray liveness/status probe can never litter /tenants with "Demo User"
+// tenants again (the gap-1 recurrence guard — DEMO_ENABLED must be explicitly
+// set to enable the demo flow). Accepts true/1/yes (case-insensitive).
+//
+// LIVENESS/STATUS PROBES MUST NEVER CALL /api/v1/demo/* — minting a tenant from
+// a health check is a defect (see TestNoStatusPathReferencesDemo). Demo
+// provisioning is an opt-in, never an ambient side effect.
+func demoEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("DEMO_ENABLED"))) {
+	case "true", "1", "yes":
+		return true
+	default:
+		return false
+	}
+}
 
 // OnboardRequest represents a request to start onboarding.
 type OnboardRequest struct {
@@ -105,8 +125,24 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 // Generates demo credentials, registers them via Core auth, creates a demo tenant,
 // seeds sample data, and returns the email + password for the user to log in normally.
 //
+// THIS HANDLER CREATES A TENANT ON EVERY CALL. It is gated behind DEMO_ENABLED
+// (default OFF) so a stray status/liveness probe can never mint a "Demo User"
+// tenant — the gap-1 demo-litter recurrence guard. A liveness/status probe must
+// NEVER reference /api/v1/demo/* (enforced by TestNoStatusPathReferencesDemo).
+// To clean up demo tenants already created, use POST /api/v1/admin/tenants/reap-demo.
+//
 // POST /api/v1/demo/start
 func (cp *ControlPlane) DemoStartHandler(c *gin.Context) {
+	// Gate: demo provisioning is opt-in. With DEMO_ENABLED unset/false the
+	// endpoint creates nothing and returns 403 — no tenant, no events, no litter.
+	if !demoEnabled() {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "demo_disabled",
+			"message": "demo provisioning is disabled (set DEMO_ENABLED=true to enable)",
+		})
+		return
+	}
+
 	// Generate unique demo credentials
 	demoSlug := uuid.New().String()[:8]
 	email := fmt.Sprintf("demo-%s@demo.allsource.dev", demoSlug)
