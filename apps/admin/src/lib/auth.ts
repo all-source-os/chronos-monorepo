@@ -71,22 +71,27 @@ export async function validateAdminToken(
 ): Promise<{ valid: true; user: AdminUser } | { valid: false; error: string }> {
   // Server-side call → use the runtime Control Plane URL (CONTROL_PLANE_INTERNAL_URL),
   // NOT the build-inlined NEXT_PUBLIC_API_URL which can resolve to the localhost
-  // fallback inside a Vercel server function and make this fetch throw (→ auth_failed).
-  const meUrl = `${getControlPlaneUrl()}/api/auth/me`;
+  // fallback inside a Vercel server function and make this fetch throw.
+  //
+  // The Control Plane validates a Bearer token and returns the caller via
+  // GET /api/v1/auth/session (SessionHandler). NOTE: /api/auth/me is served by the
+  // Query Service, NOT the CP — calling it on the CP 404s and yields invalid_token.
+  const sessionUrl = `${getControlPlaneUrl()}/api/v1/auth/session`;
   try {
-    const meResponse = await fetch(meUrl, {
+    const meResponse = await fetch(sessionUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!meResponse.ok) {
       console.error(
-        `[admin-auth] /api/auth/me -> ${meResponse.status} (url: ${meUrl})`
+        `[admin-auth] /api/v1/auth/session -> ${meResponse.status} (url: ${sessionUrl})`
       );
       return { valid: false, error: "invalid_token" };
     }
 
     const data = await meResponse.json();
-    const user = data.data?.user || data.data;
+    // SessionHandler returns { user: {...}, tenant_id, core_api_key }.
+    const user = data.user || data.data?.user || data.data;
 
     if (!user) {
       console.error("[admin-auth] /api/auth/me ok but no user in payload");
