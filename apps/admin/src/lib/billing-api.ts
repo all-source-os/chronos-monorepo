@@ -76,6 +76,22 @@ export interface DunningEntry {
 // Revenue API
 // ---------------------------------------------------------------------------
 
+/**
+ * Coerce a possibly-wrapped API response into an array (see security-api). The
+ * Control Plane wraps list responses inconsistently; a non-array makes the page's
+ * `.map` crash the whole route. Always resolve to an array.
+ */
+function asList<T>(data: unknown, ...keys: string[]): T[] {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object") {
+    for (const k of [...keys, "items", "data"]) {
+      const v = (data as Record<string, unknown>)[k];
+      if (Array.isArray(v)) return v as T[];
+    }
+  }
+  return [];
+}
+
 export async function fetchRevenue(range: RevenueRange): Promise<RevenueSummary> {
   const res = await fetch(
     `${getApiUrl()}/api/v1/admin/billing/revenue?range=${range}`,
@@ -108,7 +124,8 @@ export async function fetchInvoices(params: {
   if (!res.ok) {
     throw new Error(`Failed to fetch invoices: ${res.status}`);
   }
-  return res.json();
+  const data = (await res.json()) ?? {};
+  return { ...data, invoices: asList<Invoice>(data, "invoices") };
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +156,7 @@ export async function fetchDunning(): Promise<DunningEntry[]> {
     throw new Error(`Failed to fetch dunning entries: ${res.status}`);
   }
   const data = await res.json();
-  return data.entries || data;
+  return asList<DunningEntry>(data, "entries");
 }
 
 // ---------------------------------------------------------------------------

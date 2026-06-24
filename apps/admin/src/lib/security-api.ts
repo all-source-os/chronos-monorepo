@@ -17,6 +17,23 @@ function getApiUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
 }
 
+/**
+ * Coerce a possibly-wrapped API response into an array. The Control Plane wraps
+ * list responses inconsistently ({rules:[...]}, {items:[...]}, or a bare array);
+ * returning a non-array makes a page's `.map` throw and crash the whole route
+ * ("x.map is not a function"). Always resolve to an array.
+ */
+function asList<T>(data: unknown, ...keys: string[]): T[] {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object") {
+    for (const k of [...keys, "items", "data"]) {
+      const v = (data as Record<string, unknown>)[k];
+      if (Array.isArray(v)) return v as T[];
+    }
+  }
+  return [];
+}
+
 // --- IP Rules ---
 
 export interface IpRule {
@@ -35,7 +52,7 @@ export async function fetchIpRules(): Promise<IpRule[]> {
     throw new Error(`Failed to fetch IP rules: ${res.status}`);
   }
   const data = await res.json();
-  return data.rules || data;
+  return asList<IpRule>(data, "rules", "ip_rules");
 }
 
 export async function createIpRule(rule: {
@@ -106,7 +123,8 @@ export async function fetchTokenAudit(params: {
   if (!res.ok) {
     throw new Error(`Failed to fetch token audit: ${res.status}`);
   }
-  return res.json();
+  const data = (await res.json()) ?? {};
+  return { ...data, entries: asList<TokenAuditEntry>(data, "entries") };
 }
 
 export interface TokenAuditSummaryEntry {
@@ -126,7 +144,7 @@ export async function fetchTokenAuditSummary(): Promise<
     throw new Error(`Failed to fetch token audit summary: ${res.status}`);
   }
   const data = await res.json();
-  return data.summary || data;
+  return asList<TokenAuditSummaryEntry>(data, "summary");
 }
 
 // --- RBAC Policies ---
@@ -147,5 +165,8 @@ export async function fetchPolicies(): Promise<RbacPolicy[]> {
     throw new Error(`Failed to fetch policies: ${res.status}`);
   }
   const data = await res.json();
-  return data.policies || data;
+  return asList<RbacPolicy>(data, "policies").map((p) => ({
+    ...p,
+    permissions: Array.isArray(p.permissions) ? p.permissions : [],
+  }));
 }
