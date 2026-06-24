@@ -119,7 +119,7 @@ export async function validateAdminToken(
     };
   } catch (err) {
     console.error(
-      `[admin-auth] validateAdminToken threw (url: ${meUrl}):`,
+      `[admin-auth] validateAdminToken threw (url: ${sessionUrl}):`,
       err instanceof Error ? err.message : err
     );
     return { valid: false, error: "auth_failed" };
