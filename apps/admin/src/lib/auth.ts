@@ -29,6 +29,19 @@ export interface JwtPayload {
  * Signature verification is handled by the Control Plane /api/auth/me endpoint.
  * This only extracts claims for client-side role checks.
  */
+// Edge-safe base64url decode. decodeJwt runs inside the Next.js middleware
+// (proxy.ts, Edge runtime) where Node's `Buffer` is NOT available — using Buffer
+// there threw and crashed the middleware for every authenticated request once a
+// token cookie was present (the post-login "This page couldn't load"). atob +
+// TextDecoder work in Edge, Node, and the browser.
+function base64UrlDecode(input: string): string {
+  const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), "=");
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 export function decodeJwt(token: string): JwtPayload | null {
   try {
     const parts = token.split(".");
@@ -36,9 +49,7 @@ export function decodeJwt(token: string): JwtPayload | null {
 
     const payloadPart = parts[1];
     if (!payloadPart) return null;
-    const payload = JSON.parse(
-      Buffer.from(payloadPart, "base64url").toString("utf-8")
-    );
+    const payload = JSON.parse(base64UrlDecode(payloadPart));
 
     // Check expiration
     if (payload.exp && payload.exp * 1000 < Date.now()) {
