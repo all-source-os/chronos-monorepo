@@ -292,15 +292,15 @@ export default function TenantDetailPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-lg border p-4 space-y-1" data-testid="stat-events-ingested">
               <p className="text-sm text-muted-foreground">Events Ingested</p>
-              <p className="text-2xl font-bold tabular-nums">{usage.events_ingested.toLocaleString()}</p>
+              <p className="text-2xl font-bold tabular-nums">{(usage.events_ingested ?? 0).toLocaleString()}</p>
             </div>
             <div className="rounded-lg border p-4 space-y-1" data-testid="stat-queries-run">
               <p className="text-sm text-muted-foreground">Queries Run</p>
-              <p className="text-2xl font-bold tabular-nums">{usage.queries_run.toLocaleString()}</p>
+              <p className="text-2xl font-bold tabular-nums">{(usage.queries_run ?? 0).toLocaleString()}</p>
             </div>
             <div className="rounded-lg border p-4 space-y-1" data-testid="stat-storage-used">
               <p className="text-sm text-muted-foreground">Storage Used</p>
-              <p className="text-2xl font-bold tabular-nums">{usage.storage_used_mb.toLocaleString()} MB</p>
+              <p className="text-2xl font-bold tabular-nums">{(usage.storage_used_mb ?? 0).toLocaleString()} MB</p>
             </div>
           </div>
 

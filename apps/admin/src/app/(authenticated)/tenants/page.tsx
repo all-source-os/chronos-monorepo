@@ -252,10 +252,10 @@ export default function TenantsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {tenant.events_count.toLocaleString()}
+                        {(tenant.events_count ?? 0).toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        {tenant.members_count}
+                        {tenant.members_count ?? 0}
                       </TableCell>
                       <TableCell>{formatDate(tenant.created_at)}</TableCell>
                     </TableRow>

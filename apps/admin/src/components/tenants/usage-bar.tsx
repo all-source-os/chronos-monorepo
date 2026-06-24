@@ -10,7 +10,11 @@ interface UsageBarProps {
   testId?: string;
 }
 
-export function UsageBar({ label, current, limit, unit = "", testId }: UsageBarProps) {
+export function UsageBar({ label, current: currentProp, limit: limitProp, unit = "", testId }: UsageBarProps) {
+  // API values can be undefined at runtime despite the number types — guard so a
+  // missing quota figure never crashes the render (.toLocaleString on undefined).
+  const current = currentProp ?? 0;
+  const limit = limitProp ?? 0;
   const pct = limit > 0 ? Math.min((current / limit) * 100, 100) : 0;
   const status = pct >= 90 ? "critical" : pct >= 70 ? "warning" : "healthy";
 
