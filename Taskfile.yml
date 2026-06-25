@@ -44,3 +44,45 @@ tasks:
           -H "Authorization: Bearer ${TOKEN}" \
           -H 'Content-Type: application/json' \
           -d "{\"tenant_id\":\"{{.TENANT}}\",\"dry_run\":{{.DRY}}}" | jq .
+
+  reap-demo:
+    desc: >-
+      Reap the is_demo "Demo User" tenants (status-monitor litter, now that the
+      DEMO_ENABLED gate stops new ones) via the Control Plane admin reap-demo
+      endpoint. Mints a 1h admin JWT from the fleet JWT_SECRET (same as
+      backfill-usage). DRY=true (default) lists matched + count only; DRY=false
+      dry-runs then applies with the echoed confirm_token. Blast-radius cap is 100
+      per run; rerun for larger backlogs. Vars: DRY, EMAIL, QS_APP, CP_URL.
+    silent: true
+    cmds:
+      - |
+        set -eu
+        echo ">> minting 1h admin token from {{.QS_APP}} JWT_SECRET..."
+        RAW=$(fly ssh console -a "{{.QS_APP}}" -C 'sh -c "printf __S__; printenv JWT_SECRET; printf __E__"' 2>/dev/null || true)
+        SECRET="${RAW##*__S__}"; SECRET="${SECRET%%__E__*}"
+        SECRET=$(printf '%s' "$SECRET" | tr -d '\r\n')
+        if [ -z "$SECRET" ] || [ "$SECRET" = "$RAW" ]; then
+          echo "!! could not read JWT_SECRET from {{.QS_APP}} (fly ssh failed). First lines of raw output:"
+          printf '%s\n' "$RAW" | head -3; exit 1
+        fi
+        now=$(date +%s); exp=$((now + 3600))
+        b64() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+        hdr=$(printf '%s' '{"alg":"HS256","typ":"JWT"}' | b64)
+        pl=$(printf '%s' "{\"sub\":\"owner-reap-demo\",\"email\":\"{{.EMAIL}}\",\"role\":\"admin\",\"iss\":\"allsource\",\"iat\":${now},\"exp\":${exp}}" | b64)
+        sig=$(printf '%s' "${hdr}.${pl}" | openssl dgst -sha256 -hmac "$SECRET" -binary | b64)
+        TOKEN="${hdr}.${pl}.${sig}"
+        echo ">> POST {{.CP_URL}}/api/v1/admin/tenants/reap-demo?dry_run=true"
+        DRYJSON=$(curl -sS -X POST "{{.CP_URL}}/api/v1/admin/tenants/reap-demo?dry_run=true" -H "Authorization: Bearer ${TOKEN}")
+        echo "$DRYJSON" | jq .
+        COUNT=$(printf '%s' "$DRYJSON" | jq -r '.matched_total // 0')
+        TOK=$(printf '%s' "$DRYJSON" | jq -r '.confirm_token // ""')
+        if [ "{{.DRY}}" = "true" ]; then
+          echo ">> DRY=true — ${COUNT} demo tenant(s) matched, nothing deleted. Run 'task reap-demo DRY=false' to apply."
+          exit 0
+        fi
+        if [ "${COUNT}" = "0" ] || [ -z "${TOK}" ]; then echo ">> nothing to reap."; exit 0; fi
+        echo ">> applying: deleting ${COUNT} demo tenant(s) (echoing confirm_token)..."
+        curl -sS -X POST "{{.CP_URL}}/api/v1/admin/tenants/reap-demo" \
+          -H "Authorization: Bearer ${TOKEN}" \
+          -H 'Content-Type: application/json' \
+          -d "{\"confirm_token\":\"${TOK}\"}" | jq .
