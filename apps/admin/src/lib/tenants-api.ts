@@ -14,7 +14,16 @@ function getApiUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
 }
 
-export type TenantPlan = "free" | "starter" | "pro" | "enterprise";
+// Canonical subscription tiers (Control Plane authority — subscription.go).
+// The CP filters the tenant list by exact case-insensitive match against these
+// stored tier strings, so the admin filter MUST use the same names. The retired
+// 010 aliases (starter/pro/growth/team) match nothing and are gone.
+export type TenantPlan =
+  | "free"
+  | "indie"
+  | "studio"
+  | "scale"
+  | "enterprise";
 export type TenantStatus = "active" | "suspended" | "archived";
 
 export interface Tenant {
@@ -22,8 +31,12 @@ export interface Tenant {
   name: string;
   plan: TenantPlan;
   status: TenantStatus;
-  events_count: number;
-  members_count: number;
+  // Per-tenant counts emitted by the CP list/detail DTOs under the SINGULAR
+  // canonical field names `event_count` / `member_count` (prompt 033). The
+  // earlier plural `events_count`/`members_count` never deserialized and always
+  // rendered 0. Optional + guarded with `?? 0` at every render site (§6).
+  event_count?: number;
+  member_count?: number;
   created_at: string;
 }
 

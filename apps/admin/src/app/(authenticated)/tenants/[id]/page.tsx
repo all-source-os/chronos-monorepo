@@ -245,7 +245,9 @@ export default function TenantDetailPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Members</span>
-              <span className="text-sm">{tenant.members_count}</span>
+              <span className="text-sm">
+                {tenant.member_count ?? tenant.members.length ?? 0}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Created</span>

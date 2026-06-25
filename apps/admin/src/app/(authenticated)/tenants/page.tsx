@@ -27,12 +27,24 @@ import {
   type TenantPlan,
   type TenantStatus,
 } from "@/lib/tenants-api";
+import { fetchCatalog } from "@/lib/billing-api";
 
-const PLAN_OPTIONS: { value: TenantPlan | ""; label: string }[] = [
+type PlanOption = { value: TenantPlan | ""; label: string };
+
+const titleCase = (s: string) =>
+  s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+// Canonical fallback tiers (subscription.go authority). The live options are
+// driven from GET /api/v1/billing/catalog (the paid tiers) bracketed by the
+// static free/enterprise ends, so the filter can never drift from the catalog
+// again (gap #4). This static list is the fallback when the catalog is
+// unreachable and matches the canonical tiers exactly.
+const FALLBACK_PLAN_OPTIONS: PlanOption[] = [
   { value: "", label: "All Plans" },
   { value: "free", label: "Free" },
-  { value: "starter", label: "Starter" },
-  { value: "pro", label: "Pro" },
+  { value: "indie", label: "Indie" },
+  { value: "studio", label: "Studio" },
+  { value: "scale", label: "Scale" },
   { value: "enterprise", label: "Enterprise" },
 ];
 
@@ -77,6 +89,8 @@ export default function TenantsPage() {
 
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState<TenantPlan | "">("");
+  const [planOptions, setPlanOptions] =
+    useState<PlanOption[]>(FALLBACK_PLAN_OPTIONS);
   const [statusFilter, setStatusFilter] = useState<TenantStatus | "">("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
@@ -106,6 +120,41 @@ export default function TenantsPage() {
     },
     []
   );
+
+  // Drive the plan filter options from the billing catalog so they can't drift
+  // from the canonical tiers (gap #4). Bracket the catalog's paid tiers with the
+  // static free/enterprise ends. On any failure, keep the canonical fallback.
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalog()
+      .then((tiers) => {
+        if (cancelled) return;
+        const paid = tiers
+          .map((t) => t.tier)
+          .filter(
+            (t): t is string =>
+              typeof t === "string" &&
+              t.length > 0 &&
+              t !== "free" &&
+              t !== "enterprise"
+          );
+        if (paid.length === 0) return; // empty/odd catalog → keep fallback
+        setPlanOptions([
+          { value: "", label: "All Plans" },
+          { value: "free", label: "Free" },
+          ...paid.map(
+            (t) => ({ value: t as TenantPlan, label: titleCase(t) })
+          ),
+          { value: "enterprise", label: "Enterprise" },
+        ]);
+      })
+      .catch((err) => {
+        console.error("Failed to load billing catalog for plan filter:", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Load on mount and when filters/pagination change (not search — that's debounced)
   useEffect(() => {
@@ -182,7 +231,7 @@ export default function TenantsPage() {
               className="w-full sm:w-40"
               data-testid="tenants-plan-filter"
             >
-              {PLAN_OPTIONS.map((opt) => (
+              {planOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
@@ -252,10 +301,10 @@ export default function TenantsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {(tenant.events_count ?? 0).toLocaleString()}
+                        {(tenant.event_count ?? 0).toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        {tenant.members_count ?? 0}
+                        {tenant.member_count ?? 0}
                       </TableCell>
                       <TableCell>{formatDate(tenant.created_at)}</TableCell>
                     </TableRow>

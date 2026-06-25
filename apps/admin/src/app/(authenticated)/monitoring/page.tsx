@@ -216,11 +216,11 @@ export default function MonitoringPage() {
         <StatCard
           title="Events/sec"
           value={
-            summary ? summary.events_per_second.toLocaleString(undefined, { maximumFractionDigits: 1 }) : "--"
+            summary ? (summary.events_per_second ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 }) : "--"
           }
           subtitle={
             summary
-              ? `${summary.events_total.toLocaleString()} total events`
+              ? `${(summary.events_total ?? 0).toLocaleString()} total events`
               : undefined
           }
           icon={Zap}
@@ -228,7 +228,7 @@ export default function MonitoringPage() {
         />
         <StatCard
           title="Latency p99"
-          value={summary ? `${summary.query_latency_p99_ms.toFixed(1)}ms` : "--"}
+          value={summary ? `${(summary.query_latency_p99_ms ?? 0).toFixed(1)}ms` : "--"}
           icon={Gauge}
           status={latencyStatus}
         />
@@ -236,7 +236,7 @@ export default function MonitoringPage() {
           title="Error Rate"
           value={
             summary
-              ? `${summary.error_rate_percent.toFixed(2)}%`
+              ? `${(summary.error_rate_percent ?? 0).toFixed(2)}%`
               : "--"
           }
           icon={AlertTriangle}
@@ -244,7 +244,7 @@ export default function MonitoringPage() {
         />
         <StatCard
           title="Active Tenants"
-          value={summary ? summary.active_tenants.toLocaleString() : "--"}
+          value={summary ? (summary.active_tenants ?? 0).toLocaleString() : "--"}
           icon={Users}
           status="healthy"
         />

@@ -160,6 +160,38 @@ export async function fetchDunning(): Promise<DunningEntry[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Catalog API (drives the tenants plan filter so it can't drift — gap #4)
+// ---------------------------------------------------------------------------
+
+export interface CatalogTier {
+  // The canonical tier id (e.g. "indie"). Matches subscription.go and the value
+  // the tenant-list `plan=` filter compares against.
+  tier: string;
+  name?: string;
+  monthly_price?: number;
+  annual_price?: number;
+}
+
+/**
+ * Fetch the billing catalog (canonical PAID tiers) from the Control Plane,
+ * same-origin via the BFF. The `/billing/catalog` endpoint returns the
+ * configured paid tiers (indie/studio/scale); the admin plan filter brackets
+ * these with the static `free`/`enterprise` ends so it can never drift from the
+ * catalog again. Always returns an array via asList; on any failure the caller
+ * falls back to the canonical static list.
+ */
+export async function fetchCatalog(): Promise<CatalogTier[]> {
+  const res = await fetch(`${getApiUrl()}/api/v1/billing/catalog`, {
+    credentials: "include",
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch catalog: ${res.status}`);
+  }
+  const data = await res.json();
+  return asList<CatalogTier>(data, "tiers", "catalog", "plans");
+}
+
+// ---------------------------------------------------------------------------
 // Formatters
 // ---------------------------------------------------------------------------
 
