@@ -16,6 +16,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 
+	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
@@ -32,6 +33,16 @@ type Claims struct {
 	IsAPIKey   bool          `json:"is_api_key,omitempty"`
 	IsDemo     bool          `json:"is_demo,omitempty"`
 	CoreAPIKey string        `json:"core_api_key,omitempty"`
+	// ViewAs marks a read-only "view as tenant" impersonation token minted by
+	// SignViewAsJWT. It is the defense-in-depth marker the write-refusal
+	// middleware (ViewAsWriteRefusal) hard-rejects on any mutating method, in
+	// addition to the readonly role already blocking writes (ADMIN_TENANT_POWER_TOOL
+	// §5.2). A normal session NEVER carries this.
+	ViewAs bool `json:"view_as,omitempty"`
+	// ActAs records the real admin user id behind a view_as token so the audit
+	// trail attributes the impersonation to a human even though TenantID points at
+	// the viewed tenant. Set only on view_as tokens.
+	ActAs string `json:"act_as,omitempty"`
 	jwt.StandardClaims
 }
 
@@ -130,6 +141,42 @@ func (a *AuthClient) SignDelegationJWT(userID, tenantID string, role entities.Ro
 			IssuedAt:  now.Unix(),
 			Issuer:    "allsource",
 			Subject:   userID,
+		},
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(a.jwtSecret))
+}
+
+// SignViewAsJWT mints a read-only "view as tenant" impersonation token — a
+// deliberate sibling of SignDelegationJWT and DISTINCT from the tenant's real
+// session (ADMIN_TENANT_POWER_TOOL §5.1). The admin operator uses it to view the
+// product as a tenant sees it, for support/debugging, WITHOUT ever possessing or
+// replaying the tenant's actual credentials.
+//
+// The token is read-only BY CONSTRUCTION, on three independent layers:
+//   - role:"readonly" (entities.RoleReadOnly) — write endpoints reject it
+//     (RoleHasPermission grants readonly only Read+Metrics, never Write/Admin).
+//   - view_as:true — the ViewAsWriteRefusal middleware hard-refuses this token on
+//     ANY mutating method (POST/PUT/PATCH/DELETE), independent of role, and alarms
+//     the attempt as a Core audit event. Belt and suspenders.
+//   - act_as:adminUserID — every read is attributable to the real admin, and the
+//     token can be expired/revoked independently of the tenant's session.
+//
+// sub is the ADMIN's user id (WHO is impersonating), never the tenant's real user
+// id. tenant_id is the VIEWED tenant. TTL is usecases.ViewAsTokenTTL (15m, the
+// canonical value). The tenant's real session is untouched.
+func (a *AuthClient) SignViewAsJWT(adminUserID, targetTenantID string) (string, error) {
+	now := time.Now()
+	claims := &Claims{
+		UserID:   adminUserID,           // WHO is impersonating — never the tenant's real user id
+		TenantID: targetTenantID,        // the tenant whose data is being viewed
+		Role:     entities.RoleReadOnly, // NOT serviceaccount, NOT admin, NOT the tenant's role
+		ViewAs:   true,                  // enforced downstream by ViewAsWriteRefusal
+		ActAs:    adminUserID,           // audit trail: the real actor behind the view
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: now.Add(usecases.ViewAsTokenTTL).Unix(),
+			IssuedAt:  now.Unix(),
+			Issuer:    "allsource",
+			Subject:   adminUserID,
 		},
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(a.jwtSecret))
@@ -370,6 +417,12 @@ func AuthMiddleware(authClient *AuthClient) gin.HandlerFunc {
 		c.Set("auth_role", authCtx.Role)          // Separate key for cross-package access
 		c.Set("auth_user_id", authCtx.UserID)     // Separate key for cross-package access
 		c.Set("auth_tenant_id", authCtx.TenantID) // Separate key for cross-package access
+		// Stash the full validated claims so the ViewAsWriteRefusal middleware can
+		// read view_as/act_as without re-parsing the token (AuthContext deliberately
+		// stays minimal). Only set for locally-validated JWTs; ask_ API keys can't
+		// carry view_as so their claims (synthesized from Core /me) are irrelevant
+		// to the refusal — but we set them anyway for uniformity.
+		c.Set("auth_claims", claims)
 		// Also set the short "tenant_id" key the x402 middleware chain
 		// (middleware.go, quota_gate.go, autopay.go) reads from. Without
 		// this, every x402 path sees an empty tenant_id and the tier gate

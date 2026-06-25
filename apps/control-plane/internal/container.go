@@ -149,6 +149,13 @@ type Container struct {
 	// Use Cases — Proactive comms (ADMIN_TENANT_POWER_TOOL §4 Pillar C / Phase 6)
 	CommsUC *usecases.CommsUseCase
 
+	// Use Cases — Read-only view-as impersonation (ADMIN_TENANT_POWER_TOOL §5 / Phase 7)
+	ViewAsUC *usecases.ViewAsUseCase
+	// ViewAsAuditor is exposed so the global ViewAsWriteRefusal middleware can
+	// record the write-attempt alarm (admin.viewas.write_refused) via its
+	// RecordWriteRefused method value.
+	ViewAsAuditor *usecases.ViewAsAuditor
+
 	// Use Cases — Agent Registration
 	RegisterAgentUC       *usecases.RegisterAgentUseCase
 	RegisterTrialAgentUC  *usecases.RegisterTrialAgentUseCase
@@ -193,6 +200,7 @@ type Container struct {
 	FleetHealthHandler           *httphandlers.FleetHealthHandler
 	RecoveryHandler              *httphandlers.RecoveryHandler
 	CommsHandler                 *httphandlers.CommsHandler
+	ViewAsHandler                *httphandlers.ViewAsHandler
 	MetricsHandler               *httphandlers.MetricsHandler
 
 	// Use Cases — Metrics passthrough (ADMIN_TENANT_POWER_TOOL §3 Gap 2)
@@ -230,6 +238,11 @@ type ContainerConfig struct {
 	// MetricsHTTPClient is the pooled HTTP client the passthrough uses. nil ⇒
 	// http.DefaultClient (tests rely on the default; prod injects the pooled one).
 	MetricsHTTPClient *http.Client
+	// ViewAsSigner mints the read-only "view as tenant" impersonation token
+	// (ADMIN_TENANT_POWER_TOOL §5). Satisfied by AuthClient.SignViewAsJWT —
+	// injected so the signing key stays in AuthClient. nil ⇒ the view-as mint
+	// reports a 503 (the CP cannot impersonate without a signer).
+	ViewAsSigner usecases.ViewAsSignerFunc
 }
 
 // CoreWalletLookup implements x402.WalletLookup using Core's config store.
@@ -479,6 +492,19 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		JWTSecret:   cfg.JWTSecret,
 	})
 
+	// Initialize use case — Read-only view-as impersonation (ADMIN_TENANT_POWER_TOOL
+	// §5 / Phase 7 CP half). The signer (AuthClient.SignViewAsJWT) is injected so the
+	// signing key stays in AuthClient; the auditor reuses the EXISTING IngestEvent
+	// pattern to write admin.viewas.{started,stopped,write_refused} under the
+	// admin-viewas system tenant — no new DB. CoreClient/Signer may be nil in tests
+	// (audit becomes a no-op; mint reports 503).
+	viewAsAuditor := usecases.NewViewAsAuditor(cfg.CoreClient)
+	viewAsUC := usecases.NewViewAsUseCase(usecases.ViewAsDeps{
+		TenantRepo: tenantRepo,
+		Signer:     cfg.ViewAsSigner,
+		Auditor:    viewAsAuditor,
+	})
+
 	// Initialize scheduler
 	scheduler := usecases.NewOperationScheduler(operationRepo, auditRepo, cfg.CoreClient)
 	if reportUsageUC != nil {
@@ -564,6 +590,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	fleetHealthHandler := httphandlers.NewFleetHealthHandler(fleetHealthUC)
 	recoveryHandler := httphandlers.NewRecoveryHandler(recoveryUC)
 	commsHandler := httphandlers.NewCommsHandler(commsUC)
+	viewAsHandler := httphandlers.NewViewAsHandler(viewAsUC)
 
 	// Metrics passthrough (ADMIN_TENANT_POWER_TOOL §3 Gap 2). Re-fetches the QS
 	// metrics/cluster endpoints with the CP's own service credential so the admin
@@ -640,6 +667,8 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		FleetHealthUC:                fleetHealthUC,
 		RecoveryUC:                   recoveryUC,
 		CommsUC:                      commsUC,
+		ViewAsUC:                     viewAsUC,
+		ViewAsAuditor:                viewAsAuditor,
 		Scheduler:                    scheduler,
 		WalletLookup:                 &CoreWalletLookup{coreClient: cfg.CoreClient},
 		CDPClient:                    cfg.CDPClient,
@@ -672,6 +701,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		FleetHealthHandler:           fleetHealthHandler,
 		RecoveryHandler:              recoveryHandler,
 		CommsHandler:                 commsHandler,
+		ViewAsHandler:                viewAsHandler,
 		MetricsHandler:               metricsHandler,
 		MetricsPassthroughUC:         metricsPassthroughUC,
 		VerifyBillingConfigUC:        verifyBillingConfigUC,

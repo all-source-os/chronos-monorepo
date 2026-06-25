@@ -246,6 +246,11 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		// client reuses connections to the QS.
 		ServiceToken:      serviceToken,
 		MetricsHTTPClient: NewPooledHTTPClient(),
+		// Read-only view-as impersonation (ADMIN_TENANT_POWER_TOOL §5 / Phase 7).
+		// The signer mints a DISTINCT readonly+view_as ~15m token off AuthClient —
+		// the signing key never leaves AuthClient (we pass the method value, not
+		// the secret).
+		ViewAsSigner: authClient.SignViewAsJWT,
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
 
@@ -417,6 +422,20 @@ func (cp *ControlPlane) setupMiddleware() {
 
 	// Auth middleware (applied globally, skips /health and /metrics)
 	cp.router.Use(AuthMiddleware(cp.authClient))
+
+	// View-as write-refusal (ADMIN_TENANT_POWER_TOOL §5.2 layer 2). Runs DIRECTLY
+	// after AuthMiddleware (which stashes the validated claims under "auth_claims")
+	// so it covers the entire data-plane surface a read-only view_as token could be
+	// presented to: any view_as token on a mutating method (POST/PUT/PATCH/DELETE)
+	// is hard-refused with 403 AND alarmed as a durable Core event
+	// (admin.viewas.write_refused), independent of the role already blocking writes.
+	// The alarm is the auditor's RecordWriteRefused method value, so this stays a
+	// no-op when Core is absent.
+	var viewAsAlarm viewAsAlarmFunc
+	if cp.container != nil && cp.container.ViewAsAuditor != nil {
+		viewAsAlarm = cp.container.ViewAsAuditor.RecordWriteRefused
+	}
+	cp.router.Use(ViewAsWriteRefusal(viewAsAlarm))
 
 	// Policy middleware (after auth, uses auth context)
 	cp.router.Use(PolicyMiddleware(cp.policyEngine, cp.auditLogger))
@@ -707,6 +726,18 @@ func (cp *ControlPlane) setupRoutes() {
 	admin.POST("/messages", cp.container.CommsHandler.SendMessage)
 	admin.POST("/tenants/:id/notes", cp.container.CommsHandler.AddNote)
 	admin.GET("/tenants/:id/notes", cp.container.CommsHandler.ListNotes)
+
+	// Read-only "view as tenant" impersonation (ADMIN_TENANT_POWER_TOOL §5 / Phase 7
+	// CP half). Inside the /api/v1/admin group → inherit AdminAuthMiddleware (admin
+	// role, no new auth). The mint returns a token DISTINCT from the tenant's real
+	// session (role:readonly, view_as:true, ~15m TTL) and writes admin.viewas.started
+	// BEFORE returning it; /view-as/stop writes the paired admin.viewas.stopped on the
+	// operator's Exit (the admin frame, prompt 041, calls both). Read-only is enforced
+	// THREE ways: the readonly role, the global ViewAsWriteRefusal middleware (refuses
+	// any view_as token on a mutating method + alarms admin.viewas.write_refused), and
+	// the surface. NEVER touches the tenant's real session.
+	admin.POST("/tenants/:id/view-as", cp.container.ViewAsHandler.Start)
+	admin.POST("/tenants/:id/view-as/stop", cp.container.ViewAsHandler.Stop)
 
 	// Platform metrics + cluster status passthrough (ADMIN_TENANT_POWER_TOOL §3
 	// Gap 2). The admin /monitoring page hits these SAME-ORIGIN via the BFF

@@ -25,6 +25,13 @@ type AdminClaims struct {
 	Provider string        `json:"provider,omitempty"`
 	IsAPIKey bool          `json:"is_api_key,omitempty"`
 	IsDemo   bool          `json:"is_demo,omitempty"`
+	// ViewAs/ActAs mirror the main Claims fields so a view_as token is fully
+	// decoded here too. A view_as token carries role:readonly, so it is ALWAYS
+	// rejected by the admin-role check below before reaching any admin handler —
+	// these fields exist for parity and defense in depth, not because an admin
+	// route ever sees a view_as token.
+	ViewAs bool   `json:"view_as,omitempty"`
+	ActAs  string `json:"act_as,omitempty"`
 	jwt.StandardClaims
 }
 
