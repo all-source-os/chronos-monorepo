@@ -16,6 +16,19 @@ type verifyMockLS struct {
 func (m *verifyMockLS) VariantMap() clients.VariantMap { return m.variants }
 func (m *verifyMockLS) GetStoreID() string             { return m.storeID }
 
+// LookupVariantID resolves tier+period against the configured variant map,
+// mirroring the real client's catalog lookup so the catalog-coverage check has a
+// faithful backing in tests. Empty period defaults to monthly.
+func (m *verifyMockLS) LookupVariantID(tier, period string) (string, error) {
+	if period == "" {
+		period = "monthly"
+	}
+	if id, ok := m.variants[tier+":"+period]; ok {
+		return id, nil
+	}
+	return "", nil
+}
+
 func fullVariants() clients.VariantMap {
 	return clients.VariantMap{
 		"indie:monthly":  "1",
@@ -83,5 +96,56 @@ func TestVerifyBillingConfig_MissingStore(t *testing.T) {
 	r := NewVerifyBillingConfigUseCase(ls, "secret").Execute()
 	if r.OK || !hasCode(r, "store_missing") {
 		t.Fatalf("expected store_missing error, got %+v", r)
+	}
+}
+
+// Gap-4 guard: a catalog tier whose LemonSqueezy variant is missing must be
+// flagged. Dropping studio:monthly leaves the catalog advertising a tier nobody
+// can buy → catalog_variant_missing (and also the existing variant_missing).
+func TestVerifyBillingConfig_CatalogTierMissingVariant(t *testing.T) {
+	v := fullVariants()
+	delete(v, "studio:monthly")
+	ls := &verifyMockLS{variants: v, storeID: "store-1"}
+	r := NewVerifyBillingConfigUseCase(ls, "abc123def456").Execute()
+	if r.OK || !hasCode(r, "catalog_variant_missing") {
+		t.Fatalf("expected catalog_variant_missing error for studio:monthly, got %+v", r)
+	}
+}
+
+// A variant keyed on a tier outside the canonical/retired set is a
+// misconfiguration (typo / drift) and must be flagged.
+func TestVerifyBillingConfig_OrphanVariantTier(t *testing.T) {
+	v := fullVariants()
+	v["enterprize:monthly"] = "999" // typo'd tier (enterprize) — not a known tier
+	ls := &verifyMockLS{variants: v, storeID: "store-1"}
+	r := NewVerifyBillingConfigUseCase(ls, "abc123def456").Execute()
+	if r.OK || !hasCode(r, "variant_unknown_tier") {
+		t.Fatalf("expected variant_unknown_tier error for enterprize, got %+v", r)
+	}
+}
+
+// A retired-but-valid tier (pro) configured with a real id must NOT be flagged
+// as unknown — old configured variants are allowed to linger.
+func TestVerifyBillingConfig_RetiredTierVariantAllowed(t *testing.T) {
+	v := fullVariants()
+	v["pro:monthly"] = "777" // retired alias, still resolvable
+	ls := &verifyMockLS{variants: v, storeID: "store-1"}
+	r := NewVerifyBillingConfigUseCase(ls, "abc123def456").Execute()
+	if hasCode(r, "variant_unknown_tier") {
+		t.Fatalf("retired tier pro should not be flagged unknown, got %+v", r)
+	}
+	if !r.OK {
+		t.Fatalf("a fully-configured catalog + a retired alias should be OK, got %+v", r)
+	}
+}
+
+// An empty variant id (present-but-blank) for a known tier must be flagged.
+func TestVerifyBillingConfig_EmptyVariantID(t *testing.T) {
+	v := fullVariants()
+	v["scale:annual"] = "" // configured but blank
+	ls := &verifyMockLS{variants: v, storeID: "store-1"}
+	r := NewVerifyBillingConfigUseCase(ls, "abc123def456").Execute()
+	if r.OK || !hasCode(r, "variant_empty_id") {
+		t.Fatalf("expected variant_empty_id error for scale:annual, got %+v", r)
 	}
 }

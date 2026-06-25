@@ -37,7 +37,20 @@ func (uc *GetAdminTenantDetailUseCase) Execute(ctx context.Context, id string) (
 	plan := extractPlanInfoFromTenant(tenant)
 	quotas := extractQuotaInfoFromTenant(tenant)
 	subscription := extractSubscriptionInfoFromTenant(tenant)
+
+	// Source real per-tenant counts from Core for the detail view (single tenant
+	// — one stats call + one config read, cheap). Fall back to the metadata
+	// mirror on any miss so a count is always a guarded number.
+	events := extractEventCount(tenant)
 	members := extractMemberCount(tenant)
+	if uc.coreClient != nil {
+		if stats, statsErr := uc.coreClient.GetTenantStats(ctx, id); statsErr == nil && stats != nil {
+			events = stats.EventCount
+		}
+		if n, ok := memberCountFromCore(ctx, uc.coreClient, id); ok {
+			members = n
+		}
+	}
 
 	return &dto.AdminTenantDetailResponse{
 		ID:           tenant.ID,
@@ -50,6 +63,7 @@ func (uc *GetAdminTenantDetailUseCase) Execute(ctx context.Context, id string) (
 		Plan:         plan,
 		Quotas:       quotas,
 		Subscription: subscription,
+		EventCount:   events,
 		MemberCount:  members,
 	}, nil
 }

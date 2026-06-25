@@ -114,7 +114,7 @@ func (h *AdminTenantHandler) ListTenants(c *gin.Context) {
 		Plan:   plan,
 	}
 
-	resp, err := h.listTenantsUC.ExecuteAdmin(req)
+	resp, err := h.listTenantsUC.ExecuteAdmin(c.Request.Context(), req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

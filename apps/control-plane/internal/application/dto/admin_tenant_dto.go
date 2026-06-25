@@ -20,8 +20,12 @@ type AdminTenantDetailResponse struct {
 	// Subscription metadata (from payment provider)
 	Subscription *SubscriptionInfo `json:"subscription,omitempty"`
 
-	// Member summary
-	MemberCount int `json:"member_count"`
+	// Usage summary — real per-tenant counts from Core metering.
+	// EventCount is the tenant's event total from GET /api/v1/tenants/{id}/stats;
+	// MemberCount is the size of the real team-members list. Both are guarded 0
+	// for a zero-usage tenant, never omitted.
+	EventCount  int64 `json:"event_count"`
+	MemberCount int   `json:"member_count"`
 }
 
 // PlanInfo holds plan-level details for a tenant.

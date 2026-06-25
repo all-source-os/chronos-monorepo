@@ -273,10 +273,12 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	sloRepo := persistence.NewMemorySLORepository()
 	ipRuleRepo := persistence.NewMemoryIPRuleRepository()
 
-	// Initialize use cases — Tenants (no coreClient needed, repo delegates directly)
+	// Initialize use cases — Tenants. listTenantsUC takes the Core client so the
+	// admin list can source REAL per-tenant event/member counts from Core metering
+	// (it is nil-safe and falls back to the metadata mirror when Core is absent).
 	createTenantUC := usecases.NewCreateTenantUseCase(tenantRepo, auditRepo)
 	getTenantUC := usecases.NewGetTenantUseCase(tenantRepo)
-	listTenantsUC := usecases.NewListTenantsUseCase(tenantRepo)
+	listTenantsUC := usecases.NewListTenantsUseCase(tenantRepo, cfg.CoreClient)
 	updateTenantUC := usecases.NewUpdateTenantUseCase(tenantRepo, auditRepo)
 	suspendTenantUC := usecases.NewSuspendTenantUseCase(tenantRepo, auditRepo)
 	activateTenantUC := usecases.NewActivateTenantUseCase(tenantRepo, auditRepo)

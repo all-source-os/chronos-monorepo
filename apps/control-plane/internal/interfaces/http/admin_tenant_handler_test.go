@@ -14,22 +14,74 @@ import (
 
 	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/domain/entities"
+	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 )
 
+// adminTenantMockCore implements the two CoreClient methods the admin tenant
+// count-enrichment touches: GetTenantStats (real event totals) and GetConfig
+// (the team-members list). The embedded interface satisfies the rest and panics
+// if an un-mocked method is called, catching accidental new dependencies.
+type adminTenantMockCore struct {
+	clients.CoreClient
+
+	statsByTenant   map[string]int64 // tenant id → event total
+	membersByTenant map[string][]any // tenant id → member list (any element shape)
+	statsErr        map[string]bool  // tenant id → force GetTenantStats error
+	configErr       map[string]bool  // tenant id → force GetConfig error
+}
+
+func newAdminTenantMockCore() *adminTenantMockCore {
+	return &adminTenantMockCore{
+		statsByTenant:   map[string]int64{},
+		membersByTenant: map[string][]any{},
+		statsErr:        map[string]bool{},
+		configErr:       map[string]bool{},
+	}
+}
+
+func (m *adminTenantMockCore) GetTenantStats(_ context.Context, tenantID string) (*clients.TenantStatsResponse, error) {
+	if m.statsErr[tenantID] {
+		return nil, fmt.Errorf("core stats unavailable for %s", tenantID)
+	}
+	return &clients.TenantStatsResponse{TenantID: tenantID, EventCount: m.statsByTenant[tenantID]}, nil
+}
+
+func (m *adminTenantMockCore) GetConfig(_ context.Context, key string) (*clients.ConfigEntryResponse, error) {
+	// key is "team:<tenantID>:members"; recover the tenant id.
+	tenantID := strings.TrimSuffix(strings.TrimPrefix(key, "team:"), ":members")
+	if m.configErr[tenantID] {
+		return nil, fmt.Errorf("core config unavailable for %s", tenantID)
+	}
+	members, ok := m.membersByTenant[tenantID]
+	if !ok {
+		return nil, nil // no member list stored → clean 0
+	}
+	return &clients.ConfigEntryResponse{Key: key, Value: members}, nil
+}
+
 func setupAdminTenantHandler(t *testing.T) (*AdminTenantHandler, *persistence.MemoryTenantRepository) {
+	t.Helper()
+	handler, repo, _ := setupAdminTenantHandlerWithCore(t, nil)
+	return handler, repo
+}
+
+// setupAdminTenantHandlerWithCore wires the handler with a (possibly nil) Core
+// client so tests can exercise both the live-stats path and the metadata
+// fallback. Passing nil reproduces production-with-Core-absent (metadata mirror).
+func setupAdminTenantHandlerWithCore(t *testing.T, core clients.CoreClient) (*AdminTenantHandler, *persistence.MemoryTenantRepository, clients.CoreClient) {
 	t.Helper()
 	repo := persistence.NewMemoryTenantRepository()
 	auditRepo := persistence.NewMemoryAuditRepository()
-	listTenantsUC := usecases.NewListTenantsUseCase(repo)
-	getDetailUC := usecases.NewGetAdminTenantDetailUseCase(repo, nil)
-	getUsageUC := usecases.NewGetTenantUsageUseCase(repo, nil)
+	listTenantsUC := usecases.NewListTenantsUseCase(repo, core)
+	getDetailUC := usecases.NewGetAdminTenantDetailUseCase(repo, core)
+	getUsageUC := usecases.NewGetTenantUsageUseCase(repo, core)
 	updateQuotasUC := usecases.NewUpdateTenantQuotasUseCase(repo, auditRepo)
 	suspendTenantUC := usecases.NewSuspendTenantUseCase(repo, auditRepo)
 	activateTenantUC := usecases.NewActivateTenantUseCase(repo, auditRepo)
 	bulkTenantUC := usecases.NewBulkTenantUseCase(repo, auditRepo)
 	handler := NewAdminTenantHandler(listTenantsUC, getDetailUC, getUsageUC, updateQuotasUC, suspendTenantUC, activateTenantUC, bulkTenantUC)
-	return handler, repo
+	return handler, repo, core
 }
 
 func seedTenants(t *testing.T, repo *persistence.MemoryTenantRepository, tenants []*entities.Tenant) {
@@ -446,6 +498,179 @@ func TestAdminGetDetail_NotFound(t *testing.T) {
 	}
 	if _, ok := resp["error"]; !ok {
 		t.Error("expected error field in 404 response")
+	}
+}
+
+// ── Real-count enrichment (Gap 3): list + detail source counts from Core ──────
+
+func TestAdminListTenants_RealCountsFromCore(t *testing.T) {
+	core := newAdminTenantMockCore()
+	// Tenant with real usage: 7777 events in Core, 3 members in the team config.
+	core.statsByTenant["t-live"] = 7777
+	core.membersByTenant["t-live"] = []any{
+		map[string]any{"email": "a@x.io"},
+		map[string]any{"email": "b@x.io"},
+		map[string]any{"email": "c@x.io"},
+	}
+	// Zero-usage tenant: no stats, no member list → must render a clean 0.
+	core.statsByTenant["t-zero"] = 0
+
+	handler, repo, _ := setupAdminTenantHandlerWithCore(t, core)
+	now := time.Now()
+	seedTenants(t, repo, []*entities.Tenant{
+		// Stale metadata mirror deliberately DISAGREES with live Core to prove
+		// the live value wins (events_used=1, member_count=1 in metadata).
+		{ID: "t-live", Name: "Live Corp", Status: entities.TenantStatusActive, CreatedAt: now, UpdatedAt: now, Metadata: map[string]interface{}{
+			"quotas":       map[string]interface{}{"events_used": float64(1)},
+			"member_count": float64(1),
+		}},
+		{ID: "t-zero", Name: "Zero Corp", Status: entities.TenantStatusActive, CreatedAt: now, UpdatedAt: now, Metadata: map[string]interface{}{}},
+	})
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants", http.NoBody)
+	handler.ListTenants(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	byID := map[string]map[string]interface{}{}
+	for _, raw := range resp["tenants"].([]interface{}) { //nolint:forcetypeassert
+		tn := raw.(map[string]interface{}) //nolint:forcetypeassert
+		byID[tn["id"].(string)] = tn       //nolint:forcetypeassert
+	}
+
+	live := byID["t-live"]
+	if live["event_count"] != float64(7777) {
+		t.Errorf("t-live event_count: want 7777 from Core stats, got %v", live["event_count"])
+	}
+	if live["member_count"] != float64(3) {
+		t.Errorf("t-live member_count: want 3 from Core members config, got %v", live["member_count"])
+	}
+
+	zero := byID["t-zero"]
+	if zero["event_count"] != float64(0) {
+		t.Errorf("t-zero event_count: want clean 0, got %v", zero["event_count"])
+	}
+	if zero["member_count"] != float64(0) {
+		t.Errorf("t-zero member_count: want clean 0, got %v", zero["member_count"])
+	}
+}
+
+func TestAdminListTenants_FallsBackToMetadataOnCoreError(t *testing.T) {
+	core := newAdminTenantMockCore()
+	core.statsErr["t-x"] = true  // Core stats down → fall back to metadata mirror
+	core.configErr["t-x"] = true // Core config down → fall back to metadata mirror
+
+	handler, repo, _ := setupAdminTenantHandlerWithCore(t, core)
+	now := time.Now()
+	seedTenants(t, repo, []*entities.Tenant{
+		{ID: "t-x", Name: "Fallback Corp", Status: entities.TenantStatusActive, CreatedAt: now, UpdatedAt: now, Metadata: map[string]interface{}{
+			"quotas":       map[string]interface{}{"events_used": float64(500)},
+			"member_count": float64(4),
+		}},
+	})
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants", http.NoBody)
+	handler.ListTenants(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	tn := resp["tenants"].([]interface{})[0].(map[string]interface{}) //nolint:forcetypeassert
+	if tn["event_count"] != float64(500) {
+		t.Errorf("event_count fallback: want 500 from metadata, got %v", tn["event_count"])
+	}
+	if tn["member_count"] != float64(4) {
+		t.Errorf("member_count fallback: want 4 from metadata, got %v", tn["member_count"])
+	}
+}
+
+func TestAdminGetDetail_RealCountsFromCore(t *testing.T) {
+	t.Setenv("DATA_PLANE_URL", "http://query:3902")
+
+	core := newAdminTenantMockCore()
+	core.statsByTenant["t-detail-live"] = 31337
+	core.membersByTenant["t-detail-live"] = []any{
+		map[string]any{"email": "x@y.io"},
+		map[string]any{"email": "z@y.io"},
+	}
+	handler, repo, _ := setupAdminTenantHandlerWithCore(t, core)
+
+	now := time.Now()
+	seedTenants(t, repo, []*entities.Tenant{
+		{ID: "t-detail-live", Name: "Detail Live", Status: entities.TenantStatusActive, CreatedAt: now, UpdatedAt: now, Metadata: map[string]interface{}{
+			// stale metadata disagrees; live Core must win
+			"quotas":       map[string]interface{}{"events_used": float64(2)},
+			"member_count": float64(99),
+		}},
+	})
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, r := gin.CreateTestContext(w)
+	r.GET("/api/v1/admin/tenants/:id", handler.GetDetail)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants/t-detail-live", http.NoBody)
+	r.ServeHTTP(w, c.Request)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp["event_count"] != float64(31337) {
+		t.Errorf("detail event_count: want 31337 from Core stats, got %v", resp["event_count"])
+	}
+	if resp["member_count"] != float64(2) {
+		t.Errorf("detail member_count: want 2 from Core members config, got %v", resp["member_count"])
+	}
+}
+
+func TestAdminGetDetail_ZeroUsageCleanZero(t *testing.T) {
+	t.Setenv("DATA_PLANE_URL", "http://query:3902")
+
+	core := newAdminTenantMockCore() // no stats, no members for this tenant
+	handler, repo, _ := setupAdminTenantHandlerWithCore(t, core)
+
+	now := time.Now()
+	seedTenants(t, repo, []*entities.Tenant{
+		{ID: "t-detail-zero", Name: "Detail Zero", Status: entities.TenantStatusActive, CreatedAt: now, UpdatedAt: now, Metadata: map[string]interface{}{}},
+	})
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, r := gin.CreateTestContext(w)
+	r.GET("/api/v1/admin/tenants/:id", handler.GetDetail)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/admin/tenants/t-detail-zero", http.NoBody)
+	r.ServeHTTP(w, c.Request)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if resp["event_count"] != float64(0) {
+		t.Errorf("zero-usage detail event_count: want 0, got %v", resp["event_count"])
+	}
+	if resp["member_count"] != float64(0) {
+		t.Errorf("zero-usage detail member_count: want 0, got %v", resp["member_count"])
 	}
 }
 

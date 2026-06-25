@@ -5,7 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
+	"strings"
 
+	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
@@ -28,6 +31,24 @@ var requiredCatalogTiers = []string{"indie", "studio", "scale"}
 
 // requiredCatalogPeriods are the billing periods every paid tier must offer.
 var requiredCatalogPeriods = []string{"monthly", "annual"}
+
+// knownTiers is the set of canonical + retired tier ids any VARIANT key is
+// allowed to reference. A variant keyed on anything else is a typo/orphan — it
+// would never resolve in a checkout and signals catalog drift. Sourced from
+// entities.subscription so this can never disagree with the tier authority.
+var knownTiers = func() map[string]bool {
+	m := map[string]bool{}
+	for _, t := range []entities.SubscriptionTier{
+		entities.TierFree, entities.TierIndie, entities.TierStudio,
+		entities.TierScale, entities.TierEnterprise,
+		// retired aliases stay valid so an old configured variant isn't flagged
+		entities.TierPro, entities.TierGrowth, entities.TierTeam, entities.TierStarter,
+	} {
+		m[string(t)] = true
+	}
+	m["developer"] = true // additional retired alias (see retiredTierMap)
+	return m
+}()
 
 // BillingConfigIssue is a single problem found while verifying billing config.
 type BillingConfigIssue struct {
@@ -95,6 +116,8 @@ func (uc *VerifyBillingConfigUseCase) Execute() BillingConfigReport {
 	// non-empty variant ID, else a paid checkout silently falls back to free.
 	variants := uc.lsClient.VariantMap()
 	report.Facts["variant_count"] = fmt.Sprintf("%d", len(variants))
+	report.Facts["variant_keys"] = strings.Join(sortedKeys(variants), ",")
+	report.Facts["catalog_tiers"] = strings.Join(catalogTiers, ",")
 	for _, tier := range requiredCatalogTiers {
 		for _, period := range requiredCatalogPeriods {
 			key := tier + ":" + period
@@ -102,6 +125,45 @@ func (uc *VerifyBillingConfigUseCase) Execute() BillingConfigReport {
 				add(SeverityError, "variant_missing",
 					fmt.Sprintf("LEMON_SQUEEZY_VARIANT_MAP missing variant for %q; that tier/period checkout would resolve to free", key))
 			}
+		}
+	}
+
+	// 2b. Catalog coverage — every tier the public pricing catalog advertises
+	// (GetCatalogUseCase.catalogTiers) must resolve to a usable variant for both
+	// periods, else the price page shows a tier a customer cannot actually buy.
+	// This makes the catalog↔variant-map link an explicit, tested invariant
+	// rather than two lists that silently drift (Gap 4).
+	for _, tier := range catalogTiers {
+		for _, period := range requiredCatalogPeriods {
+			if id, err := uc.lsClient.LookupVariantID(tier, period); err != nil || id == "" {
+				add(SeverityError, "catalog_variant_missing",
+					fmt.Sprintf("billing catalog advertises tier %q (%s) but its LemonSqueezy variant is not configured; the price page would show an unbuyable tier", tier, period))
+			}
+		}
+	}
+
+	// 2c. Orphan / misconfigured variants — every configured variant key must be
+	// "<knownTier>:<period>" with a non-empty id. A variant keyed on an unknown
+	// tier (typo, retired-name drift) or an empty id is a misconfiguration that
+	// can never resolve in checkout. Flag it loudly instead of letting it rot.
+	for key, id := range variants {
+		tier, period, ok := splitVariantKey(key)
+		if !ok {
+			add(SeverityError, "variant_key_malformed",
+				fmt.Sprintf("LEMON_SQUEEZY_VARIANT_MAP key %q is not in the form \"<tier>:<period>\"", key))
+			continue
+		}
+		if !knownTiers[tier] {
+			add(SeverityError, "variant_unknown_tier",
+				fmt.Sprintf("LEMON_SQUEEZY_VARIANT_MAP key %q references unknown tier %q; not a canonical or retired tier, so it will never resolve in checkout", key, tier))
+		}
+		if period != "monthly" && period != "annual" {
+			add(SeverityWarn, "variant_unknown_period",
+				fmt.Sprintf("LEMON_SQUEEZY_VARIANT_MAP key %q has unexpected period %q (expected monthly|annual)", key, period))
+		}
+		if strings.TrimSpace(id) == "" {
+			add(SeverityError, "variant_empty_id",
+				fmt.Sprintf("LEMON_SQUEEZY_VARIANT_MAP key %q maps to an empty variant id; that tier/period checkout would resolve to free", key))
 		}
 	}
 
@@ -129,6 +191,26 @@ func (uc *VerifyBillingConfigUseCase) Execute() BillingConfigReport {
 		"LS dashboard signing secret must equal LEMON_SQUEEZY_WEBHOOK_SECRET (LS never returns the value to compare). To reconcile: PATCH /v1/webhooks/{id} {data.attributes.secret} = the Fly secret. See docs/runbooks/PRICING_BILLING_CUTOVER.md.")
 
 	return report
+}
+
+// splitVariantKey parses a VariantMap key "<tier>:<period>" into its parts.
+// Returns ok=false if the key isn't exactly one tier and one period.
+func splitVariantKey(key string) (tier, period string, ok bool) {
+	parts := strings.SplitN(key, ":", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" || strings.Contains(parts[1], ":") {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
+}
+
+// sortedKeys returns a VariantMap's keys sorted, for stable fact reporting.
+func sortedKeys(m clients.VariantMap) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // hmacSelfTest confirms the secret produces a stable HMAC-SHA256 hex digest the

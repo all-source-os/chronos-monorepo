@@ -1,11 +1,14 @@
 package usecases
 
 import (
+	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/allsource/control-plane/internal/application/dto"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
+	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
 // defaultPlan is the default subscription tier when none is set.
@@ -26,14 +29,29 @@ type ListTenantsResponse struct {
 	Total   int                   `json:"total"`
 }
 
+// teamMembersConfigKey returns the Core config key holding a tenant's member
+// list. Mirrors the key written by the team-management handlers
+// (apps/control-plane/teams.go teamMembersConfigKey); duplicated here because
+// that helper lives in package main and cannot be imported from a use case.
+func teamMembersConfigKey(tenantID string) string {
+	return "team:" + tenantID + ":members"
+}
+
 // ListTenantsUseCase handles listing tenants with pagination and status filter.
 type ListTenantsUseCase struct {
 	tenantRepo repositories.TenantRepository
+	// coreClient sources REAL per-tenant counts (events via GET
+	// /api/v1/tenants/{id}/stats, members via the team-members config) for the
+	// admin enrichment path. It may be nil (e.g. unit tests / Core unavailable),
+	// in which case enrichment falls back to the metadata mirror and a guarded 0.
+	coreClient clients.CoreClient
 }
 
-// NewListTenantsUseCase creates a new ListTenantsUseCase.
-func NewListTenantsUseCase(tenantRepo repositories.TenantRepository) *ListTenantsUseCase {
-	return &ListTenantsUseCase{tenantRepo: tenantRepo}
+// NewListTenantsUseCase creates a new ListTenantsUseCase. coreClient may be nil;
+// when nil, admin enrichment falls back to the tenant-metadata mirror instead of
+// live Core stats (counts then reflect whatever the metering path last wrote).
+func NewListTenantsUseCase(tenantRepo repositories.TenantRepository, coreClient clients.CoreClient) *ListTenantsUseCase {
+	return &ListTenantsUseCase{tenantRepo: tenantRepo, coreClient: coreClient}
 }
 
 // Execute retrieves tenants with optional status filter and pagination.
@@ -124,8 +142,11 @@ func (uc *ListTenantsUseCase) Execute(req ListTenantsRequest) (*ListTenantsRespo
 }
 
 // ExecuteAdmin retrieves tenants with admin-level enrichment (plan, event_count, member_count)
-// and page-based pagination.
-func (uc *ListTenantsUseCase) ExecuteAdmin(req ListTenantsRequest) (*dto.AdminListTenantsResponse, error) {
+// and page-based pagination. Per-tenant counts are sourced from live Core stats
+// (events) and the team-members config (members) for the current page only, so a
+// large fleet doesn't fan out one stats call per tenant on every list; tenants
+// outside the page are never queried.
+func (uc *ListTenantsUseCase) ExecuteAdmin(ctx context.Context, req ListTenantsRequest) (*dto.AdminListTenantsResponse, error) {
 	var tenants []*entities.Tenant
 	var err error
 
@@ -208,7 +229,9 @@ func (uc *ListTenantsUseCase) ExecuteAdmin(req ListTenantsRequest) (*dto.AdminLi
 		tenants = tenants[start:end]
 	}
 
-	// Convert to admin DTOs with enrichment
+	// Convert to admin DTOs with enrichment. Counts come from live Core for the
+	// current page; on any miss we fall back to the metadata mirror so a count is
+	// always a guarded number, never undefined/omitted.
 	responses := make([]*dto.AdminTenantResponse, len(tenants))
 	for i, t := range tenants {
 		responses[i] = &dto.AdminTenantResponse{
@@ -217,8 +240,8 @@ func (uc *ListTenantsUseCase) ExecuteAdmin(req ListTenantsRequest) (*dto.AdminLi
 			Plan:        extractPlan(t),
 			Status:      string(t.Status),
 			CreatedAt:   t.CreatedAt,
-			EventCount:  extractEventCount(t),
-			MemberCount: extractMemberCount(t),
+			EventCount:  uc.eventCountForTenant(ctx, t),
+			MemberCount: uc.memberCountForTenant(ctx, t),
 		}
 	}
 
@@ -252,7 +275,59 @@ func extractPlan(t *entities.Tenant) string {
 	return tier
 }
 
+// eventCountForTenant returns the tenant's real event total from live Core stats
+// (GET /api/v1/tenants/{id}/stats), falling back to the metadata mirror when Core
+// is unavailable or the client is nil. Always returns a guarded number.
+func (uc *ListTenantsUseCase) eventCountForTenant(ctx context.Context, t *entities.Tenant) int64 {
+	if uc.coreClient != nil {
+		if stats, err := uc.coreClient.GetTenantStats(ctx, t.ID); err == nil && stats != nil {
+			return stats.EventCount
+		}
+		// Core unreachable → fall through to the metadata mirror rather than fail.
+	}
+	return extractEventCount(t)
+}
+
+// memberCountForTenant returns the tenant's real member count from the Core
+// team-members config (the same list the team handlers maintain), falling back to
+// the metadata mirror when Core is unavailable or the client is nil.
+func (uc *ListTenantsUseCase) memberCountForTenant(ctx context.Context, t *entities.Tenant) int {
+	if uc.coreClient != nil {
+		if n, ok := memberCountFromCore(ctx, uc.coreClient, t.ID); ok {
+			return n
+		}
+	}
+	return extractMemberCount(t)
+}
+
+// memberCountFromCore reads team:<id>:members from Core config and returns the
+// number of members. ok is false when the client errors so the caller can fall
+// back; a present-but-empty / unset member list is a valid 0 (ok=true).
+func memberCountFromCore(ctx context.Context, core clients.CoreClient, tenantID string) (int, bool) {
+	entry, err := core.GetConfig(ctx, teamMembersConfigKey(tenantID))
+	if err != nil {
+		return 0, false
+	}
+	if entry == nil || entry.Value == nil {
+		return 0, true // no member list stored yet → a clean 0
+	}
+	// entry.Value is the JSON array of members; count its elements without
+	// importing the team-member struct (which lives in package main).
+	b, err := json.Marshal(entry.Value)
+	if err != nil {
+		return 0, false
+	}
+	var members []json.RawMessage
+	if err := json.Unmarshal(b, &members); err != nil {
+		return 0, false
+	}
+	return len(members), true
+}
+
 // extractEventCount reads the events_used from tenant metadata quotas.
+// This is the FALLBACK source used only when live Core stats are unavailable;
+// the metadata.quotas.events_used mirror is kept current by Core's usage-metering
+// increment path (apps/core POST /tenants/{id}/usage/increment).
 func extractEventCount(t *entities.Tenant) int64 {
 	if t.Metadata == nil {
 		return 0
