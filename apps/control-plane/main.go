@@ -210,28 +210,42 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		}
 	}
 
+	// Query Service base URL (no trailing slash). Used by (a) the metrics
+	// passthrough (re-fetches /api/admin/metrics/* + /api/cluster/members for the
+	// admin /monitoring page) and (b) deriving the /health URL below. Falls back
+	// to the Fly internal default. This is the SAME base the delegation client
+	// resolves at queryURL further down — kept in sync via QUERY_SERVICE_URL.
+	queryServiceBase := os.Getenv("QUERY_SERVICE_URL")
+	if queryServiceBase == "" {
+		queryServiceBase = "http://allsource-query.internal:3902"
+	}
+	queryServiceBase = strings.TrimRight(queryServiceBase, "/")
+
 	// Query Service /health URL for the fleet-recovery edition-trap detector.
 	// The edition lives on QS, not CP (edition.ex); we HTTP-probe it. Honor the
 	// same QUERY_HEALTH_URL override the heartbeat probes use, else derive from
-	// QUERY_SERVICE_URL, else the Fly internal default.
+	// the QS base above.
 	queryHealthURL := os.Getenv("QUERY_HEALTH_URL")
 	if queryHealthURL == "" {
-		base := os.Getenv("QUERY_SERVICE_URL")
-		if base == "" {
-			base = "http://allsource-query.internal:3902"
-		}
-		queryHealthURL = strings.TrimRight(base, "/") + "/health"
+		queryHealthURL = queryServiceBase + "/health"
 	}
 
 	// Initialize Clean Architecture container (Core-backed repos, no PostgreSQL)
 	containerCfg := internal.ContainerConfig{
-		CoreClient:     coreClient,
-		LSClient:       lsClient,
-		EmailClient:    emailClient,
-		KeySigner:      authClient.SignAPIKey,
-		CDPClient:      cdpClient,
-		JWTSecret:      jwtSecret,
-		QueryHealthURL: queryHealthURL,
+		CoreClient:      coreClient,
+		LSClient:        lsClient,
+		EmailClient:     emailClient,
+		KeySigner:       authClient.SignAPIKey,
+		CDPClient:       cdpClient,
+		JWTSecret:       jwtSecret,
+		QueryHealthURL:  queryHealthURL,
+		QueryServiceURL: queryServiceBase,
+		// The admin metrics passthrough authenticates to the QS with the CP's
+		// own service JWT (the same long-lived admin/system token cp.client uses
+		// for Core) — the admin's cookie never leaves the BFF→CP hop. A pooled
+		// client reuses connections to the QS.
+		ServiceToken:      serviceToken,
+		MetricsHTTPClient: NewPooledHTTPClient(),
 	}
 	container := internal.NewContainerWithConfig(containerCfg)
 
@@ -664,6 +678,19 @@ func (cp *ControlPlane) setupRoutes() {
 	recovery.POST("/:id/reprovision", cp.container.RecoveryHandler.Reprovision)
 	recovery.POST("/:id/restore", cp.container.RecoveryHandler.Restore)
 	recovery.POST("/batch", cp.container.RecoveryHandler.Batch)
+
+	// Platform metrics + cluster status passthrough (ADMIN_TENANT_POWER_TOOL §3
+	// Gap 2). The admin /monitoring page hits these SAME-ORIGIN via the BFF
+	// (Bearer attached); the CP re-fetches the Query Service metrics/cluster
+	// endpoints with its OWN service credential and returns the QS shapes the
+	// admin client (metrics-api.ts) consumes. QS-unreachable ⇒ a zeroed/empty
+	// payload (HTTP 200), so the admin renders a zero state, never a 500. These
+	// inherit AdminAuthMiddleware (admin role) like every other /api/v1/admin
+	// route — no new auth.
+	adminMetrics := admin.Group("/metrics")
+	adminMetrics.GET("/summary", cp.container.MetricsHandler.Summary)
+	adminMetrics.GET("/timeseries", cp.container.MetricsHandler.Timeseries)
+	admin.GET("/cluster/members", cp.container.MetricsHandler.ClusterMembers)
 
 	// Alert rules management
 	admin.POST("/alerts", cp.container.AlertHandler.Create)

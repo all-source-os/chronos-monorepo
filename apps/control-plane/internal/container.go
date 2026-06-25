@@ -4,6 +4,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"strings"
 
@@ -187,6 +188,10 @@ type Container struct {
 	AgentHandler                 *httphandlers.AgentHandler
 	FleetHealthHandler           *httphandlers.FleetHealthHandler
 	RecoveryHandler              *httphandlers.RecoveryHandler
+	MetricsHandler               *httphandlers.MetricsHandler
+
+	// Use Cases — Metrics passthrough (ADMIN_TENANT_POWER_TOOL §3 Gap 2)
+	MetricsPassthroughUC *usecases.MetricsPassthroughUseCase
 
 	// VerifyBillingConfigUC powers the boot-time billing config self-check.
 	VerifyBillingConfigUC *usecases.VerifyBillingConfigUseCase
@@ -206,6 +211,20 @@ type ContainerConfig struct {
 	// detector probes (the edition lives on QS, not CP). Empty disables the QS
 	// probe half of the heuristic.
 	QueryHealthURL string
+	// QueryServiceURL is the Query Service base URL (no trailing slash) the
+	// admin metrics passthrough re-fetches (/api/admin/metrics/*,
+	// /api/cluster/members). Empty disables the passthrough → the admin renders
+	// a zero state.
+	QueryServiceURL string
+	// ServiceToken is the CP's long-lived admin/system JWT. The metrics
+	// passthrough presents it to the QS as `Authorization: Bearer` so the QS
+	// :authenticated pipeline validates it (shared JWT_SECRET, HS256). It is the
+	// SAME token cp.client uses for Core — the caller's cookie never leaves the
+	// BFF→CP hop. Empty disables the passthrough.
+	ServiceToken string
+	// MetricsHTTPClient is the pooled HTTP client the passthrough uses. nil ⇒
+	// http.DefaultClient (tests rely on the default; prod injects the pooled one).
+	MetricsHTTPClient *http.Client
 }
 
 // CoreWalletLookup implements x402.WalletLookup using Core's config store.
@@ -519,6 +538,13 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	fleetHealthHandler := httphandlers.NewFleetHealthHandler(fleetHealthUC)
 	recoveryHandler := httphandlers.NewRecoveryHandler(recoveryUC)
 
+	// Metrics passthrough (ADMIN_TENANT_POWER_TOOL §3 Gap 2). Re-fetches the QS
+	// metrics/cluster endpoints with the CP's own service credential so the admin
+	// /monitoring page reaches them same-origin via the BFF instead of failing a
+	// cross-origin cookie call. Empty QueryServiceURL/ServiceToken ⇒ zero state.
+	metricsPassthroughUC := usecases.NewMetricsPassthroughUseCase(cfg.MetricsHTTPClient, cfg.QueryServiceURL, cfg.ServiceToken)
+	metricsHandler := httphandlers.NewMetricsHandler(metricsPassthroughUC)
+
 	return &Container{
 		TenantRepo:                   tenantRepo,
 		PolicyRepo:                   policyRepo,
@@ -616,6 +642,8 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AgentHandler:                 agentHandler,
 		FleetHealthHandler:           fleetHealthHandler,
 		RecoveryHandler:              recoveryHandler,
+		MetricsHandler:               metricsHandler,
+		MetricsPassthroughUC:         metricsPassthroughUC,
 		VerifyBillingConfigUC:        verifyBillingConfigUC,
 		ProcessLSWebhookUC:           processLSWebhookUC,
 		UpdateSubscriptionUC:         updateSubscriptionUC,
