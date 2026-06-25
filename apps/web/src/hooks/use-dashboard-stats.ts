@@ -144,6 +144,15 @@ async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardSta
     // Prefer the real store count; fall back to the meter only if the store query
     // returned nothing (never invent a number).
     stats.events.total = summed > 0 ? summed : stats.events.used;
+
+    // The billing meter can drift ABOVE the real store count (out-of-band ingest
+    // or a backfill). "events used > events that exist" is impossible — clamp the
+    // displayed usage to the real total so the bar is always sensible.
+    if (stats.events.total > 0 && stats.events.used > stats.events.total) {
+      stats.events.used = stats.events.total;
+      stats.events.percentage =
+        stats.events.quota > 0 ? (stats.events.used / stats.events.quota) * 100 : 0;
+    }
   }
 
   {

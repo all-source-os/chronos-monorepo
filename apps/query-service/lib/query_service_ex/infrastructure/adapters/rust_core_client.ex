@@ -362,7 +362,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
     query_params =
       opts
-      |> Keyword.take([:limit, :offset])
+      |> Keyword.take([:tenant_id, :limit, :offset])
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
 
@@ -407,7 +407,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
 
     query_params =
       opts
-      |> Keyword.take([:limit, :offset])
+      |> Keyword.take([:tenant_id, :limit, :offset])
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
 

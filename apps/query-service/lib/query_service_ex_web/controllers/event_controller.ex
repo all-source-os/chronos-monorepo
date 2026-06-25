@@ -399,10 +399,11 @@ defmodule QueryServiceExWeb.EventController do
   Returns streams sorted by most recent activity first.
   """
   def streams(conn, params) do
-    _tenant_id = get_tenant_id!(conn)
+    tenant_id = get_tenant_id!(conn)
     consistency = conn.assigns[:consistency]
 
     opts = [
+      tenant_id: tenant_id,
       limit: parse_int(params["limit"], nil),
       offset: parse_int(params["offset"], nil),
       consistency: consistency
@@ -462,10 +463,11 @@ defmodule QueryServiceExWeb.EventController do
   Returns event types sorted by most used first.
   """
   def event_types(conn, params) do
-    _tenant_id = get_tenant_id!(conn)
+    tenant_id = get_tenant_id!(conn)
     consistency = conn.assigns[:consistency]
 
     opts = [
+      tenant_id: tenant_id,
       limit: parse_int(params["limit"], nil),
       offset: parse_int(params["offset"], nil),
       consistency: consistency

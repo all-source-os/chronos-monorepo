@@ -2174,6 +2174,66 @@ impl EventStore {
             .collect()
     }
 
+    // Tenant-scoped variants. The entity_index / type_index are GLOBAL (no tenant
+    // dimension), so `list_streams` / `list_event_types` above span every tenant —
+    // wrong + a cross-tenant spill on the per-tenant dashboard. These filter by the
+    // event's tenant_id so the dashboard's "your" streams / event types / totals
+    // reflect only the caller's tenant.
+
+    /// Distinct entities (+ per-entity event count) for ONE tenant.
+    pub fn list_streams_for_tenant(&self, tenant_id: &str) -> Vec<StreamInfo> {
+        let _ = self.ensure_tenant_loaded(tenant_id);
+        let events = self.events.read();
+        let mut by_entity: std::collections::HashMap<&str, (usize, chrono::DateTime<chrono::Utc>)> =
+            std::collections::HashMap::new();
+        for ev in events.iter() {
+            if ev.tenant_id_str() != tenant_id {
+                continue;
+            }
+            let e = by_entity
+                .entry(ev.entity_id_str())
+                .or_insert((0, ev.timestamp));
+            e.0 += 1;
+            if ev.timestamp > e.1 {
+                e.1 = ev.timestamp;
+            }
+        }
+        by_entity
+            .into_iter()
+            .map(|(entity_id, (count, last))| StreamInfo {
+                stream_id: entity_id.to_string(),
+                event_count: count,
+                last_event_at: Some(last),
+            })
+            .collect()
+    }
+
+    /// Distinct event types (+ per-type event count) for ONE tenant.
+    pub fn list_event_types_for_tenant(&self, tenant_id: &str) -> Vec<EventTypeInfo> {
+        let _ = self.ensure_tenant_loaded(tenant_id);
+        let events = self.events.read();
+        let mut by_type: std::collections::HashMap<&str, (usize, chrono::DateTime<chrono::Utc>)> =
+            std::collections::HashMap::new();
+        for ev in events.iter() {
+            if ev.tenant_id_str() != tenant_id {
+                continue;
+            }
+            let e = by_type.entry(ev.event_type_str()).or_insert((0, ev.timestamp));
+            e.0 += 1;
+            if ev.timestamp > e.1 {
+                e.1 = ev.timestamp;
+            }
+        }
+        by_type
+            .into_iter()
+            .map(|(event_type, (count, last))| EventTypeInfo {
+                event_type: event_type.to_string(),
+                event_count: count,
+                last_event_at: Some(last),
+            })
+            .collect()
+    }
+
     /// Attach a broadcast sender to the WAL for replication.
     ///
     /// Thread-safe: can be called through `Arc<EventStore>` at runtime.

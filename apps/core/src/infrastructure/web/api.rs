@@ -871,6 +871,8 @@ pub async fn get_stats(State(store): State<SharedStore>) -> impl IntoResponse {
 /// Query parameters for listing streams
 #[derive(Debug, Deserialize)]
 pub struct ListStreamsParams {
+    /// Tenant to scope to (the gateway injects the authenticated tenant).
+    pub tenant_id: Option<String>,
     /// Optional limit on number of streams to return
     pub limit: Option<usize>,
     /// Optional offset for pagination
@@ -885,10 +887,20 @@ pub struct ListStreamsResponse {
 }
 
 pub async fn list_streams(
+    OptionalAuth(auth): OptionalAuth,
     State(store): State<SharedStore>,
     Query(params): Query<ListStreamsParams>,
 ) -> Json<ListStreamsResponse> {
-    let mut streams = store.list_streams();
+    // Tenant-scoped + fail closed: no tenant → empty, never a cross-tenant list.
+    let tenant = params
+        .tenant_id
+        .clone()
+        .or_else(|| auth.as_ref().map(|a| a.tenant_id().to_string()))
+        .filter(|t| !t.is_empty());
+    let Some(tenant) = tenant else {
+        return Json(ListStreamsResponse { streams: vec![], total: 0 });
+    };
+    let mut streams = store.list_streams_for_tenant(&tenant);
     let total = streams.len();
 
     // Sort by last_event_at descending (most recent first)
@@ -916,6 +928,8 @@ pub async fn list_streams(
 /// Query parameters for listing event types
 #[derive(Debug, Deserialize)]
 pub struct ListEventTypesParams {
+    /// Tenant to scope to (the gateway injects the authenticated tenant).
+    pub tenant_id: Option<String>,
     /// Optional limit on number of event types to return
     pub limit: Option<usize>,
     /// Optional offset for pagination
@@ -930,10 +944,20 @@ pub struct ListEventTypesResponse {
 }
 
 pub async fn list_event_types(
+    OptionalAuth(auth): OptionalAuth,
     State(store): State<SharedStore>,
     Query(params): Query<ListEventTypesParams>,
 ) -> Json<ListEventTypesResponse> {
-    let mut event_types = store.list_event_types();
+    // Tenant-scoped + fail closed: no tenant → empty, never cross-tenant types.
+    let tenant = params
+        .tenant_id
+        .clone()
+        .or_else(|| auth.as_ref().map(|a| a.tenant_id().to_string()))
+        .filter(|t| !t.is_empty());
+    let Some(tenant) = tenant else {
+        return Json(ListEventTypesResponse { event_types: vec![], total: 0 });
+    };
+    let mut event_types = store.list_event_types_for_tenant(&tenant);
     let total = event_types.len();
 
     // Sort by event_count descending (most used first)
@@ -2546,6 +2570,54 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(scoped.0.total_count, 5, "tenant-scoped query returns its events");
+    }
+
+    // The dashboard's streams + event-types counts must be per-tenant. These
+    // endpoints used to scan ALL tenants (platform totals shown as "yours", and a
+    // cross-tenant spill). Assert each tenant sees only its own, and no-tenant
+    // fails closed.
+    #[tokio::test]
+    async fn list_streams_and_types_are_tenant_scoped() {
+        use axum::extract::{Query, State};
+        use crate::domain::entities::Event;
+
+        let store = create_test_store();
+        let ev = |entity: &str, etype: &str, tenant: &str| {
+            Event::from_strings(
+                etype.to_string(),
+                entity.to_string(),
+                tenant.to_string(),
+                serde_json::json!({}),
+                None,
+            )
+            .unwrap()
+        };
+        // tenant A: 2 entities, 2 types. tenant B: 1 entity, 1 type.
+        store.ingest(&ev("e1", "order.placed", "tenant-a")).unwrap();
+        store.ingest(&ev("e2", "user.created", "tenant-a")).unwrap();
+        store.ingest(&ev("e9", "thing.happened", "tenant-b")).unwrap();
+
+        let streams = |tid: Option<&str>| {
+            list_streams(
+                OptionalAuth(None),
+                State(store.clone()),
+                Query(ListStreamsParams { tenant_id: tid.map(String::from), limit: None, offset: None }),
+            )
+        };
+        assert_eq!(streams(Some("tenant-a")).await.0.total, 2, "tenant-a streams");
+        assert_eq!(streams(Some("tenant-b")).await.0.total, 1, "tenant-b streams");
+        assert_eq!(streams(None).await.0.total, 0, "no tenant -> no streams (fail closed)");
+
+        let types = |tid: Option<&str>| {
+            list_event_types(
+                OptionalAuth(None),
+                State(store.clone()),
+                Query(ListEventTypesParams { tenant_id: tid.map(String::from), limit: None, offset: None }),
+            )
+        };
+        assert_eq!(types(Some("tenant-a")).await.0.total, 2, "tenant-a event types");
+        assert_eq!(types(Some("tenant-b")).await.0.total, 1, "tenant-b event types");
+        assert_eq!(types(None).await.0.total, 0, "no tenant -> no types (fail closed)");
     }
 
     #[tokio::test]
