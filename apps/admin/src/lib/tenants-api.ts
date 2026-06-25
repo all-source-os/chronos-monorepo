@@ -14,16 +14,29 @@ function getApiUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3902";
 }
 
+/**
+ * Coerce a possibly-wrapped API response into an array (the shared §6 pattern —
+ * see security-api.ts:26 / billing-api.ts:84). The Control Plane wraps list
+ * responses inconsistently ({members:[…]}, {items}, {data}, or a bare array, and
+ * sometimes a null); a non-array reaching a page's `.map` crashes the whole route
+ * ("x.map is not a function"). Always resolve to an array.
+ */
+export function asList<T>(data: unknown, ...keys: string[]): T[] {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object") {
+    for (const k of [...keys, "items", "data"]) {
+      const v = (data as Record<string, unknown>)[k];
+      if (Array.isArray(v)) return v as T[];
+    }
+  }
+  return [];
+}
+
 // Canonical subscription tiers (Control Plane authority — subscription.go).
 // The CP filters the tenant list by exact case-insensitive match against these
 // stored tier strings, so the admin filter MUST use the same names. The retired
 // 010 aliases (starter/pro/growth/team) match nothing and are gone.
-export type TenantPlan =
-  | "free"
-  | "indie"
-  | "studio"
-  | "scale"
-  | "enterprise";
+export type TenantPlan = "free" | "indie" | "studio" | "scale" | "enterprise";
 export type TenantStatus = "active" | "suspended" | "archived";
 
 export interface Tenant {
@@ -73,6 +86,14 @@ export interface TenantSubscription {
   plan: TenantPlan;
   started_at: string;
   current_period_end: string;
+  // Optional billing-state fields the 360 surfaces when the CP detail carries
+  // them (admin_tenant_dto.go SubscriptionInfo). All optional + guarded.
+  status?: string;
+  provider?: string;
+  renews_at?: string;
+  dunning_state?: string;
+  grandfathered?: boolean;
+  grandfather_until?: string;
 }
 
 export interface TenantQuotas {
@@ -81,10 +102,26 @@ export interface TenantQuotas {
   storage_limit_mb: number;
 }
 
+/**
+ * An API key surfaced on the tenant 360 (Pillar A — API keys section). The CP
+ * detail may include the tenant's keys; the canonical role string MUST be
+ * `serviceaccount` (no underscore) — a drifted `service_account` silently 403s
+ * every key (MEMORY: API-key role string contract). All fields optional/guarded.
+ */
+export interface ApiKeyInfo {
+  id: string;
+  name?: string;
+  role?: string;
+  created_at?: string;
+  last_used_at?: string;
+}
+
 export interface TenantDetail extends Tenant {
   description?: string;
+  home_region?: string;
   quotas: TenantQuotas;
   members: TenantMember[];
+  api_keys?: ApiKeyInfo[];
   subscription: TenantSubscription;
   audit_log: AuditEntry[];
 }
@@ -122,7 +159,37 @@ export async function fetchTenantDetail(id: string): Promise<TenantDetail> {
   if (!res.ok) {
     throw new Error(`Failed to fetch tenant detail: ${res.status}`);
   }
-  return res.json();
+  const data = (await res.json()) ?? {};
+  // Guard every list field so a wrapped/null payload can't crash the 360's .map (§6).
+  return {
+    ...data,
+    members: asList<TenantMember>(data, "members"),
+    api_keys: asList<ApiKeyInfo>(data, "api_keys", "keys"),
+    audit_log: asList<AuditEntry>(data, "audit_log", "audit", "events"),
+  };
+}
+
+// ── Per-tenant invoices (Pillar A — Subscription/billing section) ─────────
+// Same-origin BFF read of the existing admin billing endpoint, filtered to this
+// tenant. Mirrors billing-api.ts fetchInvoices but scoped + array-guarded so the
+// 360 can show the tenant's recent invoices without importing the billing page.
+
+export interface TenantInvoice {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created_at: string;
+}
+
+export async function fetchTenantInvoices(id: string): Promise<TenantInvoice[]> {
+  const url = `${getApiUrl()}/api/v1/admin/billing/invoices?tenant_id=${encodeURIComponent(id)}`;
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch tenant invoices: ${res.status}`);
+  }
+  const data = (await res.json()) ?? {};
+  return asList<TenantInvoice>(data, "invoices");
 }
 
 export async function fetchTenantUsage(id: string): Promise<TenantUsage> {
@@ -134,10 +201,7 @@ export async function fetchTenantUsage(id: string): Promise<TenantUsage> {
   return res.json();
 }
 
-export async function updateTenantQuotas(
-  id: string,
-  quotas: TenantQuotas
-): Promise<void> {
+export async function updateTenantQuotas(id: string, quotas: TenantQuotas): Promise<void> {
   const url = `${getApiUrl()}/api/v1/admin/tenants/${id}/quotas`;
   const res = await fetch(url, {
     method: "PUT",
@@ -174,9 +238,7 @@ export async function unsuspendTenant(id: string): Promise<void> {
 
 // ── List fetcher ──────────────────────────────────────────────────────
 
-export async function fetchTenants(
-  params: FetchTenantsParams = {}
-): Promise<TenantsResponse> {
+export async function fetchTenants(params: FetchTenantsParams = {}): Promise<TenantsResponse> {
   const searchParams = new URLSearchParams();
 
   if (params.search) searchParams.set("search", params.search);
