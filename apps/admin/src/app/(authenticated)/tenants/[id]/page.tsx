@@ -36,6 +36,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { HealthChip } from "@/components/fleet/health-chip";
+import { CommsPanel } from "@/components/tenants/comms-panel";
 import { OperationsPanel } from "@/components/tenants/operations-panel";
 import { TenantHealthPanel } from "@/components/tenants/tenant-health-panel";
 import { UsageBar } from "@/components/tenants/usage-bar";
@@ -403,6 +404,9 @@ export default function TenantDetailPage() {
         onToggleSuspend={handleToggleSuspend}
         onAfterRecovery={loadData}
       />
+
+      {/* Communicate panel (Pillar C) — single-tenant notice / email / notes */}
+      <CommsPanel tenantId={tenant.id} tenantName={tenant.name} />
 
       {/* Health panel (Pillar A — Health section) */}
       <TenantHealthPanel health={health} tenantId={tenant.id} unavailable={healthUnavailable} />

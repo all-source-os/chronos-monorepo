@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CreditCard,
   HeartPulse,
+  LifeBuoy,
   Mail,
   ShieldCheck,
   Users,
@@ -27,6 +28,7 @@ const navigation = [
   { name: "Tenants", href: "/tenants", icon: Users },
   { name: "Inbox", href: "/inbox", icon: Mail },
   { name: "Fleet", href: "/fleet", icon: HeartPulse },
+  { name: "Outreach", href: "/outreach", icon: LifeBuoy },
   { name: "Monitoring", href: "/monitoring", icon: Activity },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Security", href: "/security", icon: ShieldCheck },
@@ -86,11 +88,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           className="h-8 w-8 shrink-0"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
       </div>
 
