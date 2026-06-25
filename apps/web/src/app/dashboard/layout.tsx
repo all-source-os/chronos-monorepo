@@ -8,6 +8,7 @@ import { DemoBanner } from "@/components/dashboard/demo-banner";
 import { EarlyAccessBanner } from "@/components/dashboard/early-access-banner";
 import { Header } from "@/components/dashboard/header";
 import { HistoricalModeBanner } from "@/components/dashboard/historical-mode-banner";
+import { NoticesBanner } from "@/components/dashboard/notices-banner";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { FeedbackWidget } from "@/components/feedback/feedback-widget";
 import { TimeTravelProvider } from "@/hooks/use-time-travel";
@@ -109,6 +110,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         >
           {/* Banners — inside main flow so they push content down */}
+          <NoticesBanner />
           <DemoBanner />
           <EarlyAccessBanner />
           <HistoricalModeBanner />
