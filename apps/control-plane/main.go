@@ -613,6 +613,15 @@ func (cp *ControlPlane) setupRoutes() {
 	billing.POST("/overage/disable", RequirePermission(entities.PermissionManageTenants), cp.container.BillingHandler.DisableOverage)
 	billing.GET("/projected-charges", RequirePermission(entities.PermissionRead), cp.container.BillingHandler.GetProjectedCharges)
 
+	// Tenant-facing notices (ADMIN_TENANT_POWER_TOOL §4 Pillar C). These are
+	// CALLER-scoped — the authenticated tenant's OWN in-app notices, read for the
+	// web dashboard banner — and are intentionally NOT admin-gated. The tenant id
+	// comes from the caller's JWT (auth_tenant_id), so a tenant only ever sees and
+	// dismisses its own notices. PermissionRead is the self-serve gate (any tenant
+	// member), exactly like the billing reads above.
+	api.GET("/notices", RequirePermission(entities.PermissionRead), cp.container.CommsHandler.TenantNotices)
+	api.POST("/notices/:id/dismiss", RequirePermission(entities.PermissionRead), cp.container.CommsHandler.DismissNotice)
+
 	// Webhooks (public — no JWT auth, signature verification instead)
 	api.POST("/webhooks/lemonsqueezy", cp.container.WebhookHandler.LemonSqueezy)
 	api.POST("/webhooks/email", cp.container.EmailWebhookHandler.Email)
@@ -685,6 +694,19 @@ func (cp *ControlPlane) setupRoutes() {
 	recovery.POST("/:id/reprovision", cp.container.RecoveryHandler.Reprovision)
 	recovery.POST("/:id/restore", cp.container.RecoveryHandler.Restore)
 	recovery.POST("/batch", cp.container.RecoveryHandler.Batch)
+
+	// Proactive comms — in-app notices, operator→tenant email, per-tenant support
+	// notes (ADMIN_TENANT_POWER_TOOL §4 Pillar C / Phase 6 CP half). All inside the
+	// /api/v1/admin group → inherit AdminAuthMiddleware (no new auth). Cohort
+	// notice sends go through the recovery blast-radius guard (dry-run preview +
+	// echoed confirm_token); email reuses the existing SMTP client; every action is
+	// a durable Core event (admin.notice.*, admin.message.sent, admin.note.created)
+	// under the admin-comms system tenant. Notes live under /tenants/:id/notes.
+	admin.POST("/notices", cp.container.CommsHandler.CreateNotice)
+	admin.GET("/notices", cp.container.CommsHandler.ListNotices)
+	admin.POST("/messages", cp.container.CommsHandler.SendMessage)
+	admin.POST("/tenants/:id/notes", cp.container.CommsHandler.AddNote)
+	admin.GET("/tenants/:id/notes", cp.container.CommsHandler.ListNotes)
 
 	// Platform metrics + cluster status passthrough (ADMIN_TENANT_POWER_TOOL §3
 	// Gap 2). The admin /monitoring page hits these SAME-ORIGIN via the BFF

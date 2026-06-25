@@ -146,6 +146,9 @@ type Container struct {
 	FleetHealthUC *usecases.FleetHealthUseCase
 	RecoveryUC    *usecases.RecoveryUseCase
 
+	// Use Cases — Proactive comms (ADMIN_TENANT_POWER_TOOL §4 Pillar C / Phase 6)
+	CommsUC *usecases.CommsUseCase
+
 	// Use Cases — Agent Registration
 	RegisterAgentUC       *usecases.RegisterAgentUseCase
 	RegisterTrialAgentUC  *usecases.RegisterTrialAgentUseCase
@@ -189,6 +192,7 @@ type Container struct {
 	AgentHandler                 *httphandlers.AgentHandler
 	FleetHealthHandler           *httphandlers.FleetHealthHandler
 	RecoveryHandler              *httphandlers.RecoveryHandler
+	CommsHandler                 *httphandlers.CommsHandler
 	MetricsHandler               *httphandlers.MetricsHandler
 
 	// Use Cases — Metrics passthrough (ADMIN_TENANT_POWER_TOOL §3 Gap 2)
@@ -462,6 +466,19 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		JWTSecret:    cfg.JWTSecret,
 	})
 
+	// Initialize use case — Proactive comms (ADMIN_TENANT_POWER_TOOL §4 Pillar C).
+	// Reuses the EXISTING SMTP EmailClient for operator→tenant email, the recovery
+	// guard (cfg.JWTSecret) for cohort blast-radius, and IngestEvent for audit.
+	// Notices/notes/opt-out persist as Core events + tenant metadata — no new DB.
+	// EmailClient may be nil (email send then reports a config error); CoreClient
+	// may be nil in tests (audit + notice reads become no-ops).
+	commsUC := usecases.NewCommsUseCase(usecases.CommsDeps{
+		TenantRepo:  tenantRepo,
+		CoreClient:  cfg.CoreClient,
+		EmailClient: cfg.EmailClient,
+		JWTSecret:   cfg.JWTSecret,
+	})
+
 	// Initialize scheduler
 	scheduler := usecases.NewOperationScheduler(operationRepo, auditRepo, cfg.CoreClient)
 	if reportUsageUC != nil {
@@ -546,6 +563,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 	fleetHealthHandler := httphandlers.NewFleetHealthHandler(fleetHealthUC)
 	recoveryHandler := httphandlers.NewRecoveryHandler(recoveryUC)
+	commsHandler := httphandlers.NewCommsHandler(commsUC)
 
 	// Metrics passthrough (ADMIN_TENANT_POWER_TOOL §3 Gap 2). Re-fetches the QS
 	// metrics/cluster endpoints with the CP's own service credential so the admin
@@ -621,6 +639,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AdminDunningUC:               adminDunningUC,
 		FleetHealthUC:                fleetHealthUC,
 		RecoveryUC:                   recoveryUC,
+		CommsUC:                      commsUC,
 		Scheduler:                    scheduler,
 		WalletLookup:                 &CoreWalletLookup{coreClient: cfg.CoreClient},
 		CDPClient:                    cfg.CDPClient,
@@ -652,6 +671,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		AgentHandler:                 agentHandler,
 		FleetHealthHandler:           fleetHealthHandler,
 		RecoveryHandler:              recoveryHandler,
+		CommsHandler:                 commsHandler,
 		MetricsHandler:               metricsHandler,
 		MetricsPassthroughUC:         metricsPassthroughUC,
 		VerifyBillingConfigUC:        verifyBillingConfigUC,
