@@ -647,15 +647,10 @@ func (cp *ControlPlane) setupRoutes() {
 	api.GET("/webhooks/email", cp.container.EmailWebhookHandler.EmailChallenge)
 	// Inbox onboarding (P3b): public OAuth redirect, authenticated by the sealed state.
 	api.GET("/webhooks/inbox/connect/callback", cp.container.InboxConnectHandler.Callback)
-	// Admin: start the hosted-OAuth mailbox connect flow (mints the sealed state).
-	api.GET("/admin/inbox/connect", RequirePermission(entities.PermissionManageTenants), cp.container.InboxConnectHandler.Start)
-	// Admin: inbox management (043) — list/disconnect connections, message stream, triage/draft/send.
-	api.GET("/admin/inbox/connections", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.ListConnections)
-	api.DELETE("/admin/inbox/connections/:grant_id", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Disconnect)
-	api.GET("/admin/inbox/messages", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Messages)
-	api.POST("/admin/inbox/triage", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Triage)
-	api.POST("/admin/inbox/draft", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Draft)
-	api.POST("/admin/inbox/send", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Send)
+	// NOTE: the admin inbox routes (connect/connections/messages/triage/draft/send)
+	// live on the /api/v1/admin group below — they need AdminAuthMiddleware (the
+	// scheme the admin app's session uses), like /tenants and /fleet, not the
+	// api-group AuthMiddleware+RequirePermission (which 401s the admin session).
 
 	// Audit trail (Clean Architecture handlers)
 	api.GET("/audit", RequirePermission(entities.PermissionRead), cp.container.AuditHandler.Query)
@@ -697,6 +692,17 @@ func (cp *ControlPlane) setupRoutes() {
 	// are thin consumers (CONTROL_PLANE_TENANT_HEALTH_RECOVERY.md §5).
 	admin.GET("/fleet/health", cp.container.FleetHealthHandler.GetFleetHealth)
 	admin.GET("/fleet/health/:id", cp.container.FleetHealthHandler.GetTenantHealth)
+
+	// AI inbox management (P3b onboarding + 043). AdminAuthMiddleware-gated like
+	// /tenants and /fleet so the admin app's session authenticates. The public
+	// OAuth callback stays on the api group above.
+	admin.GET("/inbox/connect", cp.container.InboxConnectHandler.Start)
+	admin.GET("/inbox/connections", cp.container.InboxAdminHandler.ListConnections)
+	admin.DELETE("/inbox/connections/:grant_id", cp.container.InboxAdminHandler.Disconnect)
+	admin.GET("/inbox/messages", cp.container.InboxAdminHandler.Messages)
+	admin.POST("/inbox/triage", cp.container.InboxAdminHandler.Triage)
+	admin.POST("/inbox/draft", cp.container.InboxAdminHandler.Draft)
+	admin.POST("/inbox/send", cp.container.InboxAdminHandler.Send)
 
 	// Recovery — diagnose (Safe, read-only) + guarded/destructive actions.
 	// reactivate/suspend/edit_quotas are NOT re-implemented — they keep using the
