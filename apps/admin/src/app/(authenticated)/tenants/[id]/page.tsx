@@ -40,6 +40,7 @@ import { CommsPanel } from "@/components/tenants/comms-panel";
 import { OperationsPanel } from "@/components/tenants/operations-panel";
 import { TenantHealthPanel } from "@/components/tenants/tenant-health-panel";
 import { UsageBar } from "@/components/tenants/usage-bar";
+import { ViewAsButton } from "@/components/tenants/view-as-button";
 import {
   diagnoseIdentity,
   fetchTenantHealth,
@@ -243,12 +244,17 @@ export default function TenantDetailPage() {
           </div>
           {health && <HealthChip tier={health.tier} />}
         </div>
-        <Link href={`/fleet/${tenant.id}`}>
-          <Button variant="outline" data-testid="tenant-link-fleet">
-            <ExternalLink className="mr-2 h-4 w-4" />
-            Fleet health
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* Guarded read-only "View as tenant" (§5.3) — mints the scoped token
+              server-side and drops into the read-only product frame. */}
+          <ViewAsButton tenantId={tenant.id} />
+          <Link href={`/fleet/${tenant.id}`}>
+            <Button variant="outline" data-testid="tenant-link-fleet">
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Fleet health
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Identity + Subscription/billing */}

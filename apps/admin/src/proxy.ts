@@ -5,9 +5,23 @@ import { decodeJwt, isAdminRole } from "@/lib/auth";
  * Proxy that protects all authenticated routes.
  *
  * - Public routes (/login, /api/auth/*, /api/v1/auth/*) are allowed through.
+ * - The view-as API routes (/api/viewas/*) are allowed through here and enforce
+ *   their OWN auth: start/stop/status read the admin_token cookie server-side and
+ *   401 without it; the read-only data proxy reads the SEPARATE viewas_token and
+ *   401s without it. They must not be redirected to the HTML /login page (they are
+ *   JSON fetches), and the read-only data path is authorized by viewas_token, not
+ *   admin_token — so the admin-role gate below would wrongly bounce it. The
+ *   view-as PAGE (/view-as/*) is NOT exempted: it lives in the (authenticated)
+ *   group and still requires a logged-in admin (admin_token) to even open the
+ *   frame — only the data plane uses the scoped token.
  * - All other routes require a valid `admin_token` cookie with `role: "admin"`.
  * - Non-admin users receive a 403 response.
  * - Unauthenticated users are redirected to /login.
+ *
+ * This middleware runs in the Edge runtime: it uses ONLY `decodeJwt` (lib/auth.ts,
+ * an atob+TextDecoder decoder) and Web APIs — never the Node base64 buffer API
+ * (unavailable in Edge; it crashed the middleware for every authenticated request
+ * when last used here, §6 rule 5).
  */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -17,6 +31,7 @@ export function proxy(request: NextRequest) {
     pathname === "/login" ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/v1/auth/") ||
+    pathname.startsWith("/api/viewas/") ||
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/favicon")
   ) {
