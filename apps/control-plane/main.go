@@ -621,6 +621,13 @@ func (cp *ControlPlane) setupRoutes() {
 	api.GET("/webhooks/inbox/connect/callback", cp.container.InboxConnectHandler.Callback)
 	// Admin: start the hosted-OAuth mailbox connect flow (mints the sealed state).
 	api.GET("/admin/inbox/connect", RequirePermission(entities.PermissionManageTenants), cp.container.InboxConnectHandler.Start)
+	// Admin: inbox management (043) — list/disconnect connections, message stream, triage/draft/send.
+	api.GET("/admin/inbox/connections", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.ListConnections)
+	api.DELETE("/admin/inbox/connections/:grant_id", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Disconnect)
+	api.GET("/admin/inbox/messages", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Messages)
+	api.POST("/admin/inbox/triage", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Triage)
+	api.POST("/admin/inbox/draft", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Draft)
+	api.POST("/admin/inbox/send", RequirePermission(entities.PermissionManageTenants), cp.container.InboxAdminHandler.Send)
 
 	// Audit trail (Clean Architecture handlers)
 	api.GET("/audit", RequirePermission(entities.PermissionRead), cp.container.AuditHandler.Query)

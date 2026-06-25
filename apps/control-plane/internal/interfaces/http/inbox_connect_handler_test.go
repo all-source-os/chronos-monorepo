@@ -105,7 +105,7 @@ func TestConnect_CallbackPersistsSealedGrant(t *testing.T) {
 	provider := &fakeGrantProvider{grant: &emailprovider.Grant{ID: "grant_xyz", Email: "sales@all-source.xyz", Provider: "google"}}
 	h := NewInboxConnectHandler(provider, core, sealer, "https://api.all-source.xyz/cb")
 
-	state, err := h.mintState("tnt1")
+	state, err := h.mintState("tnt1", "")
 	if err != nil {
 		t.Fatalf("mintState: %v", err)
 	}

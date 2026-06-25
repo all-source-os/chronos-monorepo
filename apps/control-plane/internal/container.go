@@ -185,6 +185,7 @@ type Container struct {
 	WebhookHandler               *httphandlers.WebhookHandler
 	EmailWebhookHandler          *httphandlers.EmailWebhookHandler
 	InboxConnectHandler          *httphandlers.InboxConnectHandler
+	InboxAdminHandler            *httphandlers.InboxAdminHandler
 	AgentHandler                 *httphandlers.AgentHandler
 	FleetHealthHandler           *httphandlers.FleetHealthHandler
 	RecoveryHandler              *httphandlers.RecoveryHandler
@@ -534,6 +535,14 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	} else {
 		inboxConnectHandler = httphandlers.NewInboxConnectHandler(nil, cfg.CoreClient, emailSealer, os.Getenv("NYLAS_REDIRECT_URI"))
 	}
+	// Inbox management (043): admin endpoints to list/disconnect connections,
+	// read the email stream, and triage/draft/send. nil sender when no provider.
+	var inboxAdminHandler *httphandlers.InboxAdminHandler
+	if nylasProvider != nil {
+		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nylasProvider)
+	} else {
+		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nil)
+	}
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 	fleetHealthHandler := httphandlers.NewFleetHealthHandler(fleetHealthUC)
 	recoveryHandler := httphandlers.NewRecoveryHandler(recoveryUC)
@@ -639,6 +648,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		WebhookHandler:               webhookHandler,
 		EmailWebhookHandler:          emailWebhookHandler,
 		InboxConnectHandler:          inboxConnectHandler,
+		InboxAdminHandler:            inboxAdminHandler,
 		AgentHandler:                 agentHandler,
 		FleetHealthHandler:           fleetHealthHandler,
 		RecoveryHandler:              recoveryHandler,
