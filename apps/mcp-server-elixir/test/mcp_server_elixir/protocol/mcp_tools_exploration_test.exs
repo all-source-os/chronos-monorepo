@@ -266,9 +266,9 @@ defmodule McpServerElixir.Protocol.McpToolsExplorationTest do
   # ============================================================================
 
   describe "tool count" do
-    test "list_tools returns 63 tools" do
+    test "list_tools returns 64 tools" do
       tools = McpTools.list_tools(%{control_plane_enabled: true})
-      assert length(tools) == 63
+      assert length(tools) == 64
     end
   end
 

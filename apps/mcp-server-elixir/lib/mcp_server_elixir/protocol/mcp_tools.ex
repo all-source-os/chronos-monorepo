@@ -129,9 +129,19 @@ defmodule McpServerElixir.Protocol.McpTools do
     # confirmation guards live entirely in the Control Plane.
     fleet_tools =
       if config[:control_plane_enabled] do
-        base = [tool_fleet_health_summary(), tool_tenant_health_assessment()]
+        # READ tier (control_plane_enabled): fleet/tenant health + the per-tenant
+        # 360 (tenant_overview composes the three EXISTING admin reads). These
+        # only READ the CP admin endpoints.
+        base = [
+          tool_fleet_health_summary(),
+          tool_tenant_health_assessment(),
+          tool_tenant_overview()
+        ]
 
         if config[:system_admin] do
+          # MUTATING tier (system_admin): the eight recovery_* tools PLUS
+          # tenant_notice (sends an in-app notice — a mutation/comms, so it joins
+          # the system_admin gate, same bar as the Destructive recovery tools).
           base ++
             [
               tool_recovery_resync(),
@@ -141,7 +151,8 @@ defmodule McpServerElixir.Protocol.McpTools do
               tool_recovery_reprovision(),
               tool_recovery_restore(),
               tool_recovery_batch(),
-              tool_recovery_diagnose_edition()
+              tool_recovery_diagnose_edition(),
+              tool_tenant_notice()
             ]
         else
           base
@@ -273,6 +284,7 @@ defmodule McpServerElixir.Protocol.McpTools do
   @fleet_tool_handlers %{
     "fleet_health_summary" => :handle_fleet_health_summary,
     "tenant_health_assessment" => :handle_tenant_health_assessment,
+    "tenant_overview" => :handle_tenant_overview,
     "recovery_resync" => :handle_recovery_resync,
     "recovery_reconcile_subscription" => :handle_recovery_reconcile_subscription,
     "recovery_resolve_dunning" => :handle_recovery_resolve_dunning,
@@ -280,7 +292,8 @@ defmodule McpServerElixir.Protocol.McpTools do
     "recovery_reprovision" => :handle_recovery_reprovision,
     "recovery_restore" => :handle_recovery_restore,
     "recovery_batch" => :handle_recovery_batch,
-    "recovery_diagnose_edition" => :handle_recovery_diagnose_edition
+    "recovery_diagnose_edition" => :handle_recovery_diagnose_edition,
+    "tenant_notice" => :handle_tenant_notice
   }
 
   # Schema & validation tools (v2.0) - event type governance
@@ -346,7 +359,11 @@ defmodule McpServerElixir.Protocol.McpTools do
                                "tenant_suspend",
                                "tenant_export",
                                "fleet_health_summary",
-                               "tenant_health_assessment"
+                               "tenant_health_assessment",
+                               # Per-tenant 360 — pure READ composition of the CP
+                               # admin reads, so control_plane_enabled is the bar
+                               # (ADMIN_TENANT_POWER_TOOL §9 Phase 8).
+                               "tenant_overview"
                              ])
 
   # Tools gated by system_admin (ALLSOURCE_SYSTEM_ADMIN). The mutating fleet
@@ -363,7 +380,13 @@ defmodule McpServerElixir.Protocol.McpTools do
                               "recovery_reprovision",
                               "recovery_restore",
                               "recovery_batch",
-                              "recovery_diagnose_edition"
+                              "recovery_diagnose_edition",
+                              # Sending an in-app notice is a mutation/comms (and
+                              # a cohort send fans out): same system_admin bar as
+                              # the Destructive recovery tools. The CP still
+                              # enforces the cohort dry-run/confirm-token/opt-out
+                              # guards server-side (§9 Phase 8).
+                              "tenant_notice"
                             ])
 
   def call_tool(tool_name, args, state) do
@@ -6856,6 +6879,157 @@ defmodule McpServerElixir.Protocol.McpTools do
   end
 
   # ============================================================================
+  # Admin Tenant-360 + Comms Tool Definitions (ADMIN_TENANT_POWER_TOOL §9 Phase 8)
+  #
+  # MCP parity for the admin power tool. These live HERE in mcp-server-elixir,
+  # NEVER in prime-mcp: prime-mcp is single-tenant by design, so a per-tenant 360
+  # and a cross-tenant cohort notice cross a tenant boundary it does not have.
+  # Both are thin pass-throughs to the Control Plane /api/v1/admin/* group:
+  # tenant_overview composes three EXISTING reads; tenant_notice forwards
+  # dry_run + confirm_token to POST /api/v1/admin/notices and the CP enforces the
+  # cohort blast-radius / confirm-token / opt-out / audit guards. No scoring or
+  # guard decisions happen here.
+  # ============================================================================
+
+  defp tool_tenant_overview do
+    %{
+      name: "tenant_overview",
+      description: """
+      Per-tenant 360 — one read that composes the tenant's whole world: identity \
+      + members + API keys + subscription, health signals/tier, and usage. \
+      Read-only. The single answer to "show me everything about this tenant".
+
+      **ADMIN ONLY** — Reaches the Control Plane /api/v1/admin/* group (tenant \
+      detail + fleet health + usage), which requires an admin JWT.
+
+      **When to use this tool:**
+      - A customer emails "my dashboard is empty / I want to upgrade" and you need \
+        their whole world in one shot
+      - Triage before a lifecycle/recovery/comms action on a tenant
+      - Confirm identity + entitlements + health together
+
+      **What it returns** (one payload, three sections):
+      - `identity` ← GET /api/v1/admin/tenants/:id (id, name, status, plan, \
+        members, API keys, subscription)
+      - `health`   ← GET /api/v1/admin/fleet/health/:id (every signal + the tier \
+        it triggered)
+      - `usage`    ← GET /api/v1/admin/tenants/:id/usage (events/queries over time)
+
+      Each section is fetched independently — if one read fails it surfaces an \
+      `{error: ...}` marker for that section instead of failing the whole 360 \
+      (empty data is a read-path/identity symptom, NEVER data loss).
+
+      **Note:** This tool computes nothing — it composes existing CP reads. Drill \
+      into the health detail with tenant_health_assessment; send a notice with \
+      tenant_notice.
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "tenant_id" => %{
+            type: "string",
+            description: "ID of the tenant to assemble the 360 for"
+          },
+          "period" => %{
+            type: "string",
+            description:
+              "Optional usage window passed straight to GET …/tenants/:id/usage " <>
+                "(e.g. 'day' | 'week' | 'month'); omit for the CP default"
+          }
+        },
+        required: ["tenant_id"]
+      }
+    }
+  end
+
+  defp tool_tenant_notice do
+    %{
+      name: "tenant_notice",
+      description: """
+      Send an in-app notice to ONE tenant or a COHORT (Guarded — comms/mutation). \
+      Posts to the Control Plane /api/v1/admin/notices endpoint (event-sourced; \
+      the tenant dashboard renders it as a banner).
+
+      **ADMIN ONLY** — Requires admin role; gated behind system-admin mode \
+      (ALLSOURCE_SYSTEM_ADMIN) on this server, same bar as the Destructive \
+      recovery tools.
+
+      **SAFETY WARNING:**
+      - This writes a durable notice. A COHORT send (audience by tier / plan / \
+        health_tier) fans out to many tenants, so it runs dry-run by default; \
+        you must pass `dry_run: false` to actually send.
+      - On a cohort dry-run the Control Plane returns a `would` preview \
+        (recipient_tenant_ids + count) AND a `confirm_token`. Review it, then \
+        re-run with `dry_run: false` + that `confirm_token` to apply.
+      - The Control Plane enforces every guard server-side (blast-radius cap, \
+        confirm-token echo, opt-out, per-category rate-limit, Core audit event). \
+        This tool only forwards your audience + `dry_run` + `confirm_token`.
+
+      **Audience (exactly one form):**
+      - Single tenant: `audience: {tenant_id: "t-123"}`
+      - Cohort: `audience: {tier: "indie"}` | `{plan: "studio"}` | \
+        `{health_tier: "at_risk"}`
+
+      **Common patterns:**
+      - One tenant: `audience: {tenant_id: "t-123"}, title: "Heads up", \
+        body: "...", severity: "info"` (single sends apply directly)
+      - Cohort preview: `audience: {health_tier: "critical"}, title: "...", \
+        body: "...", severity: "warning"` (dry-run is the default → returns \
+        recipients + confirm_token)
+      - Cohort apply: same + `dry_run: false, confirm_token: "<echoed>"`
+      """,
+      inputSchema: %{
+        type: "object",
+        properties: %{
+          "audience" => %{
+            type: "object",
+            description:
+              "Who the notice targets. Exactly one of `tenant_id` (single) OR a " <>
+                "cohort selector (`tier` | `plan` | `health_tier`).",
+            properties: %{
+              "tenant_id" => %{type: "string", description: "Single-tenant target"},
+              "tier" => %{
+                type: "string",
+                description: "Cohort: billing tier (e.g. indie/studio/scale)"
+              },
+              "plan" => %{type: "string", description: "Cohort: alias for tier (admin filter vocabulary)"},
+              "health_tier" => %{
+                type: "string",
+                enum: ["critical", "at_risk", "degraded", "healthy"],
+                description: "Cohort: health-signals tier"
+              }
+            }
+          },
+          "title" => %{type: "string", description: "Notice title"},
+          "body" => %{type: "string", description: "Notice body"},
+          "severity" => %{
+            type: "string",
+            enum: ["info", "warning", "critical"],
+            description: "Notice severity"
+          },
+          "expires_at" => %{
+            type: "string",
+            description: "Optional ISO-8601 expiry; omit for a non-expiring notice"
+          },
+          "dry_run" => %{
+            type: "boolean",
+            description:
+              "Preview only (cohort blast-radius). Default true. Pass false " <>
+                "(with the echoed confirm_token for a cohort) to actually send."
+          },
+          "confirm_token" => %{
+            type: "string",
+            description:
+              "For a cohort apply: echo the confirm_token returned by the prior " <>
+                "dry-run. The Control Plane validates it server-side."
+          }
+        },
+        required: ["audience", "title", "body", "severity"]
+      }
+    }
+  end
+
+  # ============================================================================
   # Fleet Health & Recovery Tool Handlers (P3)
   #
   # Thin pass-throughs: compose the new ControlPlaneClient fns and format via
@@ -7066,6 +7240,154 @@ defmodule McpServerElixir.Protocol.McpTools do
 
       {:error, reason} ->
         {:error, "Failed to diagnose edition trap: #{inspect(reason)}"}
+    end
+  end
+
+  # ============================================================================
+  # Admin Tenant-360 + Comms Tool Handlers (ADMIN_TENANT_POWER_TOOL §9 Phase 8)
+  #
+  # tenant_overview: pure READ — composes the three existing admin reads via
+  # ControlPlaneClient.tenant_overview/3, formats one 360 payload, scores nothing.
+  # tenant_notice: forwards audience + dry_run + confirm_token straight through to
+  # POST /api/v1/admin/notices; the Control Plane enforces the cohort blast-radius
+  # / confirm-token / opt-out / audit guards. Mirrors run_recovery's dry-run/
+  # confirm-token surfacing.
+  # ============================================================================
+
+  @doc false
+  def handle_tenant_overview(args, state, format) do
+    tenant_id = Map.fetch!(args, "tenant_id")
+    params = maybe_put(%{}, "period", Map.get(args, "period"))
+
+    # tenant_overview/3 always returns {:ok, payload}: each sub-read is normalised
+    # into its own 360 section (a failed read becomes an `{error: ...}` marker
+    # INSIDE the payload), so a missing section never fails the whole 360.
+    {:ok, data} = ControlPlaneClient.tenant_overview(state.control_client, tenant_id, params)
+    formatted_data = ToonEncoder.format_response(data, format)
+
+    text = """
+    🪟 Tenant 360 Overview
+    🆔 Tenant ID: #{tenant_id}
+    (identity + health + usage composed from the Control Plane admin reads; this tool computes nothing)
+
+    #{formatted_data}
+
+    💡 Drill the health detail with tenant_health_assessment; send a notice with tenant_notice
+    """
+
+    {:ok, %{content: [%{type: "text", text: text}]}}
+  end
+
+  @doc false
+  def handle_tenant_notice(args, state, format) do
+    params = tenant_notice_params(args)
+    cohort? = cohort_audience?(Map.get(args, "audience"))
+
+    run_notice(
+      params,
+      cohort?,
+      fn -> ControlPlaneClient.admin_create_notice(state.control_client, params) end,
+      format
+    )
+  end
+
+  @doc false
+  # Builds the exact body forwarded to POST /api/v1/admin/notices. Public so the
+  # dry_run / confirm_token pass-through can be asserted without a live CP:
+  # - cohort + omit dry_run → "dry_run" => true (default-safe; no implicit blast)
+  # - single-tenant + omit dry_run → "dry_run" => false (single sends apply)
+  # - confirm_token forwarded verbatim when supplied (CP validates it server-side)
+  # No scoring or guard decisions happen here — the CP enforces every guard.
+  def tenant_notice_params(args) do
+    audience = Map.get(args, "audience")
+
+    %{}
+    |> maybe_put("audience", audience)
+    |> maybe_put("title", Map.get(args, "title"))
+    |> maybe_put("body", Map.get(args, "body"))
+    |> maybe_put("severity", Map.get(args, "severity"))
+    |> maybe_put("expires_at", Map.get(args, "expires_at"))
+    |> maybe_put("dry_run", notice_dry_run(args, audience))
+    |> maybe_put("confirm_token", Map.get(args, "confirm_token"))
+  end
+
+  @doc false
+  # Default-safe dry_run for notices: a COHORT send (tier/plan/health_tier) fans
+  # out, so dry_run defaults ON unless the caller explicitly sets it. A SINGLE
+  # tenant send has no blast radius, so it defaults OFF (applies directly), which
+  # matches the CP convention. An explicit dry_run always wins.
+  def notice_dry_run(args, audience) do
+    case Map.get(args, "dry_run") do
+      nil -> cohort_audience?(audience)
+      explicit -> explicit
+    end
+  end
+
+  @doc false
+  # A cohort audience is any selector other than a single tenant_id. Mirrors the
+  # Control Plane's NoticeAudience.isCohort (tier | plan | health_tier set, no
+  # tenant_id). Used only to pick the default dry_run + the surfaced mode line.
+  def cohort_audience?(audience) when is_map(audience) do
+    tenant_id = Map.get(audience, "tenant_id") || Map.get(audience, :tenant_id)
+
+    cohort =
+      [
+        Map.get(audience, "tier") || Map.get(audience, :tier),
+        Map.get(audience, "plan") || Map.get(audience, :plan),
+        Map.get(audience, "health_tier") || Map.get(audience, :health_tier)
+      ]
+      |> Enum.any?(&present?/1)
+
+    is_nil_or_blank(tenant_id) and cohort
+  end
+
+  def cohort_audience?(_audience), do: false
+
+  defp present?(nil), do: false
+  defp present?(""), do: false
+  defp present?(_), do: true
+
+  defp is_nil_or_blank(nil), do: true
+  defp is_nil_or_blank(""), do: true
+  defp is_nil_or_blank(_), do: false
+
+  # Shared formatter for tenant_notice. Surfaces whether the send was a dry-run
+  # (cohort), the Control Plane's `would` recipient preview, and any confirm_token
+  # it returned (echo to apply). Recomputes/decides nothing — the CP owns guards.
+  defp run_notice(params, cohort?, fun, format) do
+    dry_run? = Map.get(params, "dry_run", cohort?)
+
+    case fun.() do
+      {:ok, data} ->
+        formatted_data = ToonEncoder.format_response(data, format)
+        confirm_token = if is_map(data), do: Map.get(data, "confirm_token"), else: nil
+
+        mode_line =
+          cond do
+            dry_run? ->
+              "🧪 DRY-RUN — no notice was sent. Review the `would` recipients below, then re-run with dry_run: false" <>
+                (if cohort?, do: " + the confirm_token to apply.", else: " to apply.")
+
+            true ->
+              "✅ SENT — the Control Plane created the notice (and wrote a Core audit event)."
+          end
+
+        token_line =
+          if confirm_token,
+            do: "\n🔑 confirm_token: #{confirm_token}\n   Echo this token back (with dry_run: false) to apply the cohort send.",
+            else: ""
+
+        text = """
+        📣 Tenant Notice#{if cohort?, do: " (cohort)", else: ""}
+        #{mode_line}#{token_line}
+
+        #{formatted_data}
+        """
+
+        {:ok, %{content: [%{type: "text", text: text}]}}
+
+      {:error, reason} ->
+        {:error, "Failed to send tenant notice: #{inspect(reason)}"}
     end
   end
 

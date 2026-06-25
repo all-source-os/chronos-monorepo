@@ -27,9 +27,9 @@ defmodule McpServerElixir.Protocol.McpToolsContextTest do
       assert "get_session_context" in tool_names
     end
 
-    test "returns 63 tools total" do
+    test "returns 64 tools total" do
       tools = McpTools.list_tools(%{control_plane_enabled: true})
-      assert length(tools) == 63
+      assert length(tools) == 64
     end
   end
 

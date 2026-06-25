@@ -337,6 +337,144 @@ defmodule McpServerElixir.Infrastructure.ControlPlaneClient do
     end
   end
 
+  # ============================================================================
+  # Tenant-360 + Comms Endpoints (ADMIN group: /api/v1/admin/*)
+  #
+  # Power-tool parity (ADMIN_TENANT_POWER_TOOL §9 Phase 8). These reach the SAME
+  # AdminAuthMiddleware-protected route group as fleet/recovery. THEY LIVE HERE in
+  # mcp-server-elixir, NEVER in prime-mcp: prime-mcp is single-tenant by design,
+  # so per-tenant 360 + cross-tenant cohort comms cross a tenant boundary it does
+  # not have. Like the recovery_* fns these are thin pass-throughs: the 360 is a
+  # pure read composition (no scoring); the notice send forwards dry_run +
+  # confirm_token straight through and the Control Plane enforces the cohort
+  # blast-radius / confirm-token / opt-out / audit guards. This client recomputes
+  # NOTHING.
+  # ============================================================================
+
+  @doc """
+  Admin tenant detail (read).
+
+  GET /api/v1/admin/tenants/:id — identity + members + API keys + subscription
+  snapshot. One of the three reads `tenant_overview/3` composes.
+  """
+  def admin_tenant_detail(_client, tenant_id) do
+    admin_get("/api/v1/admin/tenants/#{tenant_id}")
+  end
+
+  @doc """
+  Admin tenant usage (read).
+
+  GET /api/v1/admin/tenants/:id/usage — daily usage / counters. The second of the
+  three reads `tenant_overview/3` composes. Optional `period` passed straight
+  through as a query param.
+  """
+  def admin_tenant_usage(_client, tenant_id, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    admin_get("/api/v1/admin/tenants/#{tenant_id}/usage", query: query_params)
+  end
+
+  @doc """
+  Per-tenant 360 (read composition).
+
+  Fans out the three EXISTING admin reads server-side here and returns a single
+  payload — exactly the `tenant_overview` shape §9 Pillar A describes:
+
+    - `identity`     ← GET /api/v1/admin/tenants/:id        (identity/members/keys/subscription)
+    - `health`       ← GET /api/v1/admin/fleet/health/:id   (signals + tier)
+    - `usage`        ← GET /api/v1/admin/tenants/:id/usage   (daily usage)
+
+  Every sub-read is wrapped in `{ok, value} | {error, reason}` under its own key
+  so one missing/odd section never crashes the whole 360 — a partial overview is
+  still useful (matches the admin "surface the real error, don't blank the page"
+  rule). All scoring/tiers come from the Control Plane; this just composes reads.
+  """
+  def tenant_overview(client, tenant_id, params \\ %{}) do
+    identity = admin_tenant_detail(client, tenant_id)
+    health = fleet_tenant_health(client, tenant_id)
+    usage = admin_tenant_usage(client, tenant_id, params)
+
+    {:ok,
+     %{
+       "tenant_id" => tenant_id,
+       "identity" => section_payload(identity),
+       "health" => section_payload(health),
+       "usage" => section_payload(usage)
+     }}
+  end
+
+  # Normalise a sub-read into a 360 section: a successful body passes through; an
+  # error becomes a `{error: ...}` marker so the operator sees WHICH section
+  # failed (and why) instead of a blank panel. Composes only — decides nothing.
+  defp section_payload({:ok, body}), do: body
+  defp section_payload({:error, reason}), do: %{"error" => to_string_reason(reason)}
+
+  defp to_string_reason(reason) when is_binary(reason), do: reason
+  defp to_string_reason(reason), do: inspect(reason)
+
+  @doc """
+  Create an in-app notice for a tenant or cohort (Guarded — mutating).
+
+  POST /api/v1/admin/notices. Matches prompt 037's `CreateNoticeRequest` shape:
+  `{audience: {tenant_id} | {tier|plan|health_tier}, title, body, severity,
+  expires_at?, dry_run, confirm_token?}`. For a COHORT send, `dry_run: true`
+  returns a `would` preview + a `confirm_token`; echo that token back with
+  `dry_run: false` to apply. This client forwards `dry_run` + `confirm_token`
+  straight through; the Control Plane enforces the blast-radius cap, the
+  confirm-token echo, opt-out, and the Core audit event.
+  """
+  def admin_create_notice(_client, params) do
+    body =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    case post("/api/v1/admin/notices", body) do
+      {:ok, %Tesla.Env{status: status, body: resp}} when status in [200, 201] ->
+        {:ok, resp}
+
+      {:ok, %Tesla.Env{status: status, body: resp}} ->
+        {:error, "HTTP #{status}: #{inspect(resp)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  List in-app notices (read).
+
+  GET /api/v1/admin/notices?tenant_id= — admin view of notices. `tenant_id` is
+  optional (omit for all tenants).
+  """
+  def admin_list_notices(_client, params \\ %{}) do
+    query_params =
+      params
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    admin_get("/api/v1/admin/notices", query: query_params)
+  end
+
+  # Shared GET helper for the admin-group reads (tenant detail/usage, notices).
+  # Mirrors the inline read handling the other admin GETs use; centralised so the
+  # 360 composition stays terse.
+  defp admin_get(path, opts \\ []) do
+    case get(path, opts) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   # Shared POST helper for the mutating recovery endpoints. Passes the body
   # (dry_run + confirmation params + action-specific fields) straight through.
   defp recovery_post(path, params) do
