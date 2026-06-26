@@ -133,7 +133,7 @@ fn chunk(text: &str) -> Vec<String> {
     out
 }
 
-/// Recursively collect doc files (md/markdown/txt/rst), skipping hidden dirs.
+/// Recursively collect doc files (md/markdown/txt/rst/pdf), skipping hidden dirs.
 fn find_docs(root: &Path, out: &mut Vec<PathBuf>) {
     if root.is_file() {
         out.push(root.to_path_buf());
@@ -152,10 +152,27 @@ fn find_docs(root: &Path, out: &mut Vec<PathBuf>) {
             }
         } else if matches!(
             p.extension().and_then(|e| e.to_str()),
-            Some("md" | "markdown" | "txt" | "rst")
+            Some("md" | "markdown" | "txt" | "rst" | "pdf")
         ) {
             out.push(p);
         }
+    }
+}
+
+/// Read a document's text. PDFs are run through `pdf-extract` (pure Rust, no
+/// native deps); everything else is read as UTF-8. The extracted text then goes
+/// down the same chunk → LLM → fold path as a markdown file.
+fn read_doc_text(path: &Path) -> Result<String> {
+    if path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
+    {
+        pdf_extract::extract_text(path)
+            .with_context(|| format!("extract text from PDF {}", path.display()))
+    } else {
+        std::fs::read_to_string(path)
+            .with_context(|| format!("read text document {}", path.display()))
     }
 }
 
@@ -284,7 +301,7 @@ pub async fn extract_docs_with(
     let http = reqwest::Client::new();
     let mut s = DocSummary::default();
     for path in files {
-        let Ok(text) = std::fs::read_to_string(&path) else { continue };
+        let Ok(text) = read_doc_text(&path) else { continue };
         if text.trim().is_empty() {
             continue;
         }
@@ -397,5 +414,47 @@ mod tests {
         assert_eq!(g.nodes.len(), 3);
         assert!(g.nodes.iter().any(|n| n.properties.get("name").and_then(|v| v.as_str()) == Some("Billing")));
         assert!(g.edges.iter().any(|e| e.relation == "depends_on"));
+    }
+
+    #[test]
+    fn read_doc_text_extracts_pdf() {
+        // A real PDF fixture; pdf-extract should recover its text.
+        let bytes = include_bytes!("../tests/fixtures/sample.pdf");
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("sample.pdf");
+        std::fs::write(&p, bytes).unwrap();
+        let text = read_doc_text(&p).unwrap();
+        assert!(text.contains("AuthService"), "PDF text missing marker: {text:?}");
+    }
+
+    #[tokio::test]
+    async fn extract_docs_handles_a_pdf_through_the_llm_path() {
+        let server = MockServer::start().await;
+        let reply = json!({ "choices": [{ "message": {
+            "content": "{\"entities\":[{\"name\":\"AuthService\",\"type\":\"service\"}],\"relationships\":[]}"
+        }}]});
+        Mock::given(method("POST"))
+            .and(mpath("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(reply))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("design.pdf"),
+            include_bytes!("../tests/fixtures/sample.pdf"),
+        )
+        .unwrap();
+
+        let prime = Prime::open_in_memory().await.unwrap();
+        let cfg = LlmConfig {
+            endpoint: format!("{}/v1/chat/completions", server.uri()),
+            api_key: None,
+            model: "m".into(),
+        };
+        let s = extract_docs_with(&prime, dir.path(), false, &cfg).await.unwrap();
+        // The PDF was discovered, text-extracted, sent to the LLM, and folded.
+        assert_eq!(s.files, 1);
+        assert_eq!(s.entities, 1);
     }
 }
