@@ -13,6 +13,7 @@ import {
 import { cn } from "@allsource/ui/utils";
 import {
   CheckCircle2,
+  ChevronDown,
   GitBranch,
   Layers,
   Loader2,
@@ -20,11 +21,21 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { ProjectionStateView } from "@/components/dashboard/projection-state-view";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { apiClient, type Projection, type ProjectionTemplate } from "@/lib/api/client";
 
 function statusColor(status: Projection["status"]) {
   return status === "ready" ? "bg-green-500" : "bg-yellow-500";
+}
+
+// entity_table templates that fold ONE ETS row per entity_id (rather than a
+// tenant-wide summary) need an entity_id filter to read state. active-entities
+// is entity_table but tenant-wide, so it does NOT.
+function isPerEntityTemplate(p: Projection): boolean {
+  return p.kind === "entity_table" && p.name !== "active-entities";
 }
 
 function ProjectionCard({
@@ -35,6 +46,7 @@ function ProjectionCard({
   onDisable: () => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const building = projection.status === "building";
 
   return (
@@ -115,6 +127,34 @@ function ProjectionCard({
             <p className="mt-1 font-mono text-xs">{projection.name}</p>
           </div>
         </div>
+
+        {/* Ready cards expand to show the folded read-model. Building cards are
+            not expandable until the backfill finishes. */}
+        {building ? (
+          <p className="mt-4 text-xs text-muted-foreground">
+            Folding your event history… the read-model will be viewable once ready.
+          </p>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-4 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              <ChevronDown
+                className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}
+              />
+              {expanded ? "Hide read-model" : "View read-model"}
+            </button>
+            {expanded && (
+              <ProjectionStateView
+                name={projection.name}
+                kind={projection.kind}
+                isPerEntity={isPerEntityTemplate(projection)}
+              />
+            )}
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -126,6 +166,10 @@ export default function PipelinesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const { stats } = useDashboardStats();
+  // Reuse the dashboard's REAL tenant-scoped event total (summed from
+  // /api/event-types) rather than recomputing — 0 means an honest empty tenant.
+  const hasNoEvents = stats.events.total === 0;
 
   const refresh = useCallback(async () => {
     const response = await apiClient.listProjections();
@@ -228,6 +272,30 @@ export default function PipelinesPage() {
           </div>
         </div>
       </BlurFade>
+
+      {/* Zero-events hint — projections build from the event stream, so they
+          stay empty until events arrive. Be honest rather than letting a user
+          enable a projection and stare at a meaningless "Ready / 0". */}
+      {!isLoading && hasNoEvents && (
+        <BlurFade delay={0.15} inView>
+          <Card className="border-yellow-500/30 bg-yellow-500/5">
+            <CardContent className="flex items-start gap-3 p-4">
+              <GitBranch className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600" />
+              <div className="text-sm">
+                <p className="font-medium">You have no events yet</p>
+                <p className="mt-0.5 text-muted-foreground">
+                  Projections build a read-model from your event stream — they will stay empty until
+                  events arrive.{" "}
+                  <Link href="/dashboard/events" className="text-primary hover:underline">
+                    Ingest your first events
+                  </Link>{" "}
+                  to see them populate.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </BlurFade>
+      )}
 
       {/* Status Overview */}
       <BlurFade delay={0.2} inView>

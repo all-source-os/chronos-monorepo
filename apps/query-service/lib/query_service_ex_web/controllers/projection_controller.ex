@@ -78,7 +78,7 @@ defmodule QueryServiceExWeb.ProjectionController do
 
     templates =
       Enum.map(Catalog.list(), fn t ->
-        %{name: t.name, title: t.title, description: t.description}
+        %{name: t.name, title: t.title, description: t.description, kind: Atom.to_string(t.kind)}
       end)
 
     json(conn, %{templates: templates, total: length(templates)})
@@ -196,6 +196,7 @@ defmodule QueryServiceExWeb.ProjectionController do
       json(conn, %{
         projection: name,
         entity_id: entity_id,
+        kind: kind_string(name),
         status: status_string(tenant_id, name),
         state: state
       })
@@ -233,6 +234,13 @@ defmodule QueryServiceExWeb.ProjectionController do
     case TenantProjections.status(tenant_id, name) do
       nil -> "building"
       status -> Atom.to_string(status)
+    end
+  end
+
+  defp kind_string(name) do
+    case Catalog.fetch(name) do
+      {:ok, t} -> Atom.to_string(t.kind)
+      :error -> nil
     end
   end
 

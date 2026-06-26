@@ -354,6 +354,27 @@ export class ApiClient {
     });
   }
 
+  /**
+   * Read a projection's folded read-model state for one entity bucket.
+   *
+   * Tenant-scoped + fail-closed at the QS boundary. `entityId` selects the ETS
+   * bucket: tenant-wide templates (counter / breakdown / timeseries, and the
+   * active-entities summary) live under the synthetic `_tenant` key, which the
+   * server defaults to when `entity_id` is omitted; per-entity templates
+   * (entity-activity) require the caller to pass the entity_id. Returns 404 when
+   * the projection is not enabled for the tenant or there is no state for that
+   * bucket yet (still building / no data folded).
+   */
+  async getProjectionState(
+    name: string,
+    entityId?: string
+  ): Promise<ApiResponse<ProjectionStateResponse>> {
+    const qs = entityId ? `?entity_id=${encodeURIComponent(entityId)}` : "";
+    return this.request<ProjectionStateResponse>(
+      `/api/projections/${encodeURIComponent(name)}/state${qs}`
+    );
+  }
+
   // Metrics endpoints
   async getMetrics(): Promise<ApiResponse<MetricsResponse>> {
     return this.request<MetricsResponse>("/api/metrics");
@@ -766,10 +787,20 @@ export interface ProjectedChargesResponse {
 // Per-tenant projections are a Query-Service-owned read-model: a tenant enables
 // curated templates and QS folds the tenant's event stream into state. `status`
 // is "building" while the background backfill runs, then "ready".
+//
+// `kind` is the render hint the dashboard switches on to format folded state
+// WITHOUT knowing the template name:
+//   - "counter"      single headline number + optional by-key breakdown
+//   - "breakdown"    label -> count map (sorted table / bars)
+//   - "timeseries"   UTC-day -> count map (compact chart)
+//   - "entity_table" per-entity rows (small table, optional entity_id filter)
+export type ProjectionKind = "counter" | "breakdown" | "timeseries" | "entity_table";
+
 export interface Projection {
   name: string;
   title: string;
   description: string | null;
+  kind: ProjectionKind | null;
   status: "building" | "ready";
 }
 
@@ -782,11 +813,22 @@ export interface ProjectionTemplate {
   name: string;
   title: string;
   description: string;
+  kind: ProjectionKind | null;
 }
 
 export interface ProjectionTemplateListResponse {
   templates: ProjectionTemplate[];
   total: number;
+}
+
+// Folded read-model returned by GET /api/projections/{name}/state. `state` is the
+// raw folded value whose shape depends on `kind` (see ProjectionStateView).
+export interface ProjectionStateResponse {
+  projection: string;
+  entity_id: string;
+  kind: ProjectionKind | null;
+  status: "building" | "ready";
+  state: Record<string, unknown>;
 }
 
 export interface MetricsResponse {

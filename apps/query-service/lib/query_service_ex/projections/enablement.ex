@@ -46,7 +46,7 @@ defmodule QueryServiceEx.Projections.Enablement do
   @doc """
   The tenant's enabled projections with live QS status, for the list endpoint.
 
-  Returns `{:ok, [%{name, title, description, status}]}`. Status is
+  Returns `{:ok, [%{name, title, description, kind, status}]}`. Status is
   `"building"`/`"ready"` from the folding engine, falling back to `"building"`
   for a name that is in the enabled set but has no QS status yet (e.g. after a
   QS restart, before re-fold).
@@ -128,8 +128,16 @@ defmodule QueryServiceEx.Projections.Enablement do
 
     base =
       case Catalog.fetch(name) do
-        {:ok, t} -> %{name: t.name, title: t.title, description: t.description}
-        :error -> %{name: name, title: name, description: nil}
+        {:ok, t} ->
+          %{
+            name: t.name,
+            title: t.title,
+            description: t.description,
+            kind: Atom.to_string(t.kind)
+          }
+
+        :error ->
+          %{name: name, title: name, description: nil, kind: nil}
       end
 
     Map.put(base, :status, Atom.to_string(status))

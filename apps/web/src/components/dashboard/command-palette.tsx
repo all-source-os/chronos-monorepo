@@ -55,8 +55,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       group: "Navigation",
     },
     {
-      id: "pipelines",
-      name: "Go to Pipelines",
+      id: "projections",
+      name: "Go to Projections",
       icon: GitBranch,
       action: () => router.push("/dashboard/pipelines"),
       shortcut: "G P",

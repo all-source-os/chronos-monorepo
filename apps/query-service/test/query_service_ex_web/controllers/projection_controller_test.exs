@@ -95,8 +95,20 @@ defmodule QueryServiceExWeb.ProjectionControllerTest do
         ProjectionController.templates(tenant_conn(:get, "/api/projection-templates", "t1"), %{})
 
       assert conn.status == 200
-      names = body(conn)["templates"] |> Enum.map(& &1["name"]) |> Enum.sort()
-      assert names == ["entity-activity", "event-count"]
+      templates = body(conn)["templates"]
+      names = templates |> Enum.map(& &1["name"]) |> Enum.sort()
+
+      assert names == [
+               "active-entities",
+               "entity-activity",
+               "event-count",
+               "event-type-leaderboard",
+               "events-per-day"
+             ]
+
+      # every template carries a render-hint kind the UI switches on
+      kinds = templates |> Enum.map(& &1["kind"]) |> Enum.uniq() |> Enum.sort()
+      assert Enum.all?(kinds, &(&1 in ["counter", "breakdown", "timeseries", "entity_table"]))
     end
   end
 
@@ -113,7 +125,10 @@ defmodule QueryServiceExWeb.ProjectionControllerTest do
       conn = ProjectionController.index(tenant_conn(:get, "/api/projections", "t1"), %{})
       payload = body(conn)
       assert payload["total"] == 1
-      assert [%{"name" => "event-count", "status" => status}] = payload["projections"]
+
+      assert [%{"name" => "event-count", "status" => status, "kind" => "counter"}] =
+               payload["projections"]
+
       assert status in ["building", "ready"]
     end
   end

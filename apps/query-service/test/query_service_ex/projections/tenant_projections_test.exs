@@ -100,6 +100,85 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
       assert sy["event_count"] == 1
     end
 
+    test "events-per-day backfill buckets by UTC day" do
+      tenant = "tenant-tsd"
+
+      events = [
+        %{
+          "event_type" => "a",
+          "entity_id" => "x",
+          "tenant_id" => tenant,
+          "timestamp" => "2026-01-01T01:00:00Z"
+        },
+        %{
+          "event_type" => "a",
+          "entity_id" => "y",
+          "tenant_id" => tenant,
+          "timestamp" => "2026-01-01T23:00:00Z"
+        },
+        %{
+          "event_type" => "a",
+          "entity_id" => "z",
+          "tenant_id" => tenant,
+          "timestamp" => "2026-01-02T05:00:00Z"
+        }
+      ]
+
+      seed_core(%{tenant => events})
+
+      assert :ok = TenantProjections.enable(tenant, "events-per-day")
+      wait_until(fn -> TenantProjections.status(tenant, "events-per-day") == :ready end)
+
+      assert {:ok, state} =
+               TenantProjections.get_state(
+                 tenant,
+                 "events-per-day",
+                 QueryServiceEx.Projections.Catalog.tenant_key()
+               )
+
+      assert state["by_day"] == %{"2026-01-01" => 2, "2026-01-02" => 1}
+    end
+
+    test "active-entities backfill tracks distinct + recent (tenant-wide bucket)" do
+      tenant = "tenant-ae"
+
+      events = [
+        %{
+          "event_type" => "a",
+          "entity_id" => "a",
+          "tenant_id" => tenant,
+          "timestamp" => "2026-01-01T00:00:00Z"
+        },
+        %{
+          "event_type" => "a",
+          "entity_id" => "b",
+          "tenant_id" => tenant,
+          "timestamp" => "2026-01-02T00:00:00Z"
+        },
+        %{
+          "event_type" => "a",
+          "entity_id" => "a",
+          "tenant_id" => tenant,
+          "timestamp" => "2026-01-03T00:00:00Z"
+        }
+      ]
+
+      seed_core(%{tenant => events})
+
+      assert :ok = TenantProjections.enable(tenant, "active-entities")
+      wait_until(fn -> TenantProjections.status(tenant, "active-entities") == :ready end)
+
+      assert {:ok, state} =
+               TenantProjections.get_state(
+                 tenant,
+                 "active-entities",
+                 QueryServiceEx.Projections.Catalog.tenant_key()
+               )
+
+      assert state["distinct"] == 2
+      assert state["recent"]["a"] == "2026-01-03T00:00:00Z"
+    end
+
     test "unknown template is rejected" do
       assert {:error, :unknown_template} = TenantProjections.enable("t", "nope")
     end
