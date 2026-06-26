@@ -504,10 +504,43 @@ pub async fn delete_tenant_handler(
 // Helpers
 // ============================================================================
 
+/// Read a non-negative meter (`events_used` / `queries_used`) from the tenant's
+/// `metadata.quotas` blob.
+///
+/// WHY this exists: the durable per-tenant event/query totals live in
+/// `metadata.quotas.{events_used,queries_used}` — the counter the forward-metering
+/// path bumps (`POST /api/v1/tenants/{id}/usage/increment`,
+/// [`crate::domain::entities::UsageMeter`]) and the backfill reconciles. The
+/// in-memory [`crate::domain::entities::TenantUsage`] struct's `total_events`
+/// field is only ever moved by `record_event()`, which the real ingest path never
+/// calls — so `usage.total_events` is structurally always 0. `/stats` must report
+/// the metered counter, the same number the Query Service dashboard reads
+/// (`tenant_controller.ex` `events_used`), or every downstream consumer (the admin
+/// tenant list/detail event_count, fleet-health's has-data gate, cluster status)
+/// reads 0 for tenants that demonstrably have events. JSON numbers arrive as
+/// u64/f64 depending on the writer; accept either and treat anything else as 0.
+fn metered_quota_counter(tenant: &crate::domain::entities::Tenant, field: &str) -> u64 {
+    tenant
+        .metadata()
+        .get("quotas")
+        .and_then(|q| q.get(field))
+        .and_then(|v| {
+            v.as_u64()
+                .or_else(|| v.as_f64().map(|f| f.max(0.0) as u64))
+        })
+        .unwrap_or(0)
+}
+
 /// Build tenant statistics JSON (presentation concern).
 fn build_tenant_stats(tenant: &crate::domain::entities::Tenant) -> serde_json::Value {
     let quotas = tenant.quotas();
     let usage = tenant.usage();
+
+    // The authoritative lifetime totals come from the metered metadata counter,
+    // NOT the in-memory TenantUsage struct (see `metered_quota_counter`). These are
+    // the numbers the dashboard + admin console show.
+    let events_used = metered_quota_counter(tenant, "events_used");
+    let queries_used = metered_quota_counter(tenant, "queries_used");
 
     let events_pct = if quotas.max_events_per_day() > 0 {
         (usage.events_today() as f64 / quotas.max_events_per_day() as f64) * 100.0
@@ -527,12 +560,27 @@ fn build_tenant_stats(tenant: &crate::domain::entities::Tenant) -> serde_json::V
         0.0
     };
 
+    // Serialize the live usage struct, then overlay the real metered lifetime
+    // totals so `usage.total_events` reflects the durable counter instead of the
+    // always-0 in-memory field. The Control Plane's tolerant stats decoder
+    // (tenant_stats.go) reads `usage.total_events` (then `event_count`), so this
+    // overlay alone fixes every CP consumer with no CP change required.
+    let mut usage_json = serde_json::to_value(usage).unwrap_or_else(|_| serde_json::json!({}));
+    if let Some(obj) = usage_json.as_object_mut() {
+        obj.insert("total_events".to_string(), serde_json::json!(events_used));
+        obj.insert("queries_used".to_string(), serde_json::json!(queries_used));
+    }
+
     serde_json::json!({
         "tenant_id": tenant.id().as_str(),
         "name": tenant.name(),
         "active": tenant.is_active(),
         "is_demo": tenant.is_demo(),
-        "usage": tenant.usage(),
+        // Flat lifetime totals — the primary fields the admin Events/Queries
+        // columns want. Sourced from the durable metered counter.
+        "event_count": events_used,
+        "query_count": queries_used,
+        "usage": usage_json,
         "quotas": tenant.quotas(),
         "utilization": {
             "events_today": {
@@ -602,5 +650,105 @@ mod tests {
         assert_eq!(v["tenant_id"], "acme");
         assert_eq!(v["type"], "queries");
         assert_eq!(v["used"], 42);
+    }
+
+    use crate::domain::entities::{Tenant, TenantQuotas};
+    use crate::domain::value_objects::TenantId;
+
+    fn tenant_with_quota_usage(events_used: u64, queries_used: u64) -> Tenant {
+        let mut t = Tenant::new(
+            TenantId::new("acme".to_string()).unwrap(),
+            "Acme".to_string(),
+            TenantQuotas::free_tier(),
+        )
+        .unwrap();
+        // Mirror exactly what the metering increment path writes:
+        // metadata.quotas.{events_used,queries_used}.
+        t.update_metadata(serde_json::json!({
+            "quotas": { "events_used": events_used, "queries_used": queries_used }
+        }));
+        t
+    }
+
+    #[test]
+    fn stats_event_count_reflects_metered_counter_not_inmemory_usage() {
+        // The in-memory TenantUsage.total_events is never bumped by the real
+        // ingest path, so /stats must report the durable metered counter from
+        // metadata.quotas.events_used — the same number the QS dashboard shows.
+        let tenant = tenant_with_quota_usage(257, 12);
+        let stats = build_tenant_stats(&tenant);
+
+        // Flat fields the admin Events/Queries columns prefer.
+        assert_eq!(stats["event_count"], 257);
+        assert_eq!(stats["query_count"], 12);
+        // Overlaid into the usage block so the CP's tolerant decoder
+        // (tenant_stats.go reads usage.total_events) also picks it up.
+        assert_eq!(stats["usage"]["total_events"], 257);
+        assert_eq!(stats["usage"]["queries_used"], 12);
+    }
+
+    #[test]
+    fn stats_event_count_is_zero_when_unmetered() {
+        // A tenant whose metadata has no quota counters reports 0 (guarded),
+        // never a missing field or a crash.
+        let tenant = Tenant::new(
+            TenantId::new("empty".to_string()).unwrap(),
+            "Empty".to_string(),
+            TenantQuotas::free_tier(),
+        )
+        .unwrap();
+        let stats = build_tenant_stats(&tenant);
+        assert_eq!(stats["event_count"], 0);
+        assert_eq!(stats["usage"]["total_events"], 0);
+    }
+
+    #[tokio::test]
+    async fn stats_reflects_real_metering_path_end_to_end() {
+        // The full chain the admin console depends on, in one test:
+        //   increment_usage (the real QS metering path, writes
+        //   metadata.quotas.events_used) -> find_by_id -> build_tenant_stats.
+        // Proves the number the metering path records is the number /stats reports
+        // as event_count — closing the counts=0 gap at the source.
+        use crate::domain::repositories::TenantRepository;
+        use crate::infrastructure::repositories::InMemoryTenantRepository;
+
+        let repo = InMemoryTenantRepository::new();
+        let id = TenantId::new("acme".to_string()).unwrap();
+        repo.create(id.clone(), "ACME".to_string(), TenantQuotas::free_tier())
+            .await
+            .unwrap();
+
+        // Meter 257 events + 12 queries exactly as the Query Service does.
+        repo.increment_usage(&id, UsageMeter::Events, 257)
+            .await
+            .unwrap();
+        repo.increment_usage(&id, UsageMeter::Queries, 12)
+            .await
+            .unwrap();
+
+        let tenant = repo.find_by_id(&id).await.unwrap().unwrap();
+        let stats = build_tenant_stats(&tenant);
+
+        assert_eq!(stats["event_count"], 257, "stats must report the metered events");
+        assert_eq!(stats["query_count"], 12, "stats must report the metered queries");
+        assert_eq!(stats["usage"]["total_events"], 257);
+    }
+
+    #[test]
+    fn stats_metered_counter_accepts_float_json() {
+        // JSON numbers can arrive as f64 depending on the writer; the reader
+        // must coerce, not drop the value to 0.
+        let mut tenant = Tenant::new(
+            TenantId::new("floaty".to_string()).unwrap(),
+            "Floaty".to_string(),
+            TenantQuotas::free_tier(),
+        )
+        .unwrap();
+        tenant.update_metadata(serde_json::json!({
+            "quotas": { "events_used": 5.0, "queries_used": 3.0 }
+        }));
+        let stats = build_tenant_stats(&tenant);
+        assert_eq!(stats["event_count"], 5);
+        assert_eq!(stats["query_count"], 3);
     }
 }
