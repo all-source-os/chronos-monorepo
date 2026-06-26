@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Scan the shared @allsource/ui package so its utility classes are generated.
+   Tailwind v4 auto-excludes node_modules (where the workspace package symlinks),
+   so without this, shared-component classes admin doesn't also use directly
+   (table align-middle/caption-bottom, dialog/spacing utilities, …) get purged —
+   which made tables and other components render with missing padding/alignment. */
+@source "../../../../packages/ui/src";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
