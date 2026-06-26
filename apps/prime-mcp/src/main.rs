@@ -24,6 +24,7 @@ mod analytics;
 mod hosted_dispatch;
 mod hound;
 mod http;
+mod pr;
 mod report;
 mod profiling;
 mod projection_registry;

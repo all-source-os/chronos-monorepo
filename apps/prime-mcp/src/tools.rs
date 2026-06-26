@@ -372,12 +372,26 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "hound_report",
-            "description": "Prime Hound: a structural summary of the code graph — node counts by type, edge counts by relation, the EXTRACTED/INFERRED/AMBIGUOUS confidence breakdown, and the top 'god nodes' (highest-degree symbols, the architectural hubs). Call after hound_ingest to orient on an unfamiliar codebase.",
+            "description": "Prime Hound: a structural summary of the code graph — node counts by type, edge counts by relation, the EXTRACTED/INFERRED/AMBIGUOUS confidence breakdown, and the top 'god nodes' (highest-degree symbols, the architectural hubs). Call after hound_ingest to orient on an unfamiliar codebase. Pass markdown:true for a rendered GRAPH_REPORT.md.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "top": { "type": "integer", "description": "How many god-nodes to return (default 10)." }
+                    "top": { "type": "integer", "description": "How many god-nodes to return (default 10)." },
+                    "markdown": { "type": "boolean", "description": "Return the rendered GRAPH_REPORT.md instead of JSON (default false)." }
                 }
+            }
+        },
+        {
+            "name": "hound_pr_impact",
+            "description": "Prime Hound: triage a pull request by blast radius. Pass the files it changes (e.g. `git diff --name-only main..HEAD`); returns a review queue of the changed symbols ranked by how many functions transitively CALL them — review the most depended-upon first. A change to an architectural hub is high-risk; a change nothing depends on is safe. Run hound_ingest first so the graph reflects the current code.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "files": { "type": "array", "items": { "type": "string" }, "description": "Changed file paths, e.g. the output of `git diff --name-only main..HEAD`." },
+                    "depth": { "type": "integer", "description": "Transitive caller hops to follow (default 2)." },
+                    "top": { "type": "integer", "description": "Max review-queue entries to return (default 20)." }
+                },
+                "required": ["files"]
             }
         }
     ])
@@ -410,6 +424,7 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
         "hound_ingest" => call_hound_ingest(prime, args).await,
         "hound_impact" => call_hound_impact(prime, args),
         "hound_report" => call_hound_report(prime, args),
+        "hound_pr_impact" => call_hound_pr_impact(prime, args),
         _ => tool_error(&format!("Unknown tool: {name}")),
     }
 }
@@ -1018,6 +1033,26 @@ fn call_hound_report(prime: &Prime, args: &Value) -> Value {
     } else {
         tool_result(data.to_json())
     }
+}
+
+/// `hound_pr_impact`: rank a PR's changed files by blast radius (transitive callers).
+fn call_hound_pr_impact(prime: &Prime, args: &Value) -> Value {
+    let Some(files_val) = args.get("files").and_then(Value::as_array) else {
+        return tool_error(
+            "missing 'files' — an array of changed file paths (e.g. `git diff --name-only main..HEAD`)",
+        );
+    };
+    let files: Vec<String> = files_val
+        .iter()
+        .filter_map(|v| v.as_str().map(String::from))
+        .collect();
+    if files.is_empty() {
+        return tool_error("'files' is empty — pass the PR's changed file paths");
+    }
+    let depth = args.get("depth").and_then(Value::as_u64).unwrap_or(2) as usize;
+    let top = args.get("top").and_then(Value::as_u64).unwrap_or(20) as usize;
+    let g = prime.full_graph(None, None, None);
+    tool_result(crate::pr::pr_impact(&g, &files, depth).to_json(top))
 }
 
 // =========================================================================
