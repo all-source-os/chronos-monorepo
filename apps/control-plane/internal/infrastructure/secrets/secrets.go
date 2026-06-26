@@ -59,14 +59,16 @@ func NewSealerFromEnv() (*Sealer, error) {
 	return NewSealer(key)
 }
 
-// Seal returns sealPrefix + base64(nonce||ciphertext||tag).
+// Seal returns sealPrefix + urlsafe-base64(nonce||ciphertext||tag). URL-safe,
+// unpadded encoding so a sealed value survives an OAuth `state` round-trip
+// intact (standard base64's +/=/ get mangled by query parsing).
 func (s *Sealer) Seal(plaintext []byte) (string, error) {
 	nonce := make([]byte, s.gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", fmt.Errorf("secrets: read nonce: %w", err)
 	}
 	sealed := s.gcm.Seal(nonce, nonce, plaintext, nil)
-	return sealPrefix + base64.StdEncoding.EncodeToString(sealed), nil
+	return sealPrefix + base64.RawURLEncoding.EncodeToString(sealed), nil
 }
 
 // Open reverses Seal. Returns ErrNotSealed if the token is not a sealed value.
@@ -75,7 +77,7 @@ func (s *Sealer) Open(token string) ([]byte, error) {
 	if !ok {
 		return nil, ErrNotSealed
 	}
-	raw, err := base64.StdEncoding.DecodeString(rest)
+	raw, err := base64.RawURLEncoding.DecodeString(rest)
 	if err != nil {
 		return nil, fmt.Errorf("secrets: decode sealed value: %w", err)
 	}
