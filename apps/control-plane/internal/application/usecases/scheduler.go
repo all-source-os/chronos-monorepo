@@ -30,6 +30,7 @@ type OperationScheduler struct {
 	reportUsageUC      *billing.ReportUsageUseCase
 	checkUsageWarnings *billing.CheckUsageWarningsUseCase
 	syncX402UsageUC    *billing.SyncX402UsageUseCase
+	syncEventsUsageUC  *billing.SyncEventsUsageUseCase
 	syncSubsUC         *SyncSubscriptionsUseCase
 	tasks              []ScheduledTask
 	cancel             context.CancelFunc
@@ -54,6 +55,10 @@ func NewOperationScheduler(
 			// included x402 allowance between ticks; the in-process counter in
 			// CoreQuotaChecker tightens it further within each instance.
 			{Name: "x402_usage_sync", Interval: 1 * time.Minute, Enabled: true},
+			// Reconcile events_used from the real per-tenant event count so the
+			// quota meter (read by the usage bar AND usage enforcement) self-heals
+			// from drift. Not hot-path (live increments keep it ~current); 5 min.
+			{Name: "events_usage_sync", Interval: 5 * time.Minute, Enabled: true},
 			// Self-heal subscription tier from LemonSqueezy in case a webhook was
 			// missed or signature-rejected. Webhooks are primary; this is the
 			// safety net so tiers don't go stale without manual replays.
@@ -78,6 +83,12 @@ func (s *OperationScheduler) SetCheckUsageWarningsUseCase(uc *billing.CheckUsage
 // scheduler. Must be called before Start if x402_usage_sync is enabled.
 func (s *OperationScheduler) SetSyncX402UsageUseCase(uc *billing.SyncX402UsageUseCase) {
 	s.syncX402UsageUC = uc
+}
+
+// SetSyncEventsUsageUseCase sets the events_used reconciliation use case.
+// Must be called before Start if events_usage_sync is enabled.
+func (s *OperationScheduler) SetSyncEventsUsageUseCase(uc *billing.SyncEventsUsageUseCase) {
+	s.syncEventsUsageUC = uc
 }
 
 // SetSyncSubscriptionsUseCase sets the subscription reconciliation use case.
@@ -137,6 +148,8 @@ func (s *OperationScheduler) executeTask(ctx context.Context, task ScheduledTask
 		s.executeUsageWarnings(ctx)
 	case "x402_usage_sync":
 		s.executeX402UsageSync(ctx)
+	case "events_usage_sync":
+		s.executeEventsUsageSync(ctx)
 	case "subscription_sync":
 		s.executeSubscriptionSync(ctx)
 	default:
@@ -248,6 +261,39 @@ func (s *OperationScheduler) executeX402UsageSync(ctx context.Context) {
 	log.Printf("Scheduler: x402 usage sync complete — synced=%d skipped=%d errors=%d", synced, skipped, errored)
 
 	auditEvent, _ := entities.NewAuditEvent("billing.x402.scheduled_sync", "execute", "SCHEDULER", "/billing/x402") //nolint:errcheck
+	auditEvent.AddMetadata("synced", fmt.Sprintf("%d", synced))
+	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
+	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
+	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck
+}
+
+// executeEventsUsageSync reconciles each tenant's events_used counter from the
+// real per-tenant event count in Core, so the usage meter (read by the usage
+// bar AND usage enforcement) self-heals from drift. No-op when not wired.
+func (s *OperationScheduler) executeEventsUsageSync(ctx context.Context) {
+	if s.syncEventsUsageUC == nil {
+		return
+	}
+
+	results := s.syncEventsUsageUC.ExecuteAll(ctx)
+
+	var synced, skipped, errored int
+	for _, r := range results {
+		switch {
+		case r.Error != nil:
+			errored++
+			log.Printf("Scheduler: events usage sync failed for tenant %s: %v", r.TenantID, r.Error)
+		case r.Skipped:
+			skipped++
+		default:
+			synced++
+			log.Printf("Scheduler: events_used corrected for tenant %s → %d", r.TenantID, r.EventsUsed)
+		}
+	}
+
+	log.Printf("Scheduler: events usage sync complete — synced=%d skipped=%d errors=%d", synced, skipped, errored)
+
+	auditEvent, _ := entities.NewAuditEvent("billing.events.scheduled_sync", "execute", "SCHEDULER", "/billing/events") //nolint:errcheck
 	auditEvent.AddMetadata("synced", fmt.Sprintf("%d", synced))
 	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
 	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))

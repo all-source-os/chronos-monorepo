@@ -157,6 +157,9 @@ type QueryEventsRequest struct {
 type QueryEventsResponse struct {
 	Events []EventEntry `json:"events"`
 	Count  int          `json:"count"`
+	// TotalCount is the total matching events BEFORE the limit — Core computes it
+	// from the full filtered set, so a limit:1 query still yields the true count.
+	TotalCount int `json:"total_count"`
 }
 
 // EventEntry represents a single event from Core's query response.
