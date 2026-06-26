@@ -46,12 +46,17 @@ type SubscriptionInfo struct {
 
 // TenantUsageResponse represents the usage breakdown for a tenant.
 type TenantUsageResponse struct {
-	TenantID     string       `json:"tenant_id"`
-	EventCount   int64        `json:"event_count"`
-	QueryCount   int64        `json:"query_count"`
-	StorageBytes int64        `json:"storage_bytes"`
-	StreamCount  int64        `json:"stream_count"`
-	DailyUsage   []DailyUsage `json:"daily_usage"`
+	TenantID     string `json:"tenant_id"`
+	EventCount   int64  `json:"event_count"`
+	QueryCount   int64  `json:"query_count"`
+	StorageBytes int64  `json:"storage_bytes"`
+	StreamCount  int64  `json:"stream_count"`
+	// Quota limits, sourced from the tenant's metadata.quotas. Without these the
+	// admin Usage-trends bars have no denominator and render "0 / 0 (0.0%)".
+	EventLimit     int64        `json:"event_limit"`
+	QueryLimit     int64        `json:"query_limit"`
+	StorageLimitMB int64        `json:"storage_limit_mb"`
+	DailyUsage     []DailyUsage `json:"daily_usage"`
 }
 
 // DailyUsage represents per-day usage metrics.

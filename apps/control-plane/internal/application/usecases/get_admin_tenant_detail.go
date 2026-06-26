@@ -107,15 +107,22 @@ func extractQuotaInfoFromTenant(t *entities.Tenant) dto.TenantQuotasResponse {
 	}
 	if q, ok := t.Metadata["quotas"]; ok {
 		if qMap, ok := q.(map[string]interface{}); ok {
-			if v, ok := qMap["event_limit"]; ok {
-				quotas.EventLimit = toInt64Val(v)
+			// Core persists ceilings as events_quota / queries_quota; accept the
+			// older event_limit / query_limit aliases too. Reading only the *_limit
+			// names left this panel (and the quota-edit dialog) showing 0.
+			pick := func(keys ...string) int64 {
+				for _, k := range keys {
+					if v, ok := qMap[k]; ok {
+						if n := toInt64Val(v); n != 0 {
+							return n
+						}
+					}
+				}
+				return 0
 			}
-			if v, ok := qMap["query_limit"]; ok {
-				quotas.QueryLimit = toInt64Val(v)
-			}
-			if v, ok := qMap["storage_limit_mb"]; ok {
-				quotas.StorageLimitMB = toInt64Val(v)
-			}
+			quotas.EventLimit = pick("events_quota", "event_limit")
+			quotas.QueryLimit = pick("queries_quota", "query_limit")
+			quotas.StorageLimitMB = pick("storage_limit_mb", "storage_quota_mb")
 		}
 	}
 	return quotas

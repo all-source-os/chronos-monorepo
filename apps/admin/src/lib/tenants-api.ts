@@ -213,7 +213,26 @@ export async function fetchTenantUsage(id: string): Promise<TenantUsage> {
   if (!res.ok) {
     throw new Error(`Failed to fetch tenant usage: ${res.status}`);
   }
-  return res.json();
+  // The CP /usage payload uses Core-side names (event_count, query_count,
+  // storage_bytes, daily_usage) and bytes; the UI type expects events_ingested /
+  // queries_run / storage_used_mb / event_limit / daily. Map them here — passing
+  // the raw payload through (the old behaviour) left every field undefined, which
+  // is why the Usage-trends cards rendered 0 despite real metered counts (§6).
+  const raw = (await res.json()) ?? {};
+  const BYTES_PER_MB = 1024 * 1024;
+  const dailySrc = Array.isArray(raw.daily_usage) ? raw.daily_usage : [];
+  return {
+    events_ingested: raw.event_count ?? 0,
+    queries_run: raw.query_count ?? 0,
+    storage_used_mb: Math.round((raw.storage_bytes ?? 0) / BYTES_PER_MB),
+    event_limit: raw.event_limit ?? 0,
+    query_limit: raw.query_limit ?? 0,
+    storage_limit_mb: raw.storage_limit_mb ?? 0,
+    daily: dailySrc.map((d: { date?: string; events_ingested?: number }) => ({
+      date: d?.date ?? "",
+      events: d?.events_ingested ?? 0,
+    })),
+  };
 }
 
 export async function updateTenantQuotas(id: string, quotas: TenantQuotas): Promise<void> {
