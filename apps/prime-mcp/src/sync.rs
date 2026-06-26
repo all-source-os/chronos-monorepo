@@ -119,6 +119,33 @@ pub async fn run_sync_loop(prime: Arc<Prime>, config: SyncConfig, data_dir: Path
     }
 }
 
+/// Drain **all** pending `prime.*` events to the remote in batches, then return.
+///
+/// Unlike [`run_sync_loop`] (which ticks forever), this is the one-shot path for
+/// `--mode hound`: the extractor writes the code graph into the local store, then
+/// we push the whole thing once and exit. Loops [`drain_once`] until a tick pushes
+/// nothing, persisting the cursor after each non-empty batch so a mid-flush crash
+/// resumes instead of replaying. Returns the total number of events pushed.
+pub async fn flush_all(prime: &Prime, config: &SyncConfig, data_dir: &Path) -> Result<usize> {
+    let cursor_path = cursor_path(data_dir);
+    let mut cursor = Cursor::load(&cursor_path);
+    let http = reqwest::Client::new();
+    let base_url = config.remote_url.trim_end_matches('/').to_string();
+
+    let mut total = 0;
+    loop {
+        let pushed = drain_once(prime, &http, &base_url, &config.api_key, &mut cursor).await?;
+        if pushed == 0 {
+            break;
+        }
+        total += pushed;
+        cursor
+            .save(&cursor_path)
+            .context("persist sync cursor during flush")?;
+    }
+    Ok(total)
+}
+
 /// Push one batch of pending events. Returns the number pushed.
 async fn drain_once(
     prime: &Prime,
@@ -227,5 +254,70 @@ mod tests {
         // Should not panic; should return default.
         let loaded = Cursor::load(&path);
         assert!(loaded.last_pushed_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn flush_all_pushes_every_event_then_is_idempotent() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/events"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let dir = tempdir().expect("tempdir");
+        let prime = Prime::open(dir.path()).await.expect("open prime");
+        // Two nodes + one edge between them → three prime.* events.
+        let a = prime
+            .add_node("file", serde_json::json!({ "path": "a.rs" }))
+            .await
+            .expect("add file");
+        let b = prime
+            .add_node("function", serde_json::json!({ "name": "foo" }))
+            .await
+            .expect("add fn");
+        prime
+            .add_edge_weighted(
+                &format!("node:file:{}", a.as_str()),
+                &format!("node:function:{}", b.as_str()),
+                "defines",
+                1.0,
+                Some(serde_json::json!({ "confidence": "EXTRACTED" })),
+            )
+            .await
+            .expect("add edge");
+
+        let config = SyncConfig {
+            remote_url: server.uri(),
+            api_key: "test-key".to_string(),
+            interval: Duration::from_millis(10),
+        };
+
+        // First flush pushes all three events.
+        let pushed = flush_all(&prime, &config, dir.path()).await.expect("flush");
+        assert_eq!(pushed, 3);
+
+        // Second flush is a no-op — the cursor has advanced past everything.
+        let again = flush_all(&prime, &config, dir.path())
+            .await
+            .expect("flush again");
+        assert_eq!(again, 0);
+
+        // Sanity: at least one event carried our confidence tag to the remote.
+        let confidence_hits = server
+            .received_requests()
+            .await
+            .expect("requests")
+            .iter()
+            .filter(|r| {
+                std::str::from_utf8(&r.body)
+                    .map(|s| s.contains("EXTRACTED"))
+                    .unwrap_or(false)
+            })
+            .count();
+        assert_eq!(confidence_hits, 1);
     }
 }

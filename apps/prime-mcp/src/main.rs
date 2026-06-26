@@ -296,6 +296,47 @@ async fn main() -> Result<()> {
             summary.unresolved,
             data_dir.display()
         );
+
+        // Opt-in: with --sync-to + --api-key, push the freshly-extracted code
+        // graph to the hosted tenant Core, then exit. One-shot drain (not the
+        // forever loop the server modes spawn). Same trim-as-unset handling as
+        // the server path so a DXT-cleared `--sync-to ""` is treated as local.
+        let sync_to = cli
+            .sync_to
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let api_key = cli
+            .api_key
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        match (sync_to, api_key) {
+            (Some(url), Some(key)) => {
+                let sync_config = sync::SyncConfig {
+                    remote_url: url.to_string(),
+                    api_key: key.to_string(),
+                    interval: std::time::Duration::from_millis(cli.sync_interval_ms),
+                };
+                tracing::info!(remote_url = %url, "Hound: pushing code graph to hosted Core…");
+                let pushed = sync::flush_all(&prime, &sync_config, &data_dir).await?;
+                tracing::info!(pushed, "Hound: sync complete");
+                println!("hound: synced {pushed} events to {url}");
+            }
+            (Some(_), None) | (None, Some(_)) => {
+                anyhow::bail!(
+                    "--sync-to and --api-key must be supplied together (or neither). \
+                     Get a tenant API key at https://www.all-source.xyz/connect."
+                );
+            }
+            (None, None) => {
+                tracing::info!(
+                    "Hound: local-only graph. Pass --sync-to https://api.all-source.xyz \
+                     and --api-key <tenant key> to push it to your hosted tenant graph."
+                );
+            }
+        }
+
         return Ok(());
     }
 
