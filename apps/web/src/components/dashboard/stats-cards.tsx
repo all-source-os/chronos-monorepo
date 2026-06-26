@@ -101,7 +101,9 @@ export function StatsCards() {
       title: "Total Events",
       value: stats.events.total,
       icon: Activity,
-      description: `${stats.store.streams.toLocaleString()} streams · ${stats.store.eventTypes.toLocaleString()} event types`,
+      // Stream count has its own card below; don't duplicate it here. Just the
+      // event-type breakdown, which nothing else shows.
+      description: `${stats.store.eventTypes.toLocaleString()} event types`,
       animate: true,
     },
     {
@@ -115,7 +117,9 @@ export function StatsCards() {
       title: "Event Streams",
       value: stats.store.streams,
       icon: Database,
-      description: "Distinct entities in your store",
+      // "Stream" = one entity's event sequence. Use the term consistently
+      // (card title, here, and the API) — don't call the same number "entities".
+      description: "Distinct streams in your store",
       animate: true,
     },
     {
