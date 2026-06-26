@@ -1,0 +1,48 @@
+---
+title: "Prime Atlas: a living knowledge graph for AI coding assistants"
+publishedAt: "2026-06-26"
+summary: "The plan for the next chapter of AllSource Prime — turn any folder of code and docs into a durable, queryable, team-shared knowledge graph an AI assistant can use. The local build costs nothing; the engine underneath is what a flat file can never be."
+author: "all.source team"
+category: "product"
+---
+
+> **Where this stands:** Prime Atlas is the roadmap for Prime's next chapter, not a shipped feature. AllSource Prime — the durable graph, vector, and recall engine described below — runs today. Atlas is the ingestion and developer-experience layer we're building on top of it. We're sharing the plan early because the shape is clear.
+
+A knowledge graph of your codebase is the right context to hand an AI assistant. It's cheaper than reading raw files, it's structured, and it answers "what connects the login form to the users table?" in one hop instead of a dozen greps. Tools like [Graphify](https://graphify.net) proved that demand convincingly.
+
+What those tools deliberately give up is the engine. The graph is a file you generate — portable and private, but a snapshot: stale between commits, per-machine, with no semantic retrieval and no shared state. Prime Atlas is the other half of the idea: keep the cheap, local, on-device build, but let the graph *live* in a durable engine instead of expiring as a file.
+
+## What Atlas is
+
+Atlas turns any folder — code first, docs and other sources next — into a graph that lives in AllSource Prime: durable, incrementally updated, queryable with hybrid vector-and-graph retrieval, and (when you want it) shared across a team. Your assistant talks to it over the MCP tools Prime already exposes.
+
+The build path mirrors what developers already like:
+
+- **Code is parsed on-device with Tree-sitter** — functions, classes, modules become nodes; `calls`, `imports`, `defines`, `references` become edges. No LLM, no upload, `$0`. AST-certain relationships are tagged with full confidence; lower-confidence inferences carry a score.
+- **Docs and unstructured sources go through a semantic pass** — and, unlike a topology-only file, Atlas *embeds* them. Every node and document gets a vector, so recall is hybrid (similarity + graph proximity + recency), not keyword-or-topology guessing.
+- **The graph is event-sourced** — so an "update" is a delta of events, not a full re-extract. A post-commit hook keeps it fresh as you work.
+
+## Why an engine, not a file
+
+Everything Atlas adds over a generated file comes straight from Prime's architecture — these aren't features to build, they're properties we inherit:
+
+1. **It stays fresh.** Event-sourced means incremental and live. No stale snapshot, no merge conflicts on a JSON blob.
+2. **It retrieves semantically.** A real HNSW vector index plus the graph, not topology alone. Questions that miss on structure hit on meaning.
+3. **A team shares one graph.** Hosted multi-tenant mode means the graph isn't trapped on one laptop.
+4. **It remembers why.** Full event history and field-level provenance — "when did this edge appear, and what created it?" — instead of `git log` on a file.
+5. **It scales past the browser.** Server-side queries and paging, not a ~5k-node client-side ceiling.
+
+## The plan, in phases
+
+We're building Atlas the way the demand was proven: a free local wedge first, then the engine's advantages on top.
+
+- **Phase 1 — Atlas Code.** Tree-sitter extraction of a repo into a local, embedded Prime graph. On-device, `$0`, private — parity with the local tools — but durable and syncable from day one.
+- **Phase 2 — Semantic & multi-modal.** An LLM extraction pass for docs and other sources that emits *vectors*, turning Prime's hybrid retrieval into the visible edge over topology-only graphs.
+- **Phase 3 — Analytics, viz, impact.** Community detection, centrality, "god-node" surfacing, an interactive web viewer with no node ceiling, and PR-impact analysis from graph diffs.
+- **Phase 4 — Distribution & collaboration.** Skill installers for the major AI assistants, an incremental git hook, team-shared hosted graphs, and the usual exports (wiki, Obsidian, GraphML, Cypher, Mermaid).
+
+## What you can use today
+
+The engine half is real and shipping. Prime gives you a durable property graph, an HNSW vector index, hybrid recall, and provenance — all over MCP and a REST API, in either an embedded local mode or hosted multi-tenant. Atlas is the ingestion and DX layer that turns that engine into a codebase graph.
+
+A snapshot tells you what your code looked like at a commit. A living map tells you what it *is* — and remembers how it got there. That's the bet.

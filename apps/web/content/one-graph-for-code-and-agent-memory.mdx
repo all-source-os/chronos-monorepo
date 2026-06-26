@@ -1,0 +1,35 @@
+---
+title: "Your code graph and your agent's memory belong in the same store"
+publishedAt: "2026-06-26"
+summary: "Codebase-graph tools model your code. Memory tools model your agent's working context. They're almost always two separate systems — and that seam is where agents lose the plot. AllSource Prime holds both in one event store."
+author: "all.source team"
+category: "use-cases"
+---
+
+There are two graphs in the life of an AI coding agent, and almost everyone keeps them in separate systems.
+
+The first is the **code graph**: functions, classes, modules, and the calls and imports between them. Tools like [Graphify](https://graphify.net) build this beautifully — point them at a repo and you get a structured map an assistant can query instead of grepping. The second is the **agent's memory**: what you decided last week, why a workaround exists, what a teammate flagged, the running context of the work itself. That lives somewhere else — a memory plugin, a vector store, a scratch file.
+
+The seam between those two systems is exactly where agents lose the plot. Your assistant can see that `AuthService.authenticate()` calls `users.find_by_email`, and it can recall that "we decided to drop password login," but it can't connect them — because the call graph and the decision live in different stores with different query surfaces. The structural truth and the human context never meet.
+
+## One store, one graph, one query surface
+
+AllSource Prime holds both in the same place. It's a durable graph + vector + recall engine over an event store, and it doesn't care whether a node is a code symbol or a design decision — they're all nodes, edges, and embeddings in one tenant graph.
+
+That means an agent can ask, against the *same* graph:
+
+- "What connects the login form to the users table?" — a structural path through the code graph.
+- "What did we decide about auth, and why?" — a hybrid recall over decisions, notes, and the people who made them.
+- And the join neither separate system can answer: "Show me the code that implements the auth decision we made last week" — because the decision node and the code nodes are edges apart in one graph.
+
+Prime makes that join cheap. Retrieval is hybrid — vector similarity, graph proximity, and recency together — so "the auth decision" finds the right node by meaning, and one hop away is the code that implements it. Every fact carries provenance: which event created this edge, and when. The whole thing is durable and replayable, not a snapshot that expired at the last commit.
+
+## How it comes together
+
+Prime's memory side ships today — agents already use it over MCP to store and recall durable, graph-aware context. The code-graph side is what we're building next, under the working name **Prime Atlas**: Tree-sitter extraction of a repo into the same Prime graph, on-device and `$0` for code, with docs and other sources embedded alongside.
+
+When both land in one store, the payoff isn't "a code tool plus a memory tool." It's the edges *between* them — the part that only exists when your agent's structural knowledge and its working memory are the same graph.
+
+Two graphs, one store. That's where an agent stops losing the plot.
+
+> Prime's graph, vector, and recall engine is available now over MCP and REST. Prime Atlas — codebase ingestion into the same graph — is on the roadmap; see [Prime Atlas: a living knowledge graph for AI coding assistants](/blog/prime-atlas-living-knowledge-graph).

@@ -1,0 +1,71 @@
+---
+title: "Graphify vs AllSource Prime: a snapshot and a living map"
+publishedAt: "2026-06-26"
+summary: "Graphify turns a repo into a knowledge graph you can hand to an AI assistant. AllSource Prime is the durable engine that graph could live in. One is a build-time file, the other a runtime memory — here's where each wins and where they compose."
+author: "all.source team"
+category: "engineering"
+---
+
+Every "X vs Y" post in the graph space starts as a cage match and ends as a shrug, because the two tools usually solve different problems. [Graphify](https://graphify.net) and AllSource Prime are a clean example. One is a build-time CLI that produces a portable graph file. The other is a durable runtime engine that holds a graph for you and answers questions against it. Side by side they look like rivals; stacked, they're complements.
+
+This post lays out what each one actually is, where each wins, and the synthesis we think is interesting: Graphify's ingestion on an engine's backend.
+
+## What Graphify is
+
+Graphify is an open-source (MIT) Python CLI, distributed on PyPI, backed by Y Combinator. You install it as a "skill" inside an AI coding assistant and type `/graphify .`. It reads a folder and builds a knowledge graph you can query instead of grepping raw files. Its own homepage puts it plainly:
+
+> "A Claude Code skill. Type `/graphify` — it reads your files, builds a knowledge graph, and gives you back structure you didn't know was there."
+
+The mechanics are well-chosen:
+
+- **Code is parsed on-device with Tree-sitter** — AST extraction across ~13 languages, no LLM, no network, `$0`. Your source never leaves the machine.
+- **Unstructured content goes through an LLM pass** — docs, PDFs, images, transcripts become entities and relationships, with only descriptions sent to the model, never raw files.
+- **Every relationship is confidence-tagged** — `EXTRACTED` (AST-certain), `INFERRED` (with a score), or `AMBIGUOUS`. That honesty about what's structural fact vs model guess is genuinely rare.
+- **The output is three portable files** — `graph.json` (the queryable graph), an interactive `graph.html`, and a human-readable `GRAPH_REPORT.md` that surfaces "god nodes" and surprising cross-module links.
+- **It's distribution-first** — installers into a long list of AI assistants, a post-commit git hook for incremental rebuilds, and a headline pitch of "~71.5× fewer tokens per query" versus reading raw files.
+
+That last number is Graphify's own claim, and it points at the real value: a graph is a cheaper, more structured context for an assistant than a pile of files. Graphify nails the build-time, local-first, zero-infrastructure version of that idea.
+
+The deliberate trade-offs are just as important. There is **no server, no database, no embeddings, no multi-tenant state**. The graph is a file — a snapshot. Between commits it's stale; querying is LLM-mediated over the topology (there's no vector index); the interactive view tops out around a few thousand nodes; and "the graph" lives per-machine, not shared across a team. None of that is an accident — a file is what makes Graphify portable and private. It's a design, not a bug.
+
+## What Prime is
+
+AllSource Prime sits at the other end of the same idea. It isn't a file you generate — it's a **runtime engine** that holds a graph and answers against it, built on AllSource Core (a durable Rust event store: write-ahead log, Parquet, in-memory projections).
+
+- **The graph is event-sourced.** Nodes and edges are immutable events (`prime.node.created`, `prime.edge.created`, …) folded into in-memory projections — adjacency, reverse index, type index, cross-domain links. Writes are durable; reads are microsecond-fast.
+- **Retrieval is hybrid.** Prime embeds text (`all-MiniLM-L6-v2`, 384-dim) into an HNSW index and ranks recall by a blend of vector similarity, graph proximity, and recency — not topology alone.
+- **Every fact has provenance.** Full event history per entity, plus declarative projections that can answer "which event set this field, and when?" The graph is replayable and time-travellable, not just diff-able.
+- **It's multi-tenant and hosted.** A stateless engine serves many tenants over one Core, so a graph can be shared and live, not trapped on one laptop.
+- **It speaks MCP and REST.** The same 18-tool MCP surface an assistant uses is backed by a real HTTP API.
+
+Prime's trade-off is the mirror image of Graphify's: it's an engine, so it expects a backend. And — until now — it had **no codebase ingestion**. Prime could hold a beautiful graph; it couldn't build one from your repo.
+
+## The axis that actually matters
+
+Forget "which is better." The real question is build-time file vs runtime engine.
+
+| | Graphify | AllSource Prime |
+|---|---|---|
+| **Shape** | Build-time CLI → files | Runtime engine + API |
+| **Codebase → graph** | Tree-sitter, ~13 langs, `$0` local | Not yet — the gap |
+| **Retrieval** | Topology + LLM re-rank (no vectors) | Hybrid: vectors + graph + recency |
+| **Freshness** | Snapshot; stale between commits | Live; event-sourced, incremental |
+| **State** | Per-machine files | Durable, multi-tenant, shared |
+| **Provenance** | `git log graph.json` | Full event history + field provenance |
+| **Viz ceiling** | ~5k nodes (browser) | Server-side, no hard ceiling |
+| **Infrastructure** | None — the file *is* the product | An engine to run (or host for you) |
+| **Privacy** | On-device, code never uploaded | Embedded mode on-device; sync opt-in |
+
+A file wins when you want zero infrastructure, perfect portability, something you can commit to git, and code that never leaves the machine. An engine wins when you want freshness, semantic retrieval, a graph a whole team shares, provenance you can audit, and scale past what a browser can draw.
+
+Neither column is the right answer to every question. They're bets on different layers.
+
+## The synthesis
+
+Here's the part we find interesting. Graphify proved the demand and the developer experience: a graph of your codebase is the right context to hand an assistant, and it should cost nothing to build locally. Prime already runs the durable, hybrid-retrieval, multi-tenant engine that a graph could *live* in instead of expiring as a file.
+
+Put Graphify's ingestion on Prime's backend and you get a strict superset of the capabilities: the same on-device, `$0`, code-only build as the wedge — but the resulting graph is durable, queryable with real hybrid retrieval, shareable across a team, and replayable with full provenance. A snapshot becomes a living map.
+
+That's the direction we're taking Prime next, under the working name **Prime Atlas**. It's a roadmap, not a release — but the thesis is simple, and Graphify is the reason it's clear: we're not copying a competitor, we're giving their best idea the backend it was missing.
+
+If you want the engine half today, Prime ships now — durable graph, vectors, and hybrid recall over MCP. The ingestion half is what's coming.
