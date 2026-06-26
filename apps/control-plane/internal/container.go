@@ -530,10 +530,23 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		scheduler.SetSyncSubscriptionsUseCase(syncSubsUC)
 	}
 
+	// Billing-config verifier (also reused by the read-only tenant analysis below
+	// for its fleet-level plan/billing finding — ONE source of truth so the
+	// analysis and /billing/config-check can't disagree). Constructed here so the
+	// analyze use case can take it as a dependency.
+	verifyBillingConfigUC := usecases.NewVerifyBillingConfigUseCase(cfg.LSClient, os.Getenv("LEMON_SQUEEZY_WEBHOOK_SECRET"))
+
+	// Read-only tenant-data analysis (prompt 046). Reuses the SAME fleet-health
+	// assessment and billing-config verifier the live pages use; cross-checks
+	// counts/demo-flags via the existing Core client and degrades (never 500s)
+	// when Core is unreachable. It performs NO mutations — every finding deep-links
+	// to an existing guarded action.
+	analyzeTenantsUC := usecases.NewAnalyzeTenantsUseCase(tenantRepo, cfg.CoreClient, fleetHealthUC, verifyBillingConfigUC)
+
 	// Initialize HTTP handlers (Layer 4)
 	alertHandler := httphandlers.NewAlertHandler(createAlertRuleUC, listAlertRulesUC, updateAlertRuleUC, deleteAlertRuleUC)
 	sloHandler := httphandlers.NewSLOHandler(createSLOUC, listSLOsUC, deleteSLOUC)
-	adminTenantHandler := httphandlers.NewAdminTenantHandler(listTenantsUC, getAdminTenantDetailUC, getTenantUsageUC, updateTenantQuotasUC, suspendTenantUC, activateTenantUC, bulkTenantUC)
+	adminTenantHandler := httphandlers.NewAdminTenantHandler(listTenantsUC, getAdminTenantDetailUC, getTenantUsageUC, updateTenantQuotasUC, suspendTenantUC, activateTenantUC, bulkTenantUC, analyzeTenantsUC)
 	tenantHandler := httphandlers.NewTenantHandler(
 		createTenantUC, getTenantUC, listTenantsUC, updateTenantUC,
 		suspendTenantUC, activateTenantUC, deleteTenantUC, cfg.CoreClient,
@@ -558,7 +571,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	)
 	ipRuleHandler := httphandlers.NewIPRuleHandler(createIPRuleUC, listIPRulesUC, deleteIPRuleUC)
 	adminBillingHandler := httphandlers.NewAdminBillingHandler(adminListInvoicesUC, adminRevenueUC, adminRefundUC, adminDunningUC)
-	verifyBillingConfigUC := usecases.NewVerifyBillingConfigUseCase(cfg.LSClient, os.Getenv("LEMON_SQUEEZY_WEBHOOK_SECRET"))
+	// verifyBillingConfigUC is constructed above (reused by the analyze use case).
 	billingConfigHandler := httphandlers.NewBillingConfigHandler(verifyBillingConfigUC)
 	earlyAdopterMigrationHandler := httphandlers.NewEarlyAdopterMigrationHandler(migrateEarlyAdoptersUC)
 	backfillUsageHandler := httphandlers.NewBackfillUsageHandler(backfillEventsUsedUC)

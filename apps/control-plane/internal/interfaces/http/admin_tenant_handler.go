@@ -27,7 +27,8 @@ type adminTenantUsageHALResponse struct {
 }
 
 // AdminTenantHandler handles admin-level tenant operations including listing,
-// detail, usage, quota management, suspend/unsuspend, and bulk operations.
+// detail, usage, quota management, suspend/unsuspend, bulk operations, and the
+// read-only tenant-data analysis pass.
 type AdminTenantHandler struct {
 	listTenantsUC    *usecases.ListTenantsUseCase
 	getDetailUC      *usecases.GetAdminTenantDetailUseCase
@@ -36,6 +37,9 @@ type AdminTenantHandler struct {
 	suspendTenantUC  *usecases.SuspendTenantUseCase
 	activateTenantUC *usecases.ActivateTenantUseCase
 	bulkTenantUC     *usecases.BulkTenantUseCase
+	// analyzeUC powers GET /api/v1/admin/tenants/analyze (read-only). May be nil
+	// in tests that don't exercise the analyze route.
+	analyzeUC *usecases.AnalyzeTenantsUseCase
 }
 
 // NewAdminTenantHandler creates a new AdminTenantHandler.
@@ -47,6 +51,7 @@ func NewAdminTenantHandler(
 	suspendTenantUC *usecases.SuspendTenantUseCase,
 	activateTenantUC *usecases.ActivateTenantUseCase,
 	bulkTenantUC *usecases.BulkTenantUseCase,
+	analyzeUC *usecases.AnalyzeTenantsUseCase,
 ) *AdminTenantHandler {
 	return &AdminTenantHandler{
 		listTenantsUC:    listTenantsUC,
@@ -56,6 +61,7 @@ func NewAdminTenantHandler(
 		suspendTenantUC:  suspendTenantUC,
 		activateTenantUC: activateTenantUC,
 		bulkTenantUC:     bulkTenantUC,
+		analyzeUC:        analyzeUC,
 	}
 }
 
@@ -128,6 +134,43 @@ func (h *AdminTenantHandler) ListTenants(c *gin.Context) {
 		"per_page":    resp.PerPage,
 		"total_pages": resp.TotalPages,
 	})
+}
+
+// validAnalysisCategories is the set of single-category filters AnalyzeTenants
+// accepts on ?category=. Mirrors the dto.AnalysisCategory* constants; an empty
+// param runs all categories.
+var validAnalysisCategories = map[string]bool{
+	dto.AnalysisCategoryDataIntegrity: true,
+	dto.AnalysisCategoryPlanBilling:   true,
+	dto.AnalysisCategoryLitter:        true,
+	dto.AnalysisCategoryUsageHealth:   true,
+}
+
+// AnalyzeTenants handles GET /api/v1/admin/tenants/analyze — a READ-ONLY
+// fleet-data analysis pass. It scans every tenant (or one, via ?tenant_id=, or
+// one category, via ?category=) and returns anomaly findings, each deep-linking
+// to an EXISTING guarded action. It NEVER mutates: the use case performs no
+// Core writes and no repository writes (a reviewer can confirm by grepping
+// analyze_tenants.go for the Core client's write methods — there are none).
+func (h *AdminTenantHandler) AnalyzeTenants(c *gin.Context) {
+	category := c.Query("category")
+	if category != "" && !validAnalysisCategories[category] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid category; expected one of data_integrity|plan_billing|litter|usage_health",
+		})
+		return
+	}
+
+	report, err := h.analyzeUC.Execute(c.Request.Context(), usecases.AnalyzeRequest{
+		Category: category,
+		TenantID: c.Query("tenant_id"),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, report)
 }
 
 // UpdateQuotas handles PUT /api/v1/admin/tenants/:id/quotas

@@ -80,7 +80,11 @@ func setupAdminTenantHandlerWithCore(t *testing.T, core clients.CoreClient) (*Ad
 	suspendTenantUC := usecases.NewSuspendTenantUseCase(repo, auditRepo)
 	activateTenantUC := usecases.NewActivateTenantUseCase(repo, auditRepo)
 	bulkTenantUC := usecases.NewBulkTenantUseCase(repo, auditRepo)
-	handler := NewAdminTenantHandler(listTenantsUC, getDetailUC, getUsageUC, updateQuotasUC, suspendTenantUC, activateTenantUC, bulkTenantUC)
+	// Read-only analysis use case wired with the same Core client; fleet/billing
+	// deps nil here (the handler-level test only asserts the route is reachable +
+	// read-only — the analysis logic has its own unit tests).
+	analyzeUC := usecases.NewAnalyzeTenantsUseCase(repo, core, nil, nil)
+	handler := NewAdminTenantHandler(listTenantsUC, getDetailUC, getUsageUC, updateQuotasUC, suspendTenantUC, activateTenantUC, bulkTenantUC, analyzeUC)
 	return handler, repo, core
 }
 

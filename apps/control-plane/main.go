@@ -674,6 +674,12 @@ func (cp *ControlPlane) setupRoutes() {
 		})
 	})
 	admin.GET("/tenants", cp.container.AdminTenantHandler.ListTenants)
+	// Read-only tenant-data analysis (prompt 046). Scans every tenant (or one via
+	// ?tenant_id=, or one category via ?category=) and returns anomaly findings,
+	// each deep-linking to an EXISTING guarded action (reap-demo, backfill-usage
+	// reconcile, recovery/*, billing config-check). NEVER mutates — analysis only.
+	// Static path registered before /tenants/:id so it isn't captured by the param.
+	admin.GET("/tenants/analyze", cp.container.AdminTenantHandler.AnalyzeTenants)
 	admin.POST("/tenants/bulk", cp.container.AdminTenantHandler.BulkAction)
 	admin.GET("/tenants/:id", cp.container.AdminTenantHandler.GetDetail)
 	admin.GET("/tenants/:id/usage", cp.container.AdminTenantHandler.GetUsage)
