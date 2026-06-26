@@ -396,6 +396,18 @@ pub fn tool_definitions() -> Value {
             }
         },
         {
+            "name": "hound_ingest_docs",
+            "description": "Prime Hound: extract a knowledge graph from documentation (markdown/text). Code is parsed locally with Tree-sitter; prose has no AST, so it goes to your configured LLM, which returns the entities and relationships it describes — these fold into the SAME graph as nodes/edges, embedded for semantic recall and tagged INFERRED. Requires an LLM endpoint (PRIME_LLM_ENDPOINT, OpenAI-compatible, e.g. a local Ollama). Set embed:true for hybrid recall. Use alongside hound_ingest (code) to graph a whole repo.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Directory or file of docs (.md/.markdown/.txt/.rst)." },
+                    "embed": { "type": "boolean", "description": "Embed each extracted entity for semantic recall (default false)." }
+                },
+                "required": ["path"]
+            }
+        },
+        {
             "name": "hound_export",
             "description": "Prime Hound: export the code graph to an interchange format — cypher (Neo4j/FalkorDB import), graphml (Gephi/yEd), mermaid (a docs diagram), obsidian (a vault of linked notes), or wiki (an index + per-node markdown pages). Single-file formats return `content`; obsidian/wiki return a `files` array of {path, content} to write to disk.",
             "inputSchema": {
@@ -435,6 +447,7 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
         "inbox_recall_thread" => call_inbox_recall_thread(prime, args),
         "inbox_draft" => call_inbox_draft(args).await,
         "hound_ingest" => call_hound_ingest(prime, args).await,
+        "hound_ingest_docs" => call_hound_ingest_docs(prime, args).await,
         "hound_impact" => call_hound_impact(prime, args),
         "hound_report" => call_hound_report(prime, args),
         "hound_pr_impact" => call_hound_pr_impact(prime, args),
@@ -953,6 +966,25 @@ async fn call_hound_ingest(prime: &Prime, args: &Value) -> Value {
             "unresolved": s.unresolved,
             "embedded": s.embedded,
             "deleted_stale": s.deleted_stale,
+            "sync": sync_status_json(),
+        })),
+        Err(e) => tool_error(&e.to_string()),
+    }
+}
+
+/// `hound_ingest_docs`: LLM-extract a knowledge graph from prose docs.
+async fn call_hound_ingest_docs(prime: &Prime, args: &Value) -> Value {
+    let Some(path) = args.get("path").and_then(Value::as_str) else {
+        return tool_error("missing 'path' — the directory (or file) of docs to extract");
+    };
+    let embed = args.get("embed").and_then(Value::as_bool).unwrap_or(false);
+    match crate::doc_extract::extract_docs(prime, std::path::Path::new(path), embed).await {
+        Ok(s) => tool_result(json!({
+            "files": s.files,
+            "chunks": s.chunks,
+            "entities": s.entities,
+            "relationships": s.relationships,
+            "embedded": s.embedded,
             "sync": sync_status_json(),
         })),
         Err(e) => tool_error(&e.to_string()),

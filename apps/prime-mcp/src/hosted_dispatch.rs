@@ -100,8 +100,8 @@ async fn call_tool_hosted(hosted: &HostedPrime, tenant: &str, name: &str, args: 
 
         // Hound is local-first: ingest runs where the source lives, so the whole
         // code-graph toolset is served on the embedded stdio path, not here.
-        "hound_ingest" | "hound_impact" | "hound_report" | "hound_pr_impact"
-        | "hound_export" => tool_error(
+        "hound_ingest" | "hound_ingest_docs" | "hound_impact" | "hound_report"
+        | "hound_pr_impact" | "hound_export" => tool_error(
             "Hound runs in local mode where your source lives, not on the hosted backend. \
              Run prime-mcp locally (stdio) or `allsource-prime --mode hound <path>` to build \
              a code graph.",

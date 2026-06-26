@@ -21,6 +21,7 @@ mod core_writer;
 mod dispatch;
 mod email_ingester;
 mod analytics;
+mod doc_extract;
 mod export;
 mod hosted_dispatch;
 mod hound;
@@ -150,6 +151,12 @@ struct Cli {
     /// (obsidian/wiki). Defaults to ./hound-export-<format>.
     #[arg(long, value_name = "PATH")]
     export_out: Option<PathBuf>,
+
+    /// In `--mode hound`, also extract a knowledge graph from docs (markdown/
+    /// text) under this path via the configured LLM (PRIME_LLM_ENDPOINT). Prose
+    /// only; code still comes from the positional PATH.
+    #[arg(long, value_name = "PATH")]
+    docs: Option<PathBuf>,
 
     /// In `--mode install`, which assistant to install the Hound skill for:
     /// claude-code, cursor, agents, or all.
@@ -412,6 +419,25 @@ async fn main() -> Result<()> {
             summary.deleted_stale,
             data_dir.display()
         );
+
+        // Opt-in: LLM extraction of prose docs under --docs, into the same graph.
+        if let Some(docs_raw) = cli.docs.as_ref() {
+            let docs_path = expand_home_path(docs_raw);
+            tracing::info!("Hound: extracting docs from {:?} via the configured LLM", docs_path);
+            let d = doc_extract::extract_docs(&prime, &docs_path, cli.embed).await?;
+            tracing::info!(
+                files = d.files,
+                chunks = d.chunks,
+                entities = d.entities,
+                relationships = d.relationships,
+                embedded = d.embedded,
+                "Hound: doc extraction complete"
+            );
+            println!(
+                "hound docs: {} files, {} chunks → {} entities, {} relationships, {} embedded",
+                d.files, d.chunks, d.entities, d.relationships, d.embedded
+            );
+        }
 
         // Opt-in: write the human-readable GRAPH_REPORT.md (Graphify-style).
         if let Some(report_path) = cli.report.as_ref() {
