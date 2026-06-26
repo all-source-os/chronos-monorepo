@@ -80,6 +80,15 @@ tasks:
         STRICT="{{.STRICT_EMPTY | default "false"}}"
         WANT_TENANT="{{.TENANT | default ""}}"
         BROKEN=0
+        # GATE mode: the goal-critical pages MUST be WORKING (real data), else the
+        # gate fails — this is what "the admin meets its goals" means. Data-dependent
+        # pages (alerts/slos/dunning/ip-rules/token-audit/suspicious/notices/inbox/
+        # invoices) may legitimately be EMPTY and are NOT gated. Set GATE=true to enforce.
+        GATE="{{.GATE | default "false"}}"
+        GATE_PAGES="tenants tenant-360 fleet monitoring mon-cluster billing-cat security-pol"
+        GATE_FAIL=0
+        # In GATE mode, always check a known-active tenant's 360 (real counts end-to-end).
+        [ "$GATE" = "true" ] && [ -z "$WANT_TENANT" ] && WANT_TENANT="decebal-dobrica-at-gmail-com"
         echo ">> probing admin pages against ${CP}"
         echo ""
         printf "%-14s %-34s %-9s %s\n" "PAGE" "ENDPOINT" "STATUS" "EVIDENCE (real values)"
@@ -106,6 +115,10 @@ tasks:
           # STRICT_EMPTY promotes EMPTY → BROKEN.
           if [ "$verdict" = "EMPTY" ] && [ "$STRICT" = "true" ]; then verdict="BROKEN"; ev="(strict) $ev"; fi
           [ "$verdict" = "BROKEN" ] && BROKEN=$((BROKEN+1))
+          # Goal gate: a goal-critical page that is not WORKING fails the gate.
+          if [ "$GATE" = "true" ] && [ "$verdict" != "WORKING" ]; then
+            case " $GATE_PAGES " in *" $page "*) GATE_FAIL=$((GATE_FAIL+1)); ev="GATE-FAIL(goal page not WORKING) $ev" ;; esac
+          fi
           printf "%-14s %-34s %-9s [%s] %s\n" "$page" "$ep" "$code" "$verdict" "$ev"
         }
 
@@ -187,6 +200,14 @@ tasks:
           exit 1
         fi
         echo ">> RESULT: 0 pages BROKEN — every admin page is WORKING or documented-EMPTY."
+        if [ "$GATE" = "true" ]; then
+          if [ "$GATE_FAIL" -gt 0 ]; then
+            echo ">> GATE FAIL: ${GATE_FAIL} goal-critical page(s) not WORKING — admin goals NOT met."
+            echo "   goal-critical pages (must show real data): ${GATE_PAGES}"
+            exit 1
+          fi
+          echo ">> GATE PASS: all goal-critical pages WORKING — admin meets its goals (${GATE_PAGES})."
+        fi
 
   reap-demo:
     desc: >-
