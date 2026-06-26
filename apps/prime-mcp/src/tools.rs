@@ -394,6 +394,18 @@ pub fn tool_definitions() -> Value {
                 },
                 "required": ["files"]
             }
+        },
+        {
+            "name": "hound_export",
+            "description": "Prime Hound: export the code graph to an interchange format — cypher (Neo4j/FalkorDB import), graphml (Gephi/yEd), mermaid (a docs diagram), obsidian (a vault of linked notes), or wiki (an index + per-node markdown pages). Single-file formats return `content`; obsidian/wiki return a `files` array of {path, content} to write to disk.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "format": { "type": "string", "description": "cypher | graphml | mermaid | obsidian | wiki" },
+                    "mermaid_max": { "type": "integer", "description": "For mermaid, cap the diagram to the N busiest nodes (default 60)." }
+                },
+                "required": ["format"]
+            }
         }
     ])
 }
@@ -426,6 +438,7 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
         "hound_impact" => call_hound_impact(prime, args),
         "hound_report" => call_hound_report(prime, args),
         "hound_pr_impact" => call_hound_pr_impact(prime, args),
+        "hound_export" => call_hound_export(prime, args),
         _ => tool_error(&format!("Unknown tool: {name}")),
     }
 }
@@ -1056,6 +1069,36 @@ fn call_hound_pr_impact(prime: &Prime, args: &Value) -> Value {
     let top = args.get("top").and_then(Value::as_u64).unwrap_or(20) as usize;
     let g = prime.full_graph(None, None, None);
     tool_result(crate::pr::pr_impact(&g, &files, depth).to_json(top))
+}
+
+/// `hound_export`: serialize the code graph to an interchange format.
+fn call_hound_export(prime: &Prime, args: &Value) -> Value {
+    let Some(format) = args.get("format").and_then(Value::as_str) else {
+        return tool_error(&format!(
+            "missing 'format' — one of: {}",
+            crate::export::format_keys()
+        ));
+    };
+    let mermaid_max = args
+        .get("mermaid_max")
+        .and_then(Value::as_u64)
+        .unwrap_or(60) as usize;
+    let g = prime.full_graph(None, None, None);
+
+    if let Some(text) = crate::export::render_text(&g, format, mermaid_max) {
+        tool_result(json!({ "format": format, "content": text }))
+    } else if let Some(files) = crate::export::render_files(&g, format) {
+        let files_json: Vec<Value> = files
+            .into_iter()
+            .map(|(path, content)| json!({ "path": path, "content": content }))
+            .collect();
+        tool_result(json!({ "format": format, "files": files_json }))
+    } else {
+        tool_error(&format!(
+            "unknown format '{format}' — choose one of: {}",
+            crate::export::format_keys()
+        ))
+    }
 }
 
 // =========================================================================

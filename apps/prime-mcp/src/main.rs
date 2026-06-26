@@ -21,6 +21,7 @@ mod core_writer;
 mod dispatch;
 mod email_ingester;
 mod analytics;
+mod export;
 mod hosted_dispatch;
 mod hound;
 mod http;
@@ -139,6 +140,16 @@ struct Cli {
     /// uses). Leaves non-code (memory) nodes alone.
     #[arg(long)]
     rebuild: bool,
+
+    /// In `--mode hound`, after ingest export the graph to this format:
+    /// cypher, graphml, mermaid, obsidian, or wiki. Pair with --export-out.
+    #[arg(long, value_name = "FORMAT")]
+    export: Option<String>,
+
+    /// Output for --export: a file (cypher/graphml/mermaid) or a directory
+    /// (obsidian/wiki). Defaults to ./hound-export-<format>.
+    #[arg(long, value_name = "PATH")]
+    export_out: Option<PathBuf>,
 
     /// In `--mode install`, which assistant to install the Hound skill for:
     /// claude-code, cursor, agents, or all.
@@ -409,6 +420,34 @@ async fn main() -> Result<()> {
             let path = expand_home_path(report_path);
             std::fs::write(&path, md)?;
             println!("hound: wrote report → {}", path.display());
+        }
+
+        // Opt-in: export the graph to an interchange format.
+        if let Some(fmt) = cli.export.as_ref() {
+            let graph = prime.full_graph(None, None, None);
+            let out = expand_home_path(
+                cli.export_out
+                    .as_ref()
+                    .unwrap_or(&PathBuf::from(format!("hound-export-{fmt}"))),
+            );
+            if let Some(text) = export::render_text(&graph, fmt, 60) {
+                std::fs::write(&out, text)?;
+                println!("hound: exported {fmt} → {}", out.display());
+            } else if let Some(files) = export::render_files(&graph, fmt) {
+                for (rel, content) in files {
+                    let p = out.join(&rel);
+                    if let Some(parent) = p.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    std::fs::write(&p, content)?;
+                }
+                println!("hound: exported {fmt} vault → {}/", out.display());
+            } else {
+                anyhow::bail!(
+                    "unknown export format '{fmt}' — choose one of: {}",
+                    export::format_keys()
+                );
+            }
         }
 
         // Opt-in: with --sync-to + --api-key, push the freshly-extracted code
