@@ -202,6 +202,13 @@ pub async fn serve_v1(
         .route("/api/v1/tenants", get(list_tenants_handler))
         .route("/api/v1/tenants/{id}", get(get_tenant_handler))
         .route("/api/v1/tenants/{id}", put(update_tenant_handler))
+        .route(
+            "/api/v1/tenants/{id}/metadata",
+            // Qualified path: `patch` is only used here, inside the
+            // `multi-tenant`-gated block, so importing it unconditionally would
+            // warn unused under the community edition.
+            axum::routing::patch(merge_tenant_metadata_handler),
+        )
         .route("/api/v1/tenants/{id}/stats", get(get_tenant_stats_handler))
         .route("/api/v1/tenants/{id}/quotas", put(update_quotas_handler))
         .route(

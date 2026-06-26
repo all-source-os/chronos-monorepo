@@ -303,6 +303,67 @@ pub trait TenantRepository: Send + Sync {
             None => Ok(false),
         }
     }
+
+    /// Atomically deep-merge `partial` into the tenant's `metadata`, preserving
+    /// every sibling key, and persist durably.
+    ///
+    /// `partial` is treated as opaque JSON: object keys are merged one level at
+    /// a time (nested objects merged recursively; arrays and scalars replace),
+    /// so writing `{"projections": {"enabled": [...]}}` leaves `metadata.quotas`
+    /// (and any other key) untouched. Core does NOT interpret these keys — it is
+    /// the generic storage path the Query Service uses to persist a tenant's
+    /// enabled projection set (see `docs/proposals/PER_TENANT_PROJECTIONS.md`).
+    ///
+    /// Returns the merged metadata, or `None` if the tenant does not exist.
+    ///
+    /// The default implementation is a read-modify-write via `find_by_id` +
+    /// `save`. Event-sourced implementations override it to serialize against
+    /// concurrent quota bumps (`increment_usage`) under a per-tenant lock so a
+    /// metadata write and a money-adjacent counter bump never clobber each
+    /// other's sibling keys.
+    ///
+    /// # Errors
+    /// - `StorageError` - If the read or persist fails
+    async fn merge_metadata(
+        &self,
+        id: &TenantId,
+        partial: serde_json::Value,
+    ) -> Result<Option<serde_json::Value>> {
+        let Some(mut tenant) = self.find_by_id(id).await? else {
+            return Ok(None);
+        };
+        let mut metadata = tenant.metadata().clone();
+        deep_merge_metadata(&mut metadata, partial);
+        tenant.update_metadata(metadata.clone());
+        self.save(&tenant).await?;
+        Ok(Some(metadata))
+    }
+}
+
+/// Deep-merge `patch` into `target` in place. Object keys are merged
+/// recursively; arrays and scalars in `patch` replace the value at `target`. If
+/// `patch` is an object and `target` is not, `target` is first coerced to an
+/// empty object so the merge preserves no stale scalar. Used by
+/// [`TenantRepository::merge_metadata`] to apply a partial metadata update
+/// without dropping sibling keys.
+pub fn deep_merge_metadata(target: &mut serde_json::Value, patch: serde_json::Value) {
+    match patch {
+        serde_json::Value::Object(patch_obj) => {
+            if !target.is_object() {
+                *target = serde_json::Value::Object(serde_json::Map::new());
+            }
+            let target_obj = target
+                .as_object_mut()
+                .expect("target coerced to object above");
+            for (key, value) in patch_obj {
+                deep_merge_metadata(
+                    target_obj.entry(key).or_insert(serde_json::Value::Null),
+                    value,
+                );
+            }
+        }
+        other => *target = other,
+    }
 }
 
 /// Query filter for finding tenants
@@ -376,5 +437,48 @@ mod tests {
 
         assert!(query.created_after.is_some());
         assert!(query.created_before.is_some());
+    }
+
+    #[test]
+    fn deep_merge_preserves_siblings_and_recurses() {
+        let mut target = serde_json::json!({
+            "quotas": { "events_used": 142, "queries_used": 7 },
+            "subscription": { "tier": "studio" }
+        });
+        deep_merge_metadata(
+            &mut target,
+            serde_json::json!({ "projections": { "enabled": ["event-count"] } }),
+        );
+        // New nested key added; existing siblings untouched.
+        assert_eq!(target["quotas"]["events_used"], 142);
+        assert_eq!(target["subscription"]["tier"], "studio");
+        assert_eq!(target["projections"]["enabled"][0], "event-count");
+
+        // Merging into an existing nested object keeps that object's other keys.
+        deep_merge_metadata(
+            &mut target,
+            serde_json::json!({ "quotas": { "events_used": 150 } }),
+        );
+        assert_eq!(target["quotas"]["events_used"], 150);
+        assert_eq!(target["quotas"]["queries_used"], 7);
+    }
+
+    #[test]
+    fn deep_merge_arrays_and_scalars_replace() {
+        let mut target = serde_json::json!({ "enabled": ["a", "b"], "n": 1 });
+        deep_merge_metadata(&mut target, serde_json::json!({ "enabled": ["c"], "n": 2 }));
+        assert_eq!(target["enabled"], serde_json::json!(["c"]));
+        assert_eq!(target["n"], 2);
+    }
+
+    #[test]
+    fn deep_merge_object_over_scalar_coerces() {
+        let mut target = serde_json::json!({ "projections": "stale" });
+        deep_merge_metadata(
+            &mut target,
+            serde_json::json!({ "projections": { "enabled": [] } }),
+        );
+        assert!(target["projections"].is_object());
+        assert_eq!(target["projections"]["enabled"], serde_json::json!([]));
     }
 }

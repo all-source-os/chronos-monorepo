@@ -208,6 +208,74 @@ pub async fn get_tenant_handler(
     Ok(Json(TenantResponse::from_domain(&tenant)))
 }
 
+/// Merge a partial object into a tenant's metadata (tenant-scoped)
+/// PATCH /api/v1/tenants/:id/metadata
+///
+/// Deep-merges the JSON object body into `metadata`, preserving every sibling
+/// key, and persists atomically against concurrent quota bumps. The Query
+/// Service uses this to store a tenant's opaque enabled-projection set
+/// without clobbering `metadata.quotas` — Core does not interpret the merged
+/// keys (see `docs/proposals/PER_TENANT_PROJECTIONS.md`). Unlike the admin-only
+/// `PUT /tenants/:id` (which replaces the whole blob), this is scoped: a caller
+/// may patch only its own tenant; admins may patch any.
+pub async fn merge_tenant_metadata_handler(
+    State(state): State<AppState>,
+    Authenticated(auth_ctx): Authenticated,
+    axum::extract::Path(tenant_id): axum::extract::Path<String>,
+    Json(partial): Json<serde_json::Value>,
+) -> Result<Json<TenantResponse>, (StatusCode, String)> {
+    // Callers may patch only their own tenant; admins may patch any.
+    if tenant_id != auth_ctx.tenant_id() {
+        auth_ctx
+            .require_permission(crate::infrastructure::security::auth::Permission::Admin)
+            .map_err(|_| {
+                (
+                    StatusCode::FORBIDDEN,
+                    "Can only modify own tenant".to_string(),
+                )
+            })?;
+    }
+
+    if !partial.is_object() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "metadata patch must be a JSON object".to_string(),
+        ));
+    }
+
+    let tid =
+        TenantId::new(tenant_id.clone()).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    if state
+        .tenant_repo
+        .merge_metadata(&tid, partial)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .is_none()
+    {
+        return Err((
+            StatusCode::NOT_FOUND,
+            format!("Tenant not found: {tenant_id}"),
+        ));
+    }
+
+    // Re-fetch for the full updated representation (metadata was mutated and
+    // persisted under the per-tenant lock inside merge_metadata).
+    let tenant = state
+        .tenant_repo
+        .find_by_id(&tid)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                format!("Tenant not found: {tenant_id}"),
+            )
+        })?;
+
+    Ok(Json(TenantResponse::from_domain(&tenant)))
+}
+
 /// List all tenants (admin only)
 /// GET /api/v1/tenants
 pub async fn list_tenants_handler(
@@ -524,10 +592,7 @@ fn metered_quota_counter(tenant: &crate::domain::entities::Tenant, field: &str) 
         .metadata()
         .get("quotas")
         .and_then(|q| q.get(field))
-        .and_then(|v| {
-            v.as_u64()
-                .or_else(|| v.as_f64().map(|f| f.max(0.0) as u64))
-        })
+        .and_then(|v| v.as_u64().or_else(|| v.as_f64().map(|f| f.max(0.0) as u64)))
         .unwrap_or(0)
 }
 
@@ -652,8 +717,10 @@ mod tests {
         assert_eq!(v["used"], 42);
     }
 
-    use crate::domain::entities::{Tenant, TenantQuotas};
-    use crate::domain::value_objects::TenantId;
+    use crate::domain::{
+        entities::{Tenant, TenantQuotas},
+        value_objects::TenantId,
+    };
 
     fn tenant_with_quota_usage(events_used: u64, queries_used: u64) -> Tenant {
         let mut t = Tenant::new(
@@ -709,8 +776,10 @@ mod tests {
         //   metadata.quotas.events_used) -> find_by_id -> build_tenant_stats.
         // Proves the number the metering path records is the number /stats reports
         // as event_count — closing the counts=0 gap at the source.
-        use crate::domain::repositories::TenantRepository;
-        use crate::infrastructure::repositories::InMemoryTenantRepository;
+        use crate::{
+            domain::repositories::TenantRepository,
+            infrastructure::repositories::InMemoryTenantRepository,
+        };
 
         let repo = InMemoryTenantRepository::new();
         let id = TenantId::new("acme".to_string()).unwrap();
@@ -729,8 +798,14 @@ mod tests {
         let tenant = repo.find_by_id(&id).await.unwrap().unwrap();
         let stats = build_tenant_stats(&tenant);
 
-        assert_eq!(stats["event_count"], 257, "stats must report the metered events");
-        assert_eq!(stats["query_count"], 12, "stats must report the metered queries");
+        assert_eq!(
+            stats["event_count"], 257,
+            "stats must report the metered events"
+        );
+        assert_eq!(
+            stats["query_count"], 12,
+            "stats must report the metered queries"
+        );
         assert_eq!(stats["usage"]["total_events"], 257);
     }
 

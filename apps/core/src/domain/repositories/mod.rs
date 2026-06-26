@@ -17,7 +17,7 @@ pub use audit_event_repository::{AuditEventQuery, AuditEventRepository};
 pub use event_repository::{EventReader, EventRepository, EventWriter};
 pub use event_stream_repository::{EventStreamReader, EventStreamRepository, EventStreamWriter};
 pub use fork_repository::{ForkQuery, ForkRepository};
-pub use tenant_repository::{TenantQuery, TenantRepository};
+pub use tenant_repository::{TenantQuery, TenantRepository, deep_merge_metadata};
 pub use vector_search_repository::{
     SearchResult, VectorEntry, VectorSearchQuery, VectorSearchReader, VectorSearchRepository,
     VectorSearchWriter,

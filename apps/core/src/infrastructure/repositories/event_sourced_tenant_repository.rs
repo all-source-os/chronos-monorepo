@@ -1,7 +1,7 @@
 use crate::{
     domain::{
         entities::{SchemaEnforcement, Tenant, TenantQuotas, TenantUsage, UsageMeter},
-        repositories::TenantRepository,
+        repositories::{TenantRepository, deep_merge_metadata},
         value_objects::{
             TenantId,
             system_stream::{SystemDomain, system_entity_id_value, tenant_events},
@@ -441,9 +441,9 @@ impl TenantRepository for EventSourcedTenantRepository {
         // meter, …). Counters are non-negative; we read the prior value as u64
         // (JSON numbers come back as f64/u64 depending on source) and saturate
         // on overflow rather than panic.
-        let obj = metadata
-            .as_object_mut()
-            .ok_or_else(|| AllSourceError::InternalError("tenant metadata is not an object".into()))?;
+        let obj = metadata.as_object_mut().ok_or_else(|| {
+            AllSourceError::InternalError("tenant metadata is not an object".into())
+        })?;
         let quotas = obj
             .entry("quotas")
             .or_insert_with(|| json!({}))
@@ -452,7 +452,10 @@ impl TenantRepository for EventSourcedTenantRepository {
                 AllSourceError::InternalError("tenant metadata.quotas is not an object".into())
             })?;
 
-        let prev = quotas.get(field).and_then(serde_json::Value::as_u64).unwrap_or(0);
+        let prev = quotas
+            .get(field)
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0);
         let next = prev.saturating_add(count);
         quotas.insert(field.to_string(), json!(next));
 
@@ -481,6 +484,58 @@ impl TenantRepository for EventSourcedTenantRepository {
         self.emit_event(tenant_events::UPDATED, id_str, payload)?;
 
         Ok(Some(next))
+    }
+
+    async fn merge_metadata(
+        &self,
+        id: &TenantId,
+        partial: serde_json::Value,
+    ) -> Result<Option<serde_json::Value>> {
+        let id_str = id.as_str();
+
+        // Share increment_usage's per-tenant lock. A metadata write (e.g. a
+        // tenant enabling a projection) and a concurrent quota bump both
+        // read-modify-write the same metadata blob; without serialization one
+        // would clobber the other's sibling keys (dropping events_used =
+        // under-billing, or dropping the enabled set). Different tenants use
+        // different locks and never block each other.
+        let lock = self.usage_lock_for(id_str);
+        let _guard = lock.lock().await;
+
+        // Read current metadata from the cache (under the lock).
+        let Some(mut metadata) = self
+            .cache
+            .get(id_str)
+            .map(|entry| entry.value().metadata().clone())
+        else {
+            return Ok(None);
+        };
+
+        deep_merge_metadata(&mut metadata, partial);
+
+        // Mirror save()/increment_usage()'s UPDATED payload so replay keeps
+        // name/description/is_demo alongside the merged metadata.
+        let (name, description, is_demo) = self
+            .cache
+            .get(id_str)
+            .map(|e| {
+                (
+                    e.name().to_string(),
+                    e.description().map(std::string::ToString::to_string),
+                    e.is_demo(),
+                )
+            })
+            .ok_or_else(|| AllSourceError::TenantNotFound(id_str.to_string()))?;
+
+        let payload = json!({
+            "name": name,
+            "description": description,
+            "is_demo": is_demo,
+            "metadata": metadata,
+        });
+        self.emit_event(tenant_events::UPDATED, id_str, payload)?;
+
+        Ok(Some(metadata))
     }
 
     async fn activate(&self, id: &TenantId) -> Result<bool> {
@@ -866,11 +921,7 @@ mod tests {
 
     /// Read `metadata.quotas.<field>` from the cached tenant, defaulting to 0.
     /// This is the exact path the dashboard / Control-Plane read.
-    async fn quota_counter(
-        repo: &EventSourcedTenantRepository,
-        id: &TenantId,
-        field: &str,
-    ) -> u64 {
+    async fn quota_counter(repo: &EventSourcedTenantRepository, id: &TenantId, field: &str) -> u64 {
         repo.find_by_id(id)
             .await
             .unwrap()
@@ -1076,5 +1127,125 @@ mod tests {
         // 150 events * 2 = 300 ; 150 queries * 2 = 300
         assert_eq!(quota_counter(&repo, &id, "events_used").await, 300);
         assert_eq!(quota_counter(&repo, &id, "queries_used").await, 300);
+    }
+
+    /// Read the tenant's enabled-projection array from metadata, defaulting to empty.
+    async fn enabled_projections(
+        repo: &EventSourcedTenantRepository,
+        id: &TenantId,
+    ) -> Vec<String> {
+        repo.find_by_id(id)
+            .await
+            .unwrap()
+            .unwrap()
+            .metadata()
+            .get("projections")
+            .and_then(|p| p.get("enabled"))
+            .and_then(serde_json::Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    #[tokio::test]
+    async fn merge_metadata_preserves_sibling_keys() {
+        let (repo, _dir) = create_test_repo();
+        let id = TenantId::new("acme".to_string()).unwrap();
+        repo.create(id.clone(), "ACME".to_string(), TenantQuotas::standard())
+            .await
+            .unwrap();
+
+        // Seed a money-adjacent counter via the usage path.
+        repo.increment_usage(&id, UsageMeter::Events, 142)
+            .await
+            .unwrap();
+
+        // Merge an opaque enabled-projection set — must NOT drop quotas.
+        repo.merge_metadata(
+            &id,
+            json!({ "projections": { "enabled": ["event-count"] } }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(quota_counter(&repo, &id, "events_used").await, 142);
+        assert_eq!(enabled_projections(&repo, &id).await, vec!["event-count"]);
+
+        // A second merge replaces the array (set semantics) and still keeps quotas.
+        repo.merge_metadata(
+            &id,
+            json!({ "projections": { "enabled": ["event-count", "entity-activity"] } }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(quota_counter(&repo, &id, "events_used").await, 142);
+        assert_eq!(
+            enabled_projections(&repo, &id).await,
+            vec!["event-count", "entity-activity"]
+        );
+
+        // A further quota bump must not drop the enabled set.
+        repo.increment_usage(&id, UsageMeter::Events, 8)
+            .await
+            .unwrap();
+        assert_eq!(quota_counter(&repo, &id, "events_used").await, 150);
+        assert_eq!(
+            enabled_projections(&repo, &id).await,
+            vec!["event-count", "entity-activity"]
+        );
+    }
+
+    #[tokio::test]
+    async fn merge_metadata_does_not_clobber_concurrent_quota_bumps() {
+        let (repo, _dir) = create_test_repo();
+        let repo = Arc::new(repo);
+        let id = TenantId::new("acme".to_string()).unwrap();
+        repo.create(id.clone(), "ACME".to_string(), TenantQuotas::standard())
+            .await
+            .unwrap();
+
+        // Race N quota increments against a metadata merge. They share the
+        // per-tenant lock, so neither clobbers the other's sibling keys.
+        const N: u64 = 200;
+        let mut handles = Vec::new();
+        for _ in 0..N {
+            let repo = Arc::clone(&repo);
+            let id = id.clone();
+            handles.push(tokio::spawn(async move {
+                repo.increment_usage(&id, UsageMeter::Events, 1)
+                    .await
+                    .unwrap();
+            }));
+        }
+        {
+            let repo = Arc::clone(&repo);
+            let id = id.clone();
+            handles.push(tokio::spawn(async move {
+                repo.merge_metadata(
+                    &id,
+                    json!({ "projections": { "enabled": ["event-count"] } }),
+                )
+                .await
+                .unwrap();
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // Every increment landed (no lost update) AND the merge survived.
+        assert_eq!(quota_counter(&repo, &id, "events_used").await, N);
+        assert_eq!(enabled_projections(&repo, &id).await, vec!["event-count"]);
+    }
+
+    #[tokio::test]
+    async fn merge_metadata_unknown_tenant_returns_none() {
+        let (repo, _dir) = create_test_repo();
+        let id = TenantId::new("ghost".to_string()).unwrap();
+        let res = repo.merge_metadata(&id, json!({ "x": 1 })).await.unwrap();
+        assert!(res.is_none());
     }
 }
