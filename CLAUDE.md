@@ -76,6 +76,28 @@ Clients → Query Service (Elixir, port 3902) → Core (Rust, port 3900)
 - **Query Service** = API gateway. Source of truth for users, tenants, billing.
 - **PostgreSQL** = operational metadata only. Never for events.
 
+### Per-tenant read-model compute lives in the Query Service, NOT Core
+
+Any **per-tenant, user-facing read-model that computes over a tenant's event
+stream** — projections, materialized views, "your projections" dashboards — is a
+**Query Service** concern. QS already folds Core's stream into read-models
+(`ProjectionSync` → ETS) and terminates the tenant. **Do NOT** put per-tenant
+projection compute/state in Core's projection engine (it's on the ingest hot
+path and is a global, database-internal mechanism). Core's only role here is to
+**store the enabled set as opaque tenant metadata** (`metadata.projections.enabled`)
+and to serve the tenant's (already tenant-scoped, fail-closed) event stream.
+
+Core's existing global engine projections (`entity_snapshots`, `event_counters`,
+Prime's 9, the embedded demo set) are fine — they are internal, global, not
+per-tenant. The line: Core may *store* the enabled set; it may not *compute or
+serve* per-tenant projection state.
+
+This is enforced by the `tenant-isolation-check` gate
+(`tooling/tenant-isolation-check/`), which fails if `apps/core/src` gains
+per-tenant projection compute (overridable only via an inline
+`// CORE_PROJECTION_OK: <reason>` comment). Rationale + the boundary live in
+`docs/proposals/PER_TENANT_PROJECTIONS.md` ("Why not Core").
+
 ## Production Deployment Topology
 
 **Backend → Fly.io. Frontend → Vercel. Never mix these up.**
