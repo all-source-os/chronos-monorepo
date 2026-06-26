@@ -127,21 +127,45 @@ defmodule QueryServiceExWeb.AdminMetricsController do
     RustCoreClient.get_metrics_raw()
   end
 
-  defp build_summary(parsed) when is_map(parsed) do
+  @doc false
+  # Public for testability (regression guard on the metric-name mapping). Maps a
+  # parsed Prometheus metric map into the summary the admin /monitoring page reads.
+  def build_summary(parsed) when is_map(parsed) do
     # If parsed is already a structured map (not from Prometheus parser),
     # return it directly — happens when Core returns JSON instead of Prometheus text
     if Map.has_key?(parsed, "uptime_seconds") or Map.has_key?(parsed, :uptime_seconds) do
       parsed
     else
+      # The metric NAMES below are the ones Core's exporter actually emits. The
+      # original draft read placeholder names (`allsource_events_total`,
+      # `allsource_active_tenants`, `allsource_uptime_seconds`,
+      # `allsource_http_*`) that Core never exports, so every field parsed to 0 and
+      # /monitoring showed a dead all-zeros summary even with real traffic. We map
+      # to the real series (verified against the live /metrics):
+      #   - events lifetime total -> `allsource_storage_events_total` (durable count),
+      #     falling back to `allsource_events_ingested_total` (this-process count).
+      #   - p99 query latency -> the `allsource_query_duration_seconds` HISTOGRAM via
+      #     histogram_quantile (Core emits `_bucket{le=...}`, not summary quantiles,
+      #     so get_quantile always returned 0). Buckets are per query_type; the
+      #     parser aggregates across them. Seconds -> ms.
+      #   - error rate -> ingestion errors / ingested (the real counters).
+      # active_tenants / uptime_seconds / events_per_second have no Core series yet;
+      # they stay 0 until Core's exporter adds them (documented gap, not a crash).
+      events_total =
+        first_positive([
+          PrometheusParser.get_metric(parsed, "allsource_storage_events_total"),
+          PrometheusParser.get_metric(parsed, "allsource_events_ingested_total")
+        ])
+
       %{
         uptime_seconds: PrometheusParser.get_metric(parsed, "allsource_uptime_seconds"),
-        events_total: PrometheusParser.get_metric(parsed, "allsource_events_total"),
+        events_total: events_total,
         events_per_second: PrometheusParser.get_metric(parsed, "allsource_events_per_second"),
         query_latency_p99_ms:
-          PrometheusParser.get_quantile(
+          PrometheusParser.histogram_quantile(
             parsed,
             "allsource_query_duration_seconds",
-            "0.99"
+            0.99
           ) * 1000,
         error_rate_percent: compute_error_rate(parsed),
         active_tenants: PrometheusParser.get_metric(parsed, "allsource_active_tenants")
@@ -149,14 +173,22 @@ defmodule QueryServiceExWeb.AdminMetricsController do
     end
   end
 
-  defp compute_error_rate(parsed) do
-    total = PrometheusParser.get_metric(parsed, "allsource_http_requests_total")
-    errors = PrometheusParser.get_metric(parsed, "allsource_http_errors_total")
+  # Returns the first strictly-positive value in the list, or 0.0 if none — used to
+  # prefer the durable lifetime counter but fall back to the session counter.
+  defp first_positive(values) do
+    Enum.find(values, 0.0, fn v -> is_number(v) and v > 0 end)
+  end
 
-    if total > 0 do
-      Float.round(errors / total * 100, 2)
-    else
-      0.0
+  defp compute_error_rate(parsed) do
+    # Core emits ingestion counters (not http_* request/error counters), so derive
+    # the error rate from those: errors / (successful ingests + errors).
+    errors = PrometheusParser.get_metric(parsed, "allsource_ingestion_errors_total")
+    ingested = PrometheusParser.get_metric(parsed, "allsource_events_ingested_total")
+    denom = ingested + errors
+
+    cond do
+      denom > 0 -> Float.round(errors / denom * 100, 2)
+      true -> 0.0
     end
   end
 end
