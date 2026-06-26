@@ -197,6 +197,12 @@ export default function DashboardPage() {
                     }}
                   />
                 </div>
+                {/* queries_used only counts gateway-routed reads (QS
+                    UsageEnforcement); direct-to-Core reads aren't metered. */}
+                <p className="text-xs text-muted-foreground">
+                  Counts reads routed through the API gateway; direct-to-Core reads aren't metered
+                  yet.
+                </p>
               </div>
             </div>
           </CardContent>

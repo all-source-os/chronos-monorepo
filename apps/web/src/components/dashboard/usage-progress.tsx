@@ -11,9 +11,10 @@ interface UsageBarProps {
   used: number;
   quota: number;
   unit?: string;
+  hint?: string;
 }
 
-function UsageBar({ label, used, quota, unit = "" }: UsageBarProps) {
+function UsageBar({ label, used, quota, unit = "", hint }: UsageBarProps) {
   const percentage = quota > 0 ? (used / quota) * 100 : 0;
   const isWarning = percentage >= 80;
   const isCritical = percentage >= 95;
@@ -56,6 +57,7 @@ function UsageBar({ label, used, quota, unit = "" }: UsageBarProps) {
             : "Usage is high - consider upgrading"}
         </div>
       )}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -81,7 +83,12 @@ export function UsageProgress() {
       </CardHeader>
       <CardContent className="space-y-6">
         <UsageBar label="Events" used={eventsUsed} quota={eventsQuota} />
-        <UsageBar label="Queries" used={queriesUsed} quota={queriesQuota} />
+        <UsageBar
+          label="Queries"
+          used={queriesUsed}
+          quota={queriesQuota}
+          hint="Counts reads routed through the API gateway; direct-to-Core reads aren't metered yet."
+        />
       </CardContent>
     </Card>
   );
