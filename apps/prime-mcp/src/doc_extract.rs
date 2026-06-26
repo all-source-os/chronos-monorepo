@@ -159,18 +159,12 @@ fn find_docs(root: &Path, out: &mut Vec<PathBuf>) {
                 .map(str::to_ascii_lowercase)
                 .as_deref(),
             Some(
-                "md" | "markdown"
-                    | "txt"
-                    | "rst"
-                    | "pdf"
-                    | "png"
-                    | "jpg"
-                    | "jpeg"
-                    | "webp"
-                    | "gif"
-                    | "tif"
-                    | "tiff"
-                    | "bmp"
+                "md" | "markdown" | "txt" | "rst" | "pdf"
+                // images (OCR)
+                | "png" | "jpg" | "jpeg" | "webp" | "gif" | "tif" | "tiff" | "bmp"
+                // audio / video (transcription)
+                | "wav" | "mp3" | "m4a" | "aiff" | "aif" | "flac" | "ogg"
+                | "mp4" | "mov" | "webm" | "mkv" | "avi"
             )
         ) {
             out.push(p);
@@ -182,7 +176,7 @@ fn find_docs(root: &Path, out: &mut Vec<PathBuf>) {
 /// through the `tesseract` CLI (OCR, runtime dep — no build-time linking, like
 /// the git hook shells out to git); everything else is read as UTF-8. The
 /// recovered text then takes the same chunk → LLM → fold path as a markdown file.
-fn read_doc_text(path: &Path) -> Result<String> {
+fn read_doc_text(path: &Path, transcribe_cmd: Option<&str>) -> Result<String> {
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
@@ -191,9 +185,41 @@ fn read_doc_text(path: &Path) -> Result<String> {
         Some("pdf") => pdf_extract::extract_text(path)
             .with_context(|| format!("extract text from PDF {}", path.display())),
         Some("png" | "jpg" | "jpeg" | "webp" | "gif" | "tif" | "tiff" | "bmp") => ocr_image(path),
+        Some(
+            "wav" | "mp3" | "m4a" | "aiff" | "aif" | "flac" | "ogg" | "mp4" | "mov" | "webm"
+            | "mkv" | "avi",
+        ) => {
+            let cmd = transcribe_cmd.context(
+                "audio/video needs a transcriber — set PRIME_TRANSCRIBE_CMD to a command that \
+                 prints a transcript to stdout (e.g. a whisper.cpp wrapper)",
+            )?;
+            transcribe(path, cmd)
+        }
         _ => std::fs::read_to_string(path)
             .with_context(|| format!("read text document {}", path.display())),
     }
+}
+
+/// Transcribe audio/video by shelling out to `PRIME_TRANSCRIBE_CMD` with the
+/// media path appended (`<cmd…> <path>`), capturing stdout. Runtime dep, no
+/// build-time linking — the transcriber (whisper.cpp, faster-whisper, …) is the
+/// user's to install and configure, like the LLM endpoint.
+fn transcribe(path: &Path, cmd: &str) -> Result<String> {
+    let mut parts = cmd.split_whitespace();
+    let prog = parts.next().context("PRIME_TRANSCRIBE_CMD is empty")?;
+    let out = std::process::Command::new(prog)
+        .args(parts)
+        .arg(path)
+        .output()
+        .with_context(|| format!("running transcriber `{cmd}` on {}", path.display()))?;
+    if !out.status.success() {
+        anyhow::bail!(
+            "transcriber failed on {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
 /// OCR an image by shelling out to the `tesseract` CLI (`tesseract <img> stdout`).
@@ -321,15 +347,20 @@ pub async fn extract_docs(prime: &Prime, root: &Path, embed: bool) -> Result<Doc
          chat endpoint (e.g. Ollama at http://localhost:11434/v1/chat/completions), plus \
          PRIME_LLM_MODEL and optionally PRIME_LLM_API_KEY",
     )?;
-    extract_docs_with(prime, root, embed, &cfg).await
+    let transcribe_cmd = std::env::var("PRIME_TRANSCRIBE_CMD")
+        .ok()
+        .filter(|s| !s.trim().is_empty());
+    extract_docs_with(prime, root, embed, &cfg, transcribe_cmd.as_deref()).await
 }
 
-/// Extraction core, with the LLM config injected — the seam wiremock tests use.
+/// Extraction core, with the LLM config (and optional transcriber) injected —
+/// the seam wiremock / mock-command tests use.
 pub async fn extract_docs_with(
     prime: &Prime,
     root: &Path,
     embed: bool,
     cfg: &LlmConfig,
+    transcribe_cmd: Option<&str>,
 ) -> Result<DocSummary> {
     if embed {
         prime
@@ -343,7 +374,7 @@ pub async fn extract_docs_with(
     let http = reqwest::Client::new();
     let mut s = DocSummary::default();
     for path in files {
-        let text = match read_doc_text(&path) {
+        let text = match read_doc_text(&path, transcribe_cmd) {
             Ok(t) => t,
             Err(e) => {
                 tracing::warn!(file = %path.display(), error = %e, "Hound docs: skipping unreadable source");
@@ -453,7 +484,7 @@ mod tests {
             api_key: None,
             model: "test-model".into(),
         };
-        let s = extract_docs_with(&prime, dir.path(), false, &cfg).await.unwrap();
+        let s = extract_docs_with(&prime, dir.path(), false, &cfg, None).await.unwrap();
         assert_eq!(s.files, 1);
         assert_eq!(s.entities, 2);
         assert_eq!(s.relationships, 1);
@@ -472,7 +503,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("sample.pdf");
         std::fs::write(&p, bytes).unwrap();
-        let text = read_doc_text(&p).unwrap();
+        let text = read_doc_text(&p, None).unwrap();
         assert!(text.contains("AuthService"), "PDF text missing marker: {text:?}");
     }
 
@@ -501,29 +532,74 @@ mod tests {
             api_key: None,
             model: "m".into(),
         };
-        let s = extract_docs_with(&prime, dir.path(), false, &cfg).await.unwrap();
+        let s = extract_docs_with(&prime, dir.path(), false, &cfg, None).await.unwrap();
         // The PDF was discovered, text-extracted, sent to the LLM, and folded.
         assert_eq!(s.files, 1);
         assert_eq!(s.entities, 1);
     }
 
     #[test]
-    fn find_docs_includes_pdfs_and_images() {
+    fn find_docs_includes_pdfs_images_and_media() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("a.md"), "x").unwrap();
-        std::fs::write(dir.path().join("b.pdf"), "x").unwrap();
-        std::fs::write(dir.path().join("c.PNG"), "x").unwrap(); // case-insensitive
-        std::fs::write(dir.path().join("d.rs"), "x").unwrap(); // code, not a doc
+        for f in ["a.md", "b.pdf", "c.PNG", "talk.wav", "demo.mp4", "d.rs"] {
+            std::fs::write(dir.path().join(f), "x").unwrap();
+        }
         let mut out = Vec::new();
         find_docs(dir.path(), &mut out);
         let names: Vec<String> = out
             .iter()
             .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
             .collect();
-        assert!(names.contains(&"a.md".to_string()));
-        assert!(names.contains(&"b.pdf".to_string()));
-        assert!(names.contains(&"c.PNG".to_string()));
-        assert!(!names.contains(&"d.rs".to_string()));
+        for want in ["a.md", "b.pdf", "c.PNG", "talk.wav", "demo.mp4"] {
+            assert!(names.contains(&want.to_string()), "missing {want}");
+        }
+        assert!(!names.contains(&"d.rs".to_string()), "code is not a doc");
+    }
+
+    #[test]
+    fn audio_without_a_transcriber_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("clip.mp3");
+        std::fs::write(&p, b"x").unwrap();
+        // No transcribe cmd → clear error (the loop turns this into skip + count).
+        assert!(read_doc_text(&p, None).is_err());
+    }
+
+    #[tokio::test]
+    async fn extract_docs_transcribes_audio_via_mock_command() {
+        let server = MockServer::start().await;
+        let reply = json!({ "choices": [{ "message": {
+            "content": "{\"entities\":[{\"name\":\"AuthService\",\"type\":\"service\"}],\"relationships\":[]}"
+        }}]});
+        Mock::given(method("POST"))
+            .and(mpath("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(reply))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("talk.wav"), b"RIFF-dummy").unwrap();
+        // A stand-in transcriber: prints a canned transcript regardless of input.
+        let script = dir.path().join("mock_whisper.sh");
+        std::fs::write(&script, "#!/bin/sh\necho 'AuthService validates tokens'\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let prime = Prime::open_in_memory().await.unwrap();
+        let cfg = LlmConfig {
+            endpoint: format!("{}/v1/chat/completions", server.uri()),
+            api_key: None,
+            model: "m".into(),
+        };
+        let s = extract_docs_with(&prime, dir.path(), false, &cfg, script.to_str())
+            .await
+            .unwrap();
+        // talk.wav was transcribed (mock) → LLM → folded; the .sh isn't a doc ext.
+        assert_eq!(s.files, 1);
+        assert_eq!(s.entities, 1);
     }
 
     #[test]
@@ -533,7 +609,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("diagram.png");
         std::fs::write(&p, bytes).unwrap();
-        let text = read_doc_text(&p).unwrap();
+        let text = read_doc_text(&p, None).unwrap();
         assert!(text.contains("AuthService"), "OCR missed marker: {text:?}");
     }
 }
