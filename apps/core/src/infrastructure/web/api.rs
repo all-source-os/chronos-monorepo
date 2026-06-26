@@ -898,7 +898,10 @@ pub async fn list_streams(
         .or_else(|| auth.as_ref().map(|a| a.tenant_id().to_string()))
         .filter(|t| !t.is_empty());
     let Some(tenant) = tenant else {
-        return Json(ListStreamsResponse { streams: vec![], total: 0 });
+        return Json(ListStreamsResponse {
+            streams: vec![],
+            total: 0,
+        });
     };
     let mut streams = store.list_streams_for_tenant(&tenant);
     let total = streams.len();
@@ -955,7 +958,10 @@ pub async fn list_event_types(
         .or_else(|| auth.as_ref().map(|a| a.tenant_id().to_string()))
         .filter(|t| !t.is_empty());
     let Some(tenant) = tenant else {
-        return Json(ListEventTypesResponse { event_types: vec![], total: 0 });
+        return Json(ListEventTypesResponse {
+            event_types: vec![],
+            total: 0,
+        });
     };
     let mut event_types = store.list_event_types_for_tenant(&tenant);
     let total = event_types.len();
@@ -2569,7 +2575,10 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(scoped.0.total_count, 5, "tenant-scoped query returns its events");
+        assert_eq!(
+            scoped.0.total_count, 5,
+            "tenant-scoped query returns its events"
+        );
     }
 
     // The dashboard's streams + event-types counts must be per-tenant. These
@@ -2578,8 +2587,8 @@ mod tests {
     // fails closed.
     #[tokio::test]
     async fn list_streams_and_types_are_tenant_scoped() {
-        use axum::extract::{Query, State};
         use crate::domain::entities::Event;
+        use axum::extract::{Query, State};
 
         let store = create_test_store();
         let ev = |entity: &str, etype: &str, tenant: &str| {
@@ -2595,29 +2604,63 @@ mod tests {
         // tenant A: 2 entities, 2 types. tenant B: 1 entity, 1 type.
         store.ingest(&ev("e1", "order.placed", "tenant-a")).unwrap();
         store.ingest(&ev("e2", "user.created", "tenant-a")).unwrap();
-        store.ingest(&ev("e9", "thing.happened", "tenant-b")).unwrap();
+        store
+            .ingest(&ev("e9", "thing.happened", "tenant-b"))
+            .unwrap();
 
         let streams = |tid: Option<&str>| {
             list_streams(
                 OptionalAuth(None),
                 State(store.clone()),
-                Query(ListStreamsParams { tenant_id: tid.map(String::from), limit: None, offset: None }),
+                Query(ListStreamsParams {
+                    tenant_id: tid.map(String::from),
+                    limit: None,
+                    offset: None,
+                }),
             )
         };
-        assert_eq!(streams(Some("tenant-a")).await.0.total, 2, "tenant-a streams");
-        assert_eq!(streams(Some("tenant-b")).await.0.total, 1, "tenant-b streams");
-        assert_eq!(streams(None).await.0.total, 0, "no tenant -> no streams (fail closed)");
+        assert_eq!(
+            streams(Some("tenant-a")).await.0.total,
+            2,
+            "tenant-a streams"
+        );
+        assert_eq!(
+            streams(Some("tenant-b")).await.0.total,
+            1,
+            "tenant-b streams"
+        );
+        assert_eq!(
+            streams(None).await.0.total,
+            0,
+            "no tenant -> no streams (fail closed)"
+        );
 
         let types = |tid: Option<&str>| {
             list_event_types(
                 OptionalAuth(None),
                 State(store.clone()),
-                Query(ListEventTypesParams { tenant_id: tid.map(String::from), limit: None, offset: None }),
+                Query(ListEventTypesParams {
+                    tenant_id: tid.map(String::from),
+                    limit: None,
+                    offset: None,
+                }),
             )
         };
-        assert_eq!(types(Some("tenant-a")).await.0.total, 2, "tenant-a event types");
-        assert_eq!(types(Some("tenant-b")).await.0.total, 1, "tenant-b event types");
-        assert_eq!(types(None).await.0.total, 0, "no tenant -> no types (fail closed)");
+        assert_eq!(
+            types(Some("tenant-a")).await.0.total,
+            2,
+            "tenant-a event types"
+        );
+        assert_eq!(
+            types(Some("tenant-b")).await.0.total,
+            1,
+            "tenant-b event types"
+        );
+        assert_eq!(
+            types(None).await.0.total,
+            0,
+            "no tenant -> no types (fail closed)"
+        );
     }
 
     #[tokio::test]

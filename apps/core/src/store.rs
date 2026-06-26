@@ -2218,7 +2218,9 @@ impl EventStore {
             if ev.tenant_id_str() != tenant_id {
                 continue;
             }
-            let e = by_type.entry(ev.event_type_str()).or_insert((0, ev.timestamp));
+            let e = by_type
+                .entry(ev.event_type_str())
+                .or_insert((0, ev.timestamp));
             e.0 += 1;
             if ev.timestamp > e.1 {
                 e.1 = ev.timestamp;

@@ -614,7 +614,10 @@ mod tests {
 
         let (bytes, segs) = wal.on_disk_stats().unwrap();
         assert!(segs >= 1, "expected at least one WAL segment, got {segs}");
-        assert!(bytes > 0, "expected non-zero WAL bytes after appends, got {bytes}");
+        assert!(
+            bytes > 0,
+            "expected non-zero WAL bytes after appends, got {bytes}"
+        );
     }
 
     #[test]
