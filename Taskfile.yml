@@ -45,6 +45,149 @@ tasks:
           -H 'Content-Type: application/json' \
           -d "{\"tenant_id\":\"{{.TENANT}}\",\"dry_run\":{{.DRY}}}" | jq .
 
+  admin-health:
+    desc: >-
+      Probe EVERY admin-console page's backing endpoint against PROD and print a
+      per-page health table: WORKING (200 + real non-empty data), EMPTY (200 but
+      zero rows / zero value — a documented no-data-yet state), or BROKEN (non-2xx,
+      error shape, or a list field that isn't a list). Exits NON-ZERO if any page
+      is BROKEN, so "healthy" is verified on demand, never claimed from a green
+      deploy. Mints a 1h admin JWT from the fleet JWT_SECRET (read-only from the QS
+      container) exactly like reap-demo/backfill-usage. Prints the real values it
+      checked (per-tenant counts, metric values, list lengths). Vars: CP_URL,
+      QS_APP, EMAIL. Optional: TENANT (a tenant expected to have events — its
+      non-zero event_count is asserted end-to-end), STRICT_EMPTY=true (treat the
+      known-empty surfaces as BROKEN too, for a stricter gate).
+    silent: true
+    cmds:
+      - |
+        set -eu
+        echo ">> minting 1h admin token from {{.QS_APP}} JWT_SECRET..."
+        RAW=$(fly ssh console -a "{{.QS_APP}}" -C 'sh -c "printf __S__; printenv JWT_SECRET; printf __E__"' 2>/dev/null || true)
+        SECRET="${RAW##*__S__}"; SECRET="${SECRET%%__E__*}"
+        SECRET=$(printf '%s' "$SECRET" | tr -d '\r\n')
+        if [ -z "$SECRET" ] || [ "$SECRET" = "$RAW" ]; then
+          echo "!! could not read JWT_SECRET from {{.QS_APP}} (fly ssh failed). First lines of raw output:"
+          printf '%s\n' "$RAW" | head -3; exit 1
+        fi
+        now=$(date +%s); exp=$((now + 3600))
+        b64() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+        hdr=$(printf '%s' '{"alg":"HS256","typ":"JWT"}' | b64)
+        pl=$(printf '%s' "{\"sub\":\"owner-admin-health\",\"email\":\"{{.EMAIL}}\",\"role\":\"admin\",\"iss\":\"allsource\",\"iat\":${now},\"exp\":${exp}}" | b64)
+        sig=$(printf '%s' "${hdr}.${pl}" | openssl dgst -sha256 -hmac "$SECRET" -binary | b64)
+        TOKEN="${hdr}.${pl}.${sig}"
+        CP="{{.CP_URL}}"
+        STRICT="{{.STRICT_EMPTY | default "false"}}"
+        WANT_TENANT="{{.TENANT | default ""}}"
+        BROKEN=0
+        echo ">> probing admin pages against ${CP}"
+        echo ""
+        printf "%-14s %-34s %-9s %s\n" "PAGE" "ENDPOINT" "STATUS" "EVIDENCE (real values)"
+        printf "%-14s %-34s %-9s %s\n" "----" "--------" "------" "----------------------"
+
+        # check PAGE ENDPOINT METHOD JQ-CLASSIFIER
+        #   the classifier receives the parsed body on stdin and must print:
+        #     "WORKING <evidence>" | "EMPTY <evidence>" | "BROKEN <reason>"
+        #   It is only invoked on a 2xx. Non-2xx is BROKEN automatically (except a
+        #   classifier may be given the raw status via $code for nuance).
+        check() {
+          page="$1"; ep="$2"; method="$3"; jqprog="$4"
+          resp=$(curl -sS -m 25 -w $'\n__HTTP__%{http_code}' -X "$method" "$CP$ep" \
+            -H "Authorization: Bearer $TOKEN" 2>/dev/null || printf '\n__HTTP__000')
+          code=$(printf '%s' "$resp" | awk -F'__HTTP__' '/__HTTP__/{print $2}')
+          body=$(printf '%s' "$resp" | sed '/__HTTP__/d')
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            verdict="BROKEN"; ev="HTTP $code: $(printf '%s' "$body" | tr -d '\n' | awk '{print substr($0,1,60)}')"
+          else
+            out=$(printf '%s' "$body" | jq -r "$jqprog" 2>/dev/null || echo "BROKEN shape-error (body not the expected object)")
+            verdict=$(printf '%s' "$out" | awk '{print $1}')
+            ev=$(printf '%s' "$out" | cut -d' ' -f2- 2>/dev/null || printf '%s' "$out")
+          fi
+          # STRICT_EMPTY promotes EMPTY → BROKEN.
+          if [ "$verdict" = "EMPTY" ] && [ "$STRICT" = "true" ]; then verdict="BROKEN"; ev="(strict) $ev"; fi
+          [ "$verdict" = "BROKEN" ] && BROKEN=$((BROKEN+1))
+          printf "%-14s %-34s %-9s [%s] %s\n" "$page" "$ep" "$code" "$verdict" "$ev"
+        }
+
+        # A list field is BROKEN only when it is PRESENT and a non-null, non-array
+        # type (a string/number where the page's `.map` would crash). null/absent is
+        # EMPTY — the frontend's asList() coerces it to [] (resilience §6), so it
+        # renders an empty state, not a crash. This mirrors the client exactly.
+
+        # ── Tenants list: counts are the priority. WORKING needs at least one
+        #    tenant with event_count>0; otherwise EMPTY (no metered events yet).
+        check "tenants" "/api/v1/admin/tenants?per_page=100" GET \
+          'if (.tenants != null and (.tenants|type)!="array") then "BROKEN tenants field is a \(.tenants|type), not a list" else (.tenants // []) as $t | ($t|map(.event_count // 0)|max // 0) as $mx | "\(if $mx>0 then "WORKING" else "EMPTY" end) total=\(.total) tenants_with_events=\([$t[]|select((.event_count//0)>0)]|length) max_event_count=\($mx)" end'
+
+        # ── Optional: a specific tenant expected to have events — asserts the
+        #    counts=0 fix end-to-end (Core /stats → CP → admin DTO).
+        if [ -n "$WANT_TENANT" ]; then
+          check "tenant-360" "/api/v1/admin/tenants/$WANT_TENANT" GET \
+            'if has("event_count")|not then "BROKEN no event_count field" else "\(if (.event_count//0)>0 then "WORKING" else "EMPTY" end) name=\(.name) event_count=\(.event_count//0) member_count=\(.member_count//0)" end'
+        fi
+
+        check "fleet" "/api/v1/admin/fleet/health" GET \
+          'if (.summary|type)!="object" then "BROKEN no summary" else "WORKING total=\(.summary.total) healthy=\(.summary.healthy) at_risk=\(.summary.at_risk) critical=\(.summary.critical) worst=\((.worst//[])|length)" end'
+
+        check "monitoring" "/api/v1/admin/metrics/summary" GET \
+          'if has("events_total")|not then "BROKEN no events_total" else "\(if ((.events_total//0)>0 or (.active_tenants//0)>0 or (.uptime_seconds//0)>0) then "WORKING" else "EMPTY" end) events_total=\(.events_total//0) active_tenants=\(.active_tenants//0) uptime_s=\(.uptime_seconds//0) p99=\(.query_latency_p99_ms//0)ms" end'
+        check "mon-timeseries" "/api/v1/admin/metrics/timeseries?metric=events_per_second&range=1h" GET \
+          'if (.points != null and (.points|type)!="array") then "BROKEN points is a \(.points|type)" else (.points // []) as $p | "\(if ($p|length)>0 then "WORKING" else "EMPTY" end) points=\($p|length)" end'
+        check "mon-cluster" "/api/v1/admin/cluster/members" GET \
+          'if (.members != null and (.members|type)!="array") then "BROKEN members is a \(.members|type)" else (.members // []) as $m | "\(if ($m|length)>0 then "WORKING" else "EMPTY" end) members=\($m|length) roles=\([$m[]?.role]|join(","))" end'
+        check "mon-alerts" "/api/v1/admin/alerts" GET \
+          'if (.alerts != null and (.alerts|type)!="array") then "BROKEN alerts is a \(.alerts|type)" else (.alerts // []) as $a | "\(if ($a|length)>0 then "WORKING" else "EMPTY" end) alerts=\($a|length)" end'
+        check "mon-slos" "/api/v1/admin/slos" GET \
+          'if (.slos != null and (.slos|type)!="array") then "BROKEN slos is a \(.slos|type)" else (.slos // []) as $s | "\(if ($s|length)>0 then "WORKING" else "EMPTY" end) slos=\($s|length)" end'
+
+        check "billing-rev" "/api/v1/admin/billing/revenue?range=30d" GET \
+          'if has("mrr")|not then "BROKEN no mrr" else "\(if ((.mrr//0)>0 or ((.breakdown//[])|length)>0 or ((.tier_stats//{})|length)>0) then "WORKING" else "EMPTY" end) mrr=\(.mrr//0) arr=\(.arr//0) churn=\(.churn_rate//0) tiers=\((.tier_stats//{})|length)" end'
+        check "billing-inv" "/api/v1/admin/billing/invoices" GET \
+          'if (.invoices != null and (.invoices|type)!="array") then "BROKEN invoices is a \(.invoices|type)" else (.invoices // []) as $i | "\(if ($i|length)>0 then "WORKING" else "EMPTY" end) invoices=\($i|length) total=\(.total//0)" end'
+        check "billing-dun" "/api/v1/admin/billing/dunning" GET \
+          'if (.items != null and (.items|type)!="array") then "BROKEN items is a \(.items|type)" else (.items // []) as $i | "\(if ($i|length)>0 then "WORKING" else "EMPTY" end) items=\($i|length) total_count=\(.total_count//0)" end'
+        check "billing-cfg" "/api/v1/admin/billing/config-check" GET \
+          'if has("ok")|not then "BROKEN no ok field" else "WORKING ok=\(.ok) issues=\((.issues//[])|length) manual=\((.manual//[])|length)" end'
+        check "billing-cat" "/api/v1/billing/catalog" GET \
+          'if (.tiers != null and (.tiers|type)!="array") then "BROKEN tiers is a \(.tiers|type)" else (.tiers // []) as $t | "\(if ($t|length)>0 then "WORKING" else "EMPTY" end) tiers=\([$t[]?.tier // $t[]?.id]|join(","))" end'
+
+        check "security-ip" "/api/v1/admin/security/ip-rules" GET \
+          'if (.ip_rules != null and (.ip_rules|type)!="array") then "BROKEN ip_rules is a \(.ip_rules|type)" else (.ip_rules // []) as $r | "\(if ($r|length)>0 then "WORKING" else "EMPTY" end) ip_rules=\($r|length)" end'
+        check "security-tok" "/api/v1/admin/security/token-audit" GET \
+          'if (.entries != null and (.entries|type)!="array") then "BROKEN entries is a \(.entries|type)" else (.entries // []) as $e | "\(if ($e|length)>0 then "WORKING" else "EMPTY" end) entries=\($e|length) total=\(.total//0)" end'
+        check "security-susp" "/api/v1/admin/security/suspicious-activity" GET \
+          'if (.alerts != null and (.alerts|type)!="array") then "BROKEN alerts is a \(.alerts|type)" else (.alerts // []) as $a | "\(if ($a|length)>0 then "WORKING" else "EMPTY" end) alerts=\($a|length)" end'
+        check "security-pol" "/api/v1/policies" GET \
+          'if (.policies != null and (.policies|type)!="array") then "BROKEN policies is a \(.policies|type)" else (.policies // []) as $p | "\(if ($p|length)>0 then "WORKING" else "EMPTY" end) policies=\($p|length)" end'
+
+        check "outreach" "/api/v1/admin/notices" GET \
+          'if (.notices != null and (.notices|type)!="array") then "BROKEN notices is a \(.notices|type)" else (.notices // []) as $n | "\(if ($n|length)>0 then "WORKING" else "EMPTY" end) notices=\($n|length)" end'
+
+        # ── Inbox: admin-gated. Reaches the handler ⇒ 200 (configured) or 503
+        #    ("inbox not configured" — a documented EMPTY, the feature simply has no
+        #    Nylas creds). A 401 means the route is on the WRONG auth group (the
+        #    e4b5b2c regression) — that is BROKEN. So: 200→WORKING/EMPTY, 503→EMPTY,
+        #    401/other→BROKEN (handled by the status gate below via a sentinel).
+        ibresp=$(curl -sS -m 25 -w $'\n__HTTP__%{http_code}' "$CP/api/v1/admin/inbox/connections" -H "Authorization: Bearer $TOKEN" 2>/dev/null || printf '\n__HTTP__000')
+        ibcode=$(printf '%s' "$ibresp" | awk -F'__HTTP__' '/__HTTP__/{print $2}')
+        ibbody=$(printf '%s' "$ibresp" | sed '/__HTTP__/d')
+        if [ "$ibcode" = "200" ]; then
+          n=$(printf '%s' "$ibbody" | jq -r '.connections|length' 2>/dev/null || echo "?")
+          iv="WORKING"; [ "$n" = "0" ] && iv="EMPTY"; ibev="connections=$n"
+        elif [ "$ibcode" = "503" ]; then
+          iv="EMPTY"; ibev="inbox not configured (no Nylas creds) — handler reached, auth OK"
+        else
+          iv="BROKEN"; BROKEN=$((BROKEN+1)); ibev="HTTP $ibcode: $(printf '%s' "$ibbody" | tr -d '\n' | awk '{print substr($0,1,50)}') (expect 200/503; 401=wrong-auth-group regression e4b5b2c not deployed)"
+        fi
+        printf "%-14s %-34s %-9s [%s] %s\n" "inbox" "/api/v1/admin/inbox/connections" "$ibcode" "$iv" "$ibev"
+
+        echo ""
+        if [ "$BROKEN" -gt 0 ]; then
+          echo ">> RESULT: ${BROKEN} page(s) BROKEN — admin console is NOT fully healthy."
+          exit 1
+        fi
+        echo ">> RESULT: 0 pages BROKEN — every admin page is WORKING or documented-EMPTY."
+
   reap-demo:
     desc: >-
       Reap the is_demo "Demo User" tenants (status-monitor litter, now that the
