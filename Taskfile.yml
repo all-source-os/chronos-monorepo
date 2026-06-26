@@ -129,14 +129,20 @@ tasks:
 
         # ── Tenants list: counts are the priority. WORKING needs at least one
         #    tenant with event_count>0; otherwise EMPTY (no metered events yet).
+        #    Also a data-integrity gate: every column must be backed by REAL data,
+        #    so this BROKENs on two known fake-value smells —
+        #      • created_at: ≥8 tenants all sharing ONE calendar date ⇒ the column
+        #        was time.Now()-stamped on load, not persisted at creation.
+        #      • event_count == 1000000 exactly ⇒ the backfill page-cap artifact
+        #        (defaultBackfillMaxPages*queryPageLimit), not a real count.
         check "tenants" "/api/v1/admin/tenants?per_page=100" GET \
-          'if (.tenants != null and (.tenants|type)!="array") then "BROKEN tenants field is a \(.tenants|type), not a list" else (.tenants // []) as $t | ($t|map(.event_count // 0)|max // 0) as $mx | "\(if $mx>0 then "WORKING" else "EMPTY" end) total=\(.total) tenants_with_events=\([$t[]|select((.event_count//0)>0)]|length) max_event_count=\($mx)" end'
+          'if (.tenants != null and (.tenants|type)!="array") then "BROKEN tenants field is a \(.tenants|type), not a list" else (.tenants // []) as $t | ($t|length) as $n | ($t|map(.event_count // 0)|max // 0) as $mx | ([$t[]|.created_at[0:10]]|unique) as $dates | ([$t[]|select((.event_count//0)==1000000)]|length) as $capped | if ($n>=8 and ($dates|length)==1) then "BROKEN created_at not backed by real data — all \($n) tenants share date \($dates[0]) (time.Now() stamped on load, not the persisted creation time)" elif ($capped>0) then "BROKEN \($capped) tenant(s) at event_count=1000000 exactly = backfill cap artifact, not a real count — let the events_used reconciler resolve it" else "\(if $mx>0 then "WORKING" else "EMPTY" end) total=\(.total) tenants_with_events=\([$t[]|select((.event_count//0)>0)]|length) max_event_count=\($mx) created_at_dates=\($dates|length)" end end'
 
         # ── Optional: a specific tenant expected to have events — asserts the
         #    counts=0 fix end-to-end (Core /stats → CP → admin DTO).
         if [ -n "$WANT_TENANT" ]; then
           check "tenant-360" "/api/v1/admin/tenants/$WANT_TENANT" GET \
-            'if has("event_count")|not then "BROKEN no event_count field" else "\(if (.event_count//0)>0 then "WORKING" else "EMPTY" end) name=\(.name) event_count=\(.event_count//0) member_count=\(.member_count//0)" end'
+            'if has("event_count")|not then "BROKEN no event_count field" else "\(if (.event_count//0)>0 then "WORKING" else "EMPTY" end) name=\(.name) event_count=\(.event_count//0) member_count=\(.member_count//0) created=\(.created_at[0:10] // "?")" end'
         fi
 
         check "fleet" "/api/v1/admin/fleet/health" GET \

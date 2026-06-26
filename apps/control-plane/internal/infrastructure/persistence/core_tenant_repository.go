@@ -152,13 +152,27 @@ func coreTenantToEntity(resp *clients.TenantResponse) *entities.Tenant {
 		}
 	}
 
+	// Use the real timestamps Core persists at creation. Older Core builds (and
+	// any tenant written before Core returned these fields) send the zero value;
+	// fall back to now() so the column is never blank, but never overwrite a real
+	// timestamp — every tenant previously showed today's date because this used
+	// time.Now() unconditionally.
+	createdAt := resp.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
+	updatedAt := resp.UpdatedAt
+	if updatedAt.IsZero() {
+		updatedAt = createdAt
+	}
+
 	return &entities.Tenant{
 		ID:         resp.ID,
 		Name:       resp.Name,
 		Status:     status,
 		HomeRegion: homeRegion,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		CreatedAt:  createdAt,
+		UpdatedAt:  updatedAt,
 		Metadata:   resp.Metadata,
 	}
 }

@@ -196,6 +196,77 @@ the handler is reached and returns `200` (configured) or `503 "inbox not
 configured"` (no Nylas creds — a documented EMPTY, the harness treats 503 as
 EMPTY-correct).
 
+### 4. `/tenants` "Created" date = today for EVERY tenant — fixed in **Control Plane** (`apps/control-plane`)
+
+**Symptom.** The Tenants list shows **today's date** in the Created column for
+*every* tenant — all 41, across all pages. The values are identical to the
+sub-millisecond (`…707499086Z`, `…707499767Z`, `…707500017Z`) — a dead giveaway
+they were all stamped in one loop, not at each tenant's real creation time.
+
+**Root cause (column not backed by real data).** Core persists and returns a real
+`created_at` (`tenant_api.rs:35`, set at creation). But the CP's Core client
+struct `TenantResponse` (`core_client.go:177`) **had no `created_at` field**, so the
+value was dropped on decode, and `coreTenantToEntity` (`core_tenant_repository.go:160`)
+stamped **`CreatedAt: time.Now()`** unconditionally on every load. The column
+therefore reflected "when the admin last loaded the list," never the creation time.
+(`UpdatedAt` had the same bug, same line.)
+
+**Fix.**
+- `core_client.go` `TenantResponse`: add `CreatedAt time.Time \`json:"created_at"\``
+  and `UpdatedAt time.Time \`json:"updated_at"\`` so Core's RFC3339 timestamps are
+  decoded.
+- `core_tenant_repository.go` `coreTenantToEntity`: use `resp.CreatedAt` /
+  `resp.UpdatedAt`; fall back to `time.Now()` **only** when the value is zero
+  (legacy tenants from Core builds before these fields existed), never overwriting a
+  real timestamp.
+
+Same class of defect as counts=0: a green deploy renders the column fine — it's just
+fake data. Caught now by the data-integrity gate (below), which BROKENs when ≥8
+tenants share one created_at date.
+
+---
+
+## What number does the admin show? (canonical event count)
+
+The admin's `event_count` is **`metadata.quotas.events_used`** — the durable,
+per-tenant **billing meter**. It is the canonical number because it is the one the
+tenant is billed/quota'd on and the same number the user's own dashboard shows.
+
+It is kept honest against the real Core event store by the **recurring reconciler**
+`SyncEventsUsageUseCase` (`sync_events_usage.go`, commit `cae9ee8`): every 5 min it
+queries Core's real `total_count` (single query, **uncapped**) and writes it back
+into `events_used`, self-healing any drift.
+
+Why drift happens at all: the Core ingest path (`ingest_event_v1`) does **not**
+increment the meter on write — only the QS `UsageReporter` does, via
+`POST …/usage/increment`. So events ingested out-of-band (Prime / MCP / direct Core /
+CP) land durably in the store but bypass the meter. Incrementing on every write was
+rejected deliberately — it's a per-event hot-path cost at 469K events/sec; periodic
+reconcile is the chosen architecture.
+
+**`backfill-usage` is NOT authoritative.** It is a manual one-shot whose count is
+**capped** at `defaultBackfillMaxPages × queryPageLimit = 2000 × 500 = 1,000,000`
+(`backfill_events_used.go:18`), so a busy tenant returns exactly `1000000`,
+`capped:true` — an honest "≥1M," not a precise count. The earlier "gmail = 1,000,000"
+was this cap artifact written into the meter; the uncapped reconciler supersedes it
+(gmail now reads the real `1049` and will track the true store count as the
+reconciler runs). The gate flags any `event_count == 1000000` exactly as a cap
+artifact, so a capped value can never again be mistaken for a real count.
+
+## Data-integrity gates (every column must be REAL)
+
+`task admin-health` now fails (BROKEN) on two fake-value smells, not just on
+non-2xx / shape errors — because "the page renders" is not "the data is real":
+
+| Smell | Rule | Catches |
+|---|---|---|
+| **Fake `created_at`** | ≥8 tenants share ONE calendar date | the `time.Now()`-on-load bug (#4) |
+| **Cap artifact** | any `event_count == 1000000` exactly | a backfill-capped value masquerading as a real count |
+
+`GATE=true` additionally requires every goal-critical page to be WORKING (real
+data), and `STRICT_EMPTY=true` fails on any EMPTY. Run `GATE=true` to answer "are
+the admin goals met?"
+
 ---
 
 ## Deploy + re-verify (orchestrator)

@@ -175,11 +175,13 @@ type EventEntry struct {
 
 // TenantResponse represents a tenant from Core.
 type TenantResponse struct {
-	ID       string         `json:"id"`
-	Name     string         `json:"name"`
-	Status   string         `json:"status"`
-	IsDemo   bool           `json:"is_demo,omitempty"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Status    string         `json:"status"`
+	IsDemo    bool           `json:"is_demo,omitempty"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
 }
 
 // ListTenantsResponse wraps a list of tenants from Core.
