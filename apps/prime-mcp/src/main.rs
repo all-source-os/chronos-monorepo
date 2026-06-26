@@ -134,6 +134,12 @@ struct Cli {
     #[arg(long, value_name = "PATH")]
     report: Option<PathBuf>,
 
+    /// In `--mode hound`, delete the existing code graph before ingesting so a
+    /// re-run replaces it instead of duplicating (idempotent — what the git hook
+    /// uses). Leaves non-code (memory) nodes alone.
+    #[arg(long)]
+    rebuild: bool,
+
     /// In `--mode install`, which assistant to install the Hound skill for:
     /// claude-code, cursor, agents, or all.
     #[arg(long, default_value = "all")]
@@ -198,6 +204,47 @@ async fn main() -> Result<()> {
 
     // ── Skill install (one-shot; needs no store) ─────────────────────────
     if matches!(cli.mode, Mode::Install) {
+        // A git hook is per-repo and needs the binary + data-dir baked in, so it
+        // has its own path (always the current repo, never --global).
+        if cli.platform.eq_ignore_ascii_case("git-hook") {
+            let repo_root = std::env::current_dir()?;
+            let exe = std::env::current_exe()?;
+            // Resolve where git actually looks for hooks — respects core.hooksPath
+            // so we don't write a hook git will never run.
+            let out = std::process::Command::new("git")
+                .arg("-C")
+                .arg(&repo_root)
+                .args(["rev-parse", "--git-path", "hooks"])
+                .output();
+            let hooks_dir = match out {
+                Ok(o) if o.status.success() => {
+                    let rel = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                    let p = PathBuf::from(&rel);
+                    if p.is_absolute() { p } else { repo_root.join(p) }
+                }
+                _ => anyhow::bail!(
+                    "not a git repository (git rev-parse failed) — run from the repo root"
+                ),
+            };
+            // A per-repo hook must not land in a shared/global hooks dir
+            // (core.hooksPath), where it would fire for every repo.
+            if !hooks_dir.starts_with(&repo_root) {
+                anyhow::bail!(
+                    "git uses a hooks directory outside this repo ({}) — likely a global \
+                     core.hooksPath. A per-repo hook doesn't belong there. Add this line to \
+                     that post-commit yourself (guard it by repo):\n  \
+                     \"{}\" --mode hound --rebuild --data-dir \"{}\" \"{}\"",
+                    hooks_dir.display(),
+                    exe.display(),
+                    data_dir.display(),
+                    repo_root.display()
+                );
+            }
+            let hook = install::git_hook(&hooks_dir, &repo_root, &exe, &data_dir)?;
+            println!("installed git post-commit hook → {}", hook.display());
+            println!("Each commit now refreshes the code graph (idempotent rebuild).");
+            return Ok(());
+        }
         let root = if cli.global {
             PathBuf::from(
                 std::env::var("HOME").map_err(|_| anyhow::anyhow!("HOME is not set"))?,
@@ -320,8 +367,13 @@ async fn main() -> Result<()> {
             );
         };
         let path = expand_home_path(raw_path);
-        tracing::info!(embed = cli.embed, "Hound: extracting code graph from {:?}", path);
-        let summary = hound::ingest(&prime, &path, cli.embed).await?;
+        tracing::info!(
+            embed = cli.embed,
+            rebuild = cli.rebuild,
+            "Hound: extracting code graph from {:?}",
+            path
+        );
+        let summary = hound::ingest(&prime, &path, cli.embed, cli.rebuild).await?;
         tracing::info!(
             files = summary.files,
             nodes = summary.nodes,
@@ -331,11 +383,13 @@ async fn main() -> Result<()> {
             ambiguous = summary.ambiguous,
             unresolved = summary.unresolved,
             embedded = summary.embedded,
+            deleted_stale = summary.deleted_stale,
             "Hound: ingest complete"
         );
         println!(
             "hound: {} files → {} nodes, {} edges \
-             ({} defines / {} calls / {} ambiguous, {} unresolved); {} embedded into {}",
+             ({} defines / {} calls / {} ambiguous, {} unresolved); \
+             {} embedded, {} stale removed into {}",
             summary.files,
             summary.nodes,
             summary.edges,
@@ -344,6 +398,7 @@ async fn main() -> Result<()> {
             summary.ambiguous,
             summary.unresolved,
             summary.embedded,
+            summary.deleted_stale,
             data_dir.display()
         );
 

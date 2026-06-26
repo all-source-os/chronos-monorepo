@@ -78,7 +78,7 @@ fn platforms() -> Vec<Platform> {
 /// Comma-separated list of installable platform keys (for help text / errors).
 #[must_use]
 pub fn platform_keys() -> String {
-    "claude-code, cursor, agents, all".to_string()
+    "claude-code, cursor, agents, git-hook, all".to_string()
 }
 
 /// Write the Hound skill for `platform` (or "all") under `root`. Returns the
@@ -111,6 +111,55 @@ pub fn run(root: &Path, platform: &str) -> Result<Vec<PathBuf>> {
         );
     }
     Ok(written)
+}
+
+/// Install a git `post-commit` hook (in the already-resolved `hooks_dir`) that
+/// re-runs Hound in `--rebuild` mode after each commit, keeping the code graph
+/// fresh for `repo_root`. `exe` is the `allsource-prime` binary and `data_dir`
+/// its store. Returns the hook path.
+///
+/// The caller resolves `hooks_dir` (respecting `core.hooksPath`) and guards
+/// against shared/global dirs. Won't clobber an unrelated existing hook: if a
+/// `post-commit` is already there without our marker, it errors and prints the
+/// line to add by hand. Re-running over our own hook refreshes it.
+pub fn git_hook(
+    hooks_dir: &Path,
+    repo_root: &Path,
+    exe: &Path,
+    data_dir: &Path,
+) -> Result<PathBuf> {
+    std::fs::create_dir_all(hooks_dir)
+        .with_context(|| format!("create {}", hooks_dir.display()))?;
+    let path = hooks_dir.join("post-commit");
+
+    let line = format!(
+        "\"{}\" --mode hound --rebuild --data-dir \"{}\" \"{}\" >/dev/null 2>&1 || true",
+        exe.display(),
+        data_dir.display(),
+        repo_root.display()
+    );
+    let body = format!(
+        "#!/bin/sh\n# Prime Hound — refresh the code graph after each commit (idempotent).\n# Installed by `allsource-prime --mode install --platform git-hook`.\n{line}\n"
+    );
+
+    if path.exists() {
+        let current = std::fs::read_to_string(&path).unwrap_or_default();
+        if !current.contains("Prime Hound") {
+            anyhow::bail!(
+                "a post-commit hook already exists at {} — add this line to it yourself:\n  {line}",
+                path.display()
+            );
+        }
+    }
+
+    std::fs::write(&path, body).with_context(|| format!("write {}", path.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .with_context(|| format!("chmod {}", path.display()))?;
+    }
+    Ok(path)
 }
 
 #[cfg(test)]
@@ -155,5 +204,39 @@ mod tests {
             std::fs::read_to_string(dir.path().join(".cursor/rules/prime-hound.mdc")).unwrap();
         assert!(body.contains("alwaysApply: false"));
         assert!(body.contains("hound_impact"));
+    }
+
+    #[test]
+    fn git_hook_writes_executable_post_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        let hooks = dir.path().join(".git/hooks"); // created by git_hook if absent
+        let p = git_hook(
+            &hooks,
+            dir.path(),
+            Path::new("/usr/local/bin/allsource-prime"),
+            Path::new("/home/u/.prime/memory"),
+        )
+        .unwrap();
+        assert!(p.ends_with("post-commit"));
+        let body = std::fs::read_to_string(&p).unwrap();
+        assert!(body.contains("--mode hound --rebuild"));
+        assert!(body.contains("Prime Hound"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&p).unwrap().permissions().mode();
+            assert!(mode & 0o111 != 0, "hook must be executable");
+        }
+        // Re-installing over our own hook is fine.
+        assert!(git_hook(&hooks, dir.path(), Path::new("/x"), Path::new("/y")).is_ok());
+    }
+
+    #[test]
+    fn git_hook_refuses_to_clobber_a_foreign_hook() {
+        let dir = tempfile::tempdir().unwrap();
+        let hooks = dir.path().join(".git/hooks");
+        std::fs::create_dir_all(&hooks).unwrap();
+        std::fs::write(hooks.join("post-commit"), "#!/bin/sh\necho someone-elses-hook\n").unwrap();
+        assert!(git_hook(&hooks, dir.path(), Path::new("/x"), Path::new("/y")).is_err());
     }
 }

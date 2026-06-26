@@ -353,7 +353,8 @@ pub fn tool_definitions() -> Value {
                 "type": "object",
                 "properties": {
                     "path": { "type": "string", "description": "Directory (or file) to extract. Honors .gitignore; skips hidden dirs." },
-                    "embed": { "type": "boolean", "description": "Also embed each file/symbol for semantic recall (default false; runs the embedder once per node)." }
+                    "embed": { "type": "boolean", "description": "Also embed each file/symbol for semantic recall (default false; runs the embedder once per node)." },
+                    "rebuild": { "type": "boolean", "description": "Delete the existing code graph first so a re-ingest replaces rather than duplicates it (default false). Use when re-ingesting the same repo." }
                 },
                 "required": ["path"]
             }
@@ -927,7 +928,8 @@ async fn call_hound_ingest(prime: &Prime, args: &Value) -> Value {
         return tool_error("missing 'path' — the directory (or file) to extract");
     };
     let embed = args.get("embed").and_then(Value::as_bool).unwrap_or(false);
-    match crate::hound::ingest(prime, std::path::Path::new(path), embed).await {
+    let rebuild = args.get("rebuild").and_then(Value::as_bool).unwrap_or(false);
+    match crate::hound::ingest(prime, std::path::Path::new(path), embed, rebuild).await {
         Ok(s) => tool_result(json!({
             "files": s.files,
             "nodes": s.nodes,
@@ -937,6 +939,7 @@ async fn call_hound_ingest(prime: &Prime, args: &Value) -> Value {
             "ambiguous": s.ambiguous,
             "unresolved": s.unresolved,
             "embedded": s.embedded,
+            "deleted_stale": s.deleted_stale,
             "sync": sync_status_json(),
         })),
         Err(e) => tool_error(&e.to_string()),
@@ -1353,6 +1356,32 @@ mod tests {
         let none = call_hound_impact(&prime, &json!({ "target": "does_not_exist" }));
         let t = none["content"][0]["text"].as_str().unwrap();
         assert!(t.contains("\"matches\": 0"), "got: {t}");
+    }
+
+    #[tokio::test]
+    async fn hound_rebuild_reingest_is_idempotent() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("lib.rs"), "fn a() { b(); }\nfn b() {}\n").expect("src");
+        let path = json!({ "path": dir.path().to_str().unwrap(), "rebuild": true });
+        let prime = Prime::open_in_memory().await.unwrap();
+
+        // Count what queries actually see (full_graph excludes soft-deleted
+        // tombstones), which is the idempotency that matters.
+        let live = |p: &Prime| {
+            let g = p.full_graph(None, None, None);
+            (g.nodes.len(), g.edges.len())
+        };
+
+        call_hound_ingest(&prime, &path).await;
+        let (n1, e1) = live(&prime); // 1 file + a + b = 3 nodes; 2 defines + 1 call = 3 edges
+
+        // Re-ingest with rebuild → replaces, does not duplicate.
+        call_hound_ingest(&prime, &path).await;
+        assert_eq!(live(&prime), (n1, e1), "rebuild must not duplicate the live graph");
+
+        // Without rebuild, a re-ingest DOES append (the bug rebuild exists to fix).
+        call_hound_ingest(&prime, &json!({ "path": dir.path().to_str().unwrap() })).await;
+        assert!(live(&prime).0 > n1, "append (no rebuild) should add duplicate nodes");
     }
 
     #[tokio::test]

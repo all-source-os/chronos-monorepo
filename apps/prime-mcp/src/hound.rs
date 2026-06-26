@@ -34,6 +34,8 @@ pub struct HoundSummary {
     pub unresolved: usize,
     /// Symbols embedded for hybrid (vector) recall — 0 unless `embed` was set.
     pub embedded: usize,
+    /// Stale code nodes removed before re-ingest — 0 unless `rebuild` was set.
+    pub deleted_stale: usize,
 }
 
 /// Embed `text` under a node's wire id so `prime_recall` can find it by meaning.
@@ -69,12 +71,35 @@ struct Pending {
 /// no LLM) so the code graph is searchable by meaning via `prime_recall` — the
 /// hybrid-retrieval edge a flat graph file can't offer. Embedding is opt-in
 /// because it runs the model once per node.
-pub async fn ingest(prime: &Prime, root: &Path, embed: bool) -> anyhow::Result<HoundSummary> {
+///
+/// When `rebuild` is true, every existing code node (`properties.domain ==
+/// "code"`) is deleted first (cascading its edges) so a re-ingest replaces the
+/// graph instead of duplicating it — the idempotency a git post-commit hook
+/// needs. Non-code nodes (agent memory) are left untouched.
+pub async fn ingest(
+    prime: &Prime,
+    root: &Path,
+    embed: bool,
+    rebuild: bool,
+) -> anyhow::Result<HoundSummary> {
     let result = extract(root)?;
     let mut s = HoundSummary {
         files: result.files.len(),
         ..Default::default()
     };
+
+    if rebuild {
+        // Snapshot first, then delete — the snapshot is a Vec so deleting from
+        // the live projections mid-iteration is safe.
+        let existing = prime.full_graph(None, None, None);
+        for n in &existing.nodes {
+            if n.properties.get("domain").and_then(|v| v.as_str()) == Some("code")
+                && prime.delete_node(&n.id).await.is_ok()
+            {
+                s.deleted_stale += 1;
+            }
+        }
+    }
 
     // Fail fast before any writes if embedding was requested but the embedder
     // can't load — rather than ingesting a half-embedded graph. Mirrors the
