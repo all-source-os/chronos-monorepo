@@ -151,10 +151,10 @@ func (h *InboxAdminHandler) Messages(c *gin.Context) {
 		}
 	}
 	res, err := h.core.QueryEvents(c.Request.Context(), clients.QueryEventsRequest{
-		EventType: "email.", // prefix match
-		TenantID:  tenantID,
-		Order:     "desc",
-		Limit:     limit,
+		EventTypePrefix: "email.", // matches email.received/sent/triaged/… (exact event_type would match nothing)
+		TenantID:        tenantID,
+		Order:           "desc",
+		Limit:           limit,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to query messages"})

@@ -138,13 +138,18 @@ type IngestEventResponse struct {
 
 // QueryEventsRequest is the request for querying events from Core.
 type QueryEventsRequest struct {
-	EntityID  string `json:"entity_id,omitempty"`
-	EventType string `json:"event_type,omitempty"` // prefix match supported
-	TenantID  string `json:"tenant_id,omitempty"`  // required post-auth-skip cutover
-	Since     string `json:"since,omitempty"`      // RFC3339
-	Until     string `json:"until,omitempty"`      // RFC3339
-	Limit     int    `json:"limit,omitempty"`
-	Offset    int    `json:"offset,omitempty"`
+	EntityID string `json:"entity_id,omitempty"`
+	// EventType is an EXACT match in Core (e.g. "email.received"). For a family
+	// of types ("email.received", "email.sent", …) use EventTypePrefix instead.
+	EventType string `json:"event_type,omitempty"`
+	// EventTypePrefix matches every event_type starting with this string
+	// (Core store.query starts_with) — e.g. "email." matches all email.* events.
+	EventTypePrefix string `json:"event_type_prefix,omitempty"`
+	TenantID        string `json:"tenant_id,omitempty"` // required post-auth-skip cutover
+	Since           string `json:"since,omitempty"`     // RFC3339
+	Until           string `json:"until,omitempty"`     // RFC3339
+	Limit           int    `json:"limit,omitempty"`
+	Offset          int    `json:"offset,omitempty"`
 	// Order controls result ordering by (timestamp, version). Empty / "asc" =
 	// oldest first (Core default); "desc" = newest first. The fleet-health
 	// recency probe uses "desc" with Limit=1 to fetch a tenant's most-recent
@@ -812,6 +817,9 @@ func (c *coreClient) QueryEvents(ctx context.Context, req QueryEventsRequest) (*
 	}
 	if req.EventType != "" {
 		r.SetQueryParam("event_type", req.EventType)
+	}
+	if req.EventTypePrefix != "" {
+		r.SetQueryParam("event_type_prefix", req.EventTypePrefix)
 	}
 	if req.TenantID != "" {
 		r.SetQueryParam("tenant_id", req.TenantID)
