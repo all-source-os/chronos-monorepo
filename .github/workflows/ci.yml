@@ -112,6 +112,7 @@ jobs:
             rust:
               - 'apps/core/**'
               - 'Cargo.lock'
+              - 'tooling/tenant-isolation-check/**'
             go:
               - 'apps/control-plane/**'
             web:
@@ -187,6 +188,34 @@ jobs:
         run: cargo doc --no-deps --document-private-items
         env:
           RUSTDOCFLAGS: "-D warnings"
+
+  # ============================================================================
+  # Tenant Isolation Gate (scans both QS Elixir + Core Rust source)
+  # ============================================================================
+  tenant-isolation:
+    name: Tenant Isolation Gate
+    needs: [changes]
+    # Scans apps/query-service/lib (Elixir) AND apps/core/src (Rust), so it must
+    # run on changes to either stack — not just Rust.
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.elixir == 'true' || needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "tooling/tenant-isolation-check -> target"
+          cache-on-failure: true
+
+      # Fails closed: non-tenant-scoped QS PubSub topics without ISOLATION_OK,
+      # and per-tenant projection compute in Core without CORE_PROJECTION_OK.
+      - name: Run tenant-isolation + Core projection-compute gate
+        run: cargo run --manifest-path tooling/tenant-isolation-check/Cargo.toml
 
   # ============================================================================
   # Prime MCP Quality Gates
