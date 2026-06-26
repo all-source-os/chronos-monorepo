@@ -36,6 +36,7 @@ axum = { version = "0.8", features = ["json"] }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 dhat = { version = "0.3", optional = true }
+hound-extract = { version = "0.1.0", path = "../../crates/hound-extract" }
 mimalloc = { version = "0.1", default-features = false }
 pprof = { version = "0.14", default-features = false, features = ["flamegraph", "prost-codec", "cpp"], optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }

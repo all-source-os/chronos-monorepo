@@ -16,6 +16,10 @@ exclude = [
     # `prime-bundled-model` feature on allsource-core.
     "crates/allsource-prime-models",
     "crates/better-auth-allsource",
+    # Prime Hound code extractor (Tree-sitter). Standalone like prime-mcp; pulled
+    # in only via apps/prime-mcp's path dep, so Tree-sitter stays out of the Core
+    # build graph.
+    "crates/hound-extract",
     "tooling/allsource-inspect",
     "tooling/allsource-mcp",
     "tooling/recall-bench",

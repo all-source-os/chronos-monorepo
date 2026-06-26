@@ -1,0 +1,20 @@
+[package]
+name = "hound-extract"
+version = "0.1.0"
+edition = "2021"
+description = "Tree-sitter codebase extractor for Prime Hound — turns source files into graph nodes and edges (on-device, no LLM)."
+license = "Apache-2.0"
+repository = "https://github.com/all-source-os/all-source"
+
+# Standalone crate (NOT a root-workspace member): consumed by the excluded,
+# standalone `apps/prime-mcp` build via a path dependency. Keeping it out of the
+# root workspace keeps Tree-sitter out of the Core build graph.
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0"
+ignore = "0.4"
+tree-sitter = "0.23"
+tree-sitter-rust = "0.23"

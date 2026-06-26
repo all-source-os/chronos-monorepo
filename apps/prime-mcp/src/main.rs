@@ -21,6 +21,7 @@ mod core_writer;
 mod dispatch;
 mod email_ingester;
 mod hosted_dispatch;
+mod hound;
 mod http;
 mod profiling;
 mod projection_registry;
@@ -44,6 +45,10 @@ enum Mode {
     /// an offline vendored model). Exits non-zero if the embedder can't load —
     /// suitable as a CI canary against a fresh, cache-less container.
     Warm,
+    /// One-shot: extract a codebase into the local Prime graph (Tree-sitter,
+    /// on-device, no LLM), then exit. Pass the source tree as a positional
+    /// argument: `allsource-prime --mode hound --data-dir <dir> <PATH>`.
+    Hound,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -104,6 +109,11 @@ struct Cli {
     /// Sync flush interval in milliseconds (default: 1000ms).
     #[arg(long, env = "PRIME_SYNC_INTERVAL_MS", default_value = "1000")]
     sync_interval_ms: u64,
+
+    /// Source tree to ingest in `--mode hound` (Tree-sitter code graph).
+    /// Ignored in other modes.
+    #[arg(value_name = "PATH")]
+    path: Option<PathBuf>,
 }
 
 /// Expand a leading `~`/`~/` and `$HOME` / `${HOME}` references in a path.
@@ -251,6 +261,44 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Hound mode: one-shot codebase → graph ingest, then exit (like Warm). Runs
+    // before recall/sync setup — it neither serves requests nor needs the
+    // embedder; it only writes prime.node/edge events into the embedded store.
+    if matches!(cli.mode, Mode::Hound) {
+        let Some(raw_path) = cli.path.as_ref() else {
+            anyhow::bail!(
+                "hound mode requires a PATH argument: \
+                 allsource-prime --mode hound --data-dir <dir> <PATH>"
+            );
+        };
+        let path = expand_home_path(raw_path);
+        tracing::info!("Hound: extracting code graph from {:?}", path);
+        let summary = hound::ingest(&prime, &path).await?;
+        tracing::info!(
+            files = summary.files,
+            nodes = summary.nodes,
+            edges = summary.edges,
+            defines = summary.defines,
+            calls = summary.calls,
+            ambiguous = summary.ambiguous,
+            unresolved = summary.unresolved,
+            "Hound: ingest complete"
+        );
+        println!(
+            "hound: {} files → {} nodes, {} edges \
+             ({} defines / {} calls / {} ambiguous, {} unresolved) into {}",
+            summary.files,
+            summary.nodes,
+            summary.edges,
+            summary.defines,
+            summary.calls,
+            summary.ambiguous,
+            summary.unresolved,
+            data_dir.display()
+        );
+        return Ok(());
+    }
+
     let recall_config = allsource_core::prime::recall::IndexConfig::default();
     let recall =
         allsource_core::prime::recall::RecallEngine::with_deps(prime.recall_deps(), &recall_config);
@@ -395,6 +443,8 @@ async fn main() -> Result<()> {
         }
         // Warm exits earlier, before sync/recall setup.
         Mode::Warm => unreachable!("warm mode returns before the server match"),
+        // Hound is a one-shot ingest that also returns before this match.
+        Mode::Hound => unreachable!("hound mode returns before the server match"),
     }
 
     Ok(())
