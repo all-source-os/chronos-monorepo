@@ -14,6 +14,7 @@ import {
 import { ExternalLink, Mailbox } from "lucide-react";
 import { useState } from "react";
 import { type ConnectResponse, startConnect } from "@/lib/inbox-api";
+import { TenantSelect } from "./tenant-select";
 
 /**
  * Connect-mailbox dialog. Collects tenant_id + optional email, calls the CP's
@@ -92,15 +93,8 @@ export function ConnectDialog({ open, onClose, returnTo, defaultTenantId }: Conn
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="connect-tenant-id">Tenant ID</Label>
-            <Input
-              id="connect-tenant-id"
-              value={tenantId}
-              onChange={(e) => setTenantId(e.target.value)}
-              placeholder="tnt_…"
-              autoComplete="off"
-              data-testid="connect-tenant-input"
-            />
+            <Label>Tenant</Label>
+            <TenantSelect value={tenantId} onChange={(id) => setTenantId(id)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="connect-email">Mailbox email (optional)</Label>
