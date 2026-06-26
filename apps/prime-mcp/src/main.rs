@@ -24,6 +24,7 @@ mod analytics;
 mod hosted_dispatch;
 mod hound;
 mod http;
+mod report;
 mod profiling;
 mod projection_registry;
 mod protocol;
@@ -121,6 +122,11 @@ struct Cli {
     /// embedder once per node.
     #[arg(long, env = "PRIME_HOUND_EMBED")]
     embed: bool,
+
+    /// In `--mode hound`, write a human-readable GRAPH_REPORT.md to this path
+    /// after ingest (Graphify-style). Omit to skip.
+    #[arg(long, value_name = "PATH")]
+    report: Option<PathBuf>,
 }
 
 /// Expand a leading `~`/`~/` and `$HOME` / `${HOME}` references in a path.
@@ -305,6 +311,15 @@ async fn main() -> Result<()> {
             summary.embedded,
             data_dir.display()
         );
+
+        // Opt-in: write the human-readable GRAPH_REPORT.md (Graphify-style).
+        if let Some(report_path) = cli.report.as_ref() {
+            let graph = prime.full_graph(None, None, None);
+            let md = report::compute(&graph, 25).to_markdown();
+            let path = expand_home_path(report_path);
+            std::fs::write(&path, md)?;
+            println!("hound: wrote report → {}", path.display());
+        }
 
         // Opt-in: with --sync-to + --api-key, push the freshly-extracted code
         // graph to the hosted tenant Core, then exit. One-shot drain (not the

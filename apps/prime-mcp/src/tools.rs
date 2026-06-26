@@ -1005,98 +1005,19 @@ fn call_hound_impact(prime: &Prime, args: &Value) -> Value {
     }))
 }
 
-/// `hound_report`: structural summary of the code graph + top god-nodes by degree.
+/// `hound_report`: structural summary of the code graph — counts, confidence,
+/// PageRank-ranked god-nodes, and communities. Pass `markdown: true` for the
+/// rendered `GRAPH_REPORT.md` instead of the JSON payload.
 fn call_hound_report(prime: &Prime, args: &Value) -> Value {
-    use std::collections::{BTreeMap, HashMap};
-
     let top = args.get("top").and_then(Value::as_u64).unwrap_or(10) as usize;
+    let markdown = args.get("markdown").and_then(Value::as_bool).unwrap_or(false);
     let g = prime.full_graph(None, None, None);
-
-    let mut degree: HashMap<String, usize> = HashMap::new();
-    let mut by_relation: BTreeMap<String, usize> = BTreeMap::new();
-    let mut confidence: BTreeMap<String, usize> = BTreeMap::new();
-    for e in &g.edges {
-        *degree.entry(e.source.clone()).or_default() += 1;
-        *degree.entry(e.target.clone()).or_default() += 1;
-        *by_relation.entry(e.relation.clone()).or_default() += 1;
-        // Confidence is derived from edge weight: the adjacency projection
-        // full_graph reads carries weight but not properties, and Hound encodes
-        // the tier in the weight anyway (EXTRACTED=1.0, INFERRED=0.6,
-        // AMBIGUOUS=0.3). Weight is the single source of truth.
-        let tag = match e.weight {
-            Some(w) if w >= 0.9 => "EXTRACTED",
-            Some(w) if w >= 0.5 => "INFERRED",
-            Some(_) => "AMBIGUOUS",
-            None => "UNTAGGED",
-        };
-        *confidence.entry(tag.to_string()).or_default() += 1;
+    let data = crate::report::compute(&g, top);
+    if markdown {
+        tool_result(json!({ "markdown": data.to_markdown() }))
+    } else {
+        tool_result(data.to_json())
     }
-
-    // Human label per node: function/type name, else file path, else wire id.
-    let label_of: HashMap<&str, &str> = g
-        .nodes
-        .iter()
-        .map(|n| {
-            let label = n
-                .properties
-                .get("name")
-                .and_then(Value::as_str)
-                .or_else(|| n.properties.get("path").and_then(Value::as_str))
-                .unwrap_or(n.id.as_str());
-            (n.id.as_str(), label)
-        })
-        .collect();
-
-    // Analytics (pure, app-side — never Core's engine): PageRank centrality is
-    // a better hub signal than raw degree, and label-propagation communities
-    // cluster the call/define graph into cohesive groups.
-    let pr = crate::analytics::pagerank(&g, 0.85, 100);
-    let labels = crate::analytics::communities(&g, 50);
-    let (community_count, community_sizes) = crate::analytics::community_summary(&labels);
-
-    // Rank nodes by PageRank (degree, then wire id, as deterministic tiebreaks).
-    let mut ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();
-    ids.sort_by(|a, b| {
-        let pa = pr.get(*a).copied().unwrap_or(0.0);
-        let pb = pr.get(*b).copied().unwrap_or(0.0);
-        pb.partial_cmp(&pa)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| {
-                degree
-                    .get(*b)
-                    .copied()
-                    .unwrap_or(0)
-                    .cmp(&degree.get(*a).copied().unwrap_or(0))
-            })
-            .then_with(|| a.cmp(b))
-    });
-    let god_nodes: Vec<Value> = ids
-        .iter()
-        .take(top)
-        .map(|id| {
-            json!({
-                "id": id,
-                "label": label_of.get(*id).copied(),
-                "degree": degree.get(*id).copied().unwrap_or(0),
-                "pagerank": pr.get(*id).copied().unwrap_or(0.0),
-                "community": labels.get(*id),
-            })
-        })
-        .collect();
-
-    tool_result(json!({
-        "node_count": g.stats.node_count,
-        "edge_count": g.stats.edge_count,
-        "nodes_by_type": g.stats.nodes_by_type,
-        "edges_by_relation": by_relation,
-        "confidence": confidence,
-        "god_nodes": god_nodes,
-        "communities": {
-            "count": community_count,
-            "sizes": community_sizes.iter().take(20).collect::<Vec<_>>(),
-        },
-        "has_more": g.has_more,
-    }))
 }
 
 // =========================================================================
