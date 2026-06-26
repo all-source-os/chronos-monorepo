@@ -1,8 +1,8 @@
-# Prime Atlas — Offering Graphify's Capabilities as a Prime Product Extension
+# Prime Hound — Offering Graphify's Capabilities as a Prime Product Extension
 
 **Status:** Analysis / design proposal (not yet scheduled)
 **Author:** product analysis, 2026-06-26
-**Scope:** Compare [graphify.net](https://graphify.net) (`safishamsi/graphify`) to AllSource Prime, then design a new product — working name **Prime Atlas** — that offers everything Graphify does, built as an extension of the Prime engine.
+**Scope:** Compare [graphify.net](https://graphify.net) (`safishamsi/graphify`) to AllSource Prime, then design a new product — working name **Prime Hound** — that offers everything Graphify does, built as an extension of the Prime engine.
 
 ---
 
@@ -10,7 +10,7 @@
 
 - **Graphify is not a hosted graph engine — it's an open-source CLI / AI-assistant skill.** You run `/graphify .` inside Claude Code, it parses a folder with Tree-sitter (AST) plus an LLM pass for docs, and emits three portable files: `graph.json`, an interactive `graph.html`, and `GRAPH_REPORT.md`. No server, no accounts, no database, no embeddings, no multi-tenant state. Its assets are **distribution** (YC S26, ~70K GitHub stars, "skill" installers into AI assistants) and a **DX narrative** ("71.5× fewer tokens per query", local-first privacy, confidence-tagged relationships).
 - **Prime is the opposite shape:** a durable, event-sourced, multi-tenant **runtime** graph + vector + recall engine over AllSource Core. It has the things a flat `graph.json` structurally cannot have — durability, hybrid vector+graph retrieval, provenance/time-travel, sync, and a hosted multi-tenant API.
-- **They are complementary, not competing.** Graphify is a **build-time artifact**; Prime is a **runtime engine**. The product opportunity is to put Graphify's ingestion + DX **on top of** Prime's durable backend: *Graphify gives you a snapshot; Prime Atlas gives you a living map.*
+- **They are complementary, not competing.** Graphify is a **build-time artifact**; Prime is a **runtime engine**. The product opportunity is to put Graphify's ingestion + DX **on top of** Prime's durable backend: *Graphify gives you a snapshot; Prime Hound gives you a living map.*
 - **The work splits cleanly into "borrow" vs "already have."** We must build the ingestion/extraction/viz/analytics/distribution layer (Graphify's strengths). We get durability, hybrid recall, multi-tenancy, and provenance for free (Graphify's deliberate gaps — and our differentiators).
 - **Hard architectural constraint:** per-tenant/per-repo graph compute must live in the **Prime app layer** (and a new ingestion worker), never in Core's global projection engine. This is enforced by the `tenant-isolation-check` gate and documented in `PER_TENANT_PROJECTIONS.md` ("Why not Core"). Prime's hosted mode (`HostedPrime` + `TenantProjectionCache`, stateless over Core) is already the correct place — we extend it, we do not touch Core's hot path.
 
@@ -89,7 +89,7 @@ Source-verified inventory (see `apps/core/src/prime/`, `apps/prime-mcp/`, `apps/
 
 ## 3. Head-to-head
 
-| Dimension | Graphify | Prime (today) | Prime Atlas (proposed) |
+| Dimension | Graphify | Prime (today) | Prime Hound (proposed) |
 |---|---|---|---|
 | **Product shape** | Build-time CLI → files | Runtime engine + API | Runtime engine **with** Graphify-grade ingestion + DX |
 | **Codebase → graph** | ✅ Tree-sitter, 13 langs | ❌ | ✅ (Phase 1) |
@@ -113,19 +113,19 @@ Source-verified inventory (see `apps/core/src/prime/`, `apps/prime-mcp/`, `apps/
 
 ---
 
-## 4. The product: Prime Atlas
+## 4. The product: Prime Hound
 
-> **Positioning:** "The living knowledge graph for AI coding assistants. Graphify gives you a snapshot — Atlas remembers."
+> **Positioning:** "The living knowledge graph for AI coding assistants. Graphify gives you a snapshot — Hound remembers."
 
-Prime Atlas is a Prime-backed product that ingests a codebase (and later docs/multi-modal sources) into a **durable, queryable, optionally-shared** knowledge graph, exposed to AI assistants over MCP — with hybrid vector+graph retrieval, provenance, and incremental live updates that a flat `graph.json` can't offer.
+Prime Hound is a Prime-backed product that ingests a codebase (and later docs/multi-modal sources) into a **durable, queryable, optionally-shared** knowledge graph, exposed to AI assistants over MCP — with hybrid vector+graph retrieval, provenance, and incremental live updates that a flat `graph.json` can't offer.
 
-Crucially, Atlas unifies two graphs that are separate everywhere else: **the code graph** (what Graphify builds) and **the agent's working memory** (Prime's original purpose) live in **one event store, one query surface**. An assistant can ask "what connects the login form to the users table?" and "what did we decide about auth last week?" against the same graph. Neither Graphify nor vanilla Prime does this.
+Crucially, Hound unifies two graphs that are separate everywhere else: **the code graph** (what Graphify builds) and **the agent's working memory** (Prime's original purpose) live in **one event store, one query surface**. An assistant can ask "what connects the login form to the users table?" and "what did we decide about auth last week?" against the same graph. Neither Graphify nor vanilla Prime does this.
 
 ### 4.1 Architecture (respecting the Core/QS/Prime boundary)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Atlas ingestion (NEW)  — runs client-side (CLI) or as a worker        │
+│  Hound ingestion (NEW)  — runs client-side (CLI) or as a worker        │
 │                                                                        │
 │   ┌────────────────┐   ┌──────────────────────┐                       │
 │   │ Tree-sitter AST │   │ LLM semantic extractor│  (docs/PDF/img/...)  │
@@ -141,7 +141,7 @@ Crucially, Atlas unifies two graphs that are separate everywhere else: **the cod
 ┌──────────────────────────────────────────────────────────────────────┐
 │  AllSource Core (Rust) — UNCHANGED                                     │
 │  Durable event log (WAL+Parquet+DashMap), tenant-scoped. Stores the    │
-│  Atlas graph as ordinary prime.* events. No per-tenant Atlas compute.  │
+│  Hound graph as ordinary prime.* events. No per-tenant Hound compute.  │
 └──────────────────────────┬─────────────────────────────────────────────┘
                            │ tenant-scoped read
                            ▼
@@ -149,23 +149,23 @@ Crucially, Atlas unifies two graphs that are separate everywhere else: **the cod
 │  allsource-prime app (extended)  — per-tenant compute lives HERE       │
 │   • HostedPrime + TenantProjectionCache (exists)                       │
 │   • NEW: graph analytics over the warm projections (PageRank, Leiden)  │
-│   • NEW: Atlas read APIs (impact, god-nodes, report)                   │
+│   • NEW: Hound read APIs (impact, god-nodes, report)                   │
 │   • Existing: neighbors / shortest_path / recall / vector search       │
 └──────────────────────────┬─────────────────────────────────────────────┘
                            │ MCP + REST
                 ┌──────────┴───────────┐
                 ▼                      ▼
         AI assistants            Web viewer (apps/web)
-        (/prime-atlas skill)     interactive graph UI
+        (/prime-hound skill)     interactive graph UI
 ```
 
-**Why this placement is mandatory, not stylistic:** `CLAUDE.md` and `PER_TENANT_PROJECTIONS.md` forbid per-tenant read-model compute in Core's global projection engine (it's on the ingest hot path; enforced by `tenant-isolation-check`, override only via `// CORE_PROJECTION_OK:`). Atlas graphs are per-tenant/per-repo, so **all Atlas-specific folding and analytics run in the `allsource-prime` app** (already stateless-multi-tenant over Core) or in the ingestion worker — never in Core. Core only stores `prime.*` events, exactly as it does today.
+**Why this placement is mandatory, not stylistic:** `CLAUDE.md` and `PER_TENANT_PROJECTIONS.md` forbid per-tenant read-model compute in Core's global projection engine (it's on the ingest hot path; enforced by `tenant-isolation-check`, override only via `// CORE_PROJECTION_OK:`). Hound graphs are per-tenant/per-repo, so **all Hound-specific folding and analytics run in the `allsource-prime` app** (already stateless-multi-tenant over Core) or in the ingestion worker — never in Core. Core only stores `prime.*` events, exactly as it does today.
 
 ### 4.2 How each Graphify capability maps onto Prime
 
-| Graphify capability | Prime Atlas implementation | Build? |
+| Graphify capability | Prime Hound implementation | Build? |
 |---|---|---|
-| Tree-sitter AST → graph | New `atlas-extract` crate (Rust, `tree-sitter` grammars) → emits `prime.node/edge.created`. Code nodes use `node:fn:`, `node:class:`, `node:module:` types; relations `calls`/`imports`/`defines`/etc. | **Build** |
+| Tree-sitter AST → graph | New `hound-extract` crate (Rust, `tree-sitter` grammars) → emits `prime.node/edge.created`. Code nodes use `node:fn:`, `node:class:`, `node:module:` types; relations `calls`/`imports`/`defines`/etc. | **Build** |
 | Multi-modal LLM extraction | Reuse the AI-inbox-style extractor pattern; emit nodes + edges + **vectors** (Prime embeds them → hybrid retrieval, which Graphify lacks). | **Build** |
 | Confidence tags | Map `EXTRACTED→weight 1.0`, `INFERRED→weight=score`, `AMBIGUOUS→weight<0.5`; store the enum in edge `properties.confidence`. Prime edges already carry `weight` + `properties`. | **Trivial** |
 | `query` / `path` / `explain` | Already exist: `prime_recall` (better — hybrid + vectors), `prime_shortest_path`, `prime_neighbors`. | **Have** |
@@ -173,10 +173,10 @@ Crucially, Atlas unifies two graphs that are separate everywhere else: **the cod
 | `graph.html` interactive viz | Upgrade existing `GET /api/v1/prime/graph.html` → real interactive viewer (filter/search/expand/layout); or a first-class page in `apps/web`. Server-side paging removes the ~5k ceiling. | **Build** |
 | `GRAPH_REPORT.md` | Generate from `prime_stats` + new analytics (god-nodes, cross-domain edges via existing CrossDomain projection). | **Build (small)** |
 | PR impact analysis | New: diff two graph snapshots (Prime already has `GET /api/v1/prime/diff`) + git integration to map changed files → impacted nodes. | **Build** |
-| Git-hook incremental rebuild | New CLI subcommand `prime atlas hook install`; reuse incremental SHA-cache idea; emit only deltas as events (event-sourcing makes deltas natural). | **Build** |
+| Git-hook incremental rebuild | New CLI subcommand `prime hound hook install`; reuse incremental SHA-cache idea; emit only deltas as events (event-sourcing makes deltas natural). | **Build** |
 | Exports (wiki, Obsidian, GraphML, Cypher, Mermaid) | New serializers over the graph read API. Cheap, additive. | **Build (small)** |
-| MCP server | **Already shipped** (`apps/prime-mcp`, stdio + HTTP). Add Atlas-specific tools (`atlas_ingest`, `atlas_impact`, `atlas_report`). | **Extend** |
-| Assistant-skill installers | New `prime atlas install --platform <name>` writing `.claude/skills/...`, `.cursor/rules/...`, etc. Mechanical; mirror Graphify's installer. | **Build** |
+| MCP server | **Already shipped** (`apps/prime-mcp`, stdio + HTTP). Add Hound-specific tools (`hound_ingest`, `hound_impact`, `hound_report`). | **Extend** |
+| Assistant-skill installers | New `prime hound install --platform <name>` writing `.claude/skills/...`, `.cursor/rules/...`, etc. Mechanical; mirror Graphify's installer. | **Build** |
 | Local-first / privacy | **Already have** — embedded mode parses locally; code-only graphs need no LLM and never leave the machine. Sync is opt-in. | **Have** |
 
 **Net:** ~9 things to build, 4 of them small; 4 things we already have (and 4 of the "have"s are the differentiators Graphify can't match).
@@ -185,7 +185,7 @@ Crucially, Atlas unifies two graphs that are separate everywhere else: **the cod
 
 These are the headline differentiators — they're not roadmap items, they're inherent to building on Prime:
 
-1. **Hybrid retrieval.** Graphify is topology-only and explicitly has no vectors. Atlas embeds every node/doc (`all-MiniLM-L6-v2`, HNSW) and ranks with `recency + similarity + graph-proximity`. Semantic queries that miss on pure topology hit on Atlas.
+1. **Hybrid retrieval.** Graphify is topology-only and explicitly has no vectors. Hound embeds every node/doc (`all-MiniLM-L6-v2`, HNSW) and ranks with `recency + similarity + graph-proximity`. Semantic queries that miss on pure topology hit on Hound.
 2. **Living graph.** Event-sourced ⇒ incremental updates, real-time subscription (Core WS), no stale snapshot, no merge conflicts on a JSON blob.
 3. **Team / shared graphs.** Hosted multi-tenant mode ⇒ a team shares one repo graph; Graphify's files are per-machine.
 4. **Provenance + time-travel.** `prime_history` + `node_provenance` ⇒ "when did this edge appear, and which commit/event created it?" Graphify offers only `git log graph.json`.
@@ -197,13 +197,13 @@ These are the headline differentiators — they're not roadmap items, they're in
 
 Each phase is independently shippable and mirrors Graphify's own wedge-then-expand path.
 
-**Phase 1 — Atlas Code (the wedge).** Tree-sitter AST extractor (start with the languages our users actually use — Rust, TS/JS, Python, Go, Elixir), emitting `prime.*` events into local embedded Prime. `prime atlas <path>` CLI. Code-only ⇒ $0, on-device, privacy parity with Graphify. Queryable immediately via existing MCP tools; opt-in sync to hosted. *Exit: a developer can `prime atlas .` and ask their assistant graph questions about their repo, durably.*
+**Phase 1 — Hound Code (the wedge).** Tree-sitter AST extractor (start with the languages our users actually use — Rust, TS/JS, Python, Go, Elixir), emitting `prime.*` events into local embedded Prime. `prime hound <path>` CLI. Code-only ⇒ $0, on-device, privacy parity with Graphify. Queryable immediately via existing MCP tools; opt-in sync to hosted. *Exit: a developer can `prime hound .` and ask their assistant graph questions about their repo, durably.*
 
-**Phase 2 — Semantic & multi-modal.** LLM semantic-extraction pass for docs/PDF/etc., emitting nodes + edges + **vectors**. Confidence tagging. This is where Atlas visibly beats Graphify: hybrid vector+graph recall instead of topology-only. BYO LLM key (like Graphify) or hosted usage-billed.
+**Phase 2 — Semantic & multi-modal.** LLM semantic-extraction pass for docs/PDF/etc., emitting nodes + edges + **vectors**. Confidence tagging. This is where Hound visibly beats Graphify: hybrid vector+graph recall instead of topology-only. BYO LLM key (like Graphify) or hosted usage-billed.
 
 **Phase 3 — Analytics, viz, impact.** PageRank + Leiden communities + god-node surfacing (read-side, in the prime app). Interactive web viewer (no 5k ceiling). `GRAPH_REPORT.md` generator. PR impact analysis via graph diff + git. *Exit: feature parity with Graphify's analytics/report/PR story.*
 
-**Phase 4 — Distribution & collaboration.** Assistant-skill installers across the major AI assistants. Git-hook incremental rebuild. Team/shared hosted graphs (the thing Graphify structurally cannot do). Export formats. *Exit: a developer can install the `/prime-atlas` skill in their assistant and a team can share one living graph.*
+**Phase 4 — Distribution & collaboration.** Assistant-skill installers across the major AI assistants. Git-hook incremental rebuild. Team/shared hosted graphs (the thing Graphify structurally cannot do). Export formats. *Exit: a developer can install the `/prime-hound` skill in their assistant and a team can share one living graph.*
 
 ---
 
@@ -225,14 +225,14 @@ Anchor pricing to the **team/living-graph** value, not the local tool — the lo
 1. **Distribution is Graphify's real moat, and we don't have it.** 70K stars + YC + installers into ~20 assistants is a genuine lead we will not out-distribute quickly. *Mitigation:* don't try to out-distribute on day one — win on capabilities a file can't have (live/team/hybrid/provenance), and seed adoption through existing AllSource/Prime/chronis users where we already have a relationship.
 2. **Multi-modal extraction is a lot of surface.** Graphify spent real effort on PDF/image/video/Whisper pipelines. *Mitigation:* Phase it; ship code-only first (where Tree-sitter is conventional and $0), add modalities by demand.
 3. **Tree-sitter grammar breadth is ongoing work.** 13+ languages is real maintenance. *Mitigation:* start with the handful our users use; grammars are off-the-shelf, not novel research.
-4. **Boundary discipline.** It is tempting to fold Atlas analytics into Core's projection engine for speed. **Do not** — `tenant-isolation-check` will fail and it's the wrong architecture. All per-tenant Atlas compute lives in the `allsource-prime` app or the ingestion worker.
+4. **Boundary discipline.** It is tempting to fold Hound analytics into Core's projection engine for speed. **Do not** — `tenant-isolation-check` will fail and it's the wrong architecture. All per-tenant Hound compute lives in the `allsource-prime` app or the ingestion worker.
 5. **Penpax is the signal to watch.** Graphify's unlaunched commercial layer (always-on, on-device graph of meetings/email/browser/files/code) overlaps directly with Prime's *memory* use case — more than the free CLI does. If Penpax ships, the competition moves onto Prime's home turf (durable personal/agent memory), not just code graphs. Track it as the real competitive intent.
 
 ---
 
 ## 8. Recommendation
 
-Build **Prime Atlas** as a phased extension, starting with **Phase 1 (Atlas Code)** — the highest-leverage, lowest-cost wedge that proves the thesis (durable, queryable code graph for assistants) using only Tree-sitter + the Prime engine we already run. It is a strict capability superset of Graphify with no new database, no Core changes, and immediate differentiation (durability + hybrid recall) the moment a graph exists.
+Build **Prime Hound** as a phased extension, starting with **Phase 1 (Hound Code)** — the highest-leverage, lowest-cost wedge that proves the thesis (durable, queryable code graph for assistants) using only Tree-sitter + the Prime engine we already run. It is a strict capability superset of Graphify with no new database, no Core changes, and immediate differentiation (durability + hybrid recall) the moment a graph exists.
 
 The strategic bet: Graphify proved the demand and the DX; Prime already has the durable runtime that Graphify deliberately went without. We are not copying a competitor — we are giving their best idea the backend it's missing.
 
