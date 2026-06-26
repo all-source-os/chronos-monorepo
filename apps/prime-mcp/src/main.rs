@@ -24,6 +24,7 @@ mod analytics;
 mod hosted_dispatch;
 mod hound;
 mod http;
+mod install;
 mod pr;
 mod report;
 mod profiling;
@@ -52,6 +53,9 @@ enum Mode {
     /// on-device, no LLM), then exit. Pass the source tree as a positional
     /// argument: `allsource-prime --mode hound --data-dir <dir> <PATH>`.
     Hound,
+    /// Write a Prime Hound usage skill into an AI assistant's config, then exit.
+    /// Use `--platform <claude-code|cursor|agents|all>` and `--global`.
+    Install,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -71,8 +75,9 @@ enum Format {
     version
 )]
 struct Cli {
-    /// Path to Prime data directory (WAL, Parquet, projection checkpoints)
-    #[arg(long, env = "PRIME_DATA_DIR")]
+    /// Path to Prime data directory (WAL, Parquet, projection checkpoints).
+    /// Defaults to the standard `~/.prime/memory`; not needed for `--mode install`.
+    #[arg(long, env = "PRIME_DATA_DIR", default_value = "~/.prime/memory")]
     data_dir: PathBuf,
 
     /// Server mode: mcp (stdio) or http
@@ -128,6 +133,15 @@ struct Cli {
     /// after ingest (Graphify-style). Omit to skip.
     #[arg(long, value_name = "PATH")]
     report: Option<PathBuf>,
+
+    /// In `--mode install`, which assistant to install the Hound skill for:
+    /// claude-code, cursor, agents, or all.
+    #[arg(long, default_value = "all")]
+    platform: String,
+
+    /// In `--mode install`, write into your home (~) instead of the current repo.
+    #[arg(long)]
+    global: bool,
 }
 
 /// Expand a leading `~`/`~/` and `$HOME` / `${HOME}` references in a path.
@@ -180,6 +194,26 @@ async fn main() -> Result<()> {
             expanded = %data_dir.display(),
             "Expanded data dir (~ / $HOME / ${{HOME}})"
         );
+    }
+
+    // ── Skill install (one-shot; needs no store) ─────────────────────────
+    if matches!(cli.mode, Mode::Install) {
+        let root = if cli.global {
+            PathBuf::from(
+                std::env::var("HOME").map_err(|_| anyhow::anyhow!("HOME is not set"))?,
+            )
+        } else {
+            std::env::current_dir()?
+        };
+        let written = install::run(&root, &cli.platform)?;
+        for p in &written {
+            println!("installed Prime Hound skill → {}", p.display());
+        }
+        println!(
+            "Next: ensure the allsource-prime MCP server is configured, then ask your \
+             assistant to ingest this repo (hound_ingest path=\".\")."
+        );
+        return Ok(());
     }
 
     // ── Stateless hosted HTTP mode ────────────────────────────────────────
@@ -511,6 +545,8 @@ async fn main() -> Result<()> {
         Mode::Warm => unreachable!("warm mode returns before the server match"),
         // Hound is a one-shot ingest that also returns before this match.
         Mode::Hound => unreachable!("hound mode returns before the server match"),
+        // Install writes skill files and returns before this match.
+        Mode::Install => unreachable!("install mode returns before the server match"),
     }
 
     Ok(())
