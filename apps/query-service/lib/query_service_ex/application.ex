@@ -18,8 +18,11 @@ defmodule QueryServiceEx.Application do
     # Attach telemetry handlers for structured logging
     QueryServiceEx.Telemetry.attach_handlers()
 
-    # Initialize ETS cache for projections
+    # Initialize ETS cache for projections (legacy Core-state sync)
     ProjectionSync.init_cache()
+
+    # Initialize ETS tables for the per-tenant (QS-owned) projections feature
+    QueryServiceEx.Projections.TenantProjections.init_tables()
 
     # Get cluster topology child_spec (nil if clustering disabled)
     cluster_children = cluster_children()
@@ -80,6 +83,12 @@ defmodule QueryServiceEx.Application do
 
           # DynamicSupervisor for server-side projection servers (Phase 2 continuous projections)
           QueryServiceEx.Projections.ProjectionSupervisor,
+
+          # Task supervisor for per-tenant projection background backfills
+          {Task.Supervisor, name: QueryServiceEx.Projections.BackfillSupervisor},
+
+          # Per-tenant (QS-owned) projection state owner + live folder
+          QueryServiceEx.Projections.TenantProjections,
 
           # WebSocket client for real-time events from Core
           {QueryServiceEx.Infrastructure.Adapters.CoreWebSocketClient, []},

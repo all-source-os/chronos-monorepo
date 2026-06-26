@@ -957,6 +957,40 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   end
 
   @doc """
+  Deep-merge a partial metadata map into a tenant's metadata in Core.
+
+  Core's `PATCH /api/v1/tenants/{id}/metadata` performs a tenant-scoped atomic
+  deep-merge, so sibling keys (e.g. `metadata.quotas`) are preserved. Core never
+  interprets the keys it stores — they are opaque to the engine. Used by the
+  per-tenant projections feature to persist `metadata.projections.enabled`.
+
+  ## Parameters
+    * `tenant_id` - The tenant whose metadata to merge into
+    * `partial` - A map merged into the tenant's existing metadata
+
+  ## Returns
+    * `{:ok, body}` - Merge applied (Core may echo the merged tenant/metadata)
+    * `{:error, :not_found}` - Tenant does not exist
+    * `{:error, reason}` - Error details
+  """
+  def merge_tenant_metadata(tenant_id, partial)
+      when is_binary(tenant_id) and is_map(partial) do
+    case Tesla.patch(write_client(), "/api/v1/tenants/#{tenant_id}/metadata", partial) do
+      {:ok, %Tesla.Env{status: status, body: body}} when status in [200, 204] ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Tesla.Env{status: status, body: resp_body}} ->
+        {:error, "HTTP #{status}: #{inspect(resp_body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Create a tenant in Core.
 
   Used for lazy auto-provisioning when a valid JWT references a tenant that
