@@ -70,6 +70,12 @@
     border: 1px solid var(--border); border-radius: 6px;
     padding: 5px 8px; font-size: 13px;
   }
+  input#search {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 8px; font-size: 13px; width: 150px;
+  }
+  input#search:focus { outline: none; border-color: var(--accent); }
 
   #main { position: relative; height: calc(100vh - 49px); }
 
@@ -156,6 +162,7 @@
   <h1><span class="dot">●</span> Prime Memory</h1>
   <span class="stats" id="statsLine"></span>
   <div class="spacer"></div>
+  <input id="search" type="search" placeholder="Search…" title="Highlight nodes by label" style="display:none" />
   <select id="typeFilter" title="Filter by node type" style="display:none">
     <option value="">All types</option>
   </select>
@@ -231,6 +238,9 @@ function nodeLabel(properties, id) {
 // shows the highest-degree N nodes (+ their edges); the list view + the type
 // filter let you reach the rest.
 const RENDER_CAP = 600;
+// Server-side cap so a huge store doesn't ship a giant JSON to the browser.
+// `has_more` in the response tells us the server truncated; the stats line says so.
+const FETCH_LIMIT = 4000;
 
 // ── State ────────────────────────────────────────────────────────────────────
 let RAW = null;          // last fetched { nodes, edges, stats, has_more }
@@ -240,7 +250,7 @@ let sim = null;          // active simulation instance
 async function load() {
   showOnly(null);
   try {
-    const res = await fetch("/api/v1/prime/graph", { headers: { accept: "application/json" } });
+    const res = await fetch("/api/v1/prime/graph?limit=" + FETCH_LIMIT, { headers: { accept: "application/json" } });
     if (!res.ok) throw new Error("HTTP " + res.status + " from /api/v1/prime/graph");
     RAW = await res.json();
   } catch (e) {
@@ -259,6 +269,7 @@ async function load() {
   if (!nodes.length) { showOnly("empty"); return; }
 
   buildTypeFilter(stats.nodes_by_type || {});
+  document.getElementById("search").style.display = "";
   renderActiveView();
 }
 
@@ -333,6 +344,7 @@ function renderGraph(filter) {
   if (sim) sim.stop();
   sim = new ForceGraph(document.getElementById("canvas"), nodes, edges);
   sim.start();
+  applySearchHighlight(); // carry any active search onto the fresh simulation
 }
 
 function renderLegend(filter) {
@@ -375,6 +387,7 @@ class ForceGraph {
     // view transform
     this.scale = 1; this.tx = 0; this.ty = 0;
     this.hoverEdge = null; this.selected = null;
+    this.highlight = null; // Set<id> to emphasize (search / neighbor focus), or null
     this.alpha = 1;
 
     this._resize = this.resize.bind(this);
@@ -402,6 +415,18 @@ class ForceGraph {
 
   radius(n) { return 6 + Math.sqrt(n.degree) * 3; }
 
+  // Emphasize a set of node ids (search match / neighbor focus); null clears.
+  setHighlight(set) { this.highlight = set && set.size ? set : null; this._needsDraw = true; }
+  // Focus a node's ego network: the node + everything one hop away.
+  focusNeighbors(node) {
+    const set = new Set([node.id]);
+    for (const e of this.edges) {
+      if (e.s.id === node.id) set.add(e.t.id);
+      if (e.t.id === node.id) set.add(e.s.id);
+    }
+    this.setHighlight(set);
+  }
+
   // One physics step: repulsion (Coulomb), springs (edges), gravity to center.
   step() {
     const ns = this.nodes;
@@ -412,7 +437,11 @@ class ForceGraph {
       for (let j = i + 1; j < ns.length; j++) {
         const b = ns[j];
         let dx = a.x - b.x, dy = a.y - b.y;
-        let d2 = dx * dx + dy * dy || 0.01;
+        // Floor the squared distance well above zero so two near-coincident
+        // nodes (common in a large graph at startup) can't generate an enormous
+        // repulsion force that flings them to infinity.
+        let d2 = dx * dx + dy * dy;
+        if (d2 < 100) d2 = 100;
         const f = (4000 * k) / d2;
         const d = Math.sqrt(d2);
         const fx = (dx / d) * f, fy = (dy / d) * f;
@@ -433,6 +462,10 @@ class ForceGraph {
       n.vx += -n.x * 0.002 * k;
       n.vy += -n.y * 0.002 * k;
       n.vx *= 0.85; n.vy *= 0.85;
+      // Clamp speed so a force spike (hundreds of nodes in a code graph) can't
+      // diverge the layout to ±1e14 off-canvas. Keeps it stable at scale.
+      const sp = Math.hypot(n.vx, n.vy);
+      if (sp > 100) { const s = 100 / sp; n.vx *= s; n.vy *= s; }
       n.x += n.vx; n.y += n.vy;
     }
     this.alpha *= 0.992;
@@ -459,7 +492,9 @@ class ForceGraph {
     ctx.lineWidth = 1;
     for (const e of this.edges) {
       const s = this.toScreen(e.s), t = this.toScreen(e.t);
-      ctx.strokeStyle = e === this.hoverEdge ? "rgba(99,102,241,.9)" : "rgba(120,130,150,.28)";
+      const muted = this.highlight && !(this.highlight.has(e.s.id) && this.highlight.has(e.t.id));
+      ctx.strokeStyle = e === this.hoverEdge ? "rgba(99,102,241,.9)"
+        : muted ? "rgba(120,130,150,.05)" : "rgba(120,130,150,.28)";
       ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y); ctx.stroke();
     }
     // hovered edge label
@@ -480,9 +515,11 @@ class ForceGraph {
     for (const n of this.nodes) {
       const p = this.toScreen(n);
       const r = this.radius(n) * Math.min(1.6, this.scale + 0.4);
+      const lit = !this.highlight || this.highlight.has(n.id);
+      ctx.globalAlpha = lit ? 1 : 0.12;
       ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx.fillStyle = colorForType(n.type);
-      ctx.globalAlpha = 1; ctx.fill();
+      ctx.fill();
       if (n === this.selected) {
         ctx.lineWidth = 2.5; ctx.strokeStyle = "#fff"; ctx.stroke();
       }
@@ -492,11 +529,12 @@ class ForceGraph {
         ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,255,255,.55)";
         ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
       }
-      if (this.scale > 0.55 || n === this.selected) {
+      if (lit && (this.scale > 0.55 || n === this.selected)) {
         ctx.fillStyle = "#cfd5e4"; ctx.font = "11px sans-serif";
         ctx.fillText(trunc(n.label, 22), p.x, p.y + r + 3);
       }
     }
+    ctx.globalAlpha = 1;
   }
 
   nodeAt(sx, sy) {
@@ -552,7 +590,8 @@ class ForceGraph {
       // treat as a click (not a drag) if the pointer barely moved
       if (downAt && Math.hypot(p.x - downAt.x, p.y - downAt.y) < 4) {
         const n = this.nodeAt(p.x, p.y);
-        if (n) { this.selected = n; openNodeDetail(n.raw); }
+        if (n) { this.selected = n; openNodeDetail(n.raw); this.focusNeighbors(n); }
+        else { closeDetail(); } // click empty space → clear detail + focus
       }
       // un-pin a node only if it was a pure click (keep it pinned after a drag)
       if (dragNode && downAt && Math.hypot(p.x - downAt.x, p.y - downAt.y) < 4) {
@@ -624,6 +663,17 @@ function openNodeDetail(node) {
 function closeDetail() {
   document.getElementById("detail").classList.remove("open");
   if (sim) { sim.selected = null; sim._needsDraw = true; }
+  applySearchHighlight(); // restore the search highlight (or clear) after focus
+}
+
+// Highlight nodes whose label matches the search box; empty box clears.
+function applySearchHighlight() {
+  if (!sim) return;
+  const q = (document.getElementById("search").value || "").trim().toLowerCase();
+  if (!q) { sim.setHighlight(null); return; }
+  const set = new Set();
+  for (const n of sim.nodes) if (n.label.toLowerCase().includes(q)) set.add(n.id);
+  sim.setHighlight(set);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -741,6 +791,7 @@ document.getElementById("tabList").addEventListener("click", () => {
 document.getElementById("typeFilter").addEventListener("change", () => {
   if (RAW && RAW.nodes && RAW.nodes.length) renderActiveView();
 });
+document.getElementById("search").addEventListener("input", applySearchHighlight);
 document.getElementById("refresh").addEventListener("click", load);
 document.getElementById("detailClose").addEventListener("click", closeDetail);
 
