@@ -358,3 +358,33 @@ func (p *Provider) ExchangeCode(ctx context.Context, code, redirectURI string) (
 	}
 	return &emailprovider.Grant{ID: out.GrantID, Email: out.Email, Provider: out.Provider}, nil
 }
+
+type nylasGrantsResp struct {
+	Data []struct {
+		ID       string `json:"id"`
+		Email    string `json:"email"`
+		Provider string `json:"provider"`
+	} `json:"data"`
+}
+
+// ListGrants enumerates the application's grants (connected + hosted mailboxes),
+// so an admin can adopt one that never went through the OAuth connect flow.
+func (p *Provider) ListGrants(ctx context.Context) ([]emailprovider.Grant, error) {
+	var out nylasGrantsResp
+	resp, err := p.client.R().
+		SetContext(ctx).
+		SetQueryParam("limit", "100").
+		SetResult(&out).
+		Get("/v3/grants")
+	if err != nil {
+		return nil, fmt.Errorf("nylas: list grants: %w", err)
+	}
+	if resp.IsError() {
+		return nil, fmt.Errorf("nylas: list grants: status %d", resp.StatusCode())
+	}
+	grants := make([]emailprovider.Grant, 0, len(out.Data))
+	for _, g := range out.Data {
+		grants = append(grants, emailprovider.Grant{ID: g.ID, Email: g.Email, Provider: g.Provider})
+	}
+	return grants, nil
+}

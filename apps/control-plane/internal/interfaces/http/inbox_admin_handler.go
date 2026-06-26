@@ -21,16 +21,21 @@ import (
 // clients.CoreClient satisfies it; tests provide a fake.
 type inboxCore interface {
 	ListConfigs(ctx context.Context) (*clients.ListConfigsResponse, error)
+	SetConfig(ctx context.Context, req clients.SetConfigRequest) error
 	DeleteConfig(ctx context.Context, key string) error
 	IngestEvent(ctx context.Context, req clients.IngestEventRequest) (*clients.IngestEventResponse, error)
 	QueryEvents(ctx context.Context, req clients.QueryEventsRequest) (*clients.QueryEventsResponse, error)
 }
 
-// inboxSender is the slice of the email provider the send endpoint needs.
+// inboxSender is the slice of the email provider the send/adopt endpoints need.
 // *nylas.Provider satisfies it.
 type inboxSender interface {
 	Name() string
 	Send(ctx context.Context, grantID string, req emailprovider.SendRequest) (*emailprovider.SendResult, error)
+	// ListGrants enumerates the provider's mailboxes (grants), so an admin can
+	// adopt a hosted/dashboard-created grant (e.g. sales@) that never went
+	// through our OAuth flow.
+	ListGrants(ctx context.Context) ([]emailprovider.Grant, error)
 }
 
 // InboxAdminHandler exposes the AI inbox over admin HTTP so a dashboard can
@@ -130,6 +135,95 @@ func (h *InboxAdminHandler) Disconnect(c *gin.Context) {
 	}
 	// NOTE: provider-side grant revocation (Nylas) is a best-effort TODO.
 	c.JSON(http.StatusOK, gin.H{"status": "disconnected", "grant_id": grantID})
+}
+
+// AvailableGrants handles GET /api/v1/admin/inbox/available-grants — the
+// provider's mailboxes (Nylas grants), each flagged whether it's already
+// registered. Lets an admin adopt a hosted/dashboard-created mailbox (e.g.
+// sales@all-source.xyz) that never went through the OAuth connect flow.
+func (h *InboxAdminHandler) AvailableGrants(c *gin.Context) {
+	if !h.configured() || h.sender == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "inbox provider not configured"})
+		return
+	}
+	grants, err := h.sender.ListGrants(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to list provider grants"})
+		return
+	}
+	registered := map[string]bool{}
+	if conns, err := h.connections(c.Request.Context(), ""); err == nil {
+		for _, cn := range conns {
+			registered[cn.GrantID] = true
+		}
+	}
+	out := make([]gin.H, 0, len(grants))
+	for _, g := range grants {
+		out = append(out, gin.H{"grant_id": g.ID, "email": g.Email, "provider": g.Provider, "registered": registered[g.ID]})
+	}
+	c.JSON(http.StatusOK, gin.H{"grants": out, "count": len(out)})
+}
+
+// AdoptGrant handles POST /api/v1/admin/inbox/connections — registers an existing
+// provider grant (by email or grant_id) to a tenant: seal {tenant_id, grant_id,
+// email} and write it to Core config so the webhook resolves the tenant and the
+// stream surfaces its mail. This is how hosted mailboxes (no OAuth login) connect.
+func (h *InboxAdminHandler) AdoptGrant(c *gin.Context) {
+	if !h.configured() || h.sender == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "inbox not configured"})
+		return
+	}
+	var req struct {
+		TenantID string `json:"tenant_id"`
+		Email    string `json:"email"`
+		GrantID  string `json:"grant_id"`
+	}
+	if c.ShouldBindJSON(&req) != nil || req.TenantID == "" || (req.Email == "" && req.GrantID == "") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_id and (email or grant_id) are required"})
+		return
+	}
+	grants, err := h.sender.ListGrants(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to list provider grants"})
+		return
+	}
+	var match *emailprovider.Grant
+	for i := range grants {
+		if (req.GrantID != "" && grants[i].ID == req.GrantID) ||
+			(req.Email != "" && strings.EqualFold(grants[i].Email, req.Email)) {
+			match = &grants[i]
+			break
+		}
+	}
+	if match == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no provider grant matches that email/grant_id"})
+		return
+	}
+	record, err := json.Marshal(grantRecord{
+		TenantID:    req.TenantID,
+		GrantID:     match.ID,
+		Email:       match.Email,
+		Provider:    h.sender.Name(),
+		ConnectedAt: time.Now().UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "encode record failed"})
+		return
+	}
+	sealed, err := h.sealer.Seal(record)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "seal failed"})
+		return
+	}
+	if err := h.core.SetConfig(c.Request.Context(), clients.SetConfigRequest{
+		Key:       grantConfigKey(match.ID),
+		Value:     sealed,
+		ChangedBy: "inbox-adopt",
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist grant"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "connected", "grant_id": match.ID, "email": match.Email, "tenant_id": req.TenantID})
 }
 
 // Messages handles GET /api/v1/admin/inbox/messages?tenant_id=&limit=. The inbox

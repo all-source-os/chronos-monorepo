@@ -704,6 +704,8 @@ func (cp *ControlPlane) setupRoutes() {
 	// OAuth callback stays on the api group above.
 	admin.GET("/inbox/connect", cp.container.InboxConnectHandler.Start)
 	admin.GET("/inbox/connections", cp.container.InboxAdminHandler.ListConnections)
+	admin.POST("/inbox/connections", cp.container.InboxAdminHandler.AdoptGrant)
+	admin.GET("/inbox/available-grants", cp.container.InboxAdminHandler.AvailableGrants)
 	admin.DELETE("/inbox/connections/:grant_id", cp.container.InboxAdminHandler.Disconnect)
 	admin.GET("/inbox/messages", cp.container.InboxAdminHandler.Messages)
 	admin.POST("/inbox/triage", cp.container.InboxAdminHandler.Triage)
