@@ -71,10 +71,12 @@ registry. Closes t-7f9600. Add a projections page to enable/disable + view state
 4. **t-a7cc15** — QS: forward tenant to all projection endpoints.
 5. **t-4ad39a** — Web: enable/disable UI + accurate dashboard count.
 
-## Open questions for review
-- **Catalog scope:** expose all existing engine projections as templates, or a
-  curated subset? (Some global ones — sagas/portfolios — may be demo-only.)
-- **State store:** reuse the existing projection state store keyed by tenant, or
-  a dedicated per-tenant store? Affects memory + the lazy-load/eviction model.
-- **Backfill cap + async:** enable returns immediately with a "building" status
-  and backfills in the background, or blocks until built?
+## Resolved (2026-06-26)
+- **Catalog scope:** a **curated generic set** (e.g. `event-count`,
+  `entity-activity`). Demo/domain projections (sagas/portfolios/trades) stay
+  engine-internal, not tenant templates.
+- **Backfill:** **background**. `POST /projections` returns immediately with
+  status `building`; the engine replays the tenant's history async and flips to
+  `ready`. The dashboard shows `building`.
+- **State store:** **reuse the existing projection state store, keyed by
+  tenant_id** (add the tenant dimension; integrate with lazy-load/eviction).
