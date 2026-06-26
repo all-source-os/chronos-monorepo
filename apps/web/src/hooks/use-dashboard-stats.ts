@@ -101,16 +101,22 @@ async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardSta
 
   // Fetch all data in parallel. Event counts/streams/ingestion come from the REAL
   // event store (Core via the Query Service); usage is the billing meter.
-  const [usageResponse, projectionsResponse, metricsResponse, eventTypesResponse, streamsResponse, analyticsResponse] =
-    await Promise.all([
-      apiClient.getTenantUsage(),
-      apiClient.listProjections(),
-      apiClient.getMetrics(),
-      // limit high enough to enumerate every type so the summed count is the true total
-      apiClient.listEventTypes({ limit: 1000 }),
-      apiClient.listStreams({ limit: 1 }),
-      apiClient.getUsageAnalytics({ range: "30d" }),
-    ]);
+  const [
+    usageResponse,
+    projectionsResponse,
+    metricsResponse,
+    eventTypesResponse,
+    streamsResponse,
+    analyticsResponse,
+  ] = await Promise.all([
+    apiClient.getTenantUsage(),
+    apiClient.listProjections(),
+    apiClient.getMetrics(),
+    // limit high enough to enumerate every type so the summed count is the true total
+    apiClient.listEventTypes({ limit: 1000 }),
+    apiClient.listStreams({ limit: 1 }),
+    apiClient.getUsageAnalytics({ range: "30d" }),
+  ]);
 
   // Build stats object with fallbacks
   const stats: DashboardStats = {
@@ -177,12 +183,15 @@ async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardSta
     }));
   }
 
-  // Projections count (already real)
+  // Per-tenant enabled projections. QS returns {projections, total} scoped to
+  // THIS tenant (not the global engine registry that used to leak here). "active"
+  // = projections whose background backfill has finished (status "ready").
   if (projectionsResponse.data) {
-    const projections = projectionsResponse.data;
+    const { projections, total } = projectionsResponse.data;
+    const list = projections ?? [];
     stats.projections = {
-      count: projections.length,
-      active: projections.filter((p) => p.status === "running").length,
+      count: total ?? list.length,
+      active: list.filter((p) => p.status === "ready").length,
     };
   }
 
@@ -203,8 +212,12 @@ async function fetchDashboardStats(asOfIso: string | null): Promise<DashboardSta
     const p99 = (backend?.p99_latency_us as number) ?? (backend?.latency_p99_us as number) ?? 0;
     stats.latency = { p99_us: p99, formatted: p99 > 0 ? formatLatency(p99) : "—" };
 
-    const storageBytes = (backend?.storage_bytes as number) ?? (backend?.disk_usage_bytes as number) ?? 0;
-    stats.storage = { bytes: storageBytes, formatted: storageBytes > 0 ? formatBytes(storageBytes) : "—" };
+    const storageBytes =
+      (backend?.storage_bytes as number) ?? (backend?.disk_usage_bytes as number) ?? 0;
+    stats.storage = {
+      bytes: storageBytes,
+      formatted: storageBytes > 0 ? formatBytes(storageBytes) : "—",
+    };
   }
 
   // Include time travel metadata

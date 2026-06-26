@@ -12,120 +12,52 @@ import {
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import {
-  AlertTriangle,
+  CheckCircle2,
   GitBranch,
   Layers,
+  Loader2,
   MoreHorizontal,
-  Pause,
-  Play,
   Plus,
-  RefreshCw,
+  Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { apiClient, type Projection } from "@/lib/api/client";
+import { useCallback, useEffect, useState } from "react";
+import { apiClient, type Projection, type ProjectionTemplate } from "@/lib/api/client";
 
-interface Pipeline {
-  id: string;
-  name: string;
-  description: string;
-  status: "running" | "paused" | "error";
-  type: "projection" | "stream";
-  eventsProcessed: number;
-  lastProcessed: string | null;
-  createdAt: string;
+function statusColor(status: Projection["status"]) {
+  return status === "ready" ? "bg-green-500" : "bg-yellow-500";
 }
 
-function projectionToPipeline(proj: Projection): Pipeline {
-  return {
-    id: proj.id,
-    name: proj.name,
-    description: proj.definition || `Projection v${proj.version}`,
-    status: proj.status,
-    type: "projection",
-    eventsProcessed: 0,
-    lastProcessed: proj.updated_at,
-    createdAt: proj.created_at,
-  };
-}
-
-function PipelineCard({
-  pipeline,
-  onPause,
-  onResume,
+function ProjectionCard({
+  projection,
+  onDisable,
 }: {
-  pipeline: Pipeline;
-  onPause: () => void;
-  onResume: () => void;
+  projection: Projection;
+  onDisable: () => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "running":
-        return "bg-green-500";
-      case "paused":
-        return "bg-yellow-500";
-      case "error":
-        return "bg-red-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  };
-
-  const formatTimestamp = (timestamp: string | null) => {
-    if (!timestamp) return "Never";
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-
-    if (diffSec < 60) return `${diffSec}s ago`;
-    if (diffMin < 60) return `${diffMin}m ago`;
-    return date.toLocaleString();
-  };
+  const building = projection.status === "building";
 
   return (
-    <Card
-      className={cn(
-        "transition-all hover:shadow-md",
-        pipeline.status === "error" && "border-destructive/50"
-      )}
-    >
+    <Card className="transition-all hover:shadow-md">
       <CardHeader className="flex flex-row items-start justify-between pb-2">
         <div className="flex items-start gap-3">
-          <div
-            className={cn(
-              "mt-1 flex h-8 w-8 items-center justify-center rounded-lg",
-              pipeline.type === "projection"
-                ? "bg-blue-500/10 text-blue-600"
-                : "bg-purple-500/10 text-purple-600"
-            )}
-          >
-            {pipeline.type === "projection" ? (
-              <Layers className="h-4 w-4" />
-            ) : (
-              <GitBranch className="h-4 w-4" />
-            )}
+          <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
+            <Layers className="h-4 w-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <CardTitle className="text-base">{pipeline.name}</CardTitle>
+              <CardTitle className="text-base">{projection.title || projection.name}</CardTitle>
               <span
                 className={cn(
                   "h-2 w-2 rounded-full",
-                  getStatusColor(pipeline.status),
-                  pipeline.status === "running" && "animate-pulse"
+                  statusColor(projection.status),
+                  building && "animate-pulse"
                 )}
               />
             </div>
-            <CardDescription className="mt-1">{pipeline.description}</CardDescription>
+            <CardDescription className="mt-1">
+              {projection.description || projection.name}
+            </CardDescription>
           </div>
         </div>
 
@@ -143,32 +75,16 @@ function PipelineCard({
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
               <div className="absolute right-0 top-full z-50 mt-1 w-36 rounded-lg border border-border bg-popover p-1 shadow-lg">
-                {pipeline.status === "running" ? (
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      onPause();
-                    }}
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted"
-                  >
-                    <Pause className="h-4 w-4" />
-                    Pause
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      onResume();
-                    }}
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted"
-                  >
-                    <Play className="h-4 w-4" />
-                    Resume
-                  </button>
-                )}
-                <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted">
-                  <RefreshCw className="h-4 w-4" />
-                  Reset
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    onDisable();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-muted"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Disable
                 </button>
               </div>
             </>
@@ -177,36 +93,26 @@ function PipelineCard({
       </CardHeader>
 
       <CardContent>
-        {pipeline.status === "error" && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            <AlertTriangle className="h-4 w-4" />
-            Pipeline encountered an error. Check logs for details.
-          </div>
-        )}
-
-        <div className="grid grid-cols-3 gap-4 text-sm">
+        <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-muted-foreground">Status</p>
-            <Badge
-              variant={
-                pipeline.status === "running"
-                  ? "default"
-                  : pipeline.status === "paused"
-                    ? "secondary"
-                    : "destructive"
-              }
-              className="mt-1 capitalize"
-            >
-              {pipeline.status}
+            <Badge variant={building ? "secondary" : "default"} className="mt-1 capitalize">
+              {building ? (
+                <>
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  Building
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="mr-1 h-3 w-3" />
+                  Ready
+                </>
+              )}
             </Badge>
           </div>
           <div>
-            <p className="text-muted-foreground">Processed</p>
-            <p className="mt-1 font-medium">{formatNumber(pipeline.eventsProcessed)} events</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Last Active</p>
-            <p className="mt-1 font-medium">{formatTimestamp(pipeline.lastProcessed)}</p>
+            <p className="text-muted-foreground">Template</p>
+            <p className="mt-1 font-mono text-xs">{projection.name}</p>
           </div>
         </div>
       </CardContent>
@@ -215,70 +121,75 @@ function PipelineCard({
 }
 
 export default function PipelinesPage() {
-  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [projections, setProjections] = useState<Projection[]>([]);
+  const [templates, setTemplates] = useState<ProjectionTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const response = await apiClient.listProjections();
+    if (response.data) {
+      setProjections(response.data.projections ?? []);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchPipelines() {
+    async function load() {
       try {
-        const response = await apiClient.listProjections();
-        if (response.data) {
-          setPipelines(response.data.map(projectionToPipeline));
-        }
+        const [list, catalog] = await Promise.all([
+          apiClient.listProjections(),
+          apiClient.listProjectionTemplates(),
+        ]);
+        if (list.data) setProjections(list.data.projections ?? []);
+        if (catalog.data) setTemplates(catalog.data.templates ?? []);
       } catch (error) {
-        console.error("Failed to fetch pipelines:", error);
+        console.error("Failed to load projections:", error);
       } finally {
         setIsLoading(false);
       }
     }
-    fetchPipelines();
+    load();
   }, []);
 
-  const refreshPipelines = async () => {
-    try {
-      const response = await apiClient.listProjections();
-      if (response.data) {
-        setPipelines(response.data.map(projectionToPipeline));
-      }
-    } catch (error) {
-      console.error("Failed to refresh pipelines:", error);
-    }
-  };
+  const enabledNames = new Set(projections.map((p) => p.name));
+  const available = templates.filter((t) => !enabledNames.has(t.name));
 
-  const handlePause = async (name: string) => {
-    // Find the pipeline name from the id
-    const pipeline = pipelines.find((p) => p.id === name);
-    const projectionName = pipeline?.name || name;
+  const handleEnable = async (template: string) => {
+    setShowAdd(false);
+    setBusy(template);
     try {
-      const response = await apiClient.pauseProjection(projectionName);
+      const response = await apiClient.enableProjection(template);
       if (response.error) {
-        console.error("Failed to pause projection:", response.error);
+        console.error("Failed to enable projection:", response.error);
         return;
       }
-      await refreshPipelines();
+      await refresh();
     } catch (error) {
-      console.error("Failed to pause projection:", error);
+      console.error("Failed to enable projection:", error);
+    } finally {
+      setBusy(null);
     }
   };
 
-  const handleResume = async (name: string) => {
-    const pipeline = pipelines.find((p) => p.id === name);
-    const projectionName = pipeline?.name || name;
+  const handleDisable = async (name: string) => {
+    setBusy(name);
     try {
-      const response = await apiClient.startProjection(projectionName);
+      const response = await apiClient.disableProjection(name);
       if (response.error) {
-        console.error("Failed to start projection:", response.error);
+        console.error("Failed to disable projection:", response.error);
         return;
       }
-      await refreshPipelines();
+      await refresh();
     } catch (error) {
-      console.error("Failed to start projection:", error);
+      console.error("Failed to disable projection:", error);
+    } finally {
+      setBusy(null);
     }
   };
 
-  const runningCount = pipelines.filter((p) => p.status === "running").length;
-  const pausedCount = pipelines.filter((p) => p.status === "paused").length;
-  const errorCount = pipelines.filter((p) => p.status === "error").length;
+  const readyCount = projections.filter((p) => p.status === "ready").length;
+  const buildingCount = projections.filter((p) => p.status === "building").length;
 
   return (
     <div className="space-y-6">
@@ -286,79 +197,87 @@ export default function PipelinesPage() {
       <BlurFade delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Pipelines</h1>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Projections</h1>
             <p className="mt-1 text-muted-foreground">
-              Manage projections and stream processing pipelines
+              Enable read-models built from your event stream
             </p>
           </div>
-          <Button onClick={() => window.open("https://docs.all-source.xyz/pipelines", "_blank")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Pipeline
-          </Button>
+          <div className="relative">
+            <Button onClick={() => setShowAdd(!showAdd)} disabled={available.length === 0}>
+              <Plus className="mr-2 h-4 w-4" />
+              Enable Projection
+            </Button>
+            {showAdd && available.length > 0 && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowAdd(false)} />
+                <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-popover p-1 shadow-lg">
+                  {available.map((t) => (
+                    <button
+                      key={t.name}
+                      type="button"
+                      onClick={() => handleEnable(t.name)}
+                      className="flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
+                    >
+                      <span className="font-medium">{t.title}</span>
+                      <span className="text-xs text-muted-foreground">{t.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </BlurFade>
 
       {/* Status Overview */}
       <BlurFade delay={0.2} inView>
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <Card>
             <CardContent className="flex items-center gap-4 p-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                <GitBranch className="h-5 w-5" />
+                <Layers className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{pipelines.length}</p>
-                <p className="text-sm text-muted-foreground">Total Pipelines</p>
+                <p className="text-2xl font-bold">{projections.length}</p>
+                <p className="text-sm text-muted-foreground">Enabled</p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex items-center gap-4 p-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                <Play className="h-5 w-5 text-green-600" />
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{runningCount}</p>
-                <p className="text-sm text-muted-foreground">Running</p>
+                <p className="text-2xl font-bold">{readyCount}</p>
+                <p className="text-sm text-muted-foreground">Ready</p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex items-center gap-4 p-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/10">
-                <Pause className="h-5 w-5 text-yellow-600" />
+                <Loader2 className="h-5 w-5 text-yellow-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{pausedCount}</p>
-                <p className="text-sm text-muted-foreground">Paused</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{errorCount}</p>
-                <p className="text-sm text-muted-foreground">Errors</p>
+                <p className="text-2xl font-bold">{buildingCount}</p>
+                <p className="text-sm text-muted-foreground">Building</p>
               </div>
             </CardContent>
           </Card>
         </div>
       </BlurFade>
 
-      {/* Pipelines Grid */}
+      {/* Projections Grid */}
       <BlurFade delay={0.3} inView>
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 2 }).map((_, i) => (
               <Card key={i}>
                 <CardContent className="p-6 space-y-4">
                   <div className="h-6 w-40 animate-pulse rounded bg-muted" />
                   <div className="h-4 w-full animate-pulse rounded bg-muted" />
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="h-8 animate-pulse rounded bg-muted" />
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="h-8 animate-pulse rounded bg-muted" />
                     <div className="h-8 animate-pulse rounded bg-muted" />
                   </div>
@@ -368,12 +287,13 @@ export default function PipelinesPage() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {pipelines.map((pipeline) => (
-              <PipelineCard
-                key={pipeline.id}
-                pipeline={pipeline}
-                onPause={() => handlePause(pipeline.id)}
-                onResume={() => handleResume(pipeline.id)}
+            {projections.map((projection) => (
+              <ProjectionCard
+                key={projection.name}
+                projection={
+                  busy === projection.name ? { ...projection, status: "building" } : projection
+                }
+                onDisable={() => handleDisable(projection.name)}
               />
             ))}
           </div>
@@ -381,21 +301,20 @@ export default function PipelinesPage() {
       </BlurFade>
 
       {/* Empty state */}
-      {!isLoading && pipelines.length === 0 && (
+      {!isLoading && projections.length === 0 && (
         <BlurFade delay={0.3} inView>
           <Card className="p-12 text-center">
             <GitBranch className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
-            <h3 className="text-lg font-medium">No pipelines yet</h3>
+            <h3 className="text-lg font-medium">No projections enabled</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Create your first pipeline to start processing events
+              Enable a projection template to build a read-model from your events
             </p>
-            <Button
-              className="mt-4"
-              onClick={() => window.open("https://docs.all-source.xyz/pipelines", "_blank")}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Pipeline
-            </Button>
+            {available.length > 0 && (
+              <Button className="mt-4" onClick={() => setShowAdd(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Enable Projection
+              </Button>
+            )}
           </Card>
         </BlurFade>
       )}

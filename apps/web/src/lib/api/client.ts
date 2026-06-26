@@ -332,31 +332,25 @@ export class ApiClient {
     return this.request<ProjectedChargesResponse>("/api/billing/projected-charges");
   }
 
-  // Projections endpoints
-  async listProjections(): Promise<ApiResponse<Projection[]>> {
-    return this.request<Projection[]>("/api/projections");
+  // Projections endpoints (per-tenant, QS-owned; tenant-scoped + fail-closed)
+  async listProjections(): Promise<ApiResponse<ProjectionListResponse>> {
+    return this.request<ProjectionListResponse>("/api/projections");
   }
 
-  async getProjection(name: string): Promise<ApiResponse<Projection>> {
-    return this.request<Projection>(`/api/projections/${encodeURIComponent(name)}`);
+  async listProjectionTemplates(): Promise<ApiResponse<ProjectionTemplateListResponse>> {
+    return this.request<ProjectionTemplateListResponse>("/api/projection-templates");
   }
 
-  async createProjection(data: CreateProjectionRequest): Promise<ApiResponse<Projection>> {
-    return this.request<Projection>("/api/projections", {
+  async enableProjection(template: string): Promise<ApiResponse<{ projection: Projection }>> {
+    return this.request<{ projection: Projection }>("/api/projections", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ template }),
     });
   }
 
-  async pauseProjection(name: string): Promise<ApiResponse<Projection>> {
-    return this.request<Projection>(`/api/projections/${encodeURIComponent(name)}/pause`, {
-      method: "POST",
-    });
-  }
-
-  async startProjection(name: string): Promise<ApiResponse<Projection>> {
-    return this.request<Projection>(`/api/projections/${encodeURIComponent(name)}/start`, {
-      method: "POST",
+  async disableProjection(name: string): Promise<ApiResponse<{ deleted: string }>> {
+    return this.request<{ deleted: string }>(`/api/projections/${encodeURIComponent(name)}`, {
+      method: "DELETE",
     });
   }
 
@@ -769,22 +763,30 @@ export interface ProjectedChargesResponse {
   };
 }
 
+// Per-tenant projections are a Query-Service-owned read-model: a tenant enables
+// curated templates and QS folds the tenant's event stream into state. `status`
+// is "building" while the background backfill runs, then "ready".
 export interface Projection {
-  id: string;
   name: string;
-  version: number;
-  status: "running" | "paused" | "error";
-  initial_state: Record<string, unknown>;
-  definition: string;
-  created_at: string;
-  updated_at: string;
+  title: string;
+  description: string | null;
+  status: "building" | "ready";
 }
 
-export interface CreateProjectionRequest {
+export interface ProjectionListResponse {
+  projections: Projection[];
+  total: number;
+}
+
+export interface ProjectionTemplate {
   name: string;
-  version: number;
-  initial_state: Record<string, unknown>;
-  definition: string;
+  title: string;
+  description: string;
+}
+
+export interface ProjectionTemplateListResponse {
+  templates: ProjectionTemplate[];
+  total: number;
 }
 
 export interface MetricsResponse {
