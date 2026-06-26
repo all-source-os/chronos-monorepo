@@ -201,18 +201,16 @@ defmodule QueryServiceExWeb.Router do
     post("/query/projected", ProjectedQueryController, :execute)
   end
 
-  # Projections endpoints (no quota for projection operations)
+  # Per-tenant projections (QS-owned; enable/disable curated templates).
+  # Tenant-scoped + fail-closed. No quota for projection operations.
   scope "/api", QueryServiceExWeb do
     pipe_through([:tenant_scoped, :rate_limited])
 
     get("/projections", ProjectionController, :index)
-    get("/projections/:name", ProjectionController, :show)
+    get("/projection-templates", ProjectionController, :templates)
     post("/projections", ProjectionController, :create)
     delete("/projections/:name", ProjectionController, :delete)
     get("/projections/:name/state", ProjectionController, :get_state)
-    post("/projections/:name/reset", ProjectionController, :reset)
-    post("/projections/:name/pause", ProjectionController, :pause)
-    post("/projections/:name/start", ProjectionController, :resume)
   end
 
   # Webhook subscription management endpoints
@@ -458,13 +456,15 @@ defmodule QueryServiceExWeb.Router do
     get("/snapshots", SnapshotController, :index)
   end
 
-  # Projection endpoints (tenant-scoped)
+  # Per-tenant projections (QS-owned), /api/v1 mirror of the /api routes.
   scope "/api/v1", QueryServiceExWeb do
     pipe_through([:tenant_scoped, :rate_limited])
 
     get("/projections", ProjectionController, :index)
-    get("/projections/rebuild-stats", ProjectionController, :rebuild_stats)
-    get("/projections/:name", ProjectionController, :show)
+    get("/projection-templates", ProjectionController, :templates)
+    post("/projections", ProjectionController, :create)
+    delete("/projections/:name", ProjectionController, :delete)
+    get("/projections/:name/state", ProjectionController, :get_state)
   end
 
   # Prime declarative projections + per-field provenance (tenant-scoped).
