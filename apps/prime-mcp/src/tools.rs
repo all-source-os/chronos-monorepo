@@ -344,6 +344,40 @@ pub fn tool_definitions() -> Value {
                 },
                 "required": ["thread_id", "body", "intent"]
             }
+        },
+        // ─── Hound (code graph) ────────────────────────────────────────
+        {
+            "name": "hound_ingest",
+            "description": "Prime Hound: extract a codebase into the graph. Walk a directory (or a single file) with Tree-sitter — on-device, no LLM, no upload — and fold every function/type/trait/module into nodes with `defines` and `calls` edges, each confidence-tagged (EXTRACTED = AST-certain, INFERRED, AMBIGUOUS). Runs where your code is (local stdio mode). If sync is enabled the graph also reaches your AllSource tenant. Phase 1 parses Rust; more languages follow. Call this first, then hound_report / hound_impact / prime_recall.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Directory (or file) to extract. Honors .gitignore; skips hidden dirs." }
+                },
+                "required": ["path"]
+            }
+        },
+        {
+            "name": "hound_impact",
+            "description": "Prime Hound: blast radius of a change. Given a function (by name, or a node:function:<id> wire id), return everything that transitively CALLS it — the code that could break if you change it — up to `depth` hops. Computed from the code graph's incoming `calls` edges. Use before refactoring or deleting a function. A bare name may resolve to several definitions; each is reported separately.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "target": { "type": "string", "description": "Function name (e.g. 'authenticate') or a node:function:<id> wire id." },
+                    "depth": { "type": "integer", "description": "Transitive caller hops to follow (default 2)." }
+                },
+                "required": ["target"]
+            }
+        },
+        {
+            "name": "hound_report",
+            "description": "Prime Hound: a structural summary of the code graph — node counts by type, edge counts by relation, the EXTRACTED/INFERRED/AMBIGUOUS confidence breakdown, and the top 'god nodes' (highest-degree symbols, the architectural hubs). Call after hound_ingest to orient on an unfamiliar codebase.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "top": { "type": "integer", "description": "How many god-nodes to return (default 10)." }
+                }
+            }
         }
     ])
 }
@@ -372,6 +406,9 @@ pub async fn call_tool(prime: &Prime, recall: &RecallEngine, name: &str, args: &
         "prime_node_provenance" => call_node_provenance(prime, args).await,
         "inbox_recall_thread" => call_inbox_recall_thread(prime, args),
         "inbox_draft" => call_inbox_draft(args).await,
+        "hound_ingest" => call_hound_ingest(prime, args).await,
+        "hound_impact" => call_hound_impact(prime, args),
+        "hound_report" => call_hound_report(prime, args),
         _ => tool_error(&format!("Unknown tool: {name}")),
     }
 }
@@ -858,6 +895,182 @@ fn call_stats(prime: &Prime) -> Value {
 }
 
 // =========================================================================
+// Hound (code graph) tools
+// =========================================================================
+//
+// Hound is a local-first capability: ingest runs where the source lives, so
+// these are served on the embedded (stdio/local-http) path only. The hosted
+// dispatch returns a redirect error (see `hosted_dispatch::call_tool_hosted`).
+// Deep analytics (community detection, full GRAPH_REPORT.md, git-diff PR
+// impact) are Phase 3; these are the working Phase-1 versions over the live
+// graph projections.
+
+/// `hound_ingest`: extract a codebase into the local Prime graph via `Tree-sitter`.
+async fn call_hound_ingest(prime: &Prime, args: &Value) -> Value {
+    let Some(path) = args.get("path").and_then(Value::as_str) else {
+        return tool_error("missing 'path' — the directory (or file) to extract");
+    };
+    match crate::hound::ingest(prime, std::path::Path::new(path)).await {
+        Ok(s) => tool_result(json!({
+            "files": s.files,
+            "nodes": s.nodes,
+            "edges": s.edges,
+            "defines": s.defines,
+            "calls": s.calls,
+            "ambiguous": s.ambiguous,
+            "unresolved": s.unresolved,
+            "sync": sync_status_json(),
+        })),
+        Err(e) => tool_error(&e.to_string()),
+    }
+}
+
+/// `hound_impact`: transitive callers of a function — the blast radius of a change.
+fn call_hound_impact(prime: &Prime, args: &Value) -> Value {
+    let Some(target) = args.get("target").and_then(Value::as_str) else {
+        return tool_error("missing 'target' — a function name or a node:function:<id> wire id");
+    };
+    let depth = args.get("depth").and_then(Value::as_u64).unwrap_or(2) as usize;
+
+    // Resolve the target to one or more function nodes. A bare name can match
+    // several definitions across files, so impact is reported per match.
+    let resolved: Vec<(String, Value)> = if target.starts_with("node:") {
+        match prime.get_node(target) {
+            Some(n) => vec![(target.to_string(), n.properties)],
+            None => return tool_error(&format!("no node found for wire id '{target}'")),
+        }
+    } else {
+        prime
+            .nodes_by_type("function")
+            .into_iter()
+            .filter(|n| n.properties.get("name").and_then(Value::as_str) == Some(target))
+            .map(|n| {
+                let wire =
+                    allsource_core::prime::EntityId::node("function", n.id.as_str()).to_wire();
+                (wire, n.properties)
+            })
+            .collect()
+    };
+
+    if resolved.is_empty() {
+        return tool_result(json!({
+            "target": target,
+            "matches": 0,
+            "results": [],
+            "message": "no function with that name in the graph — run hound_ingest first?",
+        }));
+    }
+
+    let results: Vec<Value> = resolved
+        .iter()
+        .map(|(wire, props)| {
+            // Incoming `calls` edges, transitively = who depends on this fn.
+            let callers = prime.neighbors_within(
+                wire,
+                depth,
+                Some("calls"),
+                allsource_core::prime::Direction::Incoming,
+            );
+            let impacted: Vec<Value> = callers
+                .iter()
+                .filter(|(_, d)| *d > 0) // drop the target itself (depth 0)
+                .map(|(n, d)| {
+                    json!({
+                        "id": allsource_core::prime::EntityId::node(&n.node_type, n.id.as_str()).to_wire(),
+                        "name": n.properties.get("name").and_then(Value::as_str),
+                        "file": n.properties.get("file").and_then(Value::as_str),
+                        "line": n.properties.get("line"),
+                        "depth": d,
+                    })
+                })
+                .collect();
+            json!({
+                "target": wire,
+                "target_name": props.get("name").and_then(Value::as_str),
+                "target_file": props.get("file").and_then(Value::as_str),
+                "impacted_count": impacted.len(),
+                "impacted": impacted,
+            })
+        })
+        .collect();
+
+    tool_result(json!({
+        "target": target,
+        "depth": depth,
+        "matches": results.len(),
+        "results": results,
+    }))
+}
+
+/// `hound_report`: structural summary of the code graph + top god-nodes by degree.
+fn call_hound_report(prime: &Prime, args: &Value) -> Value {
+    use std::collections::{BTreeMap, HashMap};
+
+    let top = args.get("top").and_then(Value::as_u64).unwrap_or(10) as usize;
+    let g = prime.full_graph(None, None, None);
+
+    let mut degree: HashMap<String, usize> = HashMap::new();
+    let mut by_relation: BTreeMap<String, usize> = BTreeMap::new();
+    let mut confidence: BTreeMap<String, usize> = BTreeMap::new();
+    for e in &g.edges {
+        *degree.entry(e.source.clone()).or_default() += 1;
+        *degree.entry(e.target.clone()).or_default() += 1;
+        *by_relation.entry(e.relation.clone()).or_default() += 1;
+        // Confidence is derived from edge weight: the adjacency projection
+        // full_graph reads carries weight but not properties, and Hound encodes
+        // the tier in the weight anyway (EXTRACTED=1.0, INFERRED=0.6,
+        // AMBIGUOUS=0.3). Weight is the single source of truth.
+        let tag = match e.weight {
+            Some(w) if w >= 0.9 => "EXTRACTED",
+            Some(w) if w >= 0.5 => "INFERRED",
+            Some(_) => "AMBIGUOUS",
+            None => "UNTAGGED",
+        };
+        *confidence.entry(tag.to_string()).or_default() += 1;
+    }
+
+    // Human label per node: function/type name, else file path, else wire id.
+    let label_of: HashMap<&str, &str> = g
+        .nodes
+        .iter()
+        .map(|n| {
+            let label = n
+                .properties
+                .get("name")
+                .and_then(Value::as_str)
+                .or_else(|| n.properties.get("path").and_then(Value::as_str))
+                .unwrap_or(n.id.as_str());
+            (n.id.as_str(), label)
+        })
+        .collect();
+
+    let mut ranked: Vec<(&String, &usize)> = degree.iter().collect();
+    // Highest degree first; wire id as a stable tiebreak.
+    ranked.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    let god_nodes: Vec<Value> = ranked
+        .iter()
+        .take(top)
+        .map(|(id, d)| {
+            json!({
+                "id": id,
+                "label": label_of.get(id.as_str()).copied(),
+                "degree": d,
+            })
+        })
+        .collect();
+
+    tool_result(json!({
+        "node_count": g.stats.node_count,
+        "edge_count": g.stats.edge_count,
+        "nodes_by_type": g.stats.nodes_by_type,
+        "edges_by_relation": by_relation,
+        "confidence": confidence,
+        "god_nodes": god_nodes,
+        "has_more": g.has_more,
+    }))
+}
+
+// =========================================================================
 // Recall tools
 // =========================================================================
 
@@ -1115,6 +1328,47 @@ async fn call_context(prime: &Prime, recall: &RecallEngine, args: &Value) -> Val
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn hound_ingest_impact_report_roundtrip() {
+        // Source lives on disk (a temp dir); the Prime store is in-memory.
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(
+            dir.path().join("lib.rs"),
+            "fn helper() -> i32 { 42 }\n\
+             pub fn run() -> i32 { helper() }\n\
+             fn other() { run(); }\n",
+        )
+        .expect("write src");
+
+        let prime = Prime::open_in_memory().await.unwrap();
+
+        // 1. Ingest: 1 file + 3 fns = 4 nodes; defines 3; calls run→helper, other→run = 2.
+        let ing =
+            call_hound_ingest(&prime, &json!({ "path": dir.path().to_str().unwrap() })).await;
+        assert_ne!(ing.get("isError"), Some(&json!(true)));
+        let t = ing["content"][0]["text"].as_str().unwrap();
+        assert!(t.contains("\"nodes\": 4"), "got: {t}");
+        assert!(t.contains("\"calls\": 2"), "got: {t}");
+
+        // 2. Impact of `helper`: run calls it directly (d1); other reaches it via run (d2).
+        let imp = call_hound_impact(&prime, &json!({ "target": "helper", "depth": 2 }));
+        let t = imp["content"][0]["text"].as_str().unwrap();
+        assert!(t.contains("\"run\""), "direct caller missing: {t}");
+        assert!(t.contains("\"other\""), "transitive caller missing: {t}");
+
+        // 3. Report: type breakdown, confidence tags, and god-nodes present.
+        let rep = call_hound_report(&prime, &json!({ "top": 5 }));
+        let t = rep["content"][0]["text"].as_str().unwrap();
+        assert!(t.contains("\"god_nodes\""), "got: {t}");
+        assert!(t.contains("\"function\": 3"), "expected 3 functions: {t}");
+        assert!(t.contains("EXTRACTED"), "expected confidence tags: {t}");
+
+        // 4. Unknown function → empty result, not an error.
+        let none = call_hound_impact(&prime, &json!({ "target": "does_not_exist" }));
+        let t = none["content"][0]["text"].as_str().unwrap();
+        assert!(t.contains("\"matches\": 0"), "got: {t}");
+    }
 
     fn find_tool<'a>(defs: &'a Value, name: &str) -> &'a Value {
         defs.as_array()
