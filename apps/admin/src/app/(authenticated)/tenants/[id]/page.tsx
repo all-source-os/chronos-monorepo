@@ -318,45 +318,53 @@ export default function TenantDetailPage() {
             <CardDescription>Detail subscription + admin billing invoices</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Plan</span>
-              <span className="text-sm font-medium capitalize">{tenant.subscription.plan}</span>
-            </div>
-            {tenant.subscription.status && (
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Status</span>
-                <Badge
-                  variant={tenant.subscription.status === "active" ? "default" : "destructive"}
-                >
-                  {tenant.subscription.status}
-                </Badge>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Started</span>
-              <span className="text-sm">{formatDate(tenant.subscription.started_at)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Current period end</span>
-              <span className="text-sm">
-                {formatDate(
-                  tenant.subscription.renews_at ?? tenant.subscription.current_period_end
+            {tenant.subscription ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Plan</span>
+                  <span className="text-sm font-medium capitalize">{tenant.subscription.plan}</span>
+                </div>
+                {tenant.subscription.status && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Status</span>
+                    <Badge
+                      variant={tenant.subscription.status === "active" ? "default" : "destructive"}
+                    >
+                      {tenant.subscription.status}
+                    </Badge>
+                  </div>
                 )}
-              </span>
-            </div>
-            {tenant.subscription.dunning_state && (
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Dunning</span>
-                <Badge variant="secondary">{tenant.subscription.dunning_state}</Badge>
-              </div>
-            )}
-            {tenant.subscription.grandfathered && (
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Grandfathered</span>
-                <Badge variant="outline">
-                  until {formatDate(tenant.subscription.grandfather_until)}
-                </Badge>
-              </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Started</span>
+                  <span className="text-sm">{formatDate(tenant.subscription.started_at)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Current period end</span>
+                  <span className="text-sm">
+                    {formatDate(
+                      tenant.subscription.renews_at ?? tenant.subscription.current_period_end
+                    )}
+                  </span>
+                </div>
+                {tenant.subscription.dunning_state && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Dunning</span>
+                    <Badge variant="secondary">{tenant.subscription.dunning_state}</Badge>
+                  </div>
+                )}
+                {tenant.subscription.grandfathered && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Grandfathered</span>
+                    <Badge variant="outline">
+                      until {formatDate(tenant.subscription.grandfather_until)}
+                    </Badge>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No active subscription (free / self-host tenant).
+              </p>
             )}
 
             {/* Recent invoices (admin billing, filtered to this tenant) */}
