@@ -251,14 +251,21 @@ function BuildPanel({
     setLoading(true);
     setMessage(null);
     try {
-      const data = await primePost<PrimeNode>("/nodes", {
+      const properties = {
+        name: nodeName.trim(),
+        domain: nodeDomain.trim() || nodeType,
+      };
+      // POST /nodes returns only { node_id, entity_id } — it does NOT echo the
+      // type/properties we sent. Build the local node from our input plus the
+      // returned ids, or the list renders the UUID and the name is lost.
+      const data = await primePost<{ node_id: string; entity_id: string }>("/nodes", {
         type: nodeType,
-        properties: {
-          name: nodeName.trim(),
-          domain: nodeDomain.trim() || nodeType,
-        },
+        properties,
       });
-      setNodes((prev) => [...prev, data]);
+      setNodes((prev) => [
+        ...prev,
+        { node_id: data.node_id, entity_id: data.entity_id, type: nodeType, properties },
+      ]);
       setNodeName("");
       setMessage(`Created ${nodeType} "${nodeName.trim()}"`);
       nameInputRef.current?.focus();
@@ -275,12 +282,18 @@ function BuildPanel({
     setLoading(true);
     setMessage(null);
     try {
-      const data = await primePost<PrimeEdge>("/edges", {
+      // POST /edges returns only { edge_id } — not source/target/relation. Build
+      // the local edge from our input + the returned id, else the edge list
+      // renders "undefined > undefined".
+      const data = await primePost<{ edge_id: string }>("/edges", {
         source: edgeSource,
         target: edgeTarget,
         relation: edgeRelation,
       });
-      setEdges((prev) => [...prev, data]);
+      setEdges((prev) => [
+        ...prev,
+        { edge_id: data.edge_id, source: edgeSource, target: edgeTarget, relation: edgeRelation },
+      ]);
       setMessage(`Created edge: ${edgeRelation}`);
       await refreshStats();
     } catch (err) {
@@ -297,11 +310,18 @@ function BuildPanel({
       try {
         const createdNodes: PrimeNode[] = [];
         for (const nodeDef of sample.nodes) {
-          const data = await primePost<PrimeNode>("/nodes", {
+          // Create returns only ids; keep the type/properties we sent so the
+          // node renders by name, not UUID.
+          const data = await primePost<{ node_id: string; entity_id: string }>("/nodes", {
             type: nodeDef.type,
             properties: nodeDef.properties,
           });
-          createdNodes.push(data);
+          createdNodes.push({
+            node_id: data.node_id,
+            entity_id: data.entity_id,
+            type: nodeDef.type,
+            properties: nodeDef.properties,
+          });
         }
 
         const createdEdges: PrimeEdge[] = [];
@@ -309,12 +329,19 @@ function BuildPanel({
           const src = createdNodes[edgeDef.sourceIdx];
           const tgt = createdNodes[edgeDef.targetIdx];
           if (src && tgt) {
-            const data = await primePost<PrimeEdge>("/edges", {
+            // Create returns only edge_id; keep source/target/relation so the
+            // edge resolves to node names instead of "undefined > undefined".
+            const data = await primePost<{ edge_id: string }>("/edges", {
               source: src.entity_id,
               target: tgt.entity_id,
               relation: edgeDef.relation,
             });
-            createdEdges.push(data);
+            createdEdges.push({
+              edge_id: data.edge_id,
+              source: src.entity_id,
+              target: tgt.entity_id,
+              relation: edgeDef.relation,
+            });
           }
         }
 
