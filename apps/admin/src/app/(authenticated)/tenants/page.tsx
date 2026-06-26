@@ -23,6 +23,7 @@ import {
 import { ChevronLeft, ChevronRight, Search, Users } from "lucide-react";
 import {
   fetchTenants,
+  planLabel,
   type Tenant,
   type TenantPlan,
   type TenantStatus,
@@ -293,7 +294,7 @@ export default function TenantsPage() {
                         {tenant.name}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{tenant.plan}</Badge>
+                        <Badge variant="outline">{planLabel(tenant.plan)}</Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusVariant(tenant.status)}>

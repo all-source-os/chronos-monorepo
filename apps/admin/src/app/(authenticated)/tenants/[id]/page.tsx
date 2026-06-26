@@ -52,6 +52,7 @@ import {
   fetchTenantDetail,
   fetchTenantInvoices,
   fetchTenantUsage,
+  planLabel,
   suspendTenant,
   type TenantDetail,
   type TenantInvoice,
@@ -281,7 +282,7 @@ export default function TenantDetailPage() {
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Plan</span>
               <Badge variant="outline" className="capitalize">
-                {tenant.plan}
+                {planLabel(tenant.plan)}
               </Badge>
             </div>
             <div className="flex justify-between">
@@ -322,7 +323,7 @@ export default function TenantDetailPage() {
               <>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Plan</span>
-                  <span className="text-sm font-medium capitalize">{tenant.subscription.plan}</span>
+                  <span className="text-sm font-medium capitalize">{planLabel(tenant.subscription.plan)}</span>
                 </div>
                 {tenant.subscription.status && (
                   <div className="flex justify-between">

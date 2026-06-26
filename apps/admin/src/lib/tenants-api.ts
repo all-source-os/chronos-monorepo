@@ -39,10 +39,25 @@ export function asList<T>(data: unknown, ...keys: string[]): T[] {
 export type TenantPlan = "free" | "indie" | "studio" | "scale" | "enterprise";
 export type TenantStatus = "active" | "suspended" | "archived";
 
+// The CP list DTO emits `plan` as a bare tier string ("studio"); the DETAIL DTO
+// emits it as an object {name, tier} (and `subscription.plan` may be either, or
+// null). Rendering the object directly as a React child throws Minified React
+// error #31 ("objects are not valid as a React child, found object with keys
+// {name, tier}") — which crashed the whole tenant 360 page. Every plan render
+// site MUST go through planLabel(); never render a plan value raw (resilience §6).
+export type PlanLike = TenantPlan | { name?: string; tier?: string } | string | null | undefined;
+
+export function planLabel(plan: PlanLike): string {
+  if (plan == null) return "—";
+  if (typeof plan === "string") return plan;
+  // tier is the canonical id (matches TenantPlan + the `capitalize` styling); name is the fallback.
+  return plan.tier ?? plan.name ?? "—";
+}
+
 export interface Tenant {
   id: string;
   name: string;
-  plan: TenantPlan;
+  plan: PlanLike;
   status: TenantStatus;
   // Per-tenant counts emitted by the CP list/detail DTOs under the SINGULAR
   // canonical field names `event_count` / `member_count` (prompt 033). The
@@ -83,7 +98,7 @@ export interface TenantMember {
 }
 
 export interface TenantSubscription {
-  plan: TenantPlan;
+  plan: PlanLike;
   started_at: string;
   current_period_end: string;
   // Optional billing-state fields the 360 surfaces when the CP detail carries
