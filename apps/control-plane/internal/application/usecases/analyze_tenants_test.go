@@ -298,6 +298,31 @@ func TestAnalyze_FleetCreatedAtNotReal(t *testing.T) {
 	if _, ok := hasFleetFinding(rep2, CodeCreatedAtNotReal); ok {
 		t.Errorf("7 tenants sharing a date wrongly tripped created_at_not_real")
 	}
+
+	// Regression guard (false positive proven in prod 2026-06-26): a LEGITIMATE
+	// same-day batch — e.g. an e2e run seeding 9 test tenants in one minute — that
+	// is a MINORITY among many other real distinct dates must NOT be flagged. Here
+	// 9 share one day but 14 more each have their own date (23 total, worst bucket
+	// 9/23 ≈ 0.39 < 0.7 dominance, 15 distinct dates), so created_at IS real.
+	repo3 := persistence.NewMemoryTenantRepository()
+	core3 := newAnalyzeMockCore()
+	batchDay := time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC)
+	for i := 0; i < 9; i++ {
+		id := fmt.Sprintf("batch-%d", i)
+		core3.statsByTenant[id] = 1
+		seedAnalyzeTenant(t, repo3, id, batchDay.Add(time.Duration(i)*time.Minute), subMeta("free", ""))
+	}
+	for i := 0; i < 14; i++ {
+		id := fmt.Sprintf("real-%d", i)
+		core3.statsByTenant[id] = 1
+		// Each on its own distinct calendar date.
+		seedAnalyzeTenant(t, repo3, id, time.Date(2026, 1, 1+i, 9, 0, 0, 0, time.UTC), subMeta("free", ""))
+	}
+	uc3 := NewAnalyzeTenantsUseCase(repo3, core3, nil, nil)
+	rep3, _ := uc3.Execute(context.Background(), AnalyzeRequest{})
+	if _, ok := hasFleetFinding(rep3, CodeCreatedAtNotReal); ok {
+		t.Errorf("legit same-day batch (minority of many real dates) wrongly tripped created_at_not_real")
+	}
 }
 
 func TestAnalyze_PerTenantDegradedDoesNotFailRun(t *testing.T) {

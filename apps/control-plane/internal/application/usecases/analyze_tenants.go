@@ -90,6 +90,15 @@ const (
 	// (ADMIN_HEALTH.md gate "Fake created_at": ">=8 tenants share ONE date").
 	createdAtSharedDateThreshold = 8
 
+	// createdAtDominanceFraction guards against a false positive proven 2026-06-26:
+	// the time.Now()-on-load bug collapses EVERY tenant onto one date, so the
+	// dominant bucket covers nearly the whole fleet. A LEGITIMATE same-day batch
+	// (e.g. an e2e run seeding 15 test tenants in one minute — names whose epoch
+	// suffix decodes to that very day) is a minority among many real distinct
+	// dates and must NOT be flagged as fake. Only fire when the worst bucket
+	// dominates the fleet (or there is effectively just one distinct date).
+	createdAtDominanceFraction = 0.7
+
 	// quotaPressureWarn/Critical are the usage_health thresholds (prompt 046 §4).
 	quotaPressureWarn     = 0.9
 	quotaPressureCritical = 1.0
@@ -537,13 +546,20 @@ func (uc *AnalyzeTenantsUseCase) fleetFindings(ctx context.Context, tenants []*e
 				worstDay, worstIDs = day, ids
 			}
 		}
-		if len(worstIDs) >= createdAtSharedDateThreshold {
+		// Fire only when the dominant date bucket covers most of the fleet (the
+		// bug stamps the SAME now() on every tenant), or there is effectively one
+		// distinct date. A same-day batch that is a minority of many real dates is
+		// legitimate, not the bug — see createdAtDominanceFraction.
+		dominates := len(tenants) > 0 &&
+			float64(len(worstIDs))/float64(len(tenants)) >= createdAtDominanceFraction
+		oneDistinctDate := len(createdAtBuckets) <= 1
+		if len(worstIDs) >= createdAtSharedDateThreshold && (dominates || oneDistinctDate) {
 			out = append(out, dto.AnalysisFinding{
 				Category:      dto.AnalysisCategoryDataIntegrity,
 				Severity:      dto.AnalysisSeverityCritical,
 				Code:          CodeCreatedAtNotReal,
 				Title:         "created_at is not real (time.Now()-on-load)",
-				Detail:        fmt.Sprintf("%d tenants share the created_at date %s — the stamped-in-one-loop smell. The column is not backed by each tenant's real creation time.", len(worstIDs), worstDay),
+				Detail:        fmt.Sprintf("%d of %d tenants share the created_at date %s — the stamped-in-one-loop smell. The column is not backed by each tenant's real creation time.", len(worstIDs), len(tenants), worstDay),
 				AffectedCount: len(worstIDs),
 			})
 		}
