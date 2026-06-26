@@ -348,11 +348,12 @@ pub fn tool_definitions() -> Value {
         // ─── Hound (code graph) ────────────────────────────────────────
         {
             "name": "hound_ingest",
-            "description": "Prime Hound: extract a codebase into the graph. Walk a directory (or a single file) with Tree-sitter — on-device, no LLM, no upload — and fold every function/type/trait/module into nodes with `defines` and `calls` edges, each confidence-tagged (EXTRACTED = AST-certain, INFERRED, AMBIGUOUS). Runs where your code is (local stdio mode). If sync is enabled the graph also reaches your AllSource tenant. Phase 1 parses Rust; more languages follow. Call this first, then hound_report / hound_impact / prime_recall.",
+            "description": "Prime Hound: extract a codebase into the graph. Walk a directory (or a single file) with Tree-sitter — on-device, no LLM, no upload — and fold every function/type/trait/module into nodes with `defines` and `calls` edges, each confidence-tagged (EXTRACTED = AST-certain, INFERRED, AMBIGUOUS). Set `embed: true` to also embed each symbol (in-process, no LLM) so the graph is searchable by meaning via prime_recall — the hybrid-retrieval edge a flat graph file can't offer. Runs where your code is (local stdio mode). If sync is enabled the graph also reaches your AllSource tenant. Phase 1 parses Rust; more languages follow. Call this first, then hound_report / hound_impact / prime_recall.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string", "description": "Directory (or file) to extract. Honors .gitignore; skips hidden dirs." }
+                    "path": { "type": "string", "description": "Directory (or file) to extract. Honors .gitignore; skips hidden dirs." },
+                    "embed": { "type": "boolean", "description": "Also embed each file/symbol for semantic recall (default false; runs the embedder once per node)." }
                 },
                 "required": ["path"]
             }
@@ -910,7 +911,8 @@ async fn call_hound_ingest(prime: &Prime, args: &Value) -> Value {
     let Some(path) = args.get("path").and_then(Value::as_str) else {
         return tool_error("missing 'path' — the directory (or file) to extract");
     };
-    match crate::hound::ingest(prime, std::path::Path::new(path)).await {
+    let embed = args.get("embed").and_then(Value::as_bool).unwrap_or(false);
+    match crate::hound::ingest(prime, std::path::Path::new(path), embed).await {
         Ok(s) => tool_result(json!({
             "files": s.files,
             "nodes": s.nodes,
@@ -919,6 +921,7 @@ async fn call_hound_ingest(prime: &Prime, args: &Value) -> Value {
             "calls": s.calls,
             "ambiguous": s.ambiguous,
             "unresolved": s.unresolved,
+            "embedded": s.embedded,
             "sync": sync_status_json(),
         })),
         Err(e) => tool_error(&e.to_string()),
@@ -1368,6 +1371,44 @@ mod tests {
         let none = call_hound_impact(&prime, &json!({ "target": "does_not_exist" }));
         let t = none["content"][0]["text"].as_str().unwrap();
         assert!(t.contains("\"matches\": 0"), "got: {t}");
+    }
+
+    #[tokio::test]
+    #[ignore = "needs the embedder model (downloads ~25MB on first run); run with --ignored"]
+    async fn hound_embed_enables_semantic_recall() {
+        // The differentiator over a flat graph file: with `embed`, a meaning-based
+        // query finds the right symbol even though the query words don't appear in
+        // the identifier.
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(
+            dir.path().join("auth.rs"),
+            "pub fn authenticate(user: &str) -> bool { check_password(user) }\n\
+             fn check_password(_u: &str) -> bool { true }\n\
+             fn render_button() {}\n",
+        )
+        .expect("write src");
+
+        let prime = Prime::open_in_memory().await.unwrap();
+        let ing = call_hound_ingest(
+            &prime,
+            &json!({ "path": dir.path().to_str().unwrap(), "embed": true }),
+        )
+        .await;
+        let t = ing["content"][0]["text"].as_str().unwrap();
+        // 1 file + 3 fns = 4 symbols embedded.
+        assert!(t.contains("\"embedded\": 4"), "expected 4 embedded: {t}");
+
+        // "login authentication" should surface authenticate(), not render_button().
+        let rec = call_recall(
+            &prime,
+            &json!({ "text": "login authentication", "top_k": 3 }),
+        )
+        .await;
+        let t = rec["content"][0]["text"].as_str().unwrap();
+        assert!(
+            t.contains("authenticate"),
+            "semantic recall missed authenticate: {t}"
+        );
     }
 
     fn find_tool<'a>(defs: &'a Value, name: &str) -> &'a Value {

@@ -114,6 +114,12 @@ struct Cli {
     /// Ignored in other modes.
     #[arg(value_name = "PATH")]
     path: Option<PathBuf>,
+
+    /// In `--mode hound`, also embed each file/symbol (in-process, no LLM) so the
+    /// code graph is searchable by meaning via prime_recall. Opt-in: runs the
+    /// embedder once per node.
+    #[arg(long, env = "PRIME_HOUND_EMBED")]
+    embed: bool,
 }
 
 /// Expand a leading `~`/`~/` and `$HOME` / `${HOME}` references in a path.
@@ -272,8 +278,8 @@ async fn main() -> Result<()> {
             );
         };
         let path = expand_home_path(raw_path);
-        tracing::info!("Hound: extracting code graph from {:?}", path);
-        let summary = hound::ingest(&prime, &path).await?;
+        tracing::info!(embed = cli.embed, "Hound: extracting code graph from {:?}", path);
+        let summary = hound::ingest(&prime, &path, cli.embed).await?;
         tracing::info!(
             files = summary.files,
             nodes = summary.nodes,
@@ -282,11 +288,12 @@ async fn main() -> Result<()> {
             calls = summary.calls,
             ambiguous = summary.ambiguous,
             unresolved = summary.unresolved,
+            embedded = summary.embedded,
             "Hound: ingest complete"
         );
         println!(
             "hound: {} files → {} nodes, {} edges \
-             ({} defines / {} calls / {} ambiguous, {} unresolved) into {}",
+             ({} defines / {} calls / {} ambiguous, {} unresolved); {} embedded into {}",
             summary.files,
             summary.nodes,
             summary.edges,
@@ -294,6 +301,7 @@ async fn main() -> Result<()> {
             summary.calls,
             summary.ambiguous,
             summary.unresolved,
+            summary.embedded,
             data_dir.display()
         );
 

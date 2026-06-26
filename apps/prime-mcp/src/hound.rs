@@ -32,28 +32,64 @@ pub struct HoundSummary {
     pub calls: usize,
     pub ambiguous: usize,
     pub unresolved: usize,
+    /// Symbols embedded for hybrid (vector) recall — 0 unless `embed` was set.
+    pub embedded: usize,
+}
+
+/// Embed `text` under a node's wire id so `prime_recall` can find it by meaning.
+///
+/// The vector is stored at `vec:{wire}`; recall strips the `vec:` prefix and
+/// looks the node back up — so passing the node's wire id as the vector id is
+/// what wires a symbol into hybrid search. Best-effort: a transient embed
+/// failure is swallowed (the caller warms the embedder first, so "no model" is
+/// caught before any writes), a store failure propagates.
+async fn embed_node(prime: &Prime, wire: &str, text: &str) -> anyhow::Result<bool> {
+    match prime.embed_text(text) {
+        Ok(vector) => {
+            prime.embed(wire, Some(text), vector).await?;
+            Ok(true)
+        }
+        Err(_) => Ok(false),
+    }
 }
 
 /// Extract `root` and write the resulting graph into the embedded `prime` store.
-pub async fn ingest(prime: &Prime, root: &Path) -> anyhow::Result<HoundSummary> {
+///
+/// A call site found in pass 1, resolved to an edge in pass 2 once every call
+/// target is guaranteed live.
+struct Pending {
+    file: String,
+    from_fn: Option<String>,
+    target: String,
+    line: usize,
+    file_wire: String,
+}
+
+/// When `embed` is true, each file and symbol node is also embedded (in-process,
+/// no LLM) so the code graph is searchable by meaning via `prime_recall` — the
+/// hybrid-retrieval edge a flat graph file can't offer. Embedding is opt-in
+/// because it runs the model once per node.
+pub async fn ingest(prime: &Prime, root: &Path, embed: bool) -> anyhow::Result<HoundSummary> {
     let result = extract(root)?;
     let mut s = HoundSummary {
         files: result.files.len(),
         ..Default::default()
     };
 
+    // Fail fast before any writes if embedding was requested but the embedder
+    // can't load — rather than ingesting a half-embedded graph. Mirrors the
+    // actionable error `--mode warm` surfaces.
+    if embed {
+        prime
+            .embed_text("warm")
+            .map_err(|e| anyhow::anyhow!("embedding requested but the embedder is unavailable: {e}"))?;
+    }
+
     // function name → wire ids (cross-file call-target resolution)
     let mut fn_by_name: HashMap<String, Vec<String>> = HashMap::new();
     // (file, function name) → wire id (resolve the enclosing caller)
     let mut fn_in_file: HashMap<(String, String), String> = HashMap::new();
 
-    struct Pending {
-        file: String,
-        from_fn: Option<String>,
-        target: String,
-        line: usize,
-        file_wire: String,
-    }
     let mut pending: Vec<Pending> = Vec::new();
 
     // Pass 1 — create every node and its `defines` edge first, so all call
@@ -68,6 +104,9 @@ pub async fn ingest(prime: &Prime, root: &Path) -> anyhow::Result<HoundSummary> 
             .await?;
         let file_wire = format!("node:file:{}", file_uuid.as_str());
         s.nodes += 1;
+        if embed && embed_node(prime, &file_wire, &format!("file {}", fg.path)).await? {
+            s.embedded += 1;
+        }
 
         for sym in &fg.symbols {
             let node_type = sym.kind.as_node_type();
@@ -91,6 +130,20 @@ pub async fn ingest(prime: &Prime, root: &Path) -> anyhow::Result<HoundSummary> 
                 .await?;
             s.edges += 1;
             s.defines += 1;
+
+            // Embed the symbol as "{kind} {name} in {file}" so a meaning-based
+            // query (e.g. "authentication") recalls it even when the words don't
+            // match the identifier.
+            if embed
+                && embed_node(
+                    prime,
+                    &wire,
+                    &format!("{node_type} {} in {}", sym.name, fg.path),
+                )
+                .await?
+            {
+                s.embedded += 1;
+            }
 
             if sym.kind == SymbolKind::Function {
                 fn_by_name.entry(sym.name.clone()).or_default().push(wire.clone());
