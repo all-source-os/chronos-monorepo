@@ -87,6 +87,9 @@ pub struct DocSummary {
     pub entities: usize,
     pub relationships: usize,
     pub embedded: usize,
+    /// Sources that couldn't be read (e.g. an image with no `tesseract`, or a
+    /// malformed PDF) — skipped, not fatal.
+    pub skipped: usize,
 }
 
 /// Sanitize an LLM-supplied type/relation into a safe lowercase graph token.
@@ -151,29 +154,68 @@ fn find_docs(root: &Path, out: &mut Vec<PathBuf>) {
                 find_docs(&p, out);
             }
         } else if matches!(
-            p.extension().and_then(|e| e.to_str()),
-            Some("md" | "markdown" | "txt" | "rst" | "pdf")
+            p.extension()
+                .and_then(|e| e.to_str())
+                .map(str::to_ascii_lowercase)
+                .as_deref(),
+            Some(
+                "md" | "markdown"
+                    | "txt"
+                    | "rst"
+                    | "pdf"
+                    | "png"
+                    | "jpg"
+                    | "jpeg"
+                    | "webp"
+                    | "gif"
+                    | "tif"
+                    | "tiff"
+                    | "bmp"
+            )
         ) {
             out.push(p);
         }
     }
 }
 
-/// Read a document's text. PDFs are run through `pdf-extract` (pure Rust, no
-/// native deps); everything else is read as UTF-8. The extracted text then goes
-/// down the same chunk → LLM → fold path as a markdown file.
+/// Read a document's text. PDFs go through `pdf-extract` (pure Rust); images go
+/// through the `tesseract` CLI (OCR, runtime dep — no build-time linking, like
+/// the git hook shells out to git); everything else is read as UTF-8. The
+/// recovered text then takes the same chunk → LLM → fold path as a markdown file.
 fn read_doc_text(path: &Path) -> Result<String> {
-    if path
+    let ext = path
         .extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
-    {
-        pdf_extract::extract_text(path)
-            .with_context(|| format!("extract text from PDF {}", path.display()))
-    } else {
-        std::fs::read_to_string(path)
-            .with_context(|| format!("read text document {}", path.display()))
+        .map(str::to_ascii_lowercase);
+    match ext.as_deref() {
+        Some("pdf") => pdf_extract::extract_text(path)
+            .with_context(|| format!("extract text from PDF {}", path.display())),
+        Some("png" | "jpg" | "jpeg" | "webp" | "gif" | "tif" | "tiff" | "bmp") => ocr_image(path),
+        _ => std::fs::read_to_string(path)
+            .with_context(|| format!("read text document {}", path.display())),
     }
+}
+
+/// OCR an image by shelling out to the `tesseract` CLI (`tesseract <img> stdout`).
+fn ocr_image(path: &Path) -> Result<String> {
+    let out = std::process::Command::new("tesseract")
+        .arg(path)
+        .arg("stdout")
+        .output()
+        .with_context(|| {
+            format!(
+                "running `tesseract` on {} — is it installed? (e.g. `brew install tesseract`)",
+                path.display()
+            )
+        })?;
+    if !out.status.success() {
+        anyhow::bail!(
+            "tesseract failed on {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
 /// POST one chunk to the chat endpoint and parse the extraction from its reply.
@@ -301,7 +343,14 @@ pub async fn extract_docs_with(
     let http = reqwest::Client::new();
     let mut s = DocSummary::default();
     for path in files {
-        let Ok(text) = read_doc_text(&path) else { continue };
+        let text = match read_doc_text(&path) {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::warn!(file = %path.display(), error = %e, "Hound docs: skipping unreadable source");
+                s.skipped += 1;
+                continue;
+            }
+        };
         if text.trim().is_empty() {
             continue;
         }
@@ -456,5 +505,35 @@ mod tests {
         // The PDF was discovered, text-extracted, sent to the LLM, and folded.
         assert_eq!(s.files, 1);
         assert_eq!(s.entities, 1);
+    }
+
+    #[test]
+    fn find_docs_includes_pdfs_and_images() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.md"), "x").unwrap();
+        std::fs::write(dir.path().join("b.pdf"), "x").unwrap();
+        std::fs::write(dir.path().join("c.PNG"), "x").unwrap(); // case-insensitive
+        std::fs::write(dir.path().join("d.rs"), "x").unwrap(); // code, not a doc
+        let mut out = Vec::new();
+        find_docs(dir.path(), &mut out);
+        let names: Vec<String> = out
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert!(names.contains(&"a.md".to_string()));
+        assert!(names.contains(&"b.pdf".to_string()));
+        assert!(names.contains(&"c.PNG".to_string()));
+        assert!(!names.contains(&"d.rs".to_string()));
+    }
+
+    #[test]
+    #[ignore = "needs the tesseract CLI on PATH; run with --ignored"]
+    fn ocr_reads_image_fixture() {
+        let bytes = include_bytes!("../tests/fixtures/sample.png");
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("diagram.png");
+        std::fs::write(&p, bytes).unwrap();
+        let text = read_doc_text(&p).unwrap();
+        assert!(text.contains("AuthService"), "OCR missed marker: {text:?}");
     }
 }

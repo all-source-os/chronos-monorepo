@@ -985,6 +985,7 @@ async fn call_hound_ingest_docs(prime: &Prime, args: &Value) -> Value {
             "entities": s.entities,
             "relationships": s.relationships,
             "embedded": s.embedded,
+            "skipped": s.skipped,
             "sync": sync_status_json(),
         })),
         Err(e) => tool_error(&e.to_string()),

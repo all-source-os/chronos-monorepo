@@ -434,8 +434,9 @@ async fn main() -> Result<()> {
                 "Hound: doc extraction complete"
             );
             println!(
-                "hound docs: {} files, {} chunks → {} entities, {} relationships, {} embedded",
-                d.files, d.chunks, d.entities, d.relationships, d.embedded
+                "hound docs: {} files, {} chunks → {} entities, {} relationships, \
+                 {} embedded, {} skipped",
+                d.files, d.chunks, d.entities, d.relationships, d.embedded, d.skipped
             );
         }
 
