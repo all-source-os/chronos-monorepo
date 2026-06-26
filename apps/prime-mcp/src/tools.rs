@@ -1047,17 +1047,39 @@ fn call_hound_report(prime: &Prime, args: &Value) -> Value {
         })
         .collect();
 
-    let mut ranked: Vec<(&String, &usize)> = degree.iter().collect();
-    // Highest degree first; wire id as a stable tiebreak.
-    ranked.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
-    let god_nodes: Vec<Value> = ranked
+    // Analytics (pure, app-side — never Core's engine): PageRank centrality is
+    // a better hub signal than raw degree, and label-propagation communities
+    // cluster the call/define graph into cohesive groups.
+    let pr = crate::analytics::pagerank(&g, 0.85, 100);
+    let labels = crate::analytics::communities(&g, 50);
+    let (community_count, community_sizes) = crate::analytics::community_summary(&labels);
+
+    // Rank nodes by PageRank (degree, then wire id, as deterministic tiebreaks).
+    let mut ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();
+    ids.sort_by(|a, b| {
+        let pa = pr.get(*a).copied().unwrap_or(0.0);
+        let pb = pr.get(*b).copied().unwrap_or(0.0);
+        pb.partial_cmp(&pa)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| {
+                degree
+                    .get(*b)
+                    .copied()
+                    .unwrap_or(0)
+                    .cmp(&degree.get(*a).copied().unwrap_or(0))
+            })
+            .then_with(|| a.cmp(b))
+    });
+    let god_nodes: Vec<Value> = ids
         .iter()
         .take(top)
-        .map(|(id, d)| {
+        .map(|id| {
             json!({
                 "id": id,
-                "label": label_of.get(id.as_str()).copied(),
-                "degree": d,
+                "label": label_of.get(*id).copied(),
+                "degree": degree.get(*id).copied().unwrap_or(0),
+                "pagerank": pr.get(*id).copied().unwrap_or(0.0),
+                "community": labels.get(*id),
             })
         })
         .collect();
@@ -1069,6 +1091,10 @@ fn call_hound_report(prime: &Prime, args: &Value) -> Value {
         "edges_by_relation": by_relation,
         "confidence": confidence,
         "god_nodes": god_nodes,
+        "communities": {
+            "count": community_count,
+            "sizes": community_sizes.iter().take(20).collect::<Vec<_>>(),
+        },
         "has_more": g.has_more,
     }))
 }

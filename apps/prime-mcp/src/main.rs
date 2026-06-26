@@ -20,6 +20,7 @@ use tracing_subscriber::EnvFilter;
 mod core_writer;
 mod dispatch;
 mod email_ingester;
+mod analytics;
 mod hosted_dispatch;
 mod hound;
 mod http;
