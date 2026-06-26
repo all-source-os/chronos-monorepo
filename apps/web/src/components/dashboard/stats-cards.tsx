@@ -24,9 +24,20 @@ interface StatCardProps {
   };
   description?: string;
   animate?: boolean;
+  // Marks a process-global, all-tenant metric (e.g. p99 latency) so it isn't
+  // read as the tenant's own number while sitting in the same stat row.
+  platform?: boolean;
 }
 
-function StatCard({ title, value, icon: Icon, trend, description, animate }: StatCardProps) {
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  description,
+  animate,
+  platform,
+}: StatCardProps) {
   const [displayValue, setDisplayValue] = useState(animate ? 0 : value);
 
   useEffect(() => {
@@ -59,7 +70,14 @@ function StatCard({ title, value, icon: Icon, trend, description, animate }: Sta
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-muted-foreground">{title}</p>
+              {platform && (
+                <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Platform
+                </span>
+              )}
+            </div>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold tracking-tight">
                 {typeof displayValue === "number" ? displayValue.toLocaleString() : displayValue}
@@ -129,8 +147,9 @@ export function StatsCards() {
       title: "p99 Latency",
       value: stats.latency.formatted,
       icon: Zap,
+      platform: true,
       description:
-        stats.latency.formatted === "—" ? "Awaiting query samples" : "Platform query latency",
+        stats.latency.formatted === "—" ? "Awaiting query samples" : "Across all tenants & queries",
     },
   ];
 
