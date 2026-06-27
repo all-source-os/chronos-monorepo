@@ -12,10 +12,17 @@ import {
   Label,
   Textarea,
 } from "@allsource/ui";
-import { FileText, Send } from "lucide-react";
+import { FileText, Send, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { SendDialog } from "@/components/inbox/send-dialog";
-import type { DraftRequest, DraftResponse, EmailAddress, SendRequest } from "@/lib/inbox-api";
+import type {
+  DraftRequest,
+  DraftResponse,
+  EmailAddress,
+  GenerateDraftRequest,
+  GenerateDraftResponse,
+  SendRequest,
+} from "@/lib/inbox-api";
 
 /**
  * Draft + send composer for a thread. Two-step by design:
@@ -37,6 +44,8 @@ interface DraftComposerProps {
   inReplyTo?: string;
   onDraft: (req: DraftRequest) => Promise<DraftResponse>;
   onSend: (req: SendRequest) => Promise<void>;
+  /** Generate an AI draft body from the intent; omitted hides the button. */
+  onGenerate?: (req: GenerateDraftRequest) => Promise<GenerateDraftResponse>;
 }
 
 /** Parse a comma/newline-separated recipient string into addresses. */
@@ -60,17 +69,52 @@ export function DraftComposer({
   inReplyTo,
   onDraft,
   onSend,
+  onGenerate,
 }: DraftComposerProps) {
   const [intent, setIntent] = useState("reply");
   const [subject, setSubject] = useState(defaultSubject ?? "");
   const [toRaw, setToRaw] = useState(formatRecipients(defaultTo));
   const [body, setBody] = useState("");
   const [isDrafting, setIsDrafting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [genInfo, setGenInfo] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
 
   const to = parseRecipients(toRaw);
+
+  const handleGenerate = async () => {
+    if (!onGenerate) return;
+    if (intent.trim() === "") {
+      setError("Add an intent (what the reply should say) to generate.");
+      return;
+    }
+    setIsGenerating(true);
+    setError(null);
+    setGenInfo(null);
+    try {
+      // tenant_id / grant_id / mailbox_email are filled by the parent.
+      const res = await onGenerate({
+        tenant_id: "",
+        thread_id: threadId,
+        intent: intent.trim(),
+      });
+      setBody(res.body);
+      if (res.grounded_on) {
+        const { thread_messages: tm, prior_threads: pt } = res.grounded_on;
+        setGenInfo(
+          `Drafted from ${tm} thread message${tm === 1 ? "" : "s"} + ${pt} prior thread${
+            pt === 1 ? "" : "s"
+          } with this contact. Review before sending.`
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate a draft.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleDraft = async () => {
     if (intent.trim() === "" || body.trim() === "") {
@@ -110,7 +154,8 @@ export function DraftComposer({
           )}
         </CardTitle>
         <CardDescription>
-          Draft a reply (writes an email.drafted event), then send it behind a confirm.
+          Set an intent and Generate with AI (grounded in the thread + this contact&rsquo;s
+          history), edit, then draft and send behind a confirm.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -121,7 +166,7 @@ export function DraftComposer({
               id={`draft-intent-${threadId}`}
               value={intent}
               onChange={(e) => setIntent(e.target.value)}
-              placeholder="reply / follow-up / decline"
+              placeholder="e.g. accept and propose Thursday 2pm"
               data-testid="draft-intent-input"
             />
           </div>
@@ -149,15 +194,36 @@ export function DraftComposer({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor={`draft-body-${threadId}`}>Body</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor={`draft-body-${threadId}`}>Body</Label>
+            {onGenerate && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleGenerate}
+                disabled={isGenerating || intent.trim() === ""}
+                data-testid="draft-generate-btn"
+                title="Draft a reply with AI from your intent, grounded in the thread + this contact's history"
+              >
+                <Sparkles className="mr-1.5 h-4 w-4" />
+                {isGenerating ? "Generating…" : "Generate with AI"}
+              </Button>
+            )}
+          </div>
           <Textarea
             id={`draft-body-${threadId}`}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={6}
-            placeholder="Write the reply…"
+            placeholder="Write the reply, or set an intent above and Generate with AI…"
             data-testid="draft-body-input"
           />
+          {genInfo && (
+            <p className="text-xs text-muted-foreground" data-testid="draft-gen-info">
+              {genInfo}
+            </p>
+          )}
         </div>
 
         {error && (

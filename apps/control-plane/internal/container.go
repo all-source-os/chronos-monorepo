@@ -14,6 +14,7 @@ import (
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider/nylas"
+	"github.com/allsource/control-plane/internal/infrastructure/clients/llm"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 	"github.com/allsource/control-plane/internal/infrastructure/secrets"
 	httphandlers "github.com/allsource/control-plane/internal/interfaces/http"
@@ -611,13 +612,19 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	} else {
 		inboxConnectHandler = httphandlers.NewInboxConnectHandler(nil, cfg.CoreClient, emailSealer, os.Getenv("NYLAS_REDIRECT_URI"))
 	}
+	// AI draft generation (045): optional. nil interface when ANTHROPIC_API_KEY is
+	// unset → the generate endpoint returns 503; the rest of the inbox is unaffected.
+	var inboxDrafter httphandlers.InboxDrafter
+	if dc := llm.NewFromEnv(); dc != nil {
+		inboxDrafter = dc
+	}
 	// Inbox management (043): admin endpoints to list/disconnect connections,
 	// read the email stream, and triage/draft/send. nil sender when no provider.
 	var inboxAdminHandler *httphandlers.InboxAdminHandler
 	if nylasProvider != nil {
-		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nylasProvider)
+		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nylasProvider).WithDrafter(inboxDrafter)
 	} else {
-		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nil)
+		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nil).WithDrafter(inboxDrafter)
 	}
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
 	fleetHealthHandler := httphandlers.NewFleetHealthHandler(fleetHealthUC)

@@ -139,6 +139,25 @@ export interface DraftResponse {
   draft_id: string;
 }
 
+export interface GenerateDraftRequest {
+  tenant_id: string;
+  grant_id?: string;
+  thread_id: string;
+  /** Operator's instruction for the reply, e.g. "accept and propose Thursday". */
+  intent: string;
+  tone?: string;
+  /** The mailbox address, used to frame the persona in the prompt. */
+  mailbox_email?: string;
+}
+
+export interface GenerateDraftResponse {
+  body: string;
+  thread_id: string;
+  grant_id?: string;
+  /** What the model was grounded on, surfaced so the operator can trust it. */
+  grounded_on?: { thread_messages: number; prior_threads: number };
+}
+
 export interface SendRequest {
   tenant_id: string;
   grant_id?: string;
@@ -287,6 +306,26 @@ export async function triage(req: TriageRequest): Promise<void> {
 
 export async function draft(req: DraftRequest): Promise<DraftResponse> {
   const url = `${getApiUrl()}/api/v1/admin/inbox/draft`;
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    throw new ApiError(await readError(res), res.status);
+  }
+  return res.json();
+}
+
+/**
+ * Generate an AI reply draft grounded in the thread + the contact's prior
+ * threads (read server-side from Core events). Returns an editable body — it does
+ * NOT write an event; the operator edits, then draft()/send() persists. 503 when
+ * ANTHROPIC_API_KEY is unset on the Control Plane.
+ */
+export async function generateDraft(req: GenerateDraftRequest): Promise<GenerateDraftResponse> {
+  const url = `${getApiUrl()}/api/v1/admin/inbox/draft/generate`;
   const res = await fetch(url, {
     method: "POST",
     credentials: "include",

@@ -74,6 +74,20 @@ func (f *fakeSender) ListGrants(_ context.Context) ([]emailprovider.Grant, error
 	return f.grants, nil
 }
 
+type fakeDrafter struct {
+	system, user string // captured prompt (assert grounding)
+	reply        string
+	err          error
+}
+
+func (f *fakeDrafter) GenerateReply(_ context.Context, system, user string) (string, error) {
+	f.system, f.user = system, user
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.reply, nil
+}
+
 func serveInbox(h *InboxAdminHandler, method, target, body string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -84,6 +98,7 @@ func serveInbox(h *InboxAdminHandler, method, target, body string) *httptest.Res
 	r.GET("/api/v1/admin/inbox/messages", h.Messages)
 	r.POST("/api/v1/admin/inbox/triage", h.Triage)
 	r.POST("/api/v1/admin/inbox/draft", h.Draft)
+	r.POST("/api/v1/admin/inbox/draft/generate", h.GenerateDraft)
 	r.POST("/api/v1/admin/inbox/send", h.Send)
 	var rdr *strings.Reader
 	if body != "" {
@@ -265,5 +280,84 @@ func TestInbox_AdoptGrantNotFound(t *testing.T) {
 	w := serveInbox(h, http.MethodPost, "/api/v1/admin/inbox/connections", `{"tenant_id":"tnt1","email":"nope@x.com"}`)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("want 404, got %d", w.Code)
+	}
+}
+
+// --- AI draft generation (045) ---
+
+func TestInbox_GenerateDraftNoDrafter(t *testing.T) {
+	// configured() is true (core+sealer), but no WithDrafter → 503.
+	h := NewInboxAdminHandler(&fakeInboxCore{}, newSealer(t), nil)
+	w := serveInbox(h, http.MethodPost, "/api/v1/admin/inbox/draft/generate",
+		`{"tenant_id":"t1","thread_id":"th1","intent":"reply"}`)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("want 503 without a drafter, got %d", w.Code)
+	}
+}
+
+func TestInbox_GenerateDraftValidation(t *testing.T) {
+	h := NewInboxAdminHandler(&fakeInboxCore{}, newSealer(t), nil).WithDrafter(&fakeDrafter{reply: "x"})
+	w := serveInbox(h, http.MethodPost, "/api/v1/admin/inbox/draft/generate",
+		`{"tenant_id":"t1","thread_id":"th1"}`) // missing intent
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 on missing intent, got %d", w.Code)
+	}
+}
+
+func TestInbox_GenerateDraftGrounds(t *testing.T) {
+	core := &fakeInboxCore{events: []clients.EventEntry{
+		// The thread we're replying to (the contact wrote to us).
+		{EventType: "email.received", Timestamp: "2026-06-20T10:00:00Z", Payload: map[string]any{
+			"thread_id": "th1", "subject": "Renewal", "body": "Can we renew our plan?",
+			"from": map[string]any{"name": "Dana", "email": "dana@acme.com"},
+		}},
+		// A prior thread with the SAME contact → recall.
+		{EventType: "email.received", Timestamp: "2026-05-01T09:00:00Z", Payload: map[string]any{
+			"thread_id": "th0", "subject": "Onboarding", "snippet": "thanks for the demo",
+			"from": map[string]any{"name": "Dana", "email": "dana@acme.com"},
+		}},
+		// An unrelated contact → must NOT leak into the grounded prompt.
+		{EventType: "email.received", Timestamp: "2026-06-01T09:00:00Z", Payload: map[string]any{
+			"thread_id": "thX", "subject": "Spam", "snippet": "buy now",
+			"from": map[string]any{"name": "Bob", "email": "bob@other.com"},
+		}},
+	}}
+	drafter := &fakeDrafter{reply: "Sure, happy to renew — let's set it up."}
+	h := NewInboxAdminHandler(core, newSealer(t), nil).WithDrafter(drafter)
+	w := serveInbox(h, http.MethodPost, "/api/v1/admin/inbox/draft/generate",
+		`{"tenant_id":"t1","thread_id":"th1","grant_id":"g1","intent":"accept the renewal","mailbox_email":"sales@x.com"}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Body       string `json:"body"`
+		GroundedOn struct {
+			ThreadMessages int `json:"thread_messages"`
+			PriorThreads   int `json:"prior_threads"`
+		} `json:"grounded_on"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Body != drafter.reply {
+		t.Errorf("want body %q, got %q", drafter.reply, resp.Body)
+	}
+	if resp.GroundedOn.ThreadMessages != 1 || resp.GroundedOn.PriorThreads != 1 {
+		t.Errorf("bad grounding counts: %+v", resp.GroundedOn)
+	}
+	// The prompt must carry the thread body, the contact recall, the operator
+	// intent, and the mailbox persona — and must exclude the unrelated contact.
+	if !strings.Contains(drafter.user, "Can we renew our plan?") {
+		t.Error("prompt missing thread body")
+	}
+	if !strings.Contains(drafter.user, "Onboarding") {
+		t.Error("prompt missing contact recall")
+	}
+	if strings.Contains(drafter.user, "bob@other.com") || strings.Contains(drafter.user, "buy now") {
+		t.Error("prompt leaked an unrelated contact into recall")
+	}
+	if !strings.Contains(drafter.user, "accept the renewal") {
+		t.Error("prompt missing operator intent")
+	}
+	if !strings.Contains(drafter.system, "sales@x.com") {
+		t.Error("system prompt missing mailbox persona")
 	}
 }

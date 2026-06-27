@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider"
+	"github.com/allsource/control-plane/internal/infrastructure/clients/llm"
 	"github.com/allsource/control-plane/internal/infrastructure/secrets"
 )
 
@@ -38,19 +41,34 @@ type inboxSender interface {
 	ListGrants(ctx context.Context) ([]emailprovider.Grant, error)
 }
 
+// InboxDrafter generates AI reply drafts grounded in thread + contact context
+// (045). *llm.Client satisfies it; nil disables the generate endpoint (503).
+type InboxDrafter interface {
+	GenerateReply(ctx context.Context, system, user string) (string, error)
+}
+
 // InboxAdminHandler exposes the AI inbox over admin HTTP so a dashboard can
 // manage it: list/disconnect connections (sealed grants), read the email.*
 // message stream from Core, and triage/draft/send (the HTTP twins of the
 // prime-mcp inbox verbs — epic P1). All routes are admin-gated.
 type InboxAdminHandler struct {
-	core   inboxCore
-	sealer *secrets.Sealer
-	sender inboxSender // may be nil when no provider is configured
+	core    inboxCore
+	sealer  *secrets.Sealer
+	sender  inboxSender  // may be nil when no provider is configured
+	drafter InboxDrafter // may be nil when no LLM is configured (045)
 }
 
 // NewInboxAdminHandler builds the handler. core/sealer nil → endpoints 503.
 func NewInboxAdminHandler(core inboxCore, sealer *secrets.Sealer, sender inboxSender) *InboxAdminHandler {
 	return &InboxAdminHandler{core: core, sealer: sealer, sender: sender}
+}
+
+// WithDrafter attaches an AI draft generator (045) and returns the handler for
+// chaining. A nil drafter leaves generation disabled (GenerateDraft → 503), so
+// the rest of the inbox works unchanged when ANTHROPIC_API_KEY is unset.
+func (h *InboxAdminHandler) WithDrafter(d InboxDrafter) *InboxAdminHandler {
+	h.drafter = d
+	return h
 }
 
 func (h *InboxAdminHandler) configured() bool { return h.core != nil && h.sealer != nil }
@@ -472,4 +490,242 @@ func (h *InboxAdminHandler) Send(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "sent", "message_id": result.MessageID, "thread_id": result.ThreadID})
+}
+
+// --- AI draft generation (045) ---
+
+// GenerateDraft handles POST /api/v1/admin/inbox/draft/generate — it drafts a
+// reply with the LLM, grounded in (1) the thread's inbound messages and (2) the
+// contact's prior threads, both read from Core's durable email.received events
+// (Core is the source of truth — no fresh provider fetch). It does NOT write an
+// event: generation is a suggestion the human edits; Draft/Send then write the
+// durable email.drafted / email.sent events.
+func (h *InboxAdminHandler) GenerateDraft(c *gin.Context) {
+	if !h.configured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "inbox not configured"})
+		return
+	}
+	if h.drafter == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "draft generation not configured (ANTHROPIC_API_KEY unset)"})
+		return
+	}
+	var req struct {
+		TenantID     string `json:"tenant_id"`
+		ThreadID     string `json:"thread_id"`
+		GrantID      string `json:"grant_id"`
+		Intent       string `json:"intent"`
+		Tone         string `json:"tone"`
+		MailboxEmail string `json:"mailbox_email"`
+	}
+	if c.ShouldBindJSON(&req) != nil || req.TenantID == "" || req.ThreadID == "" || strings.TrimSpace(req.Intent) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_id, thread_id and intent are required"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	// Scope to the mailbox (grant) when known, else the whole tenant. Pull the
+	// mailbox's recent received mail once, then partition it into the thread and
+	// the contact's other threads (the recall).
+	payloadFilter := ""
+	if req.GrantID != "" {
+		if b, err := json.Marshal(map[string]string{"grant_id": req.GrantID}); err == nil {
+			payloadFilter = string(b)
+		}
+	}
+	res, err := h.core.QueryEvents(ctx, clients.QueryEventsRequest{
+		EventType:     "email.received", // exact: only inbound carries from/subject/body
+		TenantID:      req.TenantID,
+		PayloadFilter: payloadFilter,
+		Order:         "desc",
+		Limit:         100,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to load thread context"})
+		return
+	}
+
+	thread, recall := splitThreadAndRecall(res.Events, req.ThreadID)
+	system, user := buildDraftPrompt(req.MailboxEmail, req.Intent, req.Tone, thread, recall)
+
+	body, err := h.drafter.GenerateReply(ctx, system, user)
+	switch {
+	case errors.Is(err, llm.ErrRefused):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "the model declined to draft this reply"})
+		return
+	case err != nil:
+		c.JSON(http.StatusBadGateway, gin.H{"error": "draft generation failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"body":      body,
+		"thread_id": req.ThreadID,
+		"grant_id":  req.GrantID,
+		"grounded_on": gin.H{
+			"thread_messages": len(thread),
+			"prior_threads":   countThreads(recall),
+		},
+	})
+}
+
+// mailMsg is a received message reconstructed from a Core email.received event,
+// used to ground draft generation.
+type mailMsg struct {
+	threadID string
+	from     string // sender email, lowercased
+	fromName string
+	subject  string
+	snippet  string
+	body     string
+	at       string // event timestamp
+}
+
+// pstr reads a string field from a generic payload map (missing/typed-nil → "").
+func pstr(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// extractMail pulls the grounding fields out of an email.received payload (the
+// provider-neutral contract; `from` is a {name,email} object).
+func extractMail(e clients.EventEntry) mailMsg {
+	m := mailMsg{
+		threadID: pstr(e.Payload, "thread_id"),
+		subject:  pstr(e.Payload, "subject"),
+		snippet:  pstr(e.Payload, "snippet"),
+		body:     pstr(e.Payload, "body"),
+		at:       e.Timestamp,
+	}
+	if from, ok := e.Payload["from"].(map[string]any); ok {
+		m.from = strings.ToLower(strings.TrimSpace(pstr(from, "email")))
+		m.fromName = pstr(from, "name")
+	}
+	return m
+}
+
+// splitThreadAndRecall partitions received events (newest-first from Core) into
+// the target thread's messages (re-ordered oldest-first as a transcript) and the
+// contact's other recent threads (the recall). The contact is the sender of the
+// thread's most recent inbound message; recall is capped at 5 distinct threads.
+func splitThreadAndRecall(events []clients.EventEntry, threadID string) (thread, recall []mailMsg) {
+	for _, e := range events {
+		if m := extractMail(e); m.threadID == threadID {
+			thread = append(thread, m)
+		}
+	}
+	sort.Slice(thread, func(i, j int) bool { return thread[i].at < thread[j].at })
+	if len(thread) == 0 {
+		return thread, nil
+	}
+	contact := thread[len(thread)-1].from
+	if contact == "" {
+		return thread, nil
+	}
+	seen := map[string]bool{threadID: true}
+	for _, e := range events { // newest-first: first hit per thread is its latest message
+		m := extractMail(e)
+		if m.from != contact || seen[m.threadID] {
+			continue
+		}
+		seen[m.threadID] = true
+		recall = append(recall, m)
+		if len(recall) >= 5 {
+			break
+		}
+	}
+	return thread, recall
+}
+
+func countThreads(msgs []mailMsg) int {
+	seen := map[string]bool{}
+	for _, m := range msgs {
+		seen[m.threadID] = true
+	}
+	return len(seen)
+}
+
+const (
+	maxBodyChars    = 1500
+	maxSnippetChars = 240
+)
+
+func trimText(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) > n {
+		return strings.TrimSpace(s[:n]) + "…"
+	}
+	return s
+}
+
+// buildDraftPrompt assembles the grounded prompt: a system frame (reply-only,
+// no fabrication, tone-match) and a user message carrying the thread transcript,
+// the contact's prior-thread context, and the operator's intent.
+func buildDraftPrompt(mailbox, intent, tone string, thread, recall []mailMsg) (system, user string) {
+	who := "this mailbox"
+	if mailbox != "" {
+		who = mailbox
+	}
+	var s strings.Builder
+	s.WriteString("You are an expert email assistant drafting a reply on behalf of " + who + ".\n")
+	s.WriteString("Write ONLY the reply body — no subject line, no preamble like \"Here's a draft\", no placeholder tokens like [Name]. ")
+	s.WriteString("Match the tone, formality, and language of the thread. Be concise and specific. ")
+	s.WriteString("Do NOT invent facts, commitments, prices, dates, or names that aren't supported by the thread or the operator's instruction; if information is missing, write around it rather than fabricating.")
+	if t := strings.TrimSpace(tone); t != "" {
+		s.WriteString(" Use a " + t + " tone.")
+	}
+	system = s.String()
+
+	var u strings.Builder
+	u.WriteString("You are replying within the email thread below. The most recent message is last.\n\n")
+	u.WriteString("=== THREAD ===\n")
+	if len(thread) == 0 {
+		u.WriteString("(No prior messages were found for this thread.)\n")
+	}
+	for _, m := range thread {
+		name := m.fromName
+		if name == "" {
+			name = m.from
+		}
+		u.WriteString("From: " + name + " <" + m.from + ">")
+		if m.at != "" {
+			u.WriteString("  (" + m.at + ")")
+		}
+		u.WriteString("\n")
+		if m.subject != "" {
+			u.WriteString("Subject: " + m.subject + "\n")
+		}
+		content := m.body
+		if strings.TrimSpace(content) == "" {
+			content = m.snippet
+		}
+		u.WriteString(trimText(content, maxBodyChars) + "\n---\n")
+	}
+
+	u.WriteString("\n=== PRIOR CONTEXT WITH THIS CONTACT (for grounding; do not quote verbatim) ===\n")
+	if len(recall) == 0 {
+		u.WriteString("No prior threads with this contact.\n")
+	}
+	for _, m := range recall {
+		subj := m.subject
+		if subj == "" {
+			subj = "(no subject)"
+		}
+		line := "- "
+		if m.at != "" {
+			line += "(" + m.at + ") "
+		}
+		line += subj
+		if snip := trimText(m.snippet, maxSnippetChars); snip != "" {
+			line += " — " + snip
+		}
+		u.WriteString(line + "\n")
+	}
+
+	u.WriteString("\n=== YOUR TASK ===\nWrite the reply. Operator's intent for this reply: " + strings.TrimSpace(intent) + "\n")
+	return system, u.String()
 }

@@ -18,6 +18,9 @@ import {
   type EmailThread,
   fetchConnections,
   fetchMessages,
+  type GenerateDraftRequest,
+  type GenerateDraftResponse,
+  generateDraft,
   groupIntoThreads,
   type InboxConnection,
   type SendRequest,
@@ -198,6 +201,25 @@ export default function InboxPage() {
     [selected, loadMessages, toastSuccess, toastError]
   );
 
+  // ── Generate (AI draft; fill tenant/grant/mailbox from the selection) ──
+  const handleGenerate = useCallback(
+    async (req: GenerateDraftRequest): Promise<GenerateDraftResponse> => {
+      if (!selected) throw new Error("No mailbox selected.");
+      try {
+        return await generateDraft({
+          ...req,
+          tenant_id: selected.tenant_id,
+          grant_id: selected.grant_id,
+          mailbox_email: selected.email,
+        });
+      } catch (err) {
+        toastError(err instanceof Error ? err.message : "Failed to generate a draft.");
+        throw err;
+      }
+    },
+    [selected, toastError]
+  );
+
   // ── Send (confirm-gated in the dialog; here we fill tenant + refresh) ──
   const handleSend = useCallback(
     async (req: SendRequest) => {
@@ -273,6 +295,7 @@ export default function InboxPage() {
         onTriage={handleTriage}
         onDraft={handleDraft}
         onSend={handleSend}
+        onGenerate={handleGenerate}
       />
 
       <ConnectDialog

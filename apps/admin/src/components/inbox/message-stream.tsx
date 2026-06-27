@@ -29,6 +29,8 @@ import {
   type EmailMessageView,
   type EmailThread,
   formatAddress,
+  type GenerateDraftRequest,
+  type GenerateDraftResponse,
   type SendRequest,
   type TriageLabel,
 } from "@/lib/inbox-api";
@@ -101,9 +103,10 @@ interface ThreadCardProps {
   onTriage: (messageId: string, threadId: string, label: TriageLabel) => Promise<void>;
   onDraft: (req: DraftRequest) => Promise<DraftResponse>;
   onSend: (req: SendRequest) => Promise<void>;
+  onGenerate: (req: GenerateDraftRequest) => Promise<GenerateDraftResponse>;
 }
 
-function ThreadCard({ thread, onTriage, onDraft, onSend }: ThreadCardProps) {
+function ThreadCard({ thread, onTriage, onDraft, onSend, onGenerate }: ThreadCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
 
@@ -182,6 +185,7 @@ function ThreadCard({ thread, onTriage, onDraft, onSend }: ThreadCardProps) {
               inReplyTo={inbound?.messageId}
               onDraft={onDraft}
               onSend={onSend}
+              onGenerate={onGenerate}
             />
           )}
         </CardContent>
@@ -199,6 +203,7 @@ interface MessageStreamProps {
   onTriage: (messageId: string, threadId: string, label: TriageLabel) => Promise<void>;
   onDraft: (req: DraftRequest) => Promise<DraftResponse>;
   onSend: (req: SendRequest) => Promise<void>;
+  onGenerate: (req: GenerateDraftRequest) => Promise<GenerateDraftResponse>;
 }
 
 export function MessageStream({
@@ -209,6 +214,7 @@ export function MessageStream({
   onTriage,
   onDraft,
   onSend,
+  onGenerate,
 }: MessageStreamProps) {
   if (!hasSelection) {
     return (
@@ -267,6 +273,7 @@ export function MessageStream({
               onTriage={onTriage}
               onDraft={onDraft}
               onSend={onSend}
+              onGenerate={onGenerate}
             />
           ))
         )}

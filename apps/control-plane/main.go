@@ -710,6 +710,8 @@ func (cp *ControlPlane) setupRoutes() {
 	admin.GET("/inbox/messages", cp.container.InboxAdminHandler.Messages)
 	admin.POST("/inbox/triage", cp.container.InboxAdminHandler.Triage)
 	admin.POST("/inbox/draft", cp.container.InboxAdminHandler.Draft)
+	// AI-grounded draft generation (045): thread + contact recall → Claude → body.
+	admin.POST("/inbox/draft/generate", cp.container.InboxAdminHandler.GenerateDraft)
 	admin.POST("/inbox/send", cp.container.InboxAdminHandler.Send)
 
 	// Recovery — diagnose (Safe, read-only) + guarded/destructive actions.
