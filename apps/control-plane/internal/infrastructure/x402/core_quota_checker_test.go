@@ -208,6 +208,65 @@ func TestCoreQuotaChecker_X402Allowance_RebaselineOnCoreAdvance(t *testing.T) {
 	}
 }
 
+func tenantWithExtraction(quota, used float64) *clients.TenantResponse {
+	return &clients.TenantResponse{
+		ID: "tenant-1",
+		Metadata: map[string]any{
+			"quotas": map[string]any{
+				"extraction_tokens_quota": quota,
+				"extraction_tokens_used":  used,
+			},
+		},
+	}
+}
+
+func TestCoreQuotaChecker_ExtractionQuota_Basic(t *testing.T) {
+	// unlimited (-1) → always true (enterprise)
+	q := NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithExtraction(-1, 9_999_999)})
+	if !q.HasExtractionQuota("tenant-1") {
+		t.Error("unlimited extraction quota: want true")
+	}
+	// no allowance (0) → false (free tier = BYO only, no hosted extraction)
+	q = NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithExtraction(0, 0)})
+	if q.HasExtractionQuota("tenant-1") {
+		t.Error("zero extraction quota: want false (blocked)")
+	}
+	// within allowance → true; at/over → false (blocked)
+	q = NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithExtraction(1_000_000, 999_999)})
+	if !q.HasExtractionQuota("tenant-1") {
+		t.Error("under extraction quota: want true")
+	}
+	q = NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithExtraction(1_000_000, 1_000_000)})
+	if q.HasExtractionQuota("tenant-1") {
+		t.Error("at extraction quota: want false (blocked)")
+	}
+	q = NewCoreQuotaChecker(&quotaTestCoreClient{tenant: tenantWithExtraction(1_000_000, 1_500_000)})
+	if q.HasExtractionQuota("tenant-1") {
+		t.Error("over extraction quota: want false (blocked)")
+	}
+}
+
+// Unlike x402 payment gating, extraction gating is access control and fails
+// *open*: a transient Core outage must not block a paying tenant's extraction.
+func TestCoreQuotaChecker_ExtractionQuota_FailsOpenOnError(t *testing.T) {
+	q := NewCoreQuotaChecker(&quotaTestCoreClient{tenant: nil, err: errors.New("core down")})
+	if !q.HasExtractionQuota("tenant-1") {
+		t.Error("error path must fail open (true), got false")
+	}
+	// no quotas metadata → fail open
+	q = NewCoreQuotaChecker(&quotaTestCoreClient{tenant: &clients.TenantResponse{
+		ID:       "tenant-1",
+		Metadata: map[string]any{"other": "data"},
+	}})
+	if !q.HasExtractionQuota("tenant-1") {
+		t.Error("no quotas metadata: want true (fail open)")
+	}
+	// nil client → true
+	if !NewCoreQuotaChecker(nil).HasExtractionQuota("tenant-1") {
+		t.Error("nil client: want true")
+	}
+}
+
 func TestCoreQuotaChecker_IntMetadataValues(t *testing.T) {
 	// Metadata may arrive as int or int64 instead of float64 in some code paths.
 	mock := &quotaTestCoreClient{tenant: &clients.TenantResponse{

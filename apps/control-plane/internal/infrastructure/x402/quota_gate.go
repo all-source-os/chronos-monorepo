@@ -342,6 +342,40 @@ func (q *CoreQuotaChecker) RecordAllowanceConsumed(tenantID string) {
 	q.x402mu.Unlock()
 }
 
+// HasExtractionQuota reports whether the tenant still has hosted Hound
+// doc-extraction LLM tokens remaining in its included per-tier allowance. It
+// reads extraction_tokens_quota / extraction_tokens_used from the tenant's
+// "quotas" metadata (the allowance is written from the tier entitlement by
+// UpdateSubscriptionMetadataUseCase; the meter is reconciled from
+// prime.extraction.usage events by billing.SyncExtractionUsageUseCase).
+// Semantics mirror the events_used gate:
+//   - quota < 0   → unlimited (enterprise) → true
+//   - quota == 0  → no included allowance (free tier = BYO only) → false (blocked)
+//   - used < quota → true
+//   - used >= quota → false (blocked)
+//
+// Fails *open* (true) on any error, matching HasQuota: a transient Core outage
+// must not block a legitimate tenant's extraction. A hosted-extraction request
+// path calls this and returns 402/blocked when it is false.
+func (q *CoreQuotaChecker) HasExtractionQuota(tenantID string) bool {
+	if q.client == nil || tenantID == "" {
+		return true
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	tenant, err := q.client.GetTenant(ctx, tenantID)
+	if err != nil || tenant == nil {
+		return true
+	}
+	// Billing writes the entitlement + meter under "quotas" (plural).
+	quotaMeta, ok := tenant.Metadata["quotas"].(map[string]any)
+	if !ok {
+		return true
+	}
+	return quotaRemaining(quotaMeta, "extraction_tokens_used", "extraction_tokens_quota")
+}
+
 // AllowsX402 implements TierAllower for the static test checker.
 // Defaults to allow (TierDenied == false) so pre-existing tests that only
 // exercise quota/payment paths continue to work without modification.
