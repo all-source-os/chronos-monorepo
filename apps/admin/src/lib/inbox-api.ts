@@ -114,6 +114,7 @@ export type TriageLabel = "needs-reply" | "fyi" | "spam" | "archive";
 
 export interface TriageRequest {
   tenant_id: string;
+  grant_id?: string;
   message_id: string;
   thread_id?: string;
   label: TriageLabel;
@@ -123,6 +124,7 @@ export interface TriageRequest {
 
 export interface DraftRequest {
   tenant_id: string;
+  grant_id?: string;
   thread_id: string;
   body: string;
   intent: string;
@@ -139,6 +141,7 @@ export interface DraftResponse {
 
 export interface SendRequest {
   tenant_id: string;
+  grant_id?: string;
   to: EmailAddress[];
   body: string;
   subject?: string;
@@ -250,10 +253,13 @@ export async function adoptGrant(params: {
 
 export async function fetchMessages(params: {
   tenant_id: string;
+  /** Scope to a single mailbox (grant) within the tenant. */
+  grant_id?: string;
   limit?: number;
 }): Promise<EmailEvent[]> {
   const qs = new URLSearchParams();
   qs.set("tenant_id", params.tenant_id);
+  if (params.grant_id) qs.set("grant_id", params.grant_id);
   if (params.limit) qs.set("limit", String(params.limit));
   const url = `${getApiUrl()}/api/v1/admin/inbox/messages?${qs.toString()}`;
   const res = await fetch(url, { credentials: "include" });

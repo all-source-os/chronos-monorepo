@@ -80,7 +80,11 @@ export default function InboxPage() {
     async (conn: InboxConnection) => {
       setMessagesLoading(true);
       try {
-        const events = await fetchMessages({ tenant_id: conn.tenant_id, limit: MESSAGE_LIMIT });
+        const events = await fetchMessages({
+          tenant_id: conn.tenant_id,
+          grant_id: conn.grant_id,
+          limit: MESSAGE_LIMIT,
+        });
         setThreads(groupIntoThreads(events));
       } catch (err) {
         setThreads([]);
@@ -156,6 +160,7 @@ export default function InboxPage() {
       try {
         await triage({
           tenant_id: selected.tenant_id,
+          grant_id: selected.grant_id,
           message_id: messageId,
           thread_id: threadId,
           label,
@@ -176,7 +181,12 @@ export default function InboxPage() {
     async (req: DraftRequest): Promise<DraftResponse> => {
       if (!selected) throw new Error("No mailbox selected.");
       try {
-        const res = await draft({ ...req, tenant_id: selected.tenant_id, by: "human" });
+        const res = await draft({
+          ...req,
+          tenant_id: selected.tenant_id,
+          grant_id: selected.grant_id,
+          by: "human",
+        });
         toastSuccess(`Draft saved (${res.draft_id}).`);
         await loadMessages(selected);
         return res;
@@ -193,7 +203,11 @@ export default function InboxPage() {
     async (req: SendRequest) => {
       if (!selected) throw new Error("No mailbox selected.");
       try {
-        const res = await send({ ...req, tenant_id: selected.tenant_id });
+        const res = await send({
+          ...req,
+          tenant_id: selected.tenant_id,
+          grant_id: selected.grant_id,
+        });
         toastSuccess(res.warning ? `Sent, but ${res.warning}.` : `Sent (${res.message_id}).`);
         await loadMessages(selected);
       } catch (err) {
