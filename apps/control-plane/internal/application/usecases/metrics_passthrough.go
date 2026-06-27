@@ -33,6 +33,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/allsource/control-plane/internal/domain/repositories"
 )
 
 // --- Response shapes (match apps/admin/src/lib/metrics-api.ts exactly) ---
@@ -104,13 +106,18 @@ type MetricsPassthroughUseCase struct {
 	httpClient   *http.Client
 	queryBaseURL string // e.g. http://allsource-query.internal:3902 (no trailing slash)
 	serviceToken string // long-lived admin/system JWT the QS :authenticated pipeline accepts
+	// tenantRepo backs the active_tenants overlay. Core's exporter emits no
+	// allsource_active_tenants series, so the QS summary always reports 0 — the
+	// CP has the authoritative tenant list, so we count active tenants here. nil
+	// disables the overlay (active_tenants stays whatever the QS returned).
+	tenantRepo repositories.TenantRepository
 }
 
 // NewMetricsPassthroughUseCase builds the passthrough. A nil httpClient defaults
 // to http.DefaultClient. An empty queryBaseURL or serviceToken disables the
 // upstream call — every fetch then returns the zero/empty shape (so the admin
 // renders a zero state in local/unconfigured environments instead of erroring).
-func NewMetricsPassthroughUseCase(httpClient *http.Client, queryBaseURL, serviceToken string) *MetricsPassthroughUseCase {
+func NewMetricsPassthroughUseCase(httpClient *http.Client, queryBaseURL, serviceToken string, tenantRepo repositories.TenantRepository) *MetricsPassthroughUseCase {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
@@ -118,6 +125,7 @@ func NewMetricsPassthroughUseCase(httpClient *http.Client, queryBaseURL, service
 		httpClient:   httpClient,
 		queryBaseURL: strings.TrimRight(queryBaseURL, "/"),
 		serviceToken: serviceToken,
+		tenantRepo:   tenantRepo,
 	}
 }
 
@@ -126,17 +134,43 @@ func NewMetricsPassthroughUseCase(httpClient *http.Client, queryBaseURL, service
 // MetricsSummary so the admin renders a zero state, never a 500.
 func (uc *MetricsPassthroughUseCase) FetchSummary(ctx context.Context) MetricsSummary {
 	var out MetricsSummary
-	if uc.queryBaseURL == "" || uc.serviceToken == "" {
-		return out
+	if uc.queryBaseURL != "" && uc.serviceToken != "" {
+		if body, ok := uc.get(ctx, "/api/admin/metrics/summary", nil); ok {
+			if err := json.Unmarshal(body, &out); err != nil {
+				out = MetricsSummary{}
+			}
+		}
 	}
-	body, ok := uc.get(ctx, "/api/admin/metrics/summary", nil)
-	if !ok {
-		return out
-	}
-	if err := json.Unmarshal(body, &out); err != nil {
-		return MetricsSummary{}
+	// active_tenants has no Core/QS series (the exporter emits none), so the QS
+	// summary always reports 0 even with active tenants. Overlay the real count
+	// from the CP's own tenant list. Guarded on ==0 so a future real QS series
+	// wins, and computed even when the QS is unreachable (it's CP-sourced now).
+	if out.ActiveTenants == 0 {
+		if n, ok := uc.activeTenantCount(); ok {
+			out.ActiveTenants = n
+		}
 	}
 	return out
+}
+
+// activeTenantCount returns the number of active-status tenants from the CP's
+// tenant repository. Returns (0,false) when no repo is wired or the lookup
+// fails, so the caller leaves active_tenants untouched rather than forcing a 0.
+func (uc *MetricsPassthroughUseCase) activeTenantCount() (float64, bool) {
+	if uc.tenantRepo == nil {
+		return 0, false
+	}
+	tenants, err := uc.tenantRepo.FindAll()
+	if err != nil {
+		return 0, false
+	}
+	var n float64
+	for _, t := range tenants {
+		if t != nil && t.IsActive() {
+			n++
+		}
+	}
+	return n, true
 }
 
 // FetchTimeseries returns the QS timeseries envelope verbatim ({metric, range,

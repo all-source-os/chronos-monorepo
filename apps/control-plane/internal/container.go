@@ -619,7 +619,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	// metrics/cluster endpoints with the CP's own service credential so the admin
 	// /monitoring page reaches them same-origin via the BFF instead of failing a
 	// cross-origin cookie call. Empty QueryServiceURL/ServiceToken ⇒ zero state.
-	metricsPassthroughUC := usecases.NewMetricsPassthroughUseCase(cfg.MetricsHTTPClient, cfg.QueryServiceURL, cfg.ServiceToken)
+	metricsPassthroughUC := usecases.NewMetricsPassthroughUseCase(cfg.MetricsHTTPClient, cfg.QueryServiceURL, cfg.ServiceToken, tenantRepo)
 	metricsHandler := httphandlers.NewMetricsHandler(metricsPassthroughUC)
 
 	return &Container{

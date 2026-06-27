@@ -10,6 +10,7 @@ import (
 
 	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/domain/entities"
+	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 )
 
 // metricsRouter builds the real admin router for the metrics passthrough with
@@ -92,7 +93,7 @@ func newFakeQS(t *testing.T) *fakeQS {
 // reached the QS with its OWN service token (not the caller's).
 func TestMetrics_SummaryReturnsQSShape(t *testing.T) {
 	qs := newFakeQS(t)
-	uc := usecases.NewMetricsPassthroughUseCase(qs.srv.Client(), qs.srv.URL, "service-token-xyz")
+	uc := usecases.NewMetricsPassthroughUseCase(qs.srv.Client(), qs.srv.URL, "service-token-xyz", nil)
 	r := metricsRouter(uc)
 
 	w := doAdmin(t, r, http.MethodGet, "/api/v1/admin/metrics/summary", adminToken(t, entities.RoleAdmin), nil)
@@ -119,7 +120,7 @@ func TestMetrics_SummaryReturnsQSShape(t *testing.T) {
 // forwards the metric+range query params.
 func TestMetrics_TimeseriesReturnsQSEnvelope(t *testing.T) {
 	qs := newFakeQS(t)
-	uc := usecases.NewMetricsPassthroughUseCase(qs.srv.Client(), qs.srv.URL, "svc")
+	uc := usecases.NewMetricsPassthroughUseCase(qs.srv.Client(), qs.srv.URL, "svc", nil)
 	r := metricsRouter(uc)
 
 	w := doAdmin(t, r, http.MethodGet, "/api/v1/admin/metrics/timeseries?metric=error_rate_percent&range=24h", adminToken(t, entities.RoleAdmin), nil)
@@ -142,7 +143,7 @@ func TestMetrics_TimeseriesReturnsQSEnvelope(t *testing.T) {
 // wraps it in {members:[…]} (what fetchClusterMembers' `data.members` reads).
 func TestMetrics_ClusterMembersMapped(t *testing.T) {
 	qs := newFakeQS(t)
-	uc := usecases.NewMetricsPassthroughUseCase(qs.srv.Client(), qs.srv.URL, "svc")
+	uc := usecases.NewMetricsPassthroughUseCase(qs.srv.Client(), qs.srv.URL, "svc", nil)
 	r := metricsRouter(uc)
 
 	w := doAdmin(t, r, http.MethodGet, "/api/v1/admin/cluster/members", adminToken(t, entities.RoleAdmin), nil)
@@ -174,7 +175,7 @@ func TestMetrics_ClusterMembersMapped(t *testing.T) {
 // role (proves AdminAuthMiddleware reuse — same gate as the rest of /admin).
 func TestMetrics_403WithoutAdmin(t *testing.T) {
 	qs := newFakeQS(t)
-	uc := usecases.NewMetricsPassthroughUseCase(qs.srv.Client(), qs.srv.URL, "svc")
+	uc := usecases.NewMetricsPassthroughUseCase(qs.srv.Client(), qs.srv.URL, "svc", nil)
 	r := metricsRouter(uc)
 
 	paths := []string{
@@ -202,7 +203,7 @@ func TestMetrics_403WithoutAdmin(t *testing.T) {
 // the admin renders a zero state. Uses a base URL that fails to connect.
 func TestMetrics_QSUnreachableZeroState(t *testing.T) {
 	// Point at a closed port: every fetch errors at the transport layer.
-	uc := usecases.NewMetricsPassthroughUseCase(http.DefaultClient, "http://127.0.0.1:1", "svc")
+	uc := usecases.NewMetricsPassthroughUseCase(http.DefaultClient, "http://127.0.0.1:1", "svc", nil)
 	r := metricsRouter(uc)
 	tok := adminToken(t, entities.RoleAdmin)
 
@@ -253,7 +254,7 @@ func TestMetrics_QSErrorStatusZeroState(t *testing.T) {
 	}))
 	t.Cleanup(bad.Close)
 
-	uc := usecases.NewMetricsPassthroughUseCase(bad.Client(), bad.URL, "svc")
+	uc := usecases.NewMetricsPassthroughUseCase(bad.Client(), bad.URL, "svc", nil)
 	r := metricsRouter(uc)
 	tok := adminToken(t, entities.RoleAdmin)
 
@@ -273,7 +274,7 @@ func TestMetrics_QSErrorStatusZeroState(t *testing.T) {
 // When the passthrough is unconfigured (empty base URL / token), it short-circuits
 // to the zero state without any network call — the local/dev default.
 func TestMetrics_UnconfiguredZeroState(t *testing.T) {
-	uc := usecases.NewMetricsPassthroughUseCase(nil, "", "")
+	uc := usecases.NewMetricsPassthroughUseCase(nil, "", "", nil)
 	r := metricsRouter(uc)
 	tok := adminToken(t, entities.RoleAdmin)
 
@@ -283,5 +284,42 @@ func TestMetrics_UnconfiguredZeroState(t *testing.T) {
 	}
 	if body := w.Body.String(); body != `{"members":[]}` {
 		t.Errorf("expected {\"members\":[]}, got %s", body)
+	}
+}
+
+// Core's exporter emits no allsource_active_tenants series, so the QS summary
+// reports 0. The CP overlays the real count from its own tenant repo — counting
+// only active-status tenants — and does so even when the QS is unreachable
+// (the summary is otherwise zero). 2 active + 1 suspended ⇒ active_tenants == 2.
+func TestMetrics_SummaryOverlaysActiveTenantsFromRepo(t *testing.T) {
+	repo := persistence.NewMemoryTenantRepository()
+	for _, tt := range []struct {
+		id     string
+		status entities.TenantStatus
+	}{
+		{"a", entities.TenantStatusActive},
+		{"b", entities.TenantStatusActive},
+		{"c", entities.TenantStatusSuspended},
+	} {
+		if err := repo.Save(&entities.Tenant{ID: tt.id, Name: tt.id, Status: tt.status}); err != nil {
+			t.Fatalf("seed %s: %v", tt.id, err)
+		}
+	}
+
+	// Point at a closed port: the QS summary fetch fails, so events_total etc.
+	// stay 0 — but active_tenants must still reflect the CP's real count.
+	uc := usecases.NewMetricsPassthroughUseCase(http.DefaultClient, "http://127.0.0.1:1", "svc", repo)
+	r := metricsRouter(uc)
+
+	w := doAdmin(t, r, http.MethodGet, "/api/v1/admin/metrics/summary", adminToken(t, entities.RoleAdmin), nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var got usecases.MetricsSummary
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.ActiveTenants != 2 {
+		t.Errorf("active_tenants overlay = %v, want 2", got.ActiveTenants)
 	}
 }
