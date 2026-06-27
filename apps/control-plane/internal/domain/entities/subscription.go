@@ -113,6 +113,10 @@ type QuotaMetadata struct {
 	// X402Used is the count of x402 calls consumed this period (metered from
 	// settled x402 payment events; see x402.AllowanceChecker).
 	X402Used int64 `json:"x402_used,omitempty"`
+	// ExtractionTokensUsed is the LLM tokens consumed this period by hosted Hound
+	// doc extraction, metered from prime.extraction.usage events in Core (see
+	// billing.SyncExtractionUsageUseCase). Record-only — not yet wired to billing.
+	ExtractionTokensUsed int64 `json:"extraction_tokens_used,omitempty"`
 	// RetentionDays is the event retention window for the tier. -1 = forever.
 	RetentionDays int64 `json:"retention_days,omitempty"`
 	// MaxStreams is the allowed stream count. -1 = unlimited.

@@ -442,6 +442,13 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		syncEventsUsageUC = billing.NewSyncEventsUsageUseCase(tenantRepo, auditRepo, cfg.CoreClient)
 	}
 
+	// extraction-token usage reconciliation: meter hosted Hound doc-extraction
+	// LLM tokens from prime.extraction.usage events in Core (record-only).
+	var syncExtractionUsageUC *billing.SyncExtractionUsageUseCase
+	if cfg.CoreClient != nil {
+		syncExtractionUsageUC = billing.NewSyncExtractionUsageUseCase(tenantRepo, auditRepo, cfg.CoreClient)
+	}
+
 	// Initialize use cases — Billing (events_used backfill, t-dece).
 	// Reconciles the metered events_used counter from the real event count in
 	// Core for tenants whose data was ingested outside the metered QS path.
@@ -522,6 +529,9 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	}
 	if syncEventsUsageUC != nil {
 		scheduler.SetSyncEventsUsageUseCase(syncEventsUsageUC)
+	}
+	if syncExtractionUsageUC != nil {
+		scheduler.SetSyncExtractionUsageUseCase(syncExtractionUsageUC)
 	}
 	if syncX402UsageUC != nil {
 		scheduler.SetSyncX402UsageUseCase(syncX402UsageUC)

@@ -24,17 +24,18 @@ type ScheduledTask struct {
 
 // OperationScheduler manages background operations (compaction, snapshots, etc.)
 type OperationScheduler struct {
-	operationRepo      repositories.OperationRepository
-	auditRepo          repositories.AuditRepository
-	coreClient         clients.CoreClient
-	reportUsageUC      *billing.ReportUsageUseCase
-	checkUsageWarnings *billing.CheckUsageWarningsUseCase
-	syncX402UsageUC    *billing.SyncX402UsageUseCase
-	syncEventsUsageUC  *billing.SyncEventsUsageUseCase
-	syncSubsUC         *SyncSubscriptionsUseCase
-	tasks              []ScheduledTask
-	cancel             context.CancelFunc
-	wg                 sync.WaitGroup
+	operationRepo         repositories.OperationRepository
+	auditRepo             repositories.AuditRepository
+	coreClient            clients.CoreClient
+	reportUsageUC         *billing.ReportUsageUseCase
+	checkUsageWarnings    *billing.CheckUsageWarningsUseCase
+	syncX402UsageUC       *billing.SyncX402UsageUseCase
+	syncEventsUsageUC     *billing.SyncEventsUsageUseCase
+	syncExtractionUsageUC *billing.SyncExtractionUsageUseCase
+	syncSubsUC            *SyncSubscriptionsUseCase
+	tasks                 []ScheduledTask
+	cancel                context.CancelFunc
+	wg                    sync.WaitGroup
 }
 
 // NewOperationScheduler creates a new OperationScheduler.
@@ -59,6 +60,7 @@ func NewOperationScheduler(
 			// quota meter (read by the usage bar AND usage enforcement) self-heals
 			// from drift. Not hot-path (live increments keep it ~current); 5 min.
 			{Name: "events_usage_sync", Interval: 5 * time.Minute, Enabled: true},
+			{Name: "extraction_usage_sync", Interval: 5 * time.Minute, Enabled: true},
 			// Self-heal subscription tier from LemonSqueezy in case a webhook was
 			// missed or signature-rejected. Webhooks are primary; this is the
 			// safety net so tiers don't go stale without manual replays.
@@ -89,6 +91,12 @@ func (s *OperationScheduler) SetSyncX402UsageUseCase(uc *billing.SyncX402UsageUs
 // Must be called before Start if events_usage_sync is enabled.
 func (s *OperationScheduler) SetSyncEventsUsageUseCase(uc *billing.SyncEventsUsageUseCase) {
 	s.syncEventsUsageUC = uc
+}
+
+// SetSyncExtractionUsageUseCase sets the extraction-token usage reconciliation
+// use case. Must be called before Start if extraction_usage_sync is enabled.
+func (s *OperationScheduler) SetSyncExtractionUsageUseCase(uc *billing.SyncExtractionUsageUseCase) {
+	s.syncExtractionUsageUC = uc
 }
 
 // SetSyncSubscriptionsUseCase sets the subscription reconciliation use case.
@@ -150,6 +158,8 @@ func (s *OperationScheduler) executeTask(ctx context.Context, task ScheduledTask
 		s.executeX402UsageSync(ctx)
 	case "events_usage_sync":
 		s.executeEventsUsageSync(ctx)
+	case "extraction_usage_sync":
+		s.executeExtractionUsageSync(ctx)
 	case "subscription_sync":
 		s.executeSubscriptionSync(ctx)
 	default:
@@ -294,6 +304,38 @@ func (s *OperationScheduler) executeEventsUsageSync(ctx context.Context) {
 	log.Printf("Scheduler: events usage sync complete — synced=%d skipped=%d errors=%d", synced, skipped, errored)
 
 	auditEvent, _ := entities.NewAuditEvent("billing.events.scheduled_sync", "execute", "SCHEDULER", "/billing/events") //nolint:errcheck
+	auditEvent.AddMetadata("synced", fmt.Sprintf("%d", synced))
+	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
+	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
+	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck
+}
+
+// executeExtractionUsageSync reconciles each tenant's extraction_tokens_used
+// meter from prime.extraction.usage events in Core. Record-only (no billing).
+func (s *OperationScheduler) executeExtractionUsageSync(ctx context.Context) {
+	if s.syncExtractionUsageUC == nil {
+		return
+	}
+
+	results := s.syncExtractionUsageUC.ExecuteAll(ctx)
+
+	var synced, skipped, errored int
+	for _, r := range results {
+		switch {
+		case r.Error != nil:
+			errored++
+			log.Printf("Scheduler: extraction usage sync failed for tenant %s: %v", r.TenantID, r.Error)
+		case r.Skipped:
+			skipped++
+		default:
+			synced++
+			log.Printf("Scheduler: extraction_tokens_used updated for tenant %s → %d", r.TenantID, r.ExtractionTokensUsed)
+		}
+	}
+
+	log.Printf("Scheduler: extraction usage sync complete — synced=%d skipped=%d errors=%d", synced, skipped, errored)
+
+	auditEvent, _ := entities.NewAuditEvent("billing.extraction.scheduled_sync", "execute", "SCHEDULER", "/billing/extraction") //nolint:errcheck
 	auditEvent.AddMetadata("synced", fmt.Sprintf("%d", synced))
 	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
 	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
