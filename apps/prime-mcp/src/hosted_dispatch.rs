@@ -332,22 +332,13 @@ async fn call_history(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value
 mod tests {
     use super::*;
     use std::time::Duration;
-    use wiremock::{
-        Mock, MockServer, ResponseTemplate,
-        matchers::{method, path},
-    };
+    use wiremock::MockServer;
 
+    // A stateful fake Core (POSTed events are returned on query), so the
+    // write-then-read-back round-trip works under the cold-write semantics from
+    // t-d90426. See `crate::hosted_test_core`.
     async fn mount_empty_core(server: &MockServer) {
-        Mock::given(method("GET"))
-            .and(path("/api/v1/events/query"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "events": [] })))
-            .mount(server)
-            .await;
-        Mock::given(method("POST"))
-            .and(path("/api/v1/events"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "ok": true })))
-            .mount(server)
-            .await;
+        crate::hosted_test_core::mount_stateful_core(server).await;
     }
 
     #[allow(clippy::needless_pass_by_value)] // test helper; clarity over &Value

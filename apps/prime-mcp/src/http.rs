@@ -1317,6 +1317,20 @@ mod tests {
         })
     }
 
+    /// Like [`hosted_state`], but backed by a STATEFUL fake Core (writes are
+    /// readable back) — for the write-then-read-back round-trip tests, which the
+    /// always-empty mock can't satisfy under the t-d90426 cold-write semantics.
+    async fn hosted_state_stateful(server: &MockServer) -> Arc<AppState> {
+        crate::hosted_test_core::mount_stateful_core(server).await;
+        let hosted =
+            HostedPrime::connect(server.uri(), None, 8, std::time::Duration::from_secs(60));
+        Arc::new(AppState {
+            prime: None,
+            recall: None,
+            hosted: Some(Arc::new(hosted)),
+        })
+    }
+
     async fn mcp_post_with_tenant(
         app: &Router,
         tenant: Option<&str>,
@@ -1350,7 +1364,7 @@ mod tests {
     #[tokio::test]
     async fn mcp_hosted_path_add_node_then_search() {
         let server = MockServer::start().await;
-        let app = mcp_router(hosted_state(&server).await);
+        let app = mcp_router(hosted_state_stateful(&server).await);
 
         let (status, body) = mcp_post_with_tenant(
             &app,
@@ -1477,7 +1491,7 @@ mod tests {
     #[tokio::test]
     async fn rest_hosted_create_then_get_node() {
         let server = MockServer::start().await;
-        let app = rest_router(hosted_state(&server).await);
+        let app = rest_router(hosted_state_stateful(&server).await);
 
         let (status, body) = rest_request(
             &app,
@@ -1512,7 +1526,7 @@ mod tests {
     #[tokio::test]
     async fn rest_hosted_full_graph_shape() {
         let server = MockServer::start().await;
-        let app = rest_router(hosted_state(&server).await);
+        let app = rest_router(hosted_state_stateful(&server).await);
 
         // Seed two nodes so the graph is non-empty.
         let (_, a) = rest_request(

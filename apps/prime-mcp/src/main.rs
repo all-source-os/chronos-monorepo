@@ -29,6 +29,8 @@ mod http;
 mod install;
 mod pr;
 mod report;
+#[cfg(test)]
+mod hosted_test_core;
 mod profiling;
 mod projection_registry;
 mod protocol;
