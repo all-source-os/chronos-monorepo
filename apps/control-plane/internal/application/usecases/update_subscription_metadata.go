@@ -138,17 +138,19 @@ func (uc *UpdateSubscriptionMetadataUseCase) applyLocked(tenant *entities.Tenant
 		tierQuotas := entities.QuotasForTier(billing.Subscription.Tier)
 		prev := extractQuotas(tenant.Metadata)
 		tenant.Metadata["quotas"] = &entities.QuotaMetadata{
-			EventsQuota:   tierQuotas.EventsQuota,
-			QueriesQuota:  tierQuotas.QueriesQuota,
-			X402Allowance: tierQuotas.X402Allowance,
-			RetentionDays: tierQuotas.RetentionDays,
-			MaxStreams:    tierQuotas.MaxStreams,
-			MCPScope:      tierQuotas.MCPScope,
+			EventsQuota:           tierQuotas.EventsQuota,
+			QueriesQuota:          tierQuotas.QueriesQuota,
+			X402Allowance:         tierQuotas.X402Allowance,
+			ExtractionTokensQuota: tierQuotas.ExtractionTokensQuota,
+			RetentionDays:         tierQuotas.RetentionDays,
+			MaxStreams:            tierQuotas.MaxStreams,
+			MCPScope:              tierQuotas.MCPScope,
 			// Carry usage forward — do not reset on a tier apply.
-			EventsUsed:  prev.EventsUsed,
-			QueriesUsed: prev.QueriesUsed,
-			X402Used:    prev.X402Used,
-			ResetDate:   prev.ResetDate,
+			EventsUsed:           prev.EventsUsed,
+			QueriesUsed:          prev.QueriesUsed,
+			X402Used:             prev.X402Used,
+			ExtractionTokensUsed: prev.ExtractionTokensUsed,
+			ResetDate:            prev.ResetDate,
 		}
 	}
 

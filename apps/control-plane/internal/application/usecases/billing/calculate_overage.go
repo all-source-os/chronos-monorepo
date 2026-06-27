@@ -210,6 +210,9 @@ func quotasFromMap(m map[string]interface{}) entities.QuotaMetadata {
 	if v, ok := m["x402_used"].(float64); ok {
 		q.X402Used = int64(v)
 	}
+	if v, ok := m["extraction_tokens_quota"].(float64); ok {
+		q.ExtractionTokensQuota = int64(v)
+	}
 	if v, ok := m["extraction_tokens_used"].(float64); ok {
 		q.ExtractionTokensUsed = int64(v)
 	}

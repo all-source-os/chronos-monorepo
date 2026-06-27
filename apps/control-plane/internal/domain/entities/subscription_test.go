@@ -40,6 +40,28 @@ func TestQuotasForTier(t *testing.T) {
 	}
 }
 
+func TestQuotasForTier_ExtractionTokens(t *testing.T) {
+	// Each plan includes an extraction-token allowance (hosted Hound doc
+	// extraction). Scales with the tier; free = none, enterprise = unlimited.
+	tests := []struct {
+		tier string
+		want int64
+	}{
+		{"free", 0},
+		{"indie", 1_000_000},
+		{"studio", 10_000_000},
+		{"scale", 100_000_000},
+		{"enterprise", -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.tier, func(t *testing.T) {
+			if got := QuotasForTier(tt.tier).ExtractionTokensQuota; got != tt.want {
+				t.Errorf("ExtractionTokensQuota = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTierQuotas_IsUnlimited(t *testing.T) {
 	tests := []struct {
 		name string

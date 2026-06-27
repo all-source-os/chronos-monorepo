@@ -113,6 +113,9 @@ type QuotaMetadata struct {
 	// X402Used is the count of x402 calls consumed this period (metered from
 	// settled x402 payment events; see x402.AllowanceChecker).
 	X402Used int64 `json:"x402_used,omitempty"`
+	// ExtractionTokensQuota is the included hosted Hound extraction LLM tokens per
+	// billing period for the tier (-1 = unlimited, 0 = none). Entitlement, not usage.
+	ExtractionTokensQuota int64 `json:"extraction_tokens_quota,omitempty"`
 	// ExtractionTokensUsed is the LLM tokens consumed this period by hosted Hound
 	// doc extraction, metered from prime.extraction.usage events in Core (see
 	// billing.SyncExtractionUsageUseCase). Record-only — not yet wired to billing.
@@ -236,12 +239,13 @@ func PrimarySubscriptionFor(subs map[string]SubscriptionRef, defaultProvider str
 //
 // Sentinel: -1 means unlimited / forever.
 type TierQuotas struct {
-	EventsQuota   int64
-	QueriesQuota  int64
-	X402Allowance int64  // included x402 calls per period before overage
-	RetentionDays int64  // event retention window; -1 = forever
-	MaxStreams    int64  // -1 = unlimited
-	MCPScope      string // hosted MCP verbs (MCPScope* constants)
+	EventsQuota           int64
+	QueriesQuota          int64
+	X402Allowance         int64  // included x402 calls per period before overage
+	ExtractionTokensQuota int64  // included hosted Hound extraction LLM tokens per period; -1 = unlimited, 0 = none
+	RetentionDays         int64  // event retention window; -1 = forever
+	MaxStreams            int64  // -1 = unlimited
+	MCPScope              string // hosted MCP verbs (MCPScope* constants)
 }
 
 // TierQuotaMap maps tiers to their entitlements. Numbers come from
@@ -258,23 +262,23 @@ var TierQuotaMap = map[SubscriptionTier]TierQuotas{
 		// Self-Host: no hosted quota path. Kept minimal so a free/grandfathered
 		// hosted tenant still resolves to *something* non-nil.
 		EventsQuota: 100_000, QueriesQuota: 10_000,
-		X402Allowance: 0, RetentionDays: 7, MaxStreams: 1, MCPScope: MCPScopeNone,
+		X402Allowance: 0, ExtractionTokensQuota: 0, RetentionDays: 7, MaxStreams: 1, MCPScope: MCPScopeNone,
 	},
 	TierIndie: {
 		EventsQuota: 500_000, QueriesQuota: 50_000,
-		X402Allowance: 50_000, RetentionDays: 14, MaxStreams: 3, MCPScope: MCPScopeRead,
+		X402Allowance: 50_000, ExtractionTokensQuota: 1_000_000, RetentionDays: 14, MaxStreams: 3, MCPScope: MCPScopeRead,
 	},
 	TierStudio: {
 		EventsQuota: 5_000_000, QueriesQuota: 500_000,
-		X402Allowance: 500_000, RetentionDays: 90, MaxStreams: -1, MCPScope: MCPScopeReadWrite,
+		X402Allowance: 500_000, ExtractionTokensQuota: 10_000_000, RetentionDays: 90, MaxStreams: -1, MCPScope: MCPScopeReadWrite,
 	},
 	TierScale: {
 		EventsQuota: 50_000_000, QueriesQuota: 5_000_000,
-		X402Allowance: 5_000_000, RetentionDays: 365, MaxStreams: -1, MCPScope: MCPScopeReadWriteDedi,
+		X402Allowance: 5_000_000, ExtractionTokensQuota: 100_000_000, RetentionDays: 365, MaxStreams: -1, MCPScope: MCPScopeReadWriteDedi,
 	},
 	TierEnterprise: {
 		EventsQuota: -1, QueriesQuota: -1,
-		X402Allowance: -1, RetentionDays: -1, MaxStreams: -1, MCPScope: MCPScopeDedicated,
+		X402Allowance: -1, ExtractionTokensQuota: -1, RetentionDays: -1, MaxStreams: -1, MCPScope: MCPScopeDedicated,
 	},
 }
 
