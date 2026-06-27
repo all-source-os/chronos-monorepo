@@ -244,9 +244,18 @@ func (h *InboxAdminHandler) Messages(c *gin.Context) {
 			limit = n
 		}
 	}
+	// Optionally scope to a single mailbox (grant) within the tenant — Core
+	// filters on payload, and every email.* event carries payload.grant_id.
+	payloadFilter := ""
+	if grantID := c.Query("grant_id"); grantID != "" {
+		if b, err := json.Marshal(map[string]string{"grant_id": grantID}); err == nil {
+			payloadFilter = string(b)
+		}
+	}
 	res, err := h.core.QueryEvents(c.Request.Context(), clients.QueryEventsRequest{
 		EventTypePrefix: "email.", // matches email.received/sent/triaged/… (exact event_type would match nothing)
 		TenantID:        tenantID,
+		PayloadFilter:   payloadFilter,
 		Order:           "desc",
 		Limit:           limit,
 	})
@@ -274,6 +283,7 @@ func (h *InboxAdminHandler) Triage(c *gin.Context) {
 		TenantID  string `json:"tenant_id"`
 		MessageID string `json:"message_id"`
 		ThreadID  string `json:"thread_id"`
+		GrantID   string `json:"grant_id"`
 		Label     string `json:"label"`
 		Reason    string `json:"reason"`
 		By        string `json:"by"`
@@ -291,6 +301,9 @@ func (h *InboxAdminHandler) Triage(c *gin.Context) {
 	payload := map[string]any{"label": req.Label, "by": by(req.By), "triaged_at": time.Now().UTC().Format(time.RFC3339)}
 	if req.ThreadID != "" {
 		payload["thread_id"] = req.ThreadID
+	}
+	if req.GrantID != "" {
+		payload["grant_id"] = req.GrantID // scope this event to the mailbox (stream filter)
 	}
 	if req.Reason != "" {
 		payload["reason"] = req.Reason
@@ -322,6 +335,7 @@ func (h *InboxAdminHandler) Draft(c *gin.Context) {
 	var req struct {
 		TenantID  string                  `json:"tenant_id"`
 		ThreadID  string                  `json:"thread_id"`
+		GrantID   string                  `json:"grant_id"`
 		Body      string                  `json:"body"`
 		Intent    string                  `json:"intent"`
 		InReplyTo string                  `json:"in_reply_to"`
@@ -340,6 +354,9 @@ func (h *InboxAdminHandler) Draft(c *gin.Context) {
 		"intent":     req.Intent,
 		"by":         by(req.By),
 		"drafted_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	if req.GrantID != "" {
+		payload["grant_id"] = req.GrantID // scope this event to the mailbox (stream filter)
 	}
 	if req.InReplyTo != "" {
 		payload["in_reply_to"] = req.InReplyTo
@@ -377,6 +394,7 @@ func (h *InboxAdminHandler) Send(c *gin.Context) {
 	var req struct {
 		TenantID  string                  `json:"tenant_id"`
 		ThreadID  string                  `json:"thread_id"`
+		GrantID   string                  `json:"grant_id"` // which connected mailbox to send from
 		InReplyTo string                  `json:"in_reply_to"`
 		Subject   string                  `json:"subject"`
 		Body      string                  `json:"body"`
@@ -403,7 +421,21 @@ func (h *InboxAdminHandler) Send(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no connected inbox for tenant"})
 		return
 	}
+	// Send from the specified mailbox; fall back to the tenant's only/first one.
 	grantID := conns[0].GrantID
+	if req.GrantID != "" {
+		grantID = ""
+		for _, cn := range conns {
+			if cn.GrantID == req.GrantID {
+				grantID = cn.GrantID
+				break
+			}
+		}
+		if grantID == "" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "that mailbox is not connected for the tenant"})
+			return
+		}
+	}
 
 	result, err := h.sender.Send(c.Request.Context(), grantID, emailprovider.SendRequest{
 		ThreadID:  req.ThreadID,
@@ -431,6 +463,7 @@ func (h *InboxAdminHandler) Send(c *gin.Context) {
 			"to":        req.To,
 			"sent_at":   result.SentAt.UTC().Format(time.RFC3339),
 			"direction": "outbound",
+			"grant_id":  grantID, // scope to the mailbox (stream filter)
 		},
 		Metadata: meta,
 	}); err != nil {

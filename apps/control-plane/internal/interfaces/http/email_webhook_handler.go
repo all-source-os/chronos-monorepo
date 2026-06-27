@@ -126,6 +126,9 @@ func (h *EmailWebhookHandler) Email(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "encode payload failed"})
 		return
 	}
+	// Stamp the mailbox (grant) into the payload so the stream can scope to a
+	// single mailbox within a tenant (Core filters on payload, not metadata).
+	payload["grant_id"] = grantID
 
 	var firstIngest uint64
 	_, err = h.core.IngestEvent(ctx, clients.IngestEventRequest{

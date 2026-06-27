@@ -150,6 +150,10 @@ type QueryEventsRequest struct {
 	Until           string `json:"until,omitempty"`     // RFC3339
 	Limit           int    `json:"limit,omitempty"`
 	Offset          int    `json:"offset,omitempty"`
+	// PayloadFilter is a JSON object string (e.g. {"grant_id":"abc"}); Core
+	// returns only events whose payload contains ALL these key-value pairs. Used
+	// to scope the inbox stream to a single mailbox (grant) within a tenant.
+	PayloadFilter string `json:"payload_filter,omitempty"`
 	// Order controls result ordering by (timestamp, version). Empty / "asc" =
 	// oldest first (Core default); "desc" = newest first. The fleet-health
 	// recency probe uses "desc" with Limit=1 to fetch a tenant's most-recent
@@ -820,6 +824,9 @@ func (c *coreClient) QueryEvents(ctx context.Context, req QueryEventsRequest) (*
 	}
 	if req.EventTypePrefix != "" {
 		r.SetQueryParam("event_type_prefix", req.EventTypePrefix)
+	}
+	if req.PayloadFilter != "" {
+		r.SetQueryParam("payload_filter", req.PayloadFilter)
 	}
 	if req.TenantID != "" {
 		r.SetQueryParam("tenant_id", req.TenantID)
