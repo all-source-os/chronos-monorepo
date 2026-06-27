@@ -90,6 +90,19 @@ pub struct DocSummary {
     /// Sources that couldn't be read (e.g. an image with no `tesseract`, or a
     /// malformed PDF) — skipped, not fatal.
     pub skipped: usize,
+    /// LLM calls made (one per chunk) — the metered unit.
+    pub llm_calls: usize,
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub total_tokens: u64,
+}
+
+/// Token usage reported by an `OpenAI`-compatible response's `usage` block.
+#[derive(Debug, Default, Clone, Copy)]
+struct Usage {
+    prompt: u64,
+    completion: u64,
+    total: u64,
 }
 
 /// Sanitize an LLM-supplied type/relation into a safe lowercase graph token.
@@ -244,8 +257,13 @@ fn ocr_image(path: &Path) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
-/// POST one chunk to the chat endpoint and parse the extraction from its reply.
-async fn call_llm(http: &reqwest::Client, cfg: &LlmConfig, text: &str) -> Result<Extraction> {
+/// POST one chunk to the chat endpoint and parse the extraction from its reply,
+/// returning the extraction plus the call's token usage (for metering/billing).
+async fn call_llm(
+    http: &reqwest::Client,
+    cfg: &LlmConfig,
+    text: &str,
+) -> Result<(Extraction, Usage)> {
     let body = json!({
         "model": cfg.model,
         "temperature": 0,
@@ -266,10 +284,15 @@ async fn call_llm(http: &reqwest::Client, cfg: &LlmConfig, text: &str) -> Result
         anyhow::bail!("LLM endpoint returned HTTP {status}: {detail}");
     }
     let v: serde_json::Value = resp.json().await.context("LLM response was not JSON")?;
+    let usage = Usage {
+        prompt: v["usage"]["prompt_tokens"].as_u64().unwrap_or(0),
+        completion: v["usage"]["completion_tokens"].as_u64().unwrap_or(0),
+        total: v["usage"]["total_tokens"].as_u64().unwrap_or(0),
+    };
     let content = v["choices"][0]["message"]["content"]
         .as_str()
         .context("LLM response had no choices[0].message.content")?;
-    parse_extraction(content)
+    Ok((parse_extraction(content)?, usage))
 }
 
 /// Fold one document's extraction into the graph: a `document` node, an entity
@@ -393,11 +416,46 @@ pub async fn extract_docs_with(
             .replace('\\', "/");
         for piece in chunk(&text) {
             s.chunks += 1;
-            let ex = call_llm(&http, cfg, &piece).await?;
+            let (ex, usage) = call_llm(&http, cfg, &piece).await?;
+            s.llm_calls += 1;
+            s.prompt_tokens += usage.prompt;
+            s.completion_tokens += usage.completion;
+            s.total_tokens += usage.total;
             fold(prime, &rel, &ex, embed, &mut s).await?;
         }
     }
+
+    // Record the metered unit (LLM calls/tokens) as a durable event the
+    // control-plane can bill hosted extraction off. Tenant attribution rides the
+    // sync API key. Best-effort — never fails the extraction.
+    if s.llm_calls > 0 {
+        emit_usage(prime, &cfg.model, &s).await;
+    }
     Ok(s)
+}
+
+/// Emit a `prime.extraction.usage` event for the control-plane's billing.
+async fn emit_usage(prime: &Prime, model: &str, s: &DocSummary) {
+    use allsource_core::embedded::IngestEvent;
+    let entity_id = format!("usage:{}", uuid::Uuid::new_v4());
+    let event = IngestEvent {
+        entity_id: &entity_id,
+        event_type: "prime.extraction.usage",
+        payload: json!({
+            "kind": "doc_extraction",
+            "model": model,
+            "files": s.files,
+            "llm_calls": s.llm_calls,
+            "prompt_tokens": s.prompt_tokens,
+            "completion_tokens": s.completion_tokens,
+            "total_tokens": s.total_tokens,
+        }),
+        metadata: None,
+        tenant_id: None,
+    };
+    if let Err(e) = prime.core().ingest(event).await {
+        tracing::warn!(error = %e, "Hound docs: failed to record extraction usage");
+    }
 }
 
 #[cfg(test)]
@@ -611,5 +669,48 @@ mod tests {
         std::fs::write(&p, bytes).unwrap();
         let text = read_doc_text(&p, None).unwrap();
         assert!(text.contains("AuthService"), "OCR missed marker: {text:?}");
+    }
+
+    #[tokio::test]
+    async fn extraction_meters_tokens_and_emits_a_usage_event() {
+        use allsource_core::embedded::Query;
+
+        let server = MockServer::start().await;
+        let reply = json!({
+            "choices": [{ "message": {
+                "content": "{\"entities\":[{\"name\":\"X\",\"type\":\"concept\"}],\"relationships\":[]}"
+            }}],
+            "usage": { "prompt_tokens": 120, "completion_tokens": 30, "total_tokens": 150 }
+        });
+        Mock::given(method("POST"))
+            .and(mpath("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(reply))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.md"), "some prose to extract").unwrap();
+        let prime = Prime::open_in_memory().await.unwrap();
+        let cfg = LlmConfig {
+            endpoint: format!("{}/v1/chat/completions", server.uri()),
+            api_key: None,
+            model: "meter-model".into(),
+        };
+        let s = extract_docs_with(&prime, dir.path(), false, &cfg, None).await.unwrap();
+
+        // Usage is captured from the response's `usage` block.
+        assert_eq!(s.llm_calls, 1);
+        assert_eq!(s.prompt_tokens, 120);
+        assert_eq!(s.total_tokens, 150);
+
+        // And recorded as a durable, billable event.
+        let events = prime
+            .core()
+            .query(Query::new().event_type_prefix("prime.extraction"))
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].payload["total_tokens"], 150);
+        assert_eq!(events[0].payload["model"], "meter-model");
     }
 }

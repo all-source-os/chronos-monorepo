@@ -437,8 +437,15 @@ async fn main() -> Result<()> {
             );
             println!(
                 "hound docs: {} files, {} chunks → {} entities, {} relationships, \
-                 {} embedded, {} skipped",
-                d.files, d.chunks, d.entities, d.relationships, d.embedded, d.skipped
+                 {} embedded, {} skipped; {} LLM calls, {} tokens",
+                d.files,
+                d.chunks,
+                d.entities,
+                d.relationships,
+                d.embedded,
+                d.skipped,
+                d.llm_calls,
+                d.total_tokens
             );
         }
 

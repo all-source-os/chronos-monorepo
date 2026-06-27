@@ -986,6 +986,12 @@ async fn call_hound_ingest_docs(prime: &Prime, args: &Value) -> Value {
             "relationships": s.relationships,
             "embedded": s.embedded,
             "skipped": s.skipped,
+            "usage": {
+                "llm_calls": s.llm_calls,
+                "prompt_tokens": s.prompt_tokens,
+                "completion_tokens": s.completion_tokens,
+                "total_tokens": s.total_tokens,
+            },
             "sync": sync_status_json(),
         })),
         Err(e) => tool_error(&e.to_string()),
