@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Inbox, Plus, Trash2 } from "lucide-react";
+import { Inbox, Mailbox, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { DisconnectDialog } from "@/components/inbox/disconnect-dialog";
 import type { InboxConnection } from "@/lib/inbox-api";
@@ -42,6 +42,8 @@ interface ConnectionsTableProps {
   selectedGrantId?: string;
   onSelect: (conn: InboxConnection) => void;
   onConnect: () => void;
+  /** Open the "add hosted mailbox" (adopt existing grant) dialog. */
+  onAddHosted: () => void;
   /** Disconnect a grant; resolves once removed (the page does the optimistic remove + toast). */
   onDisconnect: (conn: InboxConnection) => Promise<void>;
 }
@@ -52,6 +54,7 @@ export function ConnectionsTable({
   selectedGrantId,
   onSelect,
   onConnect,
+  onAddHosted,
   onDisconnect,
 }: ConnectionsTableProps) {
   const [pendingDisconnect, setPendingDisconnect] = useState<InboxConnection | null>(null);
@@ -68,10 +71,16 @@ export function ConnectionsTable({
             Mailboxes connected via hosted OAuth. Select one to view its email stream.
           </CardDescription>
         </div>
-        <Button onClick={onConnect} data-testid="inbox-connect-btn">
-          <Plus className="mr-1.5 h-4 w-4" />
-          Connect mailbox
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="outline" onClick={onAddHosted} data-testid="inbox-add-hosted-btn">
+            <Mailbox className="mr-1.5 h-4 w-4" />
+            Add hosted mailbox
+          </Button>
+          <Button onClick={onConnect} data-testid="inbox-connect-btn">
+            <Plus className="mr-1.5 h-4 w-4" />
+            Connect mailbox
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (

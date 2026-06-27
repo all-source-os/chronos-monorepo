@@ -206,6 +206,46 @@ export async function disconnect(grantId: string): Promise<void> {
   }
 }
 
+// ── Adopt a hosted/existing provider grant (no OAuth login) ────────────
+
+/** A provider mailbox (Nylas grant) available to adopt. */
+export interface AvailableGrant {
+  grant_id: string;
+  email: string;
+  provider: string;
+  /** Already mapped to a tenant (has a Core config record). */
+  registered: boolean;
+}
+
+/** List the provider's grants (hosted + connected), with a registered flag. */
+export async function availableGrants(): Promise<AvailableGrant[]> {
+  const url = `${getApiUrl()}/api/v1/admin/inbox/available-grants`;
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) {
+    throw new ApiError(await readError(res), res.status);
+  }
+  return asList<AvailableGrant>((await res.json()) ?? {}, "grants");
+}
+
+/** Register an existing grant to a tenant (seals + writes the Core config). */
+export async function adoptGrant(params: {
+  tenant_id: string;
+  grant_id?: string;
+  email?: string;
+}): Promise<{ status: string; grant_id: string; email: string; tenant_id: string }> {
+  const url = `${getApiUrl()}/api/v1/admin/inbox/connections`;
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    throw new ApiError(await readError(res), res.status);
+  }
+  return res.json();
+}
+
 // ── Messages ──────────────────────────────────────────────────────────
 
 export async function fetchMessages(params: {
